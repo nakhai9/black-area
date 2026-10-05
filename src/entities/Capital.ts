@@ -1,0 +1,28 @@
+import { FOOTPRINT_LARGE } from '../constants';
+import type { FactionConfig, WorldPoint } from '../types';
+import { Building } from './Building';
+
+/**
+ * A faction's capital landmark (Washington, Moscow, Beijing, Brussels). Acts
+ * as the player's HQ: provides base power and is the primary objective to defend.
+ */
+export class Capital extends Building {
+  readonly city: string;
+  readonly description: string;
+
+  constructor(faction: FactionConfig, owner: number, center: WorldPoint) {
+    super(owner, faction.id, center, {
+      type: 'capital',
+      name: faction.capital.name,
+      footprint: FOOTPRINT_LARGE,
+      maxHp: faction.capital.maxHp,
+      powerOutput: faction.capital.powerOutput,
+      powerDrain: 0,
+      incomePerSecond: 0,
+      garrison: { capacity: 1, accepts: 'president' },
+      spriteKey: `capital:${faction.id}`,
+    });
+    this.city = faction.capital.city;
+    this.description = faction.capital.description;
+  }
+}

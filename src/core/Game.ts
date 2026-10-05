@@ -1,0 +1,1278 @@
+import {
+  CAMERA_EDGE_SCROLL,
+  CAMERA_PAN_SPEED,
+  CAPITAL_LOCATIONS,
+  CHHG_LOCATION,
+  HALF_TH,
+  HALF_TW,
+  PARADE_COLUMNS,
+  PARADE_GAP,
+  PARADE_SPACING,
+  UNIT_SPACING,
+  ENGINEER_REPAIR_HP_PER_SECOND,
+  CELL_SIZE,
+  CURRENCY,
+  EARTH_TEXTURE_URL,
+  FACTION_ORDER,
+  FOCUS_ZOOM,
+  GRID_HEIGHT,
+  GRID_WIDTH,
+  MAP_SEED,
+  FOOTPRINT_SMALL,
+  NEUTRAL_OWNER,
+  OIL_DERRICK_COUNT,
+  REGULARS_PER_SPECIAL,
+  STARTING_CREDITS,
+  WORLD_BANK_LOCATION,
+  WORLD_HEIGHT,
+  WORLD_WIDTH,
+  ZOOM_STEP,
+} from '../constants';
+import { Building } from '../entities/Building';
+import { PLACEMENT_MARGIN } from '../map/TileMap';
+import { Capital } from '../entities/Capital';
+import { Chhg } from '../entities/Chhg';
+import { EntityManager } from '../entities/EntityManager';
+import { SoundSystem } from '../audio/SoundSystem';
+import type { Entity } from '../entities/Entity';
+import { Infantry } from '../entities/Infantry';
+import { Unit } from '../entities/Unit';
+import { Vehicle } from '../entities/Vehicle';
+import { OilDerrick } from '../entities/OilDerrick';
+import { WorldBank } from '../entities/WorldBank';
+import { FACTIONS } from '../factions';
+import { computeBiomes } from '../map/Biomes';
+import { type EarthData, loadEarthData } from '../map/EarthData';
+import { geoToWorld } from '../map/Geo';
+import { TerrainRenderer } from '../map/TerrainRenderer';
+import { Pathfinder } from '../map/Pathfinder';
+import { TileMap } from '../map/TileMap';
+import { computeSafety, findOilRow } from '../map/OilSite';
+import { TERRITORIES } from '../map/Territories';
+import { buildWorld } from '../map/WorldGenerator';
+import { TreeLayer } from '../map/Trees';
+import { soldierPortrait } from '../render/InfantryArt';
+import { vehiclePortrait } from '../render/VehicleArt';
+import { SpriteCache } from '../render/SpriteCache';
+import { BUILDING_ART } from '../render/sprites';
+import { AircraftSystem, type AirfieldGeometry } from '../systems/AircraftSystem';
+import { AISystem } from '../systems/AISystem';
+import { CombatSystem, isHostile } from '../systems/CombatSystem';
+import { BUILD_OPTIONS, type BuildOption, ConstructionSystem, type QueueState } from '../systems/ConstructionSystem';
+import { EconomySystem } from '../systems/EconomySystem';
+import type { GameSystem } from '../systems/GameSystem';
+import { BUILD_RADIUS, type PlacementRequest, type PlacementResult, PlacementSystem } from '../systems/PlacementSystem';
+import { PowerSystem } from '../systems/PowerSystem';
+import { SelectionSystem } from '../systems/SelectionSystem';
+import { TrainingSystem } from '../systems/TrainingSystem';
+import { VehicleSystem } from '../systems/VehicleSystem';
+import type { BuildingType, FactionId, GameEvents, PlayerState, UnitTier, VehicleKind, WeaponSpec, WorldPoint } from '../types';
+import { Minimap } from '../ui/Minimap';
+import { Sidebar } from '../ui/Sidebar';
+import { StatusBar } from '../ui/StatusBar';
+import { Camera } from './Camera';
+import { EffectsLayer } from './Effects';
+import { EventBus } from './EventBus';
+import { GameLoop } from './GameLoop';
+import { InputHandler } from './InputHandler';
+import { clamp } from './MathUtils';
+import { type PlacementGhost, Renderer } from './Renderer';
+
+export interface GameDom {
+  canvas: HTMLCanvasElement;
+  sidebar: HTMLElement;
+  status: HTMLElement;
+}
+
+const SIDEBAR_REFRESH = 0.2;
+
+/** Player-facing explanation of why a footprint cannot be placed. */
+const BLOCK_REASONS: Readonly<Record<string, string>> = {
+  outOfBounds: 'Outside the map',
+  occupied: 'A building is already there',
+  water: 'Cannot build on water',
+  ice: 'Cannot build on ice',
+  trees: 'Trees in the way',
+  needsWater: 'Must be built on water',
+  tooFar: `Too far from your base (max ${BUILD_RADIUS} cells)`,
+};
+/** Map-authored buildings may shift this many cells to find tree-free ground… */
+const PRESET_SNAP_RADIUS = 2;
+/** …otherwise the nearest dry spot within this radius is used and cleared of trees. */
+const PRESET_SEARCH_RADIUS = 8;
+/** Landmark labels sit a bit above the footprint centre when focusing. */
+const FOCUS_OFFSET_Y = 6;
+
+/**
+ * Composition root: loads the Earth, builds the world, wires systems/UI
+ * through the event bus and drives everything from the game loop.
+ */
+export class Game {
+  readonly bus = new EventBus<GameEvents>();
+  readonly map = new TileMap(GRID_WIDTH, GRID_HEIGHT);
+  readonly entities = new EntityManager();
+  readonly players: PlayerState[];
+  readonly camera = new Camera(WORLD_WIDTH, WORLD_HEIGHT);
+  /** Capitals in FACTION_ORDER, then other landmarks (hotkeys 1..n). */
+  readonly landmarks: Building[] = [];
+  readonly derricks: OilDerrick[] = [];
+
+  private readonly terrain: TerrainRenderer;
+  private readonly sprites = new SpriteCache(BUILDING_ART);
+  private readonly input: InputHandler;
+  private readonly renderer: Renderer;
+  private readonly selection: SelectionSystem;
+  private readonly systems: GameSystem[];
+  private readonly economy: EconomySystem;
+  /** Construction rules (terrain, overlap, build radius) for new buildings. */
+  readonly placement: PlacementSystem;
+  /** Sidebar production queue (one structure at a time per nation). */
+  readonly construction: ConstructionSystem;
+  /** Finished structure the player is currently positioning, if any. */
+  private placing: BuildOption | null = null;
+  /** Infantry production (separate queue from structures). */
+  readonly training: TrainingSystem;
+  /** Vehicle and aircraft production (War Factory / Airfield). */
+  readonly production: VehicleSystem;
+  /** Shooting, damage and kills. */
+  readonly combat: CombatSystem;
+  /** Take-off, flight home, landing and parking of fighters. */
+  readonly aircraft: AircraftSystem;
+  private repathTimer = 0;
+  /** Computer-controlled nations. */
+  readonly ai: AISystem;
+  readonly effects = new EffectsLayer();
+  readonly sound: SoundSystem;
+  private readonly lastShot = new Map<number, number>();
+  private smokeTimer = 0;
+  /** Types of the human player's buildings, refreshed with the sidebar. */
+  private ownedCache: Set<BuildingType> = new Set();
+  readonly pathfinder: Pathfinder;
+  private moveMarker: { x: number; y: number; at: number } | null = null;
+  private lastBuildingClick: { id: number; at: number } | null = null;
+  private ghost: PlacementGhost | null = null;
+  private lastQueueState: QueueState = 'idle';
+  private readonly sidebar: Sidebar;
+  private readonly minimap: Minimap;
+  private readonly status: StatusBar;
+  private readonly loop: GameLoop;
+
+  private mouseWorld: WorldPoint | null = null;
+  private time = 0;
+  private sidebarTimer = SIDEBAR_REFRESH; // refresh on the first frame
+
+  /**
+   * Builds the game for the chosen faction. Pass an already-started Earth
+   * load to overlap the download with the faction-selection screen.
+   */
+  static async create(
+    dom: GameDom,
+    playerFaction: FactionId,
+    earth: Promise<EarthData> = loadEarthData(EARTH_TEXTURE_URL),
+  ): Promise<Game> {
+    return new Game(dom, playerFaction, await earth);
+  }
+
+  private constructor(
+    private readonly dom: GameDom,
+    playerFaction: FactionId,
+    earth: EarthData,
+  ) {
+    this.players = FACTION_ORDER.map((faction, i) => ({
+      id: i + 1,
+      name: faction === playerFaction ? 'Commander' : `${FACTIONS[faction].shortName} AI`,
+      faction,
+      isHuman: faction === playerFaction,
+      credits: STARTING_CREDITS,
+      powerProduced: 0,
+      powerConsumed: 0,
+    }));
+
+    // Landmarks and oil derricks at real-world locations.
+    for (const player of this.players) {
+      const f = player.faction;
+      this.landmarks.push(this.entities.add(new Capital(FACTIONS[f], player.id, geoToWorld(CAPITAL_LOCATIONS[f]))));
+    }
+    // The World Bank is neutral: shared by every nation, never destroyed or occupied.
+    this.landmarks.push(this.entities.add(new WorldBank(geoToWorld(WORLD_BANK_LOCATION))));
+    // CHHG at the South Pole: neutral, indestructible, uncapturable.
+    this.landmarks.push(this.entities.add(new Chhg(geoToWorld(CHHG_LOCATION))));
+
+    // World grid + terrain art from Earth data.
+    const biomes = computeBiomes(GRID_WIDTH, GRID_HEIGHT, MAP_SEED);
+    buildWorld(earth, biomes, this.map);
+    const trees = new TreeLayer(this.map, biomes, MAP_SEED);
+    this.placeOnGrid(this.entities.buildings(), trees);
+    this.placeOilRows(trees);
+    this.terrain = new TerrainRenderer(earth, this.map, biomes, trees, MAP_SEED);
+
+    // Rendering, systems & input.
+    this.renderer = new Renderer(dom.canvas, this.camera, this.terrain, this.sprites);
+    this.input = new InputHandler(dom.canvas);
+    this.selection = new SelectionSystem(this.entities, this.sprites, this.bus);
+    this.economy = new EconomySystem(this.players, this.entities);
+    this.placement = new PlacementSystem(this.map, this.entities);
+    this.construction = new ConstructionSystem(this.players);
+    this.pathfinder = new Pathfinder(this.map);
+    this.training = new TrainingSystem(this.players, this.entities, (player, tier, barracks) =>
+      this.spawnSoldier(player, tier, barracks),
+    );
+    // Income is credited before construction spends it within the same tick.
+    this.production = new VehicleSystem(this.players, this.entities, (player, kind, producer) =>
+      this.spawnVehicle(player, kind, producer),
+    );
+    this.sound = new SoundSystem(() => {
+      const v = this.camera.viewRect();
+      return { centre: { x: v.x + v.w / 2, y: v.y + v.h / 2 }, range: Math.hypot(v.w, v.h) / 2 };
+    });
+    this.aircraft = new AircraftSystem(this.entities, (b) => this.airfieldGeometry(b));
+    this.combat = new CombatSystem(this.entities, this.pathfinder, {
+      onFire: (s, t, w, impact) => this.onFire(s, t, w, impact),
+      onDeath: (e) => this.onDeath(e),
+    });
+    this.ai = new AISystem(
+      this.players.filter((p) => !p.isHuman),
+      this,
+    );
+    this.systems = [
+      new PowerSystem(this.players, this.entities),
+      this.economy,
+      this.construction,
+      this.training,
+      this.production,
+      this.aircraft,
+      this.combat,
+      this.ai,
+    ];
+
+    // UI.
+    const human = this.humanPlayer;
+    this.sidebar = new Sidebar(dom.sidebar, human, BUILD_OPTIONS, this.training.optionsFor(human), this.production.optionsFor(human), {
+      onBuild: (option) => this.onBuildClick(option),
+      onCancel: () => this.onBuildCancel(),
+      preview: (option) => this.sprites.get(option.spriteKey(human.faction)).canvas,
+      onAutoDefense: (on) => this.ai.setAssist(human, on),
+      onTrain: (option) => this.onTrainClick(option.tier),
+      onTrainCancel: (option) => this.onTrainCancel(option.tier),
+      trainPreview: (option) => soldierPortrait(human.faction, option.tier),
+      onVehicle: (option) => this.onVehicleClick(option.kind),
+      onVehicleCancel: (option) => this.onVehicleCancel(option.kind),
+      vehiclePreview: (option) => vehiclePortrait(human.faction, option.kind),
+    });
+    this.minimap = new Minimap(this.sidebar.minimapCanvas, this.terrain, this.camera, (p) =>
+      this.bus.emit('camera:focus', p),
+    );
+    this.status = new StatusBar(dom.status, this.map);
+
+    this.bus.on('camera:focus', (p) => this.camera.centerOn(p.x, p.y));
+    this.bus.on('selection:changed', () => (this.sidebarTimer = SIDEBAR_REFRESH));
+    new ResizeObserver(() => this.renderer.resize()).observe(dom.canvas);
+
+    this.systems.forEach((s) => s.update(0));
+    this.camera.setZoom(FOCUS_ZOOM);
+    this.focusOwnCapital();
+
+    this.loop = new GameLoop(
+      (dt) => this.tick(dt),
+      (dt) => this.frame(dt),
+    );
+  }
+
+  get humanPlayer(): PlayerState {
+    const p = this.players.find((pl) => pl.isHuman);
+    if (!p) throw new Error('No human player configured');
+    return p;
+  }
+
+  start(): void {
+    this.loop.start();
+  }
+
+  stop(): void {
+    this.loop.stop();
+    this.input.dispose();
+  }
+
+  // ------------------------------------------------------------------ API used by the AI (see AIHost)
+
+  /** Puts the finished structure of `player`'s queue down at (x, y); false if the spot is illegal. */
+  placeReady(player: PlayerState, x: number, y: number): boolean {
+    const slot = this.construction.slot(player);
+    const option = slot.option;
+    if (!option || slot.state !== 'ready') return false;
+    const { w, d } = option.footprint;
+    if (!this.placement.check({ owner: player.id, x, y, w, d }).ok) return false;
+    if (!this.construction.takeReady(player)) return false;
+    const b = this.entities.add(option.create(player.id, player.faction, x, y));
+    b.placedAt = this.time;
+    this.map.occupy(b.x, b.y, b.w, b.d, b.id);
+    return true;
+  }
+
+  ownedTypesOf(player: PlayerState): Set<BuildingType> {
+    const set = new Set<BuildingType>();
+    for (const b of this.entities.buildings()) if (b.owner === player.id && b.alive) set.add(b.spec.type);
+    return set;
+  }
+
+  orderEnter(u: Infantry, b: Building): void {
+    if (this.walkToDoor(u, b)) u.task = { type: 'enter', buildingId: b.id };
+  }
+
+  /** Units walk to `target` and fight whatever they meet on the way. */
+  orderAttackMove(units: readonly Unit[], target: WorldPoint): void {
+    const cell = this.map.cellAt(target.x, target.y);
+    units.forEach((u, k) => {
+      u.parade = null;
+      u.task = null;
+      u.attackTarget = null;
+      u.attackMove = target;
+      if (u.aircraft) {
+        const off = spiralOffset(k, 10);
+        u.follow([{ x: target.x + off.x, y: target.y + off.y }]);
+        return;
+      }
+      if (!cell) return;
+      const goal = this.pathfinder.nearestPassable(cell.x, cell.y, 14, undefined, u.swims);
+      if (goal) u.follow(this.pathfinder.find({ x: u.px, y: u.py }, goal, u.swims));
+    });
+  }
+
+  /** Whether a new building may be placed (used by the Phase 2 build menu and AI). */
+  canPlace(req: PlacementRequest): PlacementResult {
+    return this.placement.check(req);
+  }
+
+  /** Centres the camera on landmark #index (0-based) and selects it. */
+  focusLandmark(index: number): void {
+    const b = this.landmarks[index];
+    if (b) this.focusBuilding(b.id, true);
+  }
+
+  /** Fixed-rate simulation step. */
+  private tick(dt: number): void {
+    for (const u of this.entities.fieldMovers()) {
+      const cx = Math.floor(u.px / CELL_SIZE);
+      const cy = Math.floor(u.py / CELL_SIZE);
+      u.inWater = !u.flies && this.map.isWater(cx, cy);
+      u.terrainFactor = u.flies ? 1 : this.map.hasTrees(cx, cy) ? 0.78 : 1; // woods slow everybody down
+    }
+    this.entities.update(dt);
+    this.separateUnits();
+    this.repathStuckUnits(dt);
+    this.processTasks(dt);
+    this.healGarrisons(dt);
+    for (const s of this.systems) s.update(dt);
+  }
+
+  /** Pushes overlapping soldiers apart (never into water, unless they swim, or buildings). */
+  private separateUnits(): void {
+    const units = this.entities.fieldMovers();
+    if (units.length < 2) return;
+    const bucket = 8;
+    const grid = new Map<number, Unit[]>();
+    const key = (cx: number, cy: number): number => cx * 100003 + cy;
+    for (const u of units) {
+      const k = key(Math.floor(u.px / bucket), Math.floor(u.py / bucket));
+      const list = grid.get(k);
+      if (list) list.push(u);
+      else grid.set(k, [u]);
+    }
+    for (const a of units) {
+      const bx = Math.floor(a.px / bucket);
+      const by = Math.floor(a.py / bucket);
+      for (let dx = -1; dx <= 1; dx++) {
+        for (let dy = -1; dy <= 1; dy++) {
+          for (const b of grid.get(key(bx + dx, by + dy)) ?? []) {
+            if (b.id <= a.id || a.flies !== b.flies) continue;
+            const gap = a.radius + b.radius;
+            let vx = b.px - a.px;
+            let vy = b.py - a.py;
+            let d = Math.hypot(vx, vy);
+            if (d >= gap) continue;
+            if (d < 0.01) {
+              vx = (a.id % 7) - 3 || 1;
+              vy = (b.id % 5) - 2;
+              d = Math.hypot(vx, vy);
+            }
+            // Parked / rolling aircraft never move; a unit standing still is pushed less than one walking into it.
+            const wa = a.fixed ? 0 : b.fixed ? 1 : a.moving ? 0.7 : 0.3;
+            const push = (gap - d) / d;
+            this.nudge(a, -vx * push * wa, -vy * push * wa);
+            this.nudge(b, vx * push * (1 - wa), vy * push * (1 - wa));
+          }
+        }
+      }
+    }
+  }
+
+  private nudge(u: Unit, dx: number, dy: number): void {
+    if (u.fixed) return;
+    const nx = u.px + dx;
+    const ny = u.py + dy;
+    const cx = Math.floor(nx / CELL_SIZE);
+    const cy = Math.floor(ny / CELL_SIZE);
+    if (u.flies || this.pathfinder.passable(cx, cy, u.swims)) {
+      u.px = nx;
+      u.py = ny;
+    }
+  }
+
+  /** Per-frame: input, camera, rendering, UI. */
+  private frame(dt: number): void {
+    this.time += dt;
+    this.handleInput(dt);
+
+    const { mouse } = this.input;
+    this.mouseWorld = mouse.inside ? this.camera.screenToWorld(mouse.x, mouse.y) : null;
+    this.updateGhost();
+    this.selection.updateHover(this.placing ? null : this.mouseWorld);
+    const hovering = this.selection.hoveredId !== null || this.selection.hoveredUnitId !== null;
+    this.dom.canvas.style.cursor = this.placing ? 'crosshair' : hovering ? 'pointer' : 'default';
+
+    this.effects.update(dt);
+    this.smokeFromDamagedBuildings(dt);
+    const buildings = this.entities.buildings();
+    const units = this.entities.fieldMovers();
+    this.renderer.render({
+      buildings,
+      selectedId: this.selection.selectedId,
+      hoveredId: this.selection.hoveredId,
+      selectionRect: this.placing ? null : this.input.selectionRect,
+      time: this.time,
+      ghost: this.ghost,
+      buildZones: this.placing ? this.buildZones() : [],
+      units,
+      selectedUnits: this.selection.selectedUnits,
+      hoveredUnitId: this.placing ? null : this.selection.hoveredUnitId,
+      moveMarker: this.moveMarker,
+      effects: this.effects.list,
+    });
+    this.minimap.render(buildings, units, this.humanPlayer.id, this.ownedCache.has('radar'));
+    this.status.update(dt, this.mouseWorld, this.camera.zoom);
+
+    const queue = this.construction.slot(this.humanPlayer);
+    if (queue.state !== this.lastQueueState) {
+      if (queue.state === 'ready') this.sidebar.notify('Construction complete — click the cameo, then place it.');
+      if (queue.state === 'onHold') this.sidebar.notify(`Not enough ${CURRENCY} — construction on hold.`);
+      this.lastQueueState = queue.state;
+      this.sidebarTimer = SIDEBAR_REFRESH;
+    }
+
+    this.sidebarTimer += dt;
+    if (this.sidebarTimer >= SIDEBAR_REFRESH) {
+      const elapsed = this.sidebarTimer;
+      this.sidebarTimer = 0;
+      const own = this.derricks.filter((d) => d.owner === this.humanPlayer.id && d.alive);
+      const pumping = own.filter((d) => d.pumping).length;
+      this.sidebar.update(
+        {
+          player: this.humanPlayer,
+          income: this.economy.incomeRate(this.humanPlayer),
+          derricks: own.length,
+          pumping,
+          queue,
+          placing: this.placing !== null,
+          training: this.training.queue(this.humanPlayer),
+          vehicleQueue: this.production.queue(this.humanPlayer),
+          owned: (this.ownedCache = this.ownedTypes()),
+          hasWarFactory: this.production.producerOf(this.humanPlayer, 'warFactory') !== null,
+          hasAirfield: this.production.producerOf(this.humanPlayer, 'airfield') !== null,
+          hasBarracks: this.training.barracksOf(this.humanPlayer) !== null,
+          ratio: this.training.ratio(this.humanPlayer),
+        },
+        elapsed,
+      );
+    }
+  }
+
+  private selectedBuilding(): Building | null {
+    const e = this.entities.get(this.selection.selectedId);
+    return e instanceof Building ? e : null;
+  }
+
+  private handleInput(dt: number): void {
+    const { input, camera } = this;
+
+    for (const ev of input.drain()) {
+      if (ev.type === 'click' || ev.type === 'keyDown') this.sound.unlock(); // browsers need a user gesture
+      switch (ev.type) {
+        case 'click': {
+          if (this.placing) {
+            if (ev.button === 'right') this.stopPlacing();
+            else this.tryPlace();
+            break;
+          }
+          const world = camera.screenToWorld(ev.x, ev.y);
+          // Right-click deselects everything.
+          if (ev.button === 'right') {
+            this.selection.clearAll();
+            break;
+          }
+          const unit = this.selection.pickUnit(world);
+          if (unit && unit.owner === this.humanPlayer.id) {
+            this.selection.selectUnits([unit.id], ev.shift);
+            break;
+          }
+          // Armed units selected + click on an enemy soldier/vehicle: attack it.
+          if (unit && unit.owner !== this.humanPlayer.id && this.orderAttack(unit)) break;
+          const hit = this.selection.pick(world);
+          if (hit) {
+            // Double-click one of your own buildings: everyone stationed inside comes out.
+            const now = performance.now();
+            const dbl = this.lastBuildingClick?.id === hit.id && now - this.lastBuildingClick.at < 400;
+            this.lastBuildingClick = { id: hit.id, at: now };
+            if (dbl && hit.owner === this.humanPlayer.id && hit.garrison.length > 0) {
+              this.ejectGarrison(hit);
+              break;
+            }
+            // Soldiers selected: enter / repair / capture orders take priority over selecting it.
+            if (this.selection.selectedUnits.size > 0 && this.orderOnBuilding(hit)) break;
+            this.selection.selectedUnits.clear();
+            this.selection.select(hit.id);
+            break;
+          }
+          // Left-click on open ground with soldiers selected = move them there.
+          if (this.selection.selectedUnits.size > 0) this.orderMove(world);
+          else this.selection.select(null);
+          break;
+        }
+        case 'wheel':
+          camera.zoomAt(ev.deltaY < 0 ? ZOOM_STEP : 1 / ZOOM_STEP, ev.x, ev.y);
+          break;
+        case 'keyDown':
+          this.handleKey(ev.code);
+          break;
+        case 'boxSelect': {
+          // Drag-select own soldiers (buildings are not box-selectable — RA2 rule).
+          if (this.placing) break;
+          const a = camera.screenToWorld(ev.rect.x, ev.rect.y);
+          const b = camera.screenToWorld(ev.rect.x + ev.rect.w, ev.rect.y + ev.rect.h);
+          const picked = this.selection.unitsInRect({ x: a.x, y: a.y, w: b.x - a.x, h: b.y - a.y }, this.humanPlayer.id);
+          this.selection.selectUnits(
+            picked.map((u) => u.id),
+            ev.shift,
+          );
+          break;
+        }
+      }
+    }
+
+    // Keyboard + edge scrolling (edge keeps scrolling after the cursor leaves the window).
+    let dx = 0;
+    let dy = 0;
+    if (input.isKeyDown('ArrowLeft') || input.isKeyDown('KeyA')) dx -= 1;
+    if (input.isKeyDown('ArrowRight') || input.isKeyDown('KeyD')) dx += 1;
+    if (input.isKeyDown('ArrowUp') || input.isKeyDown('KeyW')) dy -= 1;
+    if (input.isKeyDown('ArrowDown') || input.isKeyDown('KeyS')) dy += 1;
+    if (CAMERA_EDGE_SCROLL && document.hasFocus() && !input.selectionRect) {
+      dx += input.edge.x;
+      dy += input.edge.y;
+    }
+    dx = clamp(dx, -1, 1);
+    dy = clamp(dy, -1, 1);
+    if (dx !== 0 || dy !== 0) {
+      const step = (CAMERA_PAN_SPEED * dt) / camera.zoom / Math.hypot(dx, dy);
+      camera.panBy(dx * step, dy * step);
+    }
+
+    const drag = input.consumePan();
+    if (drag.x !== 0 || drag.y !== 0) camera.panBy(-drag.x / camera.zoom, -drag.y / camera.zoom);
+  }
+
+  private handleKey(code: string): void {
+    const cam = this.camera;
+    const digit = /^Digit([1-9])$/.exec(code);
+    if (digit) {
+      this.focusLandmark(Number(digit[1]) - 1);
+      return;
+    }
+    switch (code) {
+      case 'KeyH':
+        this.focusOwnCapital();
+        break;
+      case 'KeyF':
+        this.sidebar.toggleAutoDefense();
+        break;
+      case 'KeyM':
+        this.sidebar.notify(this.sound.toggleMute() ? 'Sound off.' : 'Sound on.');
+        break;
+      case 'KeyO':
+        this.cycleOwnDerrick();
+        break;
+      case 'Escape':
+        if (this.placing) this.stopPlacing();
+        else this.selection.clearAll();
+        break;
+      case 'Tab':
+        this.sidebar.toggle();
+        break;
+      case 'KeyR':
+        this.selectedBuilding()?.rotate();
+        this.sidebarTimer = SIDEBAR_REFRESH;
+        break;
+      case 'Equal':
+      case 'NumpadAdd':
+        cam.zoomAt(ZOOM_STEP, cam.viewWidth / 2, cam.viewHeight / 2);
+        break;
+      case 'Minus':
+      case 'NumpadSubtract':
+        cam.zoomAt(1 / ZOOM_STEP, cam.viewWidth / 2, cam.viewHeight / 2);
+        break;
+    }
+  }
+
+  /**
+   * Snaps map-authored buildings onto the grid at (or very near) their real
+   * location: first a fully legal spot within PRESET_SNAP_RADIUS cells; if the
+   * area is wooded, the nearest dry spot and its trees are cleared (like an RA2
+   * map editor). Water and overlaps are never allowed. Player construction
+   * uses the strict rule (TileMap.placementBlocker) with no tree clearing.
+   */
+  private placeOnGrid(buildings: readonly Building[], trees: TreeLayer): void {
+    for (const b of buildings) {
+      const opts = { naval: b.naval };
+      const site =
+        this.map.findBuildableSite(b.x, b.y, b.w, b.d, { ...opts, maxRadius: PRESET_SNAP_RADIUS }) ??
+        this.map.findBuildableSite(b.x, b.y, b.w, b.d, { ...opts, ignoreTrees: true, maxRadius: PRESET_SEARCH_RADIUS });
+      if (site) b.moveTo(site.x, site.y);
+      else if (!b.indestructible) console.warn(`No legal site near ${b.spec.name} (${b.x},${b.y}); kept as is.`);
+      trees.clearArea(b.x, b.y, b.w, b.d);
+      this.map.occupy(b.x, b.y, b.w, b.d, b.id);
+    }
+  }
+
+  // ------------------------------------------------------------------ construction
+
+  /** Cameo left-click: start building, or pick up a finished structure to place it. */
+  private onBuildClick(option: BuildOption): void {
+    const player = this.humanPlayer;
+    const slot = this.construction.slot(player);
+    if (slot.state === 'idle') {
+      const need = option.requires;
+      if (need && !this.ownedTypes().has(need)) {
+        this.sidebar.notify(`${option.name} requires a ${BUILD_OPTIONS.find((o) => o.id === need)?.name ?? need} first.`);
+        return;
+      }
+      this.construction.start(player, option);
+      this.sidebar.notify(`Building ${option.name} — ${option.cost} ${CURRENCY}`);
+    } else if (slot.state === 'ready' && slot.option?.id === option.id) {
+      this.placing = option;
+      this.selection.select(null);
+      this.sidebar.notify('Click a free spot near your base to place it.');
+    } else if (slot.option?.id !== option.id) {
+      this.sidebar.notify('Already building another structure.');
+    }
+    this.sidebarTimer = SIDEBAR_REFRESH;
+  }
+
+  /** Cameo right-click: cancel production and refund what was paid. */
+  private onBuildCancel(): void {
+    const slot = this.construction.slot(this.humanPlayer);
+    if (slot.state === 'idle') return;
+    const refund = Math.floor(slot.paid);
+    this.stopPlacing();
+    this.construction.cancel(this.humanPlayer);
+    this.sidebar.notify(`Construction cancelled — ${refund} ${CURRENCY} refunded.`);
+    this.sidebarTimer = SIDEBAR_REFRESH;
+  }
+
+  private stopPlacing(): void {
+    this.placing = null;
+    this.ghost = null;
+  }
+
+  /** Footprint under the cursor (centred on it) + legality for the preview. */
+  private updateGhost(): void {
+    if (!this.placing || !this.mouseWorld) {
+      this.ghost = null;
+      return;
+    }
+    const { w, d } = this.placing.footprint;
+    const x = Math.floor(this.mouseWorld.x / CELL_SIZE - w / 2 + 0.5);
+    const y = Math.floor(this.mouseWorld.y / CELL_SIZE - d / 2 + 0.5);
+    const result = this.placement.check({ owner: this.humanPlayer.id, x, y, w, d });
+    this.ghost = {
+      spriteKey: this.placing.spriteKey(this.humanPlayer.faction),
+      faction: this.humanPlayer.faction,
+      x,
+      y,
+      w,
+      d,
+      ok: result.ok,
+      reason: result.ok ? null : (BLOCK_REASONS[result.reason] ?? result.reason),
+    };
+  }
+
+  /** Left click while placing: put the structure down if the spot is legal. */
+  private tryPlace(): void {
+    const g = this.ghost;
+    const option = this.placing;
+    if (!g || !option) return;
+    if (!g.ok) {
+      this.sidebar.notify(g.reason ?? 'Cannot place here.');
+      return;
+    }
+    const player = this.humanPlayer;
+    if (!this.construction.takeReady(player)) return;
+    const b = this.entities.add(option.create(player.id, player.faction, g.x, g.y));
+    b.placedAt = this.time;
+    this.map.occupy(b.x, b.y, b.w, b.d, b.id);
+    this.stopPlacing();
+    this.sidebar.notify(`${option.name} placed.`);
+    this.sidebarTimer = SIDEBAR_REFRESH;
+  }
+
+  /** Areas (cells) where the player may build: own buildings grown by BUILD_RADIUS. */
+  private buildZones(): { x: number; y: number; w: number; h: number }[] {
+    const r = BUILD_RADIUS;
+    return this.entities
+      .buildings()
+      .filter((b) => b.owner === this.humanPlayer.id && b.alive)
+      .map((b) => ({
+        x: (b.x - r) * CELL_SIZE,
+        y: (b.y - r) * CELL_SIZE,
+        w: (b.w + r * 2) * CELL_SIZE,
+        h: (b.d + r * 2) * CELL_SIZE,
+      }));
+  }
+
+  /** Building types the human player currently has standing. */
+  private ownedTypes(): Set<BuildingType> {
+    const set = new Set<BuildingType>();
+    for (const b of this.entities.buildings()) if (b.owner === this.humanPlayer.id && b.alive) set.add(b.spec.type);
+    return set;
+  }
+
+  // ------------------------------------------------------------------ combat feedback
+
+  /** A shot was fired: tracer, muzzle flash, impact burst, sound and (once per fight) the battle cry. */
+  private onFire(s: Unit, _t: Entity, w: WeaponSpec, impact: WorldPoint): void {
+    const heavy = w.kind === 'cannon' || w.kind === 'missile';
+    let mx = s.px + s.facing * 1.0;
+    let my = s.py - s.bodyHeight * 0.8;
+    if (s instanceof Vehicle) {
+      mx = s.px + Math.cos(s.heading) * 3.2;
+      my = s.py - s.bodyHeight + Math.sin(s.heading) * 1.9;
+    }
+    const ttl = { rifle: 0.09, smg: 0.06, sniper: 0.14, mg: 0.06, autocannon: 0.08, cannon: 0.22, missile: 0.35 }[w.kind];
+    const color = heavy ? '#ffb347' : w.kind === 'sniper' ? '#ffffff' : '#ffe9a0';
+    this.effects.add({ kind: 'tracer', x0: mx, y0: my, x1: impact.x, y1: impact.y, age: 0, ttl, color, width: heavy ? 1.1 : 0.45, shell: heavy });
+    this.effects.add({ kind: 'flash', x: mx, y: my, age: 0, ttl: 0.07, size: heavy ? 3.6 : 1.8 });
+    this.effects.add({ kind: 'blast', x: impact.x, y: impact.y, age: -ttl, ttl: heavy ? 0.35 : 0.18, radius: heavy ? 6 : 1.6 });
+    this.sound.play(w.kind, { x: mx, y: my });
+    const prev = this.lastShot.get(s.id) ?? -99;
+    this.lastShot.set(s.id, this.time);
+    if (this.time - prev > 8 && s.faction !== 'neutral') this.sound.battleCry(s.faction, { x: s.px, y: s.py });
+  }
+
+  /** Something ran out of health: remove it with an explosion. */
+  private onDeath(e: Entity): void {
+    this.selection.selectedUnits.delete(e.id);
+    if (e instanceof Unit) {
+      this.entities.remove(e.id);
+      const vehicle = e instanceof Vehicle;
+      this.effects.add({ kind: 'smoke', x: e.px, y: e.py - 1, age: 0, ttl: 1.2, radius: vehicle ? 5 : 2.2 });
+      if (vehicle) {
+        this.effects.add({ kind: 'blast', x: e.px, y: e.py - 2, age: 0, ttl: 0.5, radius: e.flies ? 14 : 10 });
+        this.sound.play('explosion', { x: e.px, y: e.py });
+      }
+      return;
+    }
+    if (!(e instanceof Building)) return;
+    if (this.selection.selectedId === e.id) this.selection.select(null);
+    this.ejectGarrison(e);
+    if (e.spec.type === 'airfield') {
+      for (const v of this.entities.vehicles()) if (v.homeId === e.id && v.fixed) v.hp = 0; // parked aircraft burn with it
+    }
+    this.map.occupy(e.x, e.y, e.w, e.d, null);
+    this.entities.remove(e.id);
+    const i = this.derricks.indexOf(e as OilDerrick);
+    if (i >= 0) this.derricks.splice(i, 1);
+    const f = e.footprintWorld();
+    for (let k = 0; k < 7; k++) {
+      this.effects.add({
+        kind: 'blast',
+        x: f.x + f.w * (0.15 + 0.7 * ((k * 37) % 10) / 10),
+        y: f.y + f.h * (0.2 + 0.6 * ((k * 53) % 10) / 10) - 4,
+        age: -k * 0.12,
+        ttl: 0.7,
+        radius: 11 + (k % 3) * 4,
+      });
+      this.effects.add({ kind: 'smoke', x: f.x + f.w / 2 + (k - 3) * 2.5, y: f.y + f.h / 2 - 6, age: -k * 0.1, ttl: 3, radius: 7 });
+    }
+    this.sound.play('explosion', e.centerWorld());
+    if (e.owner === this.humanPlayer.id) this.sidebar.notify(`Your ${e.spec.name} was destroyed!`, 5);
+  }
+
+  /** Buildings below half health smoke; below a quarter they also burn. */
+  private smokeFromDamagedBuildings(dt: number): void {
+    this.smokeTimer -= dt;
+    if (this.smokeTimer > 0) return;
+    this.smokeTimer = 0.45;
+    for (const b of this.entities.buildings()) {
+      if (b.hpRatio >= 0.5 || !b.alive) continue;
+      const f = b.footprintWorld();
+      const x = f.x + f.w * (0.25 + Math.random() * 0.5);
+      const y = f.y + f.h * (0.2 + Math.random() * 0.5) - 6;
+      this.effects.add({ kind: 'smoke', x, y, age: 0, ttl: 1.8, radius: 4.5 });
+      if (b.hpRatio < 0.25) this.effects.add({ kind: 'blast', x, y: y + 2, age: 0, ttl: 0.4, radius: 5 });
+    }
+  }
+
+  // ------------------------------------------------------------------ vehicles & aircraft
+
+  private onVehicleClick(kind: VehicleKind): void {
+    // (aircraft need a free parking spot on an airfield)
+    const player = this.humanPlayer;
+    const option = this.production.optionsFor(player).find((o) => o.kind === kind);
+    if (!option) return;
+    const result = this.production.enqueue(player, kind);
+    this.sidebar.notify(
+      result === 'ok'
+        ? `Building ${option.name} — ${option.cost} ${CURRENCY}`
+        : result === 'full'
+          ? 'Vehicle queue is full.'
+          : result === 'noParking'
+            ? 'No free parking spot — build another Airfield or send aircraft out.'
+            : option.requires === 'airfield'
+              ? 'Requires an Airfield.'
+              : 'Requires a War Factory.',
+    );
+    this.sidebarTimer = SIDEBAR_REFRESH;
+  }
+
+  private onVehicleCancel(kind: VehicleKind): void {
+    if (this.production.cancelOne(this.humanPlayer, kind)) this.sidebar.notify('Production cancelled.');
+    this.sidebarTimer = SIDEBAR_REFRESH;
+  }
+
+  /**
+   * A finished vehicle rolls out of the War Factory's front (an aircraft takes
+   * off from the Airfield) and drives or flies to the first free spot nearby.
+   */
+  /** Where the runway, apron parking spots and approach point are, in world px. */
+  private airfieldGeometry(b: Building): AirfieldGeometry {
+    const c = b.centerWorld();
+    const k = this.sprites.fitScale(b.spriteKey, b.footprintWorld().w);
+    const cos = Math.cos(b.angleRad);
+    const sin = Math.sin(b.angleRad);
+    // Art-space tile (u, v) of the 5×5 airfield sprite → world px (isometric projection, scaled, rotated).
+    const pt = (u: number, v: number): WorldPoint => {
+      const ox = (u - v) * HALF_TW * k;
+      const oy = (u + v - 5) * HALF_TH * k;
+      return { x: c.x + ox * cos - oy * sin, y: c.y + ox * sin + oy * cos };
+    };
+    const start = pt(0.3, 1);
+    const end = pt(4.7, 1);
+    const heading = Math.atan2(end.y - start.y, end.x - start.x);
+    return {
+      slots: [pt(1.55, 3.3), pt(3.45, 3.3), pt(2.5, 2.55)],
+      runwayStart: start,
+      runwayEnd: end,
+      heading,
+      approach: { x: start.x - Math.cos(heading) * 40, y: start.y - Math.sin(heading) * 40 },
+    };
+  }
+
+  /** A new fighter appears parked on a free spot of its airfield's apron. */
+  private spawnJet(player: PlayerState, airfield: Building): void {
+    const g = this.airfieldGeometry(airfield);
+    const taken = new Set(
+      this.entities
+        .vehicles()
+        .filter((v) => v.type === 'jet' && v.alive && v.homeId === airfield.id && !v.flies)
+        .map((v) => v.slot),
+    );
+    let slot = 0;
+    while (taken.has(slot)) slot++;
+    const spot = g.slots[slot] ?? g.slots[0];
+    if (!spot) return;
+    const jet = this.entities.add(new Vehicle(player.id, player.faction as FactionId, 'jet', spot));
+    jet.flight = 'parked';
+    jet.altitude = 0;
+    jet.homeId = airfield.id;
+    jet.slot = slot;
+    jet.heading = g.heading;
+    if (player.isHuman) this.sidebar.notify(`${jet.name} parked on the airfield.`);
+  }
+
+  /** Units that have been stuck for a while, or whose next waypoint became blocked, plan a new route. */
+  private repathStuckUnits(dt: number): void {
+    this.repathTimer -= dt;
+    if (this.repathTimer > 0) return;
+    this.repathTimer = 0.5;
+    for (const u of this.entities.fieldMovers()) {
+      if (!u.moving || u.aircraft || !u.destination) continue;
+      const next = u.waypoints()[0];
+      const nextCell = next ? this.map.cellAt(next.x, next.y) : null;
+      const blocked = nextCell !== null && !this.pathfinder.passable(nextCell.x, nextCell.y, u.swims);
+      if (!u.needsRepath && !blocked) continue;
+      const dest = u.destination;
+      const cell = this.map.cellAt(dest.x, dest.y);
+      if (!cell) continue;
+      const goal = this.pathfinder.passable(cell.x, cell.y, u.swims) ? cell : this.pathfinder.nearestPassable(cell.x, cell.y, 6, undefined, u.swims);
+      if (!goal) {
+        u.stop();
+        continue;
+      }
+      const path = this.pathfinder.find({ x: u.px, y: u.py }, goal, u.swims);
+      const last = path[path.length - 1];
+      if (last && goal.x === cell.x && goal.y === cell.y) {
+        last.x = dest.x;
+        last.y = dest.y;
+      }
+      u.follow(path);
+    }
+  }
+
+  private spawnVehicle(player: PlayerState, kind: VehicleKind, producer: Building): void {
+    if (kind === 'jet') {
+      this.spawnJet(player, producer);
+      return;
+    }
+    // Land vehicles roll out of the front of the War Factory to the first free spot nearby.
+    const door = this.doorPoint(producer);
+    const startCell = this.pathfinder.nearestPassable(Math.floor(door.x / CELL_SIZE), Math.floor(door.y / CELL_SIZE), 8);
+    if (!startCell) return;
+    const start = { x: (startCell.x + 0.5) * CELL_SIZE, y: (startCell.y + 0.5) * CELL_SIZE };
+    const unit = this.entities.add(new Vehicle(player.id, player.faction as FactionId, kind, start));
+    unit.heading = Math.PI / 2;
+    const movers = this.entities.fieldMovers();
+    for (let k = 0; k < 120; k++) {
+      const off = spiralOffset(k, 9);
+      const spot = { x: door.x + off.x, y: door.y + CELL_SIZE * 3 + Math.abs(off.y) };
+      const cell = this.map.cellAt(spot.x, spot.y);
+      if (!cell || !this.pathfinder.passable(cell.x, cell.y)) continue;
+      if (movers.some((m) => m !== unit && !m.flies && Math.hypot(m.px - spot.x, m.py - spot.y) < m.radius + unit.radius + 1)) continue;
+      const path = this.pathfinder.find({ x: unit.px, y: unit.py }, cell);
+      const last = path[path.length - 1];
+      if (last) {
+        last.x = spot.x;
+        last.y = spot.y;
+      }
+      unit.follow(path);
+      break;
+    }
+    if (player.isHuman) this.sidebar.notify(`${unit.name} ready.`);
+  }
+
+  // ------------------------------------------------------------------ infantry
+
+  private onTrainClick(tier: UnitTier): void {
+    const player = this.humanPlayer;
+    const option = this.training.optionsFor(player).find((o) => o.tier === tier);
+    if (!option) return;
+    if (!this.training.barracksOf(player)) this.sidebar.notify('Requires a Barracks.');
+    else {
+      const result = this.training.enqueue(player, tier);
+      const r = this.training.ratio(player);
+      this.sidebar.notify(
+        result === 'ok'
+          ? `Training ${option.name} — ${option.cost} ${CURRENCY}`
+          : result === 'full'
+            ? 'Training queue is full.'
+            : `Ratio 4:1 — train ${REGULARS_PER_SPECIAL * (r.special + 1) - r.regular} more regular soldier(s) first.`,
+      );
+    }
+    this.sidebarTimer = SIDEBAR_REFRESH;
+  }
+
+  private onTrainCancel(tier: UnitTier): void {
+    if (this.training.cancelOne(this.humanPlayer, tier)) this.sidebar.notify('Training cancelled.');
+    this.sidebarTimer = SIDEBAR_REFRESH;
+  }
+
+  /** A trained soldier walks out of the barracks' front door to a free rally cell. */
+  private spawnSoldier(player: PlayerState, tier: UnitTier, barracks: Building): void {
+    const doorX = barracks.x + Math.floor(barracks.w / 2);
+    const doorY = barracks.y + barracks.d;
+    const exit = this.pathfinder.nearestPassable(doorX, doorY, 6);
+    if (!exit) return;
+    const unit = this.entities.add(
+      new Infantry(player.id, player.faction as FactionId, tier, {
+        x: (exit.x + 0.5) * CELL_SIZE,
+        y: (exit.y + 0.2) * CELL_SIZE,
+      }),
+    );
+    // Parade ground: soldiers march straight to the next free slot of a neat grid
+    // in front of the barracks (rows of PARADE_COLUMNS) instead of milling about.
+    const used = new Set(
+      this.entities
+        .units()
+        .filter((u) => u !== unit && u.alive && u.parade?.barracks === barracks.id)
+        .map((u) => u.parade?.slot ?? -1),
+    );
+    const slotAt = (n: number): { x: number; y: number } => ({
+      x: (barracks.x + barracks.w / 2) * CELL_SIZE + ((n % PARADE_COLUMNS) - (PARADE_COLUMNS - 1) / 2) * PARADE_SPACING,
+      y: (barracks.y + barracks.d) * CELL_SIZE + PARADE_GAP + Math.floor(n / PARADE_COLUMNS) * PARADE_SPACING,
+    });
+    // First free slot whose cell is actually standable (blocked spots are skipped).
+    let slot = 0;
+    for (; slot < 200; slot++) {
+      const at = slotAt(slot);
+      if (!used.has(slot) && this.pathfinder.passable(Math.floor(at.x / CELL_SIZE), Math.floor(at.y / CELL_SIZE), unit.swims)) break;
+    }
+    const { x: slotX, y: slotY } = slotAt(slot);
+    const slotCell = { x: Math.floor(slotX / CELL_SIZE), y: Math.floor(slotY / CELL_SIZE) };
+    if (slot < 200) {
+      const path = this.pathfinder.find({ x: unit.px, y: unit.py }, slotCell, unit.swims);
+      const last = path[path.length - 1];
+      // The slot cell is the goal, so snap the last waypoint to the exact slot spot.
+      if (last && Math.floor(last.x / CELL_SIZE) === slotCell.x && Math.floor(last.y / CELL_SIZE) === slotCell.y) {
+        last.x = slotX;
+        last.y = slotY;
+      }
+      unit.parade = { barracks: barracks.id, slot };
+      unit.follow(path);
+    } else {
+      const rally = this.pathfinder.nearestPassable(slotCell.x, slotCell.y, 8, undefined, unit.swims) ?? exit;
+      unit.follow(this.pathfinder.find({ x: unit.px, y: unit.py }, rally, unit.swims));
+    }
+    if (player.isHuman) this.sidebar.notify(`${unit.name} ready.`);
+  }
+
+  // ------------------------------------------------------------------ building orders
+
+  /** The door: centre of the building's front edge, where its artwork meets the ground (world px). */
+  private doorPoint(b: Building): WorldPoint {
+    return { x: (b.x + b.w / 2) * CELL_SIZE, y: (b.y + b.d - PLACEMENT_MARGIN) * CELL_SIZE + 1 };
+  }
+
+  /** Walks `u` right up to `b`'s door (the soldier ends up touching the building). */
+  private walkToDoor(u: Infantry, b: Building): boolean {
+    const door = this.doorPoint(b);
+    let cell = this.map.cellAt(door.x, door.y);
+    if (!cell || !this.pathfinder.passable(cell.x, cell.y, u.swims)) {
+      cell = this.pathfinder.nearestPassable(cell?.x ?? b.x, cell?.y ?? b.y + b.d, 8, undefined, u.swims);
+    }
+    if (!cell) return false;
+    const path = this.pathfinder.find({ x: u.px, y: u.py }, cell, u.swims);
+    const last = path[path.length - 1];
+    // Stand exactly on the door spot when it lies in the goal cell.
+    if (last && Math.floor(door.x / CELL_SIZE) === cell.x && Math.floor(door.y / CELL_SIZE) === cell.y) {
+      last.x = door.x;
+      last.y = door.y;
+    }
+    u.parade = null;
+    u.follow(path);
+    return true;
+  }
+
+  /**
+   * Left-click on a building with soldiers selected:
+   *  - own building that accepts them (capital ← President, hospital ← wounded): enter;
+   *  - own damaged building + engineers: repair;
+   *  - enemy building + engineers: capture it (neutral buildings are immune).
+   * Returns true if at least one soldier got an order.
+   */
+  private orderOnBuilding(b: Building): boolean {
+    const me = this.humanPlayer;
+    let ordered = 0;
+    for (const u of this.selection.selectedUnitList()) {
+      if (!(u instanceof Infantry)) continue; // only people enter, repair or capture
+      let type: 'enter' | 'repair' | 'capture' | null = null;
+      if (b.owner === me.id) {
+        if (b.canEnter(u)) type = 'enter';
+        else if (u.isEngineer && b.hp < b.maxHp && !b.indestructible) type = 'repair';
+      } else if (u.isEngineer && b.capturable && b.faction !== 'neutral') {
+        type = 'capture';
+      }
+      if (!type || !this.walkToDoor(u, b)) continue;
+      u.task = { type, buildingId: b.id };
+      ordered++;
+    }
+    if (ordered === 0 && b.faction === 'neutral' && this.selection.selectedUnitList().some((u) => u instanceof Infantry && u.isEngineer)) {
+      this.sidebar.notify('Neutral buildings cannot be captured or destroyed.');
+    }
+    // Enemy building and nobody could capture it: armed units attack it instead.
+    if (ordered === 0 && b.owner !== me.id && b.owner !== NEUTRAL_OWNER) return this.orderAttack(b);
+    return ordered > 0;
+  }
+
+  /** Every selected armed unit that can hurt `target` is ordered to attack it. */
+  private orderAttack(target: Entity): boolean {
+    const attackers = this.selection.selectedUnitList().filter((u) => u.weapon !== null && isHostile(u, target));
+    if (attackers.length === 0) return false;
+    for (const u of attackers) {
+      u.attackTarget = target.id;
+      u.attackMove = null;
+      u.task = null;
+      u.parade = null;
+    }
+    const at = target instanceof Building ? target.centerWorld() : { x: (target as Unit).px, y: (target as Unit).py };
+    this.moveMarker = { x: at.x, y: at.y, at: this.time };
+    return true;
+  }
+
+  /** Advances enter / repair / capture orders for soldiers standing at their target. */
+  private processTasks(dt: number): void {
+    for (const u of this.entities.fieldUnits()) {
+      const task = u.task;
+      if (!task) continue;
+      const b = this.entities.get(task.buildingId);
+      if (!(b instanceof Building) || !b.alive) {
+        u.task = null;
+        continue;
+      }
+      // Nothing happens until the soldier has actually walked up to the door.
+      if (u.moving) continue;
+      const door = this.doorPoint(b);
+      if (Math.hypot(door.x - u.px, door.y - u.py) > CELL_SIZE * 1.6) {
+        if (!this.walkToDoor(u, b) || !u.moving) u.task = null; // unreachable
+        continue;
+      }
+      if (task.type === 'enter') {
+        u.task = null;
+        if (b.canEnter(u)) {
+          b.garrison.push(u);
+          u.insideId = b.id;
+          u.stop();
+          this.selection.selectedUnits.delete(u.id);
+          if (u.owner === this.humanPlayer.id) this.sidebar.notify(`${u.name} entered: ${b.spec.name}. Double-click it to bring them out.`);
+        }
+      } else if (task.type === 'repair') {
+        u.stop();
+        if (b.hp < b.maxHp) b.hp = Math.min(b.maxHp, b.hp + ENGINEER_REPAIR_HP_PER_SECOND * dt);
+        else {
+          u.task = null;
+          if (u.owner === this.humanPlayer.id) this.sidebar.notify(`${b.spec.name} fully repaired.`);
+        }
+      } else {
+        // Capture: the engineer is consumed and the building changes sides.
+        if (b.capture(u.owner, u.faction as FactionId)) {
+          this.entities.remove(u.id);
+          this.selection.selectedUnits.delete(u.id);
+          if (u.owner === this.humanPlayer.id) this.sidebar.notify(`${b.spec.name} captured!`);
+        } else u.task = null;
+      }
+    }
+  }
+
+  /** Patients inside a hospital recover health over time. */
+  private healGarrisons(dt: number): void {
+    for (const b of this.entities.buildings()) {
+      const heal = b.spec.garrison?.healPerSecond;
+      if (!heal) continue;
+      for (const u of b.garrison) u.hp = Math.min(u.maxHp, u.hp + heal * dt);
+    }
+  }
+
+  /** Brings everyone stationed in `b` out onto the ground in front of it. */
+  private ejectGarrison(b: Building): void {
+    const out = [...b.garrison];
+    b.garrison.length = 0;
+    out.forEach((u, k) => {
+      const off = spiralOffset(k, UNIT_SPACING * 1.15);
+      const base = { x: (b.x + b.w / 2) * CELL_SIZE + off.x, y: (b.y + b.d + 1.2) * CELL_SIZE + off.y };
+      const cell = this.pathfinder.nearestPassable(Math.floor(base.x / CELL_SIZE), Math.floor(base.y / CELL_SIZE), 8, undefined, u.swims);
+      u.px = cell ? (cell.x + 0.5) * CELL_SIZE : base.x;
+      u.py = cell ? (cell.y + 0.5) * CELL_SIZE : base.y;
+      u.insideId = null;
+      u.stop();
+    });
+    if (out.length > 0) this.sidebar.notify(`${out.length} came out of: ${b.spec.name}.`);
+  }
+
+  /** Moves the selected soldiers, spreading them over distinct nearby cells. */
+  private orderMove(world: WorldPoint): void {
+    const units = this.selection.selectedUnitList();
+    if (!this.map.cellAt(world.x, world.y) || units.length === 0) return;
+    // Closest soldiers take the spots nearest the click; the first stands exactly on it.
+    units.sort((a, b) => Math.hypot(a.px - world.x, a.py - world.y) - Math.hypot(b.px - world.x, b.py - world.y));
+    units.forEach((u, k) => {
+      u.parade = null; // leaves the parade ground
+      u.task = null;
+      u.attackTarget = null;
+      u.attackMove = null;
+      u.chasing = false;
+      const off = spiralOffset(k, UNIT_SPACING * 1.15);
+      let goal = { x: world.x + off.x, y: world.y + off.y };
+      let cell = this.map.cellAt(goal.x, goal.y);
+      if (!u.aircraft && (!cell || !this.pathfinder.passable(cell.x, cell.y, u.swims))) {
+        // Spot not standable: use the nearest standable cell centre instead.
+        const near = this.pathfinder.nearestPassable(cell?.x ?? 0, cell?.y ?? 0, 10, undefined, u.swims);
+        if (!near) return;
+        cell = near;
+        goal = { x: (near.x + 0.5) * CELL_SIZE, y: (near.y + 0.5) * CELL_SIZE };
+      }
+      if (u.aircraft) {
+        u.follow([goal]); // aircraft ignore terrain and fly straight (parked ones take off first)
+        return;
+      }
+      if (!cell) return;
+      if (!cell) return;
+      const path = this.pathfinder.find({ x: u.px, y: u.py }, cell, u.swims);
+      const last = path[path.length - 1];
+      if (last) {
+        last.x = goal.x;
+        last.y = goal.y;
+      } else path.push(goal);
+      u.follow(path);
+    });
+    this.moveMarker = { x: world.x, y: world.y, at: this.time };
+  }
+
+  /**
+   * Each nation's oil derricks stand in one straight row on the safest ground
+   * of its territory: farthest from the sea (landings) and from foreign borders.
+   */
+  private placeOilRows(trees: TreeLayer): void {
+    for (const player of this.players) {
+      const f = player.faction;
+      const idx = TERRITORIES.findIndex((t) => t.faction === f) + 1;
+      const capital = this.landmarks.find((b) => b.owner === player.id && b.spec.type === 'capital');
+      if (!capital || idx === 0) continue;
+      const safety = computeSafety(this.map, idx);
+      const row = findOilRow(this.map, safety, { x: capital.x, y: capital.y }, OIL_DERRICK_COUNT[f], {
+        w: FOOTPRINT_SMALL.w,
+        d: FOOTPRINT_SMALL.d,
+        gap: 1,
+        radius: 110,
+      });
+      if (!row) {
+        console.warn(`No room for ${f}'s oil row.`);
+        continue;
+      }
+      row.forEach((cell, i) => {
+        const derrick = new OilDerrick(player.id, f, { x: 0, y: 0 }, i);
+        derrick.moveTo(cell.x, cell.y);
+        this.entities.add(derrick);
+        trees.clearArea(cell.x, cell.y, derrick.w, derrick.d);
+        this.map.occupy(cell.x, cell.y, derrick.w, derrick.d, derrick.id);
+        this.derricks.push(derrick);
+      });
+    }
+  }
+
+  /** Jumps to the next of the player's oil derricks. */
+  private cycleOwnDerrick(): void {
+    const own = this.derricks.filter((d) => d.owner === this.humanPlayer.id);
+    if (own.length === 0) return;
+    const i = own.findIndex((d) => d.id === this.selection.selectedId);
+    const next = own[(i + 1) % own.length];
+    if (next) this.focusBuilding(next.id, true);
+  }
+
+  private focusOwnCapital(): void {
+    const own = this.landmarks.find((b) => b.owner === this.humanPlayer.id && b.spec.type === 'capital');
+    if (own) this.focusBuilding(own.id, false);
+  }
+
+  private focusBuilding(id: number, select: boolean): void {
+    const e = this.entities.get(id);
+    if (!(e instanceof Building)) return;
+    const c = e.centerWorld();
+    this.camera.setZoom(FOCUS_ZOOM);
+    this.bus.emit('camera:focus', { x: c.x, y: c.y - FOCUS_OFFSET_Y });
+    if (select) this.selection.select(id);
+  }
+}
+
+/** k-th point of a sunflower spiral (k = 0 is the centre), `spacing` px apart. */
+function spiralOffset(k: number, spacing: number): { x: number; y: number } {
+  if (k === 0) return { x: 0, y: 0 };
+  const r = spacing * Math.sqrt(k);
+  const a = k * 2.399963;
+  return { x: Math.cos(a) * r, y: Math.sin(a) * r };
+}
