@@ -245,7 +245,7 @@ export class Game {
       return { centre: { x: v.x + v.w / 2, y: v.y + v.h / 2 }, range: Math.hypot(v.w, v.h) / 2 };
     });
     this.aircraft = new AircraftSystem(this.entities, (b) => this.airfieldGeometry(b), {
-      landingSpot: (x, y) => this.landingSpot(x, y),
+      landingSpot: (x, y, self) => this.landingSpot(x, y, self),
       unload: (t) => this.unloadTransport(t),
     });
     this.combat = new CombatSystem(this.entities, this.pathfinder, {
@@ -357,17 +357,19 @@ export class Game {
 
   /** Units walk to `target` and fight whatever they meet on the way. */
   orderAttackMove(units: readonly Unit[], target: WorldPoint): void {
-    const cell = this.map.cellAt(target.x, target.y);
+    const spacing = Math.max(UNIT_SPACING * 1.15, Math.max(0, ...units.map((u) => u.radius)) * 2.1);
     units.forEach((u, k) => {
       u.parade = null;
       u.task = null;
       u.attackTarget = null;
       u.attackMove = target;
+      const off = spiralOffset(k, u.aircraft ? 10 : spacing);
       if (u.aircraft) {
-        const off = spiralOffset(k, 10);
         u.follow([{ x: target.x + off.x, y: target.y + off.y }]);
         return;
       }
+      // Every unit gets its own spot around the target: no two vehicles are sent to the same point.
+      const cell = this.map.cellAt(target.x + off.x, target.y + off.y) ?? this.map.cellAt(target.x, target.y);
       if (!cell) return;
       const goal = this.pathfinder.nearestPassable(cell.x, cell.y, 14, undefined, u.swims);
       if (goal) u.follow(this.pathfinder.find({ x: u.px, y: u.py }, goal, u.swims));
@@ -418,10 +420,18 @@ export class Game {
   }
 
   /** Nearest spot where a transport can set down at or near (x, y), or null. */
-  private landingSpot(x: number, y: number): WorldPoint | null {
+  private landingSpot(x: number, y: number, self: Vehicle): WorldPoint | null {
     const cell = this.map.cellAt(x, y);
     if (!cell) return null;
-    const g = this.pathfinder.nearestPassable(cell.x, cell.y, 6);
+    // Never set down on a spot (or right beside one) where another aircraft already stands on the ground.
+    const taken = new Set<number>();
+    for (const o of this.entities.vehicles()) {
+      if (o === self || !o.aircraft || !o.alive || o.flies) continue;
+      const c = this.map.cellAt(o.px, o.py);
+      if (!c) continue;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (this.map.inBounds(c.x + dx, c.y + dy)) taken.add(this.map.index(c.x + dx, c.y + dy));
+    }
+    const g = this.pathfinder.nearestPassable(cell.x, cell.y, 6, taken);
     return g ? { x: (g.x + 0.5) * CELL_SIZE, y: (g.y + 0.5) * CELL_SIZE } : null;
   }
 
@@ -1600,13 +1610,15 @@ export class Game {
     if (!this.map.cellAt(world.x, world.y) || units.length === 0) return;
     // Closest soldiers take the spots nearest the click; the first stands exactly on it.
     units.sort((a, b) => Math.hypot(a.px - world.x, a.py - world.y) - Math.hypot(b.px - world.x, b.py - world.y));
+    // Destination spots are as far apart as the biggest unit needs, so tanks and aircraft never share a point.
+    const spacing = Math.max(UNIT_SPACING * 1.15, Math.max(...units.map((u) => u.radius)) * 2.1);
     units.forEach((u, k) => {
       u.parade = null; // leaves the parade ground
       u.task = null;
       u.attackTarget = null;
       u.attackMove = null;
       u.chasing = false;
-      const off = spiralOffset(k, UNIT_SPACING * 1.15);
+      const off = spiralOffset(k, spacing);
       let goal = { x: world.x + off.x, y: world.y + off.y };
       let cell = this.map.cellAt(goal.x, goal.y);
       if (!u.aircraft && (!cell || !this.pathfinder.passable(cell.x, cell.y, u.swims))) {

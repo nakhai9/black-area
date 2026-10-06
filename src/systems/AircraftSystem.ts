@@ -39,7 +39,7 @@ const clamp01 = (t: number): number => Math.max(0, Math.min(1, t));
  */
 export interface AircraftHooks {
   /** Nearest spot at or near (x, y) where a transport can set down, or null (open water, buildings…). */
-  landingSpot(x: number, y: number): WorldPoint | null;
+  landingSpot(x: number, y: number, self: Vehicle): WorldPoint | null;
   /** Everyone aboard `transport` steps out around it. */
   unload(transport: Vehicle): void;
 }
@@ -164,6 +164,8 @@ export class AircraftSystem implements GameSystem {
     if (!home) return this.abort(v);
     this.stashOrders(v);
     const g = this.geometry(home);
+    // One aircraft on the runway at a time: wait short of it while another one rolls or lands.
+    if (Math.hypot(v.px - g.runwayStart.x, v.py - g.runwayStart.y) < 12 && this.runwayBusy(v, home)) return;
     if (this.moveTo(v, g.runwayStart, TAXI_SPEED, dt)) {
       v.flight = 'takeoff';
       v.phaseTime = 0;
@@ -203,7 +205,7 @@ export class AircraftSystem implements GameSystem {
     // A transport that has reached its destination sets down there on solid ground (never on the sea): a loaded
     // one unloads and lifts off again, an empty one waits on the spot to take passengers aboard.
     if (v.isTransport && !v.moving && v.mission === null && !v.returningHome && !this.nearOwnAirfield(v)) {
-      const spot = this.hooks.landingSpot(v.px, v.py);
+      const spot = this.hooks.landingSpot(v.px, v.py, v);
       if (spot) {
         v.dropSpot = spot;
         v.pickup = v.cargo.length === 0;
@@ -248,6 +250,8 @@ export class AircraftSystem implements GameSystem {
       return;
     }
     if (!v.moving) {
+      // The runway is in use (another aircraft takes off or lands): keep circling over the approach point.
+      if (this.runwayBusy(v, home)) return;
       this.place(v, g.approach.x, g.approach.y);
       v.flight = 'landing';
       v.phaseTime = 0;
@@ -332,6 +336,11 @@ export class AircraftSystem implements GameSystem {
     v.idleFor = 0;
     if (v.mission) v.follow(v.mission);
     v.mission = null;
+  }
+
+  /** Is another aircraft of this airfield taking off or landing right now? */
+  private runwayBusy(v: Vehicle, home: Building): boolean {
+    return this.entities.vehicles().some((o) => o !== v && o.aircraft && o.alive && o.homeId === home.id && (o.flight === 'takeoff' || o.flight === 'landing'));
   }
 
   /** Makes the nearest living airfield of the owner the aircraft's new home. False when the nation has none. */
