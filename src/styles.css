@@ -924,6 +924,14 @@ details.sb-help[open] > summary {
   background: var(--end-color, #ff3b30);
   color: #0b1016;
 }
+.pause-screen[hidden] {
+  display: none;
+}
+.pause-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
 @keyframes end-in {
   from {
     opacity: 0;

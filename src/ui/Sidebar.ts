@@ -77,8 +77,6 @@ export interface SidebarHandlers {
   onSellOil: () => void;
   /** The Emergency loan button: borrow from the World Bank (only at 0 TB). */
   onLoan: () => void;
-  /** The Pause button (or P): freeze / resume the game. */
-  onPause: () => void;
   /** An alert in the alert section was clicked: look at where it happened. */
   onAlert: (at: WorldPoint) => void;
 }
@@ -111,7 +109,6 @@ export class Sidebar {
   private readonly sellButton: HTMLButtonElement;
   private readonly debt: HTMLElement;
   private readonly loanButton: HTMLButtonElement;
-  private readonly pauseButton: HTMLButtonElement;
   private readonly derricks: HTMLElement;
   private readonly powerFill: HTMLElement;
   private readonly powerText: HTMLElement;
@@ -176,7 +173,6 @@ export class Sidebar {
         <div class="sb-actions">
           <button class="sb-sell" type="button" title="Offer your oil to the World Bank: it decides whether and how much to buy (at most 25% per sale) and pays the posted price into your budget">Sell oil</button>
           <button class="sb-sell sb-loan" type="button" title="Emergency loan from the World Bank (only when your budget is 0 ${CURRENCY}). Oil sales pay the debt back automatically.">Emergency loan</button>
-          <button class="sb-auto sb-pause" type="button" aria-pressed="false" title="Pause / resume the game (P)">Pause</button>
           <button class="sb-auto" type="button" aria-pressed="false" title="Automatically train soldiers and vehicles to defend your base (F)">Auto-defense: OFF</button>
         </div>
         <div class="sb-power">
@@ -232,9 +228,7 @@ export class Sidebar {
     this.powerFill = q('.sb-power-fill');
     this.powerText = q('.sb-power-label span');
     this.message = q('.sb-msg');
-    this.pauseButton = q<HTMLButtonElement>('.sb-pause');
-    this.pauseButton.addEventListener('click', () => this.handlers.onPause());
-    this.autoButton = q('.sb-auto:not(.sb-pause)');
+    this.autoButton = q('.sb-auto');
     this.autoButton.addEventListener('click', () => this.toggleAutoDefense());
     this.radarPanel = q('.sb-radar');
     this.alertList = q('.sb-alert-list');
@@ -263,14 +257,6 @@ export class Sidebar {
     opener.textContent = '⟨';
     opener.addEventListener('click', () => this.toggle());
     document.body.append(opener);
-  }
-
-  /** Shows the paused / running state on the Pause button. */
-  setPaused(paused: boolean): void {
-    this.pauseButton.textContent = paused ? 'Resume' : 'Pause';
-    this.pauseButton.setAttribute('aria-pressed', String(paused));
-    this.pauseButton.classList.toggle('on', paused);
-    this.notify(paused ? 'Game paused — press P or Resume to continue.' : 'Game resumed.');
   }
 
   /** Switches automatic defence on/off (button or F key); returns the new state. */

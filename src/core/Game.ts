@@ -67,6 +67,7 @@ import { canTarget, CombatSystem, distanceTo, isHostile } from '../systems/Comba
 import { OilMarket } from '../systems/OilMarket';
 import { TaxSystem } from '../systems/TaxSystem';
 import { EndScreen } from '../ui/EndScreen';
+import { PauseMenu } from '../ui/PauseMenu';
 import { NewsToast } from '../ui/NewsToast';
 import { BUILD_OPTIONS, type BuildOption, ConstructionSystem, type QueueState, buildCost, missingRequirement } from '../systems/ConstructionSystem';
 import { EconomySystem } from '../systems/EconomySystem';
@@ -157,6 +158,7 @@ export class Game {
   readonly oilMarket: OilMarket;
   private readonly news: NewsToast;
   private readonly endScreen = new EndScreen();
+  private readonly pauseMenu = new PauseMenu(() => this.togglePause());
   /** The war is decided (victory or game over): the simulation stops. */
   private ended = false;
   private paused = false;
@@ -290,7 +292,6 @@ export class Game {
       onAlert: (at) => this.camera.centerOn(at.x, at.y),
       onSellOil: () => this.sellOil(),
       onLoan: () => this.takeLoan(),
-      onPause: () => this.togglePause(),
       onVehicle: (option) => this.onVehicleClick(option.kind),
       onVehicleCancel: (option) => this.onVehicleCancel(option.kind),
       vehiclePreview: (option) => vehiclePortrait(human.faction, option.kind),
@@ -873,6 +874,8 @@ export class Game {
   }
 
   private handleKey(code: string): void {
+    // While the pause menu is open only Esc (resume) works.
+    if (this.paused && code !== 'Escape') return;
     const cam = this.camera;
     const digit = /^Digit([1-9])$/.exec(code);
     if (digit) {
@@ -889,15 +892,12 @@ export class Game {
       case 'KeyM':
         this.sidebar.notify(this.sound.toggleMute() ? 'Sound off.' : 'Sound on.');
         break;
-      case 'KeyP':
-        this.togglePause();
-        break;
       case 'KeyO':
         this.cycleOwnDerrick();
         break;
       case 'Escape':
         if (this.placing) this.stopPlacing();
-        else this.selection.clearAll();
+        else if (!this.ended) this.togglePause();
         break;
       case 'Tab':
         this.sidebar.toggle();
@@ -1157,10 +1157,10 @@ export class Game {
     this.sidebarTimer = SIDEBAR_REFRESH;
   }
 
-  /** Pause button / P key: freezes the simulation (camera and selection still work). */
+  /** Esc: freezes the simulation and opens the pause menu (Continue / Quit game). */
   private togglePause(): void {
     this.paused = !this.paused;
-    this.sidebar.setPaused(this.paused);
+    this.pauseMenu.setOpen(this.paused);
   }
 
   /** Emergency loan button: only on the player's request, only at 0 TB. */
