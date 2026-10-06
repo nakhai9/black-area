@@ -1,4 +1,4 @@
-import { INFANTRY_BASE, specialCapFor, TRAINING_QUEUE_MAX } from '../constants';
+import { INFANTRY_BASE, MAX_SOLDIERS, TRAINING_QUEUE_MAX } from '../constants';
 import type { Building } from '../entities/Building';
 import type { EntityManager } from '../entities/EntityManager';
 import { FACTIONS } from '../factions';
@@ -26,16 +26,14 @@ export function trainOptions(faction: FactionId): TrainOption[] {
   }));
 }
 
-export type TrainingState = 'idle' | 'training' | 'onHold' | 'noBarracks' | 'ratio';
+export type TrainingState = 'idle' | 'training' | 'onHold' | 'noBarracks';
 
-export type EnqueueResult = 'ok' | 'full' | 'noBarracks' | 'ratio' | 'unique';
+export type EnqueueResult = 'ok' | 'full' | 'noBarracks' | 'limit' | 'unique';
 
-/** Army composition counts (living soldiers + queued). */
-export interface ArmyRatio {
-  regular: number;
-  special: number;
-  /** Special soldiers allowed: 3 for every 5 regulars (see specialCapFor). */
-  specialCap: number;
+/** Army size (living soldiers + queued). */
+export interface ArmyCount {
+  total: number;
+  max: number;
   /** A nation has exactly one President: alive (even inside a building) or queued. */
   presidentTaken: boolean;
 }
@@ -85,34 +83,27 @@ export class TrainingSystem implements GameSystem {
     return this.entities.buildings().find((b) => b.owner === player.id && b.alive && b.spec.type === 'barracks') ?? null;
   }
 
-  /**
-   * Composition rule: for every 5 regular soldiers the
-   * nation may field one special-forces soldier. Living and queued soldiers count.
-   */
-  ratio(player: PlayerState): ArmyRatio {
-    let regular = 0;
-    let special = 0;
+  /** Soldiers owned (alive, including the ones stationed inside buildings) plus the ones in the queue. */
+  army(player: PlayerState): ArmyCount {
+    let total = 0;
     let presidentTaken = false;
     const count = (tier: UnitTier): void => {
-      if (tier === 'special') special++;
-      else if (tier === 'regular') regular++;
-      else if (tier === 'president') presidentTaken = true;
+      total++;
+      if (tier === 'president') presidentTaken = true;
     };
     for (const u of this.entities.units()) if (u.owner === player.id && u.alive) count(u.tier);
     for (const t of this.queue(player).items) count(t);
-    return { regular, special, presidentTaken, specialCap: specialCapFor(regular) };
+    return { total, max: MAX_SOLDIERS, presidentTaken };
   }
 
-  /** Adds a soldier to the queue (special forces only within the 5:3 ratio). */
+  /** Adds a soldier to the queue: any type, as long as the army stays within MAX_SOLDIERS. */
   enqueue(player: PlayerState, tier: UnitTier): EnqueueResult {
     const q = this.queue(player);
     if (!this.barracksOf(player)) return 'noBarracks';
     if (q.items.length >= TRAINING_QUEUE_MAX) return 'full';
-    if (tier === 'special') {
-      const r = this.ratio(player);
-      if (r.special + 1 > r.specialCap) return 'ratio';
-    }
-    if (tier === 'president' && this.ratio(player).presidentTaken) return 'unique';
+    const army = this.army(player);
+    if (army.total >= army.max) return 'limit';
+    if (tier === 'president' && army.presidentTaken) return 'unique';
     q.items.push(tier);
     if (q.state === 'idle') q.state = 'training';
     return 'ok';
@@ -124,12 +115,6 @@ export class TrainingSystem implements GameSystem {
     const i = q.items.lastIndexOf(tier);
     if (i < 0) return false;
     this.removeAt(player, i);
-    // Dropping a regular may break the ratio: drop the newest queued specials too.
-    while (this.ratio(player).special > this.ratio(player).specialCap) {
-      const s = q.items.lastIndexOf('special');
-      if (s < 0) break;
-      this.removeAt(player, s);
-    }
     if (q.items.length === 0) q.state = 'idle';
     return true;
   }
@@ -157,14 +142,6 @@ export class TrainingSystem implements GameSystem {
       if (!barracks) {
         q.state = 'noBarracks';
         continue;
-      }
-      // Losses can break the 5:3 ratio after queueing: hold the special until it is legal again.
-      if (tier === 'special') {
-        const r = this.ratio(p);
-        if (r.special > r.specialCap) {
-          q.state = 'ratio';
-          continue;
-        }
       }
       const option = this.optionsFor(p).find((o) => o.tier === tier);
       if (!option) continue;

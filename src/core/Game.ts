@@ -5,6 +5,8 @@ import {
   CHHG_LOCATION,
   HALF_TH,
   HALF_TW,
+  MAX_SOLDIERS,
+  MAX_VEHICLES,
   PARADE_GAP,
   PARADE_MAX_CELLS,
   PARADE_SPACING,
@@ -21,7 +23,6 @@ import {
   FOOTPRINT_SMALL,
   NEUTRAL_OWNER,
   OIL_DERRICK_COUNT,
-  regularsNeededFor,
   STARTING_CREDITS,
   WORLD_BANK_LOCATION,
   WORLD_HEIGHT,
@@ -55,7 +56,7 @@ import { soldierPortrait } from '../render/InfantryArt';
 import { vehiclePortrait } from '../render/VehicleArt';
 import { SpriteCache } from '../render/SpriteCache';
 import { BUILDING_ART } from '../render/sprites';
-import { AIRFIELD_SLOTS } from '../render/sprites/Airfield';
+import { AIRFIELD_SIZE, AIRFIELD_SLOTS, RUNWAY_D } from '../render/sprites/Airfield';
 import { AircraftSystem, type AirfieldGeometry } from '../systems/AircraftSystem';
 import { AISystem } from '../systems/AISystem';
 import { CombatSystem, isHostile } from '../systems/CombatSystem';
@@ -350,6 +351,31 @@ export class Game {
     if (b) this.focusBuilding(b.id, true);
   }
 
+  /** Last dry position of every unit that cannot swim. */
+  private readonly lastDry = new Map<number, { x: number; y: number }>();
+
+  /**
+   * Tanks, cars and ordinary soldiers never end up in water: a unit that has stepped into a
+   * water cell (a path corner, a shove…) is put back on its last dry spot and plans a new route.
+   */
+  private keepOutOfWater(): void {
+    if (this.lastDry.size > 4000) this.lastDry.clear();
+    for (const u of this.entities.fieldMovers()) {
+      if (u.aircraft || u.flies || u.swims) continue;
+      if (!this.map.isWater(Math.floor(u.px / CELL_SIZE), Math.floor(u.py / CELL_SIZE))) {
+        this.lastDry.set(u.id, { x: u.px, y: u.py });
+        continue;
+      }
+      const back = this.lastDry.get(u.id);
+      if (!back) continue;
+      u.px = back.x;
+      u.py = back.y;
+      u.x = back.x / CELL_SIZE;
+      u.y = back.y / CELL_SIZE;
+      u.needsRepath = true;
+    }
+  }
+
   /** Fixed-rate simulation step. */
   private tick(dt: number): void {
     for (const u of this.entities.fieldMovers()) {
@@ -359,6 +385,7 @@ export class Game {
       u.terrainFactor = u.flies ? 1 : this.map.hasTrees(cx, cy) ? 0.78 : 1; // woods slow everybody down
     }
     this.entities.update(dt);
+    this.keepOutOfWater();
     this.separateUnits();
     this.repathStuckUnits(dt);
     this.processTasks(dt);
@@ -480,7 +507,8 @@ export class Game {
           hasWarFactory: this.production.producerOf(this.humanPlayer, 'warFactory') !== null,
           hasAirfield: this.production.producerOf(this.humanPlayer, 'airfield') !== null,
           hasBarracks: this.training.barracksOf(this.humanPlayer) !== null,
-          ratio: this.training.ratio(this.humanPlayer),
+          army: this.training.army(this.humanPlayer),
+          vehicleCount: this.production.vehicleCount(this.humanPlayer),
         },
         elapsed,
       );
@@ -834,7 +862,9 @@ export class Game {
         ? `Building ${option.name} — ${option.cost} ${CURRENCY}`
         : result === 'full'
           ? 'Vehicle queue is full.'
-          : result === 'noParking'
+          : result === 'limit'
+            ? `Vehicle limit reached (${MAX_VEHICLES}).`
+            : result === 'noParking'
             ? 'No free parking spot — build another Airfield or send aircraft out.'
             : option.requires === 'airfield'
               ? 'Requires an Airfield.'
@@ -858,14 +888,14 @@ export class Game {
     const k = this.sprites.fitScale(b.spriteKey, b.footprintWorld().w);
     const cos = Math.cos(b.angleRad);
     const sin = Math.sin(b.angleRad);
-    // Art-space tile (u, v) of the 4×4 airfield sprite → world px (isometric projection, scaled, rotated).
+    // Art-space tile (u, v) of the 12×6 airfield sprite → world px (isometric projection, scaled, rotated about the centre).
     const pt = (u: number, v: number): WorldPoint => {
-      const ox = (u - v) * HALF_TW * k;
-      const oy = (u + v - 4) * HALF_TH * k;
+      const ox = (u - v - (AIRFIELD_SIZE.w - AIRFIELD_SIZE.d) / 2) * HALF_TW * k;
+      const oy = (u + v - (AIRFIELD_SIZE.w + AIRFIELD_SIZE.d) / 2) * HALF_TH * k;
       return { x: c.x + ox * cos - oy * sin, y: c.y + ox * sin + oy * cos };
     };
-    const start = pt(0.25, 0.68);
-    const end = pt(3.75, 0.68);
+    const start = pt(0.5, RUNWAY_D / 2);
+    const end = pt(AIRFIELD_SIZE.w - 0.5, RUNWAY_D / 2);
     const heading = Math.atan2(end.y - start.y, end.x - start.x);
     return {
       slots: AIRFIELD_SLOTS.map(([u, v]) => pt(u, v)),
@@ -967,13 +997,14 @@ export class Game {
     if (!this.training.barracksOf(player)) this.sidebar.notify('Requires a Barracks.');
     else {
       const result = this.training.enqueue(player, tier);
-      const r = this.training.ratio(player);
       this.sidebar.notify(
         result === 'ok'
           ? `Training ${option.name} — ${option.cost} ${CURRENCY}`
           : result === 'full'
             ? 'Training queue is full.'
-            : `Ratio 5:3 — train ${regularsNeededFor(r.special + 1) - r.regular} more regular soldier(s) first.`,
+            : result === 'limit'
+              ? `Army limit reached (${MAX_SOLDIERS} soldiers).`
+              : 'You already have a President.',
       );
     }
     this.sidebarTimer = SIDEBAR_REFRESH;

@@ -1,9 +1,9 @@
 import { type IconNode, Hammer, PersonStanding, Shield, Truck, createElement } from 'lucide';
-import { CURRENCY, regularsNeededFor } from '../constants';
+import { CURRENCY, MAX_VEHICLES } from '../constants';
 import { FACTIONS } from '../factions';
 import { getFlagTexture } from '../render/Flags';
 import type { BuildOption, QueueSlot } from '../systems/ConstructionSystem';
-import type { ArmyRatio, TrainOption, TrainingQueue } from '../systems/TrainingSystem';
+import type { ArmyCount, TrainOption, TrainingQueue } from '../systems/TrainingSystem';
 import type { VehicleOption, VehicleQueue } from '../systems/VehicleSystem';
 import type { BuildingType, PlayerState } from '../types';
 
@@ -44,7 +44,9 @@ export interface SidebarModel {
   hasAirfield: boolean;
   /** Infantry can only be trained while the nation owns a Barracks. */
   hasBarracks: boolean;
-  ratio: ArmyRatio;
+  army: ArmyCount;
+  /** Vehicles and aircraft owned or queued (limit: MAX_VEHICLES). */
+  vehicleCount: number;
 }
 
 export interface SidebarHandlers {
@@ -304,9 +306,9 @@ export class Sidebar {
       const count = q.items.filter((t) => t === option.tier).length;
       const training = head === option.tier;
       c.el.dataset.state = training ? q.state : count > 0 ? 'queued' : 'idle';
-      const ratioLocked = option.tier === 'special' && model.ratio.special >= model.ratio.specialCap;
-      const inOffice = option.tier === 'president' && model.ratio.presidentTaken && count === 0;
-      c.el.classList.toggle('locked', !model.hasBarracks || ratioLocked || inOffice);
+      const atLimit = model.army.total >= model.army.max && count === 0;
+      const inOffice = option.tier === 'president' && model.army.presidentTaken && count === 0;
+      c.el.classList.toggle('locked', !model.hasBarracks || atLimit || inOffice);
       if (c.badge) {
         c.badge.textContent = count > 0 ? String(count) : '';
         c.badge.hidden = count === 0;
@@ -322,8 +324,8 @@ export class Sidebar {
           ? 'QUEUED'
           : inOffice
             ? 'IN OFFICE'
-            : ratioLocked
-              ? `NEED ${regularsNeededFor(model.ratio.special + 1) - model.ratio.regular} MORE`
+            : atLimit
+              ? `LIMIT ${model.army.total}/${model.army.max}`
               : `${option.cost} ${CURRENCY}`
         : q.state === 'noBarracks'
           ? 'NO BARRACKS'
@@ -343,7 +345,8 @@ export class Sidebar {
       const count = q.items.filter((k) => k === option.kind).length;
       const producing = head === option.kind;
       c.el.dataset.state = producing ? q.state : count > 0 ? 'queued' : 'idle';
-      c.el.classList.toggle('locked', !have);
+      const atLimit = model.vehicleCount >= MAX_VEHICLES && count === 0;
+      c.el.classList.toggle('locked', !have || atLimit);
       if (c.badge) {
         c.badge.textContent = count > 0 ? String(count) : '';
         c.badge.hidden = count === 0;
@@ -361,7 +364,9 @@ export class Sidebar {
         : !producing
           ? count > 0
             ? 'QUEUED'
-            : `${option.cost} ${CURRENCY}`
+            : atLimit
+              ? `LIMIT ${model.vehicleCount}/${MAX_VEHICLES}`
+              : `${option.cost} ${CURRENCY}`
           : q.state === 'onHold'
             ? `ON HOLD ${Math.floor(q.progress * 100)}%`
             : `${Math.floor(q.progress * 100)}%`;

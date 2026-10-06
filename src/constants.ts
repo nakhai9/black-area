@@ -39,8 +39,8 @@ export const HALF_TH = TILE_H / 2;
 /** Large structures (capitals) occupy 5×4 cells, everything else 4×4 (7 px cells). */
 export const FOOTPRINT_LARGE = { w: 5, d: 4 } as const;
 export const FOOTPRINT_SMALL = { w: 4, d: 4 } as const;
-/** Airfield: runway + apron filling a 4×4 block. */
-export const FOOTPRINT_AIRFIELD = { w: 4, d: 4 } as const;
+/** Airfield: a long runway + an apron with six parking spots, 12×6 tiles. */
+export const FOOTPRINT_AIRFIELD = { w: 12, d: 6 } as const;
 
 // ---------------------------------------------------------------- Simulation & camera
 export const TICK_RATE = 30;
@@ -48,11 +48,11 @@ export const CAMERA_PAN_SPEED = 1100; // screen px / second
 export const CAMERA_EDGE_MARGIN = 16; // px from the window edge that triggers scrolling
 export const CAMERA_EDGE_SCROLL = true;
 /** Tactical zoom only — the whole-world overview lives on the sidebar radar. */
-export const ZOOM_MIN = 7;
+export const ZOOM_MIN = 3;
 export const ZOOM_MAX = 7;
 export const ZOOM_STEP = 1.12;
 /** Zoom used at start and when jumping to a building. */
-export const FOCUS_ZOOM = 5;
+export const FOCUS_ZOOM = 7;
 
 // ---------------------------------------------------------------- Players & economy
 /** In-game currency unit shown everywhere in the UI. */
@@ -76,13 +76,9 @@ export const INFANTRY_BASE = {
   president: { cost: 1000, trainSeconds: 12, maxHp: 150, speed: 1.2 },
   engineer: { cost: 400, trainSeconds: 6, maxHp: 100, speed: 1.3 },
 } as const;
-/** Army composition: every REGULARS_PER_GROUP regulars unlock SPECIALS_PER_GROUP special-forces soldiers (5 : 3). Regulars are unlimited. */
-export const REGULARS_PER_GROUP = 5;
-export const SPECIALS_PER_GROUP = 3;
-/** How many special-forces soldiers `regular` regulars allow. */
-export const specialCapFor = (regular: number): number => Math.floor((regular * SPECIALS_PER_GROUP) / REGULARS_PER_GROUP);
-/** Fewest regulars needed before `special` special-forces soldiers are allowed. */
-export const regularsNeededFor = (special: number): number => Math.ceil((special * REGULARS_PER_GROUP) / SPECIALS_PER_GROUP);
+/** Army size limits per nation (living + queued). Any mix of types may be bought, up to these totals. */
+export const MAX_SOLDIERS = 20;
+export const MAX_VEHICLES = 10;
 /** Special-forces soldiers swim; they move at this fraction of their speed in water. */
 export const SWIM_SPEED_FACTOR = 0.6;
 /** Leg-swing phase (radians) per world px walked: higher = shorter, quicker steps. */

@@ -1,4 +1,4 @@
-import { VEHICLE_BASE, VEHICLE_QUEUE_MAX } from '../constants';
+import { MAX_VEHICLES, VEHICLE_BASE, VEHICLE_QUEUE_MAX } from '../constants';
 import type { Building } from '../entities/Building';
 import type { EntityManager } from '../entities/EntityManager';
 import { FACTIONS } from '../factions';
@@ -32,7 +32,7 @@ export function vehicleOptions(faction: FactionId): VehicleOption[] {
 }
 
 export type VehicleQueueState = 'idle' | 'building' | 'onHold' | 'noFactory';
-export type VehicleEnqueueResult = 'ok' | 'full' | 'noFactory' | 'noParking';
+export type VehicleEnqueueResult = 'ok' | 'full' | 'noFactory' | 'noParking' | 'limit';
 
 export interface VehicleQueue {
   /** Waiting vehicles; the first one is in production. */
@@ -89,6 +89,11 @@ export class VehicleSystem implements GameSystem {
     return this.entities.buildings().filter((b) => b.owner === player.id && b.alive && b.spec.type === 'airfield').length * PARKING_SLOTS;
   }
 
+  /** Vehicles and aircraft owned (alive) plus the ones in the queue. */
+  vehicleCount(player: PlayerState): number {
+    return this.entities.vehicles().filter((v) => v.owner === player.id && v.alive).length + this.queue(player).items.length;
+  }
+
   private jetsOwned(player: PlayerState): number {
     return this.entities.vehicles().filter((v) => v.owner === player.id && v.alive && v.type === 'jet').length;
   }
@@ -97,6 +102,7 @@ export class VehicleSystem implements GameSystem {
     const q = this.queue(player);
     if (!this.requirement(player, kind)) return 'noFactory';
     if (q.items.length >= VEHICLE_QUEUE_MAX) return 'full';
+    if (this.vehicleCount(player) >= MAX_VEHICLES) return 'limit';
     if (kind === 'jet' && this.jetsOwned(player) + q.items.filter((k) => k === 'jet').length >= this.parkingCapacity(player)) return 'noParking';
     q.items.push(kind);
     if (q.state === 'idle') q.state = 'building';

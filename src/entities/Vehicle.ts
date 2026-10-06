@@ -39,6 +39,8 @@ export class Vehicle extends Unit {
   phaseTime = 0;
   /** Seconds the aircraft has had nothing to do while airborne. */
   idleFor = 0;
+  /** Seconds since the last repair tick while parked at its airfield. */
+  repairClock = 0;
   /** Draw-order override while on its airfield: drawn right after the airfield so it is not hidden behind it. */
   drawDepth: number | null = null;
   /** Orders given while it was busy on the ground; carried out once it is airborne. */

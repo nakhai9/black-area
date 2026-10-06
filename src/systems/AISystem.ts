@@ -172,10 +172,10 @@ export class AISystem implements GameSystem {
     if (owned.has('barracks')) {
       const q = training.queue(p);
       if (q.items.length < depth && p.credits > (threat > 0 ? 120 : 250)) {
-        const r = training.ratio(p);
+        const r = training.army(p);
         let tier: UnitTier = 'regular';
         if (!assist && !r.presidentTaken && p.credits > 1500) tier = 'president';
-        else if (r.special < r.specialCap && st.rng() < (threat > 0 ? 0.25 : 0.45)) tier = 'special';
+        else if (st.rng() < (threat > 0 ? 0.25 : 0.4)) tier = 'special';
         training.enqueue(p, tier);
       }
     }

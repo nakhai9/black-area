@@ -18,10 +18,13 @@ export interface AirfieldGeometry {
   approach: WorldPoint;
 }
 
-export const PARKING_SLOTS = 3;
+export const PARKING_SLOTS = 6;
 const TAXI_SPEED = 11;
-const TAKEOFF_SECONDS = 3.4;
-const LANDING_SECONDS = 3.0;
+const TAKEOFF_SECONDS = 2.4;
+const LANDING_SECONDS = 2.2;
+/** An aircraft parked at its airfield is serviced: it regains REPAIR_FRACTION of its health every REPAIR_INTERVAL seconds. */
+const REPAIR_INTERVAL = 4;
+const REPAIR_FRACTION = 0.02;
 /** Seconds without orders before an airborne aircraft heads home. */
 const RETURN_AFTER = 1;
 
@@ -47,7 +50,7 @@ export class AircraftSystem implements GameSystem {
       v.drawDepth = base ? base.depth + 0.02 : null;
       switch (v.flight) {
         case 'parked':
-          this.parked(v);
+          this.parked(v, dt);
           break;
         case 'taxi':
           this.taxi(v, dt);
@@ -94,8 +97,9 @@ export class AircraftSystem implements GameSystem {
 
   // ------------------------------------------------------------------ phases
 
-  private parked(v: Vehicle): void {
+  private parked(v: Vehicle, dt: number): void {
     v.altitude = 0;
+    this.service(v, dt);
     const wantsOut = v.moving || v.attackTarget !== null || v.attackMove !== null;
     if (!wantsOut) return;
     this.stashOrders(v);
@@ -109,6 +113,19 @@ export class AircraftSystem implements GameSystem {
       return;
     }
     v.flight = 'taxi';
+  }
+
+  /** Maintenance at the airfield: +2% health every 4 s while the aircraft stands on its apron. */
+  private service(v: Vehicle, dt: number): void {
+    if (v.hp >= v.maxHp || !this.home(v)) {
+      v.repairClock = 0;
+      return;
+    }
+    v.repairClock += dt;
+    while (v.repairClock >= REPAIR_INTERVAL) {
+      v.repairClock -= REPAIR_INTERVAL;
+      v.hp = Math.min(v.maxHp, v.hp + v.maxHp * REPAIR_FRACTION);
+    }
   }
 
   private taxi(v: Vehicle, dt: number): void {
