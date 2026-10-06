@@ -186,8 +186,16 @@ export const WORLD_BANK_LOCATION: GeoPoint = { lon: 8.54, lat: 47.37 }; // Züri
 export const CHHG_LOCATION: GeoPoint = { lon: 20, lat: -78 };
 
 // ---------------------------------------------------------------- Oil (replaces RA2 ore)
-/** TB per second produced by each oil derrick. */
-export const OIL_DERRICK_INCOME = 20;
+/** Barrels of oil pumped per second by each derrick while it is pumping (oil is sold to the World Bank for TB). */
+export const OIL_DERRICK_OUTPUT = 0.04;
+/** Every nation starts with some oil in stock, so the first sale can pay for the first buildings. */
+export const STARTING_OIL = 20;
+/** World Bank oil market: one price for everybody (TB per barrel), revised every 6 minutes within 0…1200. */
+export const OIL_PRICE_START = 600;
+export const OIL_PRICE_MAX = 1200;
+export const OIL_PRICE_INTERVAL = 360;
+/** The Bank never buys more than this share of the offered stock in one sale. */
+export const WB_MAX_SHARE = 0.25;
 /** Oil derricks per nation, built in one straight row on the safest ground: 3, or 4 for Europe (it also runs the World Bank). */
 export const OIL_DERRICK_COUNT: Readonly<Record<FactionId, number>> = { usa: 3, russia: 3, china: 3, europe: 4 };
 /** Oil cycle: pump for 3 minutes, then rest 1 minute while the field recovers. */

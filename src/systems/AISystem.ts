@@ -3,6 +3,7 @@ import type { Building } from '../entities/Building';
 import type { EntityManager } from '../entities/EntityManager';
 import { Infantry } from '../entities/Infantry';
 import type { Unit } from '../entities/Unit';
+import type { OilMarket } from './OilMarket';
 import type { Pathfinder } from '../map/Pathfinder';
 import type { TileMap } from '../map/TileMap';
 import { mulberry32 } from '../core/Random';
@@ -22,6 +23,7 @@ export interface AIHost {
   readonly training: TrainingSystem;
   readonly production: VehicleSystem;
   readonly placement: PlacementSystem;
+  readonly oilMarket: OilMarket;
   /** Puts the finished structure of `player`'s construction queue down at (x, y). */
   placeReady(player: PlayerState, x: number, y: number): boolean;
   ownedTypesOf(player: PlayerState): Set<BuildingType>;
@@ -42,6 +44,8 @@ const DEFENCE_RADIUS = 38 * CELL_SIZE;
 
 interface AIState {
   nextThink: number;
+  /** Earliest game time the nation offers oil to the World Bank again. */
+  nextSell: number;
   nextWave: number;
   waveSize: number;
   rng: () => number;
@@ -68,7 +72,7 @@ export class AISystem implements GameSystem {
   }
 
   private addState(p: PlayerState, i: number): AIState {
-    const st: AIState = { nextThink: 2 + i * 0.5, nextWave: FIRST_WAVE_AT + i * 25, waveSize: 8, rng: mulberry32(1000 + p.id * 77) };
+    const st: AIState = { nextThink: 2 + i * 0.5, nextSell: 20 + i * 7, nextWave: FIRST_WAVE_AT + i * 25, waveSize: 8, rng: mulberry32(1000 + p.id * 77) };
     this.state.set(p.id, st);
     return st;
   }
@@ -117,8 +121,9 @@ export class AISystem implements GameSystem {
 
   private think(p: PlayerState, st: AIState): void {
     const capital = this.host.entities.buildings().find((b) => b.owner === p.id && b.alive && b.spec.type === 'capital');
-    if (!capital) return;
+    if (!capital || p.defeated) return;
     const owned = this.host.ownedTypesOf(p);
+    this.sellOil(p, st);
     this.build(p, st, capital, owned);
     this.train(p, st, owned, this.threat(p, capital), false);
     this.keepPresidentSafe(p, capital);
@@ -126,6 +131,15 @@ export class AISystem implements GameSystem {
   }
 
   // ------------------------------------------------------------------ economy & base
+
+  /** Offers oil to the World Bank when money is short or the price is good. */
+  private sellOil(p: PlayerState, st: AIState): void {
+    if (this.time < st.nextSell || p.oil < 4) return;
+    if (p.credits < 2500 || this.host.oilMarket.price >= 750) {
+      this.host.oilMarket.sell(p);
+      st.nextSell = this.time + 25;
+    }
+  }
 
   private build(p: PlayerState, st: AIState, capital: Building, owned: Set<BuildingType>): void {
     const slot = this.host.construction.slot(p);

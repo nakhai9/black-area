@@ -761,3 +761,92 @@ kbd {
   cursor: not-allowed;
 }
 
+/* ------------------------------------------------------------- oil market */
+.sb-price.up {
+  color: #5cff6a;
+}
+.sb-price.down {
+  color: #ff6b5e;
+}
+.sb-oil-next {
+  font-size: 11px;
+  opacity: 0.8;
+}
+.sb-sell {
+  width: 100%;
+  margin: 4px 0;
+  padding: 6px 8px;
+  border: 1px solid #b8860b;
+  border-radius: 3px;
+  background: linear-gradient(#5a4310, #3a2b08);
+  color: #ffe08a;
+  font: inherit;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.sb-sell:hover:not(:disabled) {
+  background: linear-gradient(#78591a, #4d3a0c);
+}
+.sb-sell:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ------------------------------------------------------------- BREAKING NEWS toasts (top-left) */
+.news-stack {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 60;
+  display: grid;
+  gap: 8px;
+  max-width: min(460px, calc(100vw - 24px));
+  pointer-events: none;
+}
+.news {
+  display: flex;
+  align-items: stretch;
+  background: rgba(8, 12, 16, 0.92);
+  border: 1px solid #ff3b30;
+  border-left-width: 6px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.55);
+  animation: news-in 0.35s ease-out;
+  transition: opacity 0.5s, transform 0.5s;
+}
+.news.leaving {
+  opacity: 0;
+  transform: translateX(-24px);
+}
+.news-tag {
+  display: flex;
+  align-items: center;
+  padding: 6px 10px;
+  background: #d62d20;
+  color: #fff;
+  font-weight: 800;
+  font-size: 12px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  white-space: nowrap;
+  animation: news-blink 1s steps(2) infinite;
+}
+.news-text {
+  padding: 6px 12px;
+  color: #f2f5f8;
+  font-size: 13px;
+  line-height: 1.35;
+}
+@keyframes news-in {
+  from {
+    opacity: 0;
+    transform: translateX(-40px);
+  }
+}
+@keyframes news-blink {
+  50% {
+    background: #a31f15;
+  }
+}
+

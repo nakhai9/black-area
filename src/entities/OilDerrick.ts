@@ -1,6 +1,6 @@
 import {
   FOOTPRINT_SMALL,
-  OIL_DERRICK_INCOME,
+  OIL_DERRICK_OUTPUT,
   OIL_MINE_SECONDS,
   OIL_REST_SECONDS,
 } from '../constants';
@@ -10,7 +10,7 @@ import { Building } from './Building';
 const CYCLE = OIL_MINE_SECONDS + OIL_REST_SECONDS;
 
 /**
- * Pumpjack in a nation's oil row — the only source of TB. One derrick of every row is managed by
+ * Pumpjack in a nation's oil row — the only source of oil (sold to the World Bank for TB). One derrick of every row is managed by
  * the World Bank: it still belongs to its nation (its oil money goes to that nation's budget) but
  * nobody can destroy or capture it. It pumps for
  * OIL_MINE_SECONDS, then rests for OIL_REST_SECONDS while the reservoir
@@ -33,7 +33,7 @@ export class OilDerrick extends Building {
       maxHp: 1000,
       powerOutput: 0,
       powerDrain: 0,
-      incomePerSecond: OIL_DERRICK_INCOME,
+      incomePerSecond: OIL_DERRICK_OUTPUT,
       spriteKey: `oil:${faction}`,
       indestructible: bankManaged,
       uncapturable: bankManaged,
@@ -41,7 +41,7 @@ export class OilDerrick extends Building {
     this.bankManaged = bankManaged;
     this.description = bankManaged
       ? `Managed by the World Bank: its TB still goes to its nation, and it cannot be destroyed or captured.`
-      : `The nation's source of TB. Pumps ${OIL_MINE_SECONDS} s, then rests ${OIL_REST_SECONDS} s while the field recovers.`;
+      : `Pumps oil for the nation to sell to the World Bank. Pumps ${OIL_MINE_SECONDS} s, then rests ${OIL_REST_SECONDS} s while the field recovers.`;
     // Stagger neighbours (0 s, 40 s, 80 s … into the 240 s cycle) so they never all rest together.
     const t = (rowIndex * 40) % CYCLE;
     this.mining = t < OIL_MINE_SECONDS;

@@ -142,6 +142,10 @@ export interface PlayerState {
   isHuman: boolean;
   /** Treasury in TB. */
   credits: number;
+  /** Oil in stock (barrels): pumped by the derricks, sold to the World Bank for TB. */
+  oil: number;
+  /** Set when the nation's capital has been destroyed: it has lost the war. */
+  defeated: boolean;
   powerProduced: number;
   powerConsumed: number;
 }
@@ -177,7 +181,7 @@ export interface BuildingSpec {
   maxHp: number;
   powerOutput: number;
   powerDrain: number;
-  /** TB generated per second for the owner. */
+  /** Barrels of oil produced per second for the owner (oil derricks). */
   incomePerSecond: number;
   /** Key into the sprite/art registry. */
   spriteKey: string;

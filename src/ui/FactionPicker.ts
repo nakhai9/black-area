@@ -3,7 +3,7 @@ import {
   CURRENCY,
   FACTION_ORDER,
   OIL_DERRICK_COUNT,
-  OIL_DERRICK_INCOME,
+  OIL_DERRICK_OUTPUT,
   OIL_MINE_SECONDS,
   OIL_REST_SECONDS,
 } from '../constants';
@@ -63,7 +63,7 @@ export class FactionPicker {
         <header class="fp-header">
           <div class="sb-logo">BLACK<span>AREA</span></div>
           <h1 id="fp-title">Choose your side</h1>
-          <p>Every nation starts with 0 ${CURRENCY}. Oil derricks are the only source of money (+${OIL_DERRICK_INCOME} ${CURRENCY}/s each while pumping): they pump ${OIL_MINE_SECONDS} s, then rest ${OIL_REST_SECONDS} s. Three per nation, four for Europe, which manages the World Bank.</p>
+          <p>Every nation starts with 0 ${CURRENCY} and some oil. Derricks pump oil (${OIL_DERRICK_OUTPUT} barrels/s each) for ${OIL_MINE_SECONDS} s, then rest ${OIL_REST_SECONDS} s. Oil is sold to the World Bank for ${CURRENCY} at a price that changes every 6 minutes — weigh war against weapons. Three derricks per nation, four for Europe.</p>
         </header>
         <div class="fp-grid"></div>
         <footer class="fp-footer">
@@ -149,7 +149,7 @@ export class FactionPicker {
       <div class="fp-capital">${f.capital.name} · ${CAPITAL_LOCATIONS[id].name}</div>
       <p class="fp-doctrine">${f.doctrine}</p>
       <ul class="sb-stats fp-stats">${stats}</ul>
-      <div class="fp-oil-title">Oil derricks · ${OIL_DERRICK_COUNT[id]} × +${OIL_DERRICK_INCOME} ${CURRENCY}/s</div>
+      <div class="fp-oil-title">Oil derricks · ${OIL_DERRICK_COUNT[id]} × ${OIL_DERRICK_OUTPUT} barrels/s</div>
       <ul class="fp-oil">${oil}</ul>`;
     return card;
   }

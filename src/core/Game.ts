@@ -26,6 +26,7 @@ import {
   NEUTRAL_OWNER,
   OIL_DERRICK_COUNT,
   STARTING_CREDITS,
+  STARTING_OIL,
   WORLD_BANK_LOCATION,
   WORLD_HEIGHT,
   WORLD_WIDTH,
@@ -63,6 +64,8 @@ import { AIRFIELD_SIZE, AIRFIELD_SLOTS, RUNWAY_D } from '../render/sprites/Airfi
 import { AircraftSystem, type AirfieldGeometry } from '../systems/AircraftSystem';
 import { AISystem } from '../systems/AISystem';
 import { canTarget, CombatSystem, distanceTo, isHostile } from '../systems/CombatSystem';
+import { OilMarket } from '../systems/OilMarket';
+import { NewsToast } from '../ui/NewsToast';
 import { BUILD_OPTIONS, type BuildOption, ConstructionSystem, type QueueState, buildCost } from '../systems/ConstructionSystem';
 import { EconomySystem } from '../systems/EconomySystem';
 import type { GameSystem } from '../systems/GameSystem';
@@ -148,6 +151,9 @@ export class Game {
   readonly ai: AISystem;
   readonly effects = new EffectsLayer();
   readonly sound: SoundSystem;
+  /** World Bank oil market (one price for every nation) and the news toasts. */
+  readonly oilMarket: OilMarket;
+  private readonly news: NewsToast;
   private readonly lastShot = new Map<number, number>();
   private smokeTimer = 0;
   /** Types of the human player's buildings, refreshed with the sidebar. */
@@ -189,6 +195,8 @@ export class Game {
       faction,
       isHuman: faction === playerFaction,
       credits: STARTING_CREDITS,
+      oil: STARTING_OIL,
+      defeated: false,
       powerProduced: 0,
       powerConsumed: 0,
     }));
@@ -216,6 +224,8 @@ export class Game {
     this.input = new InputHandler(dom.canvas);
     this.selection = new SelectionSystem(this.entities, this.sprites, this.bus);
     this.economy = new EconomySystem(this.players, this.entities);
+    this.oilMarket = new OilMarket();
+    this.news = new NewsToast();
     this.placement = new PlacementSystem(this.map, this.entities);
     this.construction = new ConstructionSystem(this.players);
     this.pathfinder = new Pathfinder(this.map);
@@ -245,6 +255,7 @@ export class Game {
     this.systems = [
       new PowerSystem(this.players, this.entities),
       this.economy,
+      this.oilMarket,
       this.construction,
       this.training,
       this.production,
@@ -264,6 +275,7 @@ export class Game {
       onTrainCancel: (option) => this.onTrainCancel(option.tier),
       trainPreview: (option) => soldierPortrait(human.faction, option.tier),
       onAlert: (at) => this.camera.centerOn(at.x, at.y),
+      onSellOil: () => this.sellOil(),
       onVehicle: (option) => this.onVehicleClick(option.kind),
       onVehicleCancel: (option) => this.onVehicleCancel(option.kind),
       vehiclePreview: (option) => vehiclePortrait(human.faction, option.kind),
@@ -664,7 +676,10 @@ export class Game {
       this.sidebar.update(
         {
           player: this.humanPlayer,
-          income: this.economy.incomeRate(this.humanPlayer),
+          oilRate: this.economy.oilRate(this.humanPlayer),
+          oilPrice: this.oilMarket.price,
+          oilPriceDelta: this.oilMarket.price - this.oilMarket.previous,
+          oilPriceIn: this.oilMarket.secondsToChange,
           derricks: own.length,
           pumping,
           queue,
@@ -977,6 +992,30 @@ export class Game {
     this.sidebar.alert(`${name} is under attack!`, at);
   }
 
+  /** Sell button: the World Bank looks at the offer and decides whether, and how much, to buy. */
+  private sellOil(): void {
+    const result = this.oilMarket.sell(this.humanPlayer);
+    this.sidebar.notify(
+      result.kind === 'sold'
+        ? `World Bank bought ${result.barrels.toFixed(1)} barrels at ${result.price} ${CURRENCY} → +${result.revenue} ${CURRENCY}`
+        : `World Bank declined: ${result.reason}.`,
+      5,
+    );
+    this.sidebarTimer = SIDEBAR_REFRESH;
+  }
+
+  /** A capital was destroyed: its nation has lost the war (BREAKING NEWS toast, top-left). */
+  private defeatNation(capital: Building): void {
+    const nation = this.players.find((p) => p.id === capital.owner);
+    if (!nation || nation.defeated) return;
+    nation.defeated = true;
+    const name = FACTIONS[nation.faction].name;
+    this.news.show(
+      'BREAKING NEWS',
+      nation.isHuman ? `${name} has been defeated — your capital has fallen!` : `${name} has been defeated — its capital, ${capital.spec.name}, has fallen.`,
+    );
+  }
+
   /** Something ran out of health: remove it with an explosion. */
   private onDeath(e: Entity, killer?: Entity): void {
     this.awardKill(e, killer);
@@ -1002,6 +1041,7 @@ export class Game {
     if (!(e instanceof Building)) return;
     if (this.selection.selectedId === e.id) this.selection.select(null);
     this.ejectUnits(e, [...e.garrison]);
+    if (e.spec.type === 'capital') this.defeatNation(e);
     if (e.owner === this.humanPlayer.id) this.sidebar.alert(`${e.spec.name} was destroyed!`, e.centerWorld());
     if (e.spec.type === 'airfield') {
       // Aircraft parked on it burn with it unless the nation has another airfield to move them to.

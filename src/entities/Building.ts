@@ -32,7 +32,7 @@ export class Building extends Entity {
     return true;
   }
 
-  /** Current TB per second produced for the owner. */
+  /** Current barrels of oil per second produced for the owner. */
   get income(): number {
     return this.spec.incomePerSecond;
   }

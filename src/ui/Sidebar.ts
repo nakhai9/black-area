@@ -19,8 +19,12 @@ const BUILD_TABS: readonly { id: TabId; label: string; icon: IconNode; enabled: 
 
 export interface SidebarModel {
   player: PlayerState;
-  /** Total income in TB per second. */
-  income: number;
+  /** Oil output in barrels per second. */
+  oilRate: number;
+  /** World Bank price in TB per barrel, how much it moved at the last revision, and seconds to the next one. */
+  oilPrice: number;
+  oilPriceDelta: number;
+  oilPriceIn: number;
   derricks: number;
   /** Derricks currently pumping (the others are resting). */
   pumping: number;
@@ -58,6 +62,8 @@ export interface SidebarHandlers {
   /** Right click on an infantry cameo: remove one from the queue (refund if in training). */
   onTrainCancel: (option: TrainOption) => void;
   trainPreview: (option: TrainOption) => HTMLCanvasElement;
+  /** The Sell oil button: offer the stock to the World Bank. */
+  onSellOil: () => void;
   /** An alert in the alert section was clicked: look at where it happened. */
   onAlert: (at: WorldPoint) => void;
 }
@@ -83,6 +89,10 @@ export class Sidebar {
 
   private readonly credits: HTMLElement;
   private readonly income: HTMLElement;
+  private readonly stock: HTMLElement;
+  private readonly price: HTMLElement;
+  private readonly priceNext: HTMLElement;
+  private readonly sellButton: HTMLButtonElement;
   private readonly derricks: HTMLElement;
   private readonly powerFill: HTMLElement;
   private readonly powerText: HTMLElement;
@@ -134,8 +144,12 @@ export class Sidebar {
         </div>
         <div class="sb-budget-label">National budget</div>
         <div class="sb-credits"><span>0</span> <small>${CURRENCY}</small></div>
-        <div class="sb-oil">INCOME <span class="sb-income"></span></div>
-        <div class="sb-oil">OIL <span class="sb-derricks"></span></div>
+        <div class="sb-oil">OIL OUTPUT <span class="sb-income"></span></div>
+        <div class="sb-oil">OIL STOCK <span class="sb-stock"></span></div>
+        <div class="sb-oil">WORLD BANK PRICE <span class="sb-price"></span></div>
+        <div class="sb-oil sb-oil-next">NEXT PRICE IN <span class="sb-price-next"></span></div>
+        <button class="sb-sell" type="button" title="Offer your oil to the World Bank: it decides whether and how much to buy (at most 25% per sale) and pays the posted price into your budget">Sell oil</button>
+        <div class="sb-oil">DERRICKS <span class="sb-derricks"></span></div>
         <button class="sb-auto" type="button" aria-pressed="false" title="Automatically train soldiers and vehicles to defend your base (F)">Auto-defense: OFF</button>
         <div class="sb-power">
           <div class="sb-power-label">POWER <span></span></div>
@@ -176,6 +190,11 @@ export class Sidebar {
     this.minimapCanvas = q<HTMLCanvasElement>('.sb-minimap');
     this.credits = q('.sb-credits span');
     this.income = q('.sb-income');
+    this.stock = q('.sb-stock');
+    this.price = q('.sb-price');
+    this.priceNext = q('.sb-price-next');
+    this.sellButton = q('.sb-sell');
+    this.sellButton.addEventListener('click', () => this.handlers.onSellOil());
     this.derricks = q('.sb-derricks');
     this.powerFill = q('.sb-power-fill');
     this.powerText = q('.sb-power-label span');
@@ -260,7 +279,15 @@ export class Sidebar {
   update(model: SidebarModel, dt: number): void {
     const { player, queue } = model;
     this.credits.textContent = Math.floor(player.credits).toLocaleString('en-US');
-    this.income.textContent = `+${model.income} ${CURRENCY}/s`;
+    this.income.textContent = `+${model.oilRate.toFixed(2)} bbl/s`;
+    this.stock.textContent = `${player.oil.toFixed(1)} bbl`;
+    const d = model.oilPriceDelta;
+    this.price.textContent = `${model.oilPrice} ${CURRENCY}/bbl ${d > 0 ? '▲' : d < 0 ? '▼' : '■'}${d !== 0 ? ` ${Math.abs(d)}` : ''}`;
+    this.price.classList.toggle('up', d > 0);
+    this.price.classList.toggle('down', d < 0);
+    const secs = Math.ceil(model.oilPriceIn);
+    this.priceNext.textContent = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
+    this.sellButton.disabled = player.defeated || player.oil < 0.5;
     this.derricks.textContent = `${model.pumping}/${model.derricks} pumping`;
 
     const produced = player.powerProduced;
