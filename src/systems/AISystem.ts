@@ -3,6 +3,7 @@ import type { Building } from '../entities/Building';
 import type { Entity } from '../entities/Entity';
 import type { EntityManager } from '../entities/EntityManager';
 import { Infantry } from '../entities/Infantry';
+import { Vehicle } from '../entities/Vehicle';
 import type { Unit } from '../entities/Unit';
 import type { OilMarket } from './OilMarket';
 import type { Pathfinder } from '../map/Pathfinder';
@@ -30,6 +31,10 @@ export interface AIHost {
   ownedTypesOf(player: PlayerState): Set<BuildingType>;
   /** Sends a person into a building (President → capital). */
   orderEnter(u: Infantry, b: Building): void;
+  /** Sends an engineer to repair an own damaged building. */
+  orderRepair(u: Infantry, b: Building): void;
+  /** Soldiers / vehicles walk to a parked transport and climb aboard. */
+  orderBoard(t: Vehicle, riders: Unit[]): boolean;
   /** Soldiers/vehicles walk to `target`, fighting everything on the way. */
   orderAttackMove(units: readonly Unit[], target: WorldPoint): void;
   /** Focus on an enemy structure or unit: soldiers and vehicles only attack buildings when told to. */
@@ -39,6 +44,52 @@ export interface AIHost {
 /** Order in which an AI nation builds its base. */
 const BUILD_PLAN: readonly BuildOption['id'][] = ['barracks', 'warFactory', 'hospital', 'airfield', 'techCenter'];
 const THINK_PERIOD = 1.5;
+/** Economy first: one Happy City (tax income) per this many seconds of game time, up to MAX_CITIES. */
+const CITY_EVERY = 150;
+const MAX_CITIES = 6;
+/** While saving for a city, units are only bought with money above this share of its price. */
+const CITY_SAVE_SHARE = 0.7;
+/** Below this many fighting units the AI ignores savings and rebuilds its army first. */
+const MIN_ARMY = 8;
+/** Balanced army: about this many soldiers for every vehicle / aircraft. */
+const SOLDIERS_PER_VEHICLE = 2;
+/** Target vehicle mix (share of the vehicle fleet). */
+const VEHICLE_MIX: readonly [VehicleKind, number][] = [['tank', 0.4], ['ifv', 0.25], ['light', 0.15], ['jet', 0.2]];
+/** A structure below this share of its health is worth an engineer. */
+const REPAIR_BELOW = 0.65;
+/** A soldier below this share of its health goes to hospital once out of the fight. */
+const HEAL_BELOW = 0.55;
+/** Seconds without being hit before a wounded soldier leaves the fight for hospital. */
+const HEAL_CALM = 4;
+/** Overseas war: transport aircraft kept at home, and the smallest force worth sending across the ocean. */
+const OVERSEAS_TRANSPORTS = 2;
+const OVERSEAS_MIN_FORCE = 10;
+/** Soldiers sent to fill one transport (its capacity for soldiers only). */
+const TRANSPORT_LOAD = 12;
+
+/**
+ * Each AI nation gets a character so no two games play the same:
+ *  - economist: builds cities sooner and saves harder, attacks later with bigger waves;
+ *  - warlord: few cities, early and frequent attack waves, more vehicles;
+ *  - balanced: in between.
+ */
+interface Personality {
+  name: 'economist' | 'warlord' | 'balanced';
+  /** Multiplies the Happy City pace (lower = more cities sooner). */
+  cityEvery: number;
+  /** Share of a city's price kept in reserve while saving. */
+  save: number;
+  /** Multiplies the time to the first wave and between waves. */
+  waveGap: number;
+  /** Soldiers per vehicle. */
+  soldiersPerVehicle: number;
+}
+
+const PERSONALITIES: readonly Personality[] = [
+  { name: 'economist', cityEvery: 0.7, save: 0.85, waveGap: 1.3, soldiersPerVehicle: 2.5 },
+  { name: 'warlord', cityEvery: 1.6, save: 0.4, waveGap: 0.7, soldiersPerVehicle: 1.4 },
+  { name: 'balanced', cityEvery: 1, save: CITY_SAVE_SHARE, waveGap: 1, soldiersPerVehicle: SOLDIERS_PER_VEHICLE },
+];
 /** No attack waves before this game time (s); the first wave also needs enough soldiers. */
 const FIRST_WAVE_AT = 210;
 const WAVE_GAP = 110;
@@ -62,6 +113,10 @@ interface AIState {
   nextWave: number;
   waveSize: number;
   rng: () => number;
+  /** This nation's character (see PERSONALITIES). */
+  style: Personality;
+  /** The nearest enemy can only be reached across the sea: build and mass sea-crossing forces. */
+  overseas: boolean;
 }
 
 /**
@@ -85,7 +140,18 @@ export class AISystem implements GameSystem {
   }
 
   private addState(p: PlayerState, i: number): AIState {
-    const st: AIState = { nextThink: 2 + i * 0.5, nextRegroup: 40 + i * 5, nextSell: 20 + i * 7, nextWave: FIRST_WAVE_AT + i * 25, waveSize: 8, rng: mulberry32(1000 + p.id * 77) };
+    const rng = mulberry32(1000 + p.id * 77 + Math.floor(Math.random() * 1e6));
+    const style = PERSONALITIES[Math.floor(rng() * PERSONALITIES.length)] ?? PERSONALITIES[2];
+    const st: AIState = {
+      nextThink: 2 + i * 0.5,
+      nextRegroup: 40 + i * 5,
+      nextSell: 20 + i * 7,
+      nextWave: FIRST_WAVE_AT * style.waveGap + i * 25,
+      waveSize: style.name === 'warlord' ? 6 : style.name === 'economist' ? 10 : 8,
+      rng,
+      style,
+      overseas: false,
+    };
     this.state.set(p.id, st);
     return st;
   }
@@ -136,25 +202,60 @@ export class AISystem implements GameSystem {
     const capital = this.host.entities.buildings().find((b) => b.owner === p.id && b.alive && b.spec.type === 'capital');
     if (!capital || p.defeated) return;
     const owned = this.host.ownedTypesOf(p);
+    const threat = this.threat(p, capital);
+    st.overseas = this.isOverseas(p, capital);
     this.sellOil(p, st);
-    this.build(p, st, capital, owned);
-    this.train(p, st, owned, this.threat(p, capital), false);
+    this.build(p, st, capital, owned, threat);
+    this.train(p, st, owned, threat, false);
     this.keepPresidentSafe(p, capital);
+    this.repairBase(p, owned);
+    if (st.overseas) this.loadTransports(p, capital);
+    this.healWounded(p);
     this.army(p, st, capital);
   }
 
   // ------------------------------------------------------------------ economy & base
 
-  /** Offers oil to the World Bank when money is short or the price is good. */
+  /** Making money comes first: sells oil whenever the Bank pays a fair price, or at any price when broke. */
   private sellOil(p: PlayerState, st: AIState): void {
-    if (this.time < st.nextSell || p.oil < 4) return;
-    if (p.credits < 2500 || this.host.oilMarket.price >= 750) {
-      this.host.oilMarket.sell(p);
-      st.nextSell = this.time + 25;
+    if (this.time < st.nextSell || p.oil < 2) return;
+    const market = this.host.oilMarket;
+    if (market.waitSeconds(p) > 0) return;
+    if (p.credits < 3000 || market.price >= 550) {
+      market.sell(p);
+      st.nextSell = this.time + 5;
     }
   }
 
-  private build(p: PlayerState, st: AIState, capital: Building, owned: Set<BuildingType>): void {
+  /** Happy Cities the nation owns (alive). */
+  private cities(p: PlayerState): number {
+    return this.host.entities.buildings().filter((b) => b.owner === p.id && b.alive && b.spec.type === 'happyCity').length;
+  }
+
+  /** True while the nation is saving up for its next Happy City. */
+  private savingForCity(p: PlayerState, owned: Set<BuildingType>, st?: AIState): boolean {
+    const city = BUILD_OPTIONS.find((o) => o.id === 'happyCity');
+    if (!city || missingRequirement(city, owned) !== null) return false;
+    const n = this.cities(p);
+    return n < MAX_CITIES && n < 1 + Math.floor(this.time / (CITY_EVERY * (st?.style.cityEvery ?? 1)));
+  }
+
+  /** Fighting units of the nation: soldiers (no President / engineers) and vehicles by kind. */
+  private forces(p: PlayerState): { soldiers: number; vehicles: Map<VehicleKind, number>; total: number } {
+    let soldiers = 0;
+    const vehicles = new Map<VehicleKind, number>();
+    for (const u of this.host.entities.fieldMovers()) {
+      if (u.owner !== p.id || !u.alive) continue;
+      if (u instanceof Infantry) {
+        if (!u.isPresident && !u.isEngineer) soldiers++;
+      } else if (u instanceof Vehicle && !u.isTransport) vehicles.set(u.type, (vehicles.get(u.type) ?? 0) + 1);
+    }
+    let total = soldiers;
+    for (const n of vehicles.values()) total += n;
+    return { soldiers, vehicles, total };
+  }
+
+  private build(p: PlayerState, st: AIState, capital: Building, owned: Set<BuildingType>, threat: number): void {
     const slot = this.host.construction.slot(p);
     if (slot.state === 'ready' && slot.option) {
       const site = this.findSite(p, st, capital, slot.option);
@@ -163,10 +264,12 @@ export class AISystem implements GameSystem {
       return;
     }
     if (slot.state !== 'idle') return;
-    const next = BUILD_PLAN.map((id) => BUILD_OPTIONS.find((o) => o.id === id)).find(
+    let next = BUILD_PLAN.map((id) => BUILD_OPTIONS.find((o) => o.id === id)).find(
       (o) => o && !owned.has(o.id as BuildingType) && missingRequirement(o, owned) === null,
     );
-    if (next && p.credits >= buildCost(next, p.faction) * 0.3) this.host.construction.start(p, next);
+    // Base complete (or waiting): grow the economy with Happy Cities when nobody is attacking.
+    if (!next && threat === 0 && this.savingForCity(p, owned, st)) next = BUILD_OPTIONS.find((o) => o.id === 'happyCity');
+    if (next && p.credits >= buildCost(next, p.faction) * (next.id === 'happyCity' ? 1 : 0.3)) this.host.construction.start(p, next);
   }
 
   /** A legal spot near the capital (preferring close ones, with some randomness). */
@@ -189,31 +292,128 @@ export class AISystem implements GameSystem {
   }
 
   /**
-   * Keeps soldiers and vehicles coming. With enemies near the capital the
-   * queues run deeper and favour cheap regulars and tanks; `assist` (the
-   * player's auto-defence) never trains a President or aircraft on its own.
+   * Keeps soldiers and vehicles coming, balanced: about SOLDIERS_PER_VEHICLE soldiers per vehicle and a vehicle
+   * fleet close to VEHICLE_MIX. Money comes first: while saving for a Happy City only the surplus is spent,
+   * unless the army is too small or the capital is under threat. `assist` (the player's auto-defence) never
+   * trains a President or aircraft on its own.
    */
   private train(p: PlayerState, st: AIState, owned: Set<BuildingType>, threat: number, assist: boolean): void {
     const { training, production } = this.host;
     const depth = threat > 0 ? 4 : 2;
-    if (owned.has('barracks')) {
+    const f = this.forces(p);
+    const city = BUILD_OPTIONS.find((o) => o.id === 'happyCity');
+    const reserve =
+      !assist && threat === 0 && f.total >= MIN_ARMY && city && this.savingForCity(p, owned, st) ? buildCost(city, p.faction) * st.style.save : 0;
+    const budget = p.credits - reserve;
+    let vehicleCount = 0;
+    for (const n of f.vehicles.values()) vehicleCount += n;
+    const canVehicles = owned.has('warFactory') || owned.has('airfield');
+    // Which side is short: soldiers or vehicles?
+    const wantVehicle = canVehicles && f.soldiers >= vehicleCount * st.style.soldiersPerVehicle;
+
+    if (owned.has('barracks') && (!wantVehicle || threat > 0)) {
       const q = training.queue(p);
-      if (q.items.length < depth && p.credits > (threat > 0 ? 120 : 250)) {
+      if (q.items.length < depth && budget > (threat > 0 ? 120 : 250)) {
         const r = training.army(p);
         let tier: UnitTier = 'regular';
         if (!assist && !r.presidentTaken && p.credits > 1500) tier = 'president';
-        else if (owned.has('techCenter') && r.special < r.specialCap && st.rng() < (threat > 0 ? 0.25 : 0.4)) tier = 'special';
+        else if (owned.has('techCenter') && r.special < r.specialCap && st.rng() < (threat > 0 ? 0.25 : st.overseas ? 0.75 : 0.4)) tier = 'special';
         training.enqueue(p, tier);
       }
     }
-    if (owned.has('warFactory') || owned.has('airfield')) {
+    if (canVehicles && (wantVehicle || threat > 0)) {
       const q = production.queue(p);
-      if (q.items.length < depth && p.credits > (threat > 0 ? 500 : 700)) {
-        let kind: VehicleKind = st.rng() < 0.6 || !owned.has('techCenter') ? 'tank' : 'ifv';
-        if (!assist && owned.has('airfield') && p.credits > 1700 && st.rng() < 0.3) kind = 'jet';
-        if (!owned.has('warFactory') && kind !== 'jet') kind = 'jet';
-        if (!assist || kind !== 'jet') production.enqueue(p, kind);
+      if (q.items.length < depth && budget > (threat > 0 ? 500 : 700)) {
+        // Pick the kind furthest below its share of the fleet, among those this base can build.
+        const able = (k: VehicleKind): boolean =>
+          k === 'jet' ? owned.has('airfield') && !assist : k === 'ifv' ? owned.has('warFactory') && owned.has('techCenter') : owned.has('warFactory');
+        let kind: VehicleKind | null = null;
+        let worst = Infinity;
+        // Across the sea only aircraft (and what transports carry) reach the enemy: favour jets, keep transports.
+        const mix: readonly [VehicleKind, number][] = st.overseas ? [['tank', 0.25], ['ifv', 0.15], ['light', 0.1], ['jet', 0.5]] : VEHICLE_MIX;
+        const transports = this.host.entities
+          .fieldMovers()
+          .filter((u) => u instanceof Vehicle && u.owner === p.id && u.alive && u.isTransport).length;
+        const queuedTransports = q.items.filter((k) => k === 'transport').length;
+        if (!assist && st.overseas && owned.has('airfield') && transports + queuedTransports < OVERSEAS_TRANSPORTS) {
+          production.enqueue(p, 'transport');
+          return;
+        }
+        for (const [k, share] of mix) {
+          if (!able(k)) continue;
+          const have = (f.vehicles.get(k) ?? 0) / Math.max(1, vehicleCount);
+          const score = have - share + st.rng() * 0.05;
+          if (score < worst) {
+            worst = score;
+            kind = k;
+          }
+        }
+        // Ground fleet at its cap: aircraft are not limited, so build a jet instead.
+        if (kind && production.enqueue(p, kind) === 'cap' && able('jet')) production.enqueue(p, 'jet');
       }
+    }
+  }
+
+  /** Own structures (not indestructible) below REPAIR_BELOW of their health. */
+  private damaged(p: PlayerState): Building[] {
+    return this.host.entities
+      .buildings()
+      .filter((b) => b.owner === p.id && b.alive && !b.indestructible && b.hp < b.maxHp * REPAIR_BELOW)
+      .sort((a, b) => a.hp / a.maxHp - b.hp / b.maxHp);
+  }
+
+  /**
+   * Same rules as the player: an engineer walks into a damaged structure, restores it to 100% and is consumed.
+   * The nation trains engineers when it has damaged buildings and none on the way (one per building, max 3),
+   * the capital first since it is the most damaged in a siege.
+   */
+  private repairBase(p: PlayerState, owned: Set<BuildingType>): void {
+    const hurt = this.damaged(p);
+    if (hurt.length === 0) return;
+    const engineers = this.host.entities.fieldUnits().filter((u): u is Infantry => u instanceof Infantry && u.owner === p.id && u.alive && u.isEngineer);
+    const covered = new Set(engineers.filter((u) => u.task?.type === 'repair').map((u) => u.task?.buildingId));
+    const free = engineers.filter((u) => u.task === null && !u.moving);
+    for (const b of hurt) {
+      if (covered.has(b.id)) continue;
+      const u = free.shift();
+      if (!u) break;
+      this.host.orderRepair(u, b);
+      covered.add(b.id);
+    }
+    if (!owned.has('barracks')) return;
+    const queued = this.host.training.queue(p).items.filter((t) => t === 'engineer').length;
+    const needed = Math.min(3, hurt.filter((b) => !covered.has(b.id)).length);
+    if (queued < needed && free.length === 0 && p.credits > 600) this.host.training.enqueue(p, 'engineer');
+  }
+
+  /** Wounded soldiers who are out of the fight go to the nearest hospital with a free bed (same rule as the player). */
+  private healWounded(p: PlayerState): void {
+    const hospitals = this.host.entities.buildings().filter((b) => b.owner === p.id && b.alive && b.spec.garrison?.accepts !== 'president' && b.spec.garrison);
+    if (hospitals.length === 0) return;
+    const heading = new Map<number, number>();
+    for (const u of this.host.entities.fieldUnits()) {
+      if (u.owner === p.id && u.task?.type === 'enter') heading.set(u.task.buildingId, (heading.get(u.task.buildingId) ?? 0) + 1);
+    }
+    for (const u of this.host.entities.fieldUnits()) {
+      if (!(u instanceof Infantry) || u.owner !== p.id || !u.alive || u.isPresident || u.task !== null) continue;
+      if (u.hp >= u.maxHp * HEAL_BELOW || this.time - u.lastAttackedAt < HEAL_CALM) continue;
+      let best: Building | null = null;
+      let bestD = Infinity;
+      for (const h of hospitals) {
+        const cap = h.spec.garrison?.capacity ?? 0;
+        if (!h.canEnter(u) || h.garrison.length + (heading.get(h.id) ?? 0) >= cap) continue;
+        const c = h.centerWorld();
+        const d = Math.hypot(c.x - u.px, c.y - u.py);
+        if (d < bestD) {
+          bestD = d;
+          best = h;
+        }
+      }
+      if (!best) continue;
+      u.attackMove = null;
+      u.attackTarget = null;
+      this.host.orderEnter(u, best);
+      heading.set(best.id, (heading.get(best.id) ?? 0) + 1);
     }
   }
 
@@ -231,7 +431,7 @@ export class AISystem implements GameSystem {
   private army(p: PlayerState, st: AIState, capital: Building): void {
     const all = this.host.entities.fieldMovers();
     const army = all.filter(
-      (u) => u.owner === p.id && u.weapon !== null && u.alive && !(u instanceof Infantry && (u.isPresident || u.isEngineer)),
+      (u) => u.owner === p.id && u.weapon !== null && u.alive && u.task?.type !== 'enter' && u.boardTarget === null && !(u instanceof Infantry && (u.isPresident || u.isEngineer)),
     );
     if (army.length === 0) return;
 
@@ -261,9 +461,13 @@ export class AISystem implements GameSystem {
     this.regroup(p, st, army, capital, all);
 
     // Attack wave.
+    if (st.overseas) {
+      this.overseasWave(p, st, army, capital);
+      return;
+    }
     if (this.time < st.nextWave || army.length < st.waveSize) return;
     const target = this.pickTarget(p, capital.centerWorld());
-    st.nextWave = this.time + WAVE_GAP;
+    st.nextWave = this.time + WAVE_GAP * st.style.waveGap;
     if (!target) return;
     const goal = target.centerWorld();
     const cell = this.host.pathfinder.nearestPassable(Math.floor(goal.x / CELL_SIZE), Math.floor((goal.y + 10) / CELL_SIZE), 10);
@@ -276,6 +480,79 @@ export class AISystem implements GameSystem {
     if (sent.length < Math.min(4, st.waveSize)) return;
     st.waveSize = Math.min(st.waveSize + 3, 30);
     this.host.orderAttackMove(sent, { x: goal.x, y: goal.y + CELL_SIZE * 3 });
+  }
+
+  /** True when the nearest enemy structure cannot be reached by land from the capital. */
+  private isOverseas(p: PlayerState, capital: Building): boolean {
+    const target = this.pickTarget(p, capital.centerWorld());
+    if (!target) return false;
+    const pf = this.host.pathfinder;
+    const home = capital.centerWorld();
+    const goal = target.centerWorld();
+    const a = pf.nearestPassable(Math.floor(home.x / CELL_SIZE), Math.floor((home.y + 10) / CELL_SIZE), 10);
+    const b = pf.nearestPassable(Math.floor(goal.x / CELL_SIZE), Math.floor((goal.y + 10) / CELL_SIZE), 10);
+    return a !== null && b !== null && !pf.sameLandmass(a.x, a.y, b.x, b.y);
+  }
+
+  /** Own transport aircraft standing at home (parked) with room left. */
+  private homeTransports(p: PlayerState): Vehicle[] {
+    return this.host.entities
+      .fieldMovers()
+      .filter((u): u is Vehicle => u instanceof Vehicle && u.owner === p.id && u.alive && u.isTransport && u.flight === 'parked');
+  }
+
+  /** Overseas war: idle soldiers at home that cannot swim climb into the parked transports, ready to be flown over. */
+  private loadTransports(p: PlayerState, capital: Building): void {
+    const home = capital.centerWorld();
+    const boarding = new Map<number, number>();
+    for (const u of this.host.entities.fieldMovers()) {
+      if (u.owner === p.id && u.boardTarget !== null) boarding.set(u.boardTarget, (boarding.get(u.boardTarget) ?? 0) + 1);
+    }
+    const pool = this.host.entities
+      .fieldMovers()
+      .filter(
+        (u): u is Infantry =>
+          u instanceof Infantry &&
+          u.owner === p.id &&
+          u.alive &&
+          !u.swims &&
+          !u.isPresident &&
+          !u.isEngineer &&
+          u.task === null &&
+          u.boardTarget === null &&
+          u.attackMove === null &&
+          u.combatTarget === null &&
+          u.hp >= u.maxHp * HEAL_BELOW &&
+          Math.hypot(u.px - home.x, u.py - home.y) < HOME_RADIUS,
+      );
+    for (const t of this.homeTransports(p)) {
+      const room = TRANSPORT_LOAD - t.cargo.length - (boarding.get(t.id) ?? 0);
+      if (room <= 0 || pool.length === 0) continue;
+      this.host.orderBoard(t, pool.splice(0, room));
+    }
+  }
+
+  /**
+   * Overseas attack: the AI masses everything that can cross the sea — fighter jets, swimming special forces
+   * and loaded transports — and launches them together once the force is big enough. Land units stay home as guard.
+   */
+  private overseasWave(p: PlayerState, st: AIState, army: Unit[], capital: Building): void {
+    if (this.time < st.nextWave) return;
+    const target = this.pickTarget(p, capital.centerWorld());
+    if (!target) return;
+    const goal = target.centerWorld();
+    const crossers = army.filter((u) => u.aircraft || u.swims);
+    const loaded = this.homeTransports(p).filter((t) => t.cargo.length > 0);
+    const boarding = this.host.entities.fieldMovers().some((u) => u.owner === p.id && u.boardTarget !== null);
+    const force = crossers.length + loaded.reduce((s, t) => s + t.cargo.length, 0);
+    const need = Math.max(OVERSEAS_MIN_FORCE, Math.min(st.waveSize, 24));
+    // Wait for the transports to finish loading unless the force is already big enough without them.
+    if (force < need || (boarding && force < need * 1.5)) return;
+    st.nextWave = this.time + WAVE_GAP * st.style.waveGap;
+    st.waveSize = Math.min(st.waveSize + 3, 30);
+    // Fighters and swimmers go straight at the target; transports land next to it and unload.
+    this.host.orderAttackMove(crossers, { x: goal.x, y: goal.y + CELL_SIZE * 3 });
+    if (loaded.length > 0) this.host.orderAttackMove(loaded, { x: goal.x, y: goal.y + CELL_SIZE * 9 });
   }
 
   /** Army units near an enemy structure (and not busy) get an explicit order to destroy the nearest one. */

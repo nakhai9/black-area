@@ -8,7 +8,7 @@ import type { OilMarket } from './OilMarket';
 /**
  * City taxes: every Happy City pays HAPPY_CITY_TAX TB to its nation every HAPPY_CITY_TAX_PERIOD seconds, on its own
  * clock (from when it was placed), so several cities pay at different moments. The money is income: it goes
- * through the World Bank, which takes any debt first.
+ * through the World Bank, which takes any debt first. A damaged city pays in proportion to its health.
  */
 export class TaxSystem implements GameSystem {
   constructor(
@@ -26,8 +26,11 @@ export class TaxSystem implements GameSystem {
       b.taxClock -= dt;
       while (b.taxClock <= 0) {
         b.taxClock += HAPPY_CITY_TAX_PERIOD;
-        this.bank.receive(owner, HAPPY_CITY_TAX);
-        this.onTax(owner, b, HAPPY_CITY_TAX);
+        // A damaged city pays less: taxes scale with its remaining health.
+        const amount = Math.round(HAPPY_CITY_TAX * Math.max(0, b.hp / b.maxHp));
+        if (amount <= 0) continue;
+        this.bank.receive(owner, amount);
+        this.onTax(owner, b, amount);
       }
     }
   }

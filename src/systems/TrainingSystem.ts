@@ -1,4 +1,4 @@
-import { BUILD_LIMIT_SOLDIERS, INFANTRY_BASE, TECH_TIERS, eliteCap } from '../constants';
+import { BUILD_LIMIT_SOLDIERS, MAX_SOLDIERS, INFANTRY_BASE, TECH_TIERS, eliteCap } from '../constants';
 import type { Building } from '../entities/Building';
 import type { EntityManager } from '../entities/EntityManager';
 import { FACTIONS } from '../factions';
@@ -28,7 +28,7 @@ function trainOptions(faction: FactionId): TrainOption[] {
 
 export type TrainingState = 'idle' | 'training' | 'onHold' | 'noBarracks';
 
-export type EnqueueResult = 'ok' | 'full' | 'noBarracks' | 'unique' | 'tech' | 'ratio';
+export type EnqueueResult = 'ok' | 'full' | 'noBarracks' | 'unique' | 'tech' | 'ratio' | 'cap';
 
 /** Orders waiting (BuildLimit) and the President rule. */
 export interface ArmyCount {
@@ -118,6 +118,7 @@ export class TrainingSystem implements GameSystem {
     if (!this.barracksOf(player)) return 'noBarracks';
     if (TECH_TIERS.includes(tier) && !this.hasTech(player)) return 'tech';
     if (q.items.length >= BUILD_LIMIT_SOLDIERS) return 'full';
+    if (this.soldierCount(player) >= MAX_SOLDIERS) return 'cap';
     const army = this.army(player);
     if (tier === 'president' && army.presidentTaken) return 'unique';
     // Elite soldiers never outnumber the regulars: 2 elite for every 3 regular (alive + already on order).
@@ -125,6 +126,13 @@ export class TrainingSystem implements GameSystem {
     q.items.push(tier);
     if (q.state === 'idle') q.state = 'training';
     return 'ok';
+  }
+
+  /** Soldiers of the nation: alive (in the field, in buildings or aboard) plus those on order. */
+  soldierCount(player: PlayerState): number {
+    let n = this.queue(player).items.length;
+    for (const u of this.entities.units()) if (u.owner === player.id && u.alive) n++;
+    return n;
   }
 
   /** Removes the last queued soldier of `tier`; refunds if it was the one in training. */

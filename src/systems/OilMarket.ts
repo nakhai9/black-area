@@ -1,5 +1,6 @@
 import {
   DEBT_LIMIT,
+  DEBT_RESUME,
   EMERGENCY_LOAN,
   OIL_DEMAND_BASE,
   OIL_DEMAND_PER_SOLDIER,
@@ -132,6 +133,7 @@ export class OilMarket implements GameSystem {
   receive(player: PlayerState, amount: number): number {
     const repaid = Math.min(player.debt, amount);
     player.debt -= repaid;
+    if (player.creditFrozen && player.debt <= DEBT_RESUME) player.creditFrozen = false;
     player.credits += amount - repaid;
     return repaid;
   }
@@ -140,6 +142,10 @@ export class OilMarket implements GameSystem {
   loanBlocker(player: PlayerState): string | null {
     if (player.defeated) return 'your nation has fallen';
     if (player.credits >= 1) return 'loans are only for an empty treasury (0 TB)';
+    if (player.creditFrozen) {
+      const due = Math.ceil(player.debt - DEBT_RESUME);
+      return `credit frozen at the ${DEBT_LIMIT} limit — repay ${due} more to borrow again (debt ≤ ${DEBT_RESUME})`;
+    }
     if (player.debt + EMERGENCY_LOAN > DEBT_LIMIT) return `debt limit of ${DEBT_LIMIT} reached`;
     return null;
   }
@@ -150,6 +156,7 @@ export class OilMarket implements GameSystem {
     if (reason) return { kind: 'refused', reason };
     player.credits += EMERGENCY_LOAN;
     player.debt += EMERGENCY_LOAN;
+    if (player.debt + EMERGENCY_LOAN > DEBT_LIMIT) player.creditFrozen = true;
     return { kind: 'granted', amount: EMERGENCY_LOAN, debt: player.debt };
   }
 }

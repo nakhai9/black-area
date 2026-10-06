@@ -1,4 +1,4 @@
-import { AVAILABLE_VEHICLES, BUILD_LIMIT_VEHICLES, TECH_VEHICLES, VEHICLE_BASE, isAircraftKind } from '../constants';
+import { AVAILABLE_VEHICLES, BUILD_LIMIT_VEHICLES, MAX_GROUND_VEHICLES, TECH_VEHICLES, VEHICLE_BASE, isAircraftKind } from '../constants';
 import type { Building } from '../entities/Building';
 import type { EntityManager } from '../entities/EntityManager';
 import { FACTIONS } from '../factions';
@@ -32,7 +32,7 @@ function vehicleOptions(faction: FactionId): VehicleOption[] {
 }
 
 export type VehicleQueueState = 'idle' | 'building' | 'onHold' | 'noFactory';
-export type VehicleEnqueueResult = 'ok' | 'full' | 'noFactory' | 'noParking' | 'tech';
+export type VehicleEnqueueResult = 'ok' | 'full' | 'noFactory' | 'noParking' | 'tech' | 'cap';
 
 export interface VehicleQueue {
   /** Waiting vehicles; the first one is in production. */
@@ -114,9 +114,17 @@ export class VehicleSystem implements GameSystem {
     // BuildLimit: only the orders waiting are limited, not the vehicles the nation owns.
     if (!AVAILABLE_VEHICLES.includes(kind) || q.items.length >= BUILD_LIMIT_VEHICLES) return 'full';
     if (isAircraftKind(kind) && this.parkingFree(player) <= 0) return 'noParking';
+    if (!isAircraftKind(kind) && this.groundCount(player) >= MAX_GROUND_VEHICLES) return 'cap';
     q.items.push(kind);
     if (q.state === 'idle') q.state = 'building';
     return 'ok';
+  }
+
+  /** Ground vehicles of the nation (alive anywhere, aboard transports too) plus those on order; aircraft excluded. */
+  groundCount(player: PlayerState): number {
+    let n = this.queue(player).items.filter((k) => !isAircraftKind(k)).length;
+    for (const v of this.entities.vehicles()) if (v.owner === player.id && v.alive && !v.aircraft) n++;
+    return n;
   }
 
   /** Removes the last queued vehicle of `kind`; refunds if it was the one in production. */

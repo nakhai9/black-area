@@ -6,12 +6,13 @@ import {
   CHHG_LOCATION,
   CRUSH_RADIUS,
   BUILD_LIMIT_SOLDIERS,
+  MAX_SOLDIERS,
+  MAX_GROUND_VEHICLES,
   BUILD_LIMIT_VEHICLES,
   PARADE_GAP,
   PARADE_MAX_CELLS,
   PARADE_SPACING,
   UNIT_SPACING,
-  ENGINEER_REPAIR_HP_PER_SECOND,
   CELL_SIZE,
   CURRENCY,
   EARTH_TEXTURE_URL,
@@ -158,6 +159,7 @@ export class Game {
   private readonly endScreen = new EndScreen();
   /** The war is decided (victory or game over): the simulation stops. */
   private ended = false;
+  private paused = false;
   private endCheck = 0;
   private readonly lastShot = new Map<number, number>();
   private smokeTimer = 0;
@@ -202,6 +204,7 @@ export class Game {
       credits: STARTING_CREDITS,
       oil: STARTING_OIL,
       debt: 0,
+      creditFrozen: false,
       defeated: false,
       powerProduced: 0,
       powerConsumed: 0,
@@ -286,6 +289,7 @@ export class Game {
       onAlert: (at) => this.camera.centerOn(at.x, at.y),
       onSellOil: () => this.sellOil(),
       onLoan: () => this.takeLoan(),
+      onPause: () => this.togglePause(),
       onVehicle: (option) => this.onVehicleClick(option.kind),
       onVehicleCancel: (option) => this.onVehicleCancel(option.kind),
       vehiclePreview: (option) => vehiclePortrait(human.faction, option.kind),
@@ -348,6 +352,11 @@ export class Game {
 
   orderEnter(u: Infantry, b: Building): void {
     if (this.walkToDoor(u, b)) u.task = { type: 'enter', buildingId: b.id };
+  }
+
+  /** An engineer walks into a damaged own building and restores it to full health (and is consumed). */
+  orderRepair(u: Infantry, b: Building): void {
+    if (this.walkToDoor(u, b)) u.task = { type: 'repair', buildingId: b.id };
   }
 
   /** Focus: the units attack `target` (a structure needs exactly this order — units never shoot buildings on their own). */
@@ -483,7 +492,7 @@ export class Game {
   }
 
   /** Soldiers and vehicles walk to a parked transport and climb aboard when they reach its airfield. */
-  private orderBoard(t: Vehicle, riders: Unit[]): boolean {
+  orderBoard(t: Vehicle, riders: Unit[]): boolean {
     if (t.flight !== 'parked' && t.flight !== 'landed') return false;
     const here = this.map.cellAt(t.px, t.py);
     if (!here) return false;
@@ -501,10 +510,10 @@ export class Game {
       sent++;
     }
     if (sent === 0) {
-      this.sidebar.notify(t.full ? `The ${t.name} is full.` : `The ${t.name} cannot carry that.`);
+      if (t.owner === this.humanPlayer.id) this.sidebar.notify(t.full ? `The ${t.name} is full.` : `The ${t.name} cannot carry that.`);
       return true;
     }
-    this.moveMarker = { x: t.px, y: t.py, at: this.time };
+    if (t.owner === this.humanPlayer.id) this.moveMarker = { x: t.px, y: t.py, at: this.time };
     return true;
   }
 
@@ -564,7 +573,7 @@ export class Game {
 
   /** Fixed-rate simulation step. */
   private tick(dt: number): void {
-    if (this.ended) return;
+    if (this.ended || this.paused) return;
     this.endCheck += dt;
     if (this.endCheck >= 1) {
       this.endCheck = 0;
@@ -582,7 +591,7 @@ export class Game {
     this.processBoarding();
     this.separateUnits();
     this.repathStuckUnits(dt);
-    this.processTasks(dt);
+    this.processTasks();
     this.healGarrisons(dt);
     for (const s of this.systems) s.update(dt);
   }
@@ -590,7 +599,7 @@ export class Game {
   /** Pushes overlapping soldiers apart (never into water, unless they swim, or buildings). */
   private separateUnits(): void {
     // Several relaxation passes so a crowd of vehicles ends up fully apart, not just mostly.
-    for (let pass = 0; pass < 3; pass++) if (!this.separatePass()) break;
+    for (let pass = 0; pass < 6; pass++) if (!this.separatePass()) break;
   }
 
   /** One pass of pushing overlapping units apart; false when nothing overlapped. */
@@ -598,7 +607,10 @@ export class Game {
     let moved = false;
     const units = this.entities.fieldMovers();
     if (units.length < 2) return false;
-    const bucket = 8;
+    // A bucket must be at least as wide as the largest contact gap, or overlapping pairs two buckets apart are missed.
+    let maxR = 0;
+    for (const u of units) maxR = Math.max(maxR, u.radius);
+    const bucket = Math.max(8, maxR * 2);
     const grid = new Map<number, Unit[]>();
     const key = (cx: number, cy: number): number => cx * 100003 + cy;
     for (const u of units) {
@@ -626,10 +638,12 @@ export class Game {
               d = Math.hypot(vx, vy);
             }
             // Parked / rolling aircraft never move; a unit standing still is pushed less than one walking into it.
+            if (a.fixed && b.fixed) continue;
             const wa = a.fixed ? 0 : b.fixed ? 1 : a.moving ? 0.7 : 0.3;
             const push = (gap - d) / d;
-            this.nudge(a, -vx * push * wa, -vy * push * wa);
-            this.nudge(b, vx * push * (1 - wa), vy * push * (1 - wa));
+            // If one side is blocked (water, building), the other takes the whole push so they still come apart.
+            if (!this.nudge(a, -vx * push * wa, -vy * push * wa)) this.nudge(b, vx * push * wa, vy * push * wa);
+            if (!this.nudge(b, vx * push * (1 - wa), vy * push * (1 - wa))) this.nudge(a, -vx * push * (1 - wa), -vy * push * (1 - wa));
           }
         }
       }
@@ -637,8 +651,8 @@ export class Game {
     return moved;
   }
 
-  private nudge(u: Unit, dx: number, dy: number): void {
-    if (u.fixed) return;
+  private nudge(u: Unit, dx: number, dy: number): boolean {
+    if (u.fixed) return false;
     const nx = u.px + dx;
     const ny = u.py + dy;
     const cx = Math.floor(nx / CELL_SIZE);
@@ -646,7 +660,9 @@ export class Game {
     if (u.flies || this.pathfinder.passable(cx, cy, u.swims)) {
       u.px = nx;
       u.py = ny;
+      return true;
     }
+    return false;
   }
 
   /**
@@ -864,6 +880,9 @@ export class Game {
         break;
       case 'KeyM':
         this.sidebar.notify(this.sound.toggleMute() ? 'Sound off.' : 'Sound on.');
+        break;
+      case 'KeyP':
+        this.togglePause();
         break;
       case 'KeyO':
         this.cycleOwnDerrick();
@@ -1130,6 +1149,12 @@ export class Game {
     this.sidebarTimer = SIDEBAR_REFRESH;
   }
 
+  /** Pause button / P key: freezes the simulation (camera and selection still work). */
+  private togglePause(): void {
+    this.paused = !this.paused;
+    this.sidebar.setPaused(this.paused);
+  }
+
   /** Emergency loan button: only on the player's request, only at 0 TB. */
   private takeLoan(): void {
     const result = this.oilMarket.borrow(this.humanPlayer);
@@ -1263,6 +1288,8 @@ export class Game {
           ? `Vehicle orders are full (${BUILD_LIMIT_VEHICLES}) — one more once an order is done.`
           : result === 'tech'
             ? 'Second-tier vehicles need a High-Tech Center.'
+            : result === 'cap'
+            ? `Ground vehicles are at their limit of ${MAX_GROUND_VEHICLES} — aircraft are not limited.`
             : result === 'noParking'
             ? 'No free parking spot — build another Airfield or send aircraft out.'
             : option.requires === 'airfield'
@@ -1397,6 +1424,8 @@ export class Game {
             ? 'Second-tier soldiers need a High-Tech Center.'
             : result === 'ratio'
             ? 'Elite soldiers never outnumber the regulars: 2 elite for every 3 regular — train more regular soldiers first.'
+            : result === 'cap'
+            ? `Army is at its limit of ${MAX_SOLDIERS} soldiers — train more when some have fallen.`
             : result === 'full'
             ? `Training orders are full (${BUILD_LIMIT_SOLDIERS}) — one more once an order is done.`
             : 'You already have a President.',
@@ -1554,7 +1583,7 @@ export class Game {
   }
 
   /** Advances enter / repair / capture orders for soldiers standing at their target. */
-  private processTasks(dt: number): void {
+  private processTasks(): void {
     for (const u of this.entities.fieldUnits()) {
       const task = u.task;
       if (!task) continue;
@@ -1580,12 +1609,13 @@ export class Game {
           if (u.owner === this.humanPlayer.id) this.sidebar.notify(`${u.name} entered: ${b.spec.name}. Double-click it to bring them out.`);
         }
       } else if (task.type === 'repair') {
-        u.stop();
-        if (b.hp < b.maxHp) b.hp = Math.min(b.maxHp, b.hp + ENGINEER_REPAIR_HP_PER_SECOND * dt);
-        else {
-          u.task = null;
-          if (u.owner === this.humanPlayer.id) this.sidebar.notify(`${b.spec.name} fully repaired.`);
-        }
+        // Repair: the engineer goes inside and is consumed; the building is restored to 100% at once.
+        if (b.hp < b.maxHp) {
+          b.hp = b.maxHp;
+          this.entities.remove(u.id);
+          this.selection.selectedUnits.delete(u.id);
+          if (u.owner === this.humanPlayer.id) this.sidebar.notify(`${b.spec.name} fully repaired — the engineer stays inside.`);
+        } else u.task = null;
       } else {
         // Capture: the engineer is consumed and the building changes sides.
         if (b.capture(u.owner, u.faction as FactionId)) {

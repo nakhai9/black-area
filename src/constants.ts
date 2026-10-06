@@ -107,6 +107,10 @@ export const INFANTRY_BASE = {
  */
 export const BUILD_LIMIT_SOLDIERS = 15;
 export const BUILD_LIMIT_VEHICLES = 10;
+/** Army cap: a nation never has more than this many soldiers (alive anywhere + on order). */
+export const MAX_SOLDIERS = 25;
+/** Ground vehicle cap (light, tank, IFV — alive + on order); aircraft are not limited by it. */
+export const MAX_GROUND_VEHICLES = 30;
 /**
  * Elite (second-tier) soldiers are never more than the regular (first-tier) ones, at most 2 for every 3
  * regulars: with 5 soldiers that is 3 regular + 2 elite. Alive soldiers and soldiers on order both count.
@@ -188,7 +192,7 @@ export const CRUSH_RADIUS = 2.4;
 export const RANK_KILL_MULTIPLES = [3, 6, 9] as const;
 export const WAR_FACTORY_COST = 2000;
 
-/** Engineers repair this many HP per second on a friendly building. */
+/** Unused: engineers now restore a friendly building to 100% at once and are consumed. */
 export const ENGINEER_REPAIR_HP_PER_SECOND = 60;
 /** Hospital: HP per second restored to each patient inside, and its capacity. */
 export const HOSPITAL_HEAL_PER_SECOND = 10;
@@ -245,6 +249,11 @@ export const OIL_SUPPLY_FLOOR = 0.25;
  */
 export const EMERGENCY_LOAN = 2000;
 export const DEBT_LIMIT = 10000;
+/**
+ * Once DEBT reaches DEBT_LIMIT the Bank freezes the nation's credit: no new loan until the debt has been
+ * paid back down to DEBT_RESUME TB or less (i.e. at least DEBT_LIMIT − DEBT_RESUME TB repaid).
+ */
+export const DEBT_RESUME = 5000;
 /** The Bank never buys more than this share of the offered stock in one sale. */
 export const WB_MAX_SHARE = 0.25;
 /** No limit on the number of sales, but a nation must wait this many seconds between two offers. */

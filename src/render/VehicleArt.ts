@@ -233,89 +233,159 @@ function airShadow(ctx: Ctx, pose: VehiclePose, lift: number, shape: () => void)
   ctx.restore();
 }
 
-function jet(ctx: Ctx, pose: VehiclePose, body: string, team: string): void {
+type P2 = readonly [number, number];
+
+/** Top-view outline of one national fighter design (local units: +x forward, +y right wing; mirrored). */
+interface JetDesign {
+  /** Right half of the wing planform (mirrored to the left). */
+  wing: readonly P2[];
+  /** Right half of the fuselage outline, nose first (mirrored). */
+  hull: readonly P2[];
+  /** Optional foreplane canards (right half, mirrored). */
+  canard?: readonly P2[];
+  /** Vertical fins: lateral offset (0 = single centre fin), outward cant, height, root start/end x. */
+  fins: readonly { y: number; cant: number; h: number; x0: number; x1: number }[];
+  /** Engine nozzle lateral offsets. */
+  nozzles: readonly number[];
+  /** Canopy centre x and half length. */
+  canopy: readonly [number, number];
+  /** Darker radome on the nose. */
+  radome?: string;
+  /** Team marks on the upper wing (x, y, w, h — right side, mirrored). */
+  marks: readonly (readonly [number, number, number, number])[];
+}
+
+const JETS: Record<FactionId, JetDesign> = {
+  // F-16: cropped delta, single fin, single engine, bubble canopy far forward.
+  usa: {
+    wing: [[1.2, 0.55], [-1.6, 3.5], [-2.3, 3.5], [-2.2, 0.7], [-3.1, 0.6], [-4.0, 1.9], [-4.4, 1.9], [-4.2, 0.35]],
+    hull: [[4.8, 0], [3.4, 0.35], [1.8, 0.55], [-3.6, 0.55], [-4.5, 0.32]],
+    fins: [{ y: 0, cant: 0, h: 2.0, x0: -2.4, x1: -4.3 }],
+    nozzles: [0],
+    canopy: [2.6, 1.0],
+    marks: [[-2.0, 2.4, 0.7, 0.6], [-4.0, 1.2, 0.6, 0.4]],
+  },
+  // Su-27: big swept wing with long LERX, twin engines spaced apart, twin fins on tail booms, tail sting.
+  russia: {
+    wing: [[2.8, 0.45], [0.6, 1.1], [-1.4, 3.9], [-2.2, 3.9], [-2.0, 1.25], [-3.3, 1.2], [-4.3, 2.4], [-4.8, 2.3], [-4.4, 0.25]],
+    hull: [[5.0, 0], [3.8, 0.4], [2.6, 0.5], [0.6, 1.2], [-3.9, 1.15], [-4.3, 0.95], [-4.4, 0.25], [-5.1, 0.12]],
+    fins: [{ y: 1.05, cant: 0.15, h: 1.9, x0: -2.4, x1: -4.0 }],
+    nozzles: [0.75, -0.75],
+    canopy: [2.8, 0.9],
+    marks: [[-1.9, 3.0, 0.6, 0.6], [-4.1, 1.6, 0.5, 0.4]],
+  },
+  // J-11: Flanker family, but grey radome, clipped wing tips and fins canted further out.
+  china: {
+    wing: [[2.6, 0.45], [0.4, 1.1], [-1.5, 3.6], [-2.3, 3.6], [-2.1, 1.2], [-3.3, 1.15], [-4.2, 2.3], [-4.7, 2.2], [-4.3, 0.25]],
+    hull: [[5.0, 0], [3.7, 0.42], [2.4, 0.5], [0.4, 1.15], [-3.9, 1.1], [-4.3, 0.9], [-4.4, 0.25], [-4.8, 0.15]],
+    fins: [{ y: 1.0, cant: 0.4, h: 1.8, x0: -2.3, x1: -3.9 }],
+    nozzles: [0.72, -0.72],
+    canopy: [2.7, 0.85],
+    radome: '#b9bec4',
+    marks: [[-1.8, 2.7, 0.7, 0.6], [-4.0, 1.5, 0.5, 0.4]],
+  },
+  // Typhoon: delta wing set far back, foreplane canards, single fin, twin engines close together.
+  europe: {
+    wing: [[0.2, 0.6], [-3.0, 3.7], [-3.7, 3.7], [-4.2, 3.2], [-4.2, 0.6]],
+    hull: [[4.9, 0], [3.6, 0.38], [2.2, 0.6], [-3.9, 0.7], [-4.5, 0.45]],
+    canard: [[2.4, 0.5], [1.6, 1.6], [1.2, 1.6], [1.3, 0.55]],
+    fins: [{ y: 0, cant: 0, h: 2.2, x0: -2.0, x1: -4.2 }],
+    nozzles: [0.3, -0.3],
+    canopy: [2.9, 0.95],
+    marks: [[-3.2, 2.6, 0.6, 0.6], [-3.6, 1.2, 0.5, 0.5]],
+  },
+};
+
+/** Traces a mirrored outline: the right half as given, then the left half back. */
+function mirrored(ctx: Ctx, half: readonly P2[]): void {
+  ctx.beginPath();
+  half.forEach(([x, y], i) => (i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)));
+  for (let i = half.length - 1; i >= 0; i--) ctx.lineTo(half[i][0], -half[i][1]);
+  ctx.closePath();
+}
+
+function jet(ctx: Ctx, pose: VehiclePose, body: string, team: string, d: JetDesign): void {
   // Parked, the belly rests on its landing gear instead of sinking into the ground.
   const lift = Math.max(0.7, pose.altitude ?? 7);
-  const wingShape = (): void => {
-    ctx.beginPath();
-    ctx.moveTo(1.4, 0.6);
-    ctx.lineTo(-0.4, 3.8);
-    ctx.lineTo(-1.5, 3.7);
-    ctx.lineTo(-1.1, 0.7);
-    ctx.lineTo(-2.9, 0.6);
-    ctx.lineTo(-3.6, 1.9);
-    ctx.lineTo(-4.2, 1.8);
-    ctx.lineTo(-3.9, 0);
-    ctx.lineTo(-4.2, -1.8);
-    ctx.lineTo(-3.6, -1.9);
-    ctx.lineTo(-2.9, -0.6);
-    ctx.lineTo(-1.1, -0.7);
-    ctx.lineTo(-1.5, -3.7);
-    ctx.lineTo(-0.4, -3.8);
-    ctx.lineTo(1.4, -0.6);
-    ctx.closePath();
-  };
-  const hull = (): void => {
-    ctx.beginPath();
-    ctx.moveTo(4.6, 0);
-    ctx.lineTo(2.6, 0.5);
-    ctx.lineTo(-3.4, 0.7);
-    ctx.lineTo(-4.1, 0.45);
-    ctx.lineTo(-4.1, -0.45);
-    ctx.lineTo(-3.4, -0.7);
-    ctx.lineTo(2.6, -0.5);
-    ctx.closePath();
-  };
+  const wingShape = (): void => mirrored(ctx, d.wing);
+  const hull = (): void => mirrored(ctx, d.hull);
+  const canard = d.canard;
   airShadow(ctx, pose, lift, () => {
     wingShape();
     ctx.fill();
+    if (canard) {
+      mirrored(ctx, canard);
+      ctx.fill();
+    }
     hull();
   });
-  // Belly, wings, upper fuselage, canopy, twin fins, exhaust.
+  // Belly, wings (+ canards), team marks & wingtip missiles, upper fuselage, radome, canopy, fins, exhaust.
   slab(ctx, pose, lift - 0.5, 0.5, shade(body, 0.85), hull);
   slab(ctx, pose, lift, 0.25, body, wingShape);
+  if (canard) slab(ctx, pose, lift + 0.3, 0.15, shade(body, 0.95), () => mirrored(ctx, canard));
   plane(ctx, pose, lift + 0.25, SQUASH, () => {
     ctx.fillStyle = team;
-    ctx.fillRect(-3.7, 1.0, 0.9, 0.5);
-    ctx.fillRect(-3.7, -1.5, 0.9, 0.5);
-    ctx.fillRect(-0.9, 2.6, 0.7, 0.6);
-    ctx.fillRect(-0.9, -3.2, 0.7, 0.6);
+    for (const [x, y, w, h] of d.marks) {
+      ctx.fillRect(x, y - h, w, h);
+      ctx.fillRect(x, -y, w, h);
+    }
+    const tip = d.wing.reduce((a, p) => (p[1] > a[1] ? p : a));
+    ctx.fillStyle = '#e8e8e2';
+    for (const sy of [1, -1]) ctx.fillRect(tip[0] - 1.1, sy * tip[1] - 0.12, 1.6, 0.24);
   });
   slab(ctx, pose, lift + 0.25, 0.55, shade(body, 1.08), hull);
+  if (d.radome) {
+    const nose = d.hull[0][0];
+    slab(ctx, pose, lift + 0.25, 0.5, d.radome, () => {
+      ctx.beginPath();
+      ctx.moveTo(nose, 0);
+      ctx.lineTo(nose - 1.1, 0.36);
+      ctx.lineTo(nose - 1.1, -0.36);
+      ctx.closePath();
+    });
+  }
+  const [cx, cl] = d.canopy;
   slab(ctx, pose, lift + 0.8, 0.35, '#2c4560', () => {
     ctx.beginPath();
-    ctx.ellipse(1.7, 0, 1.1, 0.34, 0, 0, Math.PI * 2);
+    ctx.ellipse(cx, 0, cl, 0.34, 0, 0, Math.PI * 2);
   });
   plane(ctx, pose, lift + 1.15, SQUASH, () => {
     ctx.fillStyle = 'rgba(200,230,255,0.55)';
     ctx.beginPath();
-    ctx.ellipse(2.0, -0.1, 0.45, 0.12, 0, 0, Math.PI * 2);
+    ctx.ellipse(cx + 0.3, -0.1, cl * 0.4, 0.12, 0, 0, Math.PI * 2);
     ctx.fill();
   });
   const top = lift + 0.8;
-  fins(
-    ctx,
-    pose,
-    [0.5, -0.5].map((y) => [
-      [-2.5, y, top],
-      [-3.9, y, top],
-      [-4.1, y * 1.5, top + 1.7],
-      [-3.4, y * 1.5, top + 1.7],
-    ] as P3[]),
-    body,
-  );
-  // Afterburner: flickers while flying.
+  const finList: P3[][] = [];
+  for (const f of d.fins) {
+    for (const side of f.y === 0 ? [1] : [1, -1]) {
+      const y = f.y * side;
+      const out = f.cant * side * f.h;
+      finList.push([
+        [f.x0, y, top],
+        [f.x1, y, top],
+        [f.x1 - 0.3, y + out, top + f.h],
+        [f.x1 + 0.6, y + out, top + f.h],
+      ]);
+    }
+  }
+  fins(ctx, pose, finList, body);
+  // Afterburners: flicker while flying, one per engine.
   if ((pose.altitude ?? 7) > 0.5 || pose.moving) {
-    const tail = proj(pose, [-4.5, 0, lift + 0.15]);
+    const back = Math.min(...d.hull.map((p) => p[0])) - 0.2;
     const flick = 0.7 + 0.3 * Math.sin(pose.phase * 3.1);
-    const g = ctx.createRadialGradient(tail.x, tail.y, 0, tail.x, tail.y, 1.3 * flick);
-    g.addColorStop(0, 'rgba(255,240,190,0.95)');
-    g.addColorStop(0.5, 'rgba(255,150,60,0.7)');
-    g.addColorStop(1, 'rgba(255,90,30,0)');
-    ctx.fillStyle = g;
-    ctx.beginPath();
-    ctx.arc(tail.x, tail.y, 1.3 * flick, 0, Math.PI * 2);
-    ctx.fill();
+    const r = (d.nozzles.length > 1 ? 0.95 : 1.3) * flick;
+    for (const ny of d.nozzles) {
+      const tail = proj(pose, [back, ny, lift + 0.15]);
+      const g = ctx.createRadialGradient(tail.x, tail.y, 0, tail.x, tail.y, r);
+      g.addColorStop(0, 'rgba(255,240,190,0.95)');
+      g.addColorStop(0.5, 'rgba(255,150,60,0.7)');
+      g.addColorStop(1, 'rgba(255,90,30,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(tail.x, tail.y, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
 }
 
@@ -442,7 +512,7 @@ export function drawVehicle(ctx: Ctx, pose: VehiclePose, kind: VehicleKind, fact
   else if (kind === 'ifv') ifv(ctx, pose, body, team);
   else if (kind === 'light') light(ctx, pose, body, team);
   else if (kind === 'transport') transport(ctx, pose, body, team);
-  else jet(ctx, pose, body, team);
+  else jet(ctx, pose, body, team, JETS[faction]);
 }
 
 const portraits = new Map<string, HTMLCanvasElement>();

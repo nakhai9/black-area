@@ -148,6 +148,8 @@ export interface PlayerState {
   oil: number;
   /** TB owed to the World Bank (emergency loans); income pays it back automatically. */
   debt: number;
+  /** Credit frozen by the World Bank after hitting DEBT_LIMIT; lifted once DEBT ≤ DEBT_RESUME. */
+  creditFrozen: boolean;
   /** Set when the nation's capital has been destroyed: it has lost the war. */
   defeated: boolean;
   powerProduced: number;
