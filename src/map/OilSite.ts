@@ -57,19 +57,23 @@ export interface OilRowOptions {
   gap: number;
   /** Search radius around the capital (cells). */
   radius: number;
+  /** Rows closer than this to the capital (cells) are not considered. */
+  minAway?: number;
 }
 
 /**
  * Finds the best straight (horizontal) row of `count` derricks: every
  * footprint on dry, unoccupied, standable ground, maximising the safety of
- * the least safe derrick, with a small penalty for distance to the capital.
+ * the least safe derrick (far from the sea and from foreign borders) and keeping
+ * the oil field well away from the capital: closer than `minAway` is not allowed,
+ * and the farther the better (up to a point).
  */
 export function findOilRow(
   map: TileMap,
   safety: Uint8Array,
   capital: GridPoint,
   count: number,
-  { w, d, gap, radius }: OilRowOptions,
+  { w, d, gap, radius, minAway = 0 }: OilRowOptions,
 ): GridPoint[] | null {
   const pitch = w + gap;
   let best: GridPoint[] | null = null;
@@ -91,7 +95,8 @@ export function findOilRow(
       if (!ok) continue;
       const mid = x + ((count - 1) * pitch + w) / 2;
       const away = Math.hypot(mid - capital.x, y - capital.y);
-      const score = minSafety - away * 0.12;
+      if (away < minAway) continue;
+      const score = minSafety + Math.min(away, 50) * 0.15;
       if (score > bestScore) {
         bestScore = score;
         best = Array.from({ length: count }, (_, i) => ({ x: x + i * pitch, y }));

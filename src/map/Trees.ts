@@ -1,16 +1,18 @@
 import { CELL_SIZE } from '../constants';
-import { smoothstep } from '../core/MathUtils';
-import { ValueNoise, tileRng } from '../core/Random';
-import { type BiomeFields, sampleField } from './Biomes';
+import { tileRng } from '../core/Random';
+import type { BiomeFields } from './Biomes';
 import type { TileMap } from './TileMap';
 
 /** Trees sit on a fixed 4 px sub-grid (several per gameplay cell). */
 const TREE_SPACING = 4;
-const DENSITY_FOREST = 0.07;
-/** Trees only grow inside a few scattered groves: the rest of the land stays open for building. */
-const GROVE_SCALE = 45;
-const GROVE_FROM = 0.42;
-const GROVE_TO = 0.55;
+/**
+ * The land is open for building: trees stand only in a few fixed groves close to the sea. The world is cut
+ * into blocks of GROVE_BLOCK cells and at most one grove grows in a block, on a coastal spot picked by a seeded
+ * hash (so it is always the same places).
+ */
+const GROVE_BLOCK = 44;
+const GROVE_CHANCE = 0.4;
+const COAST_RANGE = 5;
 
 /**
  * All trees on the map as gameplay data (not just decoration): each tree
@@ -29,39 +31,58 @@ export class TreeLayer {
 
   constructor(
     private readonly map: TileMap,
-    biomes: BiomeFields,
+    _biomes: BiomeFields,
     seed: number,
   ) {
-    const clumps = new ValueNoise(seed + 33);
-    const groves = new ValueNoise(seed + 77);
     const perCell: { x: number; y: number; r: number; tone: number }[][] = Array.from(
       { length: map.width * map.height },
       () => [],
     );
     let total = 0;
 
-    for (let y = 0; y < map.height * CELL_SIZE; y += TREE_SPACING) {
-      for (let x = 0; x < map.width * CELL_SIZE; x += TREE_SPACING) {
-        const cx = Math.floor(x / CELL_SIZE);
-        const cy = Math.floor(y / CELL_SIZE);
-        const t = map.typeAt(cx, cy);
-        if (t !== 'forest' && t !== 'grass') continue;
-        const forest = sampleField(biomes.forest, map.width, map.height, x / CELL_SIZE, y / CELL_SIZE);
-        const clump = clumps.fbm(x / 20, y / 20, 2);
-        // No lone trees on open grass; forest tiles only grow trees inside a grove.
-        if (t !== 'forest') continue;
-        const grove = smoothstep(GROVE_FROM, GROVE_TO, groves.fbm(x / GROVE_SCALE, y / GROVE_SCALE, 2));
-        const density = DENSITY_FOREST * smoothstep(0.42, 0.6, clump) * grove;
-        const rng = tileRng(x, y, seed + 3);
-        if (rng() > density * (0.6 + forest * 0.6)) continue;
-        const tx = x + (0.15 + rng() * 0.7) * TREE_SPACING;
-        const ty = y + (0.2 + rng() * 0.7) * TREE_SPACING;
-        const r = 1.3 + rng() * 1.1;
-        const tone = rng() < 0.5 ? 0 : 1;
-        // A tree belongs to the cell its trunk stands in.
-        const cell = map.index(Math.min(map.width - 1, Math.floor(tx / CELL_SIZE)), Math.min(map.height - 1, Math.floor(ty / CELL_SIZE)));
-        perCell[cell]?.push({ x: tx, y: ty, r, tone });
-        total++;
+    /** Dry, low, ice-free land with the sea within COAST_RANGE cells. */
+    const coastal = (cx: number, cy: number): boolean => {
+      const t = map.typeAt(cx, cy);
+      if (t !== 'grass' && t !== 'forest' && t !== 'sand') return false;
+      if (map.heightAt(cx, cy) > 350) return false;
+      for (let dy = -COAST_RANGE; dy <= COAST_RANGE; dy += 2) {
+        for (let dx = -COAST_RANGE; dx <= COAST_RANGE; dx += 2) if (map.isWater(cx + dx, cy + dy)) return true;
+      }
+      return false;
+    };
+
+    for (let by = 0; by * GROVE_BLOCK < map.height; by++) {
+      for (let bx = 0; bx * GROVE_BLOCK < map.width; bx++) {
+        const rng = tileRng(bx, by, seed + 3);
+        if (rng() > GROVE_CHANCE) continue;
+        let centre: { x: number; y: number } | null = null;
+        for (let attempt = 0; attempt < 30 && !centre; attempt++) {
+          const cx = Math.floor((bx + rng()) * GROVE_BLOCK);
+          const cy = Math.floor((by + rng()) * GROVE_BLOCK);
+          if (coastal(cx, cy)) centre = { x: (cx + 0.5) * CELL_SIZE, y: (cy + 0.5) * CELL_SIZE };
+        }
+        if (!centre) continue;
+        const radius = (2.2 + rng() * 2.2) * CELL_SIZE;
+        for (let y = centre.y - radius; y <= centre.y + radius; y += TREE_SPACING) {
+          for (let x = centre.x - radius; x <= centre.x + radius; x += TREE_SPACING) {
+            const dist = Math.hypot(x - centre.x, y - centre.y) / radius;
+            if (dist > 1) continue;
+            const cx = Math.floor(x / CELL_SIZE);
+            const cy = Math.floor(y / CELL_SIZE);
+            const t = map.typeAt(cx, cy);
+            if (t !== 'grass' && t !== 'forest' && t !== 'sand') continue;
+            const trng = tileRng(Math.floor(x), Math.floor(y), seed + 8);
+            if (trng() > 0.62 * (1 - dist * dist)) continue; // dense in the middle, ragged at the edge
+            const tx = x + (0.15 + trng() * 0.7) * TREE_SPACING;
+            const ty = y + (0.2 + trng() * 0.7) * TREE_SPACING;
+            const r = 1.3 + trng() * 1.1;
+            const tone = trng() < 0.5 ? 0 : 1;
+            // A tree belongs to the cell its trunk stands in.
+            const cell = map.index(Math.min(map.width - 1, Math.floor(tx / CELL_SIZE)), Math.min(map.height - 1, Math.floor(ty / CELL_SIZE)));
+            perCell[cell]?.push({ x: tx, y: ty, r, tone });
+            total++;
+          }
+        }
       }
     }
 

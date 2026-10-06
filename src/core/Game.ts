@@ -1645,12 +1645,19 @@ export class Game {
       const capital = this.landmarks.find((b) => b.owner === player.id && b.spec.type === 'capital');
       if (!capital || idx === 0) continue;
       const safety = computeSafety(this.map, idx);
-      const row = findOilRow(this.map, safety, { x: capital.x, y: capital.y }, OIL_DERRICK_COUNT[f], {
-        w: FOOTPRINT_SMALL.w,
-        d: FOOTPRINT_SMALL.d,
-        gap: 1,
-        radius: 110,
-      });
+      // The oil field goes to safe ground (away from the sea and from foreign borders) and well away from the
+      // capital; if the homeland has no room that far out, settle for the farthest spot that does fit.
+      let row: ReturnType<typeof findOilRow> = null;
+      for (const minAway of [38, 30, 22, 14, 6, 0]) {
+        row = findOilRow(this.map, safety, { x: capital.x, y: capital.y }, OIL_DERRICK_COUNT[f], {
+          w: FOOTPRINT_SMALL.w,
+          d: FOOTPRINT_SMALL.d,
+          gap: 1,
+          radius: 110,
+          minAway,
+        });
+        if (row) break;
+      }
       if (!row) {
         console.warn(`No room for ${f}'s oil row.`);
         continue;
