@@ -51,7 +51,7 @@ export const SPRITE_SCALE = (CELL_SIZE * ISO_X) / HALF_TW;
 export const TALLEST_BUILDING_ART = 220;
 /** Aircraft cruise above the roof of the tallest building of any nation, with a margin (iso px). */
 export const CRUISE_ALTITUDE = Math.ceil(TALLEST_BUILDING_ART * SPRITE_SCALE) + 6;
-/** Large structures (capitals) occupy 5×4 cells, everything else 4×4 (7 px cells). */
+/** Large structures (War Factory, Hospital) occupy 5×4 cells, everything else 4×4 (7 px cells). */
 export const FOOTPRINT_LARGE = { w: 5, d: 4 } as const;
 export const FOOTPRINT_SMALL = { w: 4, d: 4 } as const;
 /** Airfield: a long runway + an apron with six parking spots, 12×6 tiles. */

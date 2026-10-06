@@ -462,7 +462,10 @@ export class Sidebar {
       btn.dataset.view = page.id;
       btn.setAttribute('aria-pressed', String(page.id === this.activeView));
       btn.classList.toggle('active', page.id === this.activeView);
-      btn.append(createElement(page.icon, { width: 16, height: 16, 'stroke-width': 2, 'aria-hidden': 'true' }), document.createTextNode(page.label));
+      btn.title = page.label;
+      const label = document.createElement('span');
+      label.textContent = page.label;
+      btn.append(createElement(page.icon, { width: 15, height: 15, 'stroke-width': 2, 'aria-hidden': 'true' }), label);
       btn.addEventListener('click', () => this.switchView(page.id));
       nav.append(btn);
       this.mainTabs.set(page.id, btn);
