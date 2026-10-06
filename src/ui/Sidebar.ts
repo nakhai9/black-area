@@ -177,7 +177,7 @@ export class Sidebar {
           <li><kbd>Click</kbd> cameo — build/train · <kbd>Right-click</kbd> cameo — cancel (refund)</li>
           <li>Soldiers &amp; vehicles: <kbd>Right-drag</kbd> sweep-select · <kbd>Left-click</kbd> a unit select · <kbd>Left-click</kbd> ground — move · <kbd>Right-click</kbd> deselect · <kbd>Shift</kbd> add</li>
           <li>Armed units: <kbd>Left-click</kbd> an enemy to attack — they never shoot buildings on their own, <kbd>Left-click</kbd> the building to focus it · enemy engineers capture buildings · <kbd>M</kbd> sound on/off</li>
-          <li>Orders: up to 15 soldiers and 10 vehicles waiting at once — a new one the moment one is done, whatever your army size · special forces swim · tanks run soldiers over · only aircraft shoot aircraft</li>
+          <li>Elite (type II) soldiers: at most 2 for every 3 regulars · orders: up to 15 soldiers and 10 vehicles waiting at once — a new one the moment one is done, whatever your army size · special forces swim · tanks run soldiers over · only aircraft shoot aircraft</li>
           <li>Transport: select soldiers/vehicles, <kbd>Left-click</kbd> the parked transport to board · <kbd>Left-click</kbd> ground — it flies there, lands and unloads · <kbd>U</kbd> unload on the airfield</li>
           <li>When <b>READY</b>: click cameo, then click the map to place · <kbd>R</kbd> turn it 90° · <kbd>Esc</kbd>/<kbd>Right-click</kbd> stop placing</li>
           <li><kbd>WASD</kbd>/<kbd>Arrows</kbd>/screen edge — scroll · <kbd>Wheel</kbd> zoom · <kbd>Middle-drag</kbd> pan</li>
@@ -439,7 +439,8 @@ export class Sidebar {
       const atLimit = model.army.queued >= model.army.limit && count === 0;
       const inOffice = option.tier === 'president' && model.army.presidentTaken && count === 0;
       const noTech = TECH_TIERS.includes(option.tier) && !model.owned.has('techCenter');
-      const locked = !model.hasBarracks || atLimit || inOffice || noTech;
+      const overElite = option.tier === 'special' && model.army.special >= model.army.specialCap && count === 0;
+      const locked = !model.hasBarracks || atLimit || inOffice || noTech || overElite;
       c.el.classList.toggle('locked', locked);
       (c.el as HTMLButtonElement).disabled = locked;
       if (c.badge) {

@@ -98,6 +98,11 @@ export const INFANTRY_BASE = {
  */
 export const BUILD_LIMIT_SOLDIERS = 15;
 export const BUILD_LIMIT_VEHICLES = 10;
+/**
+ * Elite (second-tier) soldiers are never more than the regular (first-tier) ones, at most 2 for every 3
+ * regulars: with 5 soldiers that is 3 regular + 2 elite. Alive soldiers and soldiers on order both count.
+ */
+export const eliteCap = (regulars: number): number => Math.floor((regulars * 2) / 3);
 /** Special-forces soldiers swim; they move at this fraction of their speed in water. */
 export const SWIM_SPEED_FACTOR = 0.6;
 /** Leg-swing phase (radians) per world px walked: higher = shorter, quicker steps. */

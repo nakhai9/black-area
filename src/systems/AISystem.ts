@@ -202,7 +202,7 @@ export class AISystem implements GameSystem {
         const r = training.army(p);
         let tier: UnitTier = 'regular';
         if (!assist && !r.presidentTaken && p.credits > 1500) tier = 'president';
-        else if (owned.has('techCenter') && st.rng() < (threat > 0 ? 0.25 : 0.4)) tier = 'special';
+        else if (owned.has('techCenter') && r.special < r.specialCap && st.rng() < (threat > 0 ? 0.25 : 0.4)) tier = 'special';
         training.enqueue(p, tier);
       }
     }

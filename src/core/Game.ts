@@ -1358,6 +1358,8 @@ export class Game {
           ? `Training ${option.name} — ${option.cost} ${CURRENCY}`
           : result === 'tech'
             ? 'Second-tier soldiers need a High-Tech Center.'
+            : result === 'ratio'
+            ? 'Elite soldiers never outnumber the regulars: 2 elite for every 3 regular — train more regular soldiers first.'
             : result === 'full'
             ? `Training orders are full (${BUILD_LIMIT_SOLDIERS}) — one more once an order is done.`
             : 'You already have a President.',
