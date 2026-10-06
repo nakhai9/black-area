@@ -344,6 +344,17 @@ export class Game {
     if (this.walkToDoor(u, b)) u.task = { type: 'enter', buildingId: b.id };
   }
 
+  /** Focus: the units attack `target` (a structure needs exactly this order — units never shoot buildings on their own). */
+  orderAttackTarget(units: readonly Unit[], target: Entity): void {
+    for (const u of units) {
+      if (!canTarget(u, target)) continue;
+      u.parade = null;
+      u.task = null;
+      u.attackMove = null;
+      u.attackTarget = target.id;
+    }
+  }
+
   /** Units walk to `target` and fight whatever they meet on the way. */
   orderAttackMove(units: readonly Unit[], target: WorldPoint): void {
     const cell = this.map.cellAt(target.x, target.y);

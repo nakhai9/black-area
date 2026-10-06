@@ -45,7 +45,7 @@ const HASH = 48;
 
 /**
  * Fighting: every armed unit shoots the nearest enemy in range (soldiers,
- * vehicles and aircraft first, then buildings), hits back at attackers, obeys
+ * vehicles and aircraft — never structures on their own), hits back at attackers, obeys
  * explicit attack orders and attack-move, and chases when ordered to.
  * Damage, splash and kills are resolved here; effects/sound/removal are
  * delegated to `hooks`.
@@ -63,7 +63,6 @@ export class CombatSystem implements GameSystem {
   update(dt: number): void {
     this.time += dt;
     const movers = this.entities.fieldMovers();
-    const buildings = this.entities.buildings().filter((b) => b.alive);
     const grid = new Map<number, Unit[]>();
     const key = (cx: number, cy: number): number => cx * 100003 + cy;
     for (const u of movers) {
@@ -76,14 +75,14 @@ export class CombatSystem implements GameSystem {
     for (const s of movers) {
       if (!s.alive) continue;
       s.cooldown = Math.max(0, s.cooldown - dt);
-      if (s.weapon && s.canFight) this.think(s, grid, buildings);
+      if (s.weapon && s.canFight) this.think(s, grid);
     }
     this.reap();
   }
 
   // ------------------------------------------------------------------ per-unit logic
 
-  private think(s: Unit, grid: Map<number, Unit[]>, buildings: readonly Building[]): void {
+  private think(s: Unit, grid: Map<number, Unit[]>): void {
     const w = s.weapon;
     if (!w) return;
     if (!s.moving) s.chasing = false;
@@ -100,12 +99,12 @@ export class CombatSystem implements GameSystem {
     if (target && s.attackTarget === null && distanceTo(s.px, s.py, target) > w.range * GUARD_VISION_FACTOR * 1.25) target = undefined;
 
     if (!target && this.time >= s.nextThink) {
-      target = this.acquire(s, w, grid, buildings);
+      target = this.acquire(s, w, grid);
       s.nextThink = this.time + ACQUIRE_PERIOD + (s.id % 4) * 0.04;
     }
     // Busy with a building but an enemy soldier / vehicle shows up: deal with that first.
     if (target instanceof Building && s.attackTarget === null && this.time >= s.nextThink) {
-      const better = this.acquire(s, w, grid, []);
+      const better = this.acquire(s, w, grid);
       s.nextThink = this.time + ACQUIRE_PERIOD + (s.id % 4) * 0.04;
       if (better) target = better;
     }
@@ -146,8 +145,11 @@ export class CombatSystem implements GameSystem {
     return canTarget(s, t);
   }
 
-  /** Nearest enemy in range: units first, then buildings; an attacker that hit us counts too. */
-  private acquire(s: Unit, w: WeaponSpec, grid: Map<number, Unit[]>, buildings: readonly Building[]): Entity | undefined {
+  /**
+   * Nearest enemy soldier, vehicle or aircraft in sight; an attacker that hit us counts too. Structures are never
+   * picked here: a unit only attacks a building when it has been ordered to focus on it (attackTarget).
+   */
+  private acquire(s: Unit, w: WeaponSpec, grid: Map<number, Unit[]>): Entity | undefined {
     const cx = Math.floor(s.px / HASH);
     const cy = Math.floor(s.py / HASH);
     const reach = Math.ceil((w.range * GUARD_VISION_FACTOR) / HASH);
@@ -163,17 +165,6 @@ export class CombatSystem implements GameSystem {
             bestD = d;
           }
         }
-      }
-    }
-    if (best) return best;
-    // Buildings are only shot when inside weapon range (units never wander off to bombard them on their own).
-    bestD = w.range;
-    for (const b of buildings) {
-      if (!isHostile(s, b)) continue;
-      const d = distanceTo(s.px, s.py, b);
-      if (d < bestD) {
-        best = b;
-        bestD = d;
       }
     }
     if (best) return best;

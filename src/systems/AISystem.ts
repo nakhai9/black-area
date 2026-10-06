@@ -1,5 +1,6 @@
 import { CELL_SIZE, NEUTRAL_OWNER } from '../constants';
 import type { Building } from '../entities/Building';
+import type { Entity } from '../entities/Entity';
 import type { EntityManager } from '../entities/EntityManager';
 import { Infantry } from '../entities/Infantry';
 import type { Unit } from '../entities/Unit';
@@ -31,6 +32,8 @@ export interface AIHost {
   orderEnter(u: Infantry, b: Building): void;
   /** Soldiers/vehicles walk to `target`, fighting everything on the way. */
   orderAttackMove(units: readonly Unit[], target: WorldPoint): void;
+  /** Focus on an enemy structure or unit: soldiers and vehicles only attack buildings when told to. */
+  orderAttackTarget(units: readonly Unit[], target: Entity): void;
 }
 
 /** Order in which an AI nation builds its base. */
@@ -47,6 +50,8 @@ const HOME_RADIUS = 30 * CELL_SIZE;
 const CLEARED_RADIUS = 9 * CELL_SIZE;
 /** Chance that a finished expedition goes on to conquer another land instead of marching home. */
 const INVADE_CHANCE = 0.45;
+/** Army units this close (world px) to an enemy structure are told to destroy it. */
+const SIEGE_RANGE = 16 * CELL_SIZE;
 
 interface AIState {
   nextThink: number;
@@ -249,6 +254,9 @@ export class AISystem implements GameSystem {
       return;
     }
 
+    // Units never shoot structures by themselves: the army is told which building to focus on.
+    this.focusBuildings(p, army);
+
     // After the fight: nothing left to destroy here and nobody attacking → go home or conquer another land.
     this.regroup(p, st, army, capital, all);
 
@@ -268,6 +276,31 @@ export class AISystem implements GameSystem {
     if (sent.length < Math.min(4, st.waveSize)) return;
     st.waveSize = Math.min(st.waveSize + 3, 30);
     this.host.orderAttackMove(sent, { x: goal.x, y: goal.y + CELL_SIZE * 3 });
+  }
+
+  /** Army units near an enemy structure (and not busy) get an explicit order to destroy the nearest one. */
+  private focusBuildings(p: PlayerState, army: Unit[]): void {
+    const targets = this.host.entities.buildings().filter((b) => b.alive && b.owner !== p.id && b.owner !== NEUTRAL_OWNER && !b.indestructible);
+    if (targets.length === 0) return;
+    const groups = new Map<number, { building: Building; units: Unit[] }>();
+    for (const u of army) {
+      if (u.attackTarget !== null || u.combatTarget !== null) continue;
+      let best: Building | null = null;
+      let bestD = SIEGE_RANGE;
+      for (const b of targets) {
+        const c = b.centerWorld();
+        const d = Math.hypot(c.x - u.px, c.y - u.py) - (b.w * CELL_SIZE) / 2;
+        if (d < bestD) {
+          best = b;
+          bestD = d;
+        }
+      }
+      if (!best) continue;
+      const g = groups.get(best.id);
+      if (g) g.units.push(u);
+      else groups.set(best.id, { building: best, units: [u] });
+    }
+    for (const g of groups.values()) this.host.orderAttackTarget(g.units, g.building);
   }
 
   /**
