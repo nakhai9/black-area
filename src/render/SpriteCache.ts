@@ -1,4 +1,4 @@
-import { HALF_TH, HALF_TW } from '../constants';
+import { HALF_TH, HALF_TW, SPRITE_SCALE } from '../constants';
 import type { Rect } from '../types';
 import { createCanvas } from './Canvas';
 import { IsoPainter } from './IsoPainter';
@@ -58,9 +58,9 @@ export class SpriteCache {
     return s;
   }
 
-  /** Draw scale that fits the sprite's ground diamond to a footprint `widthPx` wide. */
-  fitScale(key: string, widthPx: number): number {
-    return widthPx / (2 * this.get(key).groundHalfW);
+  /** Draw scale of every building: its art ground diamond becomes exactly its footprint's diamond on screen. */
+  fitScale(_key: string, _widthPx?: number): number {
+    return SPRITE_SCALE;
   }
 
   /**

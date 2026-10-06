@@ -5,8 +5,6 @@ import {
   CAPITAL_LOCATIONS,
   CHHG_LOCATION,
   CRUSH_RADIUS,
-  HALF_TH,
-  HALF_TW,
   MAX_SOLDIERS,
   MAX_VEHICLES,
   PARADE_GAP,
@@ -33,6 +31,7 @@ import {
   ZOOM_STEP,
   isAircraftKind,
 } from '../constants';
+import { worldToIso } from './IsoView';
 import { Building } from '../entities/Building';
 import { PLACEMENT_MARGIN } from '../map/TileMap';
 import { Capital } from '../entities/Capital';
@@ -60,7 +59,7 @@ import { soldierPortrait } from '../render/InfantryArt';
 import { vehiclePortrait } from '../render/VehicleArt';
 import { SpriteCache } from '../render/SpriteCache';
 import { BUILDING_ART } from '../render/sprites';
-import { AIRFIELD_SIZE, AIRFIELD_SLOTS, RUNWAY_D } from '../render/sprites/Airfield';
+import { AIRFIELD_SLOTS, RUNWAY_D, AIRFIELD_SIZE } from '../render/sprites/Airfield';
 import { AircraftSystem, type AirfieldGeometry } from '../systems/AircraftSystem';
 import { AISystem } from '../systems/AISystem';
 import { canTarget, CombatSystem, distanceTo, isHostile } from '../systems/CombatSystem';
@@ -381,7 +380,7 @@ export class Game {
     if (killer.rank > before && killer.owner === this.humanPlayer.id) {
       const name = killer instanceof Vehicle || killer instanceof Infantry ? killer.name : 'Unit';
       this.sidebar.notify(`${name} promoted: ${['', 'Veteran', 'Elite', 'Elite+'][killer.rank]}!`);
-      this.effects.add({ kind: 'flash', x: killer.px, y: killer.py - 3, age: 0, ttl: 0.4, size: 3 });
+      this.effects.add({ kind: 'flash', ...this.fx(killer.px, killer.py, 3), age: 0, ttl: 0.4, size: 3 });
     }
   }
 
@@ -397,7 +396,7 @@ export class Game {
         u.lastAttackerId = v.id;
         u.lastAttackedAt = this.time;
         u.hp = 0;
-        this.effects.add({ kind: 'blast', x: u.px, y: u.py - 1, age: 0, ttl: 0.25, radius: 2.4 });
+        this.effects.add({ kind: 'blast', ...this.fx(u.px, u.py, 1), age: 0, ttl: 0.25, radius: 2.4 });
       }
     }
   }
@@ -759,9 +758,8 @@ export class Game {
         case 'boxSelect': {
           // Drag-select own soldiers (buildings are not box-selectable — RA2 rule).
           if (this.placing) break;
-          const a = camera.screenToWorld(ev.rect.x, ev.rect.y);
-          const b = camera.screenToWorld(ev.rect.x + ev.rect.w, ev.rect.y + ev.rect.h);
-          const picked = this.selection.unitsInRect({ x: a.x, y: a.y, w: b.x - a.x, h: b.y - a.y }, this.humanPlayer.id);
+          const a = camera.screenToIso(ev.rect.x, ev.rect.y);
+          const picked = this.selection.unitsInIsoRect({ x: a.x, y: a.y, w: ev.rect.w / camera.zoom, h: ev.rect.h / camera.zoom }, this.humanPlayer.id);
           this.selection.selectUnits(
             picked.map((u) => u.id),
             ev.shift,
@@ -959,20 +957,40 @@ export class Game {
   // ------------------------------------------------------------------ combat feedback
 
   /** A shot was fired: tracer, muzzle flash, impact burst, sound and (once per fight) the battle cry. */
-  private onFire(s: Unit, t: Entity, w: WeaponSpec, impact: WorldPoint): void {
+  /** A point of the world plane `lift` px above the ground, as an effect position (effects live in iso space). */
+  private fx(x: number, y: number, lift = 0): WorldPoint {
+    const p = worldToIso(x, y);
+    return { x: p.x, y: p.y - lift };
+  }
+
+  private onFire(s: Unit, t: Entity, w: WeaponSpec, _impact: WorldPoint): void {
     this.alertUnderAttack(t, s);
     const heavy = w.kind === 'cannon' || w.kind === 'missile';
-    let mx = s.px + s.facing * 1.0;
-    let my = s.py - s.bodyHeight * 0.8;
-    if (s instanceof Vehicle) {
-      mx = s.px + Math.cos(s.heading) * 3.2;
-      my = s.py - s.bodyHeight + Math.sin(s.heading) * 1.9;
+    // Where the shot lands (world plane + height) and where the barrel is.
+    let tx = s.px;
+    let ty = s.py;
+    let tlift = 0;
+    if (t instanceof Unit) {
+      tx = t.px;
+      ty = t.py;
+      tlift = t.bodyHeight * 0.6;
+    } else if (t instanceof Building) {
+      const c = t.centerWorld();
+      tx = c.x + (((t.id * 7) % 9) - 4);
+      ty = c.y;
+      tlift = 6;
     }
+    const dist = Math.hypot(tx - s.px, ty - s.py) || 1;
+    const reach = s instanceof Vehicle ? 3.2 : 1.0;
+    const mx = s.px + ((tx - s.px) / dist) * reach;
+    const my = s.py + ((ty - s.py) / dist) * reach;
+    const muzzle = this.fx(mx, my, s instanceof Vehicle ? s.bodyHeight : s.bodyHeight * 0.8);
+    const hit = this.fx(tx, ty, tlift);
     const ttl = { rifle: 0.09, smg: 0.06, sniper: 0.14, mg: 0.06, autocannon: 0.08, cannon: 0.22, missile: 0.35 }[w.kind];
     const color = heavy ? '#ffb347' : w.kind === 'sniper' ? '#ffffff' : '#ffe9a0';
-    this.effects.add({ kind: 'tracer', x0: mx, y0: my, x1: impact.x, y1: impact.y, age: 0, ttl, color, width: heavy ? 1.1 : 0.45, shell: heavy });
-    this.effects.add({ kind: 'flash', x: mx, y: my, age: 0, ttl: 0.07, size: heavy ? 3.6 : 1.8 });
-    this.effects.add({ kind: 'blast', x: impact.x, y: impact.y, age: -ttl, ttl: heavy ? 0.35 : 0.18, radius: heavy ? 6 : 1.6 });
+    this.effects.add({ kind: 'tracer', x0: muzzle.x, y0: muzzle.y, x1: hit.x, y1: hit.y, age: 0, ttl, color, width: heavy ? 1.1 : 0.45, shell: heavy });
+    this.effects.add({ kind: 'flash', x: muzzle.x, y: muzzle.y, age: 0, ttl: 0.07, size: heavy ? 3.6 : 1.8 });
+    this.effects.add({ kind: 'blast', x: hit.x, y: hit.y, age: -ttl, ttl: heavy ? 0.35 : 0.18, radius: heavy ? 6 : 1.6 });
     this.sound.play(w.kind, { x: mx, y: my });
     const prev = this.lastShot.get(s.id) ?? -99;
     this.lastShot.set(s.id, this.time);
@@ -1031,9 +1049,9 @@ export class Game {
       }
       this.entities.remove(e.id);
       const vehicle = e instanceof Vehicle;
-      this.effects.add({ kind: 'smoke', x: e.px, y: e.py - 1, age: 0, ttl: 1.2, radius: vehicle ? 5 : 2.2 });
+      this.effects.add({ kind: 'smoke', ...this.fx(e.px, e.py, 1), age: 0, ttl: 1.2, radius: vehicle ? 5 : 2.2 });
       if (vehicle) {
-        this.effects.add({ kind: 'blast', x: e.px, y: e.py - 2, age: 0, ttl: 0.5, radius: e.flies ? 14 : 10 });
+        this.effects.add({ kind: 'blast', ...this.fx(e.px, e.py, e.flies ? 2 + e.altitude : 2), age: 0, ttl: 0.5, radius: e.flies ? 14 : 10 });
         this.sound.play('explosion', { x: e.px, y: e.py });
       }
       return;
@@ -1056,13 +1074,12 @@ export class Game {
     for (let k = 0; k < 7; k++) {
       this.effects.add({
         kind: 'blast',
-        x: f.x + f.w * (0.15 + 0.7 * ((k * 37) % 10) / 10),
-        y: f.y + f.h * (0.2 + 0.6 * ((k * 53) % 10) / 10) - 4,
+        ...this.fx(f.x + f.w * (0.15 + 0.7 * ((k * 37) % 10) / 10), f.y + f.h * (0.2 + 0.6 * ((k * 53) % 10) / 10), 4),
         age: -k * 0.12,
         ttl: 0.7,
         radius: 11 + (k % 3) * 4,
       });
-      this.effects.add({ kind: 'smoke', x: f.x + f.w / 2 + (k - 3) * 2.5, y: f.y + f.h / 2 - 6, age: -k * 0.1, ttl: 3, radius: 7 });
+      this.effects.add({ kind: 'smoke', ...this.fx(f.x + f.w / 2 + (k - 3) * 2.5, f.y + f.h / 2, 6), age: -k * 0.1, ttl: 3, radius: 7 });
     }
     this.sound.play('explosion', e.centerWorld());
     if (e.owner === this.humanPlayer.id) this.sidebar.notify(`Your ${e.spec.name} was destroyed!`, 5);
@@ -1076,10 +1093,9 @@ export class Game {
     for (const b of this.entities.buildings()) {
       if (b.hpRatio >= 0.5 || !b.alive) continue;
       const f = b.footprintWorld();
-      const x = f.x + f.w * (0.25 + Math.random() * 0.5);
-      const y = f.y + f.h * (0.2 + Math.random() * 0.5) - 6;
-      this.effects.add({ kind: 'smoke', x, y, age: 0, ttl: 1.8, radius: 4.5 });
-      if (b.hpRatio < 0.25) this.effects.add({ kind: 'blast', x, y: y + 2, age: 0, ttl: 0.4, radius: 5 });
+      const spot = this.fx(f.x + f.w * (0.25 + Math.random() * 0.5), f.y + f.h * (0.2 + Math.random() * 0.5), 6);
+      this.effects.add({ kind: 'smoke', ...spot, age: 0, ttl: 1.8, radius: 4.5 });
+      if (b.hpRatio < 0.25) this.effects.add({ kind: 'blast', x: spot.x, y: spot.y + 2, age: 0, ttl: 0.4, radius: 5 });
     }
   }
 
@@ -1118,16 +1134,8 @@ export class Game {
    */
   /** Where the runway, apron parking spots and approach point are, in world px. */
   private airfieldGeometry(b: Building): AirfieldGeometry {
-    const c = b.centerWorld();
-    const k = this.sprites.fitScale(b.spriteKey, b.footprintWorld().w);
-    const cos = Math.cos(b.angleRad);
-    const sin = Math.sin(b.angleRad);
-    // Art-space tile (u, v) of the 12×6 airfield sprite → world px (isometric projection, scaled, rotated about the centre).
-    const pt = (u: number, v: number): WorldPoint => {
-      const ox = (u - v - (AIRFIELD_SIZE.w - AIRFIELD_SIZE.d) / 2) * HALF_TW * k;
-      const oy = (u + v - (AIRFIELD_SIZE.w + AIRFIELD_SIZE.d) / 2) * HALF_TH * k;
-      return { x: c.x + ox * cos - oy * sin, y: c.y + ox * sin + oy * cos };
-    };
+    // The art's axes are the grid's: tile (u, v) of the 12×6 sprite is the cell u right, v down of the footprint's corner.
+    const pt = (u: number, v: number): WorldPoint => ({ x: (b.x + u) * CELL_SIZE, y: (b.y + v) * CELL_SIZE });
     const start = pt(0.5, RUNWAY_D / 2);
     const end = pt(AIRFIELD_SIZE.w - 0.5, RUNWAY_D / 2);
     const heading = Math.atan2(end.y - start.y, end.x - start.x);

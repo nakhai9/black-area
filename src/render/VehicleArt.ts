@@ -16,8 +16,8 @@ export interface VehiclePose {
   altitude?: number;
 }
 
-/** The map is seen at an angle: shapes drawn in the ground plane are squashed vertically. */
-const SQUASH = 0.62;
+/** Isometric ground plane (2:1): shapes drawn in the ground plane are squashed vertically. */
+export const SQUASH = 0.5;
 const DARK = '#1f2124';
 
 const BODY: Record<FactionId, string> = {

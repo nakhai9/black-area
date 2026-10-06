@@ -95,9 +95,9 @@ export class Building extends Entity {
     return this.spec.footprint.d;
   }
 
-  /** Top-down view: things lower on screen are in front. */
+  /** Isometric view: things with a larger x + y (cells, taken at the centre) are in front. */
   get depth(): number {
-    return this.y + this.d;
+    return this.x + this.w / 2 + (this.y + this.d / 2);
   }
 
   containsCell(tx: number, ty: number): boolean {

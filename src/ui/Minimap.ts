@@ -93,12 +93,15 @@ export class Minimap {
       ctx.fillRect(c.x - 1, c.y - 1, 2, 2);
     }
 
-    const v = this.camera.viewRect();
-    const a = this.toMinimap({ x: v.x, y: v.y });
-    const b = this.toMinimap({ x: v.x + v.w, y: v.y + v.h });
+    // The isometric view covers a diamond-like quadrilateral of the map.
+    const cam = this.camera;
+    const corners = [cam.screenToWorld(0, 0), cam.screenToWorld(cam.viewWidth, 0), cam.screenToWorld(cam.viewWidth, cam.viewHeight), cam.screenToWorld(0, cam.viewHeight)].map((c) => this.toMinimap(c));
     ctx.strokeStyle = 'rgba(255,255,255,0.95)';
     ctx.lineWidth = 1;
-    ctx.strokeRect(a.x + 0.5, a.y + 0.5, b.x - a.x - 1, b.y - a.y - 1);
+    ctx.beginPath();
+    corners.forEach((c, i) => (i === 0 ? ctx.moveTo(c.x, c.y) : ctx.lineTo(c.x, c.y)));
+    ctx.closePath();
+    ctx.stroke();
   }
 
   private toMinimap(w: WorldPoint): WorldPoint {

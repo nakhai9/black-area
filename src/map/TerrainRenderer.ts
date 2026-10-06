@@ -1,4 +1,5 @@
 import { CELL_SIZE, ELEVATION_M_PER_UNIT, RELIEF_EXAGGERATION, WORLD_SCALE } from '../constants';
+import { worldToIso } from '../core/IsoView';
 import { lerp, smoothstep } from '../core/MathUtils';
 import { ValueNoise, hash2 } from '../core/Random';
 import { createCanvas } from '../render/Canvas';
@@ -100,7 +101,7 @@ export class TerrainRenderer {
     const { canvas, ctx } = createCanvas(this.texW, this.texH);
     this.canvas = canvas;
     this.paintRelief(ctx, earth, biomes);
-    // Trees are only drawn in the detail tiles (zoomed-in view), not into the base texture.
+    // Trees are drawn live as upright billboards (drawTrees), not into the ground textures.
     this.collectWaterSpots();
   }
 
@@ -293,15 +294,25 @@ export class TerrainRenderer {
   // ------------------------------------------------------------------ overlays
 
   /** Draws the trees of the TreeLayer that touch the given world rect. */
-  private drawTrees(ctx: CanvasRenderingContext2D, x0: number, y0: number, x1: number, y1: number): void {
+  /**
+   * Trees stand upright on the iso ground: drawn as billboards at the screen position of their trunk,
+   * back to front. Call with the "iso space" transform active (1 unit = 1 px at zoom 1).
+   */
+  drawTrees(ctx: CanvasRenderingContext2D, view: Rect, zoom: number): void {
+    if (zoom < DETAIL_MIN_ZOOM) return;
     const { xs, ys, rs, tones } = this.trees;
-    this.trees.forEachIn(x0, y0, x1, y1, (i) => {
-      const cx = xs[i] ?? 0;
-      const cy = ys[i] ?? 0;
+    const m = TREE_MARGIN;
+    const visible: number[] = [];
+    this.trees.forEachIn(view.x - m, view.y - m, view.x + view.w + m, view.y + view.h + m, (i) => visible.push(i));
+    visible.sort((p, q) => (xs[p] ?? 0) + (ys[p] ?? 0) - ((xs[q] ?? 0) + (ys[q] ?? 0)));
+    for (const i of visible) {
+      const iso = worldToIso(xs[i] ?? 0, ys[i] ?? 0);
       const r = rs[i] ?? 1;
+      const cx = iso.x;
+      const cy = iso.y - r * 1.2; // the canopy sits above the trunk
       ctx.fillStyle = 'rgba(25,30,10,0.4)';
       ctx.beginPath();
-      ctx.ellipse(cx - r * 0.6, cy + r * 0.8, r * 1.1, r * 0.55, 0, 0, Math.PI * 2);
+      ctx.ellipse(iso.x - r * 0.3, iso.y + r * 0.1, r * 1.2, r * 0.5, 0, 0, Math.PI * 2);
       ctx.fill();
       ctx.fillStyle = tones[i] === 0 ? '#3f5222' : '#4b5f28';
       ctx.beginPath();
@@ -315,7 +326,7 @@ export class TerrainRenderer {
       ctx.beginPath();
       ctx.arc(cx + r * 0.3, cy - r * 0.35, r * 0.45, 0, Math.PI * 2);
       ctx.fill();
-    });
+    }
   }
 
   /** Renders one CHUNK x CHUNK world-px area at DETAIL_SCALE x resolution. */
@@ -359,10 +370,6 @@ export class TerrainRenderer {
       }
     }
     ctx.putImageData(img, 0, 0);
-
-    ctx.setTransform(DETAIL_SCALE, 0, 0, DETAIL_SCALE, -cx * CHUNK * DETAIL_SCALE, -cy * CHUNK * DETAIL_SCALE);
-    const m = TREE_MARGIN;
-    this.drawTrees(ctx, cx * CHUNK - m, cy * CHUNK - m, (cx + 1) * CHUNK + m, (cy + 1) * CHUNK + m);
     return canvas;
   }
 

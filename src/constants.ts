@@ -30,12 +30,23 @@ export const GRID_WIDTH = Math.ceil(WORLD_WIDTH / CELL_SIZE);
 export const GRID_HEIGHT = Math.ceil(WORLD_HEIGHT / CELL_SIZE);
 
 // ---------------------------------------------------------------- Building sprites
+/**
+ * The battlefield is drawn isometrically, like Red Alert 2. The square gameplay grid ("ô vuông") is the
+ * hidden grid of the whole Earth surface; on screen every cell is a 2:1 diamond: world x runs down-right,
+ * world y down-left. ISO_X / ISO_Y are screen px per world px (see core/IsoView).
+ */
+export const ISO_X = 0.5;
+export const ISO_Y = 0.25;
 /** Sprites are authored in a 2:1 isometric art space (tile = 64×32 px)… */
 export const TILE_W = 64;
 export const TILE_H = 32;
 export const HALF_TW = TILE_W / 2;
 export const HALF_TH = TILE_H / 2;
-/** …and shrunk to fit their grid footprint, so every building keeps the same proportion to the land. */
+/**
+ * …and scaled so a building's art ground diamond is exactly the diamond that its W×D grid footprint
+ * covers on screen: buildings fill their cells edge to edge, whatever their size.
+ */
+export const SPRITE_SCALE = (CELL_SIZE * ISO_X) / HALF_TW;
 /** Large structures (capitals) occupy 5×4 cells, everything else 4×4 (7 px cells). */
 export const FOOTPRINT_LARGE = { w: 5, d: 4 } as const;
 export const FOOTPRINT_SMALL = { w: 4, d: 4 } as const;

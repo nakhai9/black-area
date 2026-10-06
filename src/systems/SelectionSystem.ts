@@ -1,4 +1,5 @@
 import type { EventBus } from '../core/EventBus';
+import { worldToIso } from '../core/IsoView';
 import { Building } from '../entities/Building';
 import type { EntityManager } from '../entities/EntityManager';
 import type { Unit } from '../entities/Unit';
@@ -30,18 +31,16 @@ export class SelectionSystem {
 
   /** Front-most building whose sprite has an opaque pixel under `world`. */
   pick(world: WorldPoint): Building | null {
+    const m = worldToIso(world.x, world.y);
     const list = this.entities.byDepth();
     for (let i = list.length - 1; i >= 0; i--) {
       const e = list[i];
       if (!(e instanceof Building) || !e.alive) continue;
-      const c = e.centerWorld();
-      const scale = this.sprites.fitScale(e.spriteKey, e.footprintWorld().w);
-      // Undo the building rotation so the pixel test works in sprite space.
-      const dx = world.x - c.x;
-      const dy = world.y - c.y;
-      const cos = Math.cos(-e.angleRad);
-      const sin = Math.sin(-e.angleRad);
-      if (this.sprites.hitTest(e.spriteKey, false, dx * cos - dy * sin, dx * sin + dy * cos, scale)) return e;
+      // Both points in iso space: the sprite is drawn upright around the footprint centre.
+      const cw = e.centerWorld();
+      const c = worldToIso(cw.x, cw.y);
+      const scale = this.sprites.fitScale(e.spriteKey);
+      if (this.sprites.hitTest(e.spriteKey, false, m.x - c.x, m.y - c.y, scale)) return e;
     }
     return null;
   }
@@ -50,11 +49,13 @@ export class SelectionSystem {
   pickUnit(world: WorldPoint): Unit | null {
     let best: Unit | null = null;
     let bestScore = Infinity;
+    const m = worldToIso(world.x, world.y);
     for (const u of this.entities.fieldMovers()) {
       if (!u.alive) continue;
+      const iso = worldToIso(u.px, u.py);
       // Aircraft (even parked on the airfield) are big targets: clicking the plane selects it, no sweep needed.
       const reach = Math.max(UNIT_PICK_RADIUS, u.radius * (u.aircraft ? 2.2 : 1.25));
-      const d = Math.hypot(world.x - u.px, world.y - (u.py - bodyLift(u)));
+      const d = Math.hypot(m.x - iso.x, m.y - (iso.y - bodyLift(u)));
       if (d < reach && d / reach < bestScore) {
         best = u;
         bestScore = d / reach;
@@ -77,11 +78,14 @@ export class SelectionSystem {
     this.bus.emit('selection:changed', { entityId: null });
   }
 
-  /** Own living soldiers inside a world rect. */
-  unitsInRect(r: Rect, owner: number): Unit[] {
-    return this.entities
-      .fieldMovers()
-      .filter((u) => u.alive && u.owner === owner && u.px >= r.x && u.px <= r.x + r.w && u.py - bodyLift(u) >= r.y && u.py - bodyLift(u) <= r.y + r.h);
+  /** Own living units whose picture centre is inside a rectangle given in iso (screen-plane) coordinates. */
+  unitsInIsoRect(r: Rect, owner: number): Unit[] {
+    return this.entities.fieldMovers().filter((u) => {
+      if (!u.alive || u.owner !== owner) return false;
+      const iso = worldToIso(u.px, u.py);
+      const y = iso.y - bodyLift(u);
+      return iso.x >= r.x && iso.x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
+    });
   }
 
   selectedUnitList(): Unit[] {

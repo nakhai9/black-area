@@ -1,10 +1,11 @@
 import { ChevronDown } from 'lucide';
-import { BUILD_RISE_SECONDS, CELL_SIZE, WORLD_SCALE } from '../constants';
+import { BUILD_RISE_SECONDS, CELL_SIZE, ISO_X, ISO_Y, WORLD_SCALE } from '../constants';
 import type { Building } from '../entities/Building';
 import { Infantry } from '../entities/Infantry';
 import type { Unit } from '../entities/Unit';
 import { Vehicle } from '../entities/Vehicle';
-import { drawVehicle } from '../render/VehicleArt';
+import { SQUASH, drawVehicle } from '../render/VehicleArt';
+import { isoHeading, worldToIso } from './IsoView';
 import type { Effect } from './Effects';
 import { drawSoldier } from '../render/InfantryArt';
 import { FACTIONS, teamColors } from '../factions';
@@ -96,23 +97,38 @@ export class Renderer {
     this.vignette = g;
   }
 
+  /** Ground plane: world px → screen through the isometric transform (circles become 2:1 ellipses). */
+  private ground(): void {
+    const { camera } = this;
+    const z = camera.zoom * this.dpr;
+    this.ctx.setTransform(z * ISO_X, z * ISO_Y, -z * ISO_X, z * ISO_Y, -camera.x * z, -camera.y * z);
+  }
+
+  /** Upright things (units, building art, bars, labels): iso-space px, drawn at worldToIso(position). */
+  private upright(): void {
+    const { camera } = this;
+    const z = camera.zoom * this.dpr;
+    this.ctx.setTransform(z, 0, 0, z, -camera.x * z, -camera.y * z);
+  }
+
   render(scene: RenderScene): void {
     const { ctx, camera } = this;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.fillStyle = '#5f8f9c';
+    ctx.fillStyle = '#05070a';
     ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-
-    // World space.
-    const z = camera.zoom * this.dpr;
-    ctx.setTransform(z, 0, 0, z, -camera.x * z, -camera.y * z);
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
     const view = camera.viewRect();
 
+    // The Earth lies on the ground plane of the isometric view.
+    this.ground();
     this.drawTerrain(view);
     this.terrain.drawDetail(ctx, view, camera.zoom);
     this.terrain.drawWaterShimmer(ctx, view, scene.time);
+    this.upright();
+    this.terrain.drawTrees(ctx, view, camera.zoom);
 
+    this.ground();
     const sorted = [...scene.buildings].sort((a, b) => a.depth - b.depth);
     const selected = sorted.find((b) => b.id === scene.selectedId) ?? null;
     if (selected) this.drawFootprint(selected, scene.time);
@@ -126,6 +142,10 @@ export class Renderer {
     const hovered = units.find((u) => u.id === scene.hoveredUnitId);
     if (hovered && !selUnits.has(hovered.id)) this.drawUnitRing(hovered, 'rgba(255,255,255,0.6)');
     if (scene.moveMarker) this.drawMoveMarker(scene.moveMarker, scene.time);
+    const focus = scene.focus ?? [];
+    for (const f of focus) if (f.entity.kind !== 'building') this.drawFocusRing(f.entity, f.strong, scene.time);
+
+    this.upright();
     const drawables: (Building | Unit)[] = [...sorted, ...units.filter((u) => !u.flies)];
     drawables.sort((a, b) => a.depth - b.depth);
     for (const d of drawables) {
@@ -135,8 +155,8 @@ export class Renderer {
     // Aircraft fly above everything on the ground.
     for (const u of units) if (u.flies) this.drawUnit(u);
     if (scene.ghost) this.drawGhost(scene.ghost);
-    const focus = scene.focus ?? [];
-    for (const f of focus) if (f.entity.kind !== 'building') this.drawUnitFocus(f.entity, f.strong, scene.time);
+    this.upright();
+    for (const f of focus) if (f.entity.kind !== 'building') this.drawFocusMarks(f.entity, f.strong);
     for (const u of units) if (selUnits.has(u.id) || u.hp < u.maxHp) this.drawUnitHealth(u);
     for (const f of focus) if (f.entity.kind !== 'building' && !selUnits.has(f.entity.id) && f.entity.hp >= f.entity.maxHp) this.drawUnitHealth(f.entity);
     for (const u of units) {
@@ -184,9 +204,9 @@ export class Renderer {
     return this.sprites.get(b.spriteKey);
   }
 
-  /** Sprite scale that fits the art to the building's grid footprint. */
+  /** Sprite scale: its art diamond is exactly the diamond the grid footprint covers on screen. */
   private scaleOf(b: Building): number {
-    return this.sprites.fitScale(b.spriteKey, b.footprintWorld().w);
+    return this.sprites.fitScale(b.spriteKey);
   }
 
   /** Soft ambient-occlusion blob that seats the building onto the terrain. */
@@ -211,7 +231,8 @@ export class Renderer {
 
   private drawBuilding(b: Building, time: number): void {
     const s = this.sprite(b);
-    const c = b.centerWorld();
+    const cw = b.centerWorld();
+    const c = worldToIso(cw.x, cw.y);
     const k = this.scaleOf(b);
     const { ctx } = this;
 
@@ -226,20 +247,20 @@ export class Renderer {
     }
     ctx.save();
     ctx.translate(c.x, c.y);
-    ctx.rotate(b.angleRad);
     ctx.drawImage(s.canvas, -s.centerX * k, -s.centerY * k, s.width * k, s.height * k);
     ctx.restore();
     if (rise < 1) {
       ctx.restore();
+      this.ground();
       this.drawBuildDust(b, rise);
+      this.upright();
       return;
     }
 
     if (s.art.drawAnimated) {
-      // Same local art space as the static sprite, mirrored around the centre.
+      // Same local art space as the static sprite.
       ctx.save();
       ctx.translate(c.x, c.y);
-      ctx.rotate(b.angleRad);
       ctx.scale(k, k);
       s.art.drawAnimated(new IsoPainter(ctx, s.originX, s.originY), time, b.active);
       ctx.restore();
@@ -250,12 +271,14 @@ export class Renderer {
     const f = FACTIONS[u.faction as keyof typeof FACTIONS];
     if (!f) return;
     const { ctx } = this;
+    const P = worldToIso(u.px, u.py);
     if (u instanceof Vehicle) {
-      drawVehicle(ctx, { x: u.px, y: u.py, heading: u.heading, phase: u.walkPhase, moving: u.moving, altitude: u.altitude }, u.type, u.faction as keyof typeof FACTIONS);
+      const heading = isoHeading(u.heading, u.aircraft ? 0.8 : SQUASH);
+      drawVehicle(ctx, { x: P.x, y: P.y, heading, phase: u.walkPhase, moving: u.moving, altitude: u.altitude }, u.type, u.faction as keyof typeof FACTIONS);
       return;
     }
     if (!(u instanceof Infantry)) return;
-    const pose = { x: u.px, y: u.py, facing: u.facing, walkPhase: u.walkPhase, moving: u.moving };
+    const pose = { x: P.x, y: P.y, facing: u.facing, walkPhase: u.walkPhase, moving: u.moving };
     if (!u.inWater) {
       drawSoldier(ctx, pose, u.profile.look, f.colors.primary, u.tier === 'special');
       return;
@@ -263,9 +286,9 @@ export class Renderer {
     // Swimming: body sinks to the chest, paddling with ripples around it.
     ctx.save();
     ctx.beginPath();
-    ctx.rect(u.px - 3, u.py - 6, 6, 6 - 0.55 + 0.0);
+    ctx.rect(P.x - 3, P.y - 6, 6, 6 - 0.55 + 0.0);
     ctx.clip();
-    drawSoldier(ctx, { ...pose, y: u.py + 0.9, moving: false }, u.profile.look, f.colors.primary, true);
+    drawSoldier(ctx, { ...pose, y: P.y + 0.9, moving: false }, u.profile.look, f.colors.primary, true);
     ctx.restore();
     const t = u.walkPhase;
     ctx.strokeStyle = 'rgba(230,240,255,0.75)';
@@ -274,47 +297,57 @@ export class Renderer {
       const r = 0.9 + ((t * 0.12 + i * 0.5) % 1) * 0.9;
       ctx.globalAlpha = 1 - (r - 0.9) / 0.9;
       ctx.beginPath();
-      ctx.ellipse(u.px, u.py - 0.45, r, r * 0.38, 0, 0, Math.PI * 2);
+      ctx.ellipse(P.x, P.y - 0.45, r, r * 0.45, 0, 0, Math.PI * 2);
       ctx.stroke();
     }
     ctx.globalAlpha = 1;
   }
 
-  /** RA2-style selection ellipse under a soldier's feet. */
+  /** RA2-style selection ring under a unit's feet: a circle on the ground, so an ellipse on screen (ground transform). */
   private drawUnitRing(u: Unit, color: string): void {
     const { ctx } = this;
     ctx.strokeStyle = color;
-    ctx.lineWidth = 1.2 / this.camera.zoom;
+    ctx.lineWidth = 3 / this.camera.zoom;
     ctx.beginPath();
-    ctx.ellipse(u.px, u.py, Math.max(1.3, u.radius * 1.15), Math.max(0.6, u.radius * 0.55), 0, 0, Math.PI * 2);
+    ctx.arc(u.px, u.py, Math.max(1.8, u.radius * 1.35), 0, Math.PI * 2);
     ctx.stroke();
   }
 
-  /** RA2-style target focus: a pulsing red ring under the enemy, red corner brackets and its name. */
-  private drawUnitFocus(u: Unit, strong: boolean, time: number): void {
+  /** RA2-style target focus, part 1: a pulsing red ring under the enemy (ground transform). */
+  private drawFocusRing(u: Unit, strong: boolean, time: number): void {
+    const { ctx } = this;
+    const pulse = 0.5 + 0.5 * Math.sin(time * 7);
+    const half = Math.max(2.2, u.radius * 1.5) * (1.05 + (strong ? 0.12 * pulse : 0));
+    ctx.save();
+    ctx.globalAlpha = strong ? 0.75 + 0.25 * pulse : 0.5;
+    ctx.strokeStyle = '#ff3b30';
+    ctx.lineWidth = (strong ? 4.5 : 3) / this.camera.zoom;
+    ctx.beginPath();
+    ctx.arc(u.px, u.py, half * 1.1, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  /** Part 2: red corner brackets round the unit's picture and, when strong, its name (upright transform). */
+  private drawFocusMarks(u: Unit, strong: boolean): void {
     const { ctx } = this;
     const k = 1 / this.camera.zoom;
+    const P = worldToIso(u.px, u.py);
     const lift = u.flies && 'altitude' in u ? Number((u as { altitude: number }).altitude) : 0;
-    const pulse = 0.5 + 0.5 * Math.sin(time * 7);
-    const alpha = strong ? 0.75 + 0.25 * pulse : 0.5;
-    const rx = Math.max(2.2, u.radius * 1.5);
-    const half = rx * (1.05 + (strong ? 0.12 * pulse : 0));
-    const top = u.py - lift - Math.max(u.bodyHeight, 2) - 1.6;
-    const bottom = u.py - lift + 1.2;
+    const half = Math.max(2.2, u.radius * 1.5);
+    const top = P.y - lift - Math.max(u.bodyHeight, 2) - 1.6;
+    const bottom = P.y - lift + 1.2;
     ctx.save();
-    ctx.globalAlpha = alpha;
+    ctx.globalAlpha = strong ? 0.95 : 0.55;
     ctx.strokeStyle = '#ff3b30';
     ctx.lineWidth = (strong ? 1.6 : 1.1) * k;
-    ctx.beginPath();
-    ctx.ellipse(u.px, u.py, half, half * 0.45, 0, 0, Math.PI * 2);
-    ctx.stroke();
     const len = Math.min(1.4, half * 0.5);
     ctx.beginPath();
     for (const [cx, cy, sx, sy] of [
-      [u.px - half, top, 1, 1],
-      [u.px + half, top, -1, 1],
-      [u.px - half, bottom, 1, -1],
-      [u.px + half, bottom, -1, -1],
+      [P.x - half, top, 1, 1],
+      [P.x + half, top, -1, 1],
+      [P.x - half, bottom, 1, -1],
+      [P.x + half, bottom, -1, -1],
     ] as const) {
       ctx.moveTo(cx + sx * len, cy);
       ctx.lineTo(cx, cy);
@@ -324,11 +357,10 @@ export class Renderer {
     if (strong) {
       const name = 'name' in u ? String((u as { name: string }).name) : 'Enemy';
       const text = `${name} · ${FACTIONS[u.faction as keyof typeof FACTIONS]?.shortName ?? u.faction}`;
-      ctx.globalAlpha = 0.95;
       ctx.font = `600 ${11 * k}px "Segoe UI", system-ui, sans-serif`;
       const w = ctx.measureText(text).width + 10 * k;
       const h = 15 * k;
-      const x = u.px - w / 2;
+      const x = P.x - w / 2;
       const y = top - 5.5 - h;
       ctx.fillStyle = 'rgba(8,12,16,0.85)';
       ctx.fillRect(x, y, w, h);
@@ -348,13 +380,14 @@ export class Renderer {
     const lift = (u as { altitude?: number }).altitude ?? 0;
     const size = 2.6; // world px per chevron (24 icon units)
     const sc = size / 24;
-    const top = u.py - (u.aircraft ? lift + 3 : u.bodyHeight + 1.4) - 3.4;
+    const P = worldToIso(u.px, u.py);
+    const top = P.y - (u.aircraft ? lift + 3 : u.bodyHeight + 1.4) - 3.4;
     ctx.save();
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     for (let i = 0; i < u.rank; i++) {
       ctx.save();
-      ctx.translate(u.px - size / 2, top - (u.rank - 1 - i) * size * 0.34);
+      ctx.translate(P.x - size / 2, top - (u.rank - 1 - i) * size * 0.34);
       ctx.scale(sc, sc);
       ctx.strokeStyle = 'rgba(0,0,0,0.85)';
       ctx.lineWidth = 5.2;
@@ -381,8 +414,9 @@ export class Renderer {
     ctx.font = `700 ${10 * k}px "Segoe UI", system-ui, sans-serif`;
     const w = ctx.measureText(text).width + 8 * k;
     const h = 13 * k;
-    const x = t.px - w / 2;
-    const y = t.py - t.altitude - 11 - h;
+    const P = worldToIso(t.px, t.py);
+    const x = P.x - w / 2;
+    const y = P.y - t.altitude - 11 - h;
     ctx.fillStyle = t.full ? '#d62d20' : '#e0a21b';
     ctx.fillRect(x, y, w, h);
     ctx.strokeStyle = 'rgba(0,0,0,0.7)';
@@ -391,16 +425,17 @@ export class Renderer {
     ctx.fillStyle = '#fff';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(text, t.px, y + h / 2 + 0.3 * k);
+    ctx.fillText(text, P.x, y + h / 2 + 0.3 * k);
     ctx.restore();
   }
 
   private drawUnitHealth(u: Unit): void {
     const { ctx } = this;
     const k = 1 / this.camera.zoom;
+    const P = worldToIso(u.px, u.py);
     const w = Math.max(2.4, u.radius * 1.6);
-    const x = u.px - w / 2;
-    const y = u.py - u.bodyHeight - 2.4;
+    const x = P.x - w / 2;
+    const y = P.y - u.bodyHeight - 2.4;
     const ratio = u.hpRatio;
     ctx.fillStyle = 'rgba(0,0,0,0.75)';
     ctx.fillRect(x - k, y - k, w + 2 * k, 0.4 + 2 * k);
@@ -469,10 +504,10 @@ export class Renderer {
     if (t < 0 || t > 1) return;
     const { ctx } = this;
     ctx.strokeStyle = `rgba(92,255,106,${(1 - t).toFixed(3)})`;
-    ctx.lineWidth = 1.4 / this.camera.zoom;
-    for (const r of [2.6 * (1 - t) + 0.6, 1.4 * (1 - t) + 0.3]) {
+    ctx.lineWidth = 3 / this.camera.zoom;
+    for (const r of [4.2 * (1 - t) + 1, 2.2 * (1 - t) + 0.5]) {
       ctx.beginPath();
-      ctx.ellipse(m.x, m.y, r, r * 0.5, 0, 0, Math.PI * 2);
+      ctx.arc(m.x, m.y, r, 0, Math.PI * 2);
       ctx.stroke();
     }
   }
@@ -494,7 +529,7 @@ export class Renderer {
   private drawBuildZones(zones: readonly Rect[], faction?: FactionId): void {
     const { ctx } = this;
     const color = faction ? teamColors(faction).primary : '#ffffff';
-    const k = 1 / this.camera.zoom;
+    const k = 3 / this.camera.zoom;
     ctx.fillStyle = withAlpha(color, 0.07);
     for (const z of zones) ctx.fillRect(z.x, z.y, z.w, z.h);
     ctx.setLineDash([3 * k, 3 * k]);
@@ -504,15 +539,18 @@ export class Renderer {
     ctx.setLineDash([]);
   }
 
-  /** Translucent structure + green/red cells under the cursor, and why it is blocked. */
+  /** Translucent structure + green/red cells under the cursor (the hidden iso grid made visible), and why it is blocked. */
   private drawGhost(g: PlacementGhost): void {
     const { ctx } = this;
-    const k = 1 / this.camera.zoom;
+    const k = 3 / this.camera.zoom;
+    const ku = 1 / this.camera.zoom;
     const fx = g.x * CELL_SIZE;
     const fy = g.y * CELL_SIZE;
     const fw = g.w * CELL_SIZE;
     const fh = g.d * CELL_SIZE;
 
+    // The footprint cells are diamonds on the ground (ground transform).
+    this.ground();
     ctx.fillStyle = g.ok ? 'rgba(80,230,110,0.28)' : 'rgba(240,70,60,0.32)';
     ctx.fillRect(fx, fy, fw, fh);
     ctx.strokeStyle = g.ok ? 'rgba(120,255,150,0.9)' : 'rgba(255,110,100,0.95)';
@@ -528,26 +566,28 @@ export class Renderer {
     }
     ctx.stroke();
 
+    // The art stands on that diamond (upright transform).
+    this.upright();
     const s = this.sprites.get(g.spriteKey);
-    const scale = this.sprites.fitScale(g.spriteKey, fw);
-    const cx = fx + fw / 2;
-    const cy = fy + fh / 2;
+    const scale = this.sprites.fitScale(g.spriteKey);
+    const c = worldToIso(fx + fw / 2, fy + fh / 2);
     ctx.globalAlpha = g.ok ? 0.75 : 0.45;
-    ctx.drawImage(s.canvas, cx - s.centerX * scale, cy - s.centerY * scale, s.width * scale, s.height * scale);
+    ctx.drawImage(s.canvas, c.x - s.centerX * scale, c.y - s.centerY * scale, s.width * scale, s.height * scale);
     ctx.globalAlpha = 1;
 
     if (g.reason) {
-      ctx.font = `600 ${11 * k}px "Segoe UI", system-ui, sans-serif`;
-      const w = ctx.measureText(g.reason).width + 10 * k;
-      const h = 16 * k;
-      const x = cx - w / 2;
-      const y = fy + fh + 4 * k;
+      const south = worldToIso(fx + fw, fy + fh);
+      ctx.font = `600 ${11 * ku}px "Segoe UI", system-ui, sans-serif`;
+      const w = ctx.measureText(g.reason).width + 10 * ku;
+      const h = 16 * ku;
+      const x = c.x - w / 2;
+      const y = south.y + 4 * ku;
       ctx.fillStyle = 'rgba(40,8,6,0.85)';
       ctx.fillRect(x, y, w, h);
       ctx.fillStyle = '#ffd2cc';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(g.reason, cx, y + h / 2);
+      ctx.fillText(g.reason, c.x, y + h / 2);
     }
   }
 
@@ -556,7 +596,7 @@ export class Renderer {
     const { ctx } = this;
     const f = b.footprintWorld();
     const color = teamColors(b.faction).primary;
-    const k = 1 / this.camera.zoom;
+    const k = 3 / this.camera.zoom;
     ctx.fillStyle = withAlpha(color, 0.18);
     ctx.fillRect(f.x, f.y, f.w, f.h);
     ctx.strokeStyle = withAlpha(color, 0.45);
@@ -579,27 +619,13 @@ export class Renderer {
     ctx.setLineDash([]);
   }
 
-  /** World rect of the sprite's opaque pixels. */
+  /** Iso-space rect of the sprite's opaque pixels (for brackets, labels and the rise clip). */
   private spriteRect(b: Building): Rect {
     const s = this.sprite(b);
-    const c = b.centerWorld();
+    const cw = b.centerWorld();
+    const c = worldToIso(cw.x, cw.y);
     const k = this.scaleOf(b);
-    const x0 = (s.bounds.x - s.centerX) * k;
-    const y0 = (s.bounds.y - s.centerY) * k;
-    const x1 = x0 + s.bounds.w * k;
-    const y1 = y0 + s.bounds.h * k;
-    // Bounding box of the (possibly rotated) sprite rectangle.
-    const cos = Math.cos(b.angleRad);
-    const sin = Math.sin(b.angleRad);
-    const xs: number[] = [];
-    const ys: number[] = [];
-    for (const [px, py] of [[x0, y0], [x1, y0], [x0, y1], [x1, y1]] as const) {
-      xs.push(c.x + px * cos - py * sin);
-      ys.push(c.y + px * sin + py * cos);
-    }
-    const minX = Math.min(...xs);
-    const minY = Math.min(...ys);
-    return { x: minX, y: minY, w: Math.max(...xs) - minX, h: Math.max(...ys) - minY };
+    return { x: c.x + (s.bounds.x - s.centerX) * k, y: c.y + (s.bounds.y - s.centerY) * k, w: s.bounds.w * k, h: s.bounds.h * k };
   }
 
   /** RA2-style white corner brackets + pip health bar + name label. */

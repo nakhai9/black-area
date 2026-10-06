@@ -1,3 +1,4 @@
+import { movesRight } from '../core/IsoView';
 import { ACQUIRE_PERIOD, CELL_SIZE, CHASE_PERIOD, GUARD_VISION_FACTOR, NEUTRAL_OWNER, RETALIATE_RANGE_FACTOR } from '../constants';
 import { Building } from '../entities/Building';
 import type { Entity } from '../entities/Entity';
@@ -120,7 +121,7 @@ export class CombatSystem implements GameSystem {
     const tx = target instanceof Unit ? target.px : target instanceof Building ? target.centerWorld().x : s.px;
     const ty = target instanceof Unit ? target.py : target instanceof Building ? target.centerWorld().y : s.py;
     if (d <= w.range) {
-      s.facing = tx < s.px ? -1 : 1;
+      s.facing = movesRight(tx - s.px, ty - s.py) ? 1 : -1;
       s.heading = Math.atan2(ty - s.py, tx - s.px);
       // Units on attack orders stand and fight; ones just passing through keep walking and shooting.
       if (s.attackTarget !== null || s.attackMove) s.stop();

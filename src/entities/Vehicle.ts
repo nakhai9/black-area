@@ -115,7 +115,7 @@ export class Vehicle extends Unit {
   }
 
   override get depth(): number {
-    return this.fixed && this.drawDepth !== null ? this.drawDepth : this.py / CELL_SIZE;
+    return this.fixed && this.drawDepth !== null ? this.drawDepth : (this.px + this.py) / CELL_SIZE;
   }
 
   get name(): string {

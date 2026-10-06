@@ -1,4 +1,5 @@
 import { CELL_SIZE, RANK_KILL_MULTIPLES, STEP_PHASE_PER_PX } from '../constants';
+import { movesRight } from '../core/IsoView';
 import type { Allegiance, WeaponSpec, WorldPoint } from '../types';
 import { Entity } from './Entity';
 
@@ -131,9 +132,9 @@ export abstract class Unit extends Entity {
     return this.path.length > 0;
   }
 
-  /** Top-down: lower on screen = in front. Compares with Building.depth (cells). */
+  /** Isometric: larger x + y = in front. Compares with Building.depth (cells). */
   get depth(): number {
-    return this.py / CELL_SIZE;
+    return (this.px + this.py) / CELL_SIZE;
   }
 
   /** Multiplier on `speed` right now (e.g. swimming is slower). */
@@ -182,7 +183,7 @@ export abstract class Unit extends Entity {
       const dy = next.y - this.py;
       const dist = Math.hypot(dx, dy);
       if (dist > 0.05) this.turnTowards(Math.atan2(dy, dx), dt);
-      if (Math.abs(dx) > 0.05) this.facing = dx < 0 ? -1 : 1;
+      if (Math.abs(dx - dy) > 0.05) this.facing = movesRight(dx, dy) ? 1 : -1; // facing is judged on screen
       if (dist <= budget) {
         this.px = next.x;
         this.py = next.y;

@@ -1,13 +1,14 @@
 import { ZOOM_MAX, ZOOM_MIN } from '../constants';
 import type { Rect, WorldPoint } from '../types';
+import { isoToWorld, worldToIso } from './IsoView';
 import { clamp } from './MathUtils';
 
 /**
- * Fixed-angle 2D camera: pan + zoom only. The viewport is always kept fully
- * inside the world, so the map covers the whole screen (no empty borders).
+ * Fixed-angle isometric camera: pan + zoom only (see IsoView). `x`/`y` are the top-left corner of the
+ * viewport in iso space; the centre of the view is kept on the map.
  */
 export class Camera {
-  /** World coordinate of the viewport's top-left corner. */
+  /** Iso-space coordinate of the viewport's top-left corner (px at zoom 1). */
   x = 0;
   y = 0;
   zoom = 1;
@@ -19,9 +20,8 @@ export class Camera {
     private readonly worldHeight: number,
   ) {}
 
-  /** Smallest zoom at which the world still fills the viewport. */
   get minZoom(): number {
-    return Math.max(ZOOM_MIN, this.viewWidth / this.worldWidth, this.viewHeight / this.worldHeight);
+    return ZOOM_MIN;
   }
 
   resize(width: number, height: number): void {
@@ -32,19 +32,32 @@ export class Camera {
     this.centerOn(center.x, center.y);
   }
 
-  screenToWorld(sx: number, sy: number): WorldPoint {
+  /** Iso-space point under a screen pixel. */
+  screenToIso(sx: number, sy: number): WorldPoint {
     return { x: this.x + sx / this.zoom, y: this.y + sy / this.zoom };
   }
 
+  screenToWorld(sx: number, sy: number): WorldPoint {
+    const i = this.screenToIso(sx, sy);
+    return isoToWorld(i.x, i.y);
+  }
+
   worldToScreen(wx: number, wy: number): WorldPoint {
-    return { x: (wx - this.x) * this.zoom, y: (wy - this.y) * this.zoom };
+    const i = worldToIso(wx, wy);
+    return { x: (i.x - this.x) * this.zoom, y: (i.y - this.y) * this.zoom };
   }
 
-  /** Visible area in world coordinates. */
+  /** World-space bounding box of everything visible (the view is a diamond-ish area on the map). */
   viewRect(): Rect {
-    return { x: this.x, y: this.y, w: this.viewWidth / this.zoom, h: this.viewHeight / this.zoom };
+    const corners = [this.screenToWorld(0, 0), this.screenToWorld(this.viewWidth, 0), this.screenToWorld(this.viewWidth, this.viewHeight), this.screenToWorld(0, this.viewHeight)];
+    const xs = corners.map((c) => c.x);
+    const ys = corners.map((c) => c.y);
+    const x = Math.min(...xs);
+    const y = Math.min(...ys);
+    return { x, y, w: Math.max(...xs) - x, h: Math.max(...ys) - y };
   }
 
+  /** Pans by screen-direction deltas given in iso px (screen px / zoom). */
   panBy(dx: number, dy: number): void {
     this.x += dx;
     this.y += dy;
@@ -52,8 +65,9 @@ export class Camera {
   }
 
   centerOn(wx: number, wy: number): void {
-    this.x = wx - this.viewWidth / this.zoom / 2;
-    this.y = wy - this.viewHeight / this.zoom / 2;
+    const i = worldToIso(wx, wy);
+    this.x = i.x - this.viewWidth / this.zoom / 2;
+    this.y = i.y - this.viewHeight / this.zoom / 2;
     this.clamp();
   }
 
@@ -64,19 +78,25 @@ export class Camera {
     this.centerOn(c.x, c.y);
   }
 
-  /** Zooms while keeping the world point under (sx, sy) fixed on screen. */
+  /** Zooms while keeping the point under (sx, sy) fixed on screen. */
   zoomAt(factor: number, sx: number, sy: number): void {
-    const anchor = this.screenToWorld(sx, sy);
+    const anchor = this.screenToIso(sx, sy);
     this.zoom = clamp(this.zoom * factor, this.minZoom, ZOOM_MAX);
     this.x = anchor.x - sx / this.zoom;
     this.y = anchor.y - sy / this.zoom;
     this.clamp();
   }
 
+  /** The centre of the view always stays on the map. */
   private clamp(): void {
-    const vw = this.viewWidth / this.zoom;
-    const vh = this.viewHeight / this.zoom;
-    this.x = clamp(this.x, 0, Math.max(0, this.worldWidth - vw));
-    this.y = clamp(this.y, 0, Math.max(0, this.worldHeight - vh));
+    const cx = this.x + this.viewWidth / this.zoom / 2;
+    const cy = this.y + this.viewHeight / this.zoom / 2;
+    const w = isoToWorld(cx, cy);
+    const kx = clamp(w.x, 0, this.worldWidth);
+    const ky = clamp(w.y, 0, this.worldHeight);
+    if (kx === w.x && ky === w.y) return;
+    const i = worldToIso(kx, ky);
+    this.x = i.x - this.viewWidth / this.zoom / 2;
+    this.y = i.y - this.viewHeight / this.zoom / 2;
   }
 }
