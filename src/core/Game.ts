@@ -1212,7 +1212,9 @@ export class Game {
         ? `Building ${option.name} — ${option.cost} ${CURRENCY}`
         : result === 'full'
           ? 'Vehicle queue is full.'
-          : result === 'limit'
+          : result === 'tech'
+            ? 'Second-tier vehicles need a High-Tech Center.'
+            : result === 'limit'
             ? `Vehicle limit reached (${MAX_VEHICLES}).`
             : result === 'noParking'
             ? 'No free parking spot — build another Airfield or send aircraft out.'
@@ -1344,7 +1346,9 @@ export class Game {
       this.sidebar.notify(
         result === 'ok'
           ? `Training ${option.name} — ${option.cost} ${CURRENCY}`
-          : result === 'full'
+          : result === 'tech'
+            ? 'Second-tier soldiers need a High-Tech Center.'
+            : result === 'full'
             ? 'Training queue is full.'
             : result === 'limit'
               ? `Army limit reached (${MAX_SOLDIERS} soldiers).`

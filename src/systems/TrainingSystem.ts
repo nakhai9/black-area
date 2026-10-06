@@ -1,4 +1,4 @@
-import { INFANTRY_BASE, MAX_SOLDIERS, TRAINING_QUEUE_MAX } from '../constants';
+import { INFANTRY_BASE, MAX_SOLDIERS, TECH_TIERS, TRAINING_QUEUE_MAX } from '../constants';
 import type { Building } from '../entities/Building';
 import type { EntityManager } from '../entities/EntityManager';
 import { FACTIONS } from '../factions';
@@ -28,7 +28,7 @@ export function trainOptions(faction: FactionId): TrainOption[] {
 
 export type TrainingState = 'idle' | 'training' | 'onHold' | 'noBarracks';
 
-export type EnqueueResult = 'ok' | 'full' | 'noBarracks' | 'limit' | 'unique';
+export type EnqueueResult = 'ok' | 'full' | 'noBarracks' | 'limit' | 'unique' | 'tech';
 
 /** Army size (living soldiers + queued). */
 export interface ArmyCount {
@@ -83,6 +83,11 @@ export class TrainingSystem implements GameSystem {
     return this.entities.buildings().find((b) => b.owner === player.id && b.alive && b.spec.type === 'barracks') ?? null;
   }
 
+  /** Second-tier soldiers need a High-Tech Center. */
+  hasTech(player: PlayerState): boolean {
+    return this.entities.buildings().some((b) => b.owner === player.id && b.alive && b.spec.type === 'techCenter');
+  }
+
   /** Soldiers owned (alive, including the ones stationed inside buildings) plus the ones in the queue. */
   army(player: PlayerState): ArmyCount {
     let total = 0;
@@ -100,6 +105,7 @@ export class TrainingSystem implements GameSystem {
   enqueue(player: PlayerState, tier: UnitTier): EnqueueResult {
     const q = this.queue(player);
     if (!this.barracksOf(player)) return 'noBarracks';
+    if (TECH_TIERS.includes(tier) && !this.hasTech(player)) return 'tech';
     if (q.items.length >= TRAINING_QUEUE_MAX) return 'full';
     const army = this.army(player);
     if (army.total >= army.max) return 'limit';
@@ -141,6 +147,11 @@ export class TrainingSystem implements GameSystem {
       const barracks = this.barracksOf(p);
       if (!barracks) {
         q.state = 'noBarracks';
+        continue;
+      }
+      // Without a High-Tech Center (destroyed meanwhile) second-tier soldiers wait, unpaid.
+      if (TECH_TIERS.includes(tier) && !this.hasTech(p)) {
+        q.state = 'onHold';
         continue;
       }
       const option = this.optionsFor(p).find((o) => o.tier === tier);

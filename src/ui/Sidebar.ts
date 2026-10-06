@@ -1,5 +1,5 @@
 import { type IconNode, Hammer, PersonStanding, Shield, Truck, createElement } from 'lucide';
-import { CURRENCY, MAX_VEHICLES } from '../constants';
+import { CURRENCY, MAX_VEHICLES, TECH_TIERS, TECH_VEHICLES } from '../constants';
 import { FACTIONS } from '../factions';
 import { getFlagTexture } from '../render/Flags';
 import { type BuildOption, type QueueSlot, buildCost } from '../systems/ConstructionSystem';
@@ -390,7 +390,8 @@ export class Sidebar {
       c.el.dataset.state = training ? q.state : count > 0 ? 'queued' : 'idle';
       const atLimit = model.army.total >= model.army.max && count === 0;
       const inOffice = option.tier === 'president' && model.army.presidentTaken && count === 0;
-      const locked = !model.hasBarracks || atLimit || inOffice;
+      const noTech = TECH_TIERS.includes(option.tier) && !model.owned.has('techCenter');
+      const locked = !model.hasBarracks || atLimit || inOffice || noTech;
       c.el.classList.toggle('locked', locked);
       (c.el as HTMLButtonElement).disabled = locked;
       if (c.badge) {
@@ -426,7 +427,8 @@ export class Sidebar {
       const producing = head === option.kind;
       c.el.dataset.state = producing ? q.state : count > 0 ? 'queued' : 'idle';
       const atLimit = model.vehicleCount >= MAX_VEHICLES && count === 0;
-      const locked = !have || atLimit;
+      const noTech = TECH_VEHICLES.includes(option.kind) && !model.owned.has('techCenter');
+      const locked = !have || atLimit || noTech;
       c.el.classList.toggle('locked', locked);
       (c.el as HTMLButtonElement).disabled = locked;
       if (c.badge) {

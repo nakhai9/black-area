@@ -34,7 +34,7 @@ export interface AIHost {
 }
 
 /** Order in which an AI nation builds its base. */
-const BUILD_PLAN: readonly BuildOption['id'][] = ['barracks', 'warFactory', 'hospital', 'airfield'];
+const BUILD_PLAN: readonly BuildOption['id'][] = ['barracks', 'warFactory', 'hospital', 'airfield', 'techCenter'];
 const THINK_PERIOD = 1.5;
 /** No attack waves before this game time (s); the first wave also needs enough soldiers. */
 const FIRST_WAVE_AT = 210;
@@ -61,7 +61,7 @@ interface AIState {
 
 /**
  * Computer-controlled nations. Each one builds its base in a fixed order
- * (Barracks → War Factory → Hospital → Airfield), keeps its training
+ * (Barracks → War Factory → Hospital → Airfield → High-Tech Center), keeps its training
  * and vehicle queues running with the same rules as the player (5:3 special
  * forces, one President kept safe in the capital), defends against nearby
  * enemies and sends periodic attack waves at the closest reachable opponent.
@@ -197,14 +197,14 @@ export class AISystem implements GameSystem {
         const r = training.army(p);
         let tier: UnitTier = 'regular';
         if (!assist && !r.presidentTaken && p.credits > 1500) tier = 'president';
-        else if (st.rng() < (threat > 0 ? 0.25 : 0.4)) tier = 'special';
+        else if (owned.has('techCenter') && st.rng() < (threat > 0 ? 0.25 : 0.4)) tier = 'special';
         training.enqueue(p, tier);
       }
     }
     if (owned.has('warFactory') || owned.has('airfield')) {
       const q = production.queue(p);
       if (q.items.length < depth && p.credits > (threat > 0 ? 500 : 700)) {
-        let kind: VehicleKind = st.rng() < 0.6 ? 'tank' : 'ifv';
+        let kind: VehicleKind = st.rng() < 0.6 || !owned.has('techCenter') ? 'tank' : 'ifv';
         if (!assist && owned.has('airfield') && p.credits > 1700 && st.rng() < 0.3) kind = 'jet';
         if (!owned.has('warFactory') && kind !== 'jet') kind = 'jet';
         if (!assist || kind !== 'jet') production.enqueue(p, kind);

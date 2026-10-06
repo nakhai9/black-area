@@ -162,6 +162,7 @@ export type BuildingType =
   | 'hospital'
   | 'warFactory'
   | 'airfield'
+  | 'techCenter'
   | 'oilDerrick';
 
 /** Who may be stationed inside a building, and how many. */

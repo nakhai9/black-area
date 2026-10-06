@@ -1,5 +1,6 @@
 import {
   AIRFIELD_COST,
+  TECH_CENTER_COST,
   BARRACKS_COST,
   BUILD_STEP_FRACTION,
   BUILD_STEP_SECONDS,
@@ -13,6 +14,7 @@ import {
 import { Airfield } from '../entities/Airfield';
 import { FACTIONS } from '../factions';
 import { Hospital } from '../entities/Hospital';
+import { TechCenter } from '../entities/TechCenter';
 import { WarFactory } from '../entities/WarFactory';
 import { Barracks } from '../entities/Barracks';
 import type { Building } from '../entities/Building';
@@ -21,7 +23,7 @@ import type { GameSystem } from './GameSystem';
 
 /** A structure that can be produced from the sidebar's Build tab. */
 export interface BuildOption {
-  id: 'barracks' | 'warFactory' | 'hospital' | 'airfield';
+  id: 'barracks' | 'warFactory' | 'hospital' | 'airfield' | 'techCenter';
   name: string;
   /** Tech tree: this building must already stand (barracks → war factory/hospital → airfield). */
   requires?: BuildingType;
@@ -72,6 +74,15 @@ export const BUILD_OPTIONS: readonly BuildOption[] = [
     footprint: FOOTPRINT_AIRFIELD,
     spriteKey: (f) => `airfield:${f}`,
     create: (owner, faction, x, y) => new Airfield(owner, faction, center(x, y, FOOTPRINT_AIRFIELD)),
+  },
+  {
+    id: 'techCenter',
+    name: 'High-Tech Center',
+    requires: 'warFactory',
+    cost: TECH_CENTER_COST,
+    footprint: FOOTPRINT_SMALL,
+    spriteKey: (f) => `techCenter:${f}`,
+    create: (owner, faction, x, y) => new TechCenter(owner, faction, center(x, y, FOOTPRINT_SMALL)),
   },
 ];
 

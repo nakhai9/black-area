@@ -1,6 +1,7 @@
 import { createAirfieldArt } from './Airfield';
 import { createBarracksArt } from './Barracks';
 import { createHospitalArt } from './Hospital';
+import { createTechCenterArt } from './TechCenter';
 import { createWarFactoryArt } from './WarFactory';
 import { BeijingForbiddenCityArt } from './BeijingForbiddenCity';
 import { BrusselsEUHeadquartersArt } from './BrusselsEUHeadquarters';
@@ -43,6 +44,11 @@ export const BUILDING_ART: Readonly<Record<string, BuildingArt>> = {
   'airfield:russia': createAirfieldArt('russia'),
   'airfield:china': createAirfieldArt('china'),
   'airfield:europe': createAirfieldArt('europe'),
+  // The high-rise High-Tech Center in each nation's team colour.
+  'techCenter:usa': createTechCenterArt('usa'),
+  'techCenter:russia': createTechCenterArt('russia'),
+  'techCenter:china': createTechCenterArt('china'),
+  'techCenter:europe': createTechCenterArt('europe'),
 };
 
 export type { BuildingArt } from './BuildingArt';

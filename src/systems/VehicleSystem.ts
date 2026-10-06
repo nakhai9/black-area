@@ -1,4 +1,4 @@
-import { AVAILABLE_VEHICLES, MAX_VEHICLES, VEHICLE_BASE, VEHICLE_QUEUE_MAX, isAircraftKind } from '../constants';
+import { AVAILABLE_VEHICLES, MAX_VEHICLES, TECH_VEHICLES, VEHICLE_BASE, VEHICLE_QUEUE_MAX, isAircraftKind } from '../constants';
 import type { Building } from '../entities/Building';
 import type { EntityManager } from '../entities/EntityManager';
 import { FACTIONS } from '../factions';
@@ -32,7 +32,7 @@ export function vehicleOptions(faction: FactionId): VehicleOption[] {
 }
 
 export type VehicleQueueState = 'idle' | 'building' | 'onHold' | 'noFactory';
-export type VehicleEnqueueResult = 'ok' | 'full' | 'noFactory' | 'noParking' | 'limit';
+export type VehicleEnqueueResult = 'ok' | 'full' | 'noFactory' | 'noParking' | 'limit' | 'tech';
 
 export interface VehicleQueue {
   /** Waiting vehicles; the first one is in production. */
@@ -98,9 +98,15 @@ export class VehicleSystem implements GameSystem {
     return this.entities.vehicles().filter((v) => v.owner === player.id && v.alive && v.aircraft).length;
   }
 
+  /** Second-tier vehicles need a High-Tech Center. */
+  hasTech(player: PlayerState): boolean {
+    return this.entities.buildings().some((b) => b.owner === player.id && b.alive && b.spec.type === 'techCenter');
+  }
+
   enqueue(player: PlayerState, kind: VehicleKind): VehicleEnqueueResult {
     const q = this.queue(player);
     if (!this.requirement(player, kind)) return 'noFactory';
+    if (TECH_VEHICLES.includes(kind) && !this.hasTech(player)) return 'tech';
     if (!AVAILABLE_VEHICLES.includes(kind) || q.items.length >= VEHICLE_QUEUE_MAX) return 'full';
     if (this.vehicleCount(player) >= MAX_VEHICLES) return 'limit';
     if (isAircraftKind(kind) && this.aircraftOwned(player) + q.items.filter(isAircraftKind).length >= this.parkingCapacity(player)) return 'noParking';
@@ -135,6 +141,11 @@ export class VehicleSystem implements GameSystem {
       const producer = this.requirement(p, kind);
       if (!producer) {
         q.state = 'noFactory';
+        continue;
+      }
+      // Without a High-Tech Center (destroyed meanwhile) second-tier vehicles wait, unpaid.
+      if (TECH_VEHICLES.includes(kind) && !this.hasTech(p)) {
+        q.state = 'onHold';
         continue;
       }
       const option = this.optionsFor(p).find((o) => o.kind === kind);

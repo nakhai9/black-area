@@ -1,4 +1,4 @@
-import type { BuildingType, FactionId, GeoPoint, NamedSite, VehicleKind, WeaponKind, WeaponSpec } from './types';
+import type { BuildingType, FactionId, GeoPoint, NamedSite, UnitTier, VehicleKind, WeaponKind, WeaponSpec } from './types';
 
 // ---------------------------------------------------------------- World (real Earth)
 /** Packed Earth texture built by `npm run build:earth` (see scripts/build-earth.mjs). */
@@ -76,6 +76,11 @@ export const BUILD_STEP_FRACTION = 0.2;
 export const BARRACKS_COST = 800;
 export const HOSPITAL_COST = 1200;
 export const AIRFIELD_COST = 2000;
+/** High-Tech Center (a high-rise): base price; it unlocks the second-tier soldiers and vehicles. */
+export const TECH_CENTER_COST = 8000;
+/** Second-tier units that need a High-Tech Center: special-forces soldiers and the armoured fighting vehicle. */
+export const TECH_TIERS: readonly UnitTier[] = ['special'];
+export const TECH_VEHICLES: readonly VehicleKind[] = ['ifv'];
 /** Duration of the build-up animation after placing a structure. */
 export const BUILD_RISE_SECONDS = 1.2;
 
@@ -222,6 +227,7 @@ export const BUILDING_VALUE: Readonly<Partial<Record<BuildingType, number>>> = {
   hospital: HOSPITAL_COST,
   warFactory: WAR_FACTORY_COST,
   airfield: AIRFIELD_COST,
+  techCenter: TECH_CENTER_COST,
   capital: 4000,
   oilDerrick: 1500,
 };
