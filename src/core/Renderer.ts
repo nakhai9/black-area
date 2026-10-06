@@ -140,6 +140,7 @@ export class Renderer {
     // Buildings and soldiers share one painter's-algorithm pass (by depth).
     const units = scene.units ?? [];
     const selUnits = scene.selectedUnits ?? new Set<number>();
+    for (const u of units) if (selUnits.has(u.id)) this.drawMoveLine(u);
     for (const u of units) if (selUnits.has(u.id)) this.drawUnitRing(u, '#5cff6a');
     const hovered = units.find((u) => u.id === scene.hoveredUnitId);
     if (hovered && !selUnits.has(hovered.id)) this.drawUnitRing(hovered, 'rgba(255,255,255,0.6)');
@@ -304,6 +305,27 @@ export class Renderer {
     ctx.beginPath();
     ctx.arc(u.px, u.py, Math.max(1.8, u.radius * 1.35), 0, Math.PI * 2);
     ctx.stroke();
+  }
+
+  /** Thin dashed line in the team colour from a selected unit along its remaining route to the destination (ground transform). */
+  private drawMoveLine(u: Unit): void {
+    const path = u.waypoints();
+    const end = path[path.length - 1];
+    if (!end) return;
+    const { ctx } = this;
+    const k = 1 / this.camera.zoom;
+    ctx.strokeStyle = withAlpha(teamColors(u.faction).primary, 0.85);
+    ctx.lineWidth = 1.2 * k;
+    ctx.setLineDash([4 * k, 3 * k]);
+    ctx.beginPath();
+    ctx.moveTo(u.px, u.py);
+    for (const p of path) ctx.lineTo(p.x, p.y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = ctx.strokeStyle;
+    ctx.beginPath();
+    ctx.arc(end.x, end.y, 2.5 * k, 0, Math.PI * 2);
+    ctx.fill();
   }
 
   /** RA2-style target focus, part 1: a pulsing red ring under the enemy (ground transform). */
