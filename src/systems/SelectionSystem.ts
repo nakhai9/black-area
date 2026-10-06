@@ -40,7 +40,7 @@ export class SelectionSystem {
       const cw = e.centerWorld();
       const c = worldToIso(cw.x, cw.y);
       const scale = this.sprites.fitScale(e.spriteKey);
-      if (this.sprites.hitTest(e.spriteKey, false, m.x - c.x, m.y - c.y, scale)) return e;
+      if (this.sprites.hitTest(e.spriteKey, e.rotated, m.x - c.x, m.y - c.y, scale)) return e;
     }
     return null;
   }

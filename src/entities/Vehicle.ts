@@ -16,9 +16,10 @@ import { Unit } from './Unit';
  * Where an aircraft is in its sortie:
  * parked on the apron → taxiing to the runway → take-off roll → airborne →
  * approach → landing roll → taxiing back to its parking spot. A transport
- * that reaches its drop-off point sets down there ('unloading') and lifts off again.
+ * that reaches its drop-off point sets down there ('unloading') and lifts off again; an empty one stays
+ * 'landed' on the spot to take passengers on board ('liftoff' to leave again).
  */
-export type Flight = 'parked' | 'taxi' | 'takeoff' | 'airborne' | 'approach' | 'landing' | 'taxiHome' | 'crashing' | 'unloading';
+export type Flight = 'parked' | 'taxi' | 'takeoff' | 'airborne' | 'approach' | 'landing' | 'taxiHome' | 'crashing' | 'unloading' | 'landed' | 'liftoff';
 
 /** Cruise height of an aircraft above the ground (world px, drawn offset). */
 export const CRUISE_ALTITUDE = 7;
@@ -65,8 +66,14 @@ export class Vehicle extends Unit {
   drawDepth: number | null = null;
   /** Orders given while it was busy on the ground; carried out once it is airborne. */
   mission: WorldPoint[] | null = null;
-  /** Transport only: where it sets down to unload. */
+  /** Transport only: where it sets down to unload / wait for passengers. */
   dropSpot: WorldPoint | null = null;
+  /** Transport only: set down empty to pick units up (stays landed until ordered away). */
+  pickup = false;
+  /** Seconds a landed, empty transport has waited for nobody. */
+  landedIdle = 0;
+  /** Transport only: on its way back to the airfield — does not set down again on the way. */
+  returningHome = false;
   /** Transport only: soldiers and vehicles aboard (hidden from the map while inside). */
   readonly cargo: Unit[] = [];
 
@@ -136,9 +143,9 @@ export class Vehicle extends Unit {
     return this.cargo.length - this.soldiersAboard;
   }
 
-  /** May `u` climb aboard right now? Only a parked transport takes passengers; fighters and transports never do. */
+  /** May `u` climb aboard right now? Only a transport standing on the ground takes passengers; fighters and transports never do. */
   canLoad(u: Unit): boolean {
-    if (!this.isTransport || this.flight !== 'parked' || !this.alive) return false;
+    if (!this.isTransport || (this.flight !== 'parked' && this.flight !== 'landed') || !this.alive) return false;
     const vehicle = u instanceof Vehicle;
     if (vehicle && u.aircraft) return false;
     const s = this.soldiersAboard + (vehicle ? 0 : 1);

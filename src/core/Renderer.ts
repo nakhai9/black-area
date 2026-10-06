@@ -26,6 +26,8 @@ export interface PlacementGhost {
   readonly y: number;
   readonly w: number;
   readonly d: number;
+  /** Turned 90°: the art is drawn mirrored. */
+  readonly mirrored: boolean;
   readonly ok: boolean;
   readonly reason: string | null;
 }
@@ -59,6 +61,8 @@ export interface RenderScene {
 }
 
 const HEALTH_PIPS = 24;
+/** Draw scale of tanks, armoured cars and other ground vehicles. */
+const GROUND_VEHICLE_SCALE = 0.7;
 
 /** Lucide's ChevronDown path (24×24 grid): drawn 1–3 times above a veteran unit. */
 const CHEVRON = new Path2D(String((ChevronDown[0]?.[1] as { d?: string } | undefined)?.d ?? 'm6 9 6 6 6-6'));
@@ -201,7 +205,7 @@ export class Renderer {
   }
 
   private sprite(b: Building): Sprite {
-    return this.sprites.get(b.spriteKey);
+    return this.sprites.get(b.spriteKey, b.rotated);
   }
 
   /** Sprite scale: its art diamond is exactly the diamond the grid footprint covers on screen. */
@@ -261,7 +265,7 @@ export class Renderer {
       // Same local art space as the static sprite.
       ctx.save();
       ctx.translate(c.x, c.y);
-      ctx.scale(k, k);
+      ctx.scale(b.rotated ? -k : k, k);
       s.art.drawAnimated(new IsoPainter(ctx, s.originX, s.originY), time, b.active);
       ctx.restore();
     }
@@ -274,7 +278,14 @@ export class Renderer {
     const P = worldToIso(u.px, u.py);
     if (u instanceof Vehicle) {
       const heading = isoHeading(u.heading, u.aircraft ? 0.8 : SQUASH);
-      drawVehicle(ctx, { x: P.x, y: P.y, heading, phase: u.walkPhase, moving: u.moving, altitude: u.altitude }, u.type, u.faction as keyof typeof FACTIONS);
+      // On the iso ground a vehicle's neighbours are half as far apart on screen: ground vehicles are drawn a bit
+      // smaller so they never look piled on top of each other (their collision circles keep them apart).
+      const scale = u.aircraft ? 1 : GROUND_VEHICLE_SCALE;
+      ctx.save();
+      ctx.translate(P.x, P.y);
+      ctx.scale(scale, scale);
+      drawVehicle(ctx, { x: 0, y: 0, heading, phase: u.walkPhase, moving: u.moving, altitude: u.altitude }, u.type, u.faction as keyof typeof FACTIONS);
+      ctx.restore();
       return;
     }
     if (!(u instanceof Infantry)) return;
@@ -568,7 +579,7 @@ export class Renderer {
 
     // The art stands on that diamond (upright transform).
     this.upright();
-    const s = this.sprites.get(g.spriteKey);
+    const s = this.sprites.get(g.spriteKey, g.mirrored);
     const scale = this.sprites.fitScale(g.spriteKey);
     const c = worldToIso(fx + fw / 2, fy + fh / 2);
     ctx.globalAlpha = g.ok ? 0.75 : 0.45;

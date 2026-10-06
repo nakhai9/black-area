@@ -77,6 +77,8 @@ interface AlertEntry {
 }
 
 const MAX_ALERTS = 4;
+/** An alert is shown for this many seconds, then it goes away. */
+const ALERT_SECONDS = 10;
 
 type Cameo = { el: HTMLElement; wipe: HTMLElement; state: HTMLElement; badge?: HTMLElement };
 
@@ -176,7 +178,7 @@ export class Sidebar {
           <li>Armed units: <kbd>Left-click</kbd> an enemy to attack · enemy engineers capture buildings · <kbd>M</kbd> sound on/off</li>
           <li>Limits: 20 soldiers, 10 vehicles · special forces swim · tanks run soldiers over · only aircraft shoot aircraft</li>
           <li>Transport: select soldiers/vehicles, <kbd>Left-click</kbd> the parked transport to board · <kbd>Left-click</kbd> ground — it flies there, lands and unloads · <kbd>U</kbd> unload on the airfield</li>
-          <li>When <b>READY</b>: click cameo, then click the map to place · <kbd>Esc</kbd>/<kbd>Right-click</kbd> stop placing</li>
+          <li>When <b>READY</b>: click cameo, then click the map to place · <kbd>R</kbd> turn it 90° · <kbd>Esc</kbd>/<kbd>Right-click</kbd> stop placing</li>
           <li><kbd>WASD</kbd>/<kbd>Arrows</kbd>/screen edge — scroll · <kbd>Wheel</kbd> zoom · <kbd>Middle-drag</kbd> pan</li>
           <li><kbd>Click</kbd> select · <kbd>1</kbd>–<kbd>5</kbd> landmarks · <kbd>O</kbd> oil · <kbd>H</kbd> home · <kbd>Tab</kbd> sidebar</li>
         </ul>
@@ -360,6 +362,9 @@ export class Sidebar {
       this.alertClock += dt;
       if (this.alertClock >= 1) {
         this.alertClock = 0;
+        const now = performance.now();
+        const fresh = this.alerts.filter((a) => now - a.born < ALERT_SECONDS * 1000);
+        this.alerts.splice(0, this.alerts.length, ...fresh);
         this.renderAlerts();
       }
     }

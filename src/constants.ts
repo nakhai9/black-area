@@ -136,9 +136,9 @@ export const GUARD_VISION_FACTOR = 1.8;
  * everything else at the War Factory.
  */
 export const VEHICLE_BASE = {
-  light: { cost: 600, trainSeconds: 8, maxHp: 180, speed: 2.4, radius: 2.4 },
-  tank: { cost: 1200, trainSeconds: 14, maxHp: 420, speed: 1.4, radius: 3.0 },
-  ifv: { cost: 900, trainSeconds: 11, maxHp: 300, speed: 1.8, radius: 2.8 },
+  light: { cost: 600, trainSeconds: 8, maxHp: 180, speed: 2.4, radius: 3.4 },
+  tank: { cost: 1200, trainSeconds: 14, maxHp: 420, speed: 1.4, radius: 4.2 },
+  ifv: { cost: 900, trainSeconds: 11, maxHp: 300, speed: 1.8, radius: 4.0 },
   jet: { cost: 1600, trainSeconds: 16, maxHp: 220, speed: 9, radius: 3.2 },
   /** Unarmed cargo aircraft: slower than the fighter. */
   transport: { cost: 1400, trainSeconds: 14, maxHp: 260, speed: 5.5, radius: 3.6 },

@@ -437,8 +437,8 @@ export class Game {
   private unloadSelectedTransport(): void {
     const t = this.selection.selectedUnitList().find((u): u is Vehicle => u instanceof Vehicle && u.isTransport && u.cargo.length > 0);
     if (!t) return;
-    if (t.flight !== 'parked') {
-      this.sidebar.notify('The transport must be parked on its airfield — or it unloads when it reaches its destination.');
+    if (t.flight !== 'parked' && t.flight !== 'landed') {
+      this.sidebar.notify('The transport must be on the ground to unload — or it unloads when it reaches its destination.');
       return;
     }
     this.unloadTransport(t);
@@ -446,7 +446,7 @@ export class Game {
 
   /** Soldiers and vehicles walk to a parked transport and climb aboard when they reach its airfield. */
   private orderBoard(t: Vehicle, riders: Unit[]): boolean {
-    if (t.flight !== 'parked') return false;
+    if (t.flight !== 'parked' && t.flight !== 'landed') return false;
     const here = this.map.cellAt(t.px, t.py);
     if (!here) return false;
     let sent = 0;
@@ -475,13 +475,14 @@ export class Game {
     for (const u of this.entities.fieldMovers()) {
       if (u.boardTarget === null) continue;
       const t = this.entities.get(u.boardTarget);
-      if (!(t instanceof Vehicle) || !t.alive || t.flight !== 'parked') {
+      if (!(t instanceof Vehicle) || !t.alive || (t.flight !== 'parked' && t.flight !== 'landed')) {
         u.boardTarget = null;
         continue;
       }
+      // Boarding needs contact: right up to a transport that stands in the field, or to the wall of the airfield.
       const home = t.homeId === null ? undefined : this.entities.get(t.homeId);
-      const reach = home instanceof Building ? distanceTo(u.px, u.py, home) : Math.hypot(u.px - t.px, u.py - t.py);
-      if (reach > CELL_SIZE * 2) {
+      const reach = t.flight === 'parked' && home instanceof Building ? distanceTo(u.px, u.py, home) : Math.hypot(u.px - t.px, u.py - t.py) - t.radius * 0.5;
+      if (reach > CELL_SIZE * 1.3) {
         if (!u.moving) u.boardTarget = null; // could not get close enough
         continue;
       }
@@ -543,8 +544,15 @@ export class Game {
 
   /** Pushes overlapping soldiers apart (never into water, unless they swim, or buildings). */
   private separateUnits(): void {
+    // Several relaxation passes so a crowd of vehicles ends up fully apart, not just mostly.
+    for (let pass = 0; pass < 3; pass++) if (!this.separatePass()) break;
+  }
+
+  /** One pass of pushing overlapping units apart; false when nothing overlapped. */
+  private separatePass(): boolean {
+    let moved = false;
     const units = this.entities.fieldMovers();
-    if (units.length < 2) return;
+    if (units.length < 2) return false;
     const bucket = 8;
     const grid = new Map<number, Unit[]>();
     const key = (cx: number, cy: number): number => cx * 100003 + cy;
@@ -566,6 +574,7 @@ export class Game {
             let vy = b.py - a.py;
             let d = Math.hypot(vx, vy);
             if (d >= gap) continue;
+            moved = true;
             if (d < 0.01) {
               vx = (a.id % 7) - 3 || 1;
               vy = (b.id % 5) - 2;
@@ -580,6 +589,7 @@ export class Game {
         }
       }
     }
+    return moved;
   }
 
   private nudge(u: Unit, dx: number, dy: number): void {
@@ -821,6 +831,13 @@ export class Game {
       case 'KeyU':
         this.unloadSelectedTransport();
         break;
+      case 'KeyR':
+        // While positioning a structure: turn it 90° (footprint d × w, art mirrored), still square to the grid.
+        if (this.placing) {
+          this.placingRotated = !this.placingRotated;
+          this.sidebar.notify(this.placingRotated ? 'Turned 90°.' : 'Turned back.', 1.5);
+        }
+        break;
       case 'Equal':
       case 'NumpadAdd':
         cam.zoomAt(ZOOM_STEP, cam.viewWidth / 2, cam.viewHeight / 2);
@@ -887,7 +904,11 @@ export class Game {
     this.sidebarTimer = SIDEBAR_REFRESH;
   }
 
+  /** The structure being positioned is turned 90° (R). */
+  private placingRotated = false;
+
   private stopPlacing(): void {
+    this.placingRotated = false;
     this.placing = null;
     this.ghost = null;
   }
@@ -898,7 +919,9 @@ export class Game {
       this.ghost = null;
       return;
     }
-    const { w, d } = this.placing.footprint;
+    const fp = this.placing.footprint;
+    const w = this.placingRotated ? fp.d : fp.w;
+    const d = this.placingRotated ? fp.w : fp.d;
     const x = Math.floor(this.mouseWorld.x / CELL_SIZE - w / 2 + 0.5);
     const y = Math.floor(this.mouseWorld.y / CELL_SIZE - d / 2 + 0.5);
     const result = this.placement.check({ owner: this.humanPlayer.id, x, y, w, d });
@@ -909,6 +932,7 @@ export class Game {
       y,
       w,
       d,
+      mirrored: this.placingRotated,
       ok: result.ok,
       reason: result.ok ? null : (BLOCK_REASONS[result.reason] ?? result.reason),
     };
@@ -926,6 +950,8 @@ export class Game {
     const player = this.humanPlayer;
     if (!this.construction.takeReady(player)) return;
     const b = this.entities.add(option.create(player.id, player.faction, g.x, g.y));
+    b.rotated = g.mirrored;
+    b.moveTo(g.x, g.y);
     b.placedAt = this.time;
     this.map.occupy(b.x, b.y, b.w, b.d, b.id);
     this.stopPlacing();
@@ -1135,7 +1161,9 @@ export class Game {
   /** Where the runway, apron parking spots and approach point are, in world px. */
   private airfieldGeometry(b: Building): AirfieldGeometry {
     // The art's axes are the grid's: tile (u, v) of the 12×6 sprite is the cell u right, v down of the footprint's corner.
-    const pt = (u: number, v: number): WorldPoint => ({ x: (b.x + u) * CELL_SIZE, y: (b.y + v) * CELL_SIZE });
+    // A turned building shows its art mirrored: the art's (u, v) lands on the cell v right, u down.
+    const pt = (u: number, v: number): WorldPoint =>
+      b.rotated ? { x: (b.x + v) * CELL_SIZE, y: (b.y + u) * CELL_SIZE } : { x: (b.x + u) * CELL_SIZE, y: (b.y + v) * CELL_SIZE };
     const start = pt(0.5, RUNWAY_D / 2);
     const end = pt(AIRFIELD_SIZE.w - 0.5, RUNWAY_D / 2);
     const heading = Math.atan2(end.y - start.y, end.x - start.x);

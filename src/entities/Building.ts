@@ -86,13 +86,19 @@ export class Building extends Entity {
     return 0;
   }
 
+  /**
+   * Turned 90° on the grid: the footprint becomes d × w and the art is shown mirrored (the same building seen
+   * from the other side). Always square to the grid lines.
+   */
+  rotated = false;
+
   /** Footprint size in cells. */
   get w(): number {
-    return this.spec.footprint.w;
+    return this.rotated ? this.spec.footprint.d : this.spec.footprint.w;
   }
 
   get d(): number {
-    return this.spec.footprint.d;
+    return this.rotated ? this.spec.footprint.w : this.spec.footprint.d;
   }
 
   /** Isometric view: things with a larger x + y (cells, taken at the centre) are in front. */

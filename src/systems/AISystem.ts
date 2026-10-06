@@ -41,9 +41,17 @@ const FIRST_WAVE_AT = 210;
 const WAVE_GAP = 110;
 /** Enemies this close (world px) to the capital trigger a full defence. */
 const DEFENCE_RADIUS = 38 * CELL_SIZE;
+/** Units idle farther than this from their capital have finished a campaign. */
+const HOME_RADIUS = 30 * CELL_SIZE;
+/** An idle unit sees enemies this close (world px); none → the area is cleared. */
+const CLEARED_RADIUS = 9 * CELL_SIZE;
+/** Chance that a finished expedition goes on to conquer another land instead of marching home. */
+const INVADE_CHANCE = 0.45;
 
 interface AIState {
   nextThink: number;
+  /** Earliest game time the idle expedition decides what to do next. */
+  nextRegroup: number;
   /** Earliest game time the nation offers oil to the World Bank again. */
   nextSell: number;
   nextWave: number;
@@ -72,7 +80,7 @@ export class AISystem implements GameSystem {
   }
 
   private addState(p: PlayerState, i: number): AIState {
-    const st: AIState = { nextThink: 2 + i * 0.5, nextSell: 20 + i * 7, nextWave: FIRST_WAVE_AT + i * 25, waveSize: 8, rng: mulberry32(1000 + p.id * 77) };
+    const st: AIState = { nextThink: 2 + i * 0.5, nextRegroup: 40 + i * 5, nextSell: 20 + i * 7, nextWave: FIRST_WAVE_AT + i * 25, waveSize: 8, rng: mulberry32(1000 + p.id * 77) };
     this.state.set(p.id, st);
     return st;
   }
@@ -241,9 +249,12 @@ export class AISystem implements GameSystem {
       return;
     }
 
+    // After the fight: nothing left to destroy here and nobody attacking → go home or conquer another land.
+    this.regroup(p, st, army, capital, all);
+
     // Attack wave.
     if (this.time < st.nextWave || army.length < st.waveSize) return;
-    const target = this.pickTarget(p, capital);
+    const target = this.pickTarget(p, capital.centerWorld());
     st.nextWave = this.time + WAVE_GAP;
     if (!target) return;
     const goal = target.centerWorld();
@@ -259,9 +270,62 @@ export class AISystem implements GameSystem {
     this.host.orderAttackMove(sent, { x: goal.x, y: goal.y + CELL_SIZE * 3 });
   }
 
+  /**
+   * Units far from home that stand idle, with no enemy in sight and nobody having hit them lately, have
+   * cleared their area. The group then marches back to its own land or sets out to take another one
+   * (the nearest enemy structure reachable by land; aircraft and swimmers can go anywhere).
+   */
+  private regroup(p: PlayerState, st: AIState, army: Unit[], capital: Building, all: readonly Unit[]): void {
+    if (this.time < st.nextRegroup) return;
+    const home = capital.centerWorld();
+    const buildings = this.host.entities.buildings();
+    const hostileNear = (u: Unit): boolean => {
+      for (const e of all) {
+        if (e.owner === p.id || e.owner === NEUTRAL_OWNER || !e.alive) continue;
+        if (Math.hypot(e.px - u.px, e.py - u.py) < CLEARED_RADIUS) return true;
+      }
+      for (const b of buildings) {
+        if (!b.alive || b.owner === p.id || b.owner === NEUTRAL_OWNER || b.indestructible) continue;
+        const c = b.centerWorld();
+        if (Math.hypot(c.x - u.px, c.y - u.py) < CLEARED_RADIUS + (b.w * CELL_SIZE) / 2) return true;
+      }
+      return false;
+    };
+    const idle = army.filter(
+      (u) =>
+        !u.aircraft &&
+        !u.moving &&
+        u.attackMove === null &&
+        u.attackTarget === null &&
+        u.combatTarget === null &&
+        this.time - u.lastAttackedAt > 6 &&
+        Math.hypot(u.px - home.x, u.py - home.y) > HOME_RADIUS &&
+        !hostileNear(u),
+    );
+    if (idle.length === 0) return;
+    st.nextRegroup = this.time + 15;
+
+    const cx = idle.reduce((s, u) => s + u.px, 0) / idle.length;
+    const cy = idle.reduce((s, u) => s + u.py, 0) / idle.length;
+    const target = st.rng() < INVADE_CHANCE ? this.pickTarget(p, { x: cx, y: cy }) : null;
+    if (target) {
+      const goal = target.centerWorld();
+      const cell = this.host.pathfinder.nearestPassable(Math.floor(goal.x / CELL_SIZE), Math.floor((goal.y + 10) / CELL_SIZE), 10);
+      const going = idle.filter(
+        (u) => u.swims || (cell !== null && this.host.pathfinder.sameLandmass(Math.floor(u.px / CELL_SIZE), Math.floor(u.py / CELL_SIZE), cell.x, cell.y)),
+      );
+      if (going.length >= Math.min(3, idle.length)) {
+        this.host.orderAttackMove(going, { x: goal.x, y: goal.y + CELL_SIZE * 3 });
+        return;
+      }
+    }
+    // Back to the homeland, to the parade ground in front of the capital.
+    this.host.orderAttackMove(idle, { x: home.x, y: home.y + CELL_SIZE * 8 });
+  }
+
   /** Closest enemy capital by distance; falls back to any enemy building. */
-  private pickTarget(p: PlayerState, capital: Building): Building | null {
-    const mine = capital.centerWorld();
+  private pickTarget(p: PlayerState, from: WorldPoint | Building): Building | null {
+    const mine = 'spec' in from ? from.centerWorld() : from;
     let best: Building | null = null;
     let bestD = Infinity;
     for (const b of this.host.entities.buildings()) {

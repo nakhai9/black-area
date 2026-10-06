@@ -48,6 +48,8 @@ export interface AircraftHooks {
 const DESCEND_SECONDS = 1.2;
 const UNLOAD_PAUSE = 1.2;
 const CLIMB_SECONDS = 1.0;
+/** An empty transport that has set down in the field waits this long for passengers, then flies home (s). */
+const LANDED_WAIT = 40;
 
 export class AircraftSystem implements GameSystem {
   constructor(
@@ -60,7 +62,9 @@ export class AircraftSystem implements GameSystem {
     for (const v of this.entities.vehicles()) {
       if (!v.aircraft || !v.alive) continue;
       const base = this.home(v);
-      v.drawDepth = base ? base.depth + 0.02 : null;
+      // Drawn right after its airfield only while it is on the airfield's apron or runway.
+      const onAirfield = v.flight === 'parked' || v.flight === 'taxi' || v.flight === 'takeoff' || v.flight === 'landing' || v.flight === 'taxiHome';
+      v.drawDepth = base && onAirfield ? base.depth + 0.02 : null;
       switch (v.flight) {
         case 'parked':
           this.parked(v, dt);
@@ -88,6 +92,12 @@ export class AircraftSystem implements GameSystem {
           break;
         case 'unloading':
           this.unloading(v, dt);
+          break;
+        case 'landed':
+          this.landed(v, dt);
+          break;
+        case 'liftoff':
+          this.liftoff(v, dt);
           break;
       }
     }
@@ -190,11 +200,14 @@ export class AircraftSystem implements GameSystem {
       this.startCrash(v);
       return;
     }
-    // A loaded transport that has reached its destination sets down there and unloads.
-    if (v.isTransport && v.cargo.length > 0 && !v.moving && v.mission === null && v.flight === 'airborne') {
+    // A transport that has reached its destination sets down there on solid ground (never on the sea): a loaded
+    // one unloads and lifts off again, an empty one waits on the spot to take passengers aboard.
+    if (v.isTransport && !v.moving && v.mission === null && !v.returningHome && !this.nearOwnAirfield(v)) {
       const spot = this.hooks.landingSpot(v.px, v.py);
       if (spot) {
         v.dropSpot = spot;
+        v.pickup = v.cargo.length === 0;
+        v.landedIdle = 0;
         v.flight = 'unloading';
         v.phaseTime = 0;
         v.stop();
@@ -203,6 +216,7 @@ export class AircraftSystem implements GameSystem {
     }
     const busy = v.moving || v.attackTarget !== null || v.attackMove !== null || v.combatTarget !== null;
     if (busy) {
+      if (v.moving) v.returningHome = false;
       v.idleFor = 0;
       return;
     }
@@ -358,6 +372,11 @@ export class AircraftSystem implements GameSystem {
     if (v.dropSpot && t < DESCEND_SECONDS) this.moveTo(v, v.dropSpot, 10, dt);
     if (t < DESCEND_SECONDS) {
       v.altitude = CRUISE_ALTITUDE * (1 - clamp01(t / DESCEND_SECONDS));
+    } else if (v.pickup) {
+      // Empty: stay down here and wait for soldiers / vehicles to walk up and climb aboard.
+      v.altitude = 0;
+      v.flight = 'landed';
+      v.landedIdle = 0;
     } else if (t < DESCEND_SECONDS + UNLOAD_PAUSE) {
       v.altitude = 0;
       if (v.cargo.length > 0) this.hooks.unload(v);
@@ -367,8 +386,57 @@ export class AircraftSystem implements GameSystem {
       v.altitude = CRUISE_ALTITUDE;
       v.flight = 'airborne';
       v.dropSpot = null;
+      v.returningHome = true;
       v.idleFor = RETURN_AFTER;
     }
+  }
+
+  /** Standing on solid ground away from an airfield: takes passengers, then flies off when given a destination. */
+  private landed(v: Vehicle, dt: number): void {
+    v.altitude = 0;
+    if (v.moving || v.attackTarget !== null) {
+      v.mission = [...v.waypoints()];
+      v.stop();
+      v.flight = 'liftoff';
+      v.phaseTime = 0;
+      return;
+    }
+    // Empty and nobody on the way: after a while it flies home on its own.
+    const boarding = this.entities.fieldMovers().some((u) => u.boardTarget === v.id);
+    if (v.cargo.length === 0 && !boarding) {
+      v.landedIdle += dt;
+      if (v.landedIdle >= LANDED_WAIT) {
+        v.flight = 'liftoff';
+        v.phaseTime = 0;
+      }
+    } else v.landedIdle = 0;
+  }
+
+  /** Climbs out of a landing on open ground and carries on with the order that was given (or heads home). */
+  private liftoff(v: Vehicle, dt: number): void {
+    v.phaseTime += dt;
+    v.altitude = CRUISE_ALTITUDE * clamp01(v.phaseTime / CLIMB_SECONDS);
+    if (v.phaseTime < CLIMB_SECONDS) return;
+    v.altitude = CRUISE_ALTITUDE;
+    v.flight = 'airborne';
+    v.dropSpot = null;
+    v.pickup = false;
+    v.idleFor = RETURN_AFTER;
+    if (v.mission) {
+      v.returningHome = false;
+      v.follow(v.mission);
+      v.mission = null;
+    } else v.returningHome = true;
+  }
+
+  /** The destination is the transport's own airfield: it comes home to park instead of setting down beside it. */
+  private nearOwnAirfield(v: Vehicle): boolean {
+    const home = this.home(v);
+    if (!home) return false;
+    const f = home.footprintWorld();
+    const dx = Math.max(f.x - v.px, 0, v.px - (f.x + f.w));
+    const dy = Math.max(f.y - v.py, 0, v.py - (f.y + f.h));
+    return Math.hypot(dx, dy) < 4 * CELL_SIZE;
   }
 
   /** Spins and plunges, then explodes on impact (health reaches zero → the usual death blast). */
