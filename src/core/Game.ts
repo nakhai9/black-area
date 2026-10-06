@@ -5,8 +5,8 @@ import {
   CHHG_LOCATION,
   HALF_TH,
   HALF_TW,
-  PARADE_COLUMNS,
   PARADE_GAP,
+  PARADE_MAX_CELLS,
   PARADE_SPACING,
   UNIT_SPACING,
   ENGINEER_REPAIR_HP_PER_SECOND,
@@ -987,7 +987,7 @@ export class Game {
   private spawnSoldier(player: PlayerState, tier: UnitTier, barracks: Building): void {
     const doorX = barracks.x + Math.floor(barracks.w / 2);
     const doorY = barracks.y + barracks.d;
-    const exit = this.pathfinder.nearestPassable(doorX, doorY, 6);
+    const exit = this.pathfinder.nearestPassable(doorX, doorY, PARADE_MAX_CELLS);
     if (!exit) return;
     const unit = this.entities.add(
       new Infantry(player.id, player.faction as FactionId, tier, {
@@ -995,27 +995,26 @@ export class Game {
         y: (exit.y + 0.2) * CELL_SIZE,
       }),
     );
-    // Parade ground: soldiers march straight to the next free slot of a neat grid
-    // in front of the barracks (rows of PARADE_COLUMNS) instead of milling about.
+    // Parade ground: soldiers march to the next free slot of a neat grid around the barracks, never
+    // farther than PARADE_MAX_CELLS cells from its walls (the slots nearest the door fill first).
     const used = new Set(
       this.entities
         .units()
         .filter((u) => u !== unit && u.alive && u.parade?.barracks === barracks.id)
         .map((u) => u.parade?.slot ?? -1),
     );
-    const slotAt = (n: number): { x: number; y: number } => ({
-      x: (barracks.x + barracks.w / 2) * CELL_SIZE + ((n % PARADE_COLUMNS) - (PARADE_COLUMNS - 1) / 2) * PARADE_SPACING,
-      y: (barracks.y + barracks.d) * CELL_SIZE + PARADE_GAP + Math.floor(n / PARADE_COLUMNS) * PARADE_SPACING,
-    });
+    const slots = this.paradeSlots(barracks);
     // First free slot whose cell is actually standable (blocked spots are skipped).
     let slot = 0;
-    for (; slot < 200; slot++) {
-      const at = slotAt(slot);
-      if (!used.has(slot) && this.pathfinder.passable(Math.floor(at.x / CELL_SIZE), Math.floor(at.y / CELL_SIZE), unit.swims)) break;
+    for (; slot < slots.length; slot++) {
+      const at = slots[slot];
+      if (at && !used.has(slot) && this.pathfinder.passable(Math.floor(at.x / CELL_SIZE), Math.floor(at.y / CELL_SIZE), unit.swims)) break;
     }
-    const { x: slotX, y: slotY } = slotAt(slot);
+    const spot = slots[slot];
+    const slotX = spot?.x ?? unit.px;
+    const slotY = spot?.y ?? unit.py;
     const slotCell = { x: Math.floor(slotX / CELL_SIZE), y: Math.floor(slotY / CELL_SIZE) };
-    if (slot < 200) {
+    if (spot) {
       const path = this.pathfinder.find({ x: unit.px, y: unit.py }, slotCell, unit.swims);
       const last = path[path.length - 1];
       // The slot cell is the goal, so snap the last waypoint to the exact slot spot.
@@ -1026,10 +1025,32 @@ export class Game {
       unit.parade = { barracks: barracks.id, slot };
       unit.follow(path);
     } else {
-      const rally = this.pathfinder.nearestPassable(slotCell.x, slotCell.y, 8, undefined, unit.swims) ?? exit;
-      unit.follow(this.pathfinder.find({ x: unit.px, y: unit.py }, rally, unit.swims));
+      // Every slot is taken: the soldier simply stays at the door instead of wandering off.
+      unit.parade = null;
     }
     if (player.isHuman) this.sidebar.notify(`${unit.name} ready.`);
+  }
+
+  /**
+   * Standing spots around a barracks, at most PARADE_MAX_CELLS cells from its walls, ordered from the
+   * door outwards. Slot numbers stay valid as long as the barracks does not move.
+   */
+  private paradeSlots(b: Building): WorldPoint[] {
+    const reach = PARADE_MAX_CELLS * CELL_SIZE - PARADE_SPACING / 2;
+    const left = b.x * CELL_SIZE;
+    const top = b.y * CELL_SIZE;
+    const right = (b.x + b.w) * CELL_SIZE;
+    const bottom = (b.y + b.d) * CELL_SIZE;
+    const door = this.doorPoint(b);
+    const slots: WorldPoint[] = [];
+    for (let x = left - reach; x <= right + reach; x += PARADE_SPACING) {
+      for (let y = top - reach; y <= bottom + reach; y += PARADE_SPACING) {
+        const gap = Math.hypot(Math.max(left - x, 0, x - right), Math.max(top - y, 0, y - bottom));
+        if (gap < PARADE_GAP || gap > reach) continue;
+        slots.push({ x, y });
+      }
+    }
+    return slots.sort((p, q) => Math.hypot(p.x - door.x, p.y - door.y) - Math.hypot(q.x - door.x, q.y - door.y) || p.x - q.x || p.y - q.y);
   }
 
   // ------------------------------------------------------------------ building orders

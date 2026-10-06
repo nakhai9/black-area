@@ -17,7 +17,7 @@ export const EUROPE: FactionConfig = {
   },
   infantry: {
     regular: {
-      name: 'EU Army',
+      name: 'Eurocorps',
       description: 'Combined European infantry with modern kit.',
       look: { uniform: '#5d6a4c', trousers: '#444e38', headgear: 'beret', headColor: '#2b3a7a', weapon: 'rifle' },
     },

@@ -1,4 +1,4 @@
-import { CELL_SIZE, INFANTRY_BASE, SWIM_SPEED_FACTOR, WEAPONS } from '../constants';
+import { CELL_SIZE, INFANTRY_BASE, INFANTRY_MAX_RANGE_CELLS, SWIM_SPEED_FACTOR, WEAPONS } from '../constants';
 import { FACTIONS } from '../factions';
 import type { FactionId, InfantryProfile, UnitTier, WorldPoint } from '../types';
 import { Unit } from './Unit';
@@ -26,7 +26,7 @@ export class Infantry extends Unit {
     const w = this.profile.look.weapon;
     if (w === 'rifle' || w === 'smg' || w === 'sniper') {
       const spec = WEAPONS[w];
-      this.weapon = { ...spec, damage: spec.damage * f.stats.firepower, range: spec.range * f.stats.range };
+      this.weapon = { ...spec, damage: spec.damage * f.stats.firepower, range: Math.min(spec.range * f.stats.range, INFANTRY_MAX_RANGE_CELLS * CELL_SIZE) };
     }
   }
 

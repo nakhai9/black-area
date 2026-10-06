@@ -1,3 +1,4 @@
+import { MusicSystem } from './MusicSystem';
 import type { FactionId, WeaponKind, WorldPoint } from '../types';
 
 /** What the player can currently see/hear: the camera centre and a distance (world px) beyond which sounds fade out. */
@@ -19,7 +20,7 @@ const MIN_GAP: Readonly<Record<string, number>> = { rifle: 0.05, smg: 0.045, sni
 type Kind = WeaponKind | 'explosion';
 
 /**
- * Procedural sound effects (Web Audio — no audio files): gunfire per weapon
+ * Procedural sound effects and background music (Web Audio — no audio files): gunfire per weapon
  * type, cannon booms, jet missiles and explosions, attenuated by distance
  * from the camera. Battle cries use the browser's speech synthesis in each
  * nation's language. Everything is rate-limited so large battles stay clear.
@@ -29,6 +30,7 @@ export class SoundSystem {
   private master: GainNode | null = null;
   private noise: AudioBuffer | null = null;
   private muted = false;
+  private music: MusicSystem | null = null;
   private readonly lastPlayed = new Map<string, number>();
   private readonly lastCry = new Map<FactionId, number>();
   private active = 0;
@@ -61,12 +63,16 @@ export class SoundSystem {
       this.noise = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
       const data = this.noise.getChannelData(0);
       for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+      this.music = new MusicSystem(this.ctx, this.master, this.noise);
+      this.music.setMuted(this.muted);
+      this.music.start();
     }
     if (this.ctx.state === 'suspended') void this.ctx.resume();
   }
 
   toggleMute(): boolean {
     this.muted = !this.muted;
+    this.music?.setMuted(this.muted);
     if (this.muted && typeof speechSynthesis !== 'undefined') speechSynthesis.cancel();
     return this.muted;
   }

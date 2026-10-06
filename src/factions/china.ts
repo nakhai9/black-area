@@ -17,12 +17,12 @@ export const CHINA: FactionConfig = {
   },
   infantry: {
     regular: {
-      name: 'Eighth Route Army',
+      name: 'PLA',
       description: 'Disciplined Chinese line infantry, cheap and numerous.',
       look: { uniform: '#7c8a5a', trousers: '#5d6844', headgear: 'cap', headColor: '#7c8a5a', weapon: 'rifle' },
     },
     special: {
-      name: 'Sea Dragons',
+      name: 'Tiger',
       description: 'Elite marine commandos trained for amphibious assault.',
       look: { uniform: '#3e5a6a', trousers: '#2f4552', headgear: 'helmet', headColor: '#3a4f5a', weapon: 'smg' },
     },

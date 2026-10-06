@@ -84,8 +84,8 @@ export const SWIM_SPEED_FACTOR = 0.6;
 export const STEP_PHASE_PER_PX = 2.4;
 /** Minimum distance between two soldiers' feet (world px): they never overlap. */
 export const UNIT_SPACING = 2.2;
-/** Parade ground: freshly trained soldiers line up in rows of this many. */
-export const PARADE_COLUMNS = 8;
+/** Freshly trained soldiers never stand farther than this many cells from the barracks' walls. */
+export const PARADE_MAX_CELLS = 2;
 /** Parade spacing between soldiers (world px) and the gap between the barracks front edge and the first row. */
 export const PARADE_SPACING = 3.4;
 export const PARADE_GAP = 3;
@@ -109,6 +109,8 @@ export const VEHICLE_WEAPON: Readonly<Record<VehicleKind, WeaponKind>> = {
   ifv: 'autocannon',
   jet: 'missile',
 };
+/** Soldiers only shoot at enemies within this many cells (vehicles keep their own, longer ranges). */
+export const INFANTRY_MAX_RANGE_CELLS = 3;
 /** How often (s) an idle armed unit looks for a new target / repaths while chasing. */
 export const ACQUIRE_PERIOD = 0.3;
 export const CHASE_PERIOD = 0.8;
