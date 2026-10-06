@@ -7,7 +7,10 @@ import type { TileMap } from './TileMap';
 /** Trees sit on a fixed 4 px sub-grid (several per gameplay cell). */
 const TREE_SPACING = 4;
 const DENSITY_FOREST = 0.07;
-const DENSITY_PLAINS = 0.0015;
+/** Trees only grow inside a few scattered groves: the rest of the land stays open for building. */
+const GROVE_SCALE = 45;
+const GROVE_FROM = 0.66;
+const GROVE_TO = 0.74;
 
 /**
  * All trees on the map as gameplay data (not just decoration): each tree
@@ -30,6 +33,7 @@ export class TreeLayer {
     seed: number,
   ) {
     const clumps = new ValueNoise(seed + 33);
+    const groves = new ValueNoise(seed + 77);
     const perCell: { x: number; y: number; r: number; tone: number }[][] = Array.from(
       { length: map.width * map.height },
       () => [],
@@ -44,7 +48,10 @@ export class TreeLayer {
         if (t !== 'forest' && t !== 'grass') continue;
         const forest = sampleField(biomes.forest, map.width, map.height, x / CELL_SIZE, y / CELL_SIZE);
         const clump = clumps.fbm(x / 20, y / 20, 2);
-        const density = t === 'forest' ? DENSITY_FOREST * smoothstep(0.42, 0.6, clump) : DENSITY_PLAINS;
+        // No lone trees on open grass; forest tiles only grow trees inside a grove.
+        if (t !== 'forest') continue;
+        const grove = smoothstep(GROVE_FROM, GROVE_TO, groves.fbm(x / GROVE_SCALE, y / GROVE_SCALE, 2));
+        const density = DENSITY_FOREST * smoothstep(0.42, 0.6, clump) * grove;
         const rng = tileRng(x, y, seed + 3);
         if (rng() > density * (0.6 + forest * 0.6)) continue;
         const tx = x + (0.15 + rng() * 0.7) * TREE_SPACING;
