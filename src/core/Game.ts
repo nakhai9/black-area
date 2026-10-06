@@ -1645,16 +1645,20 @@ export class Game {
       const capital = this.landmarks.find((b) => b.owner === player.id && b.spec.type === 'capital');
       if (!capital || idx === 0) continue;
       const safety = computeSafety(this.map, idx);
-      // The oil field goes to safe ground (away from the sea and from foreign borders) and well away from the
-      // capital; if the homeland has no room that far out, settle for the farthest spot that does fit.
+      // The oil field goes to safe ground (away from the sea and from foreign borders), well away from our own
+      // capital and from every foreign capital; if the homeland has no room, settle for the farthest spot that fits.
       let row: ReturnType<typeof findOilRow> = null;
-      for (const minAway of [38, 30, 22, 14, 6, 0]) {
+      const foreignCapitals = this.landmarks.filter((l) => l.spec.type === 'capital' && l.owner !== player.id).map((l) => ({ x: l.x, y: l.y }));
+      // [distance from our own capital, distance from every foreign capital] in cells, relaxed step by step.
+      for (const [minAway, avoidAway] of [[38, 40], [30, 32], [22, 24], [14, 18], [6, 12], [0, 8]] as const) {
         row = findOilRow(this.map, safety, { x: capital.x, y: capital.y }, OIL_DERRICK_COUNT[f], {
           w: FOOTPRINT_SMALL.w,
           d: FOOTPRINT_SMALL.d,
           gap: 1,
           radius: 110,
           minAway,
+          avoid: foreignCapitals,
+          avoidAway,
         });
         if (row) break;
       }

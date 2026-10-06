@@ -59,6 +59,9 @@ export interface OilRowOptions {
   radius: number;
   /** Rows closer than this to the capital (cells) are not considered. */
   minAway?: number;
+  /** Other capitals (foreign ones) and how far from each of them (cells) the oil field must stay. */
+  avoid?: readonly GridPoint[];
+  avoidAway?: number;
 }
 
 /**
@@ -73,7 +76,7 @@ export function findOilRow(
   safety: Uint8Array,
   capital: GridPoint,
   count: number,
-  { w, d, gap, radius, minAway = 0 }: OilRowOptions,
+  { w, d, gap, radius, minAway = 0, avoid = [], avoidAway = 0 }: OilRowOptions,
 ): GridPoint[] | null {
   const pitch = w + gap;
   let best: GridPoint[] | null = null;
@@ -96,6 +99,7 @@ export function findOilRow(
       const mid = x + ((count - 1) * pitch + w) / 2;
       const away = Math.hypot(mid - capital.x, y - capital.y);
       if (away < minAway) continue;
+      if (avoid.some((o) => Math.hypot(mid - o.x, y - o.y) < avoidAway)) continue;
       const score = minSafety + Math.min(away, 50) * 0.15;
       if (score > bestScore) {
         bestScore = score;

@@ -10,6 +10,8 @@ const TREE_SPACING = 4;
  * into blocks of GROVE_BLOCK cells and at most one grove grows in a block, on a coastal spot picked by a seeded
  * hash (so it is always the same places).
  */
+/** Trees are switched off for now (the surface is bare); set to true to bring the coastal groves back. */
+const TREES_ENABLED = false;
 const GROVE_BLOCK = 44;
 const GROVE_CHANCE = 0.4;
 const COAST_RANGE = 5;
@@ -51,7 +53,7 @@ export class TreeLayer {
       return false;
     };
 
-    for (let by = 0; by * GROVE_BLOCK < map.height; by++) {
+    for (let by = 0; TREES_ENABLED && by * GROVE_BLOCK < map.height; by++) {
       for (let bx = 0; bx * GROVE_BLOCK < map.width; bx++) {
         const rng = tileRng(bx, by, seed + 3);
         if (rng() > GROVE_CHANCE) continue;
