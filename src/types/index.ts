@@ -144,6 +144,8 @@ export interface PlayerState {
   credits: number;
   /** Oil in stock (barrels): pumped by the derricks, sold to the World Bank for TB. */
   oil: number;
+  /** TB owed to the World Bank (emergency loans); income pays it back automatically. */
+  debt: number;
   /** Set when the nation's capital has been destroyed: it has lost the war. */
   defeated: boolean;
   powerProduced: number;
@@ -163,6 +165,7 @@ export type BuildingType =
   | 'warFactory'
   | 'airfield'
   | 'techCenter'
+  | 'happyCity'
   | 'oilDerrick';
 
 /** Who may be stationed inside a building, and how many. */

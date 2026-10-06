@@ -1,5 +1,6 @@
 import { createAirfieldArt } from './Airfield';
 import { createBarracksArt } from './Barracks';
+import { createHappyCityArt } from './HappyCity';
 import { createHospitalArt } from './Hospital';
 import { createTechCenterArt } from './TechCenter';
 import { createWarFactoryArt } from './WarFactory';
@@ -49,6 +50,11 @@ export const BUILDING_ART: Readonly<Record<string, BuildingArt>> = {
   'techCenter:russia': createTechCenterArt('russia'),
   'techCenter:china': createTechCenterArt('china'),
   'techCenter:europe': createTechCenterArt('europe'),
+  // Happy City in each nation's own architecture.
+  'happyCity:usa': createHappyCityArt('usa'),
+  'happyCity:russia': createHappyCityArt('russia'),
+  'happyCity:china': createHappyCityArt('china'),
+  'happyCity:europe': createHappyCityArt('europe'),
 };
 
 export type { BuildingArt } from './BuildingArt';

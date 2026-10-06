@@ -28,6 +28,8 @@ export interface SidebarModel {
   /** Sales left in the current 30 s window, and seconds to wait when there are none. */
   salesLeft: number;
   salesWait: number;
+  /** Why the World Bank would refuse a loan now (null = available). */
+  loanBlocker: string | null;
   derricks: number;
   /** Derricks currently pumping (the others are resting). */
   pumping: number;
@@ -69,6 +71,8 @@ export interface SidebarHandlers {
   trainPreview: (option: TrainOption) => HTMLCanvasElement;
   /** The Sell oil button: offer the stock to the World Bank. */
   onSellOil: () => void;
+  /** The Emergency loan button: borrow from the World Bank (only at 0 TB). */
+  onLoan: () => void;
   /** An alert in the alert section was clicked: look at where it happened. */
   onAlert: (at: WorldPoint) => void;
 }
@@ -99,6 +103,8 @@ export class Sidebar {
   private readonly stock: HTMLElement;
   private readonly price: HTMLElement;
   private readonly sellButton: HTMLButtonElement;
+  private readonly debt: HTMLElement;
+  private readonly loanButton: HTMLButtonElement;
   private readonly derricks: HTMLElement;
   private readonly powerFill: HTMLElement;
   private readonly powerText: HTMLElement;
@@ -159,6 +165,8 @@ export class Sidebar {
         <div class="sb-oil">OIL STOCK <span class="sb-stock"></span></div>
         <div class="sb-oil">BANK BUYS AT <span class="sb-price"></span></div>
         <button class="sb-sell" type="button" title="Offer your oil to the World Bank: it decides whether and how much to buy (at most 25% per sale) and pays the posted price into your budget">Sell oil</button>
+        <div class="sb-oil">DEBT <span class="sb-debt"></span></div>
+        <button class="sb-sell sb-loan" type="button" title="Emergency loan from the World Bank (only when your budget is 0 ${CURRENCY}). Oil sales pay the debt back automatically.">Emergency loan</button>
         <div class="sb-oil">DERRICKS <span class="sb-derricks"></span></div>
         <button class="sb-auto" type="button" aria-pressed="false" title="Automatically train soldiers and vehicles to defend your base (F)">Auto-defense: OFF</button>
         <div class="sb-power">
@@ -207,6 +215,9 @@ export class Sidebar {
     this.price = q('.sb-price');
     this.sellButton = q('.sb-sell');
     this.sellButton.addEventListener('click', () => this.handlers.onSellOil());
+    this.debt = q('.sb-debt');
+    this.loanButton = q<HTMLButtonElement>('.sb-loan');
+    this.loanButton.addEventListener('click', () => this.handlers.onLoan());
     this.derricks = q('.sb-derricks');
     this.powerFill = q('.sb-power-fill');
     this.powerText = q('.sb-power-label span');
@@ -299,6 +310,9 @@ export class Sidebar {
     this.price.textContent = `${model.oilPrice} ${CURRENCY}/bbl`;
     this.sellButton.disabled = player.defeated || player.oil < 0.5 || model.salesLeft === 0;
     this.sellButton.textContent = model.salesLeft === 0 ? `Sell oil · wait ${model.salesWait}s` : `Sell oil · ${model.salesLeft} left`;
+    this.debt.textContent = `${Math.ceil(player.debt).toLocaleString('en-US')} ${CURRENCY}`;
+    this.loanButton.disabled = model.loanBlocker !== null;
+    this.loanButton.title = model.loanBlocker ?? `Borrow from the World Bank now. Oil sales pay the debt back automatically.`;
     this.derricks.textContent = `${model.pumping}/${model.derricks} pumping`;
 
     const produced = player.powerProduced;

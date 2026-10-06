@@ -1,30 +1,59 @@
-import { OIL_PRICE_INTERVAL, OIL_PRICE_MAX, OIL_PRICE_START, OIL_SALES_MAX, OIL_SALES_WINDOW, WB_MAX_SHARE } from '../constants';
+import {
+  DEBT_LIMIT,
+  EMERGENCY_LOAN,
+  OIL_DEMAND_BASE,
+  OIL_DEMAND_PER_SOLDIER,
+  OIL_DEMAND_PER_VEHICLE,
+  OIL_PRICE_EASE,
+  OIL_PRICE_INTERVAL,
+  OIL_PRICE_MAX,
+  OIL_PRICE_MIN,
+  OIL_PRICE_START,
+  OIL_SALES_MAX,
+  OIL_SALES_WINDOW,
+  OIL_SUPPLY_FLOOR,
+  WB_MAX_SHARE,
+} from '../constants';
+import type { EntityManager } from '../entities/EntityManager';
+import { OilDerrick } from '../entities/OilDerrick';
 import type { PlayerState } from '../types';
 import type { GameSystem } from './GameSystem';
 
 export type SaleResult =
-  | { kind: 'sold'; barrels: number; price: number; revenue: number }
+  | { kind: 'sold'; barrels: number; price: number; revenue: number; repaid: number }
   | { kind: 'declined'; reason: string };
+
+export type LoanResult = { kind: 'granted'; amount: number; debt: number } | { kind: 'refused'; reason: string };
 
 /** Smallest stock worth offering to the World Bank (barrels). */
 export const MIN_SALE_STOCK = 0.5;
 
 /**
- * The World Bank's oil market. One price for every nation, set by the Bank (TB per barrel, between 0
- * and OIL_PRICE_MAX) and revised every OIL_PRICE_INTERVAL seconds — up or down. A nation sells its
- * stock to the Bank; the Bank decides whether to buy and how much (never more than WB_MAX_SHARE of the
- * offered stock per sale) and pays barrels × the posted price into the nation's treasury.
+ * The World Bank (Zürich): a neutral, purely financial institution. It runs the oil market and emergency
+ * credit automatically and never takes sides.
+ *
+ * Price — never random: the balance of RegulatedSupply (the one Bank-monitored derrick of every nation that is
+ * pumping right now; their oil still belongs to their nations) against Demand (power drain of every structure
+ * plus every army). The posted price eases towards that balance every OIL_PRICE_INTERVAL seconds.
+ *
+ * Credit — a nation at 0 TB may take an emergency loan (DEBT); income from oil sales pays the debt back first.
  */
 export class OilMarket implements GameSystem {
   /** Current price and the one before it (TB per barrel). */
   price = OIL_PRICE_START;
   previous = OIL_PRICE_START;
+  /** Last measured RegulatedSupply share (0..1) and Demand (demand units), for the UI. */
+  supply = 1;
+  demand = 0;
   private clock = OIL_PRICE_INTERVAL;
   /** Market time (s) and the times each nation offered oil lately (rate limit). */
   private now = 0;
   private readonly offers = new Map<number, number[]>();
 
-  constructor(private readonly random: () => number = Math.random) {}
+  constructor(
+    private readonly players: readonly PlayerState[],
+    private readonly entities: EntityManager,
+  ) {}
 
   /** Seconds until the Bank posts a new price. */
   get secondsToChange(): number {
@@ -40,24 +69,34 @@ export class OilMarket implements GameSystem {
     }
   }
 
-  /** A random walk that always moves (some rises, some falls) and never leaves 0…OIL_PRICE_MAX. */
-  private reprice(): void {
-    this.previous = this.price;
-    let step = (this.random() - 0.5) * 600; // ±300 TB
-    if (Math.abs(step) < 40) step = step < 0 ? -40 : 40;
-    let next = Math.round(this.price + step);
-    // Bounce off the limits instead of sticking to them.
-    if (next > OIL_PRICE_MAX) next = OIL_PRICE_MAX - Math.round(this.random() * 150);
-    if (next < 0) next = Math.round(this.random() * 150);
-    this.price = Math.max(0, Math.min(OIL_PRICE_MAX, next));
-    // Always a real move: if the bounce landed on the old price, nudge it away from the nearer limit.
-    if (this.price === this.previous) this.price = this.previous > OIL_PRICE_MAX / 2 ? this.previous - 40 : this.previous + 40;
+  /** Price at which Demand balances RegulatedSupply. */
+  balancePrice(): number {
+    const live = new Set(this.players.filter((p) => !p.defeated).map((p) => p.id));
+    let monitored = 0;
+    let pumping = 0;
+    let demand = 0;
+    for (const b of this.entities.buildings()) {
+      if (!b.alive) continue;
+      if (b instanceof OilDerrick && b.bankManaged) {
+        monitored++;
+        if (live.has(b.owner) && b.pumping) pumping++;
+      }
+      if (live.has(b.owner)) demand += b.spec.powerDrain;
+    }
+    for (const u of this.entities.units()) if (u.alive && live.has(u.owner)) demand += OIL_DEMAND_PER_SOLDIER;
+    for (const v of this.entities.vehicles()) if (v.alive && live.has(v.owner)) demand += OIL_DEMAND_PER_VEHICLE;
+    this.supply = monitored > 0 ? pumping / monitored : 0;
+    this.demand = demand;
+    const ratio = (OIL_DEMAND_BASE + demand) / OIL_DEMAND_BASE / Math.max(OIL_SUPPLY_FLOOR, this.supply);
+    return Math.max(OIL_PRICE_MIN, Math.min(OIL_PRICE_MAX, OIL_PRICE_START * ratio));
   }
 
-  /**
-   * `player` offers all of its oil. The Bank may decline (price too low, or simply not interested
-   * this time); otherwise it buys a share of the stock — the cheaper the oil, the keener it is.
-   */
+  private reprice(): void {
+    this.previous = this.price;
+    const target = this.balancePrice();
+    this.price = Math.round(this.price + (target - this.price) * OIL_PRICE_EASE);
+  }
+
   /** Offers of `player` within the last OIL_SALES_WINDOW seconds. */
   private recent(player: PlayerState): number[] {
     const list = (this.offers.get(player.id) ?? []).filter((t) => this.now - t < OIL_SALES_WINDOW);
@@ -77,22 +116,48 @@ export class OilMarket implements GameSystem {
     return Math.ceil(OIL_SALES_WINDOW - (this.now - (list[0] ?? this.now)));
   }
 
+  /**
+   * `player` offers all of its oil. The Bank buys a share of the stock — the cheaper the oil, the larger the share
+   * (never more than WB_MAX_SHARE) — and pays barrels × the posted price; any DEBT is paid back first.
+   */
   sell(player: PlayerState): SaleResult {
     if (player.defeated) return { kind: 'declined', reason: 'your nation has fallen' };
     if (this.salesLeft(player) === 0) {
       return { kind: 'declined', reason: `at most ${OIL_SALES_MAX} sales in ${OIL_SALES_WINDOW} seconds — try again in ${this.waitSeconds(player)} s` };
     }
-    this.recent(player).push(this.now); // every offer counts, even when the Bank turns it down
     const stock = player.oil;
     if (stock < MIN_SALE_STOCK) return { kind: 'declined', reason: 'not enough oil to offer' };
-    if (this.price < 40) return { kind: 'declined', reason: 'the price is too low — the Bank is not buying' };
-    if (this.random() < 0.1) return { kind: 'declined', reason: 'the Bank is not interested right now' };
-    const demand = 1 - (0.6 * this.price) / OIL_PRICE_MAX; // 1 at a price of 0 … 0.4 at the maximum
-    const share = WB_MAX_SHARE * demand * (0.6 + 0.4 * this.random()); // never above WB_MAX_SHARE
-    const barrels = Math.min(stock * WB_MAX_SHARE, stock * share);
+    this.recent(player).push(this.now);
+    const appetite = 1 - (0.6 * this.price) / OIL_PRICE_MAX; // 1 at a price of 0 … 0.4 at the maximum
+    const barrels = stock * WB_MAX_SHARE * appetite;
     const revenue = Math.round(barrels * this.price);
     player.oil -= barrels;
-    player.credits += revenue;
-    return { kind: 'sold', barrels, price: this.price, revenue };
+    const repaid = this.receive(player, revenue);
+    return { kind: 'sold', barrels, price: this.price, revenue, repaid };
+  }
+
+  /** Income for `player`: the Bank automatically takes what is owed first. Returns the amount repaid. */
+  receive(player: PlayerState, amount: number): number {
+    const repaid = Math.min(player.debt, amount);
+    player.debt -= repaid;
+    player.credits += amount - repaid;
+    return repaid;
+  }
+
+  /** Why an emergency loan would be refused right now (null = it would be granted). */
+  loanBlocker(player: PlayerState): string | null {
+    if (player.defeated) return 'your nation has fallen';
+    if (player.credits >= 1) return 'loans are only for an empty treasury (0 TB)';
+    if (player.debt + EMERGENCY_LOAN > DEBT_LIMIT) return `debt limit of ${DEBT_LIMIT} reached`;
+    return null;
+  }
+
+  /** Emergency loan, only on the player's request: EMERGENCY_LOAN TB now, added to DEBT. */
+  borrow(player: PlayerState): LoanResult {
+    const reason = this.loanBlocker(player);
+    if (reason) return { kind: 'refused', reason };
+    player.credits += EMERGENCY_LOAN;
+    player.debt += EMERGENCY_LOAN;
+    return { kind: 'granted', amount: EMERGENCY_LOAN, debt: player.debt };
   }
 }

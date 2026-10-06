@@ -64,6 +64,7 @@ import { AircraftSystem, type AirfieldGeometry } from '../systems/AircraftSystem
 import { AISystem } from '../systems/AISystem';
 import { canTarget, CombatSystem, distanceTo, isHostile } from '../systems/CombatSystem';
 import { OilMarket } from '../systems/OilMarket';
+import { TaxSystem } from '../systems/TaxSystem';
 import { EndScreen } from '../ui/EndScreen';
 import { NewsToast } from '../ui/NewsToast';
 import { BUILD_OPTIONS, type BuildOption, ConstructionSystem, type QueueState, buildCost } from '../systems/ConstructionSystem';
@@ -200,6 +201,7 @@ export class Game {
       isHuman: faction === playerFaction,
       credits: STARTING_CREDITS,
       oil: STARTING_OIL,
+      debt: 0,
       defeated: false,
       powerProduced: 0,
       powerConsumed: 0,
@@ -228,7 +230,7 @@ export class Game {
     this.input = new InputHandler(dom.canvas);
     this.selection = new SelectionSystem(this.entities, this.sprites, this.bus);
     this.economy = new EconomySystem(this.players, this.entities);
-    this.oilMarket = new OilMarket();
+    this.oilMarket = new OilMarket(this.players, this.entities);
     this.news = new NewsToast();
     this.placement = new PlacementSystem(this.map, this.entities);
     this.construction = new ConstructionSystem(this.players);
@@ -260,6 +262,9 @@ export class Game {
       new PowerSystem(this.players, this.entities),
       this.economy,
       this.oilMarket,
+      new TaxSystem(this.players, this.entities, this.oilMarket, (player, _city, amount) => {
+        if (player.isHuman) this.sidebar.notify(`Happy City taxes: +${amount} ${CURRENCY}.`, 3);
+      }),
       this.construction,
       this.training,
       this.production,
@@ -280,6 +285,7 @@ export class Game {
       trainPreview: (option) => soldierPortrait(human.faction, option.tier),
       onAlert: (at) => this.camera.centerOn(at.x, at.y),
       onSellOil: () => this.sellOil(),
+      onLoan: () => this.takeLoan(),
       onVehicle: (option) => this.onVehicleClick(option.kind),
       onVehicleCancel: (option) => this.onVehicleCancel(option.kind),
       vehiclePreview: (option) => vehiclePortrait(human.faction, option.kind),
@@ -721,6 +727,7 @@ export class Game {
           oilPrice: this.oilMarket.price,
           salesLeft: this.oilMarket.salesLeft(this.humanPlayer),
           salesWait: this.oilMarket.waitSeconds(this.humanPlayer),
+          loanBlocker: this.oilMarket.loanBlocker(this.humanPlayer),
           derricks: own.length,
           pumping,
           queue,
@@ -1108,8 +1115,21 @@ export class Game {
     const result = this.oilMarket.sell(this.humanPlayer);
     this.sidebar.notify(
       result.kind === 'sold'
-        ? `World Bank bought ${result.barrels.toFixed(1)} barrels at ${result.price} ${CURRENCY} → +${result.revenue} ${CURRENCY}`
+        ? `World Bank bought ${result.barrels.toFixed(1)} barrels at ${result.price} ${CURRENCY} → +${result.revenue} ${CURRENCY}` +
+          (result.repaid > 0 ? ` (${result.repaid} ${CURRENCY} paid back on your debt)` : '')
         : `World Bank declined: ${result.reason}.`,
+      5,
+    );
+    this.sidebarTimer = SIDEBAR_REFRESH;
+  }
+
+  /** Emergency loan button: only on the player's request, only at 0 TB. */
+  private takeLoan(): void {
+    const result = this.oilMarket.borrow(this.humanPlayer);
+    this.sidebar.notify(
+      result.kind === 'granted'
+        ? `World Bank loan: +${result.amount} ${CURRENCY}. Debt ${result.debt} ${CURRENCY} — oil sales pay it back automatically.`
+        : `Loan refused: ${result.reason}.`,
       5,
     );
     this.sidebarTimer = SIDEBAR_REFRESH;

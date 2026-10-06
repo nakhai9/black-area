@@ -6,6 +6,8 @@ import {
   BUILD_STEP_SECONDS,
   CELL_SIZE,
   FOOTPRINT_AIRFIELD,
+  FOOTPRINT_CITY,
+  HAPPY_CITY_COST,
   FOOTPRINT_LARGE,
   FOOTPRINT_SMALL,
   HOSPITAL_COST,
@@ -13,6 +15,7 @@ import {
 } from '../constants';
 import { Airfield } from '../entities/Airfield';
 import { FACTIONS } from '../factions';
+import { HappyCity } from '../entities/HappyCity';
 import { Hospital } from '../entities/Hospital';
 import { TechCenter } from '../entities/TechCenter';
 import { WarFactory } from '../entities/WarFactory';
@@ -23,11 +26,13 @@ import type { GameSystem } from './GameSystem';
 
 /** A structure that can be produced from the sidebar's Build tab. */
 export interface BuildOption {
-  id: 'barracks' | 'warFactory' | 'hospital' | 'airfield' | 'techCenter';
+  id: 'barracks' | 'warFactory' | 'hospital' | 'airfield' | 'techCenter' | 'happyCity';
   name: string;
   /** Tech tree: this building must already stand (barracks → war factory/hospital → airfield). */
   requires?: BuildingType;
   cost: number;
+  /** Same price for every nation (the faction cost multiplier is not applied). */
+  fixedCost?: boolean;
   footprint: { w: number; d: number };
   spriteKey: (faction: FactionId) => string;
   /** Creates the building with its footprint's top-left at cell (x, y). */
@@ -84,10 +89,20 @@ export const BUILD_OPTIONS: readonly BuildOption[] = [
     spriteKey: (f) => `techCenter:${f}`,
     create: (owner, faction, x, y) => new TechCenter(owner, faction, center(x, y, FOOTPRINT_SMALL)),
   },
+  {
+    id: 'happyCity',
+    name: 'Happy City',
+    cost: HAPPY_CITY_COST,
+    fixedCost: true,
+    footprint: FOOTPRINT_CITY,
+    spriteKey: (f) => `happyCity:${f}`,
+    create: (owner, faction, x, y) => new HappyCity(owner, faction, center(x, y, FOOTPRINT_CITY)),
+  },
 ];
 
 /** Price of a structure for a nation (faction cost multiplier applied, like soldiers and vehicles). */
 export function buildCost(option: BuildOption, faction: FactionId): number {
+  if (option.fixedCost) return option.cost;
   return Math.round((option.cost * FACTIONS[faction].stats.cost) / 10) * 10;
 }
 

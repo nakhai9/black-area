@@ -14,7 +14,7 @@ function bodyLift(u: Unit): number {
 }
 
 /** Pick radius around a soldier's body (world px). */
-const UNIT_PICK_RADIUS = 2.2;
+const UNIT_PICK_RADIUS = 3.5;
 
 export class SelectionSystem {
   selectedId: number | null = null;
@@ -54,7 +54,7 @@ export class SelectionSystem {
       if (!u.alive) continue;
       const iso = worldToIso(u.px, u.py);
       // Aircraft (even parked on the airfield) are big targets: clicking the plane selects it, no sweep needed.
-      const reach = Math.max(UNIT_PICK_RADIUS, u.radius * (u.aircraft ? 2.2 : 1.25));
+      const reach = Math.max(UNIT_PICK_RADIUS, u.radius * (u.aircraft ? 2.8 : 1.8));
       const d = Math.hypot(m.x - iso.x, m.y - (iso.y - bodyLift(u)));
       if (d < reach && d / reach < bestScore) {
         best = u;

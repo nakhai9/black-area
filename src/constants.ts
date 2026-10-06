@@ -52,6 +52,8 @@ export const FOOTPRINT_LARGE = { w: 5, d: 4 } as const;
 export const FOOTPRINT_SMALL = { w: 4, d: 4 } as const;
 /** Airfield: a long runway + an apron with six parking spots, 12×6 tiles. */
 export const FOOTPRINT_AIRFIELD = { w: 12, d: 6 } as const;
+/** Happy City: a whole city block, 8×8 tiles. */
+export const FOOTPRINT_CITY = { w: 8, d: 8 } as const;
 
 // ---------------------------------------------------------------- Simulation & camera
 export const TICK_RATE = 30;
@@ -81,6 +83,13 @@ export const TECH_CENTER_COST = 8000;
 /** Second-tier units that need a High-Tech Center: special-forces soldiers and the armoured fighting vehicle. */
 export const TECH_TIERS: readonly UnitTier[] = ['special'];
 export const TECH_VEHICLES: readonly VehicleKind[] = ['ifv'];
+/**
+ * Happy City: no limit on how many a nation builds; fixed price (no faction cost multiplier). Every city pays
+ * HAPPY_CITY_TAX TB of taxes into its nation's budget every HAPPY_CITY_TAX_PERIOD seconds, each on its own clock.
+ */
+export const HAPPY_CITY_COST = 10000;
+export const HAPPY_CITY_TAX = 500;
+export const HAPPY_CITY_TAX_PERIOD = 60;
 /** Duration of the build-up animation after placing a structure. */
 export const BUILD_RISE_SECONDS = 1.2;
 
@@ -210,10 +219,32 @@ export const CHHG_LOCATION: GeoPoint = { lon: 20, lat: -78 };
 export const OIL_DERRICK_OUTPUT = 0.04;
 /** Every nation starts with some oil in stock, so the first sale can pay for the first buildings. */
 export const STARTING_OIL = 20;
-/** World Bank oil market: one price for everybody (TB per barrel), revised every 6 minutes within 0…1200. */
+/**
+ * World Bank oil market: one price for everybody (TB per barrel), never random. It follows supply and demand:
+ * RegulatedSupply = the Bank-monitored derricks pumping right now, Demand = industry (power drain of every
+ * structure) plus armies. Supply above demand → the price falls; scarcity (war, sabotage) → it rises, capped at
+ * OIL_PRICE_MAX. The posted price eases towards that balance every OIL_PRICE_INTERVAL seconds.
+ */
 export const OIL_PRICE_START = 600;
+export const OIL_PRICE_MIN = 100;
 export const OIL_PRICE_MAX = 1200;
-export const OIL_PRICE_INTERVAL = 360;
+export const OIL_PRICE_INTERVAL = 10;
+/** Share of the gap to the balance price closed at each revision (0..1). */
+export const OIL_PRICE_EASE = 0.3;
+/** Demand that balances a full RegulatedSupply at OIL_PRICE_START (demand units). */
+export const OIL_DEMAND_BASE = 800;
+/** Demand units per soldier and per vehicle / aircraft; structures add their power drain. */
+export const OIL_DEMAND_PER_SOLDIER = 1;
+export const OIL_DEMAND_PER_VEHICLE = 4;
+/** Lowest supply share used in the balance (all monitored derricks down never divides by zero). */
+export const OIL_SUPPLY_FLOOR = 0.25;
+/**
+ * World Bank credit: when the treasury is at 0 TB the player may press "Emergency loan" (never automatic).
+ * Each loan pays EMERGENCY_LOAN TB at once and adds it to DEBT, up to DEBT_LIMIT; no interest. All income
+ * (oil sales) is used to pay back the debt first until DEBT is 0.
+ */
+export const EMERGENCY_LOAN = 2000;
+export const DEBT_LIMIT = 10000;
 /** The Bank never buys more than this share of the offered stock in one sale. */
 export const WB_MAX_SHARE = 0.25;
 /** A nation may offer its oil at most this many times in any window of this many seconds. */
@@ -232,6 +263,7 @@ export const BUILDING_VALUE: Readonly<Partial<Record<BuildingType, number>>> = {
   warFactory: WAR_FACTORY_COST,
   airfield: AIRFIELD_COST,
   techCenter: TECH_CENTER_COST,
+  happyCity: HAPPY_CITY_COST,
   capital: 4000,
   oilDerrick: 1500,
 };
