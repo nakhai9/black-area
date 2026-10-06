@@ -983,3 +983,19 @@ details.sb-help[open] > summary {
   display: none;
 }
 
+
+/* ------------------------------------------------------------- command buttons share one row */
+.sb-actions {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  margin-top: 6px;
+}
+.sb-actions > button {
+  width: auto;
+  margin: 0;
+  padding: 6px 2px;
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  line-height: 1.15;
+}

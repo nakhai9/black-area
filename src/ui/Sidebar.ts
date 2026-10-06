@@ -164,11 +164,13 @@ export class Sidebar {
         <div class="sb-oil">OIL OUTPUT <span class="sb-income"></span></div>
         <div class="sb-oil">OIL STOCK <span class="sb-stock"></span></div>
         <div class="sb-oil">BANK BUYS AT <span class="sb-price"></span></div>
-        <button class="sb-sell" type="button" title="Offer your oil to the World Bank: it decides whether and how much to buy (at most 25% per sale) and pays the posted price into your budget">Sell oil</button>
         <div class="sb-oil">DEBT <span class="sb-debt"></span></div>
-        <button class="sb-sell sb-loan" type="button" title="Emergency loan from the World Bank (only when your budget is 0 ${CURRENCY}). Oil sales pay the debt back automatically.">Emergency loan</button>
         <div class="sb-oil">DERRICKS <span class="sb-derricks"></span></div>
-        <button class="sb-auto" type="button" aria-pressed="false" title="Automatically train soldiers and vehicles to defend your base (F)">Auto-defense: OFF</button>
+        <div class="sb-actions">
+          <button class="sb-sell" type="button" title="Offer your oil to the World Bank: it decides whether and how much to buy (at most 25% per sale) and pays the posted price into your budget">Sell oil</button>
+          <button class="sb-sell sb-loan" type="button" title="Emergency loan from the World Bank (only when your budget is 0 ${CURRENCY}). Oil sales pay the debt back automatically.">Emergency loan</button>
+          <button class="sb-auto" type="button" aria-pressed="false" title="Automatically train soldiers and vehicles to defend your base (F)">Auto-defense: OFF</button>
+        </div>
         <div class="sb-power">
           <div class="sb-power-label">POWER <span></span></div>
           <div class="sb-power-track"><div class="sb-power-fill"></div></div>
