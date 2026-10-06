@@ -18,6 +18,29 @@ const FLAG_POLE: readonly [number, number, number] = [2.0, 3.88, 50];
 const LANTERN_U = [1.1, 1.65, 2.35, 2.9] as const;
 const LANTERN_V = 3.62;
 const LANTERN_Z = 39;
+/** Art-space depth: 4 units of palace plus 2.4 of outer courtyard (see the footprint note below). */
+const ART_D = 6.4;
+
+/** Outer courtyard: the Golden Water stream and its five marble bridges between long red walls,
+ *  watched by a pair of huabiao columns. */
+function outerCourt(p: IsoPainter): void {
+  p.topRect(0.12, 4.02, 3.88, 6.3, 3, shade(PLAZA, 0.94));
+  p.box(0.12, 4.02, 0.26, 2.28, 3, 11, RED);
+  p.box(3.62, 4.02, 0.26, 2.28, 3, 11, RED);
+
+  // The stream curves across the court; the bridges step over it.
+  p.topRect(0.5, 4.78, 3.5, 5.2, 3, TEAL);
+  for (const u of [0.72, 1.3, 1.86, 2.42, 2.98]) {
+    p.box(u, 4.7, 0.3, 0.58, 3, 3, MARBLE);
+    p.faceRect('left', u, 4.7, 0.3, 0.58, 3, 3, 0, 1, 0.5, 1, shade(MARBLE, 1.05));
+  }
+
+  for (const u of [0.78, 3.22]) {
+    p.cylinder(u, 5.75, 0.07, 3, 21, MARBLE, 4);
+    p.topRect(u - 0.16, 5.59, u + 0.16, 5.91, 24, shade(MARBLE, 1.08));
+    p.dome(u, 5.75, 0.1, 25, 6, MARBLE);
+  }
+}
 
 /** White marble terrace tier with a balustrade band. */
 function terrace(p: IsoPainter, u: number, v: number, w: number, d: number, z: number): void {
@@ -43,12 +66,16 @@ function hall(p: IsoPainter, u: number, v: number, w: number, d: number, z: numb
  * double-eaved golden roofs), huabiao columns and swaying red lanterns.
  */
 export const BeijingForbiddenCityArt: BuildingArt = {
-  footprint: { w: 4, d: 4 },
+  footprint: { w: 4, d: ART_D },
+  // The capital sits on a 5 × 8 plot (FOOTPRINT_CAPITAL). The art below is authored in 4 × 6.4 units and drawn
+  // 1.25× to fill it: the palace itself keeps its square proportions in v 0…4, and the nation's own ceremonial
+  // approach fills v 4…6.4 in front of it.
+  scale: 5 / 4,
   height: 96,
 
   drawStatic(p) {
-    groundShadow(p, 4, 4);
-    p.box(0, 0, 4, 4, 0, 3, PLAZA);
+    groundShadow(p, 4, ART_D);
+    p.box(0, 0, 4, ART_D, 0, 3, PLAZA);
     p.topRect(1.7, 3.55, 2.3, 3.95, 3, shade(PLAZA, 1.1));
 
     // Hall of Supreme Harmony on triple terrace.
@@ -99,6 +126,8 @@ export const BeijingForbiddenCityArt: BuildingArt = {
     }
 
     p.pole(FLAG_POLE[0], FLAG_POLE[1], 3, FLAG_POLE[2]);
+
+    outerCourt(p);
   },
 
   drawAnimated(p, time) {

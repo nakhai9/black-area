@@ -20,6 +20,8 @@ export interface Sprite {
   /** Art-space origin (u=0, v=0, z=0) relative to the footprint centre, unmirrored. */
   readonly originX: number;
   readonly originY: number;
+  /** BuildingArt.scale, needed by callers that paint the animated layer in the same art space. */
+  readonly artScale: number;
   /** Half extents of the footprint diamond (ground plaza). */
   readonly groundHalfW: number;
   readonly groundHalfH: number;
@@ -79,11 +81,16 @@ export class SpriteCache {
   private build(key: string, mirrored: boolean): Sprite {
     const art = this.registry.get(key);
     if (!art) throw new Error(`No building art registered for '${key}'`);
-    const { w, d } = art.footprint;
+    // An art piece may be drawn larger than it was authored (see BuildingArt.scale): everything the sprite is
+    // measured from — footprint and height — grows with it, and the painter draws into a scaled context.
+    const artScale = art.scale ?? 1;
+    const w = art.footprint.w * artScale;
+    const d = art.footprint.d * artScale;
+    const artHeight = art.height * artScale;
     const width = (w + d) * HALF_TW + MARGIN * 2;
-    const height = (w + d) * HALF_TH + art.height + MARGIN * 2;
+    const height = (w + d) * HALF_TH + artHeight + MARGIN * 2;
     const anchorX = d * HALF_TW + MARGIN;
-    const anchorY = art.height + MARGIN;
+    const anchorY = artHeight + MARGIN;
     const groundCenterX = anchorX + ((w - d) / 2) * HALF_TW;
     const centerX = mirrored ? width - groundCenterX : groundCenterX;
     const centerY = anchorY + ((w + d) / 2) * HALF_TH;
@@ -94,7 +101,10 @@ export class SpriteCache {
       ctx.translate(width, 0);
       ctx.scale(-1, 1);
     }
-    art.drawStatic(new IsoPainter(ctx, anchorX, anchorY));
+    ctx.save();
+    ctx.scale(artScale, artScale);
+    art.drawStatic(new IsoPainter(ctx, anchorX / artScale, anchorY / artScale));
+    ctx.restore();
 
     const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
     const alpha = new Uint8Array(canvas.width * canvas.height);
@@ -128,6 +138,7 @@ export class SpriteCache {
       centerY,
       originX: anchorX - groundCenterX,
       originY: anchorY - centerY,
+      artScale,
       groundHalfW: ((w + d) / 2) * HALF_TW,
       groundHalfH: ((w + d) / 2) * HALF_TH,
       bounds,

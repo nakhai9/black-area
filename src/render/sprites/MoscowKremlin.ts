@@ -24,6 +24,44 @@ const FLAGS: readonly [number, number][] = [
 ];
 const FLAG_Z = 34;
 const SPIRE_TOP: readonly [number, number, number] = [2.0, 3.7, 94];
+/** Art-space depth: 4 units of Kremlin plus 2.4 of Red Square (see the footprint note below). */
+const ART_D = 6.4;
+const GRANITE = '#5c4a4c';
+const BASIL = ['#3f8f6b', '#c0532f', '#3b6ea8', '#c8a33a'] as const;
+
+/** Red Square: the wall carries on down both sides, the granite mausoleum stands against it, and
+ *  Saint Basil's closes the far end with its cluster of coloured onions. */
+function redSquare(p: IsoPainter): void {
+  wall(p, 0.2, 4.0, 0.2, 2.1);
+  wall(p, 3.6, 4.0, 0.2, 2.1);
+
+  // Mausoleum: a low stepped block of dark granite.
+  p.box(0.52, 4.45, 0.8, 0.6, 3, 7, GRANITE);
+  p.box(0.64, 4.57, 0.56, 0.36, 10, 4, '#6d5a5c');
+  p.box(0.72, 4.65, 0.4, 0.2, 14, 2, GRANITE);
+
+  // Saint Basil's: squat brick base under a tent spire ringed by four coloured onions.
+  p.box(2.3, 5.1, 0.95, 0.95, 3, 15, BRICK);
+  p.windows('left', 2.3, 5.1, 0.95, 0.95, 3, 15, 3, 1, DOOR, 0.2, 0.6);
+  p.box(2.26, 5.06, 1.03, 1.03, 18, 3, BRICK_CAP);
+  p.cylinder(2.775, 5.575, 0.17, 21, 14, WHITE, 8);
+  p.pyramid(2.68, 5.48, 0.19, 0.19, 35, 16, SPIRE);
+  p.onion(2.775, 5.575, 0.12, 51, 11, GOLD);
+  const ring: readonly [number, number, number][] = [
+    [2.45, 5.25, 0],
+    [3.1, 5.25, 1],
+    [2.45, 5.9, 2],
+    [3.1, 5.9, 3],
+  ];
+  for (const [u, v, i] of ring) {
+    p.cylinder(u, v, 0.1, 21, 10, WHITE, 5);
+    p.onion(u, v, 0.12, 31, 11, BASIL[i] ?? GOLD);
+    p.pole(u, v, 42, 4, GOLD);
+  }
+
+  tower(p, 0.08, 5.98, 16, 12);
+  tower(p, 3.48, 5.98, 16, 12);
+}
 
 /** Kremlin wall segment with swallow-tail merlons. */
 function wall(p: IsoPainter, u: number, v: number, w: number, d: number): void {
@@ -101,12 +139,16 @@ function clockFace(ctx: CanvasRenderingContext2D, x: number, y: number): void {
  * centre of the front wall.
  */
 export const MoscowKremlinArt: BuildingArt = {
-  footprint: { w: 4, d: 4 },
+  footprint: { w: 4, d: ART_D },
+  // The capital sits on a 5 × 8 plot (FOOTPRINT_CAPITAL). The art below is authored in 4 × 6.4 units and drawn
+  // 1.25× to fill it: the palace itself keeps its square proportions in v 0…4, and the nation's own ceremonial
+  // approach fills v 4…6.4 in front of it.
+  scale: 5 / 4,
   height: 104,
 
   drawStatic(p) {
-    groundShadow(p, 4, 4);
-    p.box(0, 0, 4, 4, 0, 3, COBBLE);
+    groundShadow(p, 4, ART_D);
+    p.box(0, 0, 4, ART_D, 0, 3, COBBLE);
 
     // Back and side walls, corner towers (all mirrored about u = 2).
     tower(p, 0.08, 0.08);
@@ -161,6 +203,8 @@ export const MoscowKremlinArt: BuildingArt = {
     tower(p, 3.48, 3.48);
 
     for (const [u, v] of FLAGS) p.pole(u, v, 3, FLAG_Z);
+
+    redSquare(p);
   },
 
   drawAnimated(p, time) {

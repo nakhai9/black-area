@@ -54,6 +54,12 @@ export const CRUISE_ALTITUDE = Math.ceil(TALLEST_BUILDING_ART * SPRITE_SCALE) + 
 /** Large structures (War Factory, Hospital) occupy 5×4 cells, everything else 4×4 (7 px cells). */
 export const FOOTPRINT_LARGE = { w: 5, d: 4 } as const;
 export const FOOTPRINT_SMALL = { w: 4, d: 4 } as const;
+/**
+ * Capitals sit on a 5 × 8 plot: the palace itself on roughly 5 × 5, and the nation's ceremonial approach
+ * (the Mall, Red Square, the outer courtyard, the esplanade) on the 5 × 3 in front of it. The art is
+ * authored in 4 × 6.4 units and drawn 1.25× to fill the plot.
+ */
+export const FOOTPRINT_CAPITAL = { w: 5, d: 8 } as const;
 /** Airfield: a long runway + an apron with six parking spots, 12×6 tiles. */
 export const FOOTPRINT_AIRFIELD = { w: 12, d: 6 } as const;
 /** Happy City: a whole city block, 8×8 tiles. */

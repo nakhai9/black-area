@@ -16,6 +16,27 @@ const FLAG_POLES: readonly [number, number][] = [
   [3.55, 3.5],
 ];
 const POLE_HEIGHT = 44;
+/** Art-space depth: 4 units of Capitol grounds plus 2.4 of Mall (see the footprint note below). */
+const ART_D = 6.4;
+
+/** One elm along the Mall kerb. */
+function elm(p: IsoPainter, u: number, v: number): void {
+  p.cylinder(u, v, 0.045, 3, 5, '#6b513a');
+  p.dome(u, v, 0.16, 7, 7, '#4f7f3b');
+}
+
+/** The Mall: a long reflecting pool between two lawns, lined with elms. */
+function mall(p: IsoPainter): void {
+  p.topRect(0.15, 4.15, 1.4, 6.25, 3, LAWN);
+  p.topRect(2.6, 4.15, 3.85, 6.25, 3, LAWN);
+  p.topRect(1.52, 4.15, 2.48, 6.25, 3, shade(STONE, 0.8));
+  p.topRect(1.6, 4.23, 2.4, 6.17, 3, POOL);
+  for (let i = 0; i < 4; i++) {
+    const v = 4.5 + i * 0.58;
+    elm(p, 0.8, v);
+    elm(p, 3.2, v);
+  }
+}
 
 /** Senate / House wing: long marble block with two rows of windows. */
 function wing(p: IsoPainter, u: number): void {
@@ -33,14 +54,18 @@ function wing(p: IsoPainter, u: number): void {
  * drum + white dome with the Statue of Freedom, lawns and reflecting pool.
  */
 export const WashingtonCapitolArt: BuildingArt = {
-  footprint: { w: 4, d: 4 },
+  footprint: { w: 4, d: ART_D },
+  // The capital sits on a 5 × 8 plot (FOOTPRINT_CAPITAL). The art below is authored in 4 × 6.4 units and drawn
+  // 1.25× to fill it: the palace itself keeps its square proportions in v 0…4, and the nation's own ceremonial
+  // approach fills v 4…6.4 in front of it.
+  scale: 5 / 4,
   height: 112,
 
   drawStatic(p) {
-    groundShadow(p, 4, 4);
+    groundShadow(p, 4, ART_D);
 
     // Plaza, lawns and reflecting pool.
-    p.box(0, 0, 4, 4, 0, 3, STONE);
+    p.box(0, 0, 4, ART_D, 0, 3, STONE);
     p.topRect(0.15, 0.15, 3.85, 0.95, 3, LAWN);
     p.topRect(0.15, 2.85, 1.45, 3.85, 3, LAWN);
     p.topRect(2.55, 2.85, 3.85, 3.85, 3, LAWN);
@@ -80,6 +105,8 @@ export const WashingtonCapitolArt: BuildingArt = {
     p.ctx.stroke();
 
     for (const [u, v] of FLAG_POLES) p.pole(u, v, 3, POLE_HEIGHT);
+
+    mall(p);
   },
 
   drawAnimated(p, time) {

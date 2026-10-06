@@ -281,8 +281,9 @@ export class Renderer {
       // Same local art space as the static sprite.
       ctx.save();
       ctx.translate(c.x, c.y);
-      ctx.scale(b.rotated ? -k : k, k);
-      s.art.drawAnimated(new IsoPainter(ctx, s.originX, s.originY), time, b.active);
+      const a = k * s.artScale;
+      ctx.scale(b.rotated ? -a : a, a);
+      s.art.drawAnimated(new IsoPainter(ctx, s.originX / s.artScale, s.originY / s.artScale), time, b.active);
       ctx.restore();
     }
   }

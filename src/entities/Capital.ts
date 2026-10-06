@@ -1,4 +1,4 @@
-import { FOOTPRINT_SMALL } from '../constants';
+import { FOOTPRINT_CAPITAL } from '../constants';
 import type { FactionConfig, WorldPoint } from '../types';
 import { Building } from './Building';
 
@@ -14,7 +14,7 @@ export class Capital extends Building {
     super(owner, faction.id, center, {
       type: 'capital',
       name: faction.capital.name,
-      footprint: FOOTPRINT_SMALL,
+      footprint: FOOTPRINT_CAPITAL,
       maxHp: faction.capital.maxHp,
       powerOutput: faction.capital.powerOutput,
       powerDrain: 0,
