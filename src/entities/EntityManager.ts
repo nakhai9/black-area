@@ -7,14 +7,31 @@ import type { Entity } from './Entity';
 /** Owns all live entities; provides lookups and depth-sorted iteration. */
 export class EntityManager {
   private readonly byId = new Map<number, Entity>();
+  /** Bumped on add / remove; together with Unit.insideVersion it tells when the cached lists are stale. */
+  private version = 0;
+  private readonly lists = new Map<string, { key: string; list: readonly Entity[] }>();
 
   add<T extends Entity>(entity: T): T {
     this.byId.set(entity.id, entity);
+    this.version++;
     return entity;
   }
 
   remove(id: number): void {
-    this.byId.delete(id);
+    if (this.byId.delete(id)) this.version++;
+  }
+
+  /**
+   * The filtered lists below are asked for dozens of times per tick by every system; they are rebuilt only when
+   * an entity was added / removed or a unit went in or out of a building. Callers must not mutate them.
+   */
+  private cached<T extends Entity>(name: string, build: () => T[]): readonly T[] {
+    const key = `${this.version}:${Unit.insideVersion}`;
+    const hit = this.lists.get(name);
+    if (hit && hit.key === key) return hit.list as readonly T[];
+    const list = build();
+    this.lists.set(name, { key, list });
+    return list;
   }
 
   get(id: number | null): Entity | undefined {
@@ -25,26 +42,26 @@ export class EntityManager {
     return this.byId.values();
   }
 
-  buildings(): Building[] {
-    return [...this.byId.values()].filter((e): e is Building => e instanceof Building);
+  buildings(): readonly Building[] {
+    return this.cached('b', () => [...this.byId.values()].filter((e): e is Building => e instanceof Building));
   }
 
-  units(): Infantry[] {
-    return [...this.byId.values()].filter((e): e is Infantry => e instanceof Infantry);
+  units(): readonly Infantry[] {
+    return this.cached('u', () => [...this.byId.values()].filter((e): e is Infantry => e instanceof Infantry));
   }
 
-  vehicles(): Vehicle[] {
-    return [...this.byId.values()].filter((e): e is Vehicle => e instanceof Vehicle);
+  vehicles(): readonly Vehicle[] {
+    return this.cached('v', () => [...this.byId.values()].filter((e): e is Vehicle => e instanceof Vehicle));
   }
 
   /** Everything that moves under orders (soldiers, vehicles, aircraft) and is out on the map. */
-  fieldMovers(): Unit[] {
-    return [...this.byId.values()].filter((e): e is Unit => e instanceof Unit && e.visible);
+  fieldMovers(): readonly Unit[] {
+    return this.cached('m', () => [...this.byId.values()].filter((e): e is Unit => e instanceof Unit && e.visible));
   }
 
   /** Soldiers standing on the map (not stationed inside a building). */
-  fieldUnits(): Infantry[] {
-    return this.units().filter((u) => u.visible);
+  fieldUnits(): readonly Infantry[] {
+    return this.cached('f', () => this.units().filter((u) => u.visible));
   }
 
   /** Back-to-front order for the painter's algorithm. */

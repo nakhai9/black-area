@@ -1,3 +1,4 @@
+import { CRUISE_ALTITUDE } from '../constants';
 import { FACTIONS } from '../factions';
 import type { FactionId, VehicleKind } from '../types';
 import { createCanvas } from './Canvas';
@@ -306,7 +307,7 @@ function mirrored(ctx: Ctx, half: readonly P2[]): void {
 
 function jet(ctx: Ctx, pose: VehiclePose, body: string, team: string, d: JetDesign): void {
   // Parked, the belly rests on its landing gear instead of sinking into the ground.
-  const lift = Math.max(0.7, pose.altitude ?? 7);
+  const lift = Math.max(0.7, pose.altitude ?? CRUISE_ALTITUDE);
   const wingShape = (): void => mirrored(ctx, d.wing);
   const hull = (): void => mirrored(ctx, d.hull);
   const canard = d.canard;
@@ -371,7 +372,7 @@ function jet(ctx: Ctx, pose: VehiclePose, body: string, team: string, d: JetDesi
   }
   fins(ctx, pose, finList, body);
   // Afterburners: flicker while flying, one per engine.
-  if ((pose.altitude ?? 7) > 0.5 || pose.moving) {
+  if ((pose.altitude ?? CRUISE_ALTITUDE) > 0.5 || pose.moving) {
     const back = Math.min(...d.hull.map((p) => p[0])) - 0.2;
     const flick = 0.7 + 0.3 * Math.sin(pose.phase * 3.1);
     const r = (d.nozzles.length > 1 ? 0.95 : 1.3) * flick;
@@ -390,7 +391,7 @@ function jet(ctx: Ctx, pose: VehiclePose, body: string, team: string, d: JetDesi
 }
 
 function transport(ctx: Ctx, pose: VehiclePose, body: string, team: string): void {
-  const lift = pose.altitude ?? 7;
+  const lift = pose.altitude ?? CRUISE_ALTITUDE;
   const hull = (): void => {
     ctx.beginPath();
     ctx.moveTo(5.0, 0);
@@ -527,7 +528,7 @@ export function vehiclePortrait(faction: FactionId, kind: VehicleKind): HTMLCanv
     const air = kind === 'jet' || kind === 'transport';
     const scale = kind === 'transport' ? 7.5 : air ? 9 : 13;
     ctx.setTransform(scale, 0, 0, scale, 0, 0);
-    drawVehicle(ctx, { x: 128 / 2 / scale, y: (air ? 108 : 62) / scale, heading: 0.45, phase: 0, moving: false }, kind, faction);
+    drawVehicle(ctx, { x: 128 / 2 / scale, y: (air ? 108 : 62) / scale, heading: 0.45, phase: 0, moving: false, altitude: air ? 7 : undefined }, kind, faction);
     portraits.set(key, canvas);
     c = canvas;
   }

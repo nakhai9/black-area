@@ -1,5 +1,6 @@
 import { ChevronDown } from 'lucide';
-import { BUILD_RISE_SECONDS, CELL_SIZE, ISO_X, ISO_Y } from '../constants';
+import { BUILD_RISE_SECONDS, CELL_SIZE, CRUISE_ALTITUDE, ISO_X, ISO_Y } from '../constants';
+import { blitUnit, objectKey, unitSprite } from '../render/UnitSprites';
 import type { Building } from '../entities/Building';
 import { Infantry } from '../entities/Infantry';
 import type { Unit } from '../entities/Unit';
@@ -62,6 +63,12 @@ export interface RenderScene {
 const HEALTH_PIPS = 24;
 /** Draw scale of tanks, armoured cars and other ground vehicles. */
 const GROUND_VEHICLE_SCALE = 0.7;
+/** Pre-rendered unit poses: heading buckets for vehicles, walk frames for soldiers, and picture boxes (iso px). */
+const HEADINGS = 48;
+const WALK_FRAMES = 8;
+const GROUND_BOX = { w: 26, h: 22, ox: 13, oy: 15 };
+const AIR_PARKED_BOX = { w: 30, h: 20, ox: 15, oy: 12 };
+const AIR_CRUISE_BOX = { w: 34, h: CRUISE_ALTITUDE + 30, ox: 15, oy: CRUISE_ALTITUDE + 10 };
 
 /** Lucide's ChevronDown path (24×24 grid): drawn 1–3 times above a veteran unit. */
 const CHEVRON = new Path2D(String((ChevronDown[0]?.[1] as { d?: string } | undefined)?.d ?? 'm6 9 6 6 6-6'));
@@ -122,6 +129,18 @@ export class Renderer {
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
     const view = camera.viewRect();
+    // Viewport culling: only what is on screen (plus a margin for tall art and flying aircraft) is drawn.
+    // Without it every building and unit of the whole planet was painted each frame, so the game slowed down
+    // as the nations grew.
+    const margin = 80;
+    const left = camera.x - margin;
+    const top = camera.y - margin;
+    const right = camera.x + camera.viewWidth / camera.zoom + margin;
+    const bottom = camera.y + camera.viewHeight / camera.zoom + margin * 0.5;
+    const onScreen = (wx: number, wy: number, extra = 0): boolean => {
+      const p = worldToIso(wx, wy);
+      return p.x >= left - extra && p.x <= right + extra && p.y >= top && p.y <= bottom + extra;
+    };
 
     // The Earth lies on the ground plane of the isometric view.
     this.ground();
@@ -131,14 +150,19 @@ export class Renderer {
     this.terrain.drawTrees(ctx, view, camera.zoom);
 
     this.ground();
-    const sorted = [...scene.buildings].sort((a, b) => a.depth - b.depth);
+    const sorted = scene.buildings
+      .filter((b) => {
+        const c = b.centerWorld();
+        return b.id === scene.selectedId || onScreen(c.x, c.y, (b.w + b.d) * CELL_SIZE);
+      })
+      .sort((a, b) => a.depth - b.depth);
     const selected = sorted.find((b) => b.id === scene.selectedId) ?? null;
     if (selected) this.drawFootprint(selected, scene.time);
     if (scene.buildZones?.length) this.drawBuildZones(scene.buildZones, scene.ghost?.faction);
     for (const b of sorted) this.drawContactShadow(b);
 
     // Buildings and soldiers share one painter's-algorithm pass (by depth).
-    const units = scene.units ?? [];
+    const units = (scene.units ?? []).filter((u) => onScreen(u.px, u.py));
     const selUnits = scene.selectedUnits ?? new Set<number>();
     for (const u of units) if (selUnits.has(u.id)) this.drawMoveLine(u);
     for (const u of units) if (selUnits.has(u.id)) this.drawUnitRing(u, '#5cff6a');
@@ -166,7 +190,9 @@ export class Renderer {
       if (u.rank > 0) this.drawRank(u);
       if (u instanceof Vehicle && u.isTransport && u.cargo.length > 0) this.drawCargoBadge(u);
     }
-    if (scene.effects) this.drawEffects(scene.effects);
+    // Effects are stored in iso px already.
+    const isoIn = (x: number, y: number): boolean => x >= left && x <= right && y >= top && y <= bottom + margin;
+    if (scene.effects) this.drawEffects(scene.effects.filter((e) => (e.kind === 'tracer' ? isoIn(e.x0, e.y0) || isoIn(e.x1, e.y1) : isoIn(e.x, e.y))));
 
     for (const b of sorted) {
       if (b === selected) this.drawSelectionOverlay(b);
@@ -264,17 +290,48 @@ export class Renderer {
       // On the iso ground a vehicle's neighbours are half as far apart on screen: ground vehicles are drawn a bit
       // smaller so they never look piled on top of each other (their collision circles keep them apart).
       const scale = u.aircraft ? 1 : GROUND_VEHICLE_SCALE;
+      const faction = u.faction as keyof typeof FACTIONS;
+      // Cached poses: ground vehicles always; aircraft when cruising or parked (take-off / landing are drawn live).
+      const cruising = u.aircraft && u.altitude === CRUISE_ALTITUDE;
+      const parked = u.aircraft && u.altitude <= 0;
+      if (!u.aircraft || cruising || parked) {
+        const hb = ((Math.round((heading / (Math.PI * 2)) * HEADINGS) % HEADINGS) + HEADINGS) % HEADINGS;
+        const qh = (hb / HEADINGS) * Math.PI * 2;
+        let frame: number;
+        let phase: number;
+        if (u.aircraft) {
+          frame = Math.floor(((u.walkPhase * 3.1) / (Math.PI * 2)) * 4) % 4; // afterburner flicker
+          phase = (frame / 4) * ((Math.PI * 2) / 3.1);
+        } else {
+          frame = u.moving ? Math.floor(((u.walkPhase % 0.8) + 0.8) % 0.8 / 0.2) : -1; // track links
+          phase = Math.max(0, frame) * 0.2;
+        }
+        const alt = parked ? 0 : u.altitude;
+        const moving = u.aircraft ? !parked || u.moving : frame >= 0;
+        const box = u.aircraft ? (parked ? AIR_PARKED_BOX : AIR_CRUISE_BOX) : GROUND_BOX;
+        const sprite = unitSprite(`v:${faction}:${u.type}:${hb}:${frame}:${parked ? 'p' : cruising ? 'c' : 'g'}:${moving ? 1 : 0}`, box.w, box.h, box.ox, box.oy, (c) =>
+          drawVehicle(c, { x: 0, y: 0, heading: qh, phase, moving, altitude: alt }, u.type, faction),
+        );
+        blitUnit(ctx, sprite, P.x, P.y, scale);
+        return;
+      }
       ctx.save();
       ctx.translate(P.x, P.y);
       ctx.scale(scale, scale);
-      drawVehicle(ctx, { x: 0, y: 0, heading, phase: u.walkPhase, moving: u.moving, altitude: u.altitude }, u.type, u.faction as keyof typeof FACTIONS);
+      drawVehicle(ctx, { x: 0, y: 0, heading, phase: u.walkPhase, moving: u.moving, altitude: u.altitude }, u.type, faction);
       ctx.restore();
       return;
     }
     if (!(u instanceof Infantry)) return;
     const pose = { x: P.x, y: P.y, facing: u.facing, walkPhase: u.walkPhase, moving: u.moving };
     if (!u.inWater) {
-      drawSoldier(ctx, pose, u.profile.look, f.colors.primary, u.tier === 'special');
+      const special = u.tier === 'special';
+      const frame = u.moving ? ((Math.floor((u.walkPhase / (Math.PI * 2)) * WALK_FRAMES) % WALK_FRAMES) + WALK_FRAMES) % WALK_FRAMES : -1;
+      const look = u.profile.look;
+      const sprite = unitSprite(`s:${objectKey(look)}:${f.colors.primary}:${special ? 1 : 0}:${u.facing}:${frame}`, 6, 5, 3, 4, (c) =>
+        drawSoldier(c, { x: 0, y: 0, facing: u.facing, walkPhase: (Math.max(0, frame) / WALK_FRAMES) * Math.PI * 2, moving: frame >= 0 }, look, f.colors.primary, special),
+      );
+      blitUnit(ctx, sprite, P.x, P.y);
       return;
     }
     // Swimming: body sinks to the chest, paddling with ripples around it.

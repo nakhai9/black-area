@@ -160,6 +160,7 @@ export class Game {
   /** The war is decided (victory or game over): the simulation stops. */
   private ended = false;
   private paused = false;
+  private minimapTimer = 0;
   private endCheck = 0;
   private readonly lastShot = new Map<number, number>();
   private smokeTimer = 0;
@@ -726,7 +727,12 @@ export class Game {
       focus: focus.map((f) => ({ entity: f.entity, strong: f.strong })),
       effects: this.effects.list,
     });
-    this.minimap.render(buildings, units, this.humanPlayer.id, this.ownedCache.has('airfield'));
+    // The radar does not need 60 updates a second: 12 are plenty and save a full redraw every other frame.
+    this.minimapTimer += dt;
+    if (this.minimapTimer >= 1 / 12) {
+      this.minimapTimer = 0;
+      this.minimap.render(buildings, units, this.humanPlayer.id, this.ownedCache.has('airfield'));
+    }
     this.status.update(dt, this.mouseWorld, this.camera.zoom);
 
     const queue = this.construction.slot(this.humanPlayer);
@@ -751,6 +757,8 @@ export class Game {
           sellable: this.oilMarket.sellable(this.humanPlayer),
           salesWait: this.oilMarket.waitSeconds(this.humanPlayer),
           loanBlocker: this.oilMarket.loanBlocker(this.humanPlayer),
+          creditLine: this.oilMarket.creditLine(this.humanPlayer),
+          loanSize: this.oilMarket.loanSize(this.humanPlayer),
           derricks: own.length,
           pumping,
           queue,

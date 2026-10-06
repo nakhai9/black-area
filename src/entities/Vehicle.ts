@@ -22,7 +22,8 @@ import { Unit } from './Unit';
 export type Flight = 'parked' | 'taxi' | 'takeoff' | 'airborne' | 'approach' | 'landing' | 'taxiHome' | 'crashing' | 'unloading' | 'landed' | 'liftoff';
 
 /** Cruise height of an aircraft above the ground (world px, drawn offset). */
-export const CRUISE_ALTITUDE = 7;
+import { CRUISE_ALTITUDE } from '../constants';
+export { CRUISE_ALTITUDE };
 
 /** Handling per vehicle kind: seconds to full speed, turn rate (rad/s), whether it must face where it drives. */
 const HANDLING: Readonly<Record<VehicleKind, { accel: number; turn: number; pivot: boolean }>> = {

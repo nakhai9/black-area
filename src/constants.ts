@@ -47,6 +47,10 @@ export const HALF_TH = TILE_H / 2;
  * covers on screen: buildings fill their cells edge to edge, whatever their size.
  */
 export const SPRITE_SCALE = (CELL_SIZE * ISO_X) / HALF_TW;
+/** Tallest building art in the game (art px: Happy City 220, High-Tech Center 205, capitals ≤ 112). */
+export const TALLEST_BUILDING_ART = 220;
+/** Aircraft cruise above the roof of the tallest building of any nation, with a margin (iso px). */
+export const CRUISE_ALTITUDE = Math.ceil(TALLEST_BUILDING_ART * SPRITE_SCALE) + 6;
 /** Large structures (capitals) occupy 5×4 cells, everything else 4×4 (7 px cells). */
 export const FOOTPRINT_LARGE = { w: 5, d: 4 } as const;
 export const FOOTPRINT_SMALL = { w: 4, d: 4 } as const;
@@ -243,17 +247,18 @@ export const OIL_DEMAND_PER_VEHICLE = 4;
 /** Lowest supply share used in the balance (all monitored derricks down never divides by zero). */
 export const OIL_SUPPLY_FLOOR = 0.25;
 /**
- * World Bank credit: when the treasury is at 0 TB the player may press "Emergency loan" (never automatic).
- * Each loan pays EMERGENCY_LOAN TB at once and adds it to DEBT, up to DEBT_LIMIT; no interest. All income
- * (oil sales) is used to pay back the debt first until DEBT is 0.
+ * World Bank credit: when the treasury is at 0 TB the player may press "Emergency loan" (never automatic). No interest.
+ * The Bank lends against what the nation could sell to pay it back (its collateral):
+ *   collateral = oil stock × posted price + RESALE_SHARE × (structures' build cost × health share + vehicles' cost)
+ *   credit line = LOAN_TO_VALUE × collateral
+ * Each loan pays LOAN_SHARE of the credit line (at least LOAN_MIN, never past the line) and adds it to DEBT.
+ * Once DEBT reaches the line, credit is frozen until DEBT ≤ DEBT_RESUME_SHARE × line. All income pays debt first.
  */
-export const EMERGENCY_LOAN = 2000;
-export const DEBT_LIMIT = 10000;
-/**
- * Once DEBT reaches DEBT_LIMIT the Bank freezes the nation's credit: no new loan until the debt has been
- * paid back down to DEBT_RESUME TB or less (i.e. at least DEBT_LIMIT − DEBT_RESUME TB repaid).
- */
-export const DEBT_RESUME = 5000;
+export const RESALE_SHARE = 0.5;
+export const LOAN_TO_VALUE = 0.5;
+export const LOAN_SHARE = 0.25;
+export const LOAN_MIN = 1000;
+export const DEBT_RESUME_SHARE = 0.5;
 /** The Bank never buys more than this share of the offered stock in one sale. */
 export const WB_MAX_SHARE = 0.25;
 /** No limit on the number of sales, but a nation must wait this many seconds between two offers. */

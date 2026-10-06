@@ -47,7 +47,16 @@ export abstract class Unit extends Entity {
   /** Building order in progress (enter / repair / capture). */
   task: UnitTask | null = null;
   /** Id of the building this person is stationed inside (hidden from the map), or null. */
-  insideId: number | null = null;
+  private _insideId: number | null = null;
+  /** Bumped whenever any unit goes into or comes out of a building / transport (invalidates cached lists). */
+  static insideVersion = 0;
+  get insideId(): number | null {
+    return this._insideId;
+  }
+  set insideId(id: number | null) {
+    if (id !== this._insideId) Unit.insideVersion++;
+    this._insideId = id;
+  }
   protected path: WorldPoint[] = [];
   /** Where the current order ends (kept so the game can re-plan if the way gets blocked). */
   destination: WorldPoint | null = null;

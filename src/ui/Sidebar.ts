@@ -31,6 +31,9 @@ export interface SidebarModel {
   salesWait: number;
   /** Why the World Bank would refuse a loan now (null = available). */
   loanBlocker: string | null;
+  /** Most the nation may owe (from its oil and assets) and the size of the next loan. */
+  creditLine: number;
+  loanSize: number;
   derricks: number;
   /** Derricks currently pumping (the others are resting). */
   pumping: number;
@@ -327,9 +330,11 @@ export class Sidebar {
     this.price.textContent = `${model.oilPrice} ${CURRENCY}/bbl`;
     this.sellButton.disabled = player.defeated || model.sellable < MIN_SALE_STOCK || model.salesWait > 0;
     this.sellButton.textContent = model.salesWait > 0 ? `Sell oil · wait ${model.salesWait}s` : 'Sell oil';
-    this.debt.textContent = `${Math.ceil(player.debt).toLocaleString('en-US')} ${CURRENCY}`;
+    this.debt.textContent = `${Math.ceil(player.debt).toLocaleString('en-US')} / ${model.creditLine.toLocaleString('en-US')} ${CURRENCY}`;
     this.loanButton.disabled = model.loanBlocker !== null;
-    this.loanButton.title = model.loanBlocker ?? `Borrow from the World Bank now. Oil sales pay the debt back automatically.`;
+    this.loanButton.title =
+      model.loanBlocker ??
+      `Borrow ${model.loanSize.toLocaleString('en-US')} ${CURRENCY} now. Credit line ${model.creditLine.toLocaleString('en-US')} ${CURRENCY}, based on your oil stock and assets. Oil sales pay the debt back automatically.`;
     this.derricks.textContent = `${model.pumping}/${model.derricks} pumping`;
 
     const produced = player.powerProduced;

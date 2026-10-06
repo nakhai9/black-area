@@ -1,7 +1,10 @@
 import {
-  DEBT_LIMIT,
-  DEBT_RESUME,
-  EMERGENCY_LOAN,
+  DEBT_RESUME_SHARE,
+  LOAN_MIN,
+  LOAN_SHARE,
+  LOAN_TO_VALUE,
+  RESALE_SHARE,
+  VEHICLE_BASE,
   OIL_DEMAND_BASE,
   OIL_DEMAND_PER_SOLDIER,
   OIL_DEMAND_PER_VEHICLE,
@@ -17,7 +20,8 @@ import {
 } from '../constants';
 import type { EntityManager } from '../entities/EntityManager';
 import { OilDerrick } from '../entities/OilDerrick';
-import type { PlayerState } from '../types';
+import type { FactionId, PlayerState } from '../types';
+import { BUILD_OPTIONS, buildCost } from './ConstructionSystem';
 import type { GameSystem } from './GameSystem';
 
 export type SaleResult =
@@ -129,34 +133,65 @@ export class OilMarket implements GameSystem {
     return { kind: 'sold', barrels, price: this.price, revenue, repaid };
   }
 
+  /** What the nation could sell to repay the Bank: oil at the posted price + resale value of structures and vehicles. */
+  collateral(player: PlayerState): number {
+    let assets = 0;
+    for (const b of this.entities.buildings()) {
+      if (b.owner !== player.id || !b.alive || b.indestructible) continue;
+      const option = BUILD_OPTIONS.find((o) => o.id === b.spec.type);
+      if (option) assets += buildCost(option, b.faction as FactionId) * (b.hp / b.maxHp);
+    }
+    for (const v of this.entities.vehicles()) if (v.owner === player.id && v.alive) assets += VEHICLE_BASE[v.type].cost;
+    return Math.max(0, player.oil) * this.price + RESALE_SHARE * assets;
+  }
+
+  /** The most the nation may owe the Bank right now (rounded down to 100 TB). */
+  creditLine(player: PlayerState): number {
+    return Math.floor((LOAN_TO_VALUE * this.collateral(player)) / 100) * 100;
+  }
+
+  /** Size of the next loan: LOAN_SHARE of the line (≥ LOAN_MIN), never past the line. */
+  loanSize(player: PlayerState): number {
+    const line = this.creditLine(player);
+    return Math.max(0, Math.min(line - player.debt, Math.max(LOAN_MIN, Math.round((line * LOAN_SHARE) / 100) * 100)));
+  }
+
   /** Income for `player`: the Bank automatically takes what is owed first. Returns the amount repaid. */
   receive(player: PlayerState, amount: number): number {
     const repaid = Math.min(player.debt, amount);
     player.debt -= repaid;
-    if (player.creditFrozen && player.debt <= DEBT_RESUME) player.creditFrozen = false;
+    this.checkFreeze(player);
     player.credits += amount - repaid;
     return repaid;
+  }
+
+  /** Lifts a credit freeze once the debt is back down to DEBT_RESUME_SHARE of the current line. */
+  private checkFreeze(player: PlayerState): void {
+    if (player.creditFrozen && player.debt <= this.creditLine(player) * DEBT_RESUME_SHARE) player.creditFrozen = false;
   }
 
   /** Why an emergency loan would be refused right now (null = it would be granted). */
   loanBlocker(player: PlayerState): string | null {
     if (player.defeated) return 'your nation has fallen';
     if (player.credits >= 1) return 'loans are only for an empty treasury (0 TB)';
+    this.checkFreeze(player);
+    const line = this.creditLine(player);
     if (player.creditFrozen) {
-      const due = Math.ceil(player.debt - DEBT_RESUME);
-      return `credit frozen at the ${DEBT_LIMIT} limit — repay ${due} more to borrow again (debt ≤ ${DEBT_RESUME})`;
+      const due = Math.ceil(player.debt - line * DEBT_RESUME_SHARE);
+      return `credit frozen — repay ${due} more to borrow again (credit line ${line}, based on your oil and assets)`;
     }
-    if (player.debt + EMERGENCY_LOAN > DEBT_LIMIT) return `debt limit of ${DEBT_LIMIT} reached`;
+    if (this.loanSize(player) < 100) return `credit line of ${line} reached — it is based on your oil stock and assets`;
     return null;
   }
 
-  /** Emergency loan, only on the player's request: EMERGENCY_LOAN TB now, added to DEBT. */
+  /** Emergency loan, only on the player's request: sized by the nation's oil and assets, added to DEBT. */
   borrow(player: PlayerState): LoanResult {
     const reason = this.loanBlocker(player);
     if (reason) return { kind: 'refused', reason };
-    player.credits += EMERGENCY_LOAN;
-    player.debt += EMERGENCY_LOAN;
-    if (player.debt + EMERGENCY_LOAN > DEBT_LIMIT) player.creditFrozen = true;
-    return { kind: 'granted', amount: EMERGENCY_LOAN, debt: player.debt };
+    const amount = this.loanSize(player);
+    player.credits += amount;
+    player.debt += amount;
+    if (player.debt >= this.creditLine(player) - 100) player.creditFrozen = true;
+    return { kind: 'granted', amount, debt: player.debt };
   }
 }
