@@ -4,7 +4,7 @@ import { Building } from './Building';
 
 /**
  * Hospital: holds up to HOSPITAL_CAPACITY wounded people (soldiers and the
- * President); they heal inside and leave when the owner double-clicks it.
+ * President); they heal inside and walk out on their own once fully healed.
  */
 export class Hospital extends Building {
   constructor(owner: number, faction: FactionId, center: WorldPoint) {

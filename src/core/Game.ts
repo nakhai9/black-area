@@ -1,8 +1,10 @@
 import {
+  BUILDING_VALUE,
   CAMERA_EDGE_SCROLL,
   CAMERA_PAN_SPEED,
   CAPITAL_LOCATIONS,
   CHHG_LOCATION,
+  CRUSH_RADIUS,
   HALF_TH,
   HALF_TW,
   MAX_SOLDIERS,
@@ -28,6 +30,7 @@ import {
   WORLD_HEIGHT,
   WORLD_WIDTH,
   ZOOM_STEP,
+  isAircraftKind,
 } from '../constants';
 import { Building } from '../entities/Building';
 import { PLACEMENT_MARGIN } from '../map/TileMap';
@@ -59,8 +62,8 @@ import { BUILDING_ART } from '../render/sprites';
 import { AIRFIELD_SIZE, AIRFIELD_SLOTS, RUNWAY_D } from '../render/sprites/Airfield';
 import { AircraftSystem, type AirfieldGeometry } from '../systems/AircraftSystem';
 import { AISystem } from '../systems/AISystem';
-import { canTarget, CombatSystem, isHostile } from '../systems/CombatSystem';
-import { BUILD_OPTIONS, type BuildOption, ConstructionSystem, type QueueState } from '../systems/ConstructionSystem';
+import { canTarget, CombatSystem, distanceTo, isHostile } from '../systems/CombatSystem';
+import { BUILD_OPTIONS, type BuildOption, ConstructionSystem, type QueueState, buildCost } from '../systems/ConstructionSystem';
 import { EconomySystem } from '../systems/EconomySystem';
 import type { GameSystem } from '../systems/GameSystem';
 import { BUILD_RADIUS, type PlacementRequest, type PlacementResult, PlacementSystem } from '../systems/PlacementSystem';
@@ -227,10 +230,13 @@ export class Game {
       const v = this.camera.viewRect();
       return { centre: { x: v.x + v.w / 2, y: v.y + v.h / 2 }, range: Math.hypot(v.w, v.h) / 2 };
     });
-    this.aircraft = new AircraftSystem(this.entities, (b) => this.airfieldGeometry(b));
+    this.aircraft = new AircraftSystem(this.entities, (b) => this.airfieldGeometry(b), {
+      landingSpot: (x, y) => this.landingSpot(x, y),
+      unload: (t) => this.unloadTransport(t),
+    });
     this.combat = new CombatSystem(this.entities, this.pathfinder, {
       onFire: (s, t, w, impact) => this.onFire(s, t, w, impact),
-      onDeath: (e) => this.onDeath(e),
+      onDeath: (e, killer) => this.onDeath(e, killer),
     });
     this.ai = new AISystem(
       this.players.filter((p) => !p.isHuman),
@@ -257,6 +263,7 @@ export class Game {
       onTrain: (option) => this.onTrainClick(option.tier),
       onTrainCancel: (option) => this.onTrainCancel(option.tier),
       trainPreview: (option) => soldierPortrait(human.faction, option.tier),
+      onAlert: (at) => this.camera.centerOn(at.x, at.y),
       onVehicle: (option) => this.onVehicleClick(option.kind),
       onVehicleCancel: (option) => this.onVehicleCancel(option.kind),
       vehiclePreview: (option) => vehiclePortrait(human.faction, option.kind),
@@ -351,6 +358,134 @@ export class Game {
     if (b) this.focusBuilding(b.id, true);
   }
 
+  // ------------------------------------------------------------------ experience, crushing, transports
+
+  /** The killer earns the price of what it destroyed; 3× / 6× / 9× its own price promotes it. */
+  private awardKill(e: Entity, killer?: Entity): void {
+    if (!(killer instanceof Unit) || !killer.alive || killer.owner === e.owner || e.owner === NEUTRAL_OWNER) return;
+    const value = e instanceof Unit ? e.value : (BUILDING_VALUE[(e as Building).spec.type] ?? 1000);
+    const before = killer.rank;
+    killer.killValue += value;
+    if (killer.rank > before && killer.owner === this.humanPlayer.id) {
+      const name = killer instanceof Vehicle || killer instanceof Infantry ? killer.name : 'Unit';
+      this.sidebar.notify(`${name} promoted: ${['', 'Veteran', 'Elite', 'Elite+'][killer.rank]}!`);
+      this.effects.add({ kind: 'flash', x: killer.px, y: killer.py - 3, age: 0, ttl: 0.4, size: 3 });
+    }
+  }
+
+  /** Tanks and armoured vehicles that drive over enemy soldiers kill them (and get the credit). */
+  private crushInfantry(): void {
+    const walkers = this.entities.fieldUnits().filter((u) => u.alive);
+    if (walkers.length === 0) return;
+    for (const v of this.entities.vehicles()) {
+      if (!v.alive || !v.visible || v.aircraft || !v.moving || (v.type !== 'tank' && v.type !== 'ifv')) continue;
+      for (const u of walkers) {
+        if (!u.alive || u.owner === v.owner || u.owner === NEUTRAL_OWNER || v.owner === NEUTRAL_OWNER) continue;
+        if (Math.hypot(u.px - v.px, u.py - v.py) > CRUSH_RADIUS + u.radius) continue;
+        u.lastAttackerId = v.id;
+        u.lastAttackedAt = this.time;
+        u.hp = 0;
+        this.effects.add({ kind: 'blast', x: u.px, y: u.py - 1, age: 0, ttl: 0.25, radius: 2.4 });
+      }
+    }
+  }
+
+  /** Nearest spot where a transport can set down at or near (x, y), or null. */
+  private landingSpot(x: number, y: number): WorldPoint | null {
+    const cell = this.map.cellAt(x, y);
+    if (!cell) return null;
+    const g = this.pathfinder.nearestPassable(cell.x, cell.y, 6);
+    return g ? { x: (g.x + 0.5) * CELL_SIZE, y: (g.y + 0.5) * CELL_SIZE } : null;
+  }
+
+  /** Everyone aboard steps out on free cells around the transport (or its drop-off point). */
+  private unloadTransport(t: Vehicle): void {
+    const anchor = t.dropSpot ?? { x: t.px, y: t.py };
+    const home = this.map.cellAt(anchor.x, anchor.y);
+    if (!home) return;
+    const taken = new Set<number>();
+    let out = 0;
+    for (const u of [...t.cargo]) {
+      const cell = this.pathfinder.nearestPassable(home.x, home.y, 12, taken, u.swims);
+      if (!cell) continue;
+      taken.add(this.map.index(cell.x, cell.y));
+      u.px = (cell.x + 0.5) * CELL_SIZE;
+      u.py = (cell.y + 0.5) * CELL_SIZE;
+      u.x = cell.x + 0.5;
+      u.y = cell.y + 0.5;
+      u.insideId = null;
+      u.boardTarget = null;
+      u.stop();
+      t.cargo.splice(t.cargo.indexOf(u), 1);
+      out++;
+    }
+    if (out > 0 && t.owner === this.humanPlayer.id) this.sidebar.notify(`${out} unloaded from the ${t.name}.`);
+  }
+
+  /** U key: a selected, parked transport unloads everyone it carries. */
+  private unloadSelectedTransport(): void {
+    const t = this.selection.selectedUnitList().find((u): u is Vehicle => u instanceof Vehicle && u.isTransport && u.cargo.length > 0);
+    if (!t) return;
+    if (t.flight !== 'parked') {
+      this.sidebar.notify('The transport must be parked on its airfield — or it unloads when it reaches its destination.');
+      return;
+    }
+    this.unloadTransport(t);
+  }
+
+  /** Soldiers and vehicles walk to a parked transport and climb aboard when they reach its airfield. */
+  private orderBoard(t: Vehicle, riders: Unit[]): boolean {
+    if (t.flight !== 'parked') return false;
+    const here = this.map.cellAt(t.px, t.py);
+    if (!here) return false;
+    let sent = 0;
+    for (const u of riders) {
+      if (!t.canLoad(u)) continue;
+      const cell = this.pathfinder.nearestPassable(here.x, here.y, 16, undefined, u.swims);
+      if (!cell) continue;
+      u.parade = null;
+      u.task = null;
+      u.attackTarget = null;
+      u.attackMove = null;
+      u.boardTarget = t.id;
+      u.follow(this.pathfinder.find({ x: u.px, y: u.py }, cell, u.swims));
+      sent++;
+    }
+    if (sent === 0) {
+      this.sidebar.notify(t.full ? `The ${t.name} is full.` : `The ${t.name} cannot carry that.`);
+      return true;
+    }
+    this.moveMarker = { x: t.px, y: t.py, at: this.time };
+    return true;
+  }
+
+  /** Units that reached the airfield of their transport board it if there is still room. */
+  private processBoarding(): void {
+    for (const u of this.entities.fieldMovers()) {
+      if (u.boardTarget === null) continue;
+      const t = this.entities.get(u.boardTarget);
+      if (!(t instanceof Vehicle) || !t.alive || t.flight !== 'parked') {
+        u.boardTarget = null;
+        continue;
+      }
+      const home = t.homeId === null ? undefined : this.entities.get(t.homeId);
+      const reach = home instanceof Building ? distanceTo(u.px, u.py, home) : Math.hypot(u.px - t.px, u.py - t.py);
+      if (reach > CELL_SIZE * 2) {
+        if (!u.moving) u.boardTarget = null; // could not get close enough
+        continue;
+      }
+      u.boardTarget = null;
+      if (!t.canLoad(u)) {
+        if (u.owner === this.humanPlayer.id) this.sidebar.notify(`The ${t.name} is full.`);
+        continue;
+      }
+      t.cargo.push(u);
+      u.insideId = t.id;
+      u.stop();
+      this.selection.selectedUnits.delete(u.id);
+    }
+  }
+
   /** Last dry position of every unit that cannot swim. */
   private readonly lastDry = new Map<number, { x: number; y: number }>();
 
@@ -386,6 +521,8 @@ export class Game {
     }
     this.entities.update(dt);
     this.keepOutOfWater();
+    this.crushInfantry();
+    this.processBoarding();
     this.separateUnits();
     this.repathStuckUnits(dt);
     this.processTasks(dt);
@@ -546,10 +683,6 @@ export class Game {
     }
   }
 
-  private selectedBuilding(): Building | null {
-    const e = this.entities.get(this.selection.selectedId);
-    return e instanceof Building ? e : null;
-  }
 
   private handleInput(dt: number): void {
     const { input, camera } = this;
@@ -570,6 +703,11 @@ export class Game {
             break;
           }
           const unit = this.selection.pickUnit(world);
+          // Soldiers / vehicles selected + click on one of my parked transports: they climb aboard.
+          if (unit instanceof Vehicle && unit.isTransport && unit.owner === this.humanPlayer.id && !this.selection.selectedUnits.has(unit.id)) {
+            const riders = this.selection.selectedUnitList().filter((u) => !u.aircraft);
+            if (riders.length > 0 && this.orderBoard(unit, riders)) break;
+          }
           if (unit && unit.owner === this.humanPlayer.id) {
             this.selection.selectUnits([unit.id], ev.shift);
             break;
@@ -583,7 +721,7 @@ export class Game {
             const dbl = this.lastBuildingClick?.id === hit.id && now - this.lastBuildingClick.at < 400;
             this.lastBuildingClick = { id: hit.id, at: now };
             if (dbl && hit.owner === this.humanPlayer.id && hit.garrison.length > 0) {
-              this.ejectGarrison(hit);
+              this.ejectUnits(hit, [...hit.garrison]);
               break;
             }
             // Soldiers selected: enter / repair / capture orders take priority over selecting it.
@@ -667,9 +805,8 @@ export class Game {
       case 'Tab':
         this.sidebar.toggle();
         break;
-      case 'KeyR':
-        this.selectedBuilding()?.rotate();
-        this.sidebarTimer = SIDEBAR_REFRESH;
+      case 'KeyU':
+        this.unloadSelectedTransport();
         break;
       case 'Equal':
       case 'NumpadAdd':
@@ -715,7 +852,7 @@ export class Game {
         return;
       }
       this.construction.start(player, option);
-      this.sidebar.notify(`Building ${option.name} — ${option.cost} ${CURRENCY}`);
+      this.sidebar.notify(`Building ${option.name} — ${buildCost(option, player.faction)} ${CURRENCY}`);
     } else if (slot.state === 'ready' && slot.option?.id === option.id) {
       this.placing = option;
       this.selection.select(null);
@@ -807,7 +944,8 @@ export class Game {
   // ------------------------------------------------------------------ combat feedback
 
   /** A shot was fired: tracer, muzzle flash, impact burst, sound and (once per fight) the battle cry. */
-  private onFire(s: Unit, _t: Entity, w: WeaponSpec, impact: WorldPoint): void {
+  private onFire(s: Unit, t: Entity, w: WeaponSpec, impact: WorldPoint): void {
+    this.alertUnderAttack(t, s);
     const heavy = w.kind === 'cannon' || w.kind === 'missile';
     let mx = s.px + s.facing * 1.0;
     let my = s.py - s.bodyHeight * 0.8;
@@ -826,10 +964,32 @@ export class Game {
     if (this.time - prev > 8 && s.faction !== 'neutral') this.sound.battleCry(s.faction, { x: s.px, y: s.py });
   }
 
+  /** Throttled "under attack" alerts for everything the player owns. */
+  private readonly alertAt = new Map<string, number>();
+  private alertUnderAttack(t: Entity, attacker: Unit): void {
+    if (t.owner !== this.humanPlayer.id || attacker.owner === t.owner) return;
+    const isBuilding = t instanceof Building;
+    const key = isBuilding ? `b:${t.spec.type}` : `u:${t instanceof Vehicle ? t.type : 'soldier'}`;
+    if (this.time - (this.alertAt.get(key) ?? -99) < 12) return;
+    this.alertAt.set(key, this.time);
+    const name = isBuilding ? t.spec.name : t instanceof Vehicle || t instanceof Infantry ? t.name : 'Unit';
+    const at = isBuilding ? t.centerWorld() : { x: (t as Unit).px, y: (t as Unit).py };
+    this.sidebar.alert(`${name} is under attack!`, at);
+  }
+
   /** Something ran out of health: remove it with an explosion. */
-  private onDeath(e: Entity): void {
+  private onDeath(e: Entity, killer?: Entity): void {
+    this.awardKill(e, killer);
     this.selection.selectedUnits.delete(e.id);
     if (e instanceof Unit) {
+      // Everyone aboard a destroyed transport goes down with it.
+      if (e instanceof Vehicle && e.cargo.length > 0) {
+        for (const c of e.cargo) {
+          this.selection.selectedUnits.delete(c.id);
+          this.entities.remove(c.id);
+        }
+        e.cargo.length = 0;
+      }
       this.entities.remove(e.id);
       const vehicle = e instanceof Vehicle;
       this.effects.add({ kind: 'smoke', x: e.px, y: e.py - 1, age: 0, ttl: 1.2, radius: vehicle ? 5 : 2.2 });
@@ -841,7 +1001,8 @@ export class Game {
     }
     if (!(e instanceof Building)) return;
     if (this.selection.selectedId === e.id) this.selection.select(null);
-    this.ejectGarrison(e);
+    this.ejectUnits(e, [...e.garrison]);
+    if (e.owner === this.humanPlayer.id) this.sidebar.alert(`${e.spec.name} was destroyed!`, e.centerWorld());
     if (e.spec.type === 'airfield') {
       // Aircraft parked on it burn with it unless the nation has another airfield to move them to.
       const other = this.entities.buildings().some((b) => b.id !== e.id && b.owner === e.owner && b.alive && b.spec.type === 'airfield');
@@ -939,20 +1100,20 @@ export class Game {
     };
   }
 
-  /** A new fighter appears parked on a free spot of its airfield's apron. */
-  private spawnJet(player: PlayerState, airfield: Building): void {
+  /** A new aircraft (fighter or transport) appears parked on a free spot of its airfield's apron. */
+  private spawnAircraft(player: PlayerState, kind: VehicleKind, airfield: Building): void {
     const g = this.airfieldGeometry(airfield);
     const taken = new Set(
       this.entities
         .vehicles()
-        .filter((v) => v.type === 'jet' && v.alive && v.homeId === airfield.id && !v.flies)
+        .filter((v) => v.aircraft && v.alive && v.homeId === airfield.id && !v.flies)
         .map((v) => v.slot),
     );
     let slot = 0;
     while (taken.has(slot)) slot++;
     const spot = g.slots[slot] ?? g.slots[0];
     if (!spot) return;
-    const jet = this.entities.add(new Vehicle(player.id, player.faction as FactionId, 'jet', spot));
+    const jet = this.entities.add(new Vehicle(player.id, player.faction as FactionId, kind, spot));
     jet.flight = 'parked';
     jet.altitude = 0;
     jet.homeId = airfield.id;
@@ -991,8 +1152,8 @@ export class Game {
   }
 
   private spawnVehicle(player: PlayerState, kind: VehicleKind, producer: Building): void {
-    if (kind === 'jet') {
-      this.spawnJet(player, producer);
+    if (isAircraftKind(kind)) {
+      this.spawnAircraft(player, kind, producer);
       return;
     }
     // Land vehicles roll out of the front of the War Factory to the first free spot nearby.
@@ -1240,14 +1401,22 @@ export class Game {
     for (const b of this.entities.buildings()) {
       const heal = b.spec.garrison?.healPerSecond;
       if (!heal) continue;
-      for (const u of b.garrison) u.hp = Math.min(u.maxHp, u.hp + heal * dt);
+      const healed: Infantry[] = [];
+      for (const u of b.garrison) {
+        u.hp = Math.min(u.maxHp, u.hp + heal * dt);
+        if (u.hp >= u.maxHp) healed.push(u);
+      }
+      // Patients walk out on their own as soon as they are fully healed.
+      if (healed.length > 0) this.ejectUnits(b, healed, 'healed');
     }
   }
 
-  /** Brings everyone stationed in `b` out onto the ground in front of it. */
-  private ejectGarrison(b: Building): void {
-    const out = [...b.garrison];
-    b.garrison.length = 0;
+  /** Brings the given people stationed in `b` out onto the ground in front of it. */
+  private ejectUnits(b: Building, out: Infantry[], why: 'out' | 'healed' = 'out'): void {
+    for (const u of out) {
+      const i = b.garrison.indexOf(u);
+      if (i >= 0) b.garrison.splice(i, 1);
+    }
     out.forEach((u, k) => {
       const off = spiralOffset(k, UNIT_SPACING * 1.15);
       const base = { x: (b.x + b.w / 2) * CELL_SIZE + off.x, y: (b.y + b.d + 1.2) * CELL_SIZE + off.y };
@@ -1257,7 +1426,8 @@ export class Game {
       u.insideId = null;
       u.stop();
     });
-    if (out.length > 0) this.sidebar.notify(`${out.length} came out of: ${b.spec.name}.`);
+    if (out.length > 0 && why === 'healed' && b.owner === this.humanPlayer.id) this.sidebar.notify(`${out.length} healed and left the ${b.spec.name}.`);
+    else if (out.length > 0) this.sidebar.notify(`${out.length} came out of: ${b.spec.name}.`);
   }
 
   /** Moves the selected soldiers, spreading them over distinct nearby cells. */
@@ -1321,7 +1491,8 @@ export class Game {
         continue;
       }
       row.forEach((cell, i) => {
-        const derrick = new OilDerrick(player.id, f, { x: 0, y: 0 }, i);
+        // One derrick of every row is managed by the World Bank: it stays the nation's but cannot be destroyed.
+        const derrick = new OilDerrick(player.id, f, { x: 0, y: 0 }, i, i === Math.min(1, row.length - 1));
         derrick.moveTo(cell.x, cell.y);
         this.entities.add(derrick);
         trees.clearArea(cell.x, cell.y, derrick.w, derrick.d);

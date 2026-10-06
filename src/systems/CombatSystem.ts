@@ -189,10 +189,8 @@ export class CombatSystem implements GameSystem {
     const impact = this.impactPoint(t);
     const dmg = w.damage * (t instanceof Building ? w.vsBuilding : 1);
     t.damage(dmg);
-    if (t instanceof Unit) {
-      t.lastAttackerId = s.id;
-      t.lastAttackedAt = this.time;
-    }
+    t.lastAttackerId = s.id;
+    t.lastAttackedAt = this.time;
     if (w.splash > 0) {
       for (const o of this.entities.fieldMovers()) {
         if (o === t || !isHostile(s, o) || !this.canHit(s, w, o)) continue;
@@ -262,7 +260,7 @@ export class CombatSystem implements GameSystem {
     const dead: Entity[] = [];
     for (const e of this.entities.all()) if (!e.alive) dead.push(e);
     for (const e of dead) {
-      const killer = e instanceof Unit && e.lastAttackerId !== null ? this.entities.get(e.lastAttackerId) : undefined;
+      const killer = e.lastAttackerId !== null ? this.entities.get(e.lastAttackerId) : undefined;
       this.hooks.onDeath(e, killer);
     }
   }

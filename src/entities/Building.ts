@@ -1,4 +1,4 @@
-import { CELL_SIZE, ROTATE_STEP_DEG } from '../constants';
+import { CELL_SIZE } from '../constants';
 import type { Allegiance, BuildingSpec, FactionId, WorldPoint } from '../types';
 import type { Infantry } from './Infantry';
 import { Entity } from './Entity';
@@ -9,8 +9,6 @@ import { Entity } from './Entity';
  */
 export class Building extends Entity {
   readonly kind = 'building' as const;
-  /** Rotation of the sprite in degrees, always a multiple of ROTATE_STEP_DEG (0..359). */
-  angle = 0;
   /** Game time when the player placed it (drives the build-up animation); null for map-authored. */
   placedAt: number | null = null;
   /** People stationed inside (capital: the President; hospital: patients). */
@@ -83,13 +81,9 @@ export class Building extends Entity {
     this.y = y;
   }
 
-  /** Turns the building one step (30 degrees) clockwise. */
-  rotate(): void {
-    this.angle = (this.angle + ROTATE_STEP_DEG) % 360;
-  }
-
+  /** Buildings always stand square to the grid: edges parallel to the grid lines, never turned. */
   get angleRad(): number {
-    return (this.angle * Math.PI) / 180;
+    return 0;
   }
 
   /** Footprint size in cells. */

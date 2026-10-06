@@ -1,3 +1,4 @@
+import { ChevronDown } from 'lucide';
 import { BUILD_RISE_SECONDS, CELL_SIZE, WORLD_SCALE } from '../constants';
 import type { Building } from '../entities/Building';
 import { Infantry } from '../entities/Infantry';
@@ -57,6 +58,9 @@ export interface RenderScene {
 }
 
 const HEALTH_PIPS = 24;
+
+/** Lucide's ChevronDown path (24×24 grid): drawn 1–3 times above a veteran unit. */
+const CHEVRON = new Path2D(String((ChevronDown[0]?.[1] as { d?: string } | undefined)?.d ?? 'm6 9 6 6 6-6'));
 
 /**
  * Draws one frame: terrain blit → water shimmer → selection ring →
@@ -135,6 +139,10 @@ export class Renderer {
     for (const f of focus) if (f.entity.kind !== 'building') this.drawUnitFocus(f.entity, f.strong, scene.time);
     for (const u of units) if (selUnits.has(u.id) || u.hp < u.maxHp) this.drawUnitHealth(u);
     for (const f of focus) if (f.entity.kind !== 'building' && !selUnits.has(f.entity.id) && f.entity.hp >= f.entity.maxHp) this.drawUnitHealth(f.entity);
+    for (const u of units) {
+      if (u.rank > 0) this.drawRank(u);
+      if (u instanceof Vehicle && u.isTransport && u.cargo.length > 0) this.drawCargoBadge(u);
+    }
     if (scene.effects) this.drawEffects(scene.effects);
 
     for (const b of sorted) {
@@ -331,6 +339,59 @@ export class Renderer {
       ctx.textAlign = 'center';
       ctx.fillText(text, x + w / 2, y + h / 2 - k);
     }
+    ctx.restore();
+  }
+
+  /** Veteran chevrons (Lucide ChevronDown ×1, ×2, ×3) hovering above the unit. */
+  private drawRank(u: Unit): void {
+    const { ctx } = this;
+    const lift = (u as { altitude?: number }).altitude ?? 0;
+    const size = 2.6; // world px per chevron (24 icon units)
+    const sc = size / 24;
+    const top = u.py - (u.aircraft ? lift + 3 : u.bodyHeight + 1.4) - 3.4;
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    for (let i = 0; i < u.rank; i++) {
+      ctx.save();
+      ctx.translate(u.px - size / 2, top - (u.rank - 1 - i) * size * 0.34);
+      ctx.scale(sc, sc);
+      ctx.strokeStyle = 'rgba(0,0,0,0.85)';
+      ctx.lineWidth = 5.2;
+      ctx.stroke(CHEVRON);
+      ctx.strokeStyle = '#ffd23f';
+      ctx.lineWidth = 3;
+      ctx.stroke(CHEVRON);
+      ctx.restore();
+    }
+    ctx.restore();
+  }
+
+  /** Sign on a loaded transport: what is aboard, and a red FULL once nothing more fits. */
+  private drawCargoBadge(t: Vehicle): void {
+    const { ctx } = this;
+    const k = 1 / this.camera.zoom;
+    const soldiers = t.soldiersAboard;
+    const vehicles = t.vehiclesAboard;
+    const parts: string[] = [];
+    if (soldiers > 0) parts.push(`${soldiers} soldier${soldiers > 1 ? 's' : ''}`);
+    if (vehicles > 0) parts.push(`${vehicles} vehicle${vehicles > 1 ? 's' : ''}`);
+    const text = `${t.full ? 'FULL · ' : ''}${parts.join(' + ')}`;
+    ctx.save();
+    ctx.font = `700 ${10 * k}px "Segoe UI", system-ui, sans-serif`;
+    const w = ctx.measureText(text).width + 8 * k;
+    const h = 13 * k;
+    const x = t.px - w / 2;
+    const y = t.py - t.altitude - 11 - h;
+    ctx.fillStyle = t.full ? '#d62d20' : '#e0a21b';
+    ctx.fillRect(x, y, w, h);
+    ctx.strokeStyle = 'rgba(0,0,0,0.7)';
+    ctx.lineWidth = k;
+    ctx.strokeRect(x, y, w, h);
+    ctx.fillStyle = '#fff';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, t.px, y + h / 2 + 0.3 * k);
     ctx.restore();
   }
 
@@ -585,7 +646,8 @@ export class Renderer {
     const k = 1 / this.camera.zoom;
     const r = this.spriteRect(b);
     const inside = b.garrison.length > 0 ? ` · ${b.garrison.length} inside` : '';
-    const text = b.indestructible ? `${b.spec.name} · Neutral · Protected` : `${b.spec.name}${inside}`;
+    const managed = 'bankManaged' in b && (b as { bankManaged: boolean }).bankManaged;
+    const text = managed ? `${b.spec.name} · World Bank managed` : b.indestructible ? `${b.spec.name} · Neutral · Protected` : `${b.spec.name}${inside}`;
     ctx.font = `600 ${12 * k}px "Segoe UI", system-ui, sans-serif`;
     const w = ctx.measureText(text).width + 12 * k;
     const h = 18 * k;

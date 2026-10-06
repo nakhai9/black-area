@@ -1,4 +1,4 @@
-import { CELL_SIZE, STEP_PHASE_PER_PX } from '../constants';
+import { CELL_SIZE, RANK_KILL_MULTIPLES, STEP_PHASE_PER_PX } from '../constants';
 import type { Allegiance, WeaponSpec, WorldPoint } from '../types';
 import { Entity } from './Entity';
 
@@ -63,15 +63,26 @@ export abstract class Unit extends Entity {
   weapon: WeaponSpec | null = null;
   /** Seconds until the weapon can fire again. */
   cooldown = 0;
+
+  // ---- experience
+  /** Price of this unit (faction cost applied): its kills are measured against it. */
+  abstract readonly value: number;
+  /** Total price of the enemies this unit has destroyed (units run over and structures count too). */
+  killValue = 0;
+  /** Soldier / vehicle (transport boarding): entity id of the transport it is walking to, or null. */
+  boardTarget: number | null = null;
+
+  /** Veteran ranks: 0 none, then 1–3 chevrons at 3× / 6× / 9× its own price in kills. */
+  get rank(): 0 | 1 | 2 | 3 {
+    const ratio = this.killValue / Math.max(1, this.value);
+    return ratio >= RANK_KILL_MULTIPLES[2] ? 3 : ratio >= RANK_KILL_MULTIPLES[1] ? 2 : ratio >= RANK_KILL_MULTIPLES[0] ? 1 : 0;
+  }
   /** Explicit attack order (entity id), cleared when the target dies. */
   attackTarget: number | null = null;
   /** Attack-move destination: fights anything met on the way, then carries on. */
   attackMove: WorldPoint | null = null;
   /** Entity id the unit is currently shooting at (explicit, auto-acquired or retaliation). */
   combatTarget: number | null = null;
-  /** Who last damaged this unit, and when (game time) — it hits back. */
-  lastAttackerId: number | null = null;
-  lastAttackedAt = -999;
   /** Time of the last acquire / chase update (throttling). */
   nextThink = 0;
   /** True while in a fight; used to trigger the battle cry once per engagement. */

@@ -9,6 +9,9 @@ export abstract class Entity {
   readonly id = nextEntityId++;
   abstract readonly kind: EntityKind;
   hp: number;
+  /** Who last damaged this entity, and when (game time): it hits back, and the attacker earns the kill. */
+  lastAttackerId: number | null = null;
+  lastAttackedAt = -999;
 
   constructor(
     /** Owning player id (NEUTRAL_OWNER for shared landmarks). Changes on capture. */

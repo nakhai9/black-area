@@ -42,5 +42,6 @@ export const EUROPE: FactionConfig = {
     tank: { name: "Leopard 2", description: "Leopard 2 main battle tank, precise and well protected." },
     ifv: { name: "Puma", description: "Puma armoured fighting vehicle, modern and fast." },
     jet: { name: "Eurofighter", description: "Eurofighter Typhoon multirole fighter." },
+    transport: { name: "A400M", description: "A400M Atlas transport aircraft: carries soldiers and vehicles; unarmed." },
   },
 };

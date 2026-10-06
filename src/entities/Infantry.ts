@@ -11,6 +11,8 @@ export class Infantry extends Unit {
   readonly speed: number;
   readonly radius = 1.1;
   readonly bodyHeight = 1.6;
+  /** Price paid for it (faction cost applied). */
+  readonly value: number;
 
   constructor(
     owner: number,
@@ -23,6 +25,7 @@ export class Infantry extends Unit {
     super(owner, faction, at, Math.round(base.maxHp * f.stats.armor));
     this.profile = f.infantry[tier];
     this.speed = base.speed * f.stats.unitSpeed * CELL_SIZE;
+    this.value = Math.round((base.cost * f.stats.cost) / 10) * 10;
     const w = this.profile.look.weapon;
     if (w === 'rifle' || w === 'smg' || w === 'sniper') {
       const spec = WEAPONS[w];

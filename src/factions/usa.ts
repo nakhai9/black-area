@@ -42,5 +42,6 @@ export const USA: FactionConfig = {
     tank: { name: "Abrams", description: "M1 Abrams main battle tank: heavy armour and a powerful gun." },
     ifv: { name: "Bradley", description: "M2 Bradley armoured fighting vehicle for infantry support." },
     jet: { name: "F-16 Falcon", description: "Agile multirole fighter aircraft." },
+    transport: { name: "C-17 Globemaster", description: "Heavy transport aircraft: carries soldiers and vehicles; unarmed." },
   },
 };

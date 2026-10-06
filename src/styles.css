@@ -705,3 +705,59 @@ kbd {
   background: #7dff8a;
   border-color: #b9ffc1;
 }
+
+/* ------------------------------------------------------------- command centre: budget, alerts, locked tabs */
+.sb-budget-label {
+  margin-top: 6px;
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.sb-alert-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 3px;
+}
+.sb-alert-empty {
+  font-size: 11px;
+  color: var(--muted);
+}
+.sb-alert {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 3px 6px;
+  border: 1px solid rgba(255, 59, 48, 0.4);
+  border-radius: 3px;
+  background: rgba(255, 59, 48, 0.12);
+  color: #ffd9d5;
+  font: inherit;
+  font-size: 11px;
+  text-align: left;
+  cursor: pointer;
+}
+.sb-alert-age {
+  color: #ff9d94;
+  white-space: nowrap;
+}
+.sb-alert.fresh {
+  animation: sb-alert-flash 0.7s steps(2) infinite;
+}
+@keyframes sb-alert-flash {
+  50% {
+    background: rgba(255, 59, 48, 0.45);
+    border-color: #ff3b30;
+  }
+}
+/* A production tab without its building shows no icon and cannot be opened. */
+.sb-tabs button.no-icon svg {
+  visibility: hidden;
+}
+.sb-cameo:disabled {
+  cursor: not-allowed;
+}
+

@@ -6,6 +6,12 @@ import type { SpriteCache } from '../render/SpriteCache';
 import type { GameEvents, Rect, WorldPoint } from '../types';
 
 /** Tracks hovered / selected entities and resolves pointer picks. */
+/** Screen-space height of a unit's body centre above its ground point (aircraft: their altitude). */
+function bodyLift(u: Unit): number {
+  const altitude = (u as { altitude?: number }).altitude;
+  return u.aircraft ? (altitude ?? 0) : u.bodyHeight;
+}
+
 /** Pick radius around a soldier's body (world px). */
 const UNIT_PICK_RADIUS = 2.2;
 
@@ -46,8 +52,9 @@ export class SelectionSystem {
     let bestScore = Infinity;
     for (const u of this.entities.fieldMovers()) {
       if (!u.alive) continue;
-      const reach = Math.max(UNIT_PICK_RADIUS, u.radius * 1.25);
-      const d = Math.hypot(world.x - u.px, world.y - (u.py - u.bodyHeight));
+      // Aircraft (even parked on the airfield) are big targets: clicking the plane selects it, no sweep needed.
+      const reach = Math.max(UNIT_PICK_RADIUS, u.radius * (u.aircraft ? 2.2 : 1.25));
+      const d = Math.hypot(world.x - u.px, world.y - (u.py - bodyLift(u)));
       if (d < reach && d / reach < bestScore) {
         best = u;
         bestScore = d / reach;
@@ -74,7 +81,7 @@ export class SelectionSystem {
   unitsInRect(r: Rect, owner: number): Unit[] {
     return this.entities
       .fieldMovers()
-      .filter((u) => u.alive && u.owner === owner && u.px >= r.x && u.px <= r.x + r.w && u.py - u.bodyHeight >= r.y && u.py - u.bodyHeight <= r.y + r.h);
+      .filter((u) => u.alive && u.owner === owner && u.px >= r.x && u.px <= r.x + r.w && u.py - bodyLift(u) >= r.y && u.py - bodyLift(u) <= r.y + r.h);
   }
 
   selectedUnitList(): Unit[] {

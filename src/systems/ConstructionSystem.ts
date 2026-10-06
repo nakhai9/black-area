@@ -11,6 +11,7 @@ import {
   WAR_FACTORY_COST,
 } from '../constants';
 import { Airfield } from '../entities/Airfield';
+import { FACTIONS } from '../factions';
 import { Hospital } from '../entities/Hospital';
 import { WarFactory } from '../entities/WarFactory';
 import { Barracks } from '../entities/Barracks';
@@ -74,6 +75,11 @@ export const BUILD_OPTIONS: readonly BuildOption[] = [
   },
 ];
 
+/** Price of a structure for a nation (faction cost multiplier applied, like soldiers and vehicles). */
+export function buildCost(option: BuildOption, faction: FactionId): number {
+  return Math.round((option.cost * FACTIONS[faction].stats.cost) / 10) * 10;
+}
+
 export type QueueState = 'idle' | 'building' | 'onHold' | 'ready';
 
 /** One structure is produced at a time per nation (RA2 rule). */
@@ -135,11 +141,12 @@ export class ConstructionSystem implements GameSystem {
     for (const p of this.players) {
       const s = this.slot(p);
       if (!s.option || (s.state !== 'building' && s.state !== 'onHold')) continue;
-      const want = Math.min(s.option.cost * RATE * dt, s.option.cost - s.paid);
+      const cost = buildCost(s.option, p.faction);
+      const want = Math.min(cost * RATE * dt, cost - s.paid);
       const pay = Math.max(0, Math.min(want, p.credits));
       p.credits -= pay;
       s.paid += pay;
-      s.progress = Math.min(1, s.paid / s.option.cost);
+      s.progress = Math.min(1, s.paid / cost);
       if (s.progress >= 1) s.state = 'ready';
       else s.state = pay < want - 1e-6 ? 'onHold' : 'building';
     }

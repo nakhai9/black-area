@@ -1,4 +1,4 @@
-import { MAX_VEHICLES, VEHICLE_BASE, VEHICLE_QUEUE_MAX } from '../constants';
+import { AVAILABLE_VEHICLES, MAX_VEHICLES, VEHICLE_BASE, VEHICLE_QUEUE_MAX, isAircraftKind } from '../constants';
 import type { Building } from '../entities/Building';
 import type { EntityManager } from '../entities/EntityManager';
 import { FACTIONS } from '../factions';
@@ -17,17 +17,17 @@ export interface VehicleOption {
   requires: BuildingType;
 }
 
-const KINDS: readonly VehicleKind[] = ['light', 'tank', 'ifv', 'jet'];
+const KINDS: readonly VehicleKind[] = ['light', 'tank', 'ifv', 'jet', 'transport'];
 
 export function vehicleOptions(faction: FactionId): VehicleOption[] {
   const f = FACTIONS[faction];
-  return KINDS.map((kind) => ({
+  return KINDS.filter((kind) => AVAILABLE_VEHICLES.includes(kind)).map((kind) => ({
     kind,
     name: f.vehicles[kind].name,
     description: f.vehicles[kind].description,
     cost: Math.round((VEHICLE_BASE[kind].cost * f.stats.cost) / 10) * 10,
     trainSeconds: VEHICLE_BASE[kind].trainSeconds + f.stats.trainDelay,
-    requires: kind === 'jet' ? 'airfield' : 'warFactory',
+    requires: isAircraftKind(kind) ? 'airfield' : 'warFactory',
   }));
 }
 
@@ -81,7 +81,7 @@ export class VehicleSystem implements GameSystem {
   }
 
   private requirement(player: PlayerState, kind: VehicleKind): Building | null {
-    return this.producerOf(player, kind === 'jet' ? 'airfield' : 'warFactory');
+    return this.producerOf(player, isAircraftKind(kind) ? 'airfield' : 'warFactory');
   }
 
   /** Aircraft parking spots: PARKING_SLOTS per living airfield. */
@@ -94,16 +94,16 @@ export class VehicleSystem implements GameSystem {
     return this.entities.vehicles().filter((v) => v.owner === player.id && v.alive).length + this.queue(player).items.length;
   }
 
-  private jetsOwned(player: PlayerState): number {
-    return this.entities.vehicles().filter((v) => v.owner === player.id && v.alive && v.type === 'jet').length;
+  private aircraftOwned(player: PlayerState): number {
+    return this.entities.vehicles().filter((v) => v.owner === player.id && v.alive && v.aircraft).length;
   }
 
   enqueue(player: PlayerState, kind: VehicleKind): VehicleEnqueueResult {
     const q = this.queue(player);
     if (!this.requirement(player, kind)) return 'noFactory';
-    if (q.items.length >= VEHICLE_QUEUE_MAX) return 'full';
+    if (!AVAILABLE_VEHICLES.includes(kind) || q.items.length >= VEHICLE_QUEUE_MAX) return 'full';
     if (this.vehicleCount(player) >= MAX_VEHICLES) return 'limit';
-    if (kind === 'jet' && this.jetsOwned(player) + q.items.filter((k) => k === 'jet').length >= this.parkingCapacity(player)) return 'noParking';
+    if (isAircraftKind(kind) && this.aircraftOwned(player) + q.items.filter(isAircraftKind).length >= this.parkingCapacity(player)) return 'noParking';
     q.items.push(kind);
     if (q.state === 'idle') q.state = 'building';
     return 'ok';

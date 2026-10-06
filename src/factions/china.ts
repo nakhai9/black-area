@@ -42,5 +42,6 @@ export const CHINA: FactionConfig = {
     tank: { name: "Type 99", description: "Type 99 main battle tank, produced in large numbers." },
     ifv: { name: "ZBD-04", description: "ZBD-04 armoured fighting vehicle." },
     jet: { name: "J-11", description: "J-11 heavy air superiority fighter." },
+    transport: { name: "Y-20", description: "Y-20 heavy transport aircraft: carries soldiers and vehicles; unarmed." },
   },
 };

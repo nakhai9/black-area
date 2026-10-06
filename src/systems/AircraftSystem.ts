@@ -37,15 +37,28 @@ const clamp01 = (t: number): number => Math.max(0, Math.min(1, t));
  * before they lift off), fly to the target and, once they have nothing left
  * to do, return to the airfield, land and taxi back to their parking spot.
  */
+export interface AircraftHooks {
+  /** Nearest spot at or near (x, y) where a transport can set down, or null (open water, buildings…). */
+  landingSpot(x: number, y: number): WorldPoint | null;
+  /** Everyone aboard `transport` steps out around it. */
+  unload(transport: Vehicle): void;
+}
+
+/** Descent, unloading pause and climb-out of a transport at its drop-off point (seconds). */
+const DESCEND_SECONDS = 1.2;
+const UNLOAD_PAUSE = 1.2;
+const CLIMB_SECONDS = 1.0;
+
 export class AircraftSystem implements GameSystem {
   constructor(
     private readonly entities: EntityManager,
     private readonly geometry: (airfield: Building) => AirfieldGeometry,
+    private readonly hooks: AircraftHooks,
   ) {}
 
   update(dt: number): void {
     for (const v of this.entities.vehicles()) {
-      if (v.type !== 'jet' || !v.alive) continue;
+      if (!v.aircraft || !v.alive) continue;
       const base = this.home(v);
       v.drawDepth = base ? base.depth + 0.02 : null;
       switch (v.flight) {
@@ -72,6 +85,9 @@ export class AircraftSystem implements GameSystem {
           break;
         case 'crashing':
           this.crash(v, dt);
+          break;
+        case 'unloading':
+          this.unloading(v, dt);
           break;
       }
     }
@@ -174,6 +190,17 @@ export class AircraftSystem implements GameSystem {
       this.startCrash(v);
       return;
     }
+    // A loaded transport that has reached its destination sets down there and unloads.
+    if (v.isTransport && v.cargo.length > 0 && !v.moving && v.mission === null && v.flight === 'airborne') {
+      const spot = this.hooks.landingSpot(v.px, v.py);
+      if (spot) {
+        v.dropSpot = spot;
+        v.flight = 'unloading';
+        v.phaseTime = 0;
+        v.stop();
+        return;
+      }
+    }
     const busy = v.moving || v.attackTarget !== null || v.attackMove !== null || v.combatTarget !== null;
     if (busy) {
       v.idleFor = 0;
@@ -252,7 +279,7 @@ export class AircraftSystem implements GameSystem {
   private freeSlot(v: Vehicle, home: Building): number {
     const taken = new Set<number>();
     for (const o of this.entities.vehicles()) {
-      if (o !== v && o.type === 'jet' && o.alive && o.homeId === home.id && o.flight !== 'airborne' && o.flight !== 'approach') taken.add(o.slot);
+      if (o !== v && o.aircraft && o.alive && o.homeId === home.id && o.flight !== 'airborne' && o.flight !== 'approach') taken.add(o.slot);
     }
     if (v.slot >= 0 && !taken.has(v.slot)) return v.slot;
     for (let i = 0; i < PARKING_SLOTS; i++) if (!taken.has(i)) return i;
@@ -322,6 +349,26 @@ export class AircraftSystem implements GameSystem {
     v.attackMove = null;
     v.combatTarget = null;
     v.stop();
+  }
+
+  /** Transport at its drop-off point: glides down, unloads everyone, lifts off again and heads home. */
+  private unloading(v: Vehicle, dt: number): void {
+    v.phaseTime += dt;
+    const t = v.phaseTime;
+    if (v.dropSpot && t < DESCEND_SECONDS) this.moveTo(v, v.dropSpot, 10, dt);
+    if (t < DESCEND_SECONDS) {
+      v.altitude = CRUISE_ALTITUDE * (1 - clamp01(t / DESCEND_SECONDS));
+    } else if (t < DESCEND_SECONDS + UNLOAD_PAUSE) {
+      v.altitude = 0;
+      if (v.cargo.length > 0) this.hooks.unload(v);
+    } else if (t < DESCEND_SECONDS + UNLOAD_PAUSE + CLIMB_SECONDS) {
+      v.altitude = CRUISE_ALTITUDE * clamp01((t - DESCEND_SECONDS - UNLOAD_PAUSE) / CLIMB_SECONDS);
+    } else {
+      v.altitude = CRUISE_ALTITUDE;
+      v.flight = 'airborne';
+      v.dropSpot = null;
+      v.idleFor = RETURN_AFTER;
+    }
   }
 
   /** Spins and plunges, then explodes on impact (health reaches zero → the usual death blast). */

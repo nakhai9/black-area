@@ -207,6 +207,54 @@ function jet(ctx: Ctx, pose: VehiclePose, team: string): void {
   });
 }
 
+function transport(ctx: Ctx, pose: VehiclePose, team: string): void {
+  const lift = pose.altitude ?? 7;
+  const k = lift / 7;
+  shadow(ctx, pose, 6.2, 2.6, 0.5 + 1.1 * k, 0.6 + 2.3 * k);
+  plane(ctx, pose, lift, 0.8, () => {
+    // High wing across the middle, tailplane, four engines and a thick cargo fuselage.
+    ctx.fillStyle = '#9aa28c';
+    ctx.beginPath();
+    ctx.moveTo(0.6, 0.9);
+    ctx.lineTo(-0.6, 5.2);
+    ctx.lineTo(-1.8, 5.2);
+    ctx.lineTo(-1.6, 0.9);
+    ctx.lineTo(-1.6, -0.9);
+    ctx.lineTo(-1.8, -5.2);
+    ctx.lineTo(-0.6, -5.2);
+    ctx.lineTo(0.6, -0.9);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#8a927c';
+    ctx.beginPath();
+    ctx.moveTo(-4.6, 0.8);
+    ctx.lineTo(-5.3, 2.4);
+    ctx.lineTo(-6.0, 2.4);
+    ctx.lineTo(-5.8, 0.8);
+    ctx.lineTo(-5.8, -0.8);
+    ctx.lineTo(-6.0, -2.4);
+    ctx.lineTo(-5.3, -2.4);
+    ctx.lineTo(-4.6, -0.8);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#b7bfa8';
+    ctx.beginPath();
+    ctx.ellipse(-0.4, 0, 5.6, 1.15, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(20,20,20,0.55)';
+    ctx.lineWidth = 0.16;
+    ctx.stroke();
+    ctx.fillStyle = '#2c3f55';
+    ctx.beginPath();
+    ctx.ellipse(4.2, 0, 0.9, 0.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#4a4f46';
+    for (const y of [-3.9, -2.2, 2.2, 3.9]) ctx.fillRect(-0.2, y - 0.3, 1.4, 0.6);
+    ctx.fillStyle = team;
+    ctx.fillRect(-3.6, -0.35, 2.4, 0.7);
+  });
+}
+
 /** Draws one vehicle or aircraft of `kind` for the given faction. */
 export function drawVehicle(ctx: Ctx, pose: VehiclePose, kind: VehicleKind, faction: FactionId): void {
   const body = BODY[faction];
@@ -214,6 +262,7 @@ export function drawVehicle(ctx: Ctx, pose: VehiclePose, kind: VehicleKind, fact
   if (kind === 'tank') tank(ctx, pose, body, team);
   else if (kind === 'ifv') ifv(ctx, pose, body, team);
   else if (kind === 'light') light(ctx, pose, body, team);
+  else if (kind === 'transport') transport(ctx, pose, team);
   else jet(ctx, pose, team);
 }
 
@@ -226,9 +275,10 @@ export function vehiclePortrait(faction: FactionId, kind: VehicleKind): HTMLCanv
   if (!c) {
     const { canvas, ctx } = createCanvas(128, 96);
     // A jet hovers 7 px above its ground point, so its ground point sits lower in the picture.
-    const scale = kind === 'jet' ? 9 : 13;
+    const air = kind === 'jet' || kind === 'transport';
+    const scale = kind === 'transport' ? 7.5 : air ? 9 : 13;
     ctx.setTransform(scale, 0, 0, scale, 0, 0);
-    drawVehicle(ctx, { x: 128 / 2 / scale, y: (kind === 'jet' ? 108 : 62) / scale, heading: 0.45, phase: 0, moving: false }, kind, faction);
+    drawVehicle(ctx, { x: 128 / 2 / scale, y: (air ? 108 : 62) / scale, heading: 0.45, phase: 0, moving: false }, kind, faction);
     portraits.set(key, canvas);
     c = canvas;
   }

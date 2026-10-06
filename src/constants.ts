@@ -1,4 +1,4 @@
-import type { FactionId, GeoPoint, NamedSite, VehicleKind, WeaponKind, WeaponSpec } from './types';
+import type { BuildingType, FactionId, GeoPoint, NamedSite, VehicleKind, WeaponKind, WeaponSpec } from './types';
 
 // ---------------------------------------------------------------- World (real Earth)
 /** Packed Earth texture built by `npm run build:earth` (see scripts/build-earth.mjs). */
@@ -90,8 +90,6 @@ export const PARADE_MAX_CELLS = 2;
 /** Parade spacing between soldiers (world px) and the gap between the barracks front edge and the first row. */
 export const PARADE_SPACING = 3.4;
 export const PARADE_GAP = 3;
-/** Rotation step for buildings (R key), in degrees. */
-export const ROTATE_STEP_DEG = 30;
 // ---------------------------------------------------------------- Combat
 /** Weapon stats (range in world px; faction firepower/range multipliers apply on top). */
 export const WEAPONS: Readonly<Record<WeaponKind, WeaponSpec>> = {
@@ -104,7 +102,7 @@ export const WEAPONS: Readonly<Record<WeaponKind, WeaponSpec>> = {
   missile: { kind: 'missile', damage: 45, range: 60, cooldown: 1.4, vsBuilding: 1.3, hitsAir: true, splash: 4 },
 };
 /** Which weapon each vehicle carries. */
-export const VEHICLE_WEAPON: Readonly<Record<VehicleKind, WeaponKind>> = {
+export const VEHICLE_WEAPON: Readonly<Partial<Record<VehicleKind, WeaponKind>>> = {
   light: 'mg',
   tank: 'cannon',
   ifv: 'autocannon',
@@ -131,10 +129,33 @@ export const VEHICLE_BASE = {
   tank: { cost: 1200, trainSeconds: 14, maxHp: 420, speed: 1.4, radius: 3.0 },
   ifv: { cost: 900, trainSeconds: 11, maxHp: 300, speed: 1.8, radius: 2.8 },
   jet: { cost: 1600, trainSeconds: 16, maxHp: 220, speed: 9, radius: 3.2 },
+  /** Unarmed cargo aircraft: slower than the fighter. */
+  transport: { cost: 1400, trainSeconds: 14, maxHp: 260, speed: 5.5, radius: 3.6 },
 } as const;
+
+/** Aircraft are built at the Airfield and use its runway; everything else rolls out of the War Factory. */
+export const isAircraftKind = (kind: VehicleKind): boolean => kind === 'jet' || kind === 'transport';
+
+/**
+ * Temporary: only these vehicles can be produced (sidebar and AI). The rest stay in the code but are
+ * hidden until they are wanted again — add a kind here to bring it back.
+ */
+export const AVAILABLE_VEHICLES: readonly VehicleKind[] = ['tank', 'ifv', 'jet', 'transport'];
+
+/**
+ * Transport aircraft load: soldiers only → 12; soldiers + a vehicle → 8 soldiers and 1 vehicle;
+ * vehicles only → 3 (2 or 3 vehicles leave no room for soldiers).
+ */
+export const TRANSPORT_SOLDIERS = 12;
+export const TRANSPORT_MIXED_SOLDIERS = 8;
+export const TRANSPORT_VEHICLES = 3;
+/** Ground vehicles this close (px) to an enemy soldier run it over. */
+export const CRUSH_RADIUS = 2.4;
+/** Veteran / Elite / Elite+ at 3× / 6× / 9× the unit's own price in destroyed enemy value. */
+export const RANK_KILL_MULTIPLES = [3, 6, 9] as const;
 export const WAR_FACTORY_COST = 2000;
 /** Max vehicles waiting in a nation's vehicle queue. */
-export const VEHICLE_QUEUE_MAX = 5;
+export const VEHICLE_QUEUE_MAX = 10;
 
 /** Engineers repair this many HP per second on a friendly building. */
 export const ENGINEER_REPAIR_HP_PER_SECOND = 60;
@@ -142,7 +163,7 @@ export const ENGINEER_REPAIR_HP_PER_SECOND = 60;
 export const HOSPITAL_HEAL_PER_SECOND = 10;
 export const HOSPITAL_CAPACITY = 20;
 /** Max soldiers waiting in a nation's training queue. */
-export const TRAINING_QUEUE_MAX = 5;
+export const TRAINING_QUEUE_MAX = 20;
 
 /** Every nation starts broke; oil derricks are the only source of TB. */
 export const STARTING_CREDITS = 0;
@@ -172,3 +193,13 @@ export const OIL_DERRICK_COUNT: Readonly<Record<FactionId, number>> = { usa: 3, 
 /** Oil cycle: pump for 3 minutes, then rest 1 minute while the field recovers. */
 export const OIL_MINE_SECONDS = 180;
 export const OIL_REST_SECONDS = 60;
+
+/** Price-equivalent of a destroyed structure, for veteran experience (default 1000). */
+export const BUILDING_VALUE: Readonly<Partial<Record<BuildingType, number>>> = {
+  barracks: BARRACKS_COST,
+  hospital: HOSPITAL_COST,
+  warFactory: WAR_FACTORY_COST,
+  airfield: AIRFIELD_COST,
+  capital: 4000,
+  oilDerrick: 1500,
+};

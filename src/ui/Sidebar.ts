@@ -2,20 +2,12 @@ import { type IconNode, Hammer, PersonStanding, Shield, Truck, createElement } f
 import { CURRENCY, MAX_VEHICLES } from '../constants';
 import { FACTIONS } from '../factions';
 import { getFlagTexture } from '../render/Flags';
-import type { BuildOption, QueueSlot } from '../systems/ConstructionSystem';
+import { type BuildOption, type QueueSlot, buildCost } from '../systems/ConstructionSystem';
 import type { ArmyCount, TrainOption, TrainingQueue } from '../systems/TrainingSystem';
 import type { VehicleOption, VehicleQueue } from '../systems/VehicleSystem';
-import type { BuildingType, PlayerState } from '../types';
+import type { BuildingType, FactionId, PlayerState, WorldPoint } from '../types';
 
 type TabId = 'build' | 'defense' | 'infantry' | 'vehicles';
-
-/** Names shown on locked cameos. */
-const TYPE_LABEL: Readonly<Partial<Record<BuildingType, string>>> = {
-  barracks: 'BARRACKS',
-  warFactory: 'FACTORY',
-  hospital: 'HOSPITAL',
-  airfield: 'AIRFIELD',
-};
 
 /** Construction tabs (RA2 sidebar), shown as Lucide icons. */
 const BUILD_TABS: readonly { id: TabId; label: string; icon: IconNode; enabled: boolean }[] = [
@@ -66,13 +58,25 @@ export interface SidebarHandlers {
   /** Right click on an infantry cameo: remove one from the queue (refund if in training). */
   onTrainCancel: (option: TrainOption) => void;
   trainPreview: (option: TrainOption) => HTMLCanvasElement;
+  /** An alert in the alert section was clicked: look at where it happened. */
+  onAlert: (at: WorldPoint) => void;
 }
+
+/** One line of the alert section. */
+interface AlertEntry {
+  text: string;
+  at: WorldPoint;
+  /** performance.now() when it was raised. */
+  born: number;
+}
+
+const MAX_ALERTS = 4;
 
 type Cameo = { el: HTMLElement; wipe: HTMLElement; state: HTMLElement; badge?: HTMLElement };
 
 /**
- * Right-hand command bar (DOM overlay): radar, TB treasury & income, oil,
- * power, the construction tabs with their build cameos, and controls help.
+ * Right-hand command centre (DOM overlay): the map (radar), the national budget & income, oil and
+ * power, an alert section ("under attack"), and the purchasing tabs (buildings, soldiers, vehicles).
  */
 export class Sidebar {
   readonly minimapCanvas: HTMLCanvasElement;
@@ -86,6 +90,10 @@ export class Sidebar {
   private readonly autoButton: HTMLElement;
   private autoDefense = false;
   private readonly radarPanel: HTMLElement;
+  private readonly alertList: HTMLElement;
+  private readonly alertEmpty: HTMLElement;
+  private readonly alerts: AlertEntry[] = [];
+  private readonly faction: FactionId;
   private readonly tabButtons = new Map<TabId, HTMLButtonElement>();
   private readonly opener: HTMLButtonElement;
   private readonly cameos = new Map<string, Cameo>();
@@ -97,6 +105,7 @@ export class Sidebar {
   /** The Infantry tab blinks once a Barracks exists, until the player opens it. */
   private infantrySeen = false;
   private messageTimer = 0;
+  private alertClock = 0;
 
   constructor(
     root: HTMLElement,
@@ -107,10 +116,11 @@ export class Sidebar {
     private readonly handlers: SidebarHandlers,
   ) {
     const faction = FACTIONS[player.faction];
+    this.faction = player.faction;
     root.innerHTML = `
       <header class="sb-header">
         <div class="sb-logo">BLACK<span>AREA</span></div>
-        <div class="sb-sub">Phase 2 · Construction, Infantry &amp; Vehicles</div>
+        <div class="sb-sub">Command centre · orders, budget &amp; map</div>
         <button class="sb-collapse" title="Hide sidebar (Tab)">⟩</button>
       </header>
       <section class="sb-panel sb-radar"><canvas class="sb-minimap"></canvas></section>
@@ -122,6 +132,7 @@ export class Sidebar {
             <div class="sb-muted">${faction.name}</div>
           </div>
         </div>
+        <div class="sb-budget-label">National budget</div>
         <div class="sb-credits"><span>0</span> <small>${CURRENCY}</small></div>
         <div class="sb-oil">INCOME <span class="sb-income"></span></div>
         <div class="sb-oil">OIL <span class="sb-derricks"></span></div>
@@ -130,6 +141,11 @@ export class Sidebar {
           <div class="sb-power-label">POWER <span></span></div>
           <div class="sb-power-track"><div class="sb-power-fill"></div></div>
         </div>
+      </section>
+      <section class="sb-panel sb-alerts" aria-live="polite">
+        <h3>Alerts</h3>
+        <ul class="sb-alert-list"></ul>
+        <div class="sb-alert-empty">All quiet.</div>
       </section>
       <nav class="sb-tabs" aria-label="Construction"></nav>
       <section class="sb-panel sb-build">
@@ -144,10 +160,11 @@ export class Sidebar {
           <li><kbd>Click</kbd> cameo — build/train · <kbd>Right-click</kbd> cameo — cancel (refund)</li>
           <li>Soldiers &amp; vehicles: <kbd>Right-drag</kbd> sweep-select · <kbd>Left-click</kbd> a unit select · <kbd>Left-click</kbd> ground — move · <kbd>Right-click</kbd> deselect · <kbd>Shift</kbd> add</li>
           <li>Armed units: <kbd>Left-click</kbd> an enemy to attack · enemy engineers capture buildings · <kbd>M</kbd> sound on/off</li>
-          <li>Army: 1 special per 4 regulars (5 soldiers = 4 + 1) · special forces can swim</li>
+          <li>Limits: 20 soldiers, 10 vehicles · special forces swim · tanks run soldiers over · only aircraft shoot aircraft</li>
+          <li>Transport: select soldiers/vehicles, <kbd>Left-click</kbd> the parked transport to board · <kbd>Left-click</kbd> ground — it flies there, lands and unloads · <kbd>U</kbd> unload on the airfield</li>
           <li>When <b>READY</b>: click cameo, then click the map to place · <kbd>Esc</kbd>/<kbd>Right-click</kbd> stop placing</li>
           <li><kbd>WASD</kbd>/<kbd>Arrows</kbd>/screen edge — scroll · <kbd>Wheel</kbd> zoom · <kbd>Middle-drag</kbd> pan</li>
-          <li><kbd>Click</kbd> select · <kbd>R</kbd> rotate · <kbd>1</kbd>–<kbd>5</kbd> landmarks · <kbd>O</kbd> oil · <kbd>H</kbd> home · <kbd>Tab</kbd> sidebar</li>
+          <li><kbd>Click</kbd> select · <kbd>1</kbd>–<kbd>5</kbd> landmarks · <kbd>O</kbd> oil · <kbd>H</kbd> home · <kbd>Tab</kbd> sidebar</li>
         </ul>
       </section>`;
 
@@ -166,6 +183,8 @@ export class Sidebar {
     this.autoButton = q('.sb-auto');
     this.autoButton.addEventListener('click', () => this.toggleAutoDefense());
     this.radarPanel = q('.sb-radar');
+    this.alertList = q('.sb-alert-list');
+    this.alertEmpty = q('.sb-alert-empty');
     // No browser context menu anywhere on the sidebar (radar, cameos, panels): right-click is a game command.
     root.addEventListener('contextmenu', (e) => e.preventDefault());
     this.buildTabs(q('.sb-tabs'));
@@ -204,6 +223,34 @@ export class Sidebar {
     document.body.classList.toggle('sidebar-hidden');
   }
 
+  /** Adds an alert ("X is under attack!") to the alert section; clicking it shows where it happened. */
+  alert(text: string, at: WorldPoint): void {
+    this.alerts.unshift({ text, at, born: performance.now() });
+    this.alerts.length = Math.min(this.alerts.length, MAX_ALERTS);
+    this.renderAlerts();
+  }
+
+  private renderAlerts(): void {
+    const now = performance.now();
+    this.alertEmpty.hidden = this.alerts.length > 0;
+    this.alertList.replaceChildren(
+      ...this.alerts.map((a) => {
+        const secs = Math.floor((now - a.born) / 1000);
+        const li = document.createElement('li');
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = secs < 4 ? 'sb-alert fresh' : 'sb-alert';
+        btn.innerHTML = `<span class="sb-alert-text"></span><span class="sb-alert-age">${secs < 60 ? `${secs}s` : `${Math.floor(secs / 60)}m`}</span>`;
+        const label = btn.querySelector('.sb-alert-text');
+        if (label) label.textContent = a.text;
+        btn.title = 'Click to look at it';
+        btn.addEventListener('click', () => this.handlers.onAlert(a.at));
+        li.append(btn);
+        return li;
+      }),
+    );
+  }
+
   /** Short EVA-style message under the cameos (e.g. "Construction complete"). */
   notify(text: string, seconds = 3): void {
     this.message.textContent = text;
@@ -233,7 +280,8 @@ export class Sidebar {
     const infantryTab = this.tabButtons.get('infantry');
     if (infantryTab) {
       infantryTab.disabled = !model.hasBarracks;
-      infantryTab.title = model.hasBarracks ? 'Infantry' : 'Infantry (requires a Barracks)';
+      infantryTab.title = model.hasBarracks ? 'Infantry' : '';
+      infantryTab.classList.toggle('no-icon', !model.hasBarracks);
       infantryTab.classList.toggle('sb-attention', model.hasBarracks && !this.infantrySeen);
     }
     if (!model.hasBarracks && this.activeTab === 'infantry') this.switchTab('build');
@@ -242,7 +290,8 @@ export class Sidebar {
     const vehicleTab = this.tabButtons.get('vehicles');
     if (vehicleTab) {
       vehicleTab.disabled = !canMake;
-      vehicleTab.title = canMake ? 'Vehicles & aircraft' : 'Vehicles (requires a War Factory or an Airfield)';
+      vehicleTab.title = canMake ? 'Vehicles & aircraft' : '';
+      vehicleTab.classList.toggle('no-icon', !canMake);
       vehicleTab.classList.toggle('sb-attention', canMake && !this.vehiclesSeen);
     }
     if (!canMake && this.activeTab === 'vehicles') this.switchTab('build');
@@ -261,16 +310,16 @@ export class Sidebar {
       const busyElsewhere = !mine && queue.state !== 'idle';
       c.el.dataset.state = model.placing && mine ? 'placing' : state;
       const missing = option.requires && !model.owned.has(option.requires) ? option.requires : null;
-      c.el.classList.toggle('locked', busyElsewhere || (missing !== null && !mine));
+      const locked = busyElsewhere || (missing !== null && !mine);
+      c.el.classList.toggle('locked', locked);
+      (c.el as HTMLButtonElement).disabled = locked;
       // RA2 clock wipe: the dark sector shrinks as the build progresses.
       const remaining = mine && state !== 'ready' ? 1 - queue.progress : 0;
       c.wipe.style.background =
         mine && state !== 'idle' ? `conic-gradient(rgba(0,0,0,0.62) 0 ${remaining * 360}deg, transparent 0)` : 'none';
       c.state.textContent =
         !mine || state === 'idle'
-          ? missing
-            ? `NEED ${TYPE_LABEL[missing]}`
-            : `${option.cost} ${CURRENCY}`
+          ? `${buildCost(option, this.faction)} ${CURRENCY}`
           : state === 'ready'
             ? model.placing
               ? 'PLACING'
@@ -280,6 +329,13 @@ export class Sidebar {
               : `${Math.floor(queue.progress * 100)}%`;
     }
 
+    if (this.alerts.length > 0) {
+      this.alertClock += dt;
+      if (this.alertClock >= 1) {
+        this.alertClock = 0;
+        this.renderAlerts();
+      }
+    }
     if (this.messageTimer > 0) {
       this.messageTimer -= dt;
       if (this.messageTimer <= 0) this.message.textContent = '';
@@ -308,7 +364,9 @@ export class Sidebar {
       c.el.dataset.state = training ? q.state : count > 0 ? 'queued' : 'idle';
       const atLimit = model.army.total >= model.army.max && count === 0;
       const inOffice = option.tier === 'president' && model.army.presidentTaken && count === 0;
-      c.el.classList.toggle('locked', !model.hasBarracks || atLimit || inOffice);
+      const locked = !model.hasBarracks || atLimit || inOffice;
+      c.el.classList.toggle('locked', locked);
+      (c.el as HTMLButtonElement).disabled = locked;
       if (c.badge) {
         c.badge.textContent = count > 0 ? String(count) : '';
         c.badge.hidden = count === 0;
@@ -322,11 +380,7 @@ export class Sidebar {
       c.state.textContent = !training
         ? count > 0
           ? 'QUEUED'
-          : inOffice
-            ? 'IN OFFICE'
-            : atLimit
-              ? `LIMIT ${model.army.total}/${model.army.max}`
-              : `${option.cost} ${CURRENCY}`
+          : `${option.cost} ${CURRENCY}`
         : q.state === 'noBarracks'
           ? 'NO BARRACKS'
           : q.state === 'onHold'
@@ -346,7 +400,9 @@ export class Sidebar {
       const producing = head === option.kind;
       c.el.dataset.state = producing ? q.state : count > 0 ? 'queued' : 'idle';
       const atLimit = model.vehicleCount >= MAX_VEHICLES && count === 0;
-      c.el.classList.toggle('locked', !have || atLimit);
+      const locked = !have || atLimit;
+      c.el.classList.toggle('locked', locked);
+      (c.el as HTMLButtonElement).disabled = locked;
       if (c.badge) {
         c.badge.textContent = count > 0 ? String(count) : '';
         c.badge.hidden = count === 0;
@@ -357,17 +413,11 @@ export class Sidebar {
         : count > 0
           ? 'rgba(0,0,0,0.45)'
           : 'none';
-      c.state.textContent = !have
-        ? option.requires === 'airfield'
-          ? 'NEED AIRFIELD'
-          : 'NEED FACTORY'
-        : !producing
-          ? count > 0
-            ? 'QUEUED'
-            : atLimit
-              ? `LIMIT ${model.vehicleCount}/${MAX_VEHICLES}`
-              : `${option.cost} ${CURRENCY}`
-          : q.state === 'onHold'
+      c.state.textContent = !producing
+        ? count > 0
+          ? 'QUEUED'
+          : `${option.cost} ${CURRENCY}`
+        : q.state === 'onHold'
             ? `ON HOLD ${Math.floor(q.progress * 100)}%`
             : `${Math.floor(q.progress * 100)}%`;
     }
@@ -452,7 +502,7 @@ export class Sidebar {
       const el = document.createElement('button');
       el.type = 'button';
       el.className = 'sb-cameo';
-      el.title = `${option.name} — ${option.cost} ${CURRENCY}. Click to build, right-click to cancel.`;
+      el.title = `${option.name} — ${buildCost(option, this.faction)} ${CURRENCY}. Click to build, right-click to cancel.`;
       el.innerHTML = `
         <canvas width="128" height="96"></canvas>
         <span class="sb-cameo-wipe"></span>

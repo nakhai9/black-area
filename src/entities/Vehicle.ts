@@ -1,4 +1,13 @@
-import { CELL_SIZE, VEHICLE_BASE, VEHICLE_WEAPON, WEAPONS } from '../constants';
+import {
+  CELL_SIZE,
+  TRANSPORT_MIXED_SOLDIERS,
+  TRANSPORT_SOLDIERS,
+  TRANSPORT_VEHICLES,
+  VEHICLE_BASE,
+  VEHICLE_WEAPON,
+  WEAPONS,
+  isAircraftKind,
+} from '../constants';
 import { FACTIONS } from '../factions';
 import type { FactionId, VehicleKind, VehicleProfile, WorldPoint } from '../types';
 import { Unit } from './Unit';
@@ -6,9 +15,10 @@ import { Unit } from './Unit';
 /**
  * Where an aircraft is in its sortie:
  * parked on the apron → taxiing to the runway → take-off roll → airborne →
- * approach → landing roll → taxiing back to its parking spot.
+ * approach → landing roll → taxiing back to its parking spot. A transport
+ * that reaches its drop-off point sets down there ('unloading') and lifts off again.
  */
-export type Flight = 'parked' | 'taxi' | 'takeoff' | 'airborne' | 'approach' | 'landing' | 'taxiHome' | 'crashing';
+export type Flight = 'parked' | 'taxi' | 'takeoff' | 'airborne' | 'approach' | 'landing' | 'taxiHome' | 'crashing' | 'unloading';
 
 /** Cruise height of an aircraft above the ground (world px, drawn offset). */
 export const CRUISE_ALTITUDE = 7;
@@ -19,23 +29,33 @@ const HANDLING: Readonly<Record<VehicleKind, { accel: number; turn: number; pivo
   tank: { accel: 0.9, turn: 2.4, pivot: true },
   ifv: { accel: 0.7, turn: 3.2, pivot: true },
   jet: { accel: 0.6, turn: 2.2, pivot: false },
+  transport: { accel: 0.9, turn: 1.6, pivot: false },
 };
 
-/** A land vehicle (light car, tank, armoured vehicle) or a fighter aircraft. */
+/** Can `soldiers` soldiers and `vehicles` vehicles travel together in one transport? */
+export function transportFits(soldiers: number, vehicles: number): boolean {
+  if (vehicles === 0) return soldiers <= TRANSPORT_SOLDIERS;
+  if (vehicles === 1) return soldiers <= TRANSPORT_MIXED_SOLDIERS;
+  return vehicles <= TRANSPORT_VEHICLES && soldiers === 0;
+}
+
+/** A land vehicle (light car, tank, armoured vehicle) or an aircraft (fighter, transport). */
 export class Vehicle extends Unit {
   readonly profile: VehicleProfile;
   readonly speed: number;
   readonly radius: number;
   readonly bodyHeight: number;
+  /** Price paid for it (faction cost applied): the yardstick for veteran ranks. */
+  readonly value: number;
 
-  // ---- aircraft state (jets only)
+  // ---- aircraft state
   flight: Flight = 'airborne';
   /** Height above the ground in px: 0 on the ground, CRUISE_ALTITUDE in the air. */
   altitude = 0;
   /** Airfield this aircraft belongs to, and its parking spot there. */
   homeId: number | null = null;
   slot = -1;
-  /** Seconds into the current take-off / landing roll. */
+  /** Seconds into the current take-off / landing roll (or the unloading stop). */
   phaseTime = 0;
   /** Seconds the aircraft has had nothing to do while airborne. */
   idleFor = 0;
@@ -45,6 +65,10 @@ export class Vehicle extends Unit {
   drawDepth: number | null = null;
   /** Orders given while it was busy on the ground; carried out once it is airborne. */
   mission: WorldPoint[] | null = null;
+  /** Transport only: where it sets down to unload. */
+  dropSpot: WorldPoint | null = null;
+  /** Transport only: soldiers and vehicles aboard (hidden from the map while inside). */
+  readonly cargo: Unit[] = [];
 
   constructor(
     owner: number,
@@ -58,32 +82,36 @@ export class Vehicle extends Unit {
     this.profile = f.vehicles[type];
     this.speed = base.speed * f.stats.unitSpeed * CELL_SIZE;
     this.radius = base.radius;
-    this.bodyHeight = type === 'jet' ? 7 : 1.8;
-    const spec = WEAPONS[VEHICLE_WEAPON[type]];
-    this.weapon = { ...spec, damage: spec.damage * f.stats.firepower, range: spec.range * f.stats.range };
+    this.value = Math.round((base.cost * f.stats.cost) / 10) * 10;
+    this.bodyHeight = isAircraftKind(type) ? 7 : 1.8;
+    const weapon = VEHICLE_WEAPON[type];
+    if (weapon) {
+      const spec = WEAPONS[weapon];
+      this.weapon = { ...spec, damage: spec.damage * f.stats.firepower, range: spec.range * f.stats.range };
+    }
     const h = HANDLING[type];
     this.accelTime = h.accel;
     this.turnRate = h.turn;
     this.turnsToMove = h.pivot;
-    if (type === 'jet') this.altitude = CRUISE_ALTITUDE;
+    if (isAircraftKind(type)) this.altitude = CRUISE_ALTITUDE;
   }
 
   /** In the air: cruising or on the final approach. */
   override get flies(): boolean {
-    return this.type === 'jet' && (this.flight === 'airborne' || this.flight === 'approach' || this.flight === 'crashing');
+    return this.aircraft && (this.flight === 'airborne' || this.flight === 'approach' || this.flight === 'crashing');
   }
 
   override get aircraft(): boolean {
-    return this.type === 'jet';
+    return isAircraftKind(this.type);
   }
 
   /** Parked, taxiing, rolling for take-off or landing: moved by the AircraftSystem, never shoved. */
   override get fixed(): boolean {
-    return this.type === 'jet' && !this.flies;
+    return this.aircraft && !this.flies;
   }
 
   override get canFight(): boolean {
-    return this.type !== 'jet' || this.flight === 'airborne';
+    return !this.aircraft || (this.flight === 'airborne' && this.weapon !== null);
   }
 
   override get depth(): number {
@@ -92,6 +120,37 @@ export class Vehicle extends Unit {
 
   get name(): string {
     return this.profile.name;
+  }
+
+  // ---- transport cargo
+
+  get isTransport(): boolean {
+    return this.type === 'transport';
+  }
+
+  get soldiersAboard(): number {
+    return this.cargo.filter((u) => !(u instanceof Vehicle)).length;
+  }
+
+  get vehiclesAboard(): number {
+    return this.cargo.length - this.soldiersAboard;
+  }
+
+  /** May `u` climb aboard right now? Only a parked transport takes passengers; fighters and transports never do. */
+  canLoad(u: Unit): boolean {
+    if (!this.isTransport || this.flight !== 'parked' || !this.alive) return false;
+    const vehicle = u instanceof Vehicle;
+    if (vehicle && u.aircraft) return false;
+    const s = this.soldiersAboard + (vehicle ? 0 : 1);
+    const v = this.vehiclesAboard + (vehicle ? 1 : 0);
+    return transportFits(s, v);
+  }
+
+  /** Nothing more fits: another soldier and another vehicle would both break the load limits. */
+  get full(): boolean {
+    const s = this.soldiersAboard;
+    const v = this.vehiclesAboard;
+    return !transportFits(s + 1, v) && !transportFits(s, v + 1);
   }
 
   override update(dt: number): void {

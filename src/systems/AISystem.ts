@@ -7,7 +7,7 @@ import type { Pathfinder } from '../map/Pathfinder';
 import type { TileMap } from '../map/TileMap';
 import { mulberry32 } from '../core/Random';
 import type { BuildingType, GridPoint, PlayerState, UnitTier, VehicleKind, WorldPoint } from '../types';
-import { BUILD_OPTIONS, type BuildOption, type ConstructionSystem } from './ConstructionSystem';
+import { BUILD_OPTIONS, type BuildOption, type ConstructionSystem, buildCost } from './ConstructionSystem';
 import type { GameSystem } from './GameSystem';
 import type { PlacementSystem } from './PlacementSystem';
 import type { TrainingSystem } from './TrainingSystem';
@@ -139,7 +139,7 @@ export class AISystem implements GameSystem {
     const next = BUILD_PLAN.map((id) => BUILD_OPTIONS.find((o) => o.id === id)).find(
       (o) => o && !owned.has(o.id as BuildingType) && (!o.requires || owned.has(o.requires)),
     );
-    if (next && p.credits >= next.cost * 0.3) this.host.construction.start(p, next);
+    if (next && p.credits >= buildCost(next, p.faction) * 0.3) this.host.construction.start(p, next);
   }
 
   /** A legal spot near the capital (preferring close ones, with some randomness). */
@@ -182,8 +182,7 @@ export class AISystem implements GameSystem {
     if (owned.has('warFactory') || owned.has('airfield')) {
       const q = production.queue(p);
       if (q.items.length < depth && p.credits > (threat > 0 ? 500 : 700)) {
-        const roll = st.rng();
-        let kind: VehicleKind = roll < 0.5 ? 'tank' : roll < 0.8 ? 'ifv' : 'light';
+        let kind: VehicleKind = st.rng() < 0.6 ? 'tank' : 'ifv';
         if (!assist && owned.has('airfield') && p.credits > 1700 && st.rng() < 0.3) kind = 'jet';
         if (!owned.has('warFactory') && kind !== 'jet') kind = 'jet';
         if (!assist || kind !== 'jet') production.enqueue(p, kind);
