@@ -1,4 +1,4 @@
-import { OIL_PRICE_INTERVAL, OIL_PRICE_MAX, OIL_PRICE_START, WB_MAX_SHARE } from '../constants';
+import { OIL_PRICE_INTERVAL, OIL_PRICE_MAX, OIL_PRICE_START, OIL_SALES_MAX, OIL_SALES_WINDOW, WB_MAX_SHARE } from '../constants';
 import type { PlayerState } from '../types';
 import type { GameSystem } from './GameSystem';
 
@@ -20,6 +20,9 @@ export class OilMarket implements GameSystem {
   price = OIL_PRICE_START;
   previous = OIL_PRICE_START;
   private clock = OIL_PRICE_INTERVAL;
+  /** Market time (s) and the times each nation offered oil lately (rate limit). */
+  private now = 0;
+  private readonly offers = new Map<number, number[]>();
 
   constructor(private readonly random: () => number = Math.random) {}
 
@@ -29,6 +32,7 @@ export class OilMarket implements GameSystem {
   }
 
   update(dt: number): void {
+    this.now += dt;
     this.clock -= dt;
     while (this.clock <= 0) {
       this.clock += OIL_PRICE_INTERVAL;
@@ -54,8 +58,31 @@ export class OilMarket implements GameSystem {
    * `player` offers all of its oil. The Bank may decline (price too low, or simply not interested
    * this time); otherwise it buys a share of the stock — the cheaper the oil, the keener it is.
    */
+  /** Offers of `player` within the last OIL_SALES_WINDOW seconds. */
+  private recent(player: PlayerState): number[] {
+    const list = (this.offers.get(player.id) ?? []).filter((t) => this.now - t < OIL_SALES_WINDOW);
+    this.offers.set(player.id, list);
+    return list;
+  }
+
+  /** How many more times the nation may sell right now. */
+  salesLeft(player: PlayerState): number {
+    return Math.max(0, OIL_SALES_MAX - this.recent(player).length);
+  }
+
+  /** Seconds until the nation may sell again (0 when it can sell now). */
+  waitSeconds(player: PlayerState): number {
+    const list = this.recent(player);
+    if (list.length < OIL_SALES_MAX) return 0;
+    return Math.ceil(OIL_SALES_WINDOW - (this.now - (list[0] ?? this.now)));
+  }
+
   sell(player: PlayerState): SaleResult {
     if (player.defeated) return { kind: 'declined', reason: 'your nation has fallen' };
+    if (this.salesLeft(player) === 0) {
+      return { kind: 'declined', reason: `at most ${OIL_SALES_MAX} sales in ${OIL_SALES_WINDOW} seconds — try again in ${this.waitSeconds(player)} s` };
+    }
+    this.recent(player).push(this.now); // every offer counts, even when the Bank turns it down
     const stock = player.oil;
     if (stock < MIN_SALE_STOCK) return { kind: 'declined', reason: 'not enough oil to offer' };
     if (this.price < 40) return { kind: 'declined', reason: 'the price is too low — the Bank is not buying' };

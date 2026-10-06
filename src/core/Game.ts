@@ -64,6 +64,7 @@ import { AircraftSystem, type AirfieldGeometry } from '../systems/AircraftSystem
 import { AISystem } from '../systems/AISystem';
 import { canTarget, CombatSystem, distanceTo, isHostile } from '../systems/CombatSystem';
 import { OilMarket } from '../systems/OilMarket';
+import { EndScreen } from '../ui/EndScreen';
 import { NewsToast } from '../ui/NewsToast';
 import { BUILD_OPTIONS, type BuildOption, ConstructionSystem, type QueueState, buildCost } from '../systems/ConstructionSystem';
 import { EconomySystem } from '../systems/EconomySystem';
@@ -153,6 +154,10 @@ export class Game {
   /** World Bank oil market (one price for every nation) and the news toasts. */
   readonly oilMarket: OilMarket;
   private readonly news: NewsToast;
+  private readonly endScreen = new EndScreen();
+  /** The war is decided (victory or game over): the simulation stops. */
+  private ended = false;
+  private endCheck = 0;
   private readonly lastShot = new Map<number, number>();
   private smokeTimer = 0;
   /** Types of the human player's buildings, refreshed with the sidebar. */
@@ -525,6 +530,12 @@ export class Game {
 
   /** Fixed-rate simulation step. */
   private tick(dt: number): void {
+    if (this.ended) return;
+    this.endCheck += dt;
+    if (this.endCheck >= 1) {
+      this.endCheck = 0;
+      this.evaluateNations();
+    }
     for (const u of this.entities.fieldMovers()) {
       const cx = Math.floor(u.px / CELL_SIZE);
       const cy = Math.floor(u.py / CELL_SIZE);
@@ -687,8 +698,8 @@ export class Game {
           player: this.humanPlayer,
           oilRate: this.economy.oilRate(this.humanPlayer),
           oilPrice: this.oilMarket.price,
-          oilPriceDelta: this.oilMarket.price - this.oilMarket.previous,
-          oilPriceIn: this.oilMarket.secondsToChange,
+          salesLeft: this.oilMarket.salesLeft(this.humanPlayer),
+          salesWait: this.oilMarket.waitSeconds(this.humanPlayer),
           derricks: own.length,
           pumping,
           queue,
@@ -836,7 +847,7 @@ export class Game {
         if (this.placing) {
           this.placingRotated = !this.placingRotated;
           this.sidebar.notify(this.placingRotated ? 'Turned 90°.' : 'Turned back.', 1.5);
-        }
+        } else this.rotateSelectedBuilding();
         break;
       case 'Equal':
       case 'NumpadAdd':
@@ -901,6 +912,40 @@ export class Game {
     this.stopPlacing();
     this.construction.cancel(this.humanPlayer);
     this.sidebar.notify(`Construction cancelled — ${refund} ${CURRENCY} refunded.`);
+    this.sidebarTimer = SIDEBAR_REFRESH;
+  }
+
+  /**
+   * R with one of your buildings selected: turns it 90° on the ground (footprint d × w, art mirrored) if the
+   * turned footprint fits on free, buildable cells around the same centre — always square to the grid.
+   */
+  private rotateSelectedBuilding(): void {
+    const b = this.selection.selectedId === null ? undefined : this.entities.get(this.selection.selectedId);
+    if (!(b instanceof Building) || !b.alive || b.owner !== this.humanPlayer.id) return;
+    const t = b.spec.type;
+    if (t === 'capital' || t === 'oilDerrick' || t === 'bank' || t === 'chhg') {
+      this.sidebar.notify('This structure cannot be turned.', 2);
+      return;
+    }
+    if (t === 'airfield' && this.entities.vehicles().some((v) => v.homeId === b.id && v.alive && v.fixed)) {
+      this.sidebar.notify('Move the aircraft off the airfield before turning it.', 3);
+      return;
+    }
+    const w = b.d;
+    const d = b.w;
+    const x = Math.round(b.x + b.w / 2 - w / 2);
+    const y = Math.round(b.y + b.d / 2 - d / 2);
+    // Free its own cells while checking the turned footprint.
+    this.map.occupy(b.x, b.y, b.w, b.d, null);
+    const result = this.placement.check({ owner: b.owner, x, y, w, d });
+    if (!result.ok) {
+      this.map.occupy(b.x, b.y, b.w, b.d, b.id);
+      this.sidebar.notify(`Cannot turn it here: ${BLOCK_REASONS[result.reason] ?? result.reason}.`, 3);
+      return;
+    }
+    b.rotated = !b.rotated;
+    b.moveTo(x, y);
+    this.map.occupy(b.x, b.y, b.w, b.d, b.id);
     this.sidebarTimer = SIDEBAR_REFRESH;
   }
 
@@ -1048,16 +1093,45 @@ export class Game {
     this.sidebarTimer = SIDEBAR_REFRESH;
   }
 
-  /** A capital was destroyed: its nation has lost the war (BREAKING NEWS toast, top-left). */
+  /** Does the nation still have soldiers or armed vehicles (aircraft and passengers included)? */
+  private hasArmy(p: PlayerState): boolean {
+    return (
+      this.entities.units().some((u) => u.owner === p.id && u.alive && u.weapon !== null) ||
+      this.entities.vehicles().some((v) => v.owner === p.id && v.alive && v.weapon !== null)
+    );
+  }
+
+  /** A capital fell: BREAKING NEWS. The nation is only beaten once it has no soldiers or combat vehicles left either. */
   private defeatNation(capital: Building): void {
     const nation = this.players.find((p) => p.id === capital.owner);
     if (!nation || nation.defeated) return;
-    nation.defeated = true;
     const name = FACTIONS[nation.faction].name;
-    this.news.show(
-      'BREAKING NEWS',
-      nation.isHuman ? `${name} has been defeated — your capital has fallen!` : `${name} has been defeated — its capital, ${capital.spec.name}, has fallen.`,
-    );
+    const fights = this.hasArmy(nation);
+    const subject = nation.isHuman ? 'Your capital has fallen' : `${name}'s capital, ${capital.spec.name}, has fallen`;
+    const army = nation.isHuman ? 'your army fights on' : 'its army fights on';
+    this.news.show('BREAKING NEWS', fights ? `${subject} — but ${army}.` : `${subject}.`);
+  }
+
+  /**
+   * A nation is defeated when its capital is gone AND it has no soldiers or combat vehicles. The player loses
+   * the game when defeated; the player wins once every other nation is defeated.
+   */
+  private evaluateNations(): void {
+    for (const p of this.players) {
+      if (p.defeated) continue;
+      const hasCapital = this.entities.buildings().some((b) => b.owner === p.id && b.alive && b.spec.type === 'capital');
+      if (hasCapital || this.hasArmy(p)) continue;
+      p.defeated = true;
+      const name = FACTIONS[p.faction].name;
+      this.news.show('BREAKING NEWS', p.isHuman ? 'Your nation has been defeated.' : `${name} has been defeated — no capital and no army left.`);
+    }
+    if (this.humanPlayer.defeated) {
+      this.ended = true;
+      this.endScreen.show(false, 'Your capital has fallen and you have no soldiers or combat vehicles left.');
+    } else if (this.players.every((p) => p.isHuman || p.defeated)) {
+      this.ended = true;
+      this.endScreen.show(true, 'Every enemy capital is destroyed and no enemy soldier or combat vehicle remains. The war is won.');
+    }
   }
 
   /** Something ran out of health: remove it with an explosion. */

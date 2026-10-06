@@ -850,3 +850,83 @@ kbd {
   }
 }
 
+/* ------------------------------------------------------------- controls: an accordion */
+details.sb-help > summary {
+  cursor: pointer;
+  list-style: none;
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--accent);
+  font-weight: 700;
+  display: flex;
+  justify-content: space-between;
+  user-select: none;
+}
+details.sb-help > summary::-webkit-details-marker {
+  display: none;
+}
+details.sb-help > summary::after {
+  content: '+';
+  font-size: 14px;
+  line-height: 1;
+}
+details.sb-help[open] > summary::after {
+  content: '–';
+}
+details.sb-help[open] > summary {
+  margin-bottom: 6px;
+}
+
+/* ------------------------------------------------------------- game over / victory */
+.end-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  background: rgba(2, 4, 8, 0.78);
+  animation: end-in 0.6s ease-out;
+}
+.end-card {
+  min-width: 320px;
+  max-width: min(560px, calc(100vw - 32px));
+  padding: 28px 34px;
+  text-align: center;
+  background: #0b1016;
+  border: 2px solid var(--end-color, #ff3b30);
+  box-shadow: 0 0 40px rgba(0, 0, 0, 0.7);
+}
+.end-card h1 {
+  margin: 0 0 8px;
+  font-size: 40px;
+  letter-spacing: 6px;
+  color: var(--end-color, #ff3b30);
+}
+.end-card p {
+  margin: 0 0 20px;
+  color: #cfd8e0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.end-card button {
+  padding: 10px 22px;
+  border: 1px solid var(--end-color, #ff3b30);
+  background: transparent;
+  color: #f2f5f8;
+  font: inherit;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.end-card button:hover {
+  background: var(--end-color, #ff3b30);
+  color: #0b1016;
+}
+@keyframes end-in {
+  from {
+    opacity: 0;
+  }
+}
+

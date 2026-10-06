@@ -207,6 +207,9 @@ export const OIL_PRICE_MAX = 1200;
 export const OIL_PRICE_INTERVAL = 360;
 /** The Bank never buys more than this share of the offered stock in one sale. */
 export const WB_MAX_SHARE = 0.25;
+/** A nation may offer its oil at most this many times in any window of this many seconds. */
+export const OIL_SALES_MAX = 5;
+export const OIL_SALES_WINDOW = 30;
 /** Oil derricks per nation, built in one straight row on the safest ground: 3, or 4 for Europe (it also runs the World Bank). */
 export const OIL_DERRICK_COUNT: Readonly<Record<FactionId, number>> = { usa: 3, russia: 3, china: 3, europe: 4 };
 /** Oil cycle: pump for 3 minutes, then rest 1 minute while the field recovers. */

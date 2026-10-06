@@ -9,8 +9,8 @@ const TREE_SPACING = 4;
 const DENSITY_FOREST = 0.07;
 /** Trees only grow inside a few scattered groves: the rest of the land stays open for building. */
 const GROVE_SCALE = 45;
-const GROVE_FROM = 0.66;
-const GROVE_TO = 0.74;
+const GROVE_FROM = 0.42;
+const GROVE_TO = 0.55;
 
 /**
  * All trees on the map as gameplay data (not just decoration): each tree

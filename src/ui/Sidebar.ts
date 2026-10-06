@@ -21,10 +21,11 @@ export interface SidebarModel {
   player: PlayerState;
   /** Oil output in barrels per second. */
   oilRate: number;
-  /** World Bank price in TB per barrel, how much it moved at the last revision, and seconds to the next one. */
+  /** The price the World Bank pays right now, in TB per barrel. */
   oilPrice: number;
-  oilPriceDelta: number;
-  oilPriceIn: number;
+  /** Sales left in the current 30 s window, and seconds to wait when there are none. */
+  salesLeft: number;
+  salesWait: number;
   derricks: number;
   /** Derricks currently pumping (the others are resting). */
   pumping: number;
@@ -93,7 +94,6 @@ export class Sidebar {
   private readonly income: HTMLElement;
   private readonly stock: HTMLElement;
   private readonly price: HTMLElement;
-  private readonly priceNext: HTMLElement;
   private readonly sellButton: HTMLButtonElement;
   private readonly derricks: HTMLElement;
   private readonly powerFill: HTMLElement;
@@ -148,8 +148,7 @@ export class Sidebar {
         <div class="sb-credits"><span>0</span> <small>${CURRENCY}</small></div>
         <div class="sb-oil">OIL OUTPUT <span class="sb-income"></span></div>
         <div class="sb-oil">OIL STOCK <span class="sb-stock"></span></div>
-        <div class="sb-oil">WORLD BANK PRICE <span class="sb-price"></span></div>
-        <div class="sb-oil sb-oil-next">NEXT PRICE IN <span class="sb-price-next"></span></div>
+        <div class="sb-oil">BANK BUYS AT <span class="sb-price"></span></div>
         <button class="sb-sell" type="button" title="Offer your oil to the World Bank: it decides whether and how much to buy (at most 25% per sale) and pays the posted price into your budget">Sell oil</button>
         <div class="sb-oil">DERRICKS <span class="sb-derricks"></span></div>
         <button class="sb-auto" type="button" aria-pressed="false" title="Automatically train soldiers and vehicles to defend your base (F)">Auto-defense: OFF</button>
@@ -170,8 +169,8 @@ export class Sidebar {
         <div class="sb-cameos" data-panel="vehicles" hidden></div>
         <div class="sb-msg" role="status" aria-live="polite"></div>
       </section>
-      <section class="sb-panel sb-help">
-        <h3>Controls</h3>
+      <details class="sb-panel sb-help">
+        <summary>Controls</summary>
         <ul>
           <li><kbd>Click</kbd> cameo — build/train · <kbd>Right-click</kbd> cameo — cancel (refund)</li>
           <li>Soldiers &amp; vehicles: <kbd>Right-drag</kbd> sweep-select · <kbd>Left-click</kbd> a unit select · <kbd>Left-click</kbd> ground — move · <kbd>Right-click</kbd> deselect · <kbd>Shift</kbd> add</li>
@@ -182,7 +181,7 @@ export class Sidebar {
           <li><kbd>WASD</kbd>/<kbd>Arrows</kbd>/screen edge — scroll · <kbd>Wheel</kbd> zoom · <kbd>Middle-drag</kbd> pan</li>
           <li><kbd>Click</kbd> select · <kbd>1</kbd>–<kbd>5</kbd> landmarks · <kbd>O</kbd> oil · <kbd>H</kbd> home · <kbd>Tab</kbd> sidebar</li>
         </ul>
-      </section>`;
+      </details>`;
 
     const q = <T extends HTMLElement>(sel: string): T => {
       const el = root.querySelector<T>(sel);
@@ -194,7 +193,6 @@ export class Sidebar {
     this.income = q('.sb-income');
     this.stock = q('.sb-stock');
     this.price = q('.sb-price');
-    this.priceNext = q('.sb-price-next');
     this.sellButton = q('.sb-sell');
     this.sellButton.addEventListener('click', () => this.handlers.onSellOil());
     this.derricks = q('.sb-derricks');
@@ -283,13 +281,9 @@ export class Sidebar {
     this.credits.textContent = Math.floor(player.credits).toLocaleString('en-US');
     this.income.textContent = `+${model.oilRate.toFixed(2)} bbl/s`;
     this.stock.textContent = `${player.oil.toFixed(1)} bbl`;
-    const d = model.oilPriceDelta;
-    this.price.textContent = `${model.oilPrice} ${CURRENCY}/bbl ${d > 0 ? '▲' : d < 0 ? '▼' : '■'}${d !== 0 ? ` ${Math.abs(d)}` : ''}`;
-    this.price.classList.toggle('up', d > 0);
-    this.price.classList.toggle('down', d < 0);
-    const secs = Math.ceil(model.oilPriceIn);
-    this.priceNext.textContent = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
-    this.sellButton.disabled = player.defeated || player.oil < 0.5;
+    this.price.textContent = `${model.oilPrice} ${CURRENCY}/bbl`;
+    this.sellButton.disabled = player.defeated || player.oil < 0.5 || model.salesLeft === 0;
+    this.sellButton.textContent = model.salesLeft === 0 ? `Sell oil · wait ${model.salesWait}s` : `Sell oil · ${model.salesLeft} left`;
     this.derricks.textContent = `${model.pumping}/${model.derricks} pumping`;
 
     const produced = player.powerProduced;
