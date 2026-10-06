@@ -8,7 +8,7 @@ import { Unit } from './Unit';
  * parked on the apron → taxiing to the runway → take-off roll → airborne →
  * approach → landing roll → taxiing back to its parking spot.
  */
-export type Flight = 'parked' | 'taxi' | 'takeoff' | 'airborne' | 'approach' | 'landing' | 'taxiHome';
+export type Flight = 'parked' | 'taxi' | 'takeoff' | 'airborne' | 'approach' | 'landing' | 'taxiHome' | 'crashing';
 
 /** Cruise height of an aircraft above the ground (world px, drawn offset). */
 export const CRUISE_ALTITUDE = 7;
@@ -70,7 +70,7 @@ export class Vehicle extends Unit {
 
   /** In the air: cruising or on the final approach. */
   override get flies(): boolean {
-    return this.type === 'jet' && (this.flight === 'airborne' || this.flight === 'approach');
+    return this.type === 'jet' && (this.flight === 'airborne' || this.flight === 'approach' || this.flight === 'crashing');
   }
 
   override get aircraft(): boolean {

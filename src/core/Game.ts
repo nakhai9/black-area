@@ -59,7 +59,7 @@ import { BUILDING_ART } from '../render/sprites';
 import { AIRFIELD_SIZE, AIRFIELD_SLOTS, RUNWAY_D } from '../render/sprites/Airfield';
 import { AircraftSystem, type AirfieldGeometry } from '../systems/AircraftSystem';
 import { AISystem } from '../systems/AISystem';
-import { CombatSystem, isHostile } from '../systems/CombatSystem';
+import { canTarget, CombatSystem, isHostile } from '../systems/CombatSystem';
 import { BUILD_OPTIONS, type BuildOption, ConstructionSystem, type QueueState } from '../systems/ConstructionSystem';
 import { EconomySystem } from '../systems/EconomySystem';
 import type { GameSystem } from '../systems/GameSystem';
@@ -446,6 +446,34 @@ export class Game {
     }
   }
 
+  /**
+   * Enemies to highlight like Red Alert 2: everything my units are shooting at or have been ordered
+   * to attack (strong when a *selected* unit is on it), plus the enemy under the cursor when the
+   * selected army could attack it.
+   */
+  private attackFocus(): { entity: Unit | Building; strong: boolean; hover: boolean }[] {
+    const me = this.humanPlayer.id;
+    const selected = this.selection.selectedUnits;
+    const out = new Map<number, { entity: Unit | Building; strong: boolean; hover: boolean }>();
+    const mark = (e: Entity | undefined, strong: boolean, hover: boolean): void => {
+      if (!e || !e.alive || !(e instanceof Unit || e instanceof Building)) return;
+      if (e instanceof Unit && !e.visible) return;
+      const prev = out.get(e.id);
+      out.set(e.id, { entity: e, strong: strong || !!prev?.strong, hover: hover || !!prev?.hover });
+    };
+    for (const u of this.entities.fieldMovers()) {
+      if (u.owner !== me || !u.alive) continue;
+      const id = u.attackTarget ?? u.combatTarget;
+      if (id === null) continue;
+      const target = this.entities.get(id);
+      if (target && isHostile(u, target)) mark(target, selected.has(u.id), false);
+    }
+    const hoverId = this.selection.hoveredUnitId ?? this.selection.hoveredId;
+    const hovered = hoverId === null ? undefined : this.entities.get(hoverId);
+    if (hovered && hovered.owner !== me && this.selection.selectedUnitList().some((u) => canTarget(u, hovered))) mark(hovered, true, true);
+    return [...out.values()];
+  }
+
   /** Per-frame: input, camera, rendering, UI. */
   private frame(dt: number): void {
     this.time += dt;
@@ -456,7 +484,9 @@ export class Game {
     this.updateGhost();
     this.selection.updateHover(this.placing ? null : this.mouseWorld);
     const hovering = this.selection.hoveredId !== null || this.selection.hoveredUnitId !== null;
-    this.dom.canvas.style.cursor = this.placing ? 'crosshair' : hovering ? 'pointer' : 'default';
+    const focus = this.placing ? [] : this.attackFocus();
+    const aiming = focus.some((f) => f.hover);
+    this.dom.canvas.style.cursor = this.placing || aiming ? 'crosshair' : hovering ? 'pointer' : 'default';
 
     this.effects.update(dt);
     this.smokeFromDamagedBuildings(dt);
@@ -474,6 +504,7 @@ export class Game {
       selectedUnits: this.selection.selectedUnits,
       hoveredUnitId: this.placing ? null : this.selection.hoveredUnitId,
       moveMarker: this.moveMarker,
+      focus: focus.map((f) => ({ entity: f.entity, strong: f.strong })),
       effects: this.effects.list,
     });
     this.minimap.render(buildings, units, this.humanPlayer.id, this.ownedCache.has('airfield'));
@@ -812,7 +843,9 @@ export class Game {
     if (this.selection.selectedId === e.id) this.selection.select(null);
     this.ejectGarrison(e);
     if (e.spec.type === 'airfield') {
-      for (const v of this.entities.vehicles()) if (v.homeId === e.id && v.fixed) v.hp = 0; // parked aircraft burn with it
+      // Aircraft parked on it burn with it unless the nation has another airfield to move them to.
+      const other = this.entities.buildings().some((b) => b.id !== e.id && b.owner === e.owner && b.alive && b.spec.type === 'airfield');
+      if (!other) for (const v of this.entities.vehicles()) if (v.homeId === e.id && v.fixed) v.hp = 0;
     }
     this.map.occupy(e.x, e.y, e.w, e.d, null);
     this.entities.remove(e.id);
@@ -1145,7 +1178,7 @@ export class Game {
 
   /** Every selected armed unit that can hurt `target` is ordered to attack it. */
   private orderAttack(target: Entity): boolean {
-    const attackers = this.selection.selectedUnitList().filter((u) => u.weapon !== null && isHostile(u, target));
+    const attackers = this.selection.selectedUnitList().filter((u) => canTarget(u, target));
     if (attackers.length === 0) return false;
     for (const u of attackers) {
       u.attackTarget = target.id;

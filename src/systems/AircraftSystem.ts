@@ -70,6 +70,9 @@ export class AircraftSystem implements GameSystem {
         case 'taxiHome':
           this.taxiHome(v, dt);
           break;
+        case 'crashing':
+          this.crash(v, dt);
+          break;
       }
     }
   }
@@ -100,16 +103,18 @@ export class AircraftSystem implements GameSystem {
   private parked(v: Vehicle, dt: number): void {
     v.altitude = 0;
     this.service(v, dt);
+    // Its airfield is gone: fly to another airfield of the nation, or crash if there is none.
+    if (!this.home(v)) {
+      this.abort(v);
+      return;
+    }
     const wantsOut = v.moving || v.attackTarget !== null || v.attackMove !== null;
     if (!wantsOut) return;
     this.stashOrders(v);
     const home = this.home(v);
     if (!home) {
-      // Its airfield is gone: just take off from where it stands.
-      v.flight = 'airborne';
-      v.altitude = CRUISE_ALTITUDE;
-      if (v.mission) v.follow(v.mission);
-      v.mission = null;
+      // Its airfield is gone: take off from where it stands and head for another one (or crash).
+      this.abort(v);
       return;
     }
     v.flight = 'taxi';
@@ -164,6 +169,11 @@ export class AircraftSystem implements GameSystem {
 
   private airborne(v: Vehicle, dt: number): void {
     v.altitude = CRUISE_ALTITUDE;
+    // Lost its airfield: any other airfield of the nation will do; with none left the aircraft falls.
+    if (!this.home(v) && !this.adoptHome(v)) {
+      this.startCrash(v);
+      return;
+    }
     const busy = v.moving || v.attackTarget !== null || v.attackMove !== null || v.combatTarget !== null;
     if (busy) {
       v.idleFor = 0;
@@ -270,12 +280,59 @@ export class AircraftSystem implements GameSystem {
     return false;
   }
 
-  /** Lost its airfield mid-sortie: take to the air. */
+  /** Lost its airfield while on the ground or landing: re-home at another airfield and take to the air, or crash. */
   private abort(v: Vehicle): void {
+    if (!this.home(v) && !this.adoptHome(v)) {
+      this.startCrash(v);
+      return;
+    }
     v.flight = 'airborne';
     v.altitude = CRUISE_ALTITUDE;
     v.idleFor = 0;
     if (v.mission) v.follow(v.mission);
     v.mission = null;
+  }
+
+  /** Makes the nearest living airfield of the owner the aircraft's new home. False when the nation has none. */
+  private adoptHome(v: Vehicle): boolean {
+    let best: Building | null = null;
+    let bestD = Infinity;
+    for (const b of this.entities.buildings()) {
+      if (b.owner !== v.owner || !b.alive || b.spec.type !== 'airfield') continue;
+      const c = b.centerWorld();
+      const d = Math.hypot(c.x - v.px, c.y - v.py);
+      if (d < bestD) {
+        best = b;
+        bestD = d;
+      }
+    }
+    if (!best) return false;
+    v.homeId = best.id;
+    v.slot = -1;
+    v.idleFor = RETURN_AFTER; // head for the new airfield as soon as there is nothing else to do
+    return true;
+  }
+
+  /** No airfield to return to: the aircraft loses control and drops out of the sky. */
+  private startCrash(v: Vehicle): void {
+    v.flight = 'crashing';
+    v.phaseTime = 0;
+    v.mission = null;
+    v.attackTarget = null;
+    v.attackMove = null;
+    v.combatTarget = null;
+    v.stop();
+  }
+
+  /** Spins and plunges, then explodes on impact (health reaches zero → the usual death blast). */
+  private crash(v: Vehicle, dt: number): void {
+    v.phaseTime += dt;
+    v.heading += 3.2 * dt;
+    v.facing = Math.cos(v.heading) < 0 ? -1 : 1;
+    const forward = v.speed * 0.35;
+    this.place(v, v.px + Math.cos(v.heading) * forward * dt, v.py + Math.sin(v.heading) * forward * dt);
+    v.altitude = Math.max(0, v.altitude - (5 + v.phaseTime * 14) * dt);
+    v.walkPhase += forward * dt;
+    if (v.altitude <= 0) v.hp = 0;
   }
 }

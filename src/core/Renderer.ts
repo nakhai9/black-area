@@ -28,6 +28,12 @@ export interface PlacementGhost {
   readonly reason: string | null;
 }
 
+/** An enemy the player's army is fighting. `strong` = targeted by a selected unit or under the cursor. */
+export interface FocusTarget {
+  readonly entity: Unit | Building;
+  readonly strong: boolean;
+}
+
 export interface RenderScene {
   readonly buildings: readonly Building[];
   readonly selectedId: number | null;
@@ -44,6 +50,8 @@ export interface RenderScene {
   readonly effects?: readonly Effect[];
   readonly selectedUnits?: ReadonlySet<number>;
   readonly hoveredUnitId?: number | null;
+  /** Enemies that are being attacked (or are about to be, under the cursor): drawn with red focus marks. */
+  readonly focus?: readonly FocusTarget[];
   /** Last move order (world px) and when it was given, for the RA2-style marker. */
   readonly moveMarker?: { x: number; y: number; at: number } | null;
 }
@@ -123,11 +131,15 @@ export class Renderer {
     // Aircraft fly above everything on the ground.
     for (const u of units) if (u.flies) this.drawUnit(u);
     if (scene.ghost) this.drawGhost(scene.ghost);
+    const focus = scene.focus ?? [];
+    for (const f of focus) if (f.entity.kind !== 'building') this.drawUnitFocus(f.entity, f.strong, scene.time);
     for (const u of units) if (selUnits.has(u.id) || u.hp < u.maxHp) this.drawUnitHealth(u);
+    for (const f of focus) if (f.entity.kind !== 'building' && !selUnits.has(f.entity.id) && f.entity.hp >= f.entity.maxHp) this.drawUnitHealth(f.entity);
     if (scene.effects) this.drawEffects(scene.effects);
 
     for (const b of sorted) {
       if (b === selected) this.drawSelectionOverlay(b);
+      else if (focus.some((f) => f.entity === b)) this.drawSelectionOverlay(b, '#ff3b30');
       else if (b.id === scene.hoveredId) this.drawLabel(b, 0.8);
     }
 
@@ -268,6 +280,58 @@ export class Renderer {
     ctx.beginPath();
     ctx.ellipse(u.px, u.py, Math.max(1.3, u.radius * 1.15), Math.max(0.6, u.radius * 0.55), 0, 0, Math.PI * 2);
     ctx.stroke();
+  }
+
+  /** RA2-style target focus: a pulsing red ring under the enemy, red corner brackets and its name. */
+  private drawUnitFocus(u: Unit, strong: boolean, time: number): void {
+    const { ctx } = this;
+    const k = 1 / this.camera.zoom;
+    const lift = u.flies && 'altitude' in u ? Number((u as { altitude: number }).altitude) : 0;
+    const pulse = 0.5 + 0.5 * Math.sin(time * 7);
+    const alpha = strong ? 0.75 + 0.25 * pulse : 0.5;
+    const rx = Math.max(2.2, u.radius * 1.5);
+    const half = rx * (1.05 + (strong ? 0.12 * pulse : 0));
+    const top = u.py - lift - Math.max(u.bodyHeight, 2) - 1.6;
+    const bottom = u.py - lift + 1.2;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.strokeStyle = '#ff3b30';
+    ctx.lineWidth = (strong ? 1.6 : 1.1) * k;
+    ctx.beginPath();
+    ctx.ellipse(u.px, u.py, half, half * 0.45, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    const len = Math.min(1.4, half * 0.5);
+    ctx.beginPath();
+    for (const [cx, cy, sx, sy] of [
+      [u.px - half, top, 1, 1],
+      [u.px + half, top, -1, 1],
+      [u.px - half, bottom, 1, -1],
+      [u.px + half, bottom, -1, -1],
+    ] as const) {
+      ctx.moveTo(cx + sx * len, cy);
+      ctx.lineTo(cx, cy);
+      ctx.lineTo(cx, cy + sy * len);
+    }
+    ctx.stroke();
+    if (strong) {
+      const name = 'name' in u ? String((u as { name: string }).name) : 'Enemy';
+      const text = `${name} · ${FACTIONS[u.faction as keyof typeof FACTIONS]?.shortName ?? u.faction}`;
+      ctx.globalAlpha = 0.95;
+      ctx.font = `600 ${11 * k}px "Segoe UI", system-ui, sans-serif`;
+      const w = ctx.measureText(text).width + 10 * k;
+      const h = 15 * k;
+      const x = u.px - w / 2;
+      const y = top - 5.5 - h;
+      ctx.fillStyle = 'rgba(8,12,16,0.85)';
+      ctx.fillRect(x, y, w, h);
+      ctx.fillStyle = '#ff3b30';
+      ctx.fillRect(x, y + h - 2 * k, w, 2 * k);
+      ctx.fillStyle = '#f2f5f8';
+      ctx.textBaseline = 'middle';
+      ctx.textAlign = 'center';
+      ctx.fillText(text, x + w / 2, y + h / 2 - k);
+    }
+    ctx.restore();
   }
 
   private drawUnitHealth(u: Unit): void {
@@ -478,12 +542,12 @@ export class Renderer {
   }
 
   /** RA2-style white corner brackets + pip health bar + name label. */
-  private drawSelectionOverlay(b: Building): void {
+  private drawSelectionOverlay(b: Building, bracket = '#ffffff'): void {
     const { ctx } = this;
     const r = this.spriteRect(b);
     const k = 1 / this.camera.zoom;
     const len = 10 * k;
-    ctx.strokeStyle = '#ffffff';
+    ctx.strokeStyle = bracket;
     ctx.lineWidth = 1.5 * k;
     ctx.beginPath();
     for (const [cx, cy, sx, sy] of [

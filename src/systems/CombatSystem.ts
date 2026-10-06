@@ -19,6 +19,17 @@ export function isHostile(a: Entity, b: Entity): boolean {
   return a.owner !== b.owner && a.owner !== NEUTRAL_OWNER && b.owner !== NEUTRAL_OWNER && !b.indestructible && b.alive;
 }
 
+/**
+ * Can `shooter` hurt `target` at all? Aircraft in flight can only be hit by other aircraft
+ * (with a weapon that reaches the air); soldiers and ground vehicles never shoot at them.
+ */
+export function canTarget(shooter: Unit, target: Entity): boolean {
+  const w = shooter.weapon;
+  if (!w || !isHostile(shooter, target)) return false;
+  if (target instanceof Unit && target.flies) return shooter.aircraft && w.hitsAir;
+  return true;
+}
+
 /** Distance (world px) from point (x, y) to an entity (to the nearest edge for buildings). */
 export function distanceTo(x: number, y: number, e: Entity): number {
   if (e instanceof Building) {
@@ -80,7 +91,7 @@ export class CombatSystem implements GameSystem {
     // Explicit attack order beats everything else.
     if (s.attackTarget !== null) {
       const ordered = this.entities.get(s.attackTarget);
-      if (!ordered || !ordered.alive || !isHostile(s, ordered)) s.attackTarget = null;
+      if (!ordered || !ordered.alive || !isHostile(s, ordered) || !this.canHit(s, w, ordered)) s.attackTarget = null;
       else target = ordered;
     }
 
@@ -113,7 +124,7 @@ export class CombatSystem implements GameSystem {
       s.heading = Math.atan2(ty - s.py, tx - s.px);
       // Units on attack orders stand and fight; ones just passing through keep walking and shooting.
       if (s.attackTarget !== null || s.attackMove) s.stop();
-      if (s.cooldown <= 0 && this.canHit(w, target)) this.fire(s, target, w);
+      if (s.cooldown <= 0 && this.canHit(s, w, target)) this.fire(s, target, w);
       return;
     }
 
@@ -125,13 +136,13 @@ export class CombatSystem implements GameSystem {
   private currentTarget(s: Unit): Entity | undefined {
     if (s.combatTarget === null) return undefined;
     const e = this.entities.get(s.combatTarget);
-    if (!e || !e.alive || !isHostile(s, e)) return undefined;
+    if (!e || !e.alive || !isHostile(s, e) || !canTarget(s, e)) return undefined;
     if (e instanceof Unit && !e.visible) return undefined;
     return e;
   }
 
-  private canHit(w: WeaponSpec, t: Entity): boolean {
-    return !(t instanceof Unit && t.flies && !w.hitsAir);
+  private canHit(s: Unit, _w: WeaponSpec, t: Entity): boolean {
+    return canTarget(s, t);
   }
 
   /** Nearest enemy in range: units first, then buildings; an attacker that hit us counts too. */
@@ -144,7 +155,7 @@ export class CombatSystem implements GameSystem {
     for (let dx = -reach; dx <= reach; dx++) {
       for (let dy = -reach; dy <= reach; dy++) {
         for (const o of grid.get((cx + dx) * 100003 + cy + dy) ?? []) {
-          if (!isHostile(s, o) || !this.canHit(w, o)) continue;
+          if (!isHostile(s, o) || !this.canHit(s, w, o)) continue;
           const d = Math.hypot(o.px - s.px, o.py - s.py);
           if (d < bestD) {
             best = o;
@@ -168,7 +179,7 @@ export class CombatSystem implements GameSystem {
     // Hit back at whoever shot us recently, even from beyond our range.
     if (s.lastAttackerId !== null && this.time - s.lastAttackedAt < 6) {
       const a = this.entities.get(s.lastAttackerId);
-      if (a && a.alive && isHostile(s, a) && distanceTo(s.px, s.py, a) < w.range * RETALIATE_RANGE_FACTOR) return a;
+      if (a && a.alive && isHostile(s, a) && this.canHit(s, w, a) && distanceTo(s.px, s.py, a) < w.range * RETALIATE_RANGE_FACTOR) return a;
     }
     return undefined;
   }
@@ -184,7 +195,7 @@ export class CombatSystem implements GameSystem {
     }
     if (w.splash > 0) {
       for (const o of this.entities.fieldMovers()) {
-        if (o === t || !isHostile(s, o) || !this.canHit(w, o)) continue;
+        if (o === t || !isHostile(s, o) || !this.canHit(s, w, o)) continue;
         if (Math.hypot(o.px - impact.x, o.py - impact.y) <= w.splash) {
           o.damage(dmg * 0.5);
           o.lastAttackerId = s.id;
