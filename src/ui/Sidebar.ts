@@ -1,5 +1,5 @@
 import { type IconNode, Factory, Hammer, PersonStanding, Radar, Shield, Truck, createElement } from 'lucide';
-import { BUILD_LIMIT_VEHICLES, CURRENCY, TECH_TIERS, TECH_VEHICLES } from '../constants';
+import { BUILD_LIMIT_VEHICLES, CURRENCY, TECH_TIERS, TECH_VEHICLES, isAircraftKind } from '../constants';
 import { FACTIONS } from '../factions';
 import { getFlagTexture } from '../render/Flags';
 import { type BuildOption, type QueueSlot, buildCost } from '../systems/ConstructionSystem';
@@ -46,6 +46,8 @@ export interface SidebarModel {
   army: ArmyCount;
   /** Vehicle orders waiting (limit: BUILD_LIMIT_VEHICLES). */
   vehicleQueued: number;
+  /** Airfield parking spots still free for aircraft orders. */
+  parkingFree: number;
 }
 
 export interface SidebarHandlers {
@@ -474,7 +476,8 @@ export class Sidebar {
       c.el.dataset.state = producing ? q.state : count > 0 ? 'queued' : 'idle';
       const atLimit = model.vehicleQueued >= BUILD_LIMIT_VEHICLES && count === 0;
       const noTech = TECH_VEHICLES.includes(option.kind) && !model.owned.has('techCenter');
-      const locked = !have || atLimit || noTech;
+      const noParking = isAircraftKind(option.kind) && model.parkingFree <= 0 && count === 0;
+      const locked = !have || atLimit || noTech || noParking;
       c.el.classList.toggle('locked', locked);
       (c.el as HTMLButtonElement).disabled = locked;
       if (c.badge) {

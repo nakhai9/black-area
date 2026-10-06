@@ -723,6 +723,7 @@ export class Game {
           hasBarracks: this.training.barracksOf(this.humanPlayer) !== null,
           army: this.training.army(this.humanPlayer),
           vehicleQueued: this.production.queue(this.humanPlayer).items.length,
+          parkingFree: this.production.parkingFree(this.humanPlayer),
         },
         elapsed,
       );

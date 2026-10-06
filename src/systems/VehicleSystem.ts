@@ -90,6 +90,14 @@ export class VehicleSystem implements GameSystem {
   }
 
 
+  /**
+   * Parking spots still free for new aircraft orders: spots on the nation's airfields minus the aircraft it owns
+   * (parked or flying) and the aircraft already on order. A destroyed aircraft gives its spot back.
+   */
+  parkingFree(player: PlayerState): number {
+    return this.parkingCapacity(player) - this.aircraftOwned(player) - this.queue(player).items.filter(isAircraftKind).length;
+  }
+
   private aircraftOwned(player: PlayerState): number {
     return this.entities.vehicles().filter((v) => v.owner === player.id && v.alive && v.aircraft).length;
   }
@@ -105,7 +113,7 @@ export class VehicleSystem implements GameSystem {
     if (TECH_VEHICLES.includes(kind) && !this.hasTech(player)) return 'tech';
     // BuildLimit: only the orders waiting are limited, not the vehicles the nation owns.
     if (!AVAILABLE_VEHICLES.includes(kind) || q.items.length >= BUILD_LIMIT_VEHICLES) return 'full';
-    if (isAircraftKind(kind) && this.aircraftOwned(player) + q.items.filter(isAircraftKind).length >= this.parkingCapacity(player)) return 'noParking';
+    if (isAircraftKind(kind) && this.parkingFree(player) <= 0) return 'noParking';
     q.items.push(kind);
     if (q.state === 'idle') q.state = 'building';
     return 'ok';
