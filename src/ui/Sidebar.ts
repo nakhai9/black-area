@@ -1,4 +1,4 @@
-import { type IconNode, Factory, Hammer, PersonStanding, Radar, Shield, Truck, createElement } from 'lucide';
+import { type IconNode, Factory, Hammer, PersonStanding, Radar, Shield, Trophy, Truck, createElement } from 'lucide';
 import { BUILD_LIMIT_VEHICLES, CURRENCY, TECH_TIERS, TECH_VEHICLES, isAircraftKind } from '../constants';
 import { FACTIONS } from '../factions';
 import { getFlagTexture } from '../render/Flags';
@@ -9,8 +9,23 @@ import type { VehicleOption, VehicleQueue } from '../systems/VehicleSystem';
 import type { BuildingType, FactionId, PlayerState, WorldPoint } from '../types';
 
 type TabId = 'build' | 'defense' | 'infantry' | 'vehicles';
-/** The two pages of the sidebar: the command centre (budget, oil, alerts) and production (build, train). */
-type ViewId = 'command' | 'production';
+/** Sidebar pages: the command centre (budget, oil, alerts), production (build, train) and the world ranking. */
+type ViewId = 'command' | 'production' | 'rank';
+
+/** One nation in the ranking tab. */
+export interface RankRow {
+  playerId: number;
+  faction: FactionId;
+  name: string;
+  isHuman: boolean;
+  defeated: boolean;
+  /** Budget + oil stock at the posted price − debt, in TB. */
+  economy: number;
+  /** Total price of the nation's living soldiers and vehicles, in TB. */
+  military: number;
+  soldiers: number;
+  vehicles: number;
+}
 
 /** Construction tabs (RA2 sidebar), shown as Lucide icons. */
 const BUILD_TABS: readonly { id: TabId; label: string; icon: IconNode; enabled: boolean }[] = [
@@ -54,6 +69,8 @@ export interface SidebarModel {
   vehicleQueued: number;
   /** Airfield parking spots still free for aircraft orders. */
   parkingFree: number;
+  /** Every nation, for the Rank tab. */
+  ranking: readonly RankRow[];
 }
 
 export interface SidebarHandlers {
@@ -123,6 +140,10 @@ export class Sidebar {
   private readonly mainTabs = new Map<ViewId, HTMLButtonElement>();
   private readonly views = new Map<ViewId, HTMLElement>();
   private activeView: ViewId = 'production';
+  private rankEconomy!: HTMLElement;
+  private rankMilitary!: HTMLElement;
+  private lastRanking: readonly RankRow[] = [];
+  private readonly flagUrls = new Map<FactionId, string>();
   private readonly tabButtons = new Map<TabId, HTMLButtonElement>();
   private readonly opener: HTMLButtonElement;
   private readonly cameos = new Map<string, Cameo>();
@@ -199,6 +220,14 @@ export class Sidebar {
         </ul>
       </details>
       </div>
+      <div class="sb-view" data-page="rank" hidden>
+        <section class="sb-panel sb-rank">
+          <h3 class="sb-rank-title">ECONOMY <small>budget + oil − debt</small></h3>
+          <ol class="sb-rank-list" data-rank="economy"></ol>
+          <h3 class="sb-rank-title">MILITARY <small>value of soldiers &amp; vehicles</small></h3>
+          <ol class="sb-rank-list" data-rank="military"></ol>
+        </section>
+      </div>
       <div class="sb-view" data-page="production">
       <nav class="sb-tabs" aria-label="Construction"></nav>
       <section class="sb-panel sb-build">
@@ -238,6 +267,9 @@ export class Sidebar {
     this.buildMainTabs(q('.sb-main-tabs'));
     this.views.set('command', q('[data-page=command]'));
     this.views.set('production', q('[data-page=production]'));
+    this.views.set('rank', q('[data-page=rank]'));
+    this.rankEconomy = q('[data-rank=economy]');
+    this.rankMilitary = q('[data-rank=military]');
     this.buildTabs(q('.sb-tabs'));
     const buildPanel = q('[data-panel=build]');
     const infantryPanel = q('[data-panel=infantry]');
@@ -311,6 +343,8 @@ export class Sidebar {
   update(model: SidebarModel, dt: number): void {
     const { player, queue } = model;
     this.credits.textContent = Math.floor(player.credits).toLocaleString('en-US');
+    this.lastRanking = model.ranking;
+    if (this.activeView === 'rank') this.renderRanking(model.ranking);
     this.income.textContent = `+${model.oilRate.toFixed(2)} bbl/s`;
     this.stock.textContent = `${player.oil.toFixed(1)} bbl`;
     this.price.textContent = `${model.oilPrice} ${CURRENCY}/bbl`;
@@ -415,6 +449,7 @@ export class Sidebar {
     const pages: readonly { id: ViewId; label: string; icon: IconNode }[] = [
       { id: 'command', label: 'Command', icon: Radar },
       { id: 'production', label: 'Production', icon: Factory },
+      { id: 'rank', label: 'Rank', icon: Trophy },
     ];
     for (const page of pages) {
       const btn = document.createElement('button');
@@ -429,6 +464,47 @@ export class Sidebar {
     }
   }
 
+  /** Fills both ranking lists, best nation first. */
+  private renderRanking(rows: readonly RankRow[]): void {
+    const fill = (list: HTMLElement, key: 'economy' | 'military', detail: (r: RankRow) => string): void => {
+      const sorted = [...rows].sort((a, b) => Number(a.defeated) - Number(b.defeated) || b[key] - a[key]);
+      list.replaceChildren(
+        ...sorted.map((r, i) => {
+          const li = document.createElement('li');
+          li.classList.toggle('me', r.isHuman);
+          li.classList.toggle('out', r.defeated);
+          const pos = document.createElement('span');
+          pos.className = 'sb-rank-pos';
+          pos.textContent = r.defeated ? '✕' : String(i + 1);
+          const flag = document.createElement('img');
+          flag.className = 'sb-rank-flag';
+          flag.alt = '';
+          flag.src = this.flagUrl(r.faction);
+          const name = document.createElement('span');
+          name.className = 'sb-rank-name';
+          name.textContent = r.isHuman ? `${r.name} (you)` : r.name;
+          name.title = detail(r);
+          const value = document.createElement('span');
+          value.className = 'sb-rank-value';
+          value.textContent = `${Math.round(r[key]).toLocaleString('en-US')} ${CURRENCY}`;
+          li.append(pos, flag, name, value);
+          return li;
+        }),
+      );
+    };
+    fill(this.rankEconomy, 'economy', (r) => `Economy ${Math.round(r.economy).toLocaleString('en-US')} ${CURRENCY}`);
+    fill(this.rankMilitary, 'military', (r) => `${r.soldiers} soldiers · ${r.vehicles} vehicles`);
+  }
+
+  private flagUrl(faction: FactionId): string {
+    let url = this.flagUrls.get(faction);
+    if (!url) {
+      url = getFlagTexture(faction).toDataURL();
+      this.flagUrls.set(faction, url);
+    }
+    return url;
+  }
+
   private switchView(id: ViewId): void {
     this.activeView = id;
     for (const [view, btn] of this.mainTabs) {
@@ -436,6 +512,7 @@ export class Sidebar {
       btn.setAttribute('aria-pressed', String(view === id));
     }
     for (const [view, el] of this.views) el.hidden = view !== id;
+    if (id === 'rank') this.renderRanking(this.lastRanking);
   }
 
   private switchTab(id: TabId): void {

@@ -79,7 +79,7 @@ import { TrainingSystem } from '../systems/TrainingSystem';
 import { VehicleSystem } from '../systems/VehicleSystem';
 import type { BuildingType, FactionId, GameEvents, PlayerState, UnitTier, VehicleKind, WeaponSpec, WorldPoint } from '../types';
 import { Minimap } from '../ui/Minimap';
-import { Sidebar } from '../ui/Sidebar';
+import { type RankRow, Sidebar } from '../ui/Sidebar';
 import { StatusBar } from '../ui/StatusBar';
 import { Camera } from './Camera';
 import { EffectsLayer } from './Effects';
@@ -773,6 +773,7 @@ export class Game {
           army: this.training.army(this.humanPlayer),
           vehicleQueued: this.production.queue(this.humanPlayer).items.length,
           parkingFree: this.production.parkingFree(this.humanPlayer),
+          ranking: this.ranking(),
         },
         elapsed,
       );
@@ -1155,6 +1156,36 @@ export class Game {
       5,
     );
     this.sidebarTimer = SIDEBAR_REFRESH;
+  }
+
+  /** Economy and military standing of every nation (Rank tab). */
+  private ranking(): RankRow[] {
+    return this.players.map((p) => {
+      let military = 0;
+      let soldiers = 0;
+      let vehicles = 0;
+      for (const u of this.entities.units()) {
+        if (u.owner !== p.id || !u.alive) continue;
+        military += u.value;
+        soldiers++;
+      }
+      for (const v of this.entities.vehicles()) {
+        if (v.owner !== p.id || !v.alive) continue;
+        military += v.value;
+        vehicles++;
+      }
+      return {
+        playerId: p.id,
+        faction: p.faction as FactionId,
+        name: FACTIONS[p.faction].name,
+        isHuman: p.isHuman,
+        defeated: p.defeated,
+        economy: p.credits + p.oil * this.oilMarket.price - p.debt,
+        military,
+        soldiers,
+        vehicles,
+      };
+    });
   }
 
   /** Esc: freezes the simulation and opens the pause menu (Continue / Quit game). */

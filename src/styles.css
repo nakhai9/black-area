@@ -941,7 +941,7 @@ details.sb-help[open] > summary {
 /* ------------------------------------------------------------- two pages: command centre / production */
 .sb-main-tabs {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
   gap: 4px;
 }
 .sb-main-tabs button {
@@ -989,6 +989,64 @@ details.sb-help[open] > summary {
 }
 .sb-view[hidden] {
   display: none;
+}
+
+/* ------------------------------------------------------------- rank tab */
+.sb-rank-title {
+  margin: 4px 0 6px;
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  color: #ffe08a;
+}
+.sb-rank-title small {
+  font-weight: 400;
+  letter-spacing: 0;
+  color: #8a97a3;
+}
+.sb-rank-list {
+  margin: 0 0 10px;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.sb-rank-list li {
+  display: grid;
+  grid-template-columns: 18px 22px 1fr auto;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  font-size: 12px;
+  color: #cfd8e0;
+  background: #161c22;
+  border: 1px solid #2f3a45;
+  border-radius: 3px;
+}
+.sb-rank-list li.me {
+  border-color: var(--accent);
+  color: #fff;
+}
+.sb-rank-list li.out {
+  opacity: 0.45;
+}
+.sb-rank-pos {
+  font-weight: 700;
+  color: #ffe08a;
+  text-align: center;
+}
+.sb-rank-flag {
+  width: 22px;
+  height: 14px;
+  object-fit: cover;
+}
+.sb-rank-name {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.sb-rank-value {
+  font-variant-numeric: tabular-nums;
 }
 
 
