@@ -92,9 +92,12 @@ export const INFANTRY_BASE = {
   president: { cost: 1000, trainSeconds: 12, maxHp: 150, speed: 1.2 },
   engineer: { cost: 400, trainSeconds: 6, maxHp: 100, speed: 1.3 },
 } as const;
-/** Army size limits per nation (living + queued). Any mix of types may be bought, up to these totals. */
-export const MAX_SOLDIERS = 20;
-export const MAX_VEHICLES = 10;
+/**
+ * BuildLimit: how many orders a nation may have waiting at once (the one being made included). Any type may be
+ * ordered; a slot frees up as soon as an order is completed. There is no cap on how many units a nation owns.
+ */
+export const BUILD_LIMIT_SOLDIERS = 15;
+export const BUILD_LIMIT_VEHICLES = 10;
 /** Special-forces soldiers swim; they move at this fraction of their speed in water. */
 export const SWIM_SPEED_FACTOR = 0.6;
 /** Leg-swing phase (radians) per world px walked: higher = shorter, quicker steps. */
@@ -170,16 +173,12 @@ export const CRUSH_RADIUS = 2.4;
 /** Veteran / Elite / Elite+ at 3× / 6× / 9× the unit's own price in destroyed enemy value. */
 export const RANK_KILL_MULTIPLES = [3, 6, 9] as const;
 export const WAR_FACTORY_COST = 2000;
-/** Max vehicles waiting in a nation's vehicle queue. */
-export const VEHICLE_QUEUE_MAX = 10;
 
 /** Engineers repair this many HP per second on a friendly building. */
 export const ENGINEER_REPAIR_HP_PER_SECOND = 60;
 /** Hospital: HP per second restored to each patient inside, and its capacity. */
 export const HOSPITAL_HEAL_PER_SECOND = 10;
 export const HOSPITAL_CAPACITY = 20;
-/** Max soldiers waiting in a nation's training queue. */
-export const TRAINING_QUEUE_MAX = 20;
 
 /** Every nation starts broke; oil derricks are the only source of TB. */
 export const STARTING_CREDITS = 0;

@@ -1,4 +1,4 @@
-import { INFANTRY_BASE, MAX_SOLDIERS, TECH_TIERS, TRAINING_QUEUE_MAX } from '../constants';
+import { BUILD_LIMIT_SOLDIERS, INFANTRY_BASE, TECH_TIERS } from '../constants';
 import type { Building } from '../entities/Building';
 import type { EntityManager } from '../entities/EntityManager';
 import { FACTIONS } from '../factions';
@@ -28,12 +28,13 @@ export function trainOptions(faction: FactionId): TrainOption[] {
 
 export type TrainingState = 'idle' | 'training' | 'onHold' | 'noBarracks';
 
-export type EnqueueResult = 'ok' | 'full' | 'noBarracks' | 'limit' | 'unique' | 'tech';
+export type EnqueueResult = 'ok' | 'full' | 'noBarracks' | 'unique' | 'tech';
 
-/** Army size (living soldiers + queued). */
+/** Orders waiting (BuildLimit) and the President rule. */
 export interface ArmyCount {
-  total: number;
-  max: number;
+  /** Soldiers in the training queue, and the most that may wait there. */
+  queued: number;
+  limit: number;
   /** A nation has exactly one President: alive (even inside a building) or queued. */
   presidentTaken: boolean;
 }
@@ -88,27 +89,25 @@ export class TrainingSystem implements GameSystem {
     return this.entities.buildings().some((b) => b.owner === player.id && b.alive && b.spec.type === 'techCenter');
   }
 
-  /** Soldiers owned (alive, including the ones stationed inside buildings) plus the ones in the queue. */
+  /** Pending orders, and whether the nation's one President is alive (even inside a building) or queued. */
   army(player: PlayerState): ArmyCount {
-    let total = 0;
     let presidentTaken = false;
-    const count = (tier: UnitTier): void => {
-      total++;
-      if (tier === 'president') presidentTaken = true;
-    };
-    for (const u of this.entities.units()) if (u.owner === player.id && u.alive) count(u.tier);
-    for (const t of this.queue(player).items) count(t);
-    return { total, max: MAX_SOLDIERS, presidentTaken };
+    for (const u of this.entities.units()) if (u.owner === player.id && u.alive && u.tier === 'president') presidentTaken = true;
+    const items = this.queue(player).items;
+    if (items.includes('president')) presidentTaken = true;
+    return { queued: items.length, limit: BUILD_LIMIT_SOLDIERS, presidentTaken };
   }
 
-  /** Adds a soldier to the queue: any type, as long as the army stays within MAX_SOLDIERS. */
+  /**
+   * Adds an order for any soldier type. Only the number of waiting orders is limited (BuildLimit): a new one is
+   * accepted as soon as an earlier order has been completed, however many soldiers the nation already has.
+   */
   enqueue(player: PlayerState, tier: UnitTier): EnqueueResult {
     const q = this.queue(player);
     if (!this.barracksOf(player)) return 'noBarracks';
     if (TECH_TIERS.includes(tier) && !this.hasTech(player)) return 'tech';
-    if (q.items.length >= TRAINING_QUEUE_MAX) return 'full';
+    if (q.items.length >= BUILD_LIMIT_SOLDIERS) return 'full';
     const army = this.army(player);
-    if (army.total >= army.max) return 'limit';
     if (tier === 'president' && army.presidentTaken) return 'unique';
     q.items.push(tier);
     if (q.state === 'idle') q.state = 'training';

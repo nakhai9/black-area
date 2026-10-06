@@ -5,8 +5,8 @@ import {
   CAPITAL_LOCATIONS,
   CHHG_LOCATION,
   CRUSH_RADIUS,
-  MAX_SOLDIERS,
-  MAX_VEHICLES,
+  BUILD_LIMIT_SOLDIERS,
+  BUILD_LIMIT_VEHICLES,
   PARADE_GAP,
   PARADE_MAX_CELLS,
   PARADE_SPACING,
@@ -722,7 +722,7 @@ export class Game {
           hasAirfield: this.production.producerOf(this.humanPlayer, 'airfield') !== null,
           hasBarracks: this.training.barracksOf(this.humanPlayer) !== null,
           army: this.training.army(this.humanPlayer),
-          vehicleCount: this.production.vehicleCount(this.humanPlayer),
+          vehicleQueued: this.production.queue(this.humanPlayer).items.length,
         },
         elapsed,
       );
@@ -1222,11 +1222,9 @@ export class Game {
       result === 'ok'
         ? `Building ${option.name} — ${option.cost} ${CURRENCY}`
         : result === 'full'
-          ? 'Vehicle queue is full.'
+          ? `Vehicle orders are full (${BUILD_LIMIT_VEHICLES}) — one more once an order is done.`
           : result === 'tech'
             ? 'Second-tier vehicles need a High-Tech Center.'
-            : result === 'limit'
-            ? `Vehicle limit reached (${MAX_VEHICLES}).`
             : result === 'noParking'
             ? 'No free parking spot — build another Airfield or send aircraft out.'
             : option.requires === 'airfield'
@@ -1360,10 +1358,8 @@ export class Game {
           : result === 'tech'
             ? 'Second-tier soldiers need a High-Tech Center.'
             : result === 'full'
-            ? 'Training queue is full.'
-            : result === 'limit'
-              ? `Army limit reached (${MAX_SOLDIERS} soldiers).`
-              : 'You already have a President.',
+            ? `Training orders are full (${BUILD_LIMIT_SOLDIERS}) — one more once an order is done.`
+            : 'You already have a President.',
       );
     }
     this.sidebarTimer = SIDEBAR_REFRESH;

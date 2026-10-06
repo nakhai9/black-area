@@ -1,4 +1,4 @@
-import { AVAILABLE_VEHICLES, MAX_VEHICLES, TECH_VEHICLES, VEHICLE_BASE, VEHICLE_QUEUE_MAX, isAircraftKind } from '../constants';
+import { AVAILABLE_VEHICLES, BUILD_LIMIT_VEHICLES, TECH_VEHICLES, VEHICLE_BASE, isAircraftKind } from '../constants';
 import type { Building } from '../entities/Building';
 import type { EntityManager } from '../entities/EntityManager';
 import { FACTIONS } from '../factions';
@@ -32,7 +32,7 @@ export function vehicleOptions(faction: FactionId): VehicleOption[] {
 }
 
 export type VehicleQueueState = 'idle' | 'building' | 'onHold' | 'noFactory';
-export type VehicleEnqueueResult = 'ok' | 'full' | 'noFactory' | 'noParking' | 'limit' | 'tech';
+export type VehicleEnqueueResult = 'ok' | 'full' | 'noFactory' | 'noParking' | 'tech';
 
 export interface VehicleQueue {
   /** Waiting vehicles; the first one is in production. */
@@ -89,10 +89,6 @@ export class VehicleSystem implements GameSystem {
     return this.entities.buildings().filter((b) => b.owner === player.id && b.alive && b.spec.type === 'airfield').length * PARKING_SLOTS;
   }
 
-  /** Vehicles and aircraft owned (alive) plus the ones in the queue. */
-  vehicleCount(player: PlayerState): number {
-    return this.entities.vehicles().filter((v) => v.owner === player.id && v.alive).length + this.queue(player).items.length;
-  }
 
   private aircraftOwned(player: PlayerState): number {
     return this.entities.vehicles().filter((v) => v.owner === player.id && v.alive && v.aircraft).length;
@@ -107,8 +103,8 @@ export class VehicleSystem implements GameSystem {
     const q = this.queue(player);
     if (!this.requirement(player, kind)) return 'noFactory';
     if (TECH_VEHICLES.includes(kind) && !this.hasTech(player)) return 'tech';
-    if (!AVAILABLE_VEHICLES.includes(kind) || q.items.length >= VEHICLE_QUEUE_MAX) return 'full';
-    if (this.vehicleCount(player) >= MAX_VEHICLES) return 'limit';
+    // BuildLimit: only the orders waiting are limited, not the vehicles the nation owns.
+    if (!AVAILABLE_VEHICLES.includes(kind) || q.items.length >= BUILD_LIMIT_VEHICLES) return 'full';
     if (isAircraftKind(kind) && this.aircraftOwned(player) + q.items.filter(isAircraftKind).length >= this.parkingCapacity(player)) return 'noParking';
     q.items.push(kind);
     if (q.state === 'idle') q.state = 'building';
