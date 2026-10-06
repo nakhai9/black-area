@@ -51,6 +51,7 @@ export function drawSoldier(
   ctx.fillStyle = look.uniform;
   roundRect(ctx, x - 0.55, y - 2.35, 1.1, 1.25, 0.3);
   ctx.fill();
+  if (look.camo) drawCamo(ctx, x, y, look.uniform);
   if (look.weapon === 'none') {
     // Head of state in a dark suit: white shirt front and a team-colour tie.
     ctx.fillStyle = '#f2f2f2';
@@ -102,6 +103,28 @@ export function drawSoldier(
   }
 }
 
+/** Camouflage pattern: dark and light blotches over the torso and the top of the legs. */
+const CAMO_SPOTS: readonly (readonly [number, number, number, number])[] = [
+  // dx, dy (from the feet), radius, shade
+  [-0.28, -2.12, 0.2, 0.62],
+  [0.22, -1.85, 0.22, 1.28],
+  [-0.12, -1.42, 0.18, 0.62],
+  [0.3, -1.3, 0.14, 0.78],
+  [-0.32, -1.68, 0.13, 1.28],
+  [0.08, -2.22, 0.12, 0.78],
+  [-0.18, -0.85, 0.12, 0.62],
+  [0.2, -0.6, 0.11, 1.28],
+];
+
+function drawCamo(ctx: CanvasRenderingContext2D, x: number, y: number, base: string): void {
+  for (const [dx, dy, r, k] of CAMO_SPOTS) {
+    ctx.fillStyle = shade(base, k);
+    ctx.beginPath();
+    ctx.ellipse(x + dx, y + dy, r, r * 0.7, dx * 2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
 function drawHeadgear(ctx: CanvasRenderingContext2D, x: number, y: number, f: number, look: InfantryLook): void {
   ctx.fillStyle = look.headColor;
   switch (look.headgear) {
@@ -121,6 +144,13 @@ function drawHeadgear(ctx: CanvasRenderingContext2D, x: number, y: number, f: nu
       ctx.fillRect(x - 0.1 * f, y - 0.22, 0.55 * f, 0.1);
       ctx.fillStyle = '#d8261b';
       ctx.fillRect(x - 0.08, y - 0.44, 0.16, 0.16);
+      break;
+    case 'reverseCap':
+      // Baseball cap worn backwards: the peak points behind the head.
+      ctx.beginPath();
+      ctx.arc(x, y - 0.12, 0.43, Math.PI, 0);
+      ctx.fill();
+      ctx.fillRect(x - 0.45 * f, y - 0.18, -0.5 * f, 0.11);
       break;
     case 'ushanka':
       ctx.fillRect(x - 0.5, y - 0.55, 1.0, 0.4);

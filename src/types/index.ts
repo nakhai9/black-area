@@ -108,9 +108,11 @@ export type UnitTier = 'regular' | 'special' | 'president' | 'engineer';
 export interface InfantryLook {
   uniform: string;
   trousers: string;
-  headgear: 'helmet' | 'beret' | 'cap' | 'ushanka' | 'balaclava' | 'boonie' | 'hardhat' | 'none';
+  headgear: 'helmet' | 'beret' | 'cap' | 'reverseCap' | 'ushanka' | 'balaclava' | 'boonie' | 'hardhat' | 'none';
   headColor: string;
   weapon: 'rifle' | 'smg' | 'sniper' | 'wrench' | 'none';
+  /** Camouflage blotches on the uniform. */
+  camo?: boolean;
 }
 
 export interface InfantryProfile {

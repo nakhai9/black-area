@@ -96,7 +96,7 @@ export function getFlagTexture(faction: Allegiance): HTMLCanvasElement {
 }
 
 /** Draws a flag rippling in the wind, hanging to the right of (x, y). */
-export function drawWavingFlag(
+function drawWavingFlag(
   ctx: CanvasRenderingContext2D,
   faction: Allegiance,
   x: number,

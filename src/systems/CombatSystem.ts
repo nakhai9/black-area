@@ -27,6 +27,7 @@ export function isHostile(a: Entity, b: Entity): boolean {
 export function canTarget(shooter: Unit, target: Entity): boolean {
   const w = shooter.weapon;
   if (!w || !isHostile(shooter, target)) return false;
+  if (shooter.unarmedTransport) return false; // transports never attack anything
   if (target instanceof Unit && target.flies) return shooter.aircraft && w.hitsAir;
   return true;
 }

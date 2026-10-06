@@ -3,18 +3,11 @@ import type { GridPoint, TerrainType } from '../types';
 
 export type PlacementBlocker = 'outOfBounds' | 'occupied' | 'water' | 'ice' | 'trees' | 'needsWater';
 
-export const TERRAIN_TYPES: readonly TerrainType[] = ['water', 'sand', 'grass', 'forest', 'desert', 'rock', 'snow'];
+const TERRAIN_TYPES: readonly TerrainType[] = ['water', 'sand', 'grass', 'forest', 'desert', 'rock', 'snow'];
 const TERRAIN_INDEX = Object.fromEntries(TERRAIN_TYPES.map((t, i) => [t, i])) as Record<TerrainType, number>;
 
 /** Outer ring of a footprint (cells) that other buildings may overlap. 0 = buildings never overlap (they may touch). */
 export const PLACEMENT_MARGIN = 0;
-
-export const NEIGHBORS4: readonly (readonly [number, number])[] = [
-  [1, 0],
-  [-1, 0],
-  [0, 1],
-  [0, -1],
-];
 
 /**
  * Gameplay grid (pathing, placement, territories) stored in flat typed arrays.

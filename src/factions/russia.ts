@@ -19,12 +19,12 @@ export const RUSSIA: FactionConfig = {
     regular: {
       name: 'Red Army',
       description: 'Massed Russian conscript riflemen, tough in the cold.',
-      look: { uniform: '#8a8466', trousers: '#5c5a48', headgear: 'ushanka', headColor: '#6e6a60', weapon: 'rifle' },
+      look: { uniform: '#5f6b34', trousers: '#4a5428', headgear: 'ushanka', headColor: '#56602f', weapon: 'rifle' },
     },
     special: {
       name: 'Spetsnaz',
       description: 'Special-purpose commandos for sabotage and raids.',
-      look: { uniform: '#3a3f44', trousers: '#2c3034', headgear: 'balaclava', headColor: '#1f2226', weapon: 'smg' },
+      look: { uniform: '#2b3a32', trousers: '#212d27', headgear: 'balaclava', headColor: '#121212', weapon: 'rifle', camo: true },
     },
     president: {
       name: 'President',
@@ -42,6 +42,6 @@ export const RUSSIA: FactionConfig = {
     tank: { name: "T-90", description: "T-90 main battle tank, tough and long-ranged." },
     ifv: { name: "BMP-3", description: "BMP-3 armoured fighting vehicle with a heavy autocannon." },
     jet: { name: "Su-27", description: "Su-27 long-range air superiority fighter." },
-    transport: { name: "Il-76", description: "Il-76 military transport aircraft: carries soldiers and vehicles; unarmed." },
+    transport: { name: "Il-17", description: "Il-17 military transport aircraft: carries soldiers and vehicles; unarmed." },
   },
 };

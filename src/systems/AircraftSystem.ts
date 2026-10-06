@@ -224,8 +224,17 @@ export class AircraftSystem implements GameSystem {
     }
     v.idleFor += dt;
     if (v.idleFor < RETURN_AFTER) return;
-    const home = this.home(v);
+    let home = this.home(v);
     if (!home) return; // no airfield left: circle where it is
+    // An empty transport coming back from the field parks at whichever airfield of the nation still has room.
+    if (v.isTransport && v.cargo.length === 0 && this.freeSlot(v, home) < 0) {
+      const other = this.airfieldWithRoom(v);
+      if (other) {
+        v.homeId = other.id;
+        v.slot = -1;
+        home = other;
+      }
+    }
     const slot = this.freeSlot(v, home);
     if (slot < 0) {
       // Apron full: wait over the airfield's approach point and try again in a moment.
@@ -361,6 +370,22 @@ export class AircraftSystem implements GameSystem {
     v.slot = -1;
     v.idleFor = RETURN_AFTER; // head for the new airfield as soon as there is nothing else to do
     return true;
+  }
+
+  /** Nearest living airfield of the owner with a free parking spot, or null. */
+  private airfieldWithRoom(v: Vehicle): Building | null {
+    let best: Building | null = null;
+    let bestD = Infinity;
+    for (const b of this.entities.buildings()) {
+      if (b.owner !== v.owner || !b.alive || b.spec.type !== 'airfield' || this.freeSlot(v, b) < 0) continue;
+      const c = b.centerWorld();
+      const d = Math.hypot(c.x - v.px, c.y - v.py);
+      if (d < bestD) {
+        best = b;
+        bestD = d;
+      }
+    }
+    return best;
   }
 
   /** No airfield to return to: the aircraft loses control and drops out of the sky. */

@@ -22,7 +22,7 @@ export function hexToRgb(color: string): RGB {
 
 const ch = (v: number): number => clamp(Math.round(v), 0, 255);
 
-export const rgbString = (c: RGB, factor = 1): string =>
+const rgbString = (c: RGB, factor = 1): string =>
   `rgb(${ch(c[0] * factor)},${ch(c[1] * factor)},${ch(c[2] * factor)})`;
 
 /** Multiplies a hex colour's brightness (factor < 1 darkens, > 1 brightens). */

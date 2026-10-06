@@ -34,7 +34,7 @@ const HANDLING: Readonly<Record<VehicleKind, { accel: number; turn: number; pivo
 };
 
 /** Can `soldiers` soldiers and `vehicles` vehicles travel together in one transport? */
-export function transportFits(soldiers: number, vehicles: number): boolean {
+function transportFits(soldiers: number, vehicles: number): boolean {
   if (vehicles === 0) return soldiers <= TRANSPORT_SOLDIERS;
   if (vehicles === 1) return soldiers <= TRANSPORT_MIXED_SOLDIERS;
   return vehicles <= TRANSPORT_VEHICLES && soldiers === 0;
@@ -117,8 +117,13 @@ export class Vehicle extends Unit {
     return this.aircraft && !this.flies;
   }
 
+  override get unarmedTransport(): boolean {
+    return this.isTransport;
+  }
+
   override get canFight(): boolean {
-    return !this.aircraft || (this.flight === 'airborne' && this.weapon !== null);
+    if (this.isTransport) return false;
+    return !this.aircraft ||(this.flight === 'airborne' && this.weapon !== null);
   }
 
   override get depth(): number {

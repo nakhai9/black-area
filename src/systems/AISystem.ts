@@ -9,7 +9,7 @@ import type { Pathfinder } from '../map/Pathfinder';
 import type { TileMap } from '../map/TileMap';
 import { mulberry32 } from '../core/Random';
 import type { BuildingType, GridPoint, PlayerState, UnitTier, VehicleKind, WorldPoint } from '../types';
-import { BUILD_OPTIONS, type BuildOption, type ConstructionSystem, buildCost } from './ConstructionSystem';
+import { BUILD_OPTIONS, type BuildOption, type ConstructionSystem, buildCost, missingRequirement } from './ConstructionSystem';
 import type { GameSystem } from './GameSystem';
 import type { PlacementSystem } from './PlacementSystem';
 import type { TrainingSystem } from './TrainingSystem';
@@ -164,7 +164,7 @@ export class AISystem implements GameSystem {
     }
     if (slot.state !== 'idle') return;
     const next = BUILD_PLAN.map((id) => BUILD_OPTIONS.find((o) => o.id === id)).find(
-      (o) => o && !owned.has(o.id as BuildingType) && (!o.requires || owned.has(o.requires)),
+      (o) => o && !owned.has(o.id as BuildingType) && missingRequirement(o, owned) === null,
     );
     if (next && p.credits >= buildCost(next, p.faction) * 0.3) this.host.construction.start(p, next);
   }

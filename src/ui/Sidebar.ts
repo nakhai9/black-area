@@ -2,7 +2,8 @@ import { type IconNode, Factory, Hammer, PersonStanding, Radar, Shield, Truck, c
 import { BUILD_LIMIT_VEHICLES, CURRENCY, TECH_TIERS, TECH_VEHICLES, isAircraftKind } from '../constants';
 import { FACTIONS } from '../factions';
 import { getFlagTexture } from '../render/Flags';
-import { type BuildOption, type QueueSlot, buildCost } from '../systems/ConstructionSystem';
+import { type BuildOption, type QueueSlot, buildCost, missingRequirement } from '../systems/ConstructionSystem';
+import { MIN_SALE_STOCK } from '../systems/OilMarket';
 import type { ArmyCount, TrainOption, TrainingQueue } from '../systems/TrainingSystem';
 import type { VehicleOption, VehicleQueue } from '../systems/VehicleSystem';
 import type { BuildingType, FactionId, PlayerState, WorldPoint } from '../types';
@@ -25,8 +26,8 @@ export interface SidebarModel {
   oilRate: number;
   /** The price the World Bank pays right now, in TB per barrel. */
   oilPrice: number;
-  /** Sales left in the current 30 s window, and seconds to wait when there are none. */
-  salesLeft: number;
+  /** Barrels above the 1.0 reserve that may be offered, and seconds until the 10 s sale cooldown ends. */
+  sellable: number;
   salesWait: number;
   /** Why the World Bank would refuse a loan now (null = available). */
   loanBlocker: string | null;
@@ -310,8 +311,8 @@ export class Sidebar {
     this.income.textContent = `+${model.oilRate.toFixed(2)} bbl/s`;
     this.stock.textContent = `${player.oil.toFixed(1)} bbl`;
     this.price.textContent = `${model.oilPrice} ${CURRENCY}/bbl`;
-    this.sellButton.disabled = player.defeated || player.oil < 0.5 || model.salesLeft === 0;
-    this.sellButton.textContent = model.salesLeft === 0 ? `Sell oil · wait ${model.salesWait}s` : `Sell oil · ${model.salesLeft} left`;
+    this.sellButton.disabled = player.defeated || model.sellable < MIN_SALE_STOCK || model.salesWait > 0;
+    this.sellButton.textContent = model.salesWait > 0 ? `Sell oil · wait ${model.salesWait}s` : 'Sell oil';
     this.debt.textContent = `${Math.ceil(player.debt).toLocaleString('en-US')} ${CURRENCY}`;
     this.loanButton.disabled = model.loanBlocker !== null;
     this.loanButton.title = model.loanBlocker ?? `Borrow from the World Bank now. Oil sales pay the debt back automatically.`;
@@ -369,7 +370,7 @@ export class Sidebar {
       const state = mine ? queue.state : 'idle';
       const busyElsewhere = !mine && queue.state !== 'idle';
       c.el.dataset.state = model.placing && mine ? 'placing' : state;
-      const missing = option.requires && !model.owned.has(option.requires) ? option.requires : null;
+      const missing = missingRequirement(option, model.owned);
       const locked = busyElsewhere || (missing !== null && !mine);
       c.el.classList.toggle('locked', locked);
       (c.el as HTMLButtonElement).disabled = locked;

@@ -109,6 +109,11 @@ export abstract class Unit extends Entity {
     return false;
   }
 
+  /** A transport aircraft: never attacks anything. */
+  get unarmedTransport(): boolean {
+    return false;
+  }
+
   /** An aircraft (even while parked or on the runway): takes air orders. */
   get aircraft(): boolean {
     return false;

@@ -3,7 +3,7 @@ import { worldToIso } from '../core/IsoView';
 import { lerp, smoothstep } from '../core/MathUtils';
 import { ValueNoise, hash2 } from '../core/Random';
 import { createCanvas } from '../render/Canvas';
-import { type RGB, hexToRgb } from '../render/Color';
+import { type RGB, hexToRgb, mixRgb } from '../render/Color';
 import type { Rect } from '../types';
 import { type BiomeFields, sampleField } from './Biomes';
 import type { EarthData } from './EarthData';
@@ -334,7 +334,6 @@ function buildRamp(): Float32Array {
 
 /** Bilinear sample of a single-channel byte grid. */
 /** Bilinear sample of an interleaved RGB byte grid into `out`. */
-const mixRgb = (a: RGB, b: RGB, t: number): RGB => [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)];
 
 function mix3(r: number, g: number, b: number, c: RGB, t: number): [number, number, number] {
   return [r + (c[0] - r) * t, g + (c[1] - g) * t, b + (c[2] - b) * t];

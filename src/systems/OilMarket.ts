@@ -9,8 +9,8 @@ import {
   OIL_PRICE_MAX,
   OIL_PRICE_MIN,
   OIL_PRICE_START,
-  OIL_SALES_MAX,
-  OIL_SALES_WINDOW,
+  OIL_RESERVE,
+  OIL_SALE_COOLDOWN,
   OIL_SUPPLY_FLOOR,
   WB_MAX_SHARE,
 } from '../constants';
@@ -48,7 +48,7 @@ export class OilMarket implements GameSystem {
   private clock = OIL_PRICE_INTERVAL;
   /** Market time (s) and the times each nation offered oil lately (rate limit). */
   private now = 0;
-  private readonly offers = new Map<number, number[]>();
+  private readonly offers = new Map<number, number>();
 
   constructor(
     private readonly players: readonly PlayerState[],
@@ -97,23 +97,16 @@ export class OilMarket implements GameSystem {
     this.price = Math.round(this.price + (target - this.price) * OIL_PRICE_EASE);
   }
 
-  /** Offers of `player` within the last OIL_SALES_WINDOW seconds. */
-  private recent(player: PlayerState): number[] {
-    const list = (this.offers.get(player.id) ?? []).filter((t) => this.now - t < OIL_SALES_WINDOW);
-    this.offers.set(player.id, list);
-    return list;
-  }
-
-  /** How many more times the nation may sell right now. */
-  salesLeft(player: PlayerState): number {
-    return Math.max(0, OIL_SALES_MAX - this.recent(player).length);
-  }
-
-  /** Seconds until the nation may sell again (0 when it can sell now). */
+  /** Seconds until the nation may sell again (0 when it can sell now): one offer every OIL_SALE_COOLDOWN seconds. */
   waitSeconds(player: PlayerState): number {
-    const list = this.recent(player);
-    if (list.length < OIL_SALES_MAX) return 0;
-    return Math.ceil(OIL_SALES_WINDOW - (this.now - (list[0] ?? this.now)));
+    const last = this.offers.get(player.id);
+    if (last === undefined) return 0;
+    return Math.max(0, Math.ceil(OIL_SALE_COOLDOWN - (this.now - last)));
+  }
+
+  /** Barrels the nation could offer right now (everything above the OIL_RESERVE kept in stock). */
+  sellable(player: PlayerState): number {
+    return Math.max(0, player.oil - OIL_RESERVE);
   }
 
   /**
@@ -122,14 +115,13 @@ export class OilMarket implements GameSystem {
    */
   sell(player: PlayerState): SaleResult {
     if (player.defeated) return { kind: 'declined', reason: 'your nation has fallen' };
-    if (this.salesLeft(player) === 0) {
-      return { kind: 'declined', reason: `at most ${OIL_SALES_MAX} sales in ${OIL_SALES_WINDOW} seconds — try again in ${this.waitSeconds(player)} s` };
-    }
-    const stock = player.oil;
-    if (stock < MIN_SALE_STOCK) return { kind: 'declined', reason: 'not enough oil to offer' };
-    this.recent(player).push(this.now);
+    const wait = this.waitSeconds(player);
+    if (wait > 0) return { kind: 'declined', reason: `one sale every ${OIL_SALE_COOLDOWN} seconds — try again in ${wait} s` };
+    const stock = this.sellable(player);
+    if (stock < MIN_SALE_STOCK) return { kind: 'declined', reason: `not enough oil to offer (${OIL_RESERVE.toFixed(1)} barrels stay in reserve)` };
+    this.offers.set(player.id, this.now);
     const appetite = 1 - (0.6 * this.price) / OIL_PRICE_MAX; // 1 at a price of 0 … 0.4 at the maximum
-    const barrels = stock * WB_MAX_SHARE * appetite;
+    const barrels = Math.min(stock, stock * WB_MAX_SHARE * appetite);
     const revenue = Math.round(barrels * this.price);
     player.oil -= barrels;
     const repaid = this.receive(player, revenue);

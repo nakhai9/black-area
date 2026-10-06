@@ -19,7 +19,7 @@ export interface VehicleOption {
 
 const KINDS: readonly VehicleKind[] = ['light', 'tank', 'ifv', 'jet', 'transport'];
 
-export function vehicleOptions(faction: FactionId): VehicleOption[] {
+function vehicleOptions(faction: FactionId): VehicleOption[] {
   const f = FACTIONS[faction];
   return KINDS.filter((kind) => AVAILABLE_VEHICLES.includes(kind)).map((kind) => ({
     kind,

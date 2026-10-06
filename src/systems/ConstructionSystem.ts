@@ -28,8 +28,8 @@ import type { GameSystem } from './GameSystem';
 export interface BuildOption {
   id: 'barracks' | 'warFactory' | 'hospital' | 'airfield' | 'techCenter' | 'happyCity';
   name: string;
-  /** Tech tree: this building must already stand (barracks → war factory/hospital → airfield). */
-  requires?: BuildingType;
+  /** Tech tree: these buildings must already stand (barracks → war factory/hospital → airfield → happy city). */
+  requires?: BuildingType | readonly BuildingType[];
   cost: number;
   /** Same price for every nation (the faction cost multiplier is not applied). */
   fixedCost?: boolean;
@@ -92,6 +92,7 @@ export const BUILD_OPTIONS: readonly BuildOption[] = [
   {
     id: 'happyCity',
     name: 'Happy City',
+    requires: ['airfield', 'hospital'],
     cost: HAPPY_CITY_COST,
     fixedCost: true,
     footprint: FOOTPRINT_CITY,
@@ -99,6 +100,12 @@ export const BUILD_OPTIONS: readonly BuildOption[] = [
     create: (owner, faction, x, y) => new HappyCity(owner, faction, center(x, y, FOOTPRINT_CITY)),
   },
 ];
+
+/** First prerequisite of `option` the nation does not own yet (null = it may be built). */
+export function missingRequirement(option: BuildOption, owned: ReadonlySet<BuildingType>): BuildingType | null {
+  const list: readonly BuildingType[] = option.requires === undefined ? [] : typeof option.requires === 'string' ? [option.requires] : option.requires;
+  return list.find((t) => !owned.has(t)) ?? null;
+}
 
 /** Price of a structure for a nation (faction cost multiplier applied, like soldiers and vehicles). */
 export function buildCost(option: BuildOption, faction: FactionId): number {

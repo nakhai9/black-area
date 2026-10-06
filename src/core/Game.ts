@@ -67,7 +67,7 @@ import { OilMarket } from '../systems/OilMarket';
 import { TaxSystem } from '../systems/TaxSystem';
 import { EndScreen } from '../ui/EndScreen';
 import { NewsToast } from '../ui/NewsToast';
-import { BUILD_OPTIONS, type BuildOption, ConstructionSystem, type QueueState, buildCost } from '../systems/ConstructionSystem';
+import { BUILD_OPTIONS, type BuildOption, ConstructionSystem, type QueueState, buildCost, missingRequirement } from '../systems/ConstructionSystem';
 import { EconomySystem } from '../systems/EconomySystem';
 import type { GameSystem } from '../systems/GameSystem';
 import { BUILD_RADIUS, type PlacementRequest, type PlacementResult, PlacementSystem } from '../systems/PlacementSystem';
@@ -368,8 +368,14 @@ export class Game {
       u.parade = null;
       u.task = null;
       u.attackTarget = null;
-      u.attackMove = target;
       const off = spiralOffset(k, u.aircraft ? 10 : spacing);
+      // Transports never attack anything: an attack-move is just a flight to the spot.
+      if (u instanceof Vehicle && u.isTransport) {
+        u.attackMove = null;
+        u.follow([{ x: target.x + off.x, y: target.y + off.y }]);
+        return;
+      }
+      u.attackMove = target;
       if (u.aircraft) {
         u.follow([{ x: target.x + off.x, y: target.y + off.y }]);
         return;
@@ -534,13 +540,14 @@ export class Game {
   private readonly lastDry = new Map<number, { x: number; y: number }>();
 
   /**
-   * Tanks, cars and ordinary soldiers never end up in water: a unit that has stepped into a
-   * water cell (a path corner, a shove…) is put back on its last dry spot and plans a new route.
+   * No vehicle (aircraft included, once on the ground) and no ordinary soldier ever stands or drives in water — only
+   * watercraft / swimmers may: a unit that has stepped into a water cell (a path corner, a shove…) is put back on its
+   * last dry spot and plans a new route. Aircraft may only cross water in the air.
    */
   private keepOutOfWater(): void {
     if (this.lastDry.size > 4000) this.lastDry.clear();
     for (const u of this.entities.fieldMovers()) {
-      if (u.aircraft || u.flies || u.swims) continue;
+      if (u.flies || u.swims || (u instanceof Vehicle && u.altitude > 0)) continue;
       if (!this.map.isWater(Math.floor(u.px / CELL_SIZE), Math.floor(u.py / CELL_SIZE))) {
         this.lastDry.set(u.id, { x: u.px, y: u.py });
         continue;
@@ -725,7 +732,7 @@ export class Game {
           player: this.humanPlayer,
           oilRate: this.economy.oilRate(this.humanPlayer),
           oilPrice: this.oilMarket.price,
-          salesLeft: this.oilMarket.salesLeft(this.humanPlayer),
+          sellable: this.oilMarket.sellable(this.humanPlayer),
           salesWait: this.oilMarket.waitSeconds(this.humanPlayer),
           loanBlocker: this.oilMarket.loanBlocker(this.humanPlayer),
           derricks: own.length,
@@ -916,8 +923,8 @@ export class Game {
     const player = this.humanPlayer;
     const slot = this.construction.slot(player);
     if (slot.state === 'idle') {
-      const need = option.requires;
-      if (need && !this.ownedTypes().has(need)) {
+      const need = missingRequirement(option, this.ownedTypes());
+      if (need) {
         this.sidebar.notify(`${option.name} requires a ${BUILD_OPTIONS.find((o) => o.id === need)?.name ?? need} first.`);
         return;
       }

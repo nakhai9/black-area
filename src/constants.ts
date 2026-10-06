@@ -4,8 +4,8 @@ import type { BuildingType, FactionId, GeoPoint, NamedSite, UnitTier, VehicleKin
 /** Packed Earth texture built by `npm run build:earth` (see scripts/build-earth.mjs). */
 export const EARTH_TEXTURE_URL = `${import.meta.env.BASE_URL}data/earth.png`;
 /** Earth data resolution (equirectangular, 1 texel ≈ 9.8 km at the equator). */
-export const EARTH_TEX_WIDTH = 4096;
-export const EARTH_TEX_HEIGHT = 2048;
+const EARTH_TEX_WIDTH = 4096;
+const EARTH_TEX_HEIGHT = 2048;
 /**
  * World px per Earth texel. 2.25 per side = 5.06× the land area of a 1:1 world,
  * so there is five times more room to build while buildings keep their size.
@@ -38,8 +38,8 @@ export const GRID_HEIGHT = Math.ceil(WORLD_HEIGHT / CELL_SIZE);
 export const ISO_X = 0.5;
 export const ISO_Y = 0.25;
 /** Sprites are authored in a 2:1 isometric art space (tile = 64×32 px)… */
-export const TILE_W = 64;
-export const TILE_H = 32;
+const TILE_W = 64;
+const TILE_H = 32;
 export const HALF_TW = TILE_W / 2;
 export const HALF_TH = TILE_H / 2;
 /**
@@ -82,7 +82,7 @@ export const AIRFIELD_COST = 2000;
 export const TECH_CENTER_COST = 8000;
 /** Second-tier units that need a High-Tech Center: special-forces soldiers and the armoured fighting vehicle. */
 export const TECH_TIERS: readonly UnitTier[] = ['special'];
-export const TECH_VEHICLES: readonly VehicleKind[] = ['ifv'];
+export const TECH_VEHICLES: readonly VehicleKind[] = ['ifv', 'transport'];
 /**
  * Happy City: no limit on how many a nation builds; fixed price (no faction cost multiplier). Every city pays
  * HAPPY_CITY_TAX TB of taxes into its nation's budget every HAPPY_CITY_TAX_PERIOD seconds, each on its own clock.
@@ -247,9 +247,10 @@ export const EMERGENCY_LOAN = 2000;
 export const DEBT_LIMIT = 10000;
 /** The Bank never buys more than this share of the offered stock in one sale. */
 export const WB_MAX_SHARE = 0.25;
-/** A nation may offer its oil at most this many times in any window of this many seconds. */
-export const OIL_SALES_MAX = 5;
-export const OIL_SALES_WINDOW = 30;
+/** No limit on the number of sales, but a nation must wait this many seconds between two offers. */
+export const OIL_SALE_COOLDOWN = 10;
+/** Barrels that always stay in the nation's stock: a sale never dips below this reserve. */
+export const OIL_RESERVE = 1.0;
 /** Oil derricks per nation, built in one straight row on the safest ground: 3, or 4 for Europe (it also runs the World Bank). */
 export const OIL_DERRICK_COUNT: Readonly<Record<FactionId, number>> = { usa: 3, russia: 3, china: 3, europe: 4 };
 /** Oil cycle: pump for 3 minutes, then rest 1 minute while the field recovers. */

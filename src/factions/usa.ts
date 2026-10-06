@@ -19,12 +19,12 @@ export const USA: FactionConfig = {
     regular: {
       name: 'GI',
       description: 'Versatile U.S. rifleman — the backbone of the Allied army.',
-      look: { uniform: '#6b7046', trousers: '#4f5236', headgear: 'helmet', headColor: '#5a5f3a', weapon: 'rifle' },
+      look: { uniform: '#7d8083', trousers: '#5f6265', headgear: 'helmet', headColor: '#62666a', weapon: 'rifle', camo: true },
     },
     special: {
       name: 'Ranger',
       description: 'Elite light infantry: fast, accurate and deadly at close range.',
-      look: { uniform: '#3d4a3a', trousers: '#2f382d', headgear: 'boonie', headColor: '#7a7350', weapon: 'smg' },
+      look: { uniform: '#7d8083', trousers: '#5f6265', headgear: 'boonie', headColor: '#6e7275', weapon: 'rifle', camo: true },
     },
     president: {
       name: 'President',
@@ -42,6 +42,6 @@ export const USA: FactionConfig = {
     tank: { name: "Abrams", description: "M1 Abrams main battle tank: heavy armour and a powerful gun." },
     ifv: { name: "Bradley", description: "M2 Bradley armoured fighting vehicle for infantry support." },
     jet: { name: "F-16 Falcon", description: "Agile multirole fighter aircraft." },
-    transport: { name: "C-17 Globemaster", description: "Heavy transport aircraft: carries soldiers and vehicles; unarmed." },
+    transport: { name: "C-17", description: "Heavy transport aircraft: carries soldiers and vehicles; unarmed." },
   },
 };

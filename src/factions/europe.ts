@@ -19,12 +19,12 @@ export const EUROPE: FactionConfig = {
     regular: {
       name: 'Eurocorps',
       description: 'Combined European infantry with modern kit.',
-      look: { uniform: '#5d6a4c', trousers: '#444e38', headgear: 'beret', headColor: '#2b3a7a', weapon: 'rifle' },
+      look: { uniform: '#5e6c78', trousers: '#4a5661', headgear: 'helmet', headColor: '#515d68', weapon: 'rifle', camo: true },
     },
     special: {
       name: 'EU Spec',
       description: 'European special operators — long-range precision marksmen.',
-      look: { uniform: '#2f3338', trousers: '#24272b', headgear: 'helmet', headColor: '#2a2d31', weapon: 'sniper' },
+      look: { uniform: '#5e6c78', trousers: '#4a5661', headgear: 'reverseCap', headColor: '#3f4a54', weapon: 'rifle', camo: true },
     },
     president: {
       name: 'President',
@@ -42,6 +42,6 @@ export const EUROPE: FactionConfig = {
     tank: { name: "Leopard 2", description: "Leopard 2 main battle tank, precise and well protected." },
     ifv: { name: "Puma", description: "Puma armoured fighting vehicle, modern and fast." },
     jet: { name: "Eurofighter", description: "Eurofighter Typhoon multirole fighter." },
-    transport: { name: "A400M", description: "A400M Atlas transport aircraft: carries soldiers and vehicles; unarmed." },
+    transport: { name: "C-130", description: "C-130 transport aircraft: carries soldiers and vehicles; unarmed." },
   },
 };

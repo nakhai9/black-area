@@ -11,7 +11,7 @@ import type { TileMap } from './TileMap';
  * tiles carry their own texture, shores get a beach strip and foam, mountains get hill-shading, and the sea
  * deepens with the real bathymetry. Chunks of CHUNK_CELLS × CHUNK_CELLS tiles are rendered on demand and cached.
  */
-export const CHUNK_CELLS = 16;
+const CHUNK_CELLS = 16;
 const TILE_PX = 20;
 const CHUNK_PX = CHUNK_CELLS * TILE_PX;
 const CACHE_LIMIT = 260;

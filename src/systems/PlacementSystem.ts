@@ -18,7 +18,7 @@ export interface PlacementRequest {
 }
 
 /** Cells between two rectangles along the worst axis (0 = touching or overlapping). */
-export function cellGap(
+function cellGap(
   a: { x: number; y: number; w: number; d: number },
   b: { x: number; y: number; w: number; d: number },
 ): number {

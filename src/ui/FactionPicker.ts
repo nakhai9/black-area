@@ -22,7 +22,7 @@ const SHOWN_STATS: readonly [keyof FactionStats, string][] = [
 const STAT_MAX = 1.5;
 
 /** Last faction the player chose (per browser), if any. */
-export function rememberedFaction(): FactionId | null {
+function rememberedFaction(): FactionId | null {
   try {
     const v = localStorage.getItem(STORAGE_KEY);
     return v && (FACTION_ORDER as readonly string[]).includes(v) ? (v as FactionId) : null;
