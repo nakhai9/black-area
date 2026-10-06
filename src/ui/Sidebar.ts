@@ -1,5 +1,5 @@
 import { type IconNode, Hammer, PersonStanding, Shield, Truck, createElement } from 'lucide';
-import { CURRENCY } from '../constants';
+import { CURRENCY, regularsNeededFor } from '../constants';
 import { FACTIONS } from '../factions';
 import { getFlagTexture } from '../render/Flags';
 import type { BuildOption, QueueSlot } from '../systems/ConstructionSystem';
@@ -15,7 +15,6 @@ const TYPE_LABEL: Readonly<Partial<Record<BuildingType, string>>> = {
   warFactory: 'FACTORY',
   hospital: 'HOSPITAL',
   airfield: 'AIRFIELD',
-  radar: 'RADAR',
 };
 
 /** Construction tabs (RA2 sidebar), shown as Lucide icons. */
@@ -141,7 +140,7 @@ export class Sidebar {
         <h3>Controls</h3>
         <ul>
           <li><kbd>Click</kbd> cameo — build/train · <kbd>Right-click</kbd> cameo — cancel (refund)</li>
-          <li>Soldiers: <kbd>Click</kbd>/<kbd>Drag</kbd> select · <kbd>Left-click</kbd> ground — move · <kbd>Right-click</kbd> deselect · <kbd>Shift</kbd> add</li>
+          <li>Soldiers &amp; vehicles: <kbd>Right-drag</kbd> sweep-select · <kbd>Left-click</kbd> a unit select · <kbd>Left-click</kbd> ground — move · <kbd>Right-click</kbd> deselect · <kbd>Shift</kbd> add</li>
           <li>Armed units: <kbd>Left-click</kbd> an enemy to attack · enemy engineers capture buildings · <kbd>M</kbd> sound on/off</li>
           <li>Army: 1 special per 4 regulars (5 soldiers = 4 + 1) · special forces can swim</li>
           <li>When <b>READY</b>: click cameo, then click the map to place · <kbd>Esc</kbd>/<kbd>Right-click</kbd> stop placing</li>
@@ -324,7 +323,7 @@ export class Sidebar {
           : inOffice
             ? 'IN OFFICE'
             : ratioLocked
-              ? `NEED ${4 * (model.ratio.special + 1) - model.ratio.regular} MORE`
+              ? `NEED ${regularsNeededFor(model.ratio.special + 1) - model.ratio.regular} MORE`
               : `${option.cost} ${CURRENCY}`
         : q.state === 'noBarracks'
           ? 'NO BARRACKS'

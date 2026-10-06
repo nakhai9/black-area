@@ -37,7 +37,9 @@ export class InputHandler {
   private queue: InputEvent[] = [];
   private pan = { x: 0, y: 0 };
   private middleDown = false;
-  private leftStart: { x: number; y: number } | null = null;
+  private leftDown = false;
+  /** Where the right button went down; dragging from here sweeps a selection box. */
+  private rightStart: { x: number; y: number } | null = null;
   private dragging = false;
   private readonly abort = new AbortController();
 
@@ -60,9 +62,9 @@ export class InputHandler {
     return this.keys.has(code);
   }
 
-  /** Screen-space rectangle of an in-progress left-drag, or null. */
+  /** Screen-space rectangle of an in-progress right-drag, or null. */
   get selectionRect(): Rect | null {
-    return this.dragging && this.leftStart ? normalizeRect(this.leftStart, this.mouse) : null;
+    return this.dragging && this.rightStart ? normalizeRect(this.rightStart, this.mouse) : null;
   }
 
   /** Returns and resets the accumulated middle-mouse drag delta (screen px). */
@@ -98,13 +100,13 @@ export class InputHandler {
   private readonly onPointerDown = (e: PointerEvent): void => {
     const p = this.local(e);
     if (e.button === 0) {
-      this.leftStart = p;
-      this.dragging = false;
+      this.leftDown = true;
     } else if (e.button === 1) {
       this.middleDown = true;
       e.preventDefault();
     } else if (e.button === 2) {
-      this.queue.push({ type: 'click', button: 'right', ...p, shift: e.shiftKey });
+      this.rightStart = p;
+      this.dragging = false;
     }
   };
 
@@ -117,8 +119,8 @@ export class InputHandler {
       this.pan.x += e.movementX;
       this.pan.y += e.movementY;
     }
-    if (this.leftStart && !this.dragging) {
-      this.dragging = Math.hypot(p.x - this.leftStart.x, p.y - this.leftStart.y) > DRAG_THRESHOLD;
+    if (this.rightStart && !this.dragging) {
+      this.dragging = Math.hypot(p.x - this.rightStart.x, p.y - this.rightStart.y) > DRAG_THRESHOLD;
     }
   };
 
@@ -129,14 +131,19 @@ export class InputHandler {
   };
 
   private readonly onPointerUp = (e: PointerEvent): void => {
-    if (e.button === 0 && this.leftStart) {
+    if (e.button === 0 && this.leftDown) {
+      // Left button: always a click (select one / give an order); it never sweeps a box.
+      this.leftDown = false;
+      this.queue.push({ type: 'click', button: 'left', ...this.local(e), shift: e.shiftKey });
+    } else if (e.button === 2 && this.rightStart) {
+      // Right button: drag sweeps a selection box, a plain click deselects / cancels placing.
       const p = this.local(e);
       if (this.dragging) {
-        this.queue.push({ type: 'boxSelect', rect: normalizeRect(this.leftStart, p), shift: e.shiftKey });
+        this.queue.push({ type: 'boxSelect', rect: normalizeRect(this.rightStart, p), shift: e.shiftKey });
       } else {
-        this.queue.push({ type: 'click', button: 'left', ...p, shift: e.shiftKey });
+        this.queue.push({ type: 'click', button: 'right', ...p, shift: e.shiftKey });
       }
-      this.leftStart = null;
+      this.rightStart = null;
       this.dragging = false;
     } else if (e.button === 1) {
       this.middleDown = false;
@@ -160,5 +167,8 @@ export class InputHandler {
     this.edge.x = 0;
     this.edge.y = 0;
     this.middleDown = false;
+    this.leftDown = false;
+    this.rightStart = null;
+    this.dragging = false;
   };
 }

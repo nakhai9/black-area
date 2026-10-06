@@ -152,7 +152,6 @@ export type BuildingType =
   | 'powerPlant'
   | 'barracks'
   | 'warFactory'
-  | 'radar'
   | 'refinery'
   | 'bank'
   | 'chhg'

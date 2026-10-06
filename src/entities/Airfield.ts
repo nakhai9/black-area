@@ -2,7 +2,7 @@ import { FOOTPRINT_AIRFIELD } from '../constants';
 import type { FactionId, WorldPoint } from '../types';
 import { Building } from './Building';
 
-/** Airfield: T-shaped runway + 3×3 apron with a control tower (5×5 cells). */
+/** Airfield: runway + apron with a control tower, filling 4×4 cells. */
 export class Airfield extends Building {
   constructor(owner: number, faction: FactionId, center: WorldPoint) {
     super(owner, faction, center, {

@@ -8,12 +8,10 @@ import {
   FOOTPRINT_LARGE,
   FOOTPRINT_SMALL,
   HOSPITAL_COST,
-  RADAR_COST,
   WAR_FACTORY_COST,
 } from '../constants';
 import { Airfield } from '../entities/Airfield';
 import { Hospital } from '../entities/Hospital';
-import { Radar } from '../entities/Radar';
 import { WarFactory } from '../entities/WarFactory';
 import { Barracks } from '../entities/Barracks';
 import type { Building } from '../entities/Building';
@@ -22,7 +20,7 @@ import type { GameSystem } from './GameSystem';
 
 /** A structure that can be produced from the sidebar's Build tab. */
 export interface BuildOption {
-  id: 'barracks' | 'warFactory' | 'hospital' | 'airfield' | 'radar';
+  id: 'barracks' | 'warFactory' | 'hospital' | 'airfield';
   name: string;
   /** Tech tree: this building must already stand (barracks → war factory/hospital → airfield). */
   requires?: BuildingType;
@@ -73,15 +71,6 @@ export const BUILD_OPTIONS: readonly BuildOption[] = [
     footprint: FOOTPRINT_AIRFIELD,
     spriteKey: (f) => `airfield:${f}`,
     create: (owner, faction, x, y) => new Airfield(owner, faction, center(x, y, FOOTPRINT_AIRFIELD)),
-  },
-  {
-    id: 'radar',
-    name: 'Radar Station',
-    requires: 'airfield',
-    cost: RADAR_COST,
-    footprint: FOOTPRINT_SMALL,
-    spriteKey: (f) => `radar:${f}`,
-    create: (owner, faction, x, y) => new Radar(owner, faction, center(x, y, FOOTPRINT_SMALL)),
   },
 ];
 

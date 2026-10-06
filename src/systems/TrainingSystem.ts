@@ -1,4 +1,4 @@
-import { INFANTRY_BASE, REGULARS_PER_SPECIAL, TRAINING_QUEUE_MAX } from '../constants';
+import { INFANTRY_BASE, specialCapFor, TRAINING_QUEUE_MAX } from '../constants';
 import type { Building } from '../entities/Building';
 import type { EntityManager } from '../entities/EntityManager';
 import { FACTIONS } from '../factions';
@@ -34,7 +34,7 @@ export type EnqueueResult = 'ok' | 'full' | 'noBarracks' | 'ratio' | 'unique';
 export interface ArmyRatio {
   regular: number;
   special: number;
-  /** Special soldiers allowed: one per REGULARS_PER_SPECIAL regulars. */
+  /** Special soldiers allowed: 3 for every 5 regulars (see specialCapFor). */
   specialCap: number;
   /** A nation has exactly one President: alive (even inside a building) or queued. */
   presidentTaken: boolean;
@@ -86,7 +86,7 @@ export class TrainingSystem implements GameSystem {
   }
 
   /**
-   * Composition rule: for every REGULARS_PER_SPECIAL regular soldiers the
+   * Composition rule: for every 5 regular soldiers the
    * nation may field one special-forces soldier. Living and queued soldiers count.
    */
   ratio(player: PlayerState): ArmyRatio {
@@ -100,10 +100,10 @@ export class TrainingSystem implements GameSystem {
     };
     for (const u of this.entities.units()) if (u.owner === player.id && u.alive) count(u.tier);
     for (const t of this.queue(player).items) count(t);
-    return { regular, special, presidentTaken, specialCap: Math.floor(regular / REGULARS_PER_SPECIAL) };
+    return { regular, special, presidentTaken, specialCap: specialCapFor(regular) };
   }
 
-  /** Adds a soldier to the queue (special forces only within the 4:1 ratio). */
+  /** Adds a soldier to the queue (special forces only within the 5:3 ratio). */
   enqueue(player: PlayerState, tier: UnitTier): EnqueueResult {
     const q = this.queue(player);
     if (!this.barracksOf(player)) return 'noBarracks';
@@ -158,7 +158,7 @@ export class TrainingSystem implements GameSystem {
         q.state = 'noBarracks';
         continue;
       }
-      // Losses can break the 4:1 ratio after queueing: hold the special until it is legal again.
+      // Losses can break the 5:3 ratio after queueing: hold the special until it is legal again.
       if (tier === 'special') {
         const r = this.ratio(p);
         if (r.special > r.specialCap) {

@@ -32,7 +32,7 @@ export interface AIHost {
 }
 
 /** Order in which an AI nation builds its base. */
-const BUILD_PLAN: readonly BuildOption['id'][] = ['barracks', 'warFactory', 'hospital', 'airfield', 'radar'];
+const BUILD_PLAN: readonly BuildOption['id'][] = ['barracks', 'warFactory', 'hospital', 'airfield'];
 const THINK_PERIOD = 1.5;
 /** No attack waves before this game time (s); the first wave also needs enough soldiers. */
 const FIRST_WAVE_AT = 210;
@@ -49,8 +49,8 @@ interface AIState {
 
 /**
  * Computer-controlled nations. Each one builds its base in a fixed order
- * (Barracks → War Factory → Hospital → Airfield → Radar), keeps its training
- * and vehicle queues running with the same rules as the player (4:1 special
+ * (Barracks → War Factory → Hospital → Airfield), keeps its training
+ * and vehicle queues running with the same rules as the player (5:3 special
  * forces, one President kept safe in the capital), defends against nearby
  * enemies and sends periodic attack waves at the closest reachable opponent.
  */

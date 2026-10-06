@@ -63,8 +63,8 @@ export class Minimap {
   }
 
   /**
-   * Draws the radar. Without a Radar Station only your own and neutral things
-   * show; with one, enemy units and buildings appear too.
+   * Draws the radar. Without an Airfield only your own and neutral things
+   * show; with one (it runs the radar), enemy units and buildings appear too.
    */
   render(buildings: readonly Building[], units: readonly Unit[], viewerOwner: number, seesEnemies: boolean): void {
     const shown = (owner: number): boolean => seesEnemies || owner === viewerOwner || owner === NEUTRAL_OWNER;

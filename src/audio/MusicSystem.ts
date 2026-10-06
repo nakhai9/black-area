@@ -1,23 +1,29 @@
 /**
- * Procedural background music (Web Audio, no audio files): a steady, moderate 120 BPM march —
- * soft kick and snare, light hi-hats, a pulsing saw bass, sparse power-chord stabs and a
- * pentatonic lead — over an Am – F – C – G progression. It sits quietly under the sound effects
- * so the battle stays readable. A look-ahead scheduler keeps the timing tight.
+ * Procedural military-march background music (Web Audio, no audio files), in the spirit of the
+ * Red Alert 2 soundtrack: a stomping 118 BPM industrial march — kick on the downbeats, a tight
+ * marching snare with ghost notes and rolls, a pulsing saw bass, brass-like power-chord stabs and
+ * a fanfare lead in A minor. The tune itself is an original composition. It sits under the sound
+ * effects so the battle stays readable. A look-ahead scheduler keeps the timing tight.
  */
-const BPM = 120;
+const BPM = 118;
 const STEP = 60 / BPM / 4; // 16th note (s)
 const LOOKAHEAD = 0.25;
-const VOLUME = 0.2;
+const VOLUME = 0.22;
 const MIDI = (n: number): number => 440 * 2 ** ((n - 69) / 12);
 
-/** Root note (MIDI) per bar of the 4-bar progression: A, F, C, G. */
-const ROOTS = [33, 29, 36, 31];
-/** Lead phrase per bar, as semitone offsets above the bar root + 24 (null = rest); minor-pentatonic flavour. */
+/** Root note (MIDI) per bar of the 4-bar progression: Am – F – G – E (the E major turns back to A minor). */
+const ROOTS = [33, 29, 31, 28];
+/** Whether the chord is minor (third = 3 semitones) or major (4). */
+const MINOR = [true, false, false, false];
+/**
+ * Fanfare lead per bar: semitones above the bar root + 24 (null = rest, - = hold the last note).
+ * Bars of the 4-bar phrase answer each other: a call, a rising answer, a held note, a falling resolve.
+ */
 const LEAD: readonly (readonly (number | null)[])[] = [
-  [12, null, null, null, 15, null, null, 12, 10, null, null, null, 7, null, null, null],
-  [12, null, null, 15, 17, null, null, null, 15, null, null, 12, null, null, 10, null],
-  [19, null, null, null, 17, null, null, 15, 12, null, null, null, 15, null, 17, null],
-  [12, null, null, 10, 12, null, null, null, 7, null, null, 10, 12, null, null, null],
+  [12, null, 12, 12, null, 15, null, 12, null, null, 10, null, 12, null, null, null],
+  [12, null, 12, 12, null, 17, null, 12, null, null, 15, null, 17, null, 19, null],
+  [19, null, null, null, 19, null, 17, null, 15, null, null, null, 14, null, 15, null],
+  [16, null, null, 15, null, 14, null, 12, null, null, 11, null, 12, null, null, null],
 ];
 
 export class MusicSystem {
@@ -37,7 +43,7 @@ export class MusicSystem {
     // Gentle low-pass keeps the saws from sounding harsh over long play sessions.
     const soften = ctx.createBiquadFilter();
     soften.type = 'lowpass';
-    soften.frequency.value = 5200;
+    soften.frequency.value = 5600;
     const comp = ctx.createDynamicsCompressor();
     comp.threshold.value = -16;
     comp.ratio.value = 5;
@@ -70,22 +76,34 @@ export class MusicSystem {
   private playStep(s: number, bar: number, t: number): void {
     const chord = bar % 4;
     const root = ROOTS[chord] ?? 33;
-    // The first 4 bars of every 16 are drums + bass only; the lead joins afterwards, so the loop keeps changing.
-    const lead = bar >= 4;
-    const busy = bar >= 8;
+    const third = MINOR[chord] ? 3 : 4;
+    const brass = bar >= 4; // 16-bar form: bars 0-3 drums + bass only, then the brass joins
+    const build = bar >= 12; // last 4 bars: snare roll builds into the next loop
+    const lastBar = bar === 15;
 
-    if (s === 0 || s === 8 || (busy && s === 10)) this.kick(t, s === 10 ? 0.6 : 1);
-    if (s === 4 || s === 12) this.snare(t);
-    if (s % 2 === 0) this.hat(t, s % 4 === 2 ? 0.5 : 0.25);
-    if (s === 0 && chord === 0) this.crash(t);
+    // Stomp: kick on every beat's downbeat of 1 and 3, a pickup before 3, timpani on the phrase ends.
+    if (s === 0 || s === 8) this.kick(t, 1);
+    if (s === 6 || (build && s === 14)) this.kick(t, 0.6);
+    if (s === 0 && chord === 3) this.timpani(t, MIDI(root));
+    if (s === 0 && bar === 0) this.crash(t);
 
-    // Pulsing 8th-note bass on the chord root, an octave up on the off-beat.
-    if (s % 2 === 0) this.bass(t, MIDI(root + (s % 8 === 6 ? 12 : 0)));
+    // Marching snare: backbeat on 2 and 4 with soft ghost notes; a roll in the last bar of the loop.
+    if (s === 4 || s === 12) this.snare(t, 1);
+    else if (s === 7 || s === 15 || s === 10) this.snare(t, 0.3);
+    if (lastBar && s >= 8) this.snare(t, 0.35 + (s - 8) * 0.07);
 
-    if (s === 0 || (busy && s === 10)) this.stab(t, root + 12);
+    // Light closed hi-hat keeps the pulse.
+    if (s % 2 === 0) this.hat(t, s % 4 === 0 ? 0.35 : 0.2);
 
+    // Pulsing 8th-note bass: root, with the fifth on the off-beats.
+    if (s % 2 === 0) this.bass(t, MIDI(root + (s % 8 === 6 ? 7 : 0)));
+
+    // Brass-style power-chord stabs on the syncopated hits (root, fifth, octave + the chord's third on accents).
+    if (brass && (s === 0 || s === 6 || s === 8 || s === 11)) this.stab(t, root + 12, third, s === 0 ? 1 : 0.7);
+
+    // Fanfare lead.
     const note = LEAD[chord]?.[s];
-    if (lead && note != null) this.lead(t, MIDI(root + 24 + note), busy ? 0.12 : 0.09);
+    if (brass && note != null) this.horn(t, MIDI(root + 24 + note), bar >= 8 ? 0.13 : 0.1);
   }
 
   // ------------------------------------------------------------------ voices
@@ -101,29 +119,40 @@ export class MusicSystem {
     const o = this.ctx.createOscillator();
     o.type = 'sine';
     o.frequency.setValueAtTime(150, t);
-    o.frequency.exponentialRampToValueAtTime(45, t + 0.12);
-    o.connect(this.env(t, 0.9 * vel, 0.22)).connect(this.out);
+    o.frequency.exponentialRampToValueAtTime(42, t + 0.13);
+    o.connect(this.env(t, 1.0 * vel, 0.24)).connect(this.out);
     o.start(t);
-    o.stop(t + 0.25);
+    o.stop(t + 0.27);
   }
 
-  private snare(t: number): void {
-    this.noiseHit(t, 0.5, 0.16, 'highpass', 1400);
+  /** Tight military snare: a short bandpassed noise crack over a snappy tone. */
+  private snare(t: number, vel: number): void {
+    this.noiseHit(t, 0.6 * vel, 0.13, 'bandpass', 2600);
     const o = this.ctx.createOscillator();
     o.type = 'triangle';
-    o.frequency.setValueAtTime(200, t);
-    o.frequency.exponentialRampToValueAtTime(120, t + 0.1);
-    o.connect(this.env(t, 0.35, 0.12)).connect(this.out);
+    o.frequency.setValueAtTime(230, t);
+    o.frequency.exponentialRampToValueAtTime(140, t + 0.07);
+    o.connect(this.env(t, 0.3 * vel, 0.09)).connect(this.out);
     o.start(t);
-    o.stop(t + 0.15);
+    o.stop(t + 0.12);
+  }
+
+  private timpani(t: number, freq: number): void {
+    const o = this.ctx.createOscillator();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(freq * 2.2, t);
+    o.frequency.exponentialRampToValueAtTime(freq * 1.1, t + 0.35);
+    o.connect(this.env(t, 0.9, 0.7)).connect(this.out);
+    o.start(t);
+    o.stop(t + 0.75);
   }
 
   private hat(t: number, vel: number): void {
-    this.noiseHit(t, vel * 0.25, 0.045, 'highpass', 7000);
+    this.noiseHit(t, vel * 0.22, 0.04, 'highpass', 7500);
   }
 
   private crash(t: number): void {
-    this.noiseHit(t, 0.3, 1.2, 'highpass', 4500);
+    this.noiseHit(t, 0.28, 1.4, 'highpass', 4500);
   }
 
   private noiseHit(t: number, gain: number, secs: number, type: BiquadFilterType, freq: number): void {
@@ -145,34 +174,53 @@ export class MusicSystem {
     const f = this.ctx.createBiquadFilter();
     f.type = 'lowpass';
     f.Q.value = 4;
-    f.frequency.setValueAtTime(700, t);
-    f.frequency.exponentialRampToValueAtTime(160, t + STEP * 1.8);
-    o.connect(f).connect(this.env(t, 0.4, STEP * 1.9)).connect(this.out);
+    f.frequency.setValueAtTime(750, t);
+    f.frequency.exponentialRampToValueAtTime(170, t + STEP * 1.8);
+    o.connect(f).connect(this.env(t, 0.42, STEP * 1.9)).connect(this.out);
     o.start(t);
     o.stop(t + STEP * 2);
   }
 
-  private stab(t: number, rootMidi: number): void {
-    for (const semis of [0, 7, 12]) {
+  /** Brass-like chord hit: saws whose filter opens quickly (the "blat"), then decays. */
+  private stab(t: number, rootMidi: number, third: number, vel: number): void {
+    for (const semis of [0, 7, 12, third + 12]) {
       const o = this.ctx.createOscillator();
       o.type = 'sawtooth';
       o.frequency.value = MIDI(rootMidi + semis);
-      o.detune.value = (semis - 6) * 3;
+      o.detune.value = (semis % 5) * 3 - 6;
       const f = this.ctx.createBiquadFilter();
       f.type = 'lowpass';
-      f.frequency.value = 1800;
-      o.connect(f).connect(this.env(t, 0.1, STEP * 2)).connect(this.out);
+      f.frequency.setValueAtTime(500, t);
+      f.frequency.exponentialRampToValueAtTime(2400, t + 0.06);
+      f.frequency.exponentialRampToValueAtTime(900, t + STEP * 2);
+      o.connect(f).connect(this.env(t, 0.085 * vel, STEP * 2.2)).connect(this.out);
       o.start(t);
-      o.stop(t + STEP * 2.1);
+      o.stop(t + STEP * 2.3);
     }
   }
 
-  private lead(t: number, freq: number, vel: number): void {
+  /** Fanfare lead: a single brass voice with a quick swell and a little vibrato. */
+  private horn(t: number, freq: number, vel: number): void {
     const o = this.ctx.createOscillator();
-    o.type = 'triangle';
+    o.type = 'sawtooth';
     o.frequency.value = freq;
-    o.connect(this.env(t, vel, STEP * 3)).connect(this.out);
+    const vib = this.ctx.createOscillator();
+    vib.frequency.value = 5.5;
+    const vibGain = this.ctx.createGain();
+    vibGain.gain.value = freq * 0.008;
+    vib.connect(vibGain).connect(o.frequency);
+    const f = this.ctx.createBiquadFilter();
+    f.type = 'lowpass';
+    f.frequency.setValueAtTime(900, t);
+    f.frequency.exponentialRampToValueAtTime(2600, t + 0.08);
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(0.0005, t);
+    g.gain.exponentialRampToValueAtTime(vel, t + 0.03);
+    g.gain.exponentialRampToValueAtTime(0.0005, t + STEP * 3.2);
+    o.connect(f).connect(g).connect(this.out);
     o.start(t);
-    o.stop(t + STEP * 3.1);
+    vib.start(t);
+    o.stop(t + STEP * 3.3);
+    vib.stop(t + STEP * 3.3);
   }
 }

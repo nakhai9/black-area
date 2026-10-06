@@ -23,7 +23,7 @@ const TAXI_SPEED = 11;
 const TAKEOFF_SECONDS = 3.4;
 const LANDING_SECONDS = 3.0;
 /** Seconds without orders before an airborne aircraft heads home. */
-const RETURN_AFTER = 2.5;
+const RETURN_AFTER = 1;
 
 const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
 const clamp01 = (t: number): number => Math.max(0, Math.min(1, t));
@@ -158,7 +158,9 @@ export class AircraftSystem implements GameSystem {
     if (!home) return; // no airfield left: circle where it is
     const slot = this.freeSlot(v, home);
     if (slot < 0) {
-      v.idleFor = 0; // apron full: keep hovering
+      // Apron full: wait over the airfield's approach point and try again in a moment.
+      v.idleFor = RETURN_AFTER - 1.5;
+      v.follow([this.geometry(home).approach]);
       return;
     }
     v.slot = slot;

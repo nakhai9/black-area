@@ -56,7 +56,7 @@ export class Building extends Entity {
     this.owner = owner;
     this.faction = faction;
     // Team-coloured structures switch to the new owner's colours.
-    const m = /^(oil|barracks|hospital|airfield|warFactory|radar):/.exec(this.spec.spriteKey);
+    const m = /^(oil|barracks|hospital|airfield|warFactory):/.exec(this.spec.spriteKey);
     if (m) this.spriteKeyOverride = `${m[1]}:${faction}`;
     return true;
   }

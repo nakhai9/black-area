@@ -21,7 +21,7 @@ import {
   FOOTPRINT_SMALL,
   NEUTRAL_OWNER,
   OIL_DERRICK_COUNT,
-  REGULARS_PER_SPECIAL,
+  regularsNeededFor,
   STARTING_CREDITS,
   WORLD_BANK_LOCATION,
   WORLD_HEIGHT,
@@ -55,6 +55,7 @@ import { soldierPortrait } from '../render/InfantryArt';
 import { vehiclePortrait } from '../render/VehicleArt';
 import { SpriteCache } from '../render/SpriteCache';
 import { BUILDING_ART } from '../render/sprites';
+import { AIRFIELD_SLOTS } from '../render/sprites/Airfield';
 import { AircraftSystem, type AirfieldGeometry } from '../systems/AircraftSystem';
 import { AISystem } from '../systems/AISystem';
 import { CombatSystem, isHostile } from '../systems/CombatSystem';
@@ -448,7 +449,7 @@ export class Game {
       moveMarker: this.moveMarker,
       effects: this.effects.list,
     });
-    this.minimap.render(buildings, units, this.humanPlayer.id, this.ownedCache.has('radar'));
+    this.minimap.render(buildings, units, this.humanPlayer.id, this.ownedCache.has('airfield'));
     this.status.update(dt, this.mouseWorld, this.camera.zoom);
 
     const queue = this.construction.slot(this.humanPlayer);
@@ -857,17 +858,17 @@ export class Game {
     const k = this.sprites.fitScale(b.spriteKey, b.footprintWorld().w);
     const cos = Math.cos(b.angleRad);
     const sin = Math.sin(b.angleRad);
-    // Art-space tile (u, v) of the 5×5 airfield sprite → world px (isometric projection, scaled, rotated).
+    // Art-space tile (u, v) of the 4×4 airfield sprite → world px (isometric projection, scaled, rotated).
     const pt = (u: number, v: number): WorldPoint => {
       const ox = (u - v) * HALF_TW * k;
-      const oy = (u + v - 5) * HALF_TH * k;
+      const oy = (u + v - 4) * HALF_TH * k;
       return { x: c.x + ox * cos - oy * sin, y: c.y + ox * sin + oy * cos };
     };
-    const start = pt(0.3, 1);
-    const end = pt(4.7, 1);
+    const start = pt(0.25, 0.68);
+    const end = pt(3.75, 0.68);
     const heading = Math.atan2(end.y - start.y, end.x - start.x);
     return {
-      slots: [pt(1.55, 3.3), pt(3.45, 3.3), pt(2.5, 2.55)],
+      slots: AIRFIELD_SLOTS.map(([u, v]) => pt(u, v)),
       runwayStart: start,
       runwayEnd: end,
       heading,
@@ -972,7 +973,7 @@ export class Game {
           ? `Training ${option.name} — ${option.cost} ${CURRENCY}`
           : result === 'full'
             ? 'Training queue is full.'
-            : `Ratio 4:1 — train ${REGULARS_PER_SPECIAL * (r.special + 1) - r.regular} more regular soldier(s) first.`,
+            : `Ratio 5:3 — train ${regularsNeededFor(r.special + 1) - r.regular} more regular soldier(s) first.`,
       );
     }
     this.sidebarTimer = SIDEBAR_REFRESH;

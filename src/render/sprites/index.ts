@@ -1,7 +1,6 @@
 import { createAirfieldArt } from './Airfield';
 import { createBarracksArt } from './Barracks';
 import { createHospitalArt } from './Hospital';
-import { createRadarArt } from './Radar';
 import { createWarFactoryArt } from './WarFactory';
 import { BeijingForbiddenCityArt } from './BeijingForbiddenCity';
 import { BrusselsEUHeadquartersArt } from './BrusselsEUHeadquarters';
@@ -36,10 +35,6 @@ export const BUILDING_ART: Readonly<Record<string, BuildingArt>> = {
   'hospital:russia': createHospitalArt('russia'),
   'hospital:china': createHospitalArt('china'),
   'hospital:europe': createHospitalArt('europe'),
-  'radar:usa': createRadarArt('usa'),
-  'radar:russia': createRadarArt('russia'),
-  'radar:china': createRadarArt('china'),
-  'radar:europe': createRadarArt('europe'),
   'warFactory:usa': createWarFactoryArt('usa'),
   'warFactory:russia': createWarFactoryArt('russia'),
   'warFactory:china': createWarFactoryArt('china'),
