@@ -1,4 +1,4 @@
-import { type IconNode, Hammer, PersonStanding, Shield, Truck, createElement } from 'lucide';
+import { type IconNode, Factory, Hammer, PersonStanding, Radar, Shield, Truck, createElement } from 'lucide';
 import { CURRENCY, MAX_VEHICLES, TECH_TIERS, TECH_VEHICLES } from '../constants';
 import { FACTIONS } from '../factions';
 import { getFlagTexture } from '../render/Flags';
@@ -8,6 +8,8 @@ import type { VehicleOption, VehicleQueue } from '../systems/VehicleSystem';
 import type { BuildingType, FactionId, PlayerState, WorldPoint } from '../types';
 
 type TabId = 'build' | 'defense' | 'infantry' | 'vehicles';
+/** The two pages of the sidebar: the command centre (budget, oil, alerts) and production (build, train). */
+type ViewId = 'command' | 'production';
 
 /** Construction tabs (RA2 sidebar), shown as Lucide icons. */
 const BUILD_TABS: readonly { id: TabId; label: string; icon: IconNode; enabled: boolean }[] = [
@@ -106,6 +108,9 @@ export class Sidebar {
   private readonly alertEmpty: HTMLElement;
   private readonly alerts: AlertEntry[] = [];
   private readonly faction: FactionId;
+  private readonly mainTabs = new Map<ViewId, HTMLButtonElement>();
+  private readonly views = new Map<ViewId, HTMLElement>();
+  private activeView: ViewId = 'production';
   private readonly tabButtons = new Map<TabId, HTMLButtonElement>();
   private readonly opener: HTMLButtonElement;
   private readonly cameos = new Map<string, Cameo>();
@@ -136,6 +141,8 @@ export class Sidebar {
         <button class="sb-collapse" title="Hide sidebar (Tab)">⟩</button>
       </header>
       <section class="sb-panel sb-radar"><canvas class="sb-minimap"></canvas></section>
+      <nav class="sb-main-tabs" aria-label="Sidebar pages"></nav>
+      <div class="sb-view" data-page="command" hidden>
       <section class="sb-panel sb-resources">
         <div class="sb-player">
           <img class="sb-flag" src="${getFlagTexture(player.faction).toDataURL()}" alt="">
@@ -162,13 +169,6 @@ export class Sidebar {
         <ul class="sb-alert-list"></ul>
         <div class="sb-alert-empty">All quiet.</div>
       </section>
-      <nav class="sb-tabs" aria-label="Construction"></nav>
-      <section class="sb-panel sb-build">
-        <div class="sb-cameos" data-panel="build"></div>
-        <div class="sb-cameos" data-panel="infantry" hidden></div>
-        <div class="sb-cameos" data-panel="vehicles" hidden></div>
-        <div class="sb-msg" role="status" aria-live="polite"></div>
-      </section>
       <details class="sb-panel sb-help">
         <summary>Controls</summary>
         <ul>
@@ -181,7 +181,17 @@ export class Sidebar {
           <li><kbd>WASD</kbd>/<kbd>Arrows</kbd>/screen edge — scroll · <kbd>Wheel</kbd> zoom · <kbd>Middle-drag</kbd> pan</li>
           <li><kbd>Click</kbd> select · <kbd>1</kbd>–<kbd>5</kbd> landmarks · <kbd>O</kbd> oil · <kbd>H</kbd> home · <kbd>Tab</kbd> sidebar</li>
         </ul>
-      </details>`;
+      </details>
+      </div>
+      <div class="sb-view" data-page="production">
+      <nav class="sb-tabs" aria-label="Construction"></nav>
+      <section class="sb-panel sb-build">
+        <div class="sb-cameos" data-panel="build"></div>
+        <div class="sb-cameos" data-panel="infantry" hidden></div>
+        <div class="sb-cameos" data-panel="vehicles" hidden></div>
+        <div class="sb-msg" role="status" aria-live="polite"></div>
+      </section>
+      </div>`;
 
     const q = <T extends HTMLElement>(sel: string): T => {
       const el = root.querySelector<T>(sel);
@@ -206,6 +216,9 @@ export class Sidebar {
     this.alertEmpty = q('.sb-alert-empty');
     // No browser context menu anywhere on the sidebar (radar, cameos, panels): right-click is a game command.
     root.addEventListener('contextmenu', (e) => e.preventDefault());
+    this.buildMainTabs(q('.sb-main-tabs'));
+    this.views.set('command', q('[data-page=command]'));
+    this.views.set('production', q('[data-page=production]'));
     this.buildTabs(q('.sb-tabs'));
     const buildPanel = q('[data-panel=build]');
     const infantryPanel = q('[data-panel=infantry]');
@@ -322,6 +335,12 @@ export class Sidebar {
       'sb-attention',
       awaiting || (model.hasBarracks && !this.infantrySeen) || (canMake && !this.vehiclesSeen),
     );
+    // The page you are not looking at calls for attention: green when something can be built / placed / unlocked,
+    // red while a fresh alert (an attack) is showing.
+    const productionNews = awaiting || (model.hasBarracks && !this.infantrySeen) || (canMake && !this.vehiclesSeen);
+    const freshAlert = this.alerts.some((a) => performance.now() - a.born < 4000);
+    this.mainTabs.get('production')?.classList.toggle('sb-attention', this.activeView !== 'production' && productionNews);
+    this.mainTabs.get('command')?.classList.toggle('sb-alerting', this.activeView !== 'command' && freshAlert);
     this.updateVehicleCameos(model);
     this.updateUnitCameos(model);
 
@@ -366,6 +385,33 @@ export class Sidebar {
       this.messageTimer -= dt;
       if (this.messageTimer <= 0) this.message.textContent = '';
     }
+  }
+
+  private buildMainTabs(nav: HTMLElement): void {
+    const pages: readonly { id: ViewId; label: string; icon: IconNode }[] = [
+      { id: 'command', label: 'Command', icon: Radar },
+      { id: 'production', label: 'Production', icon: Factory },
+    ];
+    for (const page of pages) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.dataset.view = page.id;
+      btn.setAttribute('aria-pressed', String(page.id === this.activeView));
+      btn.classList.toggle('active', page.id === this.activeView);
+      btn.append(createElement(page.icon, { width: 16, height: 16, 'stroke-width': 2, 'aria-hidden': 'true' }), document.createTextNode(page.label));
+      btn.addEventListener('click', () => this.switchView(page.id));
+      nav.append(btn);
+      this.mainTabs.set(page.id, btn);
+    }
+  }
+
+  private switchView(id: ViewId): void {
+    this.activeView = id;
+    for (const [view, btn] of this.mainTabs) {
+      btn.classList.toggle('active', view === id);
+      btn.setAttribute('aria-pressed', String(view === id));
+    }
+    for (const [view, el] of this.views) el.hidden = view !== id;
   }
 
   private switchTab(id: TabId): void {

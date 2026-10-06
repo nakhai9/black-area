@@ -930,3 +930,56 @@ details.sb-help[open] > summary {
   }
 }
 
+/* ------------------------------------------------------------- two pages: command centre / production */
+.sb-main-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+}
+.sb-main-tabs button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 8px;
+  font: 700 11px/1 inherit;
+  font-family: inherit;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: #8a97a3;
+  background: linear-gradient(#232c35, #161c22);
+  border: 1px solid #2f3a45;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.sb-main-tabs button:hover {
+  color: #cfd8e0;
+}
+.sb-main-tabs button.active {
+  color: #ffe08a;
+  border-color: var(--accent);
+  background: linear-gradient(#2d3946, #1b232c);
+}
+.sb-main-tabs button.sb-attention {
+  animation: sb-attention 0.8s ease-in-out infinite;
+}
+.sb-main-tabs button.sb-alerting {
+  animation: sb-page-alert 0.7s steps(2) infinite;
+}
+@keyframes sb-page-alert {
+  50% {
+    color: #fff;
+    background: #d62d20;
+    border-color: #ff3b30;
+  }
+}
+.sb-view {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.sb-view[hidden] {
+  display: none;
+}
+
