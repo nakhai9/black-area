@@ -302,13 +302,17 @@ export class AircraftSystem implements GameSystem {
 
   // ------------------------------------------------------------------ helpers
 
-  /** Lowest free parking spot at `home` (the aircraft's own spot is kept if nobody took it). */
-  private freeSlot(v: Vehicle, home: Building): number {
+  /**
+   * Lowest free parking spot at `home` (the aircraft's own spot is kept if nobody took it); -1 when the apron is full.
+   * One spot holds one aircraft: every aircraft of the airfield that is not out flying (parked, taxiing, taking off,
+   * approaching, landing…) keeps its spot reserved. Pass `v = null` for a brand-new aircraft.
+   */
+  freeSlot(v: Vehicle | null, home: Building): number {
     const taken = new Set<number>();
     for (const o of this.entities.vehicles()) {
-      if (o !== v && o.aircraft && o.alive && o.homeId === home.id && o.flight !== 'airborne' && o.flight !== 'approach') taken.add(o.slot);
+      if (o !== v && o.aircraft && o.alive && o.homeId === home.id && o.flight !== 'airborne' && o.slot >= 0) taken.add(o.slot);
     }
-    if (v.slot >= 0 && !taken.has(v.slot)) return v.slot;
+    if (v && v.slot >= 0 && !taken.has(v.slot)) return v.slot;
     for (let i = 0; i < PARKING_SLOTS; i++) if (!taken.has(i)) return i;
     return -1;
   }

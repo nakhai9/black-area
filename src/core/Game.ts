@@ -1335,17 +1335,23 @@ export class Game {
   }
 
   /** A new aircraft (fighter or transport) appears parked on a free spot of its airfield's apron. */
-  private spawnAircraft(player: PlayerState, kind: VehicleKind, airfield: Building): void {
+  private spawnAircraft(player: PlayerState, kind: VehicleKind, producer: Building): void {
+    // One aircraft per parking spot: use the producing airfield, or another one of the nation with room.
+    let airfield = producer;
+    let slot = this.aircraft.freeSlot(null, airfield);
+    if (slot < 0) {
+      for (const b of this.entities.buildings()) {
+        if (b.owner !== player.id || !b.alive || b.spec.type !== 'airfield') continue;
+        slot = this.aircraft.freeSlot(null, b);
+        if (slot >= 0) {
+          airfield = b;
+          break;
+        }
+      }
+    }
+    if (slot < 0) return;
     const g = this.airfieldGeometry(airfield);
-    const taken = new Set(
-      this.entities
-        .vehicles()
-        .filter((v) => v.aircraft && v.alive && v.homeId === airfield.id && !v.flies)
-        .map((v) => v.slot),
-    );
-    let slot = 0;
-    while (taken.has(slot)) slot++;
-    const spot = g.slots[slot] ?? g.slots[0];
+    const spot = g.slots[slot];
     if (!spot) return;
     const jet = this.entities.add(new Vehicle(player.id, player.faction as FactionId, kind, spot));
     jet.flight = 'parked';

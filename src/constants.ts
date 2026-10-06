@@ -262,11 +262,11 @@ export const DEBT_RESUME_SHARE = 0.5;
 /** The Bank never buys more than this share of the offered stock in one sale. */
 export const WB_MAX_SHARE = 0.25;
 /** No limit on the number of sales, but a nation must wait this many seconds between two offers. */
-export const OIL_SALE_COOLDOWN = 10;
+export const OIL_SALE_COOLDOWN = 3;
 /** Barrels that always stay in the nation's stock: a sale never dips below this reserve. */
 export const OIL_RESERVE = 1.0;
-/** Oil derricks per nation, built in one straight row on the safest ground: 3, or 4 for Europe (it also runs the World Bank). */
-export const OIL_DERRICK_COUNT: Readonly<Record<FactionId, number>> = { usa: 3, russia: 3, china: 3, europe: 4 };
+/** Oil derricks per nation, built in one straight row on the safest ground: 4, or 5 for Europe (it also runs the World Bank). */
+export const OIL_DERRICK_COUNT: Readonly<Record<FactionId, number>> = { usa: 4, russia: 4, china: 4, europe: 5 };
 /** Oil cycle: pump for 3 minutes, then rest 1 minute while the field recovers. */
 export const OIL_MINE_SECONDS = 180;
 export const OIL_REST_SECONDS = 60;
