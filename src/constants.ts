@@ -115,6 +115,8 @@ export const BUILD_LIMIT_VEHICLES = 10;
 export const MAX_SOLDIERS = 25;
 /** Ground vehicle cap (light, tank, IFV — alive + on order); aircraft are not limited by it. */
 export const MAX_GROUND_VEHICLES = 30;
+/** Transport aircraft a nation may own at once (alive + on order). Fighters are not limited by it. */
+export const MAX_TRANSPORTS = 3;
 /**
  * Elite (second-tier) soldiers are never more than the regular (first-tier) ones, at most 2 for every 3
  * regulars: with 5 soldiers that is 3 regular + 2 elite. Alive soldiers and soldiers on order both count.
@@ -190,10 +192,25 @@ export const AVAILABLE_VEHICLES: readonly VehicleKind[] = ['tank', 'ifv', 'jet',
 export const TRANSPORT_SOLDIERS = 12;
 export const TRANSPORT_MIXED_SOLDIERS = 8;
 export const TRANSPORT_VEHICLES = 3;
+/**
+ * Clear space (world px) vehicles keep between their hulls, on the ground and in the air, on top of their
+ * collision radii. Soldiers are not held this far apart — crowds of infantry are meant to close up.
+ */
+export const VEHICLE_GAP = 2;
 /** Ground vehicles this close (px) to an enemy soldier run it over. */
 export const CRUSH_RADIUS = 2.4;
 /** Veteran / Elite / Elite+ at 3× / 6× / 9× the unit's own price in destroyed enemy value. */
 export const RANK_KILL_MULTIPLES = [3, 6, 9] as const;
+/**
+ * Veterans patch themselves up in the field from this rank on (2 chevrons = Elite). The pace is deliberately
+ * slow — a share of the unit's own max HP per second — and it only starts after VETERAN_REGEN_CALM seconds
+ * without being hit, so an elite under fire still dies.
+ */
+export const VETERAN_REGEN_RANK = 2;
+export const VETERAN_REGEN_PER_SECOND = 0.01;
+export const VETERAN_REGEN_CALM = 5;
+/** Seconds between housekeeping sweeps that drop the game's unused picture and terrain caches. */
+export const JANITOR_INTERVAL = 180;
 export const WAR_FACTORY_COST = 2000;
 
 /** Unused: engineers now restore a friendly building to 100% at once and are consumed. */

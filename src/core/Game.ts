@@ -12,7 +12,13 @@ import {
   PARADE_GAP,
   PARADE_MAX_CELLS,
   PARADE_SPACING,
+  VETERAN_REGEN_CALM,
+  VETERAN_REGEN_PER_SECOND,
+  VETERAN_REGEN_RANK,
   UNIT_SPACING,
+  VEHICLE_GAP,
+  MAX_TRANSPORTS,
+  JANITOR_INTERVAL,
   CELL_SIZE,
   CURRENCY,
   EARTH_TEXTURE_URL,
@@ -79,6 +85,7 @@ import { TrainingSystem } from '../systems/TrainingSystem';
 import { VehicleSystem } from '../systems/VehicleSystem';
 import type { BuildingType, FactionId, GameEvents, PlayerState, UnitTier, VehicleKind, WeaponSpec, WorldPoint } from '../types';
 import { Minimap } from '../ui/Minimap';
+import { sweepUnitSprites, unitSpriteBytes } from '../render/UnitSprites';
 import { type RankRow, Sidebar } from '../ui/Sidebar';
 import { StatusBar } from '../ui/StatusBar';
 import { Camera } from './Camera';
@@ -595,6 +602,12 @@ export class Game {
     this.repathStuckUnits(dt);
     this.processTasks();
     this.healGarrisons(dt);
+    this.regenVeterans(dt);
+    this.janitorTimer += dt;
+    if (this.janitorTimer >= JANITOR_INTERVAL) {
+      this.janitorTimer = 0;
+      this.collectGarbage();
+    }
     for (const s of this.systems) s.update(dt);
   }
 
@@ -628,7 +641,8 @@ export class Game {
         for (let dy = -1; dy <= 1; dy++) {
           for (const b of grid.get(key(bx + dx, by + dy)) ?? []) {
             if (b.id <= a.id || a.flies !== b.flies) continue;
-            const gap = a.radius + b.radius;
+            // Vehicles and aircraft hold a little clear air between their hulls; soldiers still close up.
+            const gap = a.radius + b.radius + (a instanceof Vehicle && b instanceof Vehicle ? VEHICLE_GAP : 0);
             let vx = b.px - a.px;
             let vy = b.py - a.py;
             let d = Math.hypot(vx, vy);
@@ -773,7 +787,7 @@ export class Game {
           army: this.training.army(this.humanPlayer),
           vehicleQueued: this.production.queue(this.humanPlayer).items.length,
           parkingFree: this.production.parkingFree(this.humanPlayer),
-          ranking: this.ranking(),
+          ranking: this.sidebar.wantsRanking(elapsed) ? this.ranking() : null,
         },
         elapsed,
       );
@@ -1134,6 +1148,7 @@ export class Game {
 
   /** Throttled "under attack" alerts for everything the player owns. */
   private readonly alertAt = new Map<string, number>();
+  private janitorTimer = 0;
   private alertUnderAttack(t: Entity, attacker: Unit): void {
     if (t.owner !== this.humanPlayer.id || attacker.owner === t.owner) return;
     const isBuilding = t instanceof Building;
@@ -1160,20 +1175,19 @@ export class Game {
 
   /** Economy and military standing of every nation (Rank tab). */
   private ranking(): RankRow[] {
+    // One pass over every unit, tallied per owner (not one pass per nation).
+    const tally = new Map<number, { military: number; soldiers: number; vehicles: number }>();
+    const add = (owner: number, value: number, soldier: boolean): void => {
+      let t = tally.get(owner);
+      if (!t) tally.set(owner, (t = { military: 0, soldiers: 0, vehicles: 0 }));
+      t.military += value;
+      if (soldier) t.soldiers++;
+      else t.vehicles++;
+    };
+    for (const u of this.entities.units()) if (u.alive) add(u.owner, u.value, true);
+    for (const v of this.entities.vehicles()) if (v.alive) add(v.owner, v.value, false);
     return this.players.map((p) => {
-      let military = 0;
-      let soldiers = 0;
-      let vehicles = 0;
-      for (const u of this.entities.units()) {
-        if (u.owner !== p.id || !u.alive) continue;
-        military += u.value;
-        soldiers++;
-      }
-      for (const v of this.entities.vehicles()) {
-        if (v.owner !== p.id || !v.alive) continue;
-        military += v.value;
-        vehicles++;
-      }
+      const { military, soldiers, vehicles } = tally.get(p.id) ?? { military: 0, soldiers: 0, vehicles: 0 };
       return {
         playerId: p.id,
         faction: p.faction as FactionId,
@@ -1329,6 +1343,8 @@ export class Game {
             ? 'Second-tier vehicles need a High-Tech Center.'
             : result === 'cap'
             ? `Ground vehicles are at their limit of ${MAX_GROUND_VEHICLES} — aircraft are not limited.`
+            : result === 'transportCap'
+            ? `Transport aircraft are at their limit of ${MAX_TRANSPORTS}.`
             : result === 'noParking'
             ? 'No free parking spot — build another Airfield or send aircraft out.'
             : option.requires === 'airfield'
@@ -1669,6 +1685,36 @@ export class Game {
           if (u.owner === this.humanPlayer.id) this.sidebar.notify(`${b.spec.name} captured!`);
         } else u.task = null;
       }
+    }
+  }
+
+  /**
+   * Housekeeping every JANITOR_INTERVAL seconds: drops baked pictures and terrain chunks that have not been
+   * drawn since the last sweep, and forgets per-entity bookkeeping of units that no longer exist.
+   *
+   * This frees the game's own caches. It does not run the browser's garbage collector — a web page cannot
+   * force that; it only makes the memory those caches held collectable.
+   */
+  private collectGarbage(): void {
+    for (const id of [...this.lastShot.keys()]) if (!this.entities.get(id)) this.lastShot.delete(id);
+    for (const id of [...this.lastDry.keys()]) if (!this.entities.get(id)) this.lastDry.delete(id);
+    for (const [key, at] of [...this.alertAt]) if (this.time - at > 12) this.alertAt.delete(key);
+    this.combat.sweep();
+    const pics = sweepUnitSprites();
+    const chunks = this.terrain.sweepChunks();
+    if (import.meta.env.DEV) {
+      console.debug(
+        `[janitor] ${pics.dropped} pictures (${pics.freedMB.toFixed(1)} MB) + ${chunks.dropped} terrain chunks (${chunks.freedMB.toFixed(1)} MB) released; ${(unitSpriteBytes() / 1048576).toFixed(1)} MB of pictures still cached`,
+      );
+    }
+  }
+
+  /** Elite veterans (2 chevrons or more) slowly patch themselves up while nobody is shooting at them. */
+  private regenVeterans(dt: number): void {
+    for (const u of this.entities.fieldMovers()) {
+      if (!u.alive || u.hp >= u.maxHp || u.rank < VETERAN_REGEN_RANK) continue;
+      if (this.time - u.lastAttackedAt < VETERAN_REGEN_CALM) continue;
+      u.hp = Math.min(u.maxHp, u.hp + u.maxHp * VETERAN_REGEN_PER_SECOND * dt);
     }
   }
 

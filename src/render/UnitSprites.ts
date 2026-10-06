@@ -9,6 +9,14 @@ import { createCanvas } from './Canvas';
 const RES = 6;
 /** Oldest entries are dropped past this many pictures (they are rebuilt on demand). */
 const LIMIT = 4000;
+/**
+ * …and past this many bytes of canvas. The count alone is not a safe bound: a cruising aircraft's picture is
+ * ~0.3 MB while a soldier's is ~15 KB, so 4000 entries could mean anything from 60 MB to over a gigabyte.
+ */
+const BYTE_BUDGET = 64 * 1024 * 1024;
+let bytes = 0;
+/** Keys drawn since the last sweep (see sweepUnitSprites). */
+const touched = new Set<string>();
 
 export interface UnitSprite {
   canvas: HTMLCanvasElement;
@@ -28,18 +36,54 @@ const sprites = new Map<string, UnitSprite>();
  */
 export function unitSprite(key: string, w: number, h: number, ox: number, oy: number, draw: (ctx: CanvasRenderingContext2D) => void): UnitSprite {
   let s = sprites.get(key);
-  if (s) return s;
+  if (s) {
+    touched.add(key);
+    return s;
+  }
   const { canvas, ctx } = createCanvas(w * RES, h * RES);
   ctx.scale(RES, RES);
   ctx.translate(ox, oy);
   draw(ctx);
   s = { canvas, ox, oy, w, h };
   sprites.set(key, s);
-  if (sprites.size > LIMIT) {
-    const oldest = sprites.keys().next().value;
-    if (oldest !== undefined) sprites.delete(oldest);
+  touched.add(key);
+  bytes += canvas.width * canvas.height * 4;
+  while (sprites.size > LIMIT || bytes > BYTE_BUDGET) {
+    const oldest: string | undefined = sprites.keys().next().value;
+    if (oldest === undefined || oldest === key) break;
+    drop(oldest);
   }
   return s;
+}
+
+function drop(key: string): void {
+  const s = sprites.get(key);
+  if (!s) return;
+  bytes -= s.canvas.width * s.canvas.height * 4;
+  // Release the backing store right away instead of waiting for the picture to be collected.
+  s.canvas.width = 0;
+  s.canvas.height = 0;
+  sprites.delete(key);
+}
+
+/**
+ * Drops every picture that was not drawn since the previous sweep — poses of units that have died, of
+ * factions no longer on screen, or headings nobody flies any more. They are rebuilt on demand if wanted again.
+ */
+export function sweepUnitSprites(): { dropped: number; freedMB: number } {
+  const before = bytes;
+  let dropped = 0;
+  for (const key of [...sprites.keys()]) {
+    if (touched.has(key)) continue;
+    drop(key);
+    dropped++;
+  }
+  touched.clear();
+  return { dropped, freedMB: (before - bytes) / 1048576 };
+}
+
+export function unitSpriteBytes(): number {
+  return bytes;
 }
 
 /** Draws `s` with its ground point at (x, y), scaled by `scale`. */

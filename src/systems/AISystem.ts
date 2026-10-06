@@ -44,13 +44,19 @@ export interface AIHost {
 /** Order in which an AI nation builds its base. */
 const BUILD_PLAN: readonly BuildOption['id'][] = ['barracks', 'warFactory', 'hospital', 'airfield', 'techCenter'];
 const THINK_PERIOD = 1.5;
-/** Economy first: one Happy City (tax income) per this many seconds of game time, up to MAX_CITIES. */
-const CITY_EVERY = 150;
-const MAX_CITIES = 6;
+/**
+ * Economic policy. A Happy City is the best investment a nation can make — it pays HAPPY_CITY_TAX into the
+ * budget every HAPPY_CITY_TAX_PERIOD seconds for as long as it stands — so the AI builds as many as it can
+ * carry instead of on a fixed schedule. What holds it back is deliberate: it never borrows to invest, it
+ * replaces battle losses before it invests, and it stops investing while its base is under attack.
+ */
+const MAX_CITIES = 10;
 /** While saving for a city, units are only bought with money above this share of its price. */
 const CITY_SAVE_SHARE = 0.7;
 /** Below this many fighting units the AI ignores savings and rebuilds its army first. */
 const MIN_ARMY = 8;
+/** …and it only starts putting money aside for the next city once the army is this far above that floor. */
+const INVEST_ARMY_FACTOR = 1.5;
 /** Balanced army: about this many soldiers for every vehicle / aircraft. */
 const SOLDIERS_PER_VEHICLE = 2;
 /** Target vehicle mix (share of the vehicle fleet). */
@@ -75,8 +81,8 @@ const TRANSPORT_LOAD = 12;
  */
 interface Personality {
   name: 'economist' | 'warlord' | 'balanced';
-  /** Multiplies the Happy City pace (lower = more cities sooner). */
-  cityEvery: number;
+  /** How many Happy Cities this personality is willing to run, as a share of MAX_CITIES. */
+  cityAppetite: number;
   /** Share of a city's price kept in reserve while saving. */
   save: number;
   /** Multiplies the time to the first wave and between waves. */
@@ -86,9 +92,9 @@ interface Personality {
 }
 
 const PERSONALITIES: readonly Personality[] = [
-  { name: 'economist', cityEvery: 0.7, save: 0.85, waveGap: 1.3, soldiersPerVehicle: 2.5 },
-  { name: 'warlord', cityEvery: 1.6, save: 0.4, waveGap: 0.7, soldiersPerVehicle: 1.4 },
-  { name: 'balanced', cityEvery: 1, save: CITY_SAVE_SHARE, waveGap: 1, soldiersPerVehicle: SOLDIERS_PER_VEHICLE },
+  { name: 'economist', cityAppetite: 1, save: 0.85, waveGap: 1.3, soldiersPerVehicle: 2.5 },
+  { name: 'warlord', cityAppetite: 0.5, save: 0.4, waveGap: 0.7, soldiersPerVehicle: 1.4 },
+  { name: 'balanced', cityAppetite: 0.8, save: CITY_SAVE_SHARE, waveGap: 1, soldiersPerVehicle: SOLDIERS_PER_VEHICLE },
 ];
 /** No attack waves before this game time (s); the first wave also needs enough soldiers. */
 const FIRST_WAVE_AT = 210;
@@ -221,7 +227,9 @@ export class AISystem implements GameSystem {
     if (this.time < st.nextSell || p.oil < 2) return;
     const market = this.host.oilMarket;
     if (market.waitSeconds(p) > 0) return;
-    if (p.credits < 3000 || market.price >= 550) {
+    // Sells at a fair price, at any price when short of cash, and at any price while it owes the Bank
+    // (every sale pays the debt down first).
+    if (p.credits < 3000 || p.debt > 0 || market.price >= 550) {
       market.sell(p);
       st.nextSell = this.time + 5;
     }
@@ -232,12 +240,19 @@ export class AISystem implements GameSystem {
     return this.host.entities.buildings().filter((b) => b.owner === p.id && b.alive && b.spec.type === 'happyCity').length;
   }
 
-  /** True while the nation is saving up for its next Happy City. */
+  /**
+   * Does the nation want another Happy City right now? It does whenever it can grow without weakening
+   * itself: the High-Tech Center is up, it owes the World Bank nothing, and it still has an army on the
+   * field. The cap is per personality — an economist runs the full MAX_CITIES, a warlord half of them.
+   */
   private savingForCity(p: PlayerState, owned: Set<BuildingType>, st?: AIState): boolean {
     const city = BUILD_OPTIONS.find((o) => o.id === 'happyCity');
     if (!city || missingRequirement(city, owned) !== null) return false;
-    const n = this.cities(p);
-    return n < MAX_CITIES && n < 1 + Math.floor(this.time / (CITY_EVERY * (st?.style.cityEvery ?? 1)));
+    // Growth is paid for out of income, never out of debt: clearing what it owes comes first.
+    if (p.debt > 0 || p.creditFrozen) return false;
+    const cap = Math.max(2, Math.round(MAX_CITIES * (st?.style.cityAppetite ?? 1)));
+    if (this.cities(p) >= cap) return false;
+    return this.forces(p).total >= MIN_ARMY;
   }
 
   /** Fighting units of the nation: soldiers (no President / engineers) and vehicles by kind. */
@@ -302,8 +317,12 @@ export class AISystem implements GameSystem {
     const depth = threat > 0 ? 4 : 2;
     const f = this.forces(p);
     const city = BUILD_OPTIONS.find((o) => o.id === 'happyCity');
+    // Money is only put aside for the next city once the army is comfortably above its floor: battle losses
+    // are replaced first, so investing never leaves the nation defenceless.
     const reserve =
-      !assist && threat === 0 && f.total >= MIN_ARMY && city && this.savingForCity(p, owned, st) ? buildCost(city, p.faction) * st.style.save : 0;
+      !assist && threat === 0 && f.total >= MIN_ARMY * INVEST_ARMY_FACTOR && city && this.savingForCity(p, owned, st)
+        ? buildCost(city, p.faction) * st.style.save
+        : 0;
     const budget = p.credits - reserve;
     let vehicleCount = 0;
     for (const n of f.vehicles.values()) vehicleCount += n;

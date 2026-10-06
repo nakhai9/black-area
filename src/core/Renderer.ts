@@ -65,6 +65,13 @@ const HEALTH_PIPS = 24;
 const GROUND_VEHICLE_SCALE = 0.7;
 /** Pre-rendered unit poses: heading buckets for vehicles, walk frames for soldiers, and picture boxes (iso px). */
 const HEADINGS = 48;
+/**
+ * Aircraft get their own, coarser pose grid. A cruising aircraft's picture is ~5× the area of a ground
+ * vehicle's (it spans from its ground shadow up to cruise altitude), so every extra pose costs real memory
+ * and a multi-millisecond bake the first time it is needed — which is what made long flights stutter.
+ */
+const AIR_HEADINGS = 24;
+const AIR_BURNER_FRAMES = 2;
 const WALK_FRAMES = 8;
 const GROUND_BOX = { w: 26, h: 22, ox: 13, oy: 15 };
 const AIR_PARKED_BOX = { w: 30, h: 20, ox: 15, oy: 12 };
@@ -295,13 +302,14 @@ export class Renderer {
       const cruising = u.aircraft && u.altitude === CRUISE_ALTITUDE;
       const parked = u.aircraft && u.altitude <= 0;
       if (!u.aircraft || cruising || parked) {
-        const hb = ((Math.round((heading / (Math.PI * 2)) * HEADINGS) % HEADINGS) + HEADINGS) % HEADINGS;
-        const qh = (hb / HEADINGS) * Math.PI * 2;
+        const steps = u.aircraft ? AIR_HEADINGS : HEADINGS;
+        const hb = ((Math.round((heading / (Math.PI * 2)) * steps) % steps) + steps) % steps;
+        const qh = (hb / steps) * Math.PI * 2;
         let frame: number;
         let phase: number;
         if (u.aircraft) {
-          frame = Math.floor(((u.walkPhase * 3.1) / (Math.PI * 2)) * 4) % 4; // afterburner flicker
-          phase = (frame / 4) * ((Math.PI * 2) / 3.1);
+          frame = Math.floor(((u.walkPhase * 3.1) / (Math.PI * 2)) * AIR_BURNER_FRAMES) % AIR_BURNER_FRAMES; // afterburner flicker
+          phase = (frame / AIR_BURNER_FRAMES) * ((Math.PI * 2) / 3.1);
         } else {
           frame = u.moving ? Math.floor(((u.walkPhase % 0.8) + 0.8) % 0.8 / 0.2) : -1; // track links
           phase = Math.max(0, frame) * 0.2;
@@ -453,7 +461,7 @@ export class Renderer {
     const size = 2.6; // world px per chevron (24 icon units)
     const sc = size / 24;
     const P = worldToIso(u.px, u.py);
-    const top = P.y - (u.aircraft ? lift + 3 : u.bodyHeight + 1.4) - 3.4;
+    const top = P.y - lift - u.bodyHeight - 1.4 - 3.4;
     ctx.save();
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
@@ -507,7 +515,9 @@ export class Renderer {
     const P = worldToIso(u.px, u.py);
     const w = Math.max(2.4, u.radius * 1.6);
     const x = P.x - w / 2;
-    const y = P.y - u.bodyHeight - 2.4;
+    // An airborne unit is drawn `altitude` px above its ground point: the bar rides along, never under it.
+    const lift = (u as { altitude?: number }).altitude ?? 0;
+    const y = P.y - lift - u.bodyHeight - 2.4;
     const ratio = u.hpRatio;
     ctx.fillStyle = 'rgba(0,0,0,0.75)';
     ctx.fillRect(x - k, y - k, w + 2 * k, 0.4 + 2 * k);

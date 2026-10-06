@@ -118,6 +118,7 @@ npm run build:earth  # tạo lại public/data/earth.png từ dữ liệu Trái 
   <li><b>BuildLimit</b> (giới hạn đơn hàng chờ, không giới hạn quân sở hữu): 15 lính, 10 xe.</li>
   <li><b>Máy bay vận tải</b>: 12 lính; hoặc 8 lính + 1 xe; hoặc 3 xe. Chọn lính/xe rồi click vào máy bay đang đỗ để lên; <code>U</code> để thả.</li>
   <li><b>Cấp bậc</b>: Veteran / Elite / Elite+ khi giá trị địch tiêu diệt đạt 3× / 6× / 9× giá của chính unit.</li>
+  <li><b>Tự hồi máu</b>: từ Elite (2 vạch) trở lên, unit tự hồi 1% máu tối đa mỗi giây, chỉ bắt đầu sau 5s không bị trúng đòn.</li>
   <li>Không có hai lính/xe/máy bay đứng chồng một điểm (<code>separateUnits</code>, <code>UNIT_SPACING</code> 2.2).</li>
   <li>Hệ số phe (<code>stats</code>) nhân lên: <code>cost</code>, <code>armor</code>→HP, <code>unitSpeed</code>, <code>firepower</code>, <code>range</code>, <code>buildSpeed</code>, <code>trainDelay</code> (giây cộng thêm).</li>
 </ul>
@@ -153,7 +154,7 @@ npm run build:earth  # tạo lại public/data/earth.png từ dữ liệu Trái 
 <tr><td><b>Hospital</b></td><td>Phe</td><td>1200</td><td>−20</td><td>Phá / chiếm được</td><td>Cần Barracks. Chỉ nhận người <b>bị thương</b> (hp &lt; max) cùng phe, tối đa 20. Hồi 10 HP/s; hồi đầy thì tự đi ra. Double-click để cho tất cả ra.</td></tr>
 <tr><td><b>Airfield</b></td><td>Phe</td><td>1500</td><td>−40</td><td>Phá / chiếm được</td><td>Cần War Factory. 12×6 ô, 6 chỗ đỗ. Số máy bay (đang có + đang đặt) ≤ 6 × số Airfield; máy bay chết trả lại chỗ. Máy bay đỗ được sửa 2% HP mỗi 4s. Máy bay xong lệnh 1s thì bay về, hạ cánh, lăn về chỗ đỗ. Mất sân bay → tìm sân khác hoặc rơi.</td></tr>
 <tr><td><b>High-Tech Center</b></td><td>Phe</td><td>2500</td><td>−80</td><td>Phá / chiếm được</td><td>Cần War Factory, 4×4, giá 8000. Khi còn đứng: mở lính <code>special</code> và xe <code>ifv</code>.</td></tr>
-<tr><td><b>Happy City</b> (<code>entities/HappyCity.ts</code>, art <code>render/sprites/HappyCity.ts</code>)</td><td>Phe</td><td>4000</td><td>0</td><td>Phá / chiếm được</td><td>8×8 ô, không cần công trình nào trước, xây bao nhiêu cũng được, giá 10000 TB cho mọi phe (<code>fixedCost</code>). Đường vành đai + ngã tư, cây xanh, công viên, nhà cao tầng, xe chạy, người đi bộ. Kiến trúc theo phe: USA nhà chọc trời + tháp kiểu Empire State; Russia tháp "Bảy chị em" + sao đỏ + mái vòm củ hành; China tháp truyền hình kiểu Minh Châu + mái chùa đỏ; Europe phố cổ mái dốc + nhà thờ tháp đồng hồ. <b>Thuế</b> (<code>systems/TaxSystem.ts</code>): mỗi thành phố nộp 500 TB mỗi 60s theo đồng hồ riêng tính từ lúc đặt, nên nhiều thành phố nộp lệch giờ nhau; tiền đi qua <code>OilMarket.receive()</code> (trừ nợ trước). Phe bị loại không thu thuế. Thành phố bị chiếm → thuế về phe mới. AI chưa xây Happy City.</td></tr>
+<tr><td><b>Happy City</b> (<code>entities/HappyCity.ts</code>, art <code>render/sprites/HappyCity.ts</code>)</td><td>Phe</td><td>4000</td><td>0</td><td>Phá / chiếm được</td><td>8×8 ô, không cần công trình nào trước, xây bao nhiêu cũng được, giá 10000 TB cho mọi phe (<code>fixedCost</code>). Đường vành đai + ngã tư, cây xanh, công viên, nhà cao tầng, xe chạy, người đi bộ. Kiến trúc theo phe: USA nhà chọc trời + tháp kiểu Empire State; Russia tháp "Bảy chị em" + sao đỏ + mái vòm củ hành; China tháp truyền hình kiểu Minh Châu + mái chùa đỏ; Europe phố cổ mái dốc + nhà thờ tháp đồng hồ. <b>Thuế</b> (<code>systems/TaxSystem.ts</code>): mỗi thành phố nộp 500 TB mỗi 60s theo đồng hồ riêng tính từ lúc đặt, nên nhiều thành phố nộp lệch giờ nhau; tiền đi qua <code>OilMarket.receive()</code> (trừ nợ trước). Phe bị loại không thu thuế. Thành phố bị chiếm → thuế về phe mới. AI <b>có</b> xây Happy City: coi đây là khoản đầu tư chính, xây nhiều nhất trong khả năng (tối đa 10 × khẩu vị theo tính cách), chỉ xây bằng tiền mặt — không bao giờ vay để xây — và chỉ khi quân số còn trên ngưỡng.</td></tr>
 <tr><td><b>Oil Derrick</b></td><td>Phe</td><td>1000</td><td>0</td><td>Thường: phá / chiếm được. <b>Giếng do World Bank quản lý</b>: không phá, không chiếm được</td><td>Đặt sẵn thành 1 hàng, không xây được. Bơm 0.1 thùng mỗi 10s trong 180s, nghỉ 60s; các giếng trong hàng lệch pha 40s để thu nhập đều. Mỗi hàng có 1 giếng do Bank quản lý — dầu vẫn về phe chủ. Phím <code>O</code> duyệt giếng.</td></tr>
 <tr><td><b>World Bank</b> (Zürich)</td><td>Trung lập</td><td>3000</td><td>0</td><td><b>Không</b> phá, không gây sát thương, không chiếm, không vào</td><td>Chợ dầu chung (<code>systems/OilMarket.ts</code>) — xem bên dưới.</td></tr>
 <tr><td><b>CHHG</b> (Nam Cực)</td><td>Trung lập</td><td>5000</td><td>0</td><td><b>Không</b> phá, không chiếm, không vào</td><td>Landmark trang trí. Engineer click vào → thông báo "Neutral buildings cannot be captured or destroyed."</td></tr>
@@ -251,11 +252,20 @@ npm run build:earth  # tạo lại public/data/earth.png từ dữ liệu Trái 
 <tr><td><code>Esc</code></td><td>Huỷ đặt công trình; nếu không đang đặt: tạm dừng game (menu Tiếp tục / Thoát game về màn chọn phe)</td></tr>
 </table>
 
+<h2 id="limits-perf">8b. Giới hạn &amp; giữ nhịp game</h2>
+<ul>
+  <li><b>Máy bay vận tải</b>: mỗi phe tối đa 3 chiếc (còn sống + đang đặt hàng), <code>MAX_TRANSPORTS</code>. Máy bay chiến đấu không bị giới hạn này.</li>
+  <li><b>Khoảng cách phương tiện</b>: xe và máy bay giữ cách nhau <code>VEHICLE_GAP</code> = 2 px ngoài bán kính va chạm, cả dưới đất lẫn trên không. Bộ binh vẫn đứng sát nhau như cũ.</li>
+  <li><b>Tư thế máy bay vẽ sẵn</b>: 24 hướng × 2 khung lửa đuôi (bộ binh/xe mặt đất vẫn 48 hướng). Ảnh máy bay đang bay rất lớn nên ít tư thế hơn = ít khựng khi bay xa.</li>
+  <li><b>Bộ nhớ ảnh</b>: trần 64 MB (<code>BYTE_BUDGET</code>), cũ nhất bị bỏ trước.</li>
+  <li><b>Dọn dẹp</b> mỗi <code>JANITOR_INTERVAL</code> = 180s: bỏ ảnh và ô địa hình không được vẽ kể từ lần dọn trước, xoá sổ ghi chép của unit đã chết. Đây là dọn cache của game, không phải chạy garbage collector của trình duyệt (trang web không ép được).</li>
+</ul>
+
 <h2 id="win">9. Thắng / thua & AI</h2>
 <ul>
   <li>Một quốc gia bị loại khi <b>mất thủ đô VÀ không còn lính/xe có vũ khí</b>. Mất thủ đô mà còn quân → chỉ báo BREAKING NEWS.</li>
   <li>Người chơi thua khi bị loại; thắng khi mọi phe khác bị loại.</li>
-  <li>AI (<code>systems/AISystem.ts</code>): suy nghĩ mỗi 1.5s, xây theo <code>BUILD_PLAN</code> (barracks → warFactory → hospital → airfield → techCenter), bán dầu, phòng thủ khi địch trong 38 ô quanh thủ đô, đợt tấn công đầu sau 210s rồi mỗi 110s, 45% xác suất đánh tiếp nước khác sau khi chiếm xong.</li>
+  <li>AI (<code>systems/AISystem.ts</code>): suy nghĩ mỗi 1.5s, xây theo <code>BUILD_PLAN</code> (barracks → warFactory → hospital → airfield → techCenter) rồi dồn tiền vào Happy City (không còn giới hạn theo thời gian; chặn khi đang có nợ, đang bị tấn công, hoặc quân số dưới ngưỡng), bán dầu (bán ở mọi giá khi đang nợ để trả nợ trước), phòng thủ khi địch trong 38 ô quanh thủ đô, đợt tấn công đầu sau 210s rồi mỗi 110s, 45% xác suất đánh tiếp nước khác sau khi chiếm xong.</li>
 </ul>
 
 <h2 id="how">10. Công thức sửa thường gặp</h2>

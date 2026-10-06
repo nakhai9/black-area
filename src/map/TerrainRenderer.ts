@@ -116,6 +116,11 @@ export class TerrainRenderer {
   }
 
   /** Animated glints on visible water. `view` is in world coordinates. */
+  /** Housekeeping: see TileTerrain.sweep. */
+  sweepChunks(): { dropped: number; freedMB: number } {
+    return this.tiles.sweep();
+  }
+
   drawWaterShimmer(ctx: CanvasRenderingContext2D, view: Rect, time: number): void {
     ctx.fillStyle = '#a9a3e0';
     for (const s of this.waterSpots) {

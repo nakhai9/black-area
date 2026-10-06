@@ -69,8 +69,8 @@ export interface SidebarModel {
   vehicleQueued: number;
   /** Airfield parking spots still free for aircraft orders. */
   parkingFree: number;
-  /** Every nation, for the Rank tab. */
-  ranking: readonly RankRow[];
+  /** Every nation, for the Rank tab (null while that tab is hidden: nothing to compute). */
+  ranking: readonly RankRow[] | null;
 }
 
 export interface SidebarHandlers {
@@ -143,6 +143,9 @@ export class Sidebar {
   private rankEconomy!: HTMLElement;
   private rankMilitary!: HTMLElement;
   private lastRanking: readonly RankRow[] = [];
+  /** What the lists show now: the DOM is rebuilt only when this changes. */
+  private rankKey = '';
+  private rankTimer = 0;
   private readonly flagUrls = new Map<FactionId, string>();
   private readonly tabButtons = new Map<TabId, HTMLButtonElement>();
   private readonly opener: HTMLButtonElement;
@@ -343,8 +346,10 @@ export class Sidebar {
   update(model: SidebarModel, dt: number): void {
     const { player, queue } = model;
     this.credits.textContent = Math.floor(player.credits).toLocaleString('en-US');
-    this.lastRanking = model.ranking;
-    if (this.activeView === 'rank') this.renderRanking(model.ranking);
+    if (model.ranking) {
+      this.lastRanking = model.ranking;
+      this.renderRanking(model.ranking);
+    }
     this.income.textContent = `+${model.oilRate.toFixed(2)} bbl/s`;
     this.stock.textContent = `${player.oil.toFixed(1)} bbl`;
     this.price.textContent = `${model.oilPrice} ${CURRENCY}/bbl`;
@@ -466,6 +471,9 @@ export class Sidebar {
 
   /** Fills both ranking lists, best nation first. */
   private renderRanking(rows: readonly RankRow[]): void {
+    const key = rows.map((r) => `${r.playerId}:${Math.round(r.economy)}:${r.military}:${r.soldiers}:${r.vehicles}:${r.defeated}`).join('|');
+    if (key === this.rankKey) return;
+    this.rankKey = key;
     const fill = (list: HTMLElement, key: 'economy' | 'military', detail: (r: RankRow) => string): void => {
       const sorted = [...rows].sort((a, b) => Number(a.defeated) - Number(b.defeated) || b[key] - a[key]);
       list.replaceChildren(
@@ -503,6 +511,15 @@ export class Sidebar {
       this.flagUrls.set(faction, url);
     }
     return url;
+  }
+
+  /** True when the Rank tab is open and its 1 s refresh is due (the ranking is only computed then). */
+  wantsRanking(dt: number): boolean {
+    if (this.activeView !== 'rank') return false;
+    this.rankTimer -= dt;
+    if (this.rankTimer > 0) return false;
+    this.rankTimer = 1;
+    return true;
   }
 
   private switchView(id: ViewId): void {

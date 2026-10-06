@@ -248,6 +248,13 @@ export class CombatSystem implements GameSystem {
     s.follow(this.pathfinder.find({ x: s.px, y: s.py }, cell, s.swims));
   }
 
+  /** Housekeeping: forgets chase timers that have run out or belong to units that no longer exist. */
+  sweep(): void {
+    for (const [id, until] of [...this.chaseAt]) {
+      if (until <= this.time || !this.entities.get(id)) this.chaseAt.delete(id);
+    }
+  }
+
   /** Removes everything that ran out of health. */
   private reap(): void {
     const dead: Entity[] = [];

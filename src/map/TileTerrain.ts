@@ -52,6 +52,8 @@ const smooth = (a: number, b: number, x: number): number => {
 export class TileTerrain {
   /** Painted chunks; `half` is a quarter-size copy used when zoomed out (much cheaper to draw). */
   private readonly cache = new Map<string, { full: HTMLCanvasElement; half: HTMLCanvasElement | null }>();
+  /** Chunk keys drawn since the last sweep (see sweep()). */
+  private readonly touched = new Set<string>();
   private readonly noise: ValueNoise;
   private readonly col: [number, number, number] = [0, 0, 0];
 
@@ -99,6 +101,7 @@ export class TileTerrain {
         continue;
       }
       this.cache.set(key, tile);
+      this.touched.add(key);
       if (zoom < ZOOMED_OUT && !tile.half) {
         const { canvas: half, ctx: hctx } = createCanvas(CHUNK_PX / 2, CHUNK_PX / 2);
         hctx.imageSmoothingQuality = 'high';
@@ -113,6 +116,29 @@ export class TileTerrain {
       if (oldest === undefined) break;
       this.cache.delete(oldest);
     }
+  }
+
+  /**
+   * Drops every painted chunk that was not drawn since the previous sweep — ground the player has panned away
+   * from. They are repainted on demand if the camera goes back.
+   */
+  sweep(): { dropped: number; freedMB: number } {
+    let dropped = 0;
+    let freed = 0;
+    for (const [key, tile] of [...this.cache]) {
+      if (this.touched.has(key)) continue;
+      freed += (tile.full.width * tile.full.height + (tile.half ? tile.half.width * tile.half.height : 0)) * 4;
+      tile.full.width = 0;
+      tile.full.height = 0;
+      if (tile.half) {
+        tile.half.width = 0;
+        tile.half.height = 0;
+      }
+      this.cache.delete(key);
+      dropped++;
+    }
+    this.touched.clear();
+    return { dropped, freedMB: freed / 1048576 };
   }
 
   /** Base colour of terrain `t` at cell position (fx, fy) (cell units, fractional) into this.col. */
