@@ -428,7 +428,7 @@ export class Game {
     if (killer.rank > before && killer.owner === this.humanPlayer.id) {
       const name = killer instanceof Vehicle || killer instanceof Infantry ? killer.name : 'Unit';
       this.sidebar.notify(`${name} promoted: ${['', 'Veteran', 'Elite', 'Elite+'][killer.rank]}!`);
-      this.effects.add({ kind: 'flash', ...this.fx(killer.px, killer.py, 3), age: 0, ttl: 0.4, size: 3 });
+      this.effects.add({ kind: 'flash', ...this.fx(killer.px, killer.py, 3 + this.liftOf(killer)), age: 0, ttl: 0.4, size: 3 });
     }
   }
 
@@ -1107,6 +1107,20 @@ export class Game {
 
   /** A shot was fired: tracer, muzzle flash, impact burst, sound and (once per fight) the battle cry. */
   /** A point of the world plane `lift` px above the ground, as an effect position (effects live in iso space). */
+  /**
+   * How high above its ground point a unit is actually drawn: part of its body, plus its flying altitude.
+   * Shots, muzzle flashes and hit sparks use this so a dogfight happens up where the aircraft are instead of
+   * on the ground below them.
+   */
+  private aimHeight(u: Unit, share = 1): number {
+    return u.bodyHeight * share + this.liftOf(u);
+  }
+
+  /** Flying height of a unit in iso px (0 for anything on the ground). */
+  private liftOf(u: Unit): number {
+    return (u as { altitude?: number }).altitude ?? 0;
+  }
+
   private fx(x: number, y: number, lift = 0): WorldPoint {
     const p = worldToIso(x, y);
     return { x: p.x, y: p.y - lift };
@@ -1122,7 +1136,7 @@ export class Game {
     if (t instanceof Unit) {
       tx = t.px;
       ty = t.py;
-      tlift = t.bodyHeight * 0.6;
+      tlift = this.aimHeight(t, 0.6);
     } else if (t instanceof Building) {
       const c = t.centerWorld();
       tx = c.x + (((t.id * 7) % 9) - 4);
@@ -1133,7 +1147,7 @@ export class Game {
     const reach = s instanceof Vehicle ? 3.2 : 1.0;
     const mx = s.px + ((tx - s.px) / dist) * reach;
     const my = s.py + ((ty - s.py) / dist) * reach;
-    const muzzle = this.fx(mx, my, s instanceof Vehicle ? s.bodyHeight : s.bodyHeight * 0.8);
+    const muzzle = this.fx(mx, my, this.aimHeight(s, s instanceof Vehicle ? 1 : 0.8));
     const hit = this.fx(tx, ty, tlift);
     const ttl = { rifle: 0.09, smg: 0.06, sniper: 0.14, mg: 0.06, autocannon: 0.08, cannon: 0.22, missile: 0.35 }[w.kind];
     const color = heavy ? '#ffb347' : w.kind === 'sniper' ? '#ffffff' : '#ffe9a0';
@@ -1276,7 +1290,7 @@ export class Game {
       }
       this.entities.remove(e.id);
       const vehicle = e instanceof Vehicle;
-      this.effects.add({ kind: 'smoke', ...this.fx(e.px, e.py, 1), age: 0, ttl: 1.2, radius: vehicle ? 5 : 2.2 });
+      this.effects.add({ kind: 'smoke', ...this.fx(e.px, e.py, 1 + this.liftOf(e)), age: 0, ttl: 1.2, radius: vehicle ? 5 : 2.2 });
       if (vehicle) {
         this.effects.add({ kind: 'blast', ...this.fx(e.px, e.py, e.flies ? 2 + e.altitude : 2), age: 0, ttl: 0.5, radius: e.flies ? 14 : 10 });
         this.sound.play('explosion', { x: e.px, y: e.py });
