@@ -8,6 +8,7 @@ import type { Rect } from '../types';
 import { type BiomeFields, sampleField } from './Biomes';
 import type { EarthData } from './EarthData';
 import type { TileMap } from './TileMap';
+import { TileTerrain } from './TileTerrain';
 import type { TreeLayer } from './Trees';
 
 /**
@@ -49,13 +50,8 @@ const WATER_GLINT_CHANCE = (0.012 * (CELL_SIZE / 4) ** 2) / WORLD_SCALE ** 2;
 /** Earth texels per grid cell. */
 const TEXELS_PER_CELL = CELL_SIZE / WORLD_SCALE;
 
-/** High-zoom detail tiles: CHUNK world px rendered at DETAIL_SCALE x resolution. */
+/** Trees are drawn from this zoom on. */
 const DETAIL_MIN_ZOOM = 2;
-const DETAIL_SCALE = 8;
-const CHUNK = 64;
-const DETAIL_CACHE_LIMIT = 96;
-/** Time budget per frame for building new detail tiles (at least one is always built). */
-const DETAIL_BUILD_BUDGET_MS = 6;
 /** Water colours are smooth, so they are kept at 1/4 resolution. */
 const WATER_RES = 4;
 
@@ -80,12 +76,11 @@ export class TerrainRenderer {
   private readonly landRgb: Uint8ClampedArray;
   /** Water colour at 1/WATER_RES resolution. */
   private readonly waterRgb: Uint8ClampedArray;
-  private readonly detailNoise: ValueNoise;
-  /** LRU cache of detail tiles keyed by "cx,cy". */
-  private readonly detail = new Map<string, HTMLCanvasElement>();
+  /** The tile-by-tile ground painted for the visible area. */
+  private readonly tiles: TileTerrain;
 
   constructor(
-    private readonly earth: EarthData,
+    earth: EarthData,
     private readonly map: TileMap,
     biomes: BiomeFields,
     private readonly trees: TreeLayer,
@@ -97,7 +92,7 @@ export class TerrainRenderer {
     this.height = earth.height * WORLD_SCALE;
     this.landRgb = new Uint8ClampedArray(this.texW * this.texH * 3);
     this.waterRgb = new Uint8ClampedArray((this.texW / WATER_RES) * (this.texH / WATER_RES) * 3);
-    this.detailNoise = new ValueNoise(seed + 47);
+    this.tiles = new TileTerrain(map, earth, seed);
     const { canvas, ctx } = createCanvas(this.texW, this.texH);
     this.canvas = canvas;
     this.paintRelief(ctx, earth, biomes);
@@ -106,44 +101,18 @@ export class TerrainRenderer {
   }
 
   /**
-   * Overlays crisp detail tiles for the visible area when zoomed in.
-   * Missing tiles are built progressively within a small per-frame budget;
-   * the base texture shows through until they are ready.
+   * Paints the ground tile by tile (see TileTerrain) for the visible area; chunks that are not ready yet show the
+   * smooth Earth texture for a few frames. Call with the ground transform active.
    */
-  drawDetail(ctx: CanvasRenderingContext2D, view: Rect, zoom: number): void {
-    if (zoom < DETAIL_MIN_ZOOM) return;
-    const x0 = Math.max(0, Math.floor(view.x / CHUNK));
-    const y0 = Math.max(0, Math.floor(view.y / CHUNK));
-    const x1 = Math.min(Math.ceil(this.width / CHUNK) - 1, Math.floor((view.x + view.w) / CHUNK));
-    const y1 = Math.min(Math.ceil(this.height / CHUNK) - 1, Math.floor((view.y + view.h) / CHUNK));
-    const midX = (view.x + view.w / 2) / CHUNK;
-    const midY = (view.y + view.h / 2) / CHUNK;
-
-    const chunks: [number, number][] = [];
-    for (let cy = y0; cy <= y1; cy++) for (let cx = x0; cx <= x1; cx++) chunks.push([cx, cy]);
-    const dist = (c: [number, number]): number => Math.hypot(c[0] + 0.5 - midX, c[1] + 0.5 - midY);
-    chunks.sort((a, b) => dist(a) - dist(b));
-
-    const start = performance.now();
-    let built = 0;
-    for (const [cx, cy] of chunks) {
-      const key = `${cx},${cy}`;
-      let tile = this.detail.get(key);
-      if (tile) {
-        this.detail.delete(key); // refresh LRU position
-      } else if (built === 0 || performance.now() - start < DETAIL_BUILD_BUDGET_MS) {
-        tile = this.buildDetailTile(cx, cy);
-        built++;
-      }
-      if (!tile) continue;
-      this.detail.set(key, tile);
-      ctx.drawImage(tile, cx * CHUNK, cy * CHUNK, CHUNK, CHUNK);
-    }
-    while (this.detail.size > DETAIL_CACHE_LIMIT) {
-      const oldest = this.detail.keys().next().value;
-      if (oldest === undefined) break;
-      this.detail.delete(oldest);
-    }
+  drawTiles(ctx: CanvasRenderingContext2D, view: Rect, zoom: number): void {
+    this.tiles.draw(ctx, view, zoom, (x, y, w, h) => {
+      const k = WORLD_SCALE;
+      const sx = Math.max(0, x / k);
+      const sy = Math.max(0, y / k);
+      const ex = Math.min(this.canvas.width, (x + w) / k);
+      const ey = Math.min(this.canvas.height, (y + h) / k);
+      if (ex > sx && ey > sy) ctx.drawImage(this.canvas, sx, sy, ex - sx, ey - sy, sx * k, sy * k, (ex - sx) * k, (ey - sy) * k);
+    });
   }
 
   /** Animated glints on visible water. `view` is in world coordinates. */
@@ -329,50 +298,6 @@ export class TerrainRenderer {
     }
   }
 
-  /** Renders one CHUNK x CHUNK world-px area at DETAIL_SCALE x resolution. */
-  private buildDetailTile(cx: number, cy: number): HTMLCanvasElement {
-    const size = CHUNK * DETAIL_SCALE;
-    const { canvas, ctx } = createCanvas(size, size);
-    const img = ctx.createImageData(size, size);
-    const out = img.data;
-    const { earth, texW: W, texH: H } = this;
-    const ww = W / WATER_RES;
-    const wh = H / WATER_RES;
-    const land = [0, 0, 0];
-    const water = [0, 0, 0];
-
-    for (let py = 0; py < size; py++) {
-      const wy = cy * CHUNK + (py + 0.5) / DETAIL_SCALE;
-      for (let px = 0; px < size; px++) {
-        const wx = cx * CHUNK + (px + 0.5) / DETAIL_SCALE;
-        const tx = wx / WORLD_SCALE - 0.5;
-        const ty = wy / WORLD_SCALE - 0.5;
-        const raw = bilerp1(earth.land, W, H, tx, ty) / 255;
-        const cov = smoothstep(0.4, 0.6, raw);
-        bilerp3(this.landRgb, W, H, tx, ty, land);
-        bilerp3(this.waterRgb, ww, wh, (tx + 0.5) / WATER_RES - 0.5, (ty + 0.5) / WATER_RES - 0.5, water);
-
-        // Ground texture: mid-frequency mottling + fine speckle.
-        const tex =
-          1 +
-          (this.detailNoise.noise(wx * 0.6, wy * 0.6) - 0.5) * 0.16 +
-          (hash2(Math.floor(wx * 2), Math.floor(wy * 2), this.seed) - 0.5) * 0.08;
-        const wave = 1 + (this.detailNoise.noise(wx * 0.15, wy * 0.5) - 0.5) * 0.1;
-        // Thin bright foam just outside the waterline.
-        const foam = raw > 0.15 && raw < 0.4 ? (1 - Math.abs(raw - 0.27) / 0.13) * 0.35 : 0;
-
-        const o = (py * size + px) * 4;
-        for (let c = 0; c < 3; c++) {
-          const wcol = water[c] * wave + (235 - water[c]) * Math.max(0, foam);
-          out[o + c] = wcol + (land[c] * tex - wcol) * cov;
-        }
-        out[o + 3] = 255;
-      }
-    }
-    ctx.putImageData(img, 0, 0);
-    return canvas;
-  }
-
   private collectWaterSpots(): void {
     const { map } = this;
     for (let y = 0; y < map.height; y++) {
@@ -408,36 +333,7 @@ function buildRamp(): Float32Array {
 }
 
 /** Bilinear sample of a single-channel byte grid. */
-function bilerp1(data: Uint8Array, w: number, h: number, x: number, y: number): number {
-  const cx = Math.min(Math.max(x, 0), w - 1.001);
-  const cy = Math.min(Math.max(y, 0), h - 1.001);
-  const ix = cx | 0;
-  const iy = cy | 0;
-  const fx = cx - ix;
-  const fy = cy - iy;
-  const i = iy * w + ix;
-  const top = data[i] + (data[i + 1] - data[i]) * fx;
-  const bottom = data[i + w] + (data[i + w + 1] - data[i + w]) * fx;
-  return top + (bottom - top) * fy;
-}
-
 /** Bilinear sample of an interleaved RGB byte grid into `out`. */
-function bilerp3(data: Uint8ClampedArray, w: number, h: number, x: number, y: number, out: number[]): void {
-  const cx = Math.min(Math.max(x, 0), w - 1.001);
-  const cy = Math.min(Math.max(y, 0), h - 1.001);
-  const ix = cx | 0;
-  const iy = cy | 0;
-  const fx = cx - ix;
-  const fy = cy - iy;
-  const i = (iy * w + ix) * 3;
-  const j = i + w * 3;
-  for (let c = 0; c < 3; c++) {
-    const top = data[i + c] + (data[i + 3 + c] - data[i + c]) * fx;
-    const bottom = data[j + c] + (data[j + 3 + c] - data[j + c]) * fx;
-    out[c] = top + (bottom - top) * fy;
-  }
-}
-
 const mixRgb = (a: RGB, b: RGB, t: number): RGB => [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)];
 
 function mix3(r: number, g: number, b: number, c: RGB, t: number): [number, number, number] {

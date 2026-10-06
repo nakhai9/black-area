@@ -56,6 +56,11 @@ export class TileMap {
     return this.inBounds(x, y) ? TERRAIN_TYPES[this.types[this.index(x, y)]] : undefined;
   }
 
+  /** Terrain code of a cell (index into TERRAIN_TYPES); anything outside the map counts as sea. */
+  codeAt(x: number, y: number): number {
+    return this.inBounds(x, y) ? (this.types[this.index(x, y)] ?? 0) : 0;
+  }
+
   setType(x: number, y: number, type: TerrainType): void {
     if (this.inBounds(x, y)) this.types[this.index(x, y)] = TERRAIN_INDEX[type];
   }

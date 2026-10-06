@@ -1,5 +1,5 @@
 import { ChevronDown } from 'lucide';
-import { BUILD_RISE_SECONDS, CELL_SIZE, ISO_X, ISO_Y, WORLD_SCALE } from '../constants';
+import { BUILD_RISE_SECONDS, CELL_SIZE, ISO_X, ISO_Y } from '../constants';
 import type { Building } from '../entities/Building';
 import { Infantry } from '../entities/Infantry';
 import type { Unit } from '../entities/Unit';
@@ -16,7 +16,6 @@ import { IsoPainter } from '../render/IsoPainter';
 import type { Sprite, SpriteCache } from '../render/SpriteCache';
 import type { FactionId, Rect } from '../types';
 import type { Camera } from './Camera';
-import { clamp } from './MathUtils';
 
 /** Structure being positioned by the player (cells), with its legality. */
 export interface PlacementGhost {
@@ -126,8 +125,7 @@ export class Renderer {
 
     // The Earth lies on the ground plane of the isometric view.
     this.ground();
-    this.drawTerrain(view);
-    this.terrain.drawDetail(ctx, view, camera.zoom);
+    this.terrain.drawTiles(ctx, view, camera.zoom);
     this.terrain.drawWaterShimmer(ctx, view, scene.time);
     this.upright();
     this.terrain.drawTrees(ctx, view, camera.zoom);
@@ -191,19 +189,6 @@ export class Renderer {
     }
   }
 
-  /** Blits only the visible part of the prerendered Earth. */
-  private drawTerrain(view: Rect): void {
-    const t = this.terrain;
-    // The base canvas holds Earth texels; one texel covers WORLD_SCALE world px.
-    const k = WORLD_SCALE;
-    const sx = Math.floor(clamp(view.x / k, 0, t.canvas.width));
-    const sy = Math.floor(clamp(view.y / k, 0, t.canvas.height));
-    const ex = Math.ceil(clamp((view.x + view.w) / k, 0, t.canvas.width));
-    const ey = Math.ceil(clamp((view.y + view.h) / k, 0, t.canvas.height));
-    if (ex <= sx || ey <= sy) return;
-    this.ctx.drawImage(t.canvas, sx, sy, ex - sx, ey - sy, sx * k, sy * k, (ex - sx) * k, (ey - sy) * k);
-  }
-
   private sprite(b: Building): Sprite {
     return this.sprites.get(b.spriteKey, b.rotated);
   }
@@ -213,24 +198,21 @@ export class Renderer {
     return this.sprites.fitScale(b.spriteKey);
   }
 
-  /** Soft ambient-occlusion blob that seats the building onto the terrain. */
+  /**
+   * Seats the building on the tile ground (ground transform): a ring of trodden earth round the footprint that
+   * fades into the terrain, plus a cast shadow, so the concrete base reads as built into the land instead of
+   * floating on it.
+   */
   private drawContactShadow(b: Building): void {
     const f = b.footprintWorld();
-    const cx = f.x + f.w / 2 - f.w * 0.08;
-    const cy = f.y + f.h / 2 + f.h * 0.12;
-    const r = Math.max(f.w, f.h) * 0.75;
     const { ctx } = this;
-    ctx.save();
-    ctx.translate(cx, cy);
-    ctx.scale(1, f.h / f.w);
-    const g = ctx.createRadialGradient(0, 0, r * 0.2, 0, 0, r);
-    g.addColorStop(0, 'rgba(20,16,8,0.45)');
-    g.addColorStop(1, 'rgba(20,16,8,0)');
-    ctx.fillStyle = g;
-    ctx.beginPath();
-    ctx.arc(0, 0, r, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
+    ctx.fillStyle = 'rgba(20,16,8,0.24)';
+    ctx.fillRect(f.x + CELL_SIZE * 0.8, f.y + CELL_SIZE * 0.15, f.w, f.h);
+    for (let i = 3; i >= 1; i--) {
+      const e = (CELL_SIZE * 0.7 * i) / 3;
+      ctx.fillStyle = 'rgba(104,88,58,0.2)';
+      ctx.fillRect(f.x - e, f.y - e, f.w + 2 * e, f.h + 2 * e);
+    }
   }
 
   private drawBuilding(b: Building, time: number): void {
