@@ -8,7 +8,7 @@
 const BPM = 118;
 const STEP = 60 / BPM / 4; // 16th note (s)
 const LOOKAHEAD = 0.25;
-const VOLUME = 0.22;
+const VOLUME = 0.55;
 const MIDI = (n: number): number => 440 * 2 ** ((n - 69) / 12);
 
 /** Root note (MIDI) per bar of the 4-bar progression: Am – F – G – E (the E major turns back to A minor). */
