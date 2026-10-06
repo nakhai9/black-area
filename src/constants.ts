@@ -216,7 +216,7 @@ export const CHHG_LOCATION: GeoPoint = { lon: 20, lat: -78 };
 
 // ---------------------------------------------------------------- Oil (replaces RA2 ore)
 /** Barrels of oil pumped per second by each derrick while it is pumping (oil is sold to the World Bank for TB). */
-export const OIL_DERRICK_OUTPUT = 0.04;
+export const OIL_DERRICK_OUTPUT = 0.1 / 5; // 0.1 barrel every 5 s
 /** Every nation starts with some oil in stock, so the first sale can pay for the first buildings. */
 export const STARTING_OIL = 20;
 /**
