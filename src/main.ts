@@ -46,8 +46,8 @@ async function boot(): Promise<void> {
   try {
     // `?faction=usa|russia|china|europe` skips the picker (demos/tests).
     const preset = params.get('faction');
-    const faction: FactionId = (FACTION_ORDER as readonly string[]).includes(preset ?? '')
-      ? (preset as FactionId)
+    const { faction, demo } = (FACTION_ORDER as readonly string[]).includes(preset ?? '')
+      ? { faction: preset as FactionId, demo: false }
       : await new FactionPicker(document.body).choose();
 
     loading.textContent = 'Generating Earth…';
@@ -61,6 +61,7 @@ async function boot(): Promise<void> {
       faction,
       earth,
       sound,
+      demo,
     );
     game.start();
     loading.remove();

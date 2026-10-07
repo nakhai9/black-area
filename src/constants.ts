@@ -277,11 +277,25 @@ export const VEHICLE_BASE = {
     speed: 5.5,
     radius: 3.6,
   },
+  /** Aerial refueler: never sold on its own — every transport comes with one that flies escort and keeps it fuelled. */
+  tanker: { cost: 0, trainSeconds: 0, maxHp: 160, speed: 6, radius: 3.2 },
 } as const;
+
+/** Transport fuel: a full tank lasts this many cells of flight (enough for a round trip to the tanker-escort distance); the escorting tanker refills it. */
+export const TRANSPORT_FUEL_CELLS = 800;
+/** A tanker within this many cells of its transport refuels it, at this many full tanks per second. */
+export const REFUEL_RANGE_CELLS = 4;
+export const REFUEL_RATE = 0.08;
+/** The tanker flies (and sets down) this many cells ahead of its transport's nose — never behind it. */
+export const TANKER_LEAD_CELLS = 2.2;
+/** Length of a transport aircraft (world px, as drawn). */
+export const TRANSPORT_LENGTH = 13;
+/** Short hops need no tanker: it only flies with the transport on sorties reaching farther than this from home (px). */
+export const TANKER_ESCORT_DISTANCE = 50 * TRANSPORT_LENGTH;
 
 /** Aircraft are built at the Airfield and use its runway; everything else rolls out of the War Factory. */
 export const isAircraftKind = (kind: VehicleKind): boolean =>
-  kind === "jet" || kind === "transport";
+  kind === "jet" || kind === "transport" || kind === "tanker";
 
 /**
  * Temporary: only these vehicles can be produced (sidebar and AI). The rest stay in the code but are
@@ -449,3 +463,15 @@ export const BUILDING_VALUE: Readonly<Partial<Record<BuildingType, number>>> = {
   capital: 4000,
   oilDerrick: 1500,
 };
+
+/** Waypoint mode (Z): most points a route may have. */
+export const MAX_WAYPOINTS = 5;
+
+/** DEMO button on the faction screen (solo test, no AI opponents). Set to false for production. */
+export const DEMO_MODE = true;
+/** In a DEMO game every structure, soldier and vehicle costs this much. */
+export const DEMO_PRICE = 100;
+/** In a DEMO game finances are off: the budget (and oil stock) is held at this amount all the time. */
+export const DEMO_CREDITS = 999_999;
+/** In a DEMO game the player starts with this many of every soldier, vehicle and aircraft. */
+export const DEMO_UNITS_EACH = 2;

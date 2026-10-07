@@ -46,6 +46,8 @@ export abstract class Unit extends Entity {
   parade: { barracks: number; slot: number } | null = null;
   /** Building order in progress (enter / repair / capture). */
   task: UnitTask | null = null;
+  /** RA2 order line: flashed for a moment after a player order (green = move, red = attack). */
+  orderFlash: { kind: 'move' | 'attack'; at: number; target: Entity | null } | null = null;
   /** Id of the building this person is stationed inside (hidden from the map), or null. */
   private _insideId: number | null = null;
   /** Bumped whenever any unit goes into or comes out of a building / transport (invalidates cached lists). */

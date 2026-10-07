@@ -1,6 +1,7 @@
 import {
   CAPITAL_LOCATIONS,
   CURRENCY,
+  DEMO_MODE,
   FACTION_ORDER,
   OIL_DERRICK_COUNT,
   OIL_DERRICK_OUTPUT,
@@ -68,6 +69,7 @@ export class FactionPicker {
         <div class="fp-grid"></div>
         <footer class="fp-footer">
           <span class="fp-hint"><kbd>1</kbd>–<kbd>4</kbd> select</span>
+          ${DEMO_MODE ? '<button class="fp-demo" type="button" title="Test game: play alone, the other nations do nothing; everything built, finances off">Test</button>' : ''}
           <button class="fp-deploy" type="button">Deploy</button>
         </footer>
       </div>`;
@@ -81,19 +83,19 @@ export class FactionPicker {
     this.highlight(initial);
   }
 
-  /** Shows the modal and resolves with the confirmed faction. */
-  choose(): Promise<FactionId> {
+  /** Shows the modal and resolves with the confirmed faction (`demo`: dev-only solo test, no AI opponents). */
+  choose(): Promise<{ faction: FactionId; demo: boolean }> {
     this.host.append(this.root);
     const deploy = this.root.querySelector<HTMLButtonElement>('.fp-deploy');
     this.cards.get(this.selected)?.focus();
 
     return new Promise((resolve) => {
-      const confirm = (id: FactionId): void => {
+      const confirm = (id: FactionId, demo = false): void => {
         window.removeEventListener('keydown', onKey);
         remember(id);
         this.root.classList.add('fp-leaving');
         setTimeout(() => this.root.remove(), 180);
-        resolve(id);
+        resolve({ faction: id, demo });
       };
       const onKey = (e: KeyboardEvent): void => {
         const n = Number(e.key);
@@ -108,6 +110,7 @@ export class FactionPicker {
       };
       window.addEventListener('keydown', onKey);
       deploy?.addEventListener('click', () => confirm(this.selected));
+      this.root.querySelector('.fp-demo')?.addEventListener('click', () => confirm(this.selected, true));
       for (const [id, card] of this.cards) {
         card.addEventListener('click', () => this.highlight(id));
       }

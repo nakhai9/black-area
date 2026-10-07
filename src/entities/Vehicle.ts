@@ -38,6 +38,7 @@ const HANDLING: Readonly<Record<VehicleKind, { accel: number; turn: number; pivo
   ifv: { accel: 0.7, turn: 3.2, pivot: true },
   jet: { accel: 0.6, turn: 2.2, pivot: false },
   transport: { accel: 0.9, turn: 1.6, pivot: false },
+  tanker: { accel: 0.8, turn: 2.2, pivot: false },
 };
 
 /** Can `soldiers` soldiers and `vehicles` vehicles travel together in one transport? */
@@ -60,6 +61,8 @@ export class Vehicle extends Unit {
   flight: Flight = 'airborne';
   /** Height above the ground in px: 0 on the ground, CRUISE_ALTITUDE in the air. */
   altitude = 0;
+  /** 0..1: how far it has climbed above cruise height to pass over another aircraft head-on. */
+  climb = 0;
   /** Airfield this aircraft belongs to, and its parking spot there. */
   homeId: number | null = null;
   slot = -1;
@@ -89,6 +92,14 @@ export class Vehicle extends Unit {
   ejecting = false;
   /** Seconds until the next passenger steps out while ejecting. */
   ejectClock = 0;
+  /** Transport only: fuel left (0..1); it falls out of the sky at 0. */
+  fuel = 1;
+  /** Transport only: id of its escorting tanker. */
+  tankerId: number | null = null;
+  /** Tanker only: id of the transport it escorts and refuels. */
+  escortOf: number | null = null;
+  /** Seconds left of a scramble: shot at while parked, it took off and circles away from danger until 0. */
+  scramble = 0;
 
   constructor(
     owner: number,
@@ -131,11 +142,15 @@ export class Vehicle extends Unit {
   }
 
   override get unarmedTransport(): boolean {
-    return this.isTransport;
+    return this.isTransport || this.isTanker;
+  }
+
+  get isTanker(): boolean {
+    return this.type === 'tanker';
   }
 
   override get canFight(): boolean {
-    if (this.isTransport) return false;
+    if (this.isTransport || this.isTanker) return false;
     return !this.aircraft ||(this.flight === 'airborne' && this.weapon !== null);
   }
 

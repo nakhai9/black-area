@@ -92,7 +92,7 @@ export interface WeaponSpec {
 // ---------------------------------------------------------------- Vehicles
 
 /** Light car, main battle tank, armoured vehicle (IFV) and fighter aircraft. */
-export type VehicleKind = 'light' | 'tank' | 'ifv' | 'jet' | 'transport';
+export type VehicleKind = 'light' | 'tank' | 'ifv' | 'jet' | 'transport' | 'tanker';
 
 export interface VehicleProfile {
   name: string;

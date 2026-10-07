@@ -25,9 +25,15 @@ export class Minimap {
     private readonly terrain: TerrainRenderer,
     private readonly camera: Camera,
     private readonly onNavigate: (world: WorldPoint) => void,
+    /** Left click on the radar: true when it was taken as an order for the selected units (the camera then stays). */
+    private readonly onPick: (world: WorldPoint) => boolean = () => false,
   ) {
     this.ctx = get2d(canvas);
+    // Right button: the camera goes there. Left button: the selected units go there (no selection: the camera goes).
+    canvas.addEventListener('contextmenu', (e) => e.preventDefault());
     canvas.addEventListener('pointerdown', (e) => {
+      if (e.button === 0 && this.onPick(this.toWorld(e))) return;
+      if (e.button !== 0 && e.button !== 2) return;
       this.dragging = true;
       canvas.setPointerCapture(e.pointerId);
       this.navigate(e);
@@ -109,10 +115,14 @@ export class Minimap {
   }
 
   private navigate(e: PointerEvent): void {
+    this.onNavigate(this.toWorld(e));
+  }
+
+  private toWorld(e: PointerEvent): WorldPoint {
     const r = this.canvas.getBoundingClientRect();
-    this.onNavigate({
+    return {
       x: (e.clientX - r.left - this.offX) / this.scale,
       y: (e.clientY - r.top - this.offY) / this.scale,
-    });
+    };
   }
 }

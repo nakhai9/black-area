@@ -1,3 +1,4 @@
+import { demoPrice } from '../core/Demo';
 import { AVAILABLE_VEHICLES, BUILD_LIMIT_VEHICLES, MAX_GROUND_VEHICLES, MAX_TRANSPORTS, TECH_VEHICLES, VEHICLE_BASE, isAircraftKind } from '../constants';
 import type { Building } from '../entities/Building';
 import type { EntityManager } from '../entities/EntityManager';
@@ -27,7 +28,7 @@ function vehicleOptions(faction: FactionId): VehicleOption[] {
     kind,
     name: f.vehicles[kind].name,
     description: f.vehicles[kind].description,
-    cost: Math.round((VEHICLE_BASE[kind].cost * f.stats.cost) / 10) * 10,
+    cost: demoPrice(Math.round((VEHICLE_BASE[kind].cost * f.stats.cost) / 10) * 10),
     trainSeconds: VEHICLE_BASE[kind].trainSeconds + f.stats.trainDelay,
     requires: isAircraftKind(kind) ? 'airfield' : 'warFactory',
     needsAirfield: isAircraftKind(kind),
@@ -108,7 +109,9 @@ export class VehicleSystem implements GameSystem {
    * (parked or flying) and the aircraft already on order. A destroyed aircraft gives its spot back.
    */
   parkingFree(player: PlayerState): number {
-    return this.parkingCapacity(player) - this.aircraftOwned(player) - this.queue(player).items.filter(isAircraftKind).length;
+    // A transport on order needs two spots: one for itself and one for the tanker that comes with it.
+    const ordered = this.queue(player).items.reduce((n, k) => n + (k === 'transport' ? 2 : isAircraftKind(k) ? 1 : 0), 0);
+    return this.parkingCapacity(player) - this.aircraftOwned(player) - ordered;
   }
 
   private aircraftOwned(player: PlayerState): number {
@@ -127,7 +130,7 @@ export class VehicleSystem implements GameSystem {
     if (TECH_VEHICLES.includes(kind) && !this.hasTech(player)) return 'tech';
     // BuildLimit: only the orders waiting are limited, not the vehicles the nation owns.
     if (!AVAILABLE_VEHICLES.includes(kind) || q.items.length >= BUILD_LIMIT_VEHICLES) return 'full';
-    if (isAircraftKind(kind) && this.parkingFree(player) <= 0) return 'noParking';
+    if (isAircraftKind(kind) && this.parkingFree(player) < (kind === 'transport' ? 2 : 1)) return 'noParking';
     if (!isAircraftKind(kind) && this.groundCount(player) >= MAX_GROUND_VEHICLES) return 'cap';
     if (kind === 'transport' && this.transportCount(player) >= MAX_TRANSPORTS) return 'transportCap';
     q.items.push(kind);

@@ -1,4 +1,4 @@
-import { CELL_SIZE } from '../constants';
+import { CELL_SIZE, REFUEL_RANGE_CELLS, REFUEL_RATE, TANKER_ESCORT_DISTANCE, TANKER_LEAD_CELLS, TRANSPORT_FUEL_CELLS } from '../constants';
 import type { Building } from '../entities/Building';
 import type { EntityManager } from '../entities/EntityManager';
 import { CRUISE_ALTITUDE, type Vehicle } from '../entities/Vehicle';
@@ -7,7 +7,7 @@ import type { GameSystem } from './GameSystem';
 
 /** Layout of an airfield in world px (derived from its sprite, scale and rotation). */
 export interface AirfieldGeometry {
-  /** Parking spots on the apron. */
+  /** Parking spots on the apron, numbered I…VI (index 0…5) in this order; not shown on screen. */
   slots: readonly WorldPoint[];
   /** Ends of the runway centre line; take-off rolls from start towards end. */
   runwayStart: WorldPoint;
@@ -19,6 +19,8 @@ export interface AirfieldGeometry {
 }
 
 export const PARKING_SLOTS = 6;
+/** Spots per apron row; within a row the next spot lies ahead (towards the runway end). */
+const SLOTS_PER_ROW = 3;
 const TAXI_SPEED = 11;
 const TAKEOFF_SECONDS = 2.4;
 const LANDING_SECONDS = 2.2;
@@ -47,6 +49,8 @@ export interface AircraftHooks {
   selected(v: Vehicle): boolean;
   /** Does the owner have enough power? The airfield cannot launch aircraft without it. */
   powered(owner: number): boolean;
+  /** A transport parked at home without a tanker gets a new one on a free spot; false when there is no room. */
+  newTanker(transport: Vehicle): boolean;
 }
 
 /** Result of an unload order (U key / Unload button). */
@@ -64,10 +68,17 @@ const AFTER_UNLOAD = 0.4;
 const LANDED_WAIT = 40;
 /** Radius (px) of the circle an idle selected fighter flies while it waits for orders. */
 const ORBIT_RADIUS = 3 * CELL_SIZE;
+/** Aircraft closer than this (px) and closing in take avoiding action; the climber goes this share above cruise. */
+const AVOID_RANGE = 3 * CELL_SIZE;
+const AVOID_CLIMB = 0.6;
+/** Seconds a parked aircraft that came under fire circles away from its airfield before it comes back. */
+const SCRAMBLE_SECONDS = 20;
 
 export class AircraftSystem implements GameSystem {
   /** Centre and current angle of the waiting circle of each idle selected fighter. */
   private readonly orbits = new Map<number, { cx: number; cy: number; angle: number }>();
+  /** Health and position of each aircraft at the last tick: a drop in health means it was hit, a move burns fuel. */
+  private readonly last = new Map<number, { hp: number; x: number; y: number }>();
   /** Runway queue of each airfield (aircraft ids, first come first served) for take-offs and landings. */
   private readonly runwayQueues = new Map<number, number[]>();
 
@@ -79,7 +90,16 @@ export class AircraftSystem implements GameSystem {
 
   update(dt: number): void {
     for (const v of this.entities.vehicles()) {
-      if (!v.aircraft || !v.alive) continue;
+      if (!v.aircraft || !v.alive) {
+        this.last.delete(v.id);
+        continue;
+      }
+      const prev = this.last.get(v.id);
+      this.last.set(v.id, { hp: v.hp, x: v.px, y: v.py });
+      // Shot at while standing on its airfield: it scrambles into the air to save itself.
+      if (prev && v.hp < prev.hp && v.flight === 'parked' && !v.ejecting) this.scrambleOff(v);
+      if (v.isTransport) this.fuel(v, prev, dt);
+      if (v.isTanker) this.escort(v, dt);
       const base = this.home(v);
       // Drawn right after its airfield only while it is on the airfield's apron or runway.
       const onAirfield = v.flight === 'parked' || v.flight === 'taxi' || v.flight === 'takeoff' || v.flight === 'landing' || v.flight === 'taxiHome';
@@ -149,6 +169,14 @@ export class AircraftSystem implements GameSystem {
   private parked(v: Vehicle, dt: number): void {
     v.altitude = 0;
     this.service(v, dt);
+    // Its tanker was shot down: a replacement is only issued once the transport is back home on its spot.
+    if (v.isTransport && this.home(v)) {
+      const tanker = v.tankerId === null ? undefined : this.entities.get(v.tankerId);
+      if (!tanker || !tanker.alive) {
+        v.tankerId = null;
+        this.hooks.newTanker(v);
+      }
+    }
     // Its airfield is gone: fly to another airfield of the nation, or crash if there is none.
     if (!this.home(v)) {
       this.abort(v);
@@ -227,7 +255,7 @@ export class AircraftSystem implements GameSystem {
   }
 
   private airborne(v: Vehicle, dt: number): void {
-    v.altitude = CRUISE_ALTITUDE;
+    this.avoid(v, dt);
     // Lost its airfield: any other airfield of the nation will do; with none left the aircraft falls.
     if (!this.home(v) && !this.adoptHome(v)) {
       this.startCrash(v);
@@ -255,6 +283,12 @@ export class AircraftSystem implements GameSystem {
       return;
     }
     v.idleFor += dt;
+    // Scrambled off its airfield under fire: keeps circling clear of it for a while before coming back.
+    if (v.scramble > 0) {
+      v.scramble -= dt;
+      this.orbit(v, dt);
+      return;
+    }
     if (v.idleFor < RETURN_AFTER) return;
     // A selected fighter with nothing to do circles where it is, waiting for its next order; once deselected it heads home.
     if (!v.isTransport && !v.returningHome && this.hooks.selected(v)) {
@@ -342,6 +376,117 @@ export class AircraftSystem implements GameSystem {
 
   // ------------------------------------------------------------------ helpers
 
+  /** Parked aircraft under fire: takes off at once towards a point beyond the runway, then circles there a while. */
+  private scrambleOff(v: Vehicle): void {
+    if (v.moving || v.attackTarget !== null) return; // already on its way out
+    const home = this.home(v);
+    if (!home) return;
+    const g = this.geometry(home);
+    const away = 10 * CELL_SIZE;
+    v.follow([{ x: g.runwayEnd.x + Math.cos(g.heading) * away, y: g.runwayEnd.y + Math.sin(g.heading) * away }]);
+    v.scramble = SCRAMBLE_SECONDS;
+  }
+
+  /**
+   * Transport fuel: every px flown burns a fixed share of the tank. Its tanker (close by, in the air or on the
+   * ground) and the airfield's apron fill it back up. An empty tank in the air means a crash.
+   */
+  private fuel(v: Vehicle, prev: { x: number; y: number } | undefined, dt: number): void {
+    if (prev && (v.flight === 'airborne' || v.flight === 'approach')) {
+      v.fuel -= Math.hypot(v.px - prev.x, v.py - prev.y) / (TRANSPORT_FUEL_CELLS * CELL_SIZE);
+    }
+    const tanker = v.tankerId === null ? undefined : this.entities.get(v.tankerId);
+    const tankerNear = tanker && tanker.alive && Math.hypot((tanker as Vehicle).px - v.px, (tanker as Vehicle).py - v.py) <= REFUEL_RANGE_CELLS * CELL_SIZE;
+    // Parked on its airfield the tank is filled right up; in the field only the tanker tops it up.
+    if (v.flight === 'parked') v.fuel = 1;
+    else if (tankerNear) v.fuel += REFUEL_RATE * dt;
+    v.fuel = Math.max(0, Math.min(1, v.fuel));
+    if (v.fuel <= 0 && (v.flight === 'airborne' || v.flight === 'approach')) this.startCrash(v);
+  }
+
+  /**
+   * Tanker: follows its transport everywhere. It takes off when the transport leaves, flies a little behind it, sets
+   * down beside it wherever it lands in the field, and heads home to park when the transport does.
+   */
+  private escort(v: Vehicle, dt: number): void {
+    // Nobody gives a tanker orders (the AI's attack groups included): it only ever follows its transport.
+    v.attackTarget = null;
+    v.attackMove = null;
+    const t = v.escortOf === null ? undefined : (this.entities.get(v.escortOf) as Vehicle | undefined);
+    if (!t || !t.alive) {
+      v.escortOf = null; // transport lost: the tanker just goes home and stays there
+      return;
+    }
+    const out = t.flight === 'taxi' || t.flight === 'takeoff' || t.flight === 'airborne' || t.flight === 'unloading' || t.flight === 'landed' || t.flight === 'liftoff';
+    // Only a long sortie needs the tanker; on a short hop near home it stays parked (or flies back to park).
+    const away = out && this.longSortie(t);
+    if (v.flight === 'parked') {
+      if (away && !v.moving) v.follow([{ x: t.px, y: t.py }]); // off after it
+      return;
+    }
+    // Was coming in to land but the transport has set off again: break off the approach and catch up.
+    if (v.flight === 'approach' && away) {
+      this.leaveQueue(v);
+      v.flight = 'airborne';
+    }
+    if (v.flight !== 'airborne' || !away) return; // on the runway, or the transport is heading home: normal flight
+    // Station always ahead of the transport's nose — in the air and when it sets down in the field — never behind it.
+    const lead = TANKER_LEAD_CELLS * CELL_SIZE;
+    const goal = { x: t.px + Math.cos(t.heading) * lead, y: t.py + Math.sin(t.heading) * lead };
+    // Flown here directly (not by waypoints, which brake on arrival and would leave it trailing): it closes on its
+    // station well faster than the transport flies, then holds it, nose pointing the transport's way.
+    if (v.moving) v.stop();
+    const dx = goal.x - v.px;
+    const dy = goal.y - v.py;
+    const d = Math.hypot(dx, dy);
+    const step = Math.min(d, Math.max(t.speed, v.speed) * 1.8 * dt);
+    if (d > 0.01) this.place(v, v.px + (dx / d) * step, v.py + (dy / d) * step);
+    v.walkPhase += step;
+    v.heading = d > CELL_SIZE ? Math.atan2(dy, dx) : t.heading;
+    v.facing = Math.cos(v.heading) < 0 ? -1 : 1;
+    v.idleFor = 0;
+    v.returningHome = false;
+    this.orbits.delete(v.id);
+  }
+
+  /** Is the transport (or where it has been sent) farther than TANKER_ESCORT_DISTANCE from its airfield? */
+  private longSortie(t: Vehicle): boolean {
+    const home = this.home(t);
+    if (!home) return true;
+    const c = home.centerWorld();
+    const far = (p: WorldPoint | undefined): boolean => p !== undefined && Math.hypot(p.x - c.x, p.y - c.y) > TANKER_ESCORT_DISTANCE;
+    const path = t.mission ?? t.waypoints();
+    return far({ x: t.px, y: t.py }) || far(path[path.length - 1]) || far(t.dropSpot ?? undefined);
+  }
+
+  /**
+   * Two aircraft closing on each other: the one with the higher id climbs above cruise height until they have
+   * passed, then eases back down (the other keeps its height).
+   */
+  private avoid(v: Vehicle, dt: number): void {
+    let climb = false;
+    const vx = Math.cos(v.heading);
+    const vy = Math.sin(v.heading);
+    for (const o of this.entities.vehicles()) {
+      if (o === v || !o.aircraft || !o.alive || o.id > v.id || (o.flight !== 'airborne' && o.flight !== 'approach')) continue;
+      const dx = o.px - v.px;
+      const dy = o.py - v.py;
+      if (Math.hypot(dx, dy) > AVOID_RANGE) continue;
+      // Closing in: the gap shrinks along the relative velocity.
+      const rvx = vx - Math.cos(o.heading);
+      const rvy = vy - Math.sin(o.heading);
+      if (dx * rvx + dy * rvy > 0 || Math.hypot(dx, dy) < AVOID_RANGE * 0.35) {
+        climb = true;
+        break;
+      }
+    }
+    v.climb = Math.max(0, Math.min(1, v.climb + (climb ? 1.6 : -0.8) * dt));
+    v.altitude = CRUISE_ALTITUDE * (1 + AVOID_CLIMB * v.climb);
+    // A tanker whose transport has set down in the field comes down beside it (and climbs back with it).
+    const t = v.isTanker && v.escortOf !== null ? (this.entities.get(v.escortOf) as Vehicle | undefined) : undefined;
+    if (t && t.alive && (t.flight === 'unloading' || t.flight === 'landed' || t.flight === 'liftoff')) v.altitude = Math.min(v.altitude, t.altitude);
+  }
+
   /** Flies a circle around the point where the fighter ran out of orders (clockwise, at cruise speed). */
   private orbit(v: Vehicle, dt: number): void {
     let o = this.orbits.get(v.id);
@@ -362,17 +507,37 @@ export class AircraftSystem implements GameSystem {
 
   /**
    * Lowest free parking spot at `home` (the aircraft's own spot is kept if nobody took it); -1 when the apron is full.
-   * One spot holds one aircraft: every aircraft of the airfield that is not out flying (parked, taxiing, taking off,
-   * approaching, landing…) keeps its spot reserved. Pass `v = null` for a brand-new aircraft.
+   * One spot holds one aircraft: every aircraft of the airfield keeps its spot reserved, also while it is out
+   * flying, so it always lands back on its own numbered spot. Pass `v = null` for a brand-new aircraft.
    */
-  freeSlot(v: Vehicle | null, home: Building): number {
-    const taken = new Set<number>();
-    for (const o of this.entities.vehicles()) {
-      if (o !== v && o.aircraft && o.alive && o.homeId === home.id && o.flight !== 'airborne' && o.slot >= 0) taken.add(o.slot);
-    }
+  freeSlot(v: Vehicle | null, home: Building, prefer = -1): number {
+    const taken = this.takenSlots(v, home);
     if (v && v.slot >= 0 && !taken.has(v.slot)) return v.slot;
+    // `prefer` is the spot ahead of another one: only meaningful within the same row.
+    if (prefer > 0 && prefer < PARKING_SLOTS && prefer % SLOTS_PER_ROW !== 0 && !taken.has(prefer)) return prefer;
     for (let i = 0; i < PARKING_SLOTS; i++) if (!taken.has(i)) return i;
     return -1;
+  }
+
+  /**
+   * Spot for a new transport that leaves the next spot of the same row (the one ahead of its nose, towards the runway
+   * end) free for its tanker; any free spot when no such pair is left.
+   */
+  freeTransportSlot(home: Building): number {
+    const taken = this.takenSlots(null, home);
+    for (let i = 0; i < PARKING_SLOTS; i++) {
+      if (i % SLOTS_PER_ROW < SLOTS_PER_ROW - 1 && !taken.has(i) && !taken.has(i + 1)) return i;
+    }
+    return this.freeSlot(null, home);
+  }
+
+  /** Spots of `home` held by its aircraft (other than `v`): a spot belongs to its aircraft even while it flies. */
+  private takenSlots(v: Vehicle | null, home: Building): Set<number> {
+    const taken = new Set<number>();
+    for (const o of this.entities.vehicles()) {
+      if (o !== v && o.aircraft && o.alive && o.homeId === home.id && o.slot >= 0) taken.add(o.slot);
+    }
+    return taken;
   }
 
   /** Drives towards `target` at `speed` px/s; true once there. */
@@ -414,6 +579,11 @@ export class AircraftSystem implements GameSystem {
    * free and nobody eligible may be ahead of it. Without power take-offs are held, but landings still go first.
    */
   private cleared(v: Vehicle, home: Building): boolean {
+    // A transport never leads: on a long sortie it waits at the threshold until its tanker has taken off ahead of it.
+    if (v.isTransport && v.tankerId !== null && this.longSortie(v)) {
+      const tk = this.entities.get(v.tankerId) as Vehicle | undefined;
+      if (tk && tk.alive && tk.homeId === home.id && (tk.flight === 'parked' || tk.flight === 'taxi' || tk.flight === 'takeoff')) return false;
+    }
     let q = this.runwayQueues.get(home.id);
     if (!q) this.runwayQueues.set(home.id, (q = []));
     // Drop aircraft that died, re-homed or stopped waiting for this runway.

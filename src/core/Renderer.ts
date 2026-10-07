@@ -62,9 +62,16 @@ export interface RenderScene {
   readonly focus?: readonly FocusTarget[];
   /** Last move order (world px) and when it was given, for the RA2-style marker. */
   readonly moveMarker?: { x: number; y: number; at: number } | null;
+  /** Waypoint mode: the route being plotted (first point = the selection, then the clicked points). */
+  readonly waypointPlan?: readonly { x: number; y: number }[] | null;
 }
 
+
 const HEALTH_PIPS = 24;
+/** How long an RA2 order line stays on screen after the order (s). */
+const ORDER_LINE_SECONDS = 1;
+/** How long the RA2 move marker (green arrows) stays on screen (s). */
+const MOVE_MARKER_SECONDS = 0.9;
 /** Draw scale of tanks, armoured cars and other ground vehicles. */
 const GROUND_VEHICLE_SCALE = 0.7;
 /** Pre-rendered unit poses: heading buckets for vehicles, walk frames for soldiers, and picture boxes (iso px). */
@@ -209,11 +216,12 @@ export class Renderer {
     units.length = 0;
     for (const u of scene.units ?? []) if (onScreen(u.px, u.py)) units.push(u);
     const selUnits = scene.selectedUnits ?? new Set<number>();
-    for (const u of units) if (selUnits.has(u.id)) this.drawMoveLine(u);
+    for (const u of units) if (selUnits.has(u.id)) this.drawOrderLine(u, scene.time);
     for (const u of units) if (selUnits.has(u.id)) this.drawUnitRing(u, '#5cff6a');
     const hovered = units.find((u) => u.id === scene.hoveredUnitId);
     if (hovered && !selUnits.has(hovered.id)) this.drawUnitRing(hovered, 'rgba(255,255,255,0.6)');
     if (scene.moveMarker) this.drawMoveMarker(scene.moveMarker, scene.time);
+    if (scene.waypointPlan) this.drawWaypointPlan(scene.waypointPlan);
     const focus = scene.focus ?? [];
     for (const f of focus) if (f.entity.kind !== 'building') this.drawFocusRing(f.entity, f.strong, scene.time);
 
@@ -233,6 +241,8 @@ export class Renderer {
     this.upright();
     for (const f of focus) if (f.entity.kind !== 'building') this.drawFocusMarks(f.entity, f.strong);
     for (const u of units) if (selUnits.has(u.id) || u.hp < u.maxHp) this.drawUnitHealth(u);
+    // The fuel gauge shows only while the transport is out on a sortie; parked or taxiing at home it is idle (hidden).
+    for (const u of units) if (u instanceof Vehicle && u.isTransport && u.flight !== 'parked' && u.flight !== 'taxi' && u.flight !== 'taxiHome') this.drawFuel(u);
     for (const f of focus) if (f.entity.kind !== 'building' && !selUnits.has(f.entity.id) && f.entity.hp >= f.entity.maxHp) this.drawUnitHealth(f.entity);
     for (const u of units) {
       if (u.rank > 0) this.drawRank(u);
@@ -449,24 +459,43 @@ export class Renderer {
   }
 
   /** Thin dashed line in the team colour from a selected unit along its remaining route to the destination (ground transform). */
-  private drawMoveLine(u: Unit): void {
-    const path = u.waypoints();
-    const end = path[path.length - 1];
+  /**
+   * RA2 order line: right after an order a solid line runs from the unit to where it was sent (green, with a dot
+   * at both ends) or to what it attacks (red), then fades out.
+   */
+  private drawOrderLine(u: Unit, time: number): void {
+    const f = u.orderFlash;
+    if (!f) return;
+    const age = time - f.at;
+    if (age < 0 || age > ORDER_LINE_SECONDS) return;
+    let end: { x: number; y: number } | undefined;
+    if (f.kind === 'attack') {
+      const t = f.target;
+      if (!t || !t.alive) return;
+      end = 'centerWorld' in t ? (t as Building).centerWorld() : { x: (t as Unit).px, y: (t as Unit).py };
+    } else {
+      const path = u.waypoints();
+      end = path[path.length - 1];
+    }
     if (!end) return;
     const { ctx } = this;
     const k = 1 / this.camera.zoom;
-    ctx.strokeStyle = withAlpha(teamColors(u.faction).primary, 0.85);
-    ctx.lineWidth = 1.2 * k;
-    ctx.setLineDash([4 * k, 3 * k]);
+    const color = f.kind === 'attack' ? '#ff2a1a' : '#2bff3a';
+    ctx.save();
+    ctx.globalAlpha = 1 - Math.max(0, age - ORDER_LINE_SECONDS * 0.6) / (ORDER_LINE_SECONDS * 0.4);
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.lineWidth = 1.4 * k;
     ctx.beginPath();
     ctx.moveTo(u.px, u.py);
-    for (const p of path) ctx.lineTo(p.x, p.y);
+    ctx.lineTo(end.x, end.y);
     ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.fillStyle = ctx.strokeStyle;
-    ctx.beginPath();
-    ctx.arc(end.x, end.y, 2.5 * k, 0, Math.PI * 2);
-    ctx.fill();
+    for (const p of [{ x: u.px, y: u.py }, end]) {
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 1.6 * k, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
   }
 
   /** RA2-style target focus, part 1: a pulsing red ring under the enemy (ground transform). */
@@ -602,6 +631,20 @@ export class Renderer {
     ctx.fillRect(x, y, w * ratio, 0.4);
   }
 
+  /** Transport fuel gauge: a black bar just above the health bar, shrinking as the tank empties. */
+  private drawFuel(v: Vehicle): void {
+    const { ctx } = this;
+    const k = 1 / this.camera.zoom;
+    const P = worldToIso(v.px, v.py);
+    const w = Math.max(2.4, v.radius * 1.6);
+    const x = P.x - w / 2;
+    const y = P.y - v.altitude - v.bodyHeight - 2.4 - 0.4 - 3 * k;
+    ctx.fillStyle = 'rgba(210,210,210,0.85)';
+    ctx.fillRect(x - k, y - k, w + 2 * k, 0.4 + 2 * k);
+    ctx.fillStyle = v.fuel > 0.2 ? '#111111' : '#7a1010';
+    ctx.fillRect(x, y, w * v.fuel, 0.4);
+  }
+
   private drawEffects(list: readonly Effect[]): void {
     const { ctx } = this;
     const k = 1 / this.camera.zoom;
@@ -656,17 +699,68 @@ export class Renderer {
   }
 
   /** Shrinking green rings where a move order was given. */
+  /** RA2 waypoint route: a light-blue dashed line through the points, with a small square on each. */
+  private drawWaypointPlan(points: readonly { x: number; y: number }[]): void {
+    if (points.length < 2) return;
+    const { ctx } = this;
+    const k = 1 / this.camera.zoom;
+    ctx.save();
+    ctx.lineWidth = 2.6 * k;
+    ctx.strokeStyle = '#ffffff';
+    ctx.beginPath();
+    points.forEach((p, i) => (i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y)));
+    ctx.stroke();
+    ctx.strokeStyle = '#8cc8ff';
+    ctx.setLineDash([4 * k, 3 * k]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#9fd0ff';
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 0.8 * k;
+    const s = 3.2 * k;
+    for (const p of points) {
+      ctx.fillRect(p.x - s / 2, p.y - s / 2, s, s);
+      ctx.strokeRect(p.x - s / 2, p.y - s / 2, s, s);
+    }
+    ctx.restore();
+  }
+
   private drawMoveMarker(m: { x: number; y: number; at: number }, time: number): void {
-    const t = (time - m.at) / 0.6;
+    const t = (time - m.at) / MOVE_MARKER_SECONDS;
     if (t < 0 || t > 1) return;
     const { ctx } = this;
-    ctx.strokeStyle = `rgba(92,255,106,${(1 - t).toFixed(3)})`;
-    ctx.lineWidth = 3 / this.camera.zoom;
-    for (const r of [4.2 * (1 - t) + 1, 2.2 * (1 - t) + 0.5]) {
+    // Kept a readable size on screen at any zoom.
+    const k = 0.4 * Math.min(1.2, Math.max(0.8, 1 / this.camera.zoom)); // 0.4: kept small and neat
+    // RA2: four big green arrowheads close in on the spot from all sides, then vanish.
+    const r = (2 + 8 * (1 - Math.min(1, t * 1.6))) * k;
+    const s = 3.4 * k;
+    ctx.save();
+    ctx.globalAlpha = Math.min(1, 2.5 * (1 - t));
+    ctx.lineJoin = 'round';
+    ctx.fillStyle = '#3dff4c';
+    ctx.strokeStyle = '#063d0c';
+    ctx.lineWidth = 1 * k;
+    for (let i = 0; i < 4; i++) {
+      const a = (i * Math.PI) / 2 + Math.PI / 4;
+      const c = Math.cos(a);
+      const n = Math.sin(a);
+      const tipX = m.x + c * r;
+      const tipY = m.y + n * r;
       ctx.beginPath();
-      ctx.arc(m.x, m.y, r, 0, Math.PI * 2);
+      ctx.moveTo(tipX, tipY);
+      ctx.lineTo(tipX + c * s * 1.7 - n * s, tipY + n * s * 1.7 + c * s);
+      ctx.lineTo(tipX + c * s * 1.1, tipY + n * s * 1.1);
+      ctx.lineTo(tipX + c * s * 1.7 + n * s, tipY + n * s * 1.7 - c * s);
+      ctx.closePath();
       ctx.stroke();
+      ctx.fill();
     }
+    // Bright dot on the spot itself.
+    ctx.beginPath();
+    ctx.arc(m.x, m.y, 1.1 * k, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fill();
+    ctx.restore();
   }
 
   /** Dust puffs around the footprint while a structure rises. */

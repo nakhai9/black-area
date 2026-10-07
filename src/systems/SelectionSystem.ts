@@ -13,6 +13,9 @@ function bodyLift(u: Unit): number {
   return u.aircraft ? (altitude ?? 0) : u.bodyHeight;
 }
 
+/** Tankers fly escort on their own: they are never picked or selected. */
+const isEscort = (u: Unit): boolean => (u as { isTanker?: boolean }).isTanker === true;
+
 /** Pick radius around a soldier's body (world px). */
 const UNIT_PICK_RADIUS = 3.5;
 
@@ -51,7 +54,7 @@ export class SelectionSystem {
     let bestScore = Infinity;
     const m = worldToIso(world.x, world.y);
     for (const u of this.entities.fieldMovers()) {
-      if (!u.alive) continue;
+      if (!u.alive || isEscort(u)) continue;
       const iso = worldToIso(u.px, u.py);
       // Aircraft (even parked on the airfield) are big targets: clicking the plane selects it, no sweep needed.
       const reach = Math.max(UNIT_PICK_RADIUS, u.radius * (u.aircraft ? 2.8 : 1.8));
@@ -89,7 +92,7 @@ export class SelectionSystem {
   /** Own living units whose picture centre is inside a rectangle given in iso (screen-plane) coordinates. */
   unitsInIsoRect(r: Rect, owner: number): Unit[] {
     return this.entities.fieldMovers().filter((u) => {
-      if (!u.alive || u.owner !== owner) return false;
+      if (!u.alive || u.owner !== owner || isEscort(u)) return false;
       const iso = worldToIso(u.px, u.py);
       const y = iso.y - bodyLift(u);
       return iso.x >= r.x && iso.x <= r.x + r.w && y >= r.y && y <= r.y + r.h;

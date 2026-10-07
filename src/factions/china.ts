@@ -44,5 +44,6 @@ export const CHINA: FactionConfig = {
     ifv: { name: "ZBD-04", description: "ZBD-04 armoured fighting vehicle." },
     jet: { name: "J-15", description: "J-15 carrier-based multirole fighter." },
     transport: { name: "Y-20", description: "Y-20 heavy transport aircraft: carries soldiers and vehicles; unarmed." },
+    tanker: { name: "YY-20", description: "YY-20 aerial tanker: flies escort behind its Y-20 and keeps it fuelled; unarmed." },
   },
 };

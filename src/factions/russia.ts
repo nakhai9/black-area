@@ -44,5 +44,6 @@ export const RUSSIA: FactionConfig = {
     ifv: { name: "BMP-3", description: "BMP-3 armoured fighting vehicle with a heavy autocannon." },
     jet: { name: "Su-57", description: "Su-57 stealth air superiority fighter." },
     transport: { name: "Il-76", description: "Il-76 military transport aircraft: carries soldiers and vehicles; unarmed." },
+    tanker: { name: "Il-78", description: "Il-78 aerial tanker: flies escort behind its Il-76 and keeps it fuelled; unarmed." },
   },
 };

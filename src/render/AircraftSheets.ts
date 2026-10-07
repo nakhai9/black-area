@@ -37,6 +37,11 @@ const SHEETS: Partial<Record<`${FactionId}:${VehicleKind}`, AircraftSheet>> = {
   'china:jet': sheet('jet-china.png', 96, 10),
   'europe:jet': sheet('jet-europe.png', 96, 10),
 };
+// Tankers: the faction's transport airframe drawn smaller (a short, fat refueler); they share the transport image.
+for (const f of ['usa', 'russia', 'china', 'europe'] as const) {
+  const t = SHEETS[`${f}:transport`];
+  if (t) SHEETS[`${f}:tanker`] = { ...t, scale: t.scale * (9.5 / 13) };
+}
 
 /** Turn rate (rad/s) above which an airborne aircraft is drawn banked. */
 const BANK_TURN_RATE = 0.35;
@@ -48,7 +53,7 @@ let loaded: Promise<void> | null = null;
 /** Starts (once) and returns the aircraft sheet downloads. */
 export function loadAircraftSprites(): Promise<void> {
   loaded ??= Promise.all(
-    Object.values(SHEETS).map(
+    [...new Set(Object.values(SHEETS))].filter((s, i, all) => all.findIndex((o) => o.image === s.image) === i).map(
       (s) =>
         new Promise<void>((resolve, reject) => {
           s.image.onload = () => resolve();

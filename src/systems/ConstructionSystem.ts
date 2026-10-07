@@ -1,3 +1,4 @@
+import { demoPrice } from '../core/Demo';
 import {
   AIRFIELD_COST,
   ALLIED_BUILDING_COST,
@@ -144,8 +145,8 @@ export function missingRequirement(option: BuildOption, owned: ReadonlySet<Build
 
 /** Price of a structure for a nation (faction cost multiplier applied, like soldiers and vehicles). */
 export function buildCost(option: BuildOption, faction: FactionId): number {
-  if (option.fixedCost) return option.cost;
-  return Math.round((option.cost * FACTIONS[faction].stats.cost) / 10) * 10;
+  if (option.fixedCost) return demoPrice(option.cost);
+  return demoPrice(Math.round((option.cost * FACTIONS[faction].stats.cost) / 10) * 10);
 }
 
 export type QueueState = 'idle' | 'building' | 'onHold' | 'noPower' | 'ready';

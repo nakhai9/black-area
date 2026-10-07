@@ -7,7 +7,7 @@ export type InputEvent =
   | { type: 'wheel'; deltaY: number; x: number; y: number }
   | { type: 'keyDown'; code: string };
 
-const DRAG_THRESHOLD = 5;
+const DRAG_THRESHOLD = 10;
 /** Two left clicks closer than this (ms and screen px) make a double-click. */
 const DOUBLE_CLICK_MS = 350;
 const DOUBLE_CLICK_PX = 6;
@@ -46,6 +46,8 @@ export class InputHandler {
   private dragging = false;
   private lastLeftClick: { x: number; y: number; at: number } | null = null;
   private readonly abort = new AbortController();
+  /** False while drag-selecting is locked (units are selected): a left drag then counts as a click where it ends. */
+  boxSelectEnabled: () => boolean = () => true;
 
   constructor(private readonly target: HTMLElement) {
     const opts: AddEventListenerOptions = { signal: this.abort.signal };
@@ -123,7 +125,7 @@ export class InputHandler {
       this.pan.x += e.movementX;
       this.pan.y += e.movementY;
     }
-    if (this.leftStart && !this.dragging) {
+    if (this.leftStart && !this.dragging && this.boxSelectEnabled()) {
       this.dragging = Math.hypot(p.x - this.leftStart.x, p.y - this.leftStart.y) > DRAG_THRESHOLD;
     }
   };

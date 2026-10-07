@@ -44,5 +44,6 @@ export const EUROPE: FactionConfig = {
     ifv: { name: "Puma", description: "Puma armoured fighting vehicle, modern and fast." },
     jet: { name: "Rafale", description: "Dassault Rafale multirole fighter." },
     transport: { name: "C-130", description: "C-130 transport aircraft: carries soldiers and vehicles; unarmed." },
+    tanker: { name: "A330 MRTT", description: "A330 MRTT aerial tanker: flies escort behind its C-130 and keeps it fuelled; unarmed." },
   },
 };

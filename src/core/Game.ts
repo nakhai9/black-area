@@ -1,4 +1,8 @@
+import { setDemoActive } from './Demo';
 import {
+  DEMO_CREDITS,
+  MAX_WAYPOINTS,
+  DEMO_UNITS_EACH,
   BUILDING_VALUE,
   CAMERA_EDGE_PAN_SPEED,
   DERRICK_GRACE_ATTACKS,
@@ -218,6 +222,8 @@ export class Game {
   private ownedCache: Set<BuildingType> = new Set();
   readonly pathfinder: Pathfinder;
   private moveMarker: { x: number; y: number; at: number } | null = null;
+  /** Waypoint mode (Z): the points clicked so far (max MAX_WAYPOINTS), or null when not plotting a route. */
+  private waypoints: WorldPoint[] | null = null;
   private lastBuildingClick: { id: number; at: number } | null = null;
   private ghost: PlacementGhost | null = null;
   private lastQueueState: QueueState = 'idle';
@@ -242,8 +248,9 @@ export class Game {
     playerFaction: FactionId,
     earth: Promise<EarthData> = loadEarthData(EARTH_TEXTURE_URL),
     sound: SoundSystem = new SoundSystem(),
+    demo = false,
   ): Promise<Game> {
-    return new Game(dom, playerFaction, await earth, sound);
+    return new Game(dom, playerFaction, await earth, sound, demo);
   }
 
   private constructor(
@@ -251,7 +258,11 @@ export class Game {
     playerFaction: FactionId,
     earth: EarthData,
     sound: SoundSystem,
+    /** Dev-only DEMO mode: the player tests alone, the other nations' AI never acts. */
+    demo = false,
   ) {
+    setDemoActive(demo);
+    if (demo) dom.sidebar.classList.add('demo');
     this.players = FACTION_ORDER.map((faction, i) => ({
       id: i + 1,
       name: faction === playerFaction ? 'Commander' : `${FACTIONS[faction].shortName} AI`,
@@ -293,6 +304,8 @@ export class Game {
     this.renderer = new Renderer(dom.canvas, this.camera, this.terrain, this.sprites);
     this.input = new InputHandler(dom.canvas);
     this.selection = new SelectionSystem(this.entities, this.sprites, this.bus);
+    // While any of my units is selected, a left drag gives an order instead of sweeping up others; deselect first (right click).
+    this.input.boxSelectEnabled = () => this.selection.selectedUnits.size === 0;
     this.economy = new EconomySystem(this.players, this.entities);
     this.oilMarket = new OilMarket(this.players, this.entities);
     this.news = new NewsToast();
@@ -317,6 +330,7 @@ export class Game {
       unloadOne: (t) => this.unloadOne(t),
       selected: (v) => this.selection.selectedUnits.has(v.id),
       powered: (owner) => !this.players.find((p) => p.id === owner)?.powerShort,
+      newTanker: (t) => this.newTanker(t),
     });
     this.safeZones = new SafeZoneSystem(
       this.map,
@@ -348,7 +362,20 @@ export class Game {
       this.aircraft,
       this.safeZones,
       this.combat,
-      this.ai,
+      ...(demo ? [] : [this.ai]),
+      // DEMO: finances are switched off — the budget and oil stock never run down, so nothing waits for money.
+      ...(demo
+        ? [
+            {
+              update: () => {
+                const p = this.humanPlayer;
+                p.credits = DEMO_CREDITS;
+                p.oil = Math.max(p.oil, DEMO_CREDITS);
+                p.debt = 0;
+              },
+            },
+          ]
+        : []),
     ];
 
     // UI.
@@ -370,8 +397,12 @@ export class Game {
       onVehicleCancel: (option) => this.onVehicleCancel(option.kind),
       vehiclePreview: (option) => vehiclePortrait(human.faction, option.kind),
     });
-    this.minimap = new Minimap(this.sidebar.minimapCanvas, this.terrain, this.camera, (p) =>
-      this.bus.emit('camera:focus', p),
+    this.minimap = new Minimap(
+      this.sidebar.minimapCanvas,
+      this.terrain,
+      this.camera,
+      (p) => this.bus.emit('camera:focus', p),
+      (p) => this.minimapOrder(p),
     );
     this.status = new StatusBar(dom.status, this.map);
 
@@ -381,6 +412,10 @@ export class Game {
     this.bus.on('selection:changed', () => (this.sidebarTimer = SIDEBAR_REFRESH));
     new ResizeObserver(() => this.renderer.resize()).observe(dom.canvas);
 
+    if (demo) {
+      this.buildDemoBase();
+      this.spawnDemoArmy();
+    }
     this.systems.forEach((s) => s.update(0));
     this.camera.setZoom(FOCUS_ZOOM);
     this.focusOwnCapital();
@@ -409,6 +444,59 @@ export class Game {
   // ------------------------------------------------------------------ API used by the AI (see AIHost)
 
   /** Puts the finished structure of `player`'s queue down at (x, y); false if the spot is illegal. */
+  /** Route being plotted in waypoint mode, starting at the selection's centre (null when not plotting). */
+  private waypointPlan(): WorldPoint[] | null {
+    if (!this.waypoints) return null;
+    const units = this.selection.selectedUnitList();
+    if (units.length === 0) return null;
+    const cx = units.reduce((s, u) => s + u.px, 0) / units.length;
+    const cy = units.reduce((s, u) => s + u.py, 0) / units.length;
+    return [{ x: cx, y: cy }, ...this.waypoints];
+  }
+
+  /** DEMO: the player starts with one of every production / support structure already standing around the capital. */
+  private buildDemoBase(): void {
+    const me = this.humanPlayer;
+    const capital = this.landmarks.find((b) => b.owner === me.id && b.spec.type === 'capital');
+    if (!capital) return;
+    const cx = capital.x + Math.floor(capital.w / 2);
+    const cy = capital.y + Math.floor(capital.d / 2);
+    const ids = ['powerPlant', 'powerPlant', 'barracks', 'warFactory', 'hospital', 'airfield', 'techCenter'];
+    for (const id of ids) {
+      const option = BUILD_OPTIONS.find((o) => o.id === id);
+      if (!option) continue;
+      const { w, d } = option.footprint;
+      // Nearest free spot on a growing ring around the capital.
+      let spot: { x: number; y: number } | null = null;
+      for (let r = 2; r <= 40 && !spot; r++) {
+        for (let dy = -r; dy <= r && !spot; dy++) {
+          for (let dx = -r; dx <= r && !spot; dx++) {
+            if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+            const x = cx + dx - Math.floor(w / 2);
+            const y = cy + dy - Math.floor(d / 2);
+            if (this.placement.check({ owner: me.id, x, y, w, d }).ok) spot = { x, y };
+          }
+        }
+      }
+      if (!spot) continue;
+      const b = this.entities.add(option.create(me.id, me.faction, spot.x, spot.y));
+      this.map.occupy(b.x, b.y, b.w, b.d, b.id);
+    }
+  }
+
+  /** DEMO: DEMO_UNITS_EACH of every soldier, vehicle and aircraft the nation has, ready at their buildings. */
+  private spawnDemoArmy(): void {
+    const me = this.humanPlayer;
+    const barracks = this.production.producerOf(me, 'barracks');
+    for (let i = 0; i < DEMO_UNITS_EACH; i++) {
+      if (barracks) for (const o of this.training.optionsFor(me)) this.spawnSoldier(me, o.tier, barracks);
+      for (const o of this.production.optionsFor(me)) {
+        const producer = this.production.producerOf(me, o.requires);
+        if (producer) this.spawnVehicle(me, o.kind, producer);
+      }
+    }
+  }
+
   placeReady(player: PlayerState, x: number, y: number): boolean {
     const slot = this.construction.slot(player);
     const option = slot.option;
@@ -1087,6 +1175,7 @@ export class Game {
       selectedUnits: this.selection.selectedUnits,
       hoveredUnitId: this.placing ? null : this.selection.hoveredUnitId,
       moveMarker: this.moveMarker,
+      waypointPlan: this.waypointPlan(),
       focus: focus.map((f) => ({ entity: f.entity, strong: f.strong })),
       effects: this.effects.list,
     });
@@ -1172,7 +1261,11 @@ export class Game {
           // RA2 mouse: left button selects and gives orders; right button only deselects (units keep their orders).
           // Ctrl+Shift+right-click is still attack-move.
           if (ev.button === 'right') {
-            if (ev.ctrl && ev.shift) this.rightClick(world, true);
+            // Right-click in waypoint mode: the selection sets off along the route, then is deselected.
+            if (this.waypoints) {
+              this.finishWaypoints();
+              this.selection.clearAll();
+            } else if (ev.ctrl && ev.shift) this.rightClick(world, true);
             else this.selection.clearAll();
           } else if (ev.ctrl && !ev.shift) {
             // Ctrl+click on one of my structures: sell it to the Global Financial Center.
@@ -1195,6 +1288,8 @@ export class Game {
           }
           const a = camera.screenToIso(ev.rect.x, ev.rect.y);
           const picked = this.selection.unitsInIsoRect({ x: a.x, y: a.y, w: ev.rect.w / camera.zoom, h: ev.rect.h / camera.zoom }, this.humanPlayer.id);
+          // A shaky click that swept an empty box keeps the current selection instead of dropping it.
+          if (picked.length === 0 && !ev.shift) break;
           this.selection.selectUnits(
             picked.map((u) => u.id),
             ev.shift,
@@ -1237,10 +1332,26 @@ export class Game {
    */
   private leftClick(world: WorldPoint, shift: boolean, double: boolean): void {
     const me = this.humanPlayer.id;
+    if (this.waypoints) {
+      if (this.selection.selectedUnits.size === 0) this.waypoints = null;
+      else {
+        if (this.waypoints.length < MAX_WAYPOINTS && this.map.cellAt(world.x, world.y)) this.waypoints.push(world);
+        else if (this.waypoints.length >= MAX_WAYPOINTS) this.sidebar.notify(`At most ${MAX_WAYPOINTS} waypoints — press Z or right-click to go.`);
+        return;
+      }
+    }
     const unit = this.selection.pickUnit(world);
     const selected = this.selection.selectedUnitList();
     // RA2 default: with units selected, a left click is also an order (board / attack / enter / move).
-    if (selected.length > 0 && !shift && !double) {
+    // A double-click only means "select all of this type" on one of my units; anywhere else (two quick move
+    // orders in a row) it is still an order, so the group is never dropped by clicking fast.
+    if (selected.length > 0 && !shift && !(double && unit && unit.owner === me)) {
+      // Clicking on (or right next to) one of the selected units is a move order there, not a re-selection:
+      // a group, or an aircraft circling overhead, can then be sent anywhere without the click hitting itself.
+      if (unit && unit.owner === me && this.selection.selectedUnits.has(unit.id)) {
+        this.orderMove(world);
+        return;
+      }
       if (unit instanceof Vehicle && unit.isTransport && unit.owner === me && !this.selection.selectedUnits.has(unit.id)) {
         const riders = selected.filter((u) => !u.aircraft);
         if (riders.length > 0 && this.orderBoard(unit, riders)) return;
@@ -1315,6 +1426,7 @@ export class Game {
     const armed = units.filter((u) => u.weapon !== null && !(u instanceof Vehicle && u.isTransport));
     for (const u of armed) u.chasing = false;
     this.orderAttackMove(armed, world);
+    for (const u of armed) u.orderFlash = { kind: 'move', at: this.time, target: null };
     const unarmed = units.filter((u) => !armed.includes(u));
     if (unarmed.length > 0) this.orderMove(world, unarmed);
     this.moveMarker = { x: world.x, y: world.y, at: this.time };
@@ -1381,6 +1493,7 @@ export class Game {
         break;
       case 'Escape':
         if (this.placing) this.stopPlacing();
+        else if (this.waypoints) this.waypoints = null; // Esc drops the route being plotted
         else if (!this.ended) this.togglePause();
         break;
       case 'Tab':
@@ -1388,6 +1501,14 @@ export class Game {
         break;
       case 'KeyU':
         this.unloadSelectedTransport();
+        break;
+      case 'KeyZ':
+        // Z: start plotting a route for the selection; Z again sends it off along the points.
+        if (this.waypoints) this.finishWaypoints();
+        else if (this.selection.selectedUnits.size > 0) {
+          this.waypoints = [];
+          this.sidebar.notify(`Waypoint mode: left-click up to ${MAX_WAYPOINTS} points, then Z (or right-click) to go.`);
+        }
         break;
       case 'KeyX':
         this.scatterSelected();
@@ -1879,10 +2000,11 @@ export class Game {
   }
 
   /** A new aircraft (fighter or transport) appears parked on a free spot of its airfield's apron. */
-  private spawnAircraft(player: PlayerState, kind: VehicleKind, producer: Building): void {
+  private spawnAircraft(player: PlayerState, kind: VehicleKind, producer: Building, prefer = -1): Vehicle | null {
     // One aircraft per parking spot: use the producing airfield, or another one of the nation with room.
+    // A transport takes a spot with a free one ahead of it for its tanker.
     let airfield = producer;
-    let slot = this.aircraft.freeSlot(null, airfield);
+    let slot = kind === 'transport' ? this.aircraft.freeTransportSlot(airfield) : this.aircraft.freeSlot(null, airfield, prefer);
     if (slot < 0) {
       for (const b of this.entities.buildings()) {
         if (b.owner !== player.id || !b.alive || b.spec.type !== 'airfield') continue;
@@ -1893,17 +2015,39 @@ export class Game {
         }
       }
     }
-    if (slot < 0) return;
+    if (slot < 0) return null;
     const g = this.airfieldGeometry(airfield);
     const spot = g.slots[slot];
-    if (!spot) return;
+    if (!spot) return null;
     const jet = this.entities.add(new Vehicle(player.id, player.faction as FactionId, kind, spot));
     jet.flight = 'parked';
     jet.altitude = 0;
     jet.homeId = airfield.id;
     jet.slot = slot;
     jet.heading = g.heading;
-    if (player.isHuman) this.sidebar.notify(`${jet.name} parked on the airfield.`);
+    // Every transport comes with its own tanker, parked on the next free spot.
+    if (kind === 'transport') {
+      const tanker = this.spawnAircraft(player, 'tanker', airfield, slot + 1);
+      if (tanker) {
+        tanker.escortOf = jet.id;
+        jet.tankerId = tanker.id;
+      }
+    }
+    if (player.isHuman && kind !== 'tanker') this.sidebar.notify(`${jet.name} parked on the airfield.`);
+    return jet;
+  }
+
+  /** A transport back on its airfield without a tanker gets a new one on a free spot there (false: no room yet). */
+  private newTanker(t: Vehicle): boolean {
+    const home = t.homeId === null ? undefined : this.entities.get(t.homeId);
+    const player = this.players.find((p) => p.id === t.owner);
+    if (!(home instanceof Building) || !player || this.aircraft.freeSlot(null, home) < 0) return false;
+    const tanker = this.spawnAircraft(player, 'tanker', home, t.slot + 1);
+    if (!tanker) return false;
+    tanker.escortOf = t.id;
+    t.tankerId = tanker.id;
+    if (player.isHuman) this.sidebar.notify(`${t.name}: a new ${tanker.name} tanker has joined it.`);
+    return true;
   }
 
   /** Units that have been stuck for a while, or whose next waypoint became blocked, plan a new route. */
@@ -2132,6 +2276,7 @@ export class Game {
       u.attackMove = null;
       u.task = null;
       u.parade = null;
+      u.orderFlash = { kind: 'attack', at: this.time, target };
     }
     const at = target instanceof Building ? target.centerWorld() : { x: (target as Unit).px, y: (target as Unit).py };
     this.moveMarker = { x: at.x, y: at.y, at: this.time };
@@ -2346,6 +2491,69 @@ export class Game {
     return Math.hypot(to.x - home.x, to.y - home.y) < Math.hypot(u.px - home.x, u.py - home.y);
   }
 
+  /** Click on the radar with units selected: they go to that spot (in waypoint mode it becomes the next point). */
+  private minimapOrder(world: WorldPoint): boolean {
+    if (this.paused || this.placing || this.selection.selectedUnits.size === 0) return false;
+    if (!this.map.cellAt(world.x, world.y)) return true; // off the map: no order, camera stays
+    if (this.waypoints) {
+      if (this.waypoints.length < MAX_WAYPOINTS) this.waypoints.push(world);
+      return true;
+    }
+    this.orderMove(world);
+    return true;
+  }
+
+  /** Ends waypoint mode: the selected units follow the plotted points in order (nothing plotted: just cancels). */
+  private finishWaypoints(): void {
+    const points = this.waypoints;
+    this.waypoints = null;
+    if (!points || points.length === 0) return;
+    const units = this.selection.selectedUnitList();
+    if (units.length === 0) return;
+    const first = points[0]!;
+    units.sort((a, b) => Math.hypot(a.px - first.x, a.py - first.y) - Math.hypot(b.px - first.x, b.py - first.y));
+    const spacing = Math.max(UNIT_SPACING * 1.15, Math.max(...units.map((u) => u.radius)) * 2.1);
+    units.forEach((u, k) => {
+      u.parade = null;
+      u.task = null;
+      u.attackTarget = null;
+      u.attackMove = null;
+      u.chasing = false;
+      u.retreating = false;
+      u.sparedBy.clear();
+      const off = spiralOffset(k, spacing);
+      const route: WorldPoint[] = [];
+      let from: WorldPoint = { x: u.px, y: u.py };
+      for (const p of points) {
+        let goal = { x: p.x + off.x, y: p.y + off.y };
+        if (u.aircraft) {
+          route.push(goal); // aircraft fly straight from point to point
+          continue;
+        }
+        let cell = this.map.cellAt(goal.x, goal.y);
+        if (!cell || !this.pathfinder.passable(cell.x, cell.y, u.swims)) {
+          const near = this.pathfinder.nearestPassable(cell?.x ?? 0, cell?.y ?? 0, 10, undefined, u.swims);
+          if (!near) continue;
+          cell = near;
+          goal = { x: (near.x + 0.5) * CELL_SIZE, y: (near.y + 0.5) * CELL_SIZE };
+        }
+        const leg = this.pathfinder.find(from, cell, u.swims);
+        const last = leg[leg.length - 1];
+        if (last) {
+          last.x = goal.x;
+          last.y = goal.y;
+        } else leg.push(goal);
+        route.push(...leg);
+        from = goal;
+      }
+      if (route.length === 0) return;
+      u.orderFlash = { kind: 'move', at: this.time, target: null };
+      u.follow(route);
+    });
+    const end = points[points.length - 1]!;
+    this.moveMarker = { x: end.x, y: end.y, at: this.time };
+  }
+
   private orderMove(world: WorldPoint, units: Unit[] = this.selection.selectedUnitList(), evacuate = true): void {
     if (!this.map.cellAt(world.x, world.y) || units.length === 0) return;
     // Falling back home across the sea: the stranded ones head for a safe zone to be flown out.
@@ -2381,6 +2589,7 @@ export class Game {
         cell = near;
         goal = { x: (near.x + 0.5) * CELL_SIZE, y: (near.y + 0.5) * CELL_SIZE };
       }
+      u.orderFlash = { kind: 'move', at: this.time, target: null };
       if (u.aircraft) {
         u.follow([goal]); // aircraft ignore terrain and fly straight (parked ones take off first)
         return;
