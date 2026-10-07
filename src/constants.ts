@@ -1,4 +1,13 @@
-import type { BuildingType, FactionId, GeoPoint, NamedSite, UnitTier, VehicleKind, WeaponKind, WeaponSpec } from './types';
+import type {
+  BuildingType,
+  FactionId,
+  GeoPoint,
+  NamedSite,
+  UnitTier,
+  VehicleKind,
+  WeaponKind,
+  WeaponSpec,
+} from "./types";
 
 // ---------------------------------------------------------------- World (real Earth)
 /** Packed Earth texture built by `npm run build:earth` (see scripts/build-earth.mjs). */
@@ -50,7 +59,8 @@ export const SPRITE_SCALE = (CELL_SIZE * ISO_X) / HALF_TW;
 /** Tallest building art in the game (art px: Happy City 220, High-Tech Center 205, capitals ≤ 112). */
 export const TALLEST_BUILDING_ART = 220;
 /** Aircraft cruise above the roof of the tallest building of any nation, with a margin (iso px). */
-export const CRUISE_ALTITUDE = Math.ceil(TALLEST_BUILDING_ART * SPRITE_SCALE) + 6;
+export const CRUISE_ALTITUDE =
+  Math.ceil(TALLEST_BUILDING_ART * SPRITE_SCALE) + 6;
 /** Large structures (War Factory, Hospital) occupy 5×4 cells, everything else 4×4 (7 px cells). */
 export const FOOTPRINT_LARGE = { w: 5, d: 4 } as const;
 export const FOOTPRINT_SMALL = { w: 4, d: 4 } as const;
@@ -79,7 +89,7 @@ export const FOCUS_ZOOM = 7;
 
 // ---------------------------------------------------------------- Players & economy
 /** In-game currency unit shown everywhere in the UI. */
-export const CURRENCY = 'TB';
+export const CURRENCY = "TB";
 // ---------------------------------------------------------------- Construction
 /** Build speed: every structure advances BUILD_STEP_FRACTION every BUILD_STEP_SECONDS (20% / 4 s). */
 export const BUILD_STEP_SECONDS = 4;
@@ -91,8 +101,8 @@ export const AIRFIELD_COST = 2000;
 /** High-Tech Center (a high-rise): base price; it unlocks the second-tier soldiers and vehicles. */
 export const TECH_CENTER_COST = 8000;
 /** Second-tier units that need a High-Tech Center: special-forces soldiers and the armoured fighting vehicle. */
-export const TECH_TIERS: readonly UnitTier[] = ['special'];
-export const TECH_VEHICLES: readonly VehicleKind[] = ['ifv', 'transport'];
+export const TECH_TIERS: readonly UnitTier[] = ["special"];
+export const TECH_VEHICLES: readonly VehicleKind[] = ["ifv", "transport"];
 /**
  * Happy City: no limit on how many a nation builds; fixed price (no faction cost multiplier). Every city pays
  * HAPPY_CITY_TAX TB of taxes into its nation's budget every HAPPY_CITY_TAX_PERIOD seconds, each on its own clock.
@@ -127,7 +137,8 @@ export const MAX_TRANSPORTS = 3;
  * Elite (second-tier) soldiers are never more than the regular (first-tier) ones, at most 2 for every 3
  * regulars: with 5 soldiers that is 3 regular + 2 elite. Alive soldiers and soldiers on order both count.
  */
-export const eliteCap = (regulars: number): number => Math.floor((regulars * 2) / 3);
+export const eliteCap = (regulars: number): number =>
+  Math.floor((regulars * 2) / 3);
 /** Special-forces soldiers swim; they move at this fraction of their speed in water. */
 export const SWIM_SPEED_FACTOR = 0.6;
 /** Leg-swing phase (radians) per world px walked: higher = shorter, quicker steps. */
@@ -142,20 +153,78 @@ export const PARADE_GAP = 3;
 // ---------------------------------------------------------------- Combat
 /** Weapon stats (range in world px; faction firepower/range multipliers apply on top). */
 export const WEAPONS: Readonly<Record<WeaponKind, WeaponSpec>> = {
-  rifle: { kind: 'rifle', damage: 9, range: 32, cooldown: 0.75, vsBuilding: 0.4, hitsAir: false, splash: 0 },
-  smg: { kind: 'smg', damage: 6, range: 30, cooldown: 0.22, vsBuilding: 0.35, hitsAir: true, splash: 0 },
-  sniper: { kind: 'sniper', damage: 45, range: 56, cooldown: 2.2, vsBuilding: 0.15, hitsAir: false, splash: 0 },
-  mg: { kind: 'mg', damage: 5, range: 30, cooldown: 0.18, vsBuilding: 0.3, hitsAir: true, splash: 0 },
-  cannon: { kind: 'cannon', damage: 60, range: 50, cooldown: 1.8, vsBuilding: 1.6, hitsAir: false, splash: 7 },
-  autocannon: { kind: 'autocannon', damage: 16, range: 42, cooldown: 0.5, vsBuilding: 0.7, hitsAir: true, splash: 0 },
-  missile: { kind: 'missile', damage: 45, range: 60, cooldown: 1.4, vsBuilding: 1.3, hitsAir: true, splash: 4 },
+  rifle: {
+    kind: "rifle",
+    damage: 9,
+    range: 32,
+    cooldown: 0.75,
+    vsBuilding: 0.4,
+    hitsAir: false,
+    splash: 0,
+  },
+  smg: {
+    kind: "smg",
+    damage: 6,
+    range: 30,
+    cooldown: 0.22,
+    vsBuilding: 0.35,
+    hitsAir: true,
+    splash: 0,
+  },
+  sniper: {
+    kind: "sniper",
+    damage: 45,
+    range: 56,
+    cooldown: 2.2,
+    vsBuilding: 0.15,
+    hitsAir: false,
+    splash: 0,
+  },
+  mg: {
+    kind: "mg",
+    damage: 5,
+    range: 30,
+    cooldown: 0.18,
+    vsBuilding: 0.3,
+    hitsAir: true,
+    splash: 0,
+  },
+  cannon: {
+    kind: "cannon",
+    damage: 60,
+    range: 50,
+    cooldown: 1.8,
+    vsBuilding: 1.6,
+    hitsAir: false,
+    splash: 7,
+  },
+  autocannon: {
+    kind: "autocannon",
+    damage: 16,
+    range: 42,
+    cooldown: 0.5,
+    vsBuilding: 0.7,
+    hitsAir: true,
+    splash: 0,
+  },
+  missile: {
+    kind: "missile",
+    damage: 45,
+    range: 60,
+    cooldown: 1.4,
+    vsBuilding: 1.3,
+    hitsAir: true,
+    splash: 4,
+  },
 };
 /** Which weapon each vehicle carries. */
-export const VEHICLE_WEAPON: Readonly<Partial<Record<VehicleKind, WeaponKind>>> = {
-  light: 'mg',
-  tank: 'cannon',
-  ifv: 'autocannon',
-  jet: 'missile',
+export const VEHICLE_WEAPON: Readonly<
+  Partial<Record<VehicleKind, WeaponKind>>
+> = {
+  light: "mg",
+  tank: "cannon",
+  ifv: "autocannon",
+  jet: "missile",
 };
 /** Soldiers only shoot at enemies within this many cells (vehicles keep their own, longer ranges). */
 export const INFANTRY_MAX_RANGE_CELLS = 3;
@@ -179,17 +248,29 @@ export const VEHICLE_BASE = {
   ifv: { cost: 900, trainSeconds: 11, maxHp: 300, speed: 1.8, radius: 4.0 },
   jet: { cost: 1600, trainSeconds: 16, maxHp: 220, speed: 9, radius: 3.2 },
   /** Unarmed cargo aircraft: slower than the fighter. */
-  transport: { cost: 1400, trainSeconds: 14, maxHp: 260, speed: 5.5, radius: 3.6 },
+  transport: {
+    cost: 1400,
+    trainSeconds: 14,
+    maxHp: 260,
+    speed: 5.5,
+    radius: 3.6,
+  },
 } as const;
 
 /** Aircraft are built at the Airfield and use its runway; everything else rolls out of the War Factory. */
-export const isAircraftKind = (kind: VehicleKind): boolean => kind === 'jet' || kind === 'transport';
+export const isAircraftKind = (kind: VehicleKind): boolean =>
+  kind === "jet" || kind === "transport";
 
 /**
  * Temporary: only these vehicles can be produced (sidebar and AI). The rest stay in the code but are
  * hidden until they are wanted again — add a kind here to bring it back.
  */
-export const AVAILABLE_VEHICLES: readonly VehicleKind[] = ['tank', 'ifv', 'jet', 'transport'];
+export const AVAILABLE_VEHICLES: readonly VehicleKind[] = [
+  "tank",
+  "ifv",
+  "jet",
+  "transport",
+];
 
 /**
  * Transport aircraft load: soldiers only → 12; soldiers + a vehicle → 8 soldiers and 1 vehicle;
@@ -232,14 +313,19 @@ export const STARTING_CREDITS = 0;
 export const NEUTRAL_OWNER = 0;
 
 /** Faction order used for player ids, sidebar listing and hotkeys 1..4. */
-export const FACTION_ORDER: readonly FactionId[] = ['usa', 'russia', 'china', 'europe'];
+export const FACTION_ORDER: readonly FactionId[] = [
+  "usa",
+  "russia",
+  "china",
+  "europe",
+];
 
 // ---------------------------------------------------------------- Landmarks (real coordinates)
 export const CAPITAL_LOCATIONS: Readonly<Record<FactionId, NamedSite>> = {
-  usa: { lon: -77.04, lat: 38.9, name: 'Washington, D.C.' },
-  russia: { lon: 37.62, lat: 55.75, name: 'Moscow' },
-  china: { lon: 116.4, lat: 39.9, name: 'Beijing' },
-  europe: { lon: 4.35, lat: 50.85, name: 'Brussels' },
+  usa: { lon: -77.04, lat: 38.9, name: "Washington, D.C." },
+  russia: { lon: 37.62, lat: 55.75, name: "Moscow" },
+  china: { lon: 116.4, lat: 39.9, name: "Beijing" },
+  europe: { lon: 4.35, lat: 50.85, name: "Brussels" },
 };
 export const WORLD_BANK_LOCATION: GeoPoint = { lon: 8.54, lat: 47.37 }; // Zürich
 /** Neutral CHHG complex on the Antarctic ice (inland, Queen Maud Land). */
@@ -247,7 +333,7 @@ export const CHHG_LOCATION: GeoPoint = { lon: 20, lat: -78 };
 
 // ---------------------------------------------------------------- Oil (replaces RA2 ore)
 /** Barrels of oil pumped per second by each derrick while it is pumping (oil is sold to the World Bank for TB). */
-export const OIL_DERRICK_OUTPUT = 0.5; // barrels/s per derrick
+export const OIL_DERRICK_OUTPUT = 0.3; // barrels/s per derrick
 /** Every nation starts with some oil in stock, so the first sale can pay for the first buildings. */
 export const STARTING_OIL = 20;
 /**
@@ -298,7 +384,12 @@ export const OIL_SALE_COOLDOWN = 2;
 /** Barrels that always stay in the nation's stock: a sale never dips below this reserve. */
 export const OIL_RESERVE = 1.0;
 /** Oil derricks per nation, built in one straight row on the safest ground: 4, or 5 for Europe (it also runs the World Bank). */
-export const OIL_DERRICK_COUNT: Readonly<Record<FactionId, number>> = { usa: 4, russia: 4, china: 4, europe: 5 };
+export const OIL_DERRICK_COUNT: Readonly<Record<FactionId, number>> = {
+  usa: 4,
+  russia: 4,
+  china: 4,
+  europe: 5,
+};
 /** Oil cycle: pump for 3 minutes, then rest 1 minute while the field recovers. */
 export const OIL_MINE_SECONDS = 180;
 export const OIL_REST_SECONDS = 60;
