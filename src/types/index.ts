@@ -104,6 +104,9 @@ export interface VehicleProfile {
 /** Every nation fields a regular line infantry and a special-forces unit. */
 export type UnitTier = 'regular' | 'special' | 'president' | 'engineer';
 
+/** Soldier sprite sheets in public/sprites (see render/InfantryArt). */
+export type SoldierSheetId = 'gi' | 'ranger' | 'spetsnaz' | 'conscript' | 'usRegular' | 'usSpecial' | 'ruRegular' | 'ruSpecial' | 'cnRegular' | 'cnSpecial' | 'euRegular' | 'euSpecial';
+
 /** Procedural look of a soldier (team colour is added as a vest stripe). */
 export interface InfantryLook {
   uniform: string;
@@ -114,7 +117,7 @@ export interface InfantryLook {
   /** Camouflage blotches on the uniform. */
   camo?: boolean;
   /** Sprite sheet to draw with (default GI). */
-  sprite?: 'gi' | 'ranger' | 'spetsnaz' | 'conscript';
+  sprite?: SoldierSheetId;
 }
 
 export interface InfantryProfile {

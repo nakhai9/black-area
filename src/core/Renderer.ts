@@ -345,7 +345,7 @@ export class Renderer {
       const sinceShot = u.weapon ? u.weapon.cooldown - u.cooldown : Infinity;
       const fire = sinceShot >= 0 && sinceShot < GI_FIRE_SECONDS ? Math.min(GI_FIRE_FRAMES - 1, Math.floor((sinceShot / GI_FIRE_SECONDS) * GI_FIRE_FRAMES)) : -1;
       const aiming = !u.moving && u.engaged;
-      const oct = ((Math.round(u.heading / (Math.PI / 4)) % 8) + 8) % 8;
+      const oct = ((Math.round(u.heading / (Math.PI / 8)) % 16) + 16) % 16;
       const look = u.profile.look;
       const sprite = unitSprite(`${look.sprite ?? 'gi'}:${f.colors.primary}:${special ? 1 : 0}:${oct}:${frame}:${fire}:${aiming ? 1 : 0}`, 6, 6, 3, 5, (c) =>
         drawSoldier(
@@ -354,7 +354,7 @@ export class Renderer {
             x: 0,
             y: 0,
             facing: u.facing,
-            heading: (oct * Math.PI) / 4,
+            heading: (oct * Math.PI) / 8,
             walkPhase: ((Math.max(0, frame) + 0.5) / GI_WALK_FRAMES) * Math.PI * 2,
             moving: frame >= 0,
             fire: fire >= 0 ? (fire + 0.5) / GI_FIRE_FRAMES : -1,

@@ -19,12 +19,12 @@ export const EUROPE: FactionConfig = {
     regular: {
       name: 'Eurocorps',
       description: 'Combined European infantry with modern kit.',
-      look: { uniform: '#5e6c78', trousers: '#4a5661', headgear: 'helmet', headColor: '#515d68', weapon: 'rifle', camo: true },
+      look: { uniform: '#5e6c78', trousers: '#4a5661', headgear: 'helmet', headColor: '#515d68', weapon: 'rifle', camo: true, sprite: 'euRegular' },
     },
     special: {
       name: 'EU Spec',
       description: 'European special operators — long-range precision marksmen.',
-      look: { uniform: '#5e6c78', trousers: '#4a5661', headgear: 'reverseCap', headColor: '#3f4a54', weapon: 'rifle', camo: true },
+      look: { uniform: '#5e6c78', trousers: '#4a5661', headgear: 'reverseCap', headColor: '#3f4a54', weapon: 'rifle', camo: true, sprite: 'euSpecial' },
     },
     president: {
       name: 'President',

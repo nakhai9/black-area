@@ -19,12 +19,12 @@ export const CHINA: FactionConfig = {
     regular: {
       name: 'PLA',
       description: 'Disciplined Chinese line infantry, cheap and numerous.',
-      look: { uniform: '#5b6a3a', trousers: '#47532c', headgear: 'helmet', headColor: '#4e5b31', weapon: 'rifle', camo: true },
+      look: { uniform: '#5b6a3a', trousers: '#47532c', headgear: 'helmet', headColor: '#4e5b31', weapon: 'rifle', camo: true, sprite: 'cnRegular' },
     },
     special: {
       name: 'Tiger',
       description: 'Elite marine commandos trained for amphibious assault.',
-      look: { uniform: '#5b6a3a', trousers: '#47532c', headgear: 'helmet', headColor: '#4e5b31', weapon: 'rifle', camo: true },
+      look: { uniform: '#5b6a3a', trousers: '#47532c', headgear: 'helmet', headColor: '#4e5b31', weapon: 'rifle', camo: true, sprite: 'cnSpecial' },
     },
     president: {
       name: 'President',
