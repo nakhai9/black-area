@@ -24,7 +24,7 @@ export const USA: FactionConfig = {
     special: {
       name: 'Ranger',
       description: 'Elite light infantry: fast, accurate and deadly at close range.',
-      look: { uniform: '#7d8083', trousers: '#5f6265', headgear: 'boonie', headColor: '#6e7275', weapon: 'rifle', camo: true },
+      look: { uniform: '#7d8083', trousers: '#5f6265', headgear: 'boonie', headColor: '#6e7275', weapon: 'rifle', camo: true, sprite: 'ranger' },
     },
     president: {
       name: 'President',

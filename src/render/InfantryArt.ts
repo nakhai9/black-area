@@ -1,10 +1,6 @@
 import { FACTIONS } from '../factions';
 import type { FactionId, InfantryLook, UnitTier } from '../types';
 import { createCanvas } from './Canvas';
-import { shade } from './Color';
-
-const SKIN = '#e0b48a';
-const GUN = '#26272a';
 
 export interface SoldierPose {
   x: number;
@@ -12,13 +8,72 @@ export interface SoldierPose {
   facing: 1 | -1;
   walkPhase: number;
   moving: boolean;
+  /** Heading in world radians; picks one of 8 screen directions. Falls back to `facing` when absent. */
+  heading?: number;
+  /** 0..1 progress through the shot animation, or -1 when not firing. */
+  fire?: number;
+  /** Standing in combat: hold the rifle up. */
+  aiming?: boolean;
 }
 
-/**
- * Draws one soldier with its feet at (x, y), in world px (≈3.4 px tall —
- * about 0.4 of a grid cell). Team colour shows on the vest stripe; uniform,
- * headgear and weapon come from the faction's infantry look.
- */
+interface SoldierSheet {
+  readonly url: string;
+  readonly image: HTMLImageElement;
+  /** Cell size and the feet point inside a cell, in sheet px. */
+  readonly cw: number;
+  readonly ch: number;
+  readonly feetX: number;
+  readonly feetY: number;
+  /** Columns: walk frames first, then FIRE_FRAMES shot frames. */
+  readonly walk: number;
+  /** World px per sheet px. */
+  readonly scale: number;
+  /** Team patch (sheet px, relative to the feet). */
+  readonly patch: readonly [number, number];
+}
+
+/** Rows of every sheet: S, SE, E, NE, N (west-facing poses are mirrored). */
+const FIRE_FRAMES = 3;
+const sheet = (file: string, cw: number, ch: number, feetY: number, walk: number, height: number, patch: readonly [number, number]): SoldierSheet => ({
+  url: `${import.meta.env.BASE_URL}sprites/${file}`,
+  image: new Image(),
+  cw,
+  ch,
+  feetX: cw / 2,
+  feetY,
+  walk,
+  scale: 4 / height, // every soldier stands ≈4 world px tall
+  patch,
+});
+const SHEETS: Record<'gi' | 'ranger' | 'spetsnaz' | 'conscript', SoldierSheet> = {
+  gi: sheet('gi.png', 64, 64, 61, 4, 51, [-3, -40]),
+  ranger: sheet('ranger.png', 96, 128, 124, 6, 112, [-6, -82]),
+  spetsnaz: sheet('spetsnaz.png', 64, 64, 61, 8, 52, [-3, -40]),
+  conscript: sheet('conscript.png', 64, 64, 61, 8, 52, [-3, -38]),
+};
+/** Screen octant (0 = E, clockwise) → [sheet row, mirrored]. */
+const OCTANT_ROW: readonly (readonly [number, boolean])[] = [
+  [2, false], [1, false], [0, false], [1, true], [2, true], [3, true], [4, false], [3, false],
+];
+
+let sheetsLoaded: Promise<void> | null = null;
+
+/** Starts (once) and returns the soldier sprite sheet downloads; await it before the first frame. */
+export function loadSoldierSprites(): Promise<void> {
+  sheetsLoaded ??= Promise.all(
+    Object.values(SHEETS).map(
+      (s) =>
+        new Promise<void>((resolve, reject) => {
+          s.image.onload = () => resolve();
+          s.image.onerror = () => reject(new Error(`Could not load soldier sprites '${s.url}'.`));
+          s.image.src = s.url;
+        }),
+    ),
+  ).then(() => undefined);
+  return sheetsLoaded;
+}
+
+/** Draws one soldier (GI, Ranger, Spetsnaz or Red Army sheet, per look) with its feet at (x, y), in world px. Team colour shows on a shoulder patch. */
 export function drawSoldier(
   ctx: CanvasRenderingContext2D,
   pose: SoldierPose,
@@ -26,173 +81,38 @@ export function drawSoldier(
   team: string,
   special: boolean,
 ): void {
-  const { x, y } = pose;
-  const f = pose.facing;
-  const swing = pose.moving ? Math.sin(pose.walkPhase) * 0.45 : 0;
-
-  // Shadow.
-  ctx.fillStyle = 'rgba(0,0,0,0.35)';
-  ctx.beginPath();
-  ctx.ellipse(x + 0.15, y + 0.05, 0.95, 0.38, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Legs.
-  ctx.lineCap = 'round';
-  ctx.strokeStyle = look.trousers;
-  ctx.lineWidth = 0.42;
-  ctx.beginPath();
-  ctx.moveTo(x - 0.18, y - 1.2);
-  ctx.lineTo(x - 0.18 + swing, y - 0.05);
-  ctx.moveTo(x + 0.18, y - 1.2);
-  ctx.lineTo(x + 0.18 - swing, y - 0.05);
-  ctx.stroke();
-
-  // Torso with team-colour vest stripe.
-  ctx.fillStyle = look.uniform;
-  roundRect(ctx, x - 0.55, y - 2.35, 1.1, 1.25, 0.3);
-  ctx.fill();
-  if (look.camo) drawCamo(ctx, x, y, look.uniform);
-  if (look.weapon === 'none') {
-    // Head of state in a dark suit: white shirt front and a team-colour tie.
-    ctx.fillStyle = '#f2f2f2';
-    ctx.fillRect(x - 0.22, y - 2.3, 0.44, 0.8);
-    ctx.fillStyle = team;
-    ctx.fillRect(x - 0.07, y - 2.25, 0.14, 0.7);
+  const sh = SHEETS[look.sprite ?? 'gi'];
+  const img = sh.image;
+  if (!img.complete || img.naturalWidth === 0) return;
+  let row: number;
+  let mirror: boolean;
+  if (pose.heading === undefined) {
+    row = 2;
+    mirror = pose.facing < 0;
   } else {
-    ctx.fillStyle = team;
-    ctx.fillRect(x - 0.55, y - 1.95, 1.1, 0.32);
+    // World → iso screen direction (same projection as movesRight: sx = dx - dy, sy = (dx + dy) / 2).
+    const dx = Math.cos(pose.heading);
+    const dy = Math.sin(pose.heading);
+    const a = Math.atan2((dx + dy) / 2, dx - dy);
+    const o = ((Math.round(a / (Math.PI / 4)) % 8) + 8) % 8;
+    [row, mirror] = OCTANT_ROW[o] ?? [2, false];
   }
-  ctx.fillStyle = shade(look.uniform, 0.75);
-  ctx.fillRect(x - 0.55 * f, y - 2.3, 0.18 * f, 1.15);
+  let col = 0;
+  const fire = pose.fire ?? -1;
+  if (fire >= 0) col = sh.walk + Math.min(FIRE_FRAMES - 1, Math.floor(fire * FIRE_FRAMES));
+  else if (pose.moving) col = ((Math.floor((pose.walkPhase / (Math.PI * 2)) * sh.walk) % sh.walk) + sh.walk) % sh.walk;
+  else if (pose.aiming) col = sh.walk;
 
-  // Arm + weapon (the President carries nothing; engineers carry a wrench).
-  ctx.strokeStyle = look.uniform;
-  ctx.lineWidth = 0.32;
-  ctx.beginPath();
-  ctx.moveTo(x + 0.2 * f, y - 2.1);
-  ctx.lineTo(x + 0.75 * f, y - 1.75);
-  ctx.stroke();
-  if (look.weapon === 'wrench') {
-    ctx.strokeStyle = '#b8bcc2';
-    ctx.lineWidth = 0.2;
-    ctx.beginPath();
-    ctx.moveTo(x + 0.75 * f, y - 1.75);
-    ctx.lineTo(x + 1.05 * f, y - 2.35);
-    ctx.stroke();
-  } else if (look.weapon !== 'none') {
-    const len = look.weapon === 'sniper' ? 1.9 : look.weapon === 'smg' ? 1.0 : 1.4;
-    ctx.strokeStyle = GUN;
-    ctx.lineWidth = look.weapon === 'smg' ? 0.3 : 0.22;
-    ctx.beginPath();
-    ctx.moveTo(x - 0.1 * f, y - 1.6);
-    ctx.lineTo(x + (len - 0.1) * f, y - 2.05);
-    ctx.stroke();
-  }
-
-  // Head + headgear.
-  ctx.fillStyle = SKIN;
-  ctx.beginPath();
-  ctx.arc(x, y - 2.72, 0.4, 0, Math.PI * 2);
-  ctx.fill();
-  drawHeadgear(ctx, x, y - 2.72, f, look);
-
-  // Special forces wear a small team-colour shoulder patch.
-  if (special) {
-    ctx.fillStyle = team;
-    ctx.fillRect(x - 0.62 * f - (f < 0 ? 0.24 : 0), y - 2.3, 0.24, 0.24);
-  }
-}
-
-/** Camouflage pattern: dark and light blotches over the torso and the top of the legs. */
-const CAMO_SPOTS: readonly (readonly [number, number, number, number])[] = [
-  // dx, dy (from the feet), radius, shade
-  [-0.28, -2.12, 0.2, 0.62],
-  [0.22, -1.85, 0.22, 1.28],
-  [-0.12, -1.42, 0.18, 0.62],
-  [0.3, -1.3, 0.14, 0.78],
-  [-0.32, -1.68, 0.13, 1.28],
-  [0.08, -2.22, 0.12, 0.78],
-  [-0.18, -0.85, 0.12, 0.62],
-  [0.2, -0.6, 0.11, 1.28],
-];
-
-function drawCamo(ctx: CanvasRenderingContext2D, x: number, y: number, base: string): void {
-  for (const [dx, dy, r, k] of CAMO_SPOTS) {
-    ctx.fillStyle = shade(base, k);
-    ctx.beginPath();
-    ctx.ellipse(x + dx, y + dy, r, r * 0.7, dx * 2, 0, Math.PI * 2);
-    ctx.fill();
-  }
-}
-
-function drawHeadgear(ctx: CanvasRenderingContext2D, x: number, y: number, f: number, look: InfantryLook): void {
-  ctx.fillStyle = look.headColor;
-  switch (look.headgear) {
-    case 'helmet':
-      ctx.beginPath();
-      ctx.arc(x, y - 0.05, 0.47, Math.PI, 0);
-      ctx.fill();
-      ctx.fillRect(x - 0.52, y - 0.08, 1.04, 0.12);
-      break;
-    case 'beret':
-      ctx.beginPath();
-      ctx.ellipse(x - 0.08 * f, y - 0.3, 0.5, 0.2, -0.25 * f, 0, Math.PI * 2);
-      ctx.fill();
-      break;
-    case 'cap':
-      ctx.fillRect(x - 0.42, y - 0.5, 0.84, 0.32);
-      ctx.fillRect(x - 0.1 * f, y - 0.22, 0.55 * f, 0.1);
-      ctx.fillStyle = '#d8261b';
-      ctx.fillRect(x - 0.08, y - 0.44, 0.16, 0.16);
-      break;
-    case 'reverseCap':
-      // Baseball cap worn backwards: the peak points behind the head.
-      ctx.beginPath();
-      ctx.arc(x, y - 0.12, 0.43, Math.PI, 0);
-      ctx.fill();
-      ctx.fillRect(x - 0.45 * f, y - 0.18, -0.5 * f, 0.11);
-      break;
-    case 'ushanka':
-      ctx.fillRect(x - 0.5, y - 0.55, 1.0, 0.4);
-      ctx.fillRect(x - 0.55, y - 0.2, 0.2, 0.42);
-      ctx.fillRect(x + 0.35, y - 0.2, 0.2, 0.42);
-      ctx.fillStyle = '#d8261b';
-      ctx.fillRect(x - 0.08, y - 0.48, 0.16, 0.16);
-      break;
-    case 'balaclava':
-      ctx.beginPath();
-      ctx.arc(x, y, 0.43, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = SKIN;
-      ctx.fillRect(x - 0.05 + 0.08 * f, y - 0.12, 0.3 * f, 0.12);
-      break;
-    case 'hardhat':
-      ctx.beginPath();
-      ctx.arc(x, y - 0.05, 0.5, Math.PI, 0);
-      ctx.fill();
-      ctx.fillRect(x - 0.6, y - 0.08, 1.2, 0.14);
-      break;
-    case 'none':
-      break;
-    case 'boonie':
-      ctx.beginPath();
-      ctx.ellipse(x, y - 0.22, 0.68, 0.17, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.beginPath();
-      ctx.arc(x, y - 0.25, 0.36, Math.PI, 0);
-      ctx.fill();
-      break;
-  }
-}
-
-function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number): void {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.arcTo(x + w, y, x + w, y + h, r);
-  ctx.arcTo(x + w, y + h, x, y + h, r);
-  ctx.arcTo(x, y + h, x, y, r);
-  ctx.arcTo(x, y, x + w, y, r);
-  ctx.closePath();
+  ctx.save();
+  ctx.translate(pose.x, pose.y);
+  ctx.scale(mirror ? -sh.scale : sh.scale, sh.scale);
+  ctx.imageSmoothingEnabled = true;
+  ctx.drawImage(img, col * sh.cw, row * sh.ch, sh.cw, sh.ch, -sh.feetX, -sh.feetY, sh.cw, sh.ch);
+  // Team-colour shoulder patch (bigger for special forces).
+  ctx.fillStyle = team;
+  const sz = (special ? 7 : 5) * (0.078 / sh.scale);
+  ctx.fillRect(sh.patch[0], sh.patch[1], sz, sz);
+  ctx.restore();
 }
 
 const portraits = new Map<string, HTMLCanvasElement>();
@@ -204,9 +124,9 @@ export function soldierPortrait(faction: FactionId, tier: UnitTier): HTMLCanvasE
   if (!c) {
     const f = FACTIONS[faction];
     const { canvas, ctx } = createCanvas(128, 96);
-    const scale = 22;
+    const scale = 18;
     ctx.setTransform(scale, 0, 0, scale, 64, 88);
-    const pose = { x: 0, y: 0, facing: 1 as const, walkPhase: 0, moving: false };
+    const pose = { x: 0, y: 0, facing: 1 as const, walkPhase: 0, moving: false, heading: Math.PI / 4 };
     drawSoldier(ctx, pose, f.infantry[tier].look, f.colors.primary, tier === 'special');
     portraits.set(key, canvas);
     c = canvas;

@@ -21,6 +21,12 @@ import { Unit } from './Unit';
  */
 export type Flight = 'parked' | 'taxi' | 'takeoff' | 'airborne' | 'approach' | 'landing' | 'taxiHome' | 'crashing' | 'unloading' | 'landed' | 'liftoff';
 
+/**
+ * What a carrier (transport) is doing with its passengers, RA2 style:
+ * idle (empty) → loading (units walking up to climb aboard) → carrying → unloading (they step out one by one).
+ */
+export type CarrierState = 'idle' | 'loading' | 'carrying' | 'unloading';
+
 /** Cruise height of an aircraft above the ground (world px, drawn offset). */
 import { CRUISE_ALTITUDE } from '../constants';
 export { CRUISE_ALTITUDE };
@@ -77,6 +83,12 @@ export class Vehicle extends Unit {
   returningHome = false;
   /** Transport only: soldiers and vehicles aboard (hidden from the map while inside). */
   readonly cargo: Unit[] = [];
+  /** Transport only: units on their way to climb aboard (recounted every tick). */
+  incoming = 0;
+  /** Transport only: standing on the ground and letting its passengers out one by one. */
+  ejecting = false;
+  /** Seconds until the next passenger steps out while ejecting. */
+  ejectClock = 0;
 
   constructor(
     owner: number,
@@ -157,6 +169,31 @@ export class Vehicle extends Unit {
     const s = this.soldiersAboard + (vehicle ? 0 : 1);
     const v = this.vehiclesAboard + (vehicle ? 1 : 0);
     return transportFits(s, v);
+  }
+
+  /** Soldier seats with the vehicles now aboard (12 alone, 8 beside one vehicle, none beside two or more). */
+  get soldierCapacity(): number {
+    const v = this.vehiclesAboard;
+    return v === 0 ? TRANSPORT_SOLDIERS : v === 1 ? TRANSPORT_MIXED_SOLDIERS : 0;
+  }
+
+  /** Vehicle places with the soldiers now aboard (3 when empty of soldiers, 1 beside up to 8 soldiers, else none). */
+  get vehicleCapacity(): number {
+    const s = this.soldiersAboard;
+    return s === 0 ? TRANSPORT_VEHICLES : s <= TRANSPORT_MIXED_SOLDIERS ? 1 : 0;
+  }
+
+  /** Idle / loading / carrying / unloading (for the badge and the sidebar). */
+  get carrierState(): CarrierState {
+    if (!this.isTransport) return 'idle';
+    if (this.cargo.length > 0 && (this.ejecting || (this.flight === 'unloading' && !this.pickup))) return 'unloading';
+    if (this.incoming > 0 && (this.flight === 'parked' || this.flight === 'landed' || (this.flight === 'unloading' && this.pickup))) return 'loading';
+    return this.cargo.length > 0 ? 'carrying' : 'idle';
+  }
+
+  /** Would `soldiers` more soldiers and `vehicles` more vehicles still fit beside the current cargo? */
+  fitsWith(soldiers: number, vehicles: number): boolean {
+    return transportFits(this.soldiersAboard + soldiers, this.vehiclesAboard + vehicles);
   }
 
   /** Nothing more fits: another soldier and another vehicle would both break the load limits. */

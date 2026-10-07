@@ -86,7 +86,7 @@ import { VehicleSystem } from '../systems/VehicleSystem';
 import type { BuildingType, FactionId, GameEvents, PlayerState, UnitTier, VehicleKind, WeaponSpec, WorldPoint } from '../types';
 import { Minimap } from '../ui/Minimap';
 import { sweepUnitSprites, unitSpriteBytes } from '../render/UnitSprites';
-import { type RankRow, Sidebar } from '../ui/Sidebar';
+import { type TransportInfo, type RankRow, Sidebar } from '../ui/Sidebar';
 import { StatusBar } from '../ui/StatusBar';
 import { Camera } from './Camera';
 import { EffectsLayer } from './Effects';
@@ -118,6 +118,14 @@ const BLOCK_REASONS: Readonly<Record<string, string>> = {
 const PRESET_SNAP_RADIUS = 2;
 /** …otherwise the nearest dry spot within this radius is used and cleared of trees. */
 const PRESET_SEARCH_RADIUS = 8;
+/** RA2 Enter cursor: an arrow going down into a hatch, shown over a transport the selection can climb into. */
+const ENTER_CURSOR = `url("data:image/svg+xml,${encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round">' +
+    '<path d="M4 14v6h16v-6M12 2v11M7 8l5 5 5-5" stroke="#000" stroke-width="4"/>' +
+    '<path d="M4 14v6h16v-6M12 2v11M7 8l5 5 5-5" stroke="#5cff6a" stroke-width="2"/></svg>',
+)}") 12 12, pointer`;
+/** RA2 scatter (X): how far each selected unit runs from the group (cells; aircraft twice as far). */
+const SCATTER_CELLS = 3;
 /** Landmark labels sit a bit above the footprint centre when focusing. */
 const FOCUS_OFFSET_Y = 6;
 
@@ -261,7 +269,7 @@ export class Game {
     });
     this.aircraft = new AircraftSystem(this.entities, (b) => this.airfieldGeometry(b), {
       landingSpot: (x, y, self) => this.landingSpot(x, y, self),
-      unload: (t) => this.unloadTransport(t),
+      unloadOne: (t) => this.unloadOne(t),
     });
     this.combat = new CombatSystem(this.entities, this.pathfinder, {
       onFire: (s, t, w, impact) => this.onFire(s, t, w, impact),
@@ -299,6 +307,7 @@ export class Game {
       onAlert: (at) => this.camera.centerOn(at.x, at.y),
       onSellOil: () => this.sellOil(),
       onLoan: () => this.takeLoan(),
+      onUnload: () => this.unloadSelectedTransport(),
       onVehicle: (option) => this.onVehicleClick(option.kind),
       onVehicleCancel: (option) => this.onVehicleCancel(option.kind),
       vehiclePreview: (option) => vehiclePortrait(human.faction, option.kind),
@@ -402,6 +411,11 @@ export class Game {
       const cell = this.map.cellAt(target.x + off.x, target.y + off.y) ?? this.map.cellAt(target.x, target.y);
       if (!cell) return;
       const goal = this.pathfinder.nearestPassable(cell.x, cell.y, 14, undefined, u.swims);
+      // A walker cannot reach another landmass: skip the A* search (it would scan the whole map and find nothing).
+      if (goal && !u.swims && !this.pathfinder.sameLandmass(Math.floor(u.px / CELL_SIZE), Math.floor(u.py / CELL_SIZE), goal.x, goal.y)) {
+        u.attackMove = null;
+        return;
+      }
       if (goal) u.follow(this.pathfinder.find({ x: u.px, y: u.py }, goal, u.swims));
     });
   }
@@ -465,51 +479,130 @@ export class Game {
     return g ? { x: (g.x + 0.5) * CELL_SIZE, y: (g.y + 0.5) * CELL_SIZE } : null;
   }
 
-  /** Everyone aboard steps out on free cells around the transport (or its drop-off point). */
-  private unloadTransport(t: Vehicle): void {
-    const anchor = t.dropSpot ?? { x: t.px, y: t.py };
-    const home = this.map.cellAt(anchor.x, anchor.y);
-    if (!home) return;
-    const taken = new Set<number>();
-    let out = 0;
-    for (const u of [...t.cargo]) {
-      const cell = this.pathfinder.nearestPassable(home.x, home.y, 12, taken, u.swims);
-      if (!cell) continue;
-      taken.add(this.map.index(cell.x, cell.y));
-      u.px = (cell.x + 0.5) * CELL_SIZE;
-      u.py = (cell.y + 0.5) * CELL_SIZE;
-      u.x = cell.x + 0.5;
-      u.y = cell.y + 0.5;
-      u.insideId = null;
-      u.boardTarget = null;
-      u.stop();
-      t.cargo.splice(t.cargo.indexOf(u), 1);
-      out++;
+  /**
+   * RA2 unloading: the next passenger jumps out of the transport onto a free cell beside it (a cell nobody stands on,
+   * never water or a building). False when nobody could get out: no room around it.
+   */
+  private unloadOne(t: Vehicle): boolean {
+    const u = t.cargo[0];
+    const here = this.map.cellAt(t.px, t.py);
+    if (!u || !here) return false;
+    const taken = new Set<number>([this.map.index(here.x, here.y)]);
+    for (const o of this.entities.fieldMovers()) {
+      if (o === t || o.flies || Math.hypot(o.px - t.px, o.py - t.py) > CELL_SIZE * 14) continue;
+      const c = this.map.cellAt(o.px, o.py);
+      if (c) taken.add(this.map.index(c.x, c.y));
     }
-    if (out > 0 && t.owner === this.humanPlayer.id) this.sidebar.notify(`${out} unloaded from the ${t.name}.`);
+    const cell = this.pathfinder.nearestPassable(here.x, here.y, 12, taken, u.swims) ?? this.pathfinder.nearestPassable(here.x, here.y, 12, undefined, u.swims);
+    if (!cell) {
+      if (t.owner === this.humanPlayer.id) this.sidebar.notify(`No room around the ${t.name} to unload.`);
+      return false;
+    }
+    u.px = (cell.x + 0.5) * CELL_SIZE;
+    u.py = (cell.y + 0.5) * CELL_SIZE;
+    u.x = cell.x + 0.5;
+    u.y = cell.y + 0.5;
+    u.insideId = null;
+    u.boardTarget = null;
+    u.stop();
+    t.cargo.shift();
+    this.hatch(u.px, u.py);
+    if (t.cargo.length === 0 && t.owner === this.humanPlayer.id) this.sidebar.notify(`Everyone is out of the ${t.name}.`);
+    return true;
   }
 
-  /** U key: a selected, parked transport unloads everyone it carries. */
+  /** Little flash and hatch clunk where a unit climbs into or jumps out of a transport. */
+  private hatch(x: number, y: number): void {
+    this.effects.add({ kind: 'flash', ...this.fx(x, y, 2), age: 0, ttl: 0.25, size: 1.6 });
+    this.sound.play('board', { x, y });
+  }
+
+  /**
+   * U key / Unload button (RA2 Deploy): every selected transport with passengers lets them out one by one — on the
+   * spot when it stands on the ground, otherwise it first sets down on the nearest solid ground below it.
+   */
   private unloadSelectedTransport(): void {
-    const t = this.selection.selectedUnitList().find((u): u is Vehicle => u instanceof Vehicle && u.isTransport && u.cargo.length > 0);
-    if (!t) return;
-    if (t.flight !== 'parked' && t.flight !== 'landed') {
-      this.sidebar.notify('The transport must be on the ground to unload — or it unloads when it reaches its destination.');
+    const transports = this.selection.selectedUnitList().filter((u): u is Vehicle => u instanceof Vehicle && u.isTransport);
+    const loaded = transports.filter((t) => t.cargo.length > 0);
+    if (loaded.length === 0) {
+      if (transports.length > 0) this.sidebar.notify('The transport is empty.');
       return;
     }
-    this.unloadTransport(t);
+    for (const t of loaded) {
+      const r = this.aircraft.requestUnload(t);
+      if (r === 'noSpot') this.sidebar.notify(`The ${t.name} cannot land here (open water) — fly it over land first.`);
+      else if (r === 'busy') this.sidebar.notify(`The ${t.name} is taking off or landing — unload in a moment.`);
+    }
   }
 
-  /** Soldiers and vehicles walk to a parked transport and climb aboard when they reach its airfield. */
+  /** The first selected transport of mine (sidebar transport panel), or null. */
+  private selectedTransport(): Vehicle | null {
+    return this.selection.selectedUnitList().find((u): u is Vehicle => u instanceof Vehicle && u.isTransport && u.owner === this.humanPlayer.id) ?? null;
+  }
+
+  /** Sidebar Transport panel for the first selected transport of mine. */
+  private transportInfo(): TransportInfo | null {
+    const t = this.selectedTransport();
+    if (!t) return null;
+    return {
+      name: t.name,
+      soldiers: t.soldiersAboard,
+      soldierCapacity: t.soldierCapacity,
+      vehicles: t.vehiclesAboard,
+      vehicleCapacity: t.vehicleCapacity,
+      incoming: t.incoming,
+      state: t.carrierState,
+    };
+  }
+
+  /** Can any of the selected units climb into transport `t` right now (RA2 Enter cursor)? */
+  private canBoardSelected(t: Vehicle): boolean {
+    if (!t.isTransport || t.owner !== this.humanPlayer.id || this.selection.selectedUnits.has(t.id)) return false;
+    const usable = t.flight === 'parked' || t.flight === 'landed' || t.flight === 'airborne' || t.flight === 'approach' || (t.flight === 'unloading' && t.pickup);
+    if (!usable) return false;
+    return this.selection.selectedUnitList().some((u) => !u.aircraft && (u instanceof Vehicle ? t.fitsWith(0, 1) : t.fitsWith(1, 0)));
+  }
+
+  /**
+   * RA2 loading: the riders walk up to the transport and climb in one by one as they reach it. A transport on the
+   * ground takes them where it stands; one in the air first sets down on solid ground below it. Only as many as fit
+   * are sent (counting the ones already on their way); the others stay put.
+   */
   orderBoard(t: Vehicle, riders: Unit[]): boolean {
-    if (t.flight !== 'parked' && t.flight !== 'landed') return false;
-    const here = this.map.cellAt(t.px, t.py);
+    if (!t.isTransport || !t.alive) return false;
+    if ((t.flight === 'airborne' || t.flight === 'approach') && !this.aircraft.setDownForPickup(t)) {
+      if (t.owner === this.humanPlayer.id) this.sidebar.notify(`The ${t.name} cannot land here (open water) to take anyone aboard.`);
+      return true;
+    }
+    const grounded = t.flight === 'parked' || t.flight === 'landed' || (t.flight === 'unloading' && t.pickup);
+    if (!grounded) return false;
+    const spot = t.flight === 'unloading' && t.dropSpot ? t.dropSpot : { x: t.px, y: t.py };
+    const here = this.map.cellAt(spot.x, spot.y);
     if (!here) return false;
+    // Seats already promised to units walking up.
+    let soldiers = 0;
+    let vehicles = 0;
+    for (const o of this.entities.fieldMovers()) {
+      if (o.boardTarget !== t.id || riders.includes(o)) continue;
+      if (o instanceof Vehicle) vehicles++;
+      else soldiers++;
+    }
     let sent = 0;
+    let left = 0;
     for (const u of riders) {
-      if (!t.canLoad(u)) continue;
+      if (u.aircraft) continue;
+      const vehicle = u instanceof Vehicle;
+      if (!t.fitsWith(soldiers + (vehicle ? 0 : 1), vehicles + (vehicle ? 1 : 0))) {
+        left++;
+        continue;
+      }
       const cell = this.pathfinder.nearestPassable(here.x, here.y, 16, undefined, u.swims);
-      if (!cell) continue;
+      if (!cell || (!u.swims && !this.pathfinder.sameLandmass(Math.floor(u.px / CELL_SIZE), Math.floor(u.py / CELL_SIZE), cell.x, cell.y))) {
+        left++;
+        continue;
+      }
+      if (vehicle) vehicles++;
+      else soldiers++;
       u.parade = null;
       u.task = null;
       u.attackTarget = null;
@@ -518,23 +611,30 @@ export class Game {
       u.follow(this.pathfinder.find({ x: u.px, y: u.py }, cell, u.swims));
       sent++;
     }
-    if (sent === 0) {
-      if (t.owner === this.humanPlayer.id) this.sidebar.notify(t.full ? `The ${t.name} is full.` : `The ${t.name} cannot carry that.`);
-      return true;
+    if (t.owner === this.humanPlayer.id) {
+      if (sent === 0) this.sidebar.notify(t.full ? `The ${t.name} is full.` : `The ${t.name} cannot take them (no room, or they cannot reach it).`);
+      else if (left > 0) this.sidebar.notify(`${sent} heading for the ${t.name}; ${left} cannot fit or reach it.`);
+      if (sent > 0) this.moveMarker = { x: spot.x, y: spot.y, at: this.time };
     }
-    if (t.owner === this.humanPlayer.id) this.moveMarker = { x: t.px, y: t.py, at: this.time };
     return true;
   }
 
-  /** Units that reached the airfield of their transport board it if there is still room. */
+  /**
+   * Units walking to a transport climb aboard one by one as they reach it (it must stand on the ground). Also
+   * recounts, per transport, how many are still on their way (its "loading" state).
+   */
   private processBoarding(): void {
+    for (const v of this.entities.vehicles()) v.incoming = 0;
     for (const u of this.entities.fieldMovers()) {
       if (u.boardTarget === null) continue;
       const t = this.entities.get(u.boardTarget);
-      if (!(t instanceof Vehicle) || !t.alive || (t.flight !== 'parked' && t.flight !== 'landed')) {
+      const settingDown = t instanceof Vehicle && t.flight === 'unloading' && t.pickup;
+      if (!(t instanceof Vehicle) || !t.alive || (t.flight !== 'parked' && t.flight !== 'landed' && !settingDown)) {
         u.boardTarget = null;
         continue;
       }
+      t.incoming++;
+      if (settingDown) continue; // wait beside the landing spot until it touches down
       // Boarding needs contact: right up to a transport that stands in the field, or to the wall of the airfield.
       const home = t.homeId === null ? undefined : this.entities.get(t.homeId);
       const reach = t.flight === 'parked' && home instanceof Building ? distanceTo(u.px, u.py, home) : Math.hypot(u.px - t.px, u.py - t.py) - t.radius * 0.5;
@@ -543,6 +643,7 @@ export class Game {
         continue;
       }
       u.boardTarget = null;
+      t.incoming--;
       if (!t.canLoad(u)) {
         if (u.owner === this.humanPlayer.id) this.sidebar.notify(`The ${t.name} is full.`);
         continue;
@@ -551,6 +652,7 @@ export class Game {
       u.insideId = t.id;
       u.stop();
       this.selection.selectedUnits.delete(u.id);
+      this.hatch(t.px, t.py);
     }
   }
 
@@ -721,7 +823,10 @@ export class Game {
     const hovering = this.selection.hoveredId !== null || this.selection.hoveredUnitId !== null;
     const focus = this.placing ? [] : this.attackFocus();
     const aiming = focus.some((f) => f.hover);
-    this.dom.canvas.style.cursor = this.placing || aiming ? 'crosshair' : hovering ? 'pointer' : 'default';
+    // RA2 Enter cursor: the selected units can climb into the transport under the mouse.
+    const hoverUnit = this.selection.hoveredUnitId === null ? undefined : this.entities.get(this.selection.hoveredUnitId);
+    const entering = !this.placing && hoverUnit instanceof Vehicle && this.canBoardSelected(hoverUnit);
+    this.dom.canvas.style.cursor = this.placing || aiming ? 'crosshair' : entering ? ENTER_CURSOR : hovering ? 'pointer' : 'default';
 
     this.effects.update(dt);
     this.smokeFromDamagedBuildings(dt);
@@ -788,6 +893,7 @@ export class Game {
           vehicleQueued: this.production.queue(this.humanPlayer).items.length,
           parkingFree: this.production.parkingFree(this.humanPlayer),
           ranking: this.sidebar.wantsRanking(elapsed) ? this.ranking() : null,
+          transport: this.transportInfo(),
         },
         elapsed,
       );
@@ -808,42 +914,9 @@ export class Game {
             break;
           }
           const world = camera.screenToWorld(ev.x, ev.y);
-          // Right-click deselects everything.
-          if (ev.button === 'right') {
-            this.selection.clearAll();
-            break;
-          }
-          const unit = this.selection.pickUnit(world);
-          // Soldiers / vehicles selected + click on one of my parked transports: they climb aboard.
-          if (unit instanceof Vehicle && unit.isTransport && unit.owner === this.humanPlayer.id && !this.selection.selectedUnits.has(unit.id)) {
-            const riders = this.selection.selectedUnitList().filter((u) => !u.aircraft);
-            if (riders.length > 0 && this.orderBoard(unit, riders)) break;
-          }
-          if (unit && unit.owner === this.humanPlayer.id) {
-            this.selection.selectUnits([unit.id], ev.shift);
-            break;
-          }
-          // Armed units selected + click on an enemy soldier/vehicle: attack it.
-          if (unit && unit.owner !== this.humanPlayer.id && this.orderAttack(unit)) break;
-          const hit = this.selection.pick(world);
-          if (hit) {
-            // Double-click one of your own buildings: everyone stationed inside comes out.
-            const now = performance.now();
-            const dbl = this.lastBuildingClick?.id === hit.id && now - this.lastBuildingClick.at < 400;
-            this.lastBuildingClick = { id: hit.id, at: now };
-            if (dbl && hit.owner === this.humanPlayer.id && hit.garrison.length > 0) {
-              this.ejectUnits(hit, [...hit.garrison]);
-              break;
-            }
-            // Soldiers selected: enter / repair / capture orders take priority over selecting it.
-            if (this.selection.selectedUnits.size > 0 && this.orderOnBuilding(hit)) break;
-            this.selection.selectedUnits.clear();
-            this.selection.select(hit.id);
-            break;
-          }
-          // Left-click on open ground with soldiers selected = move them there.
-          if (this.selection.selectedUnits.size > 0) this.orderMove(world);
-          else this.selection.select(null);
+          // RA2 mouse: left button selects, right button gives orders.
+          if (ev.button === 'right') this.rightClick(world, ev.ctrl && ev.shift);
+          else this.leftClick(world, ev.shift, ev.double);
           break;
         }
         case 'wheel':
@@ -853,8 +926,11 @@ export class Game {
           this.handleKey(ev.code);
           break;
         case 'boxSelect': {
-          // Drag-select own soldiers (buildings are not box-selectable — RA2 rule).
-          if (this.placing) break;
+          // Drag-select own soldiers (buildings are not box-selectable — RA2 rule). A shaky click while placing still places.
+          if (this.placing) {
+            this.tryPlace();
+            break;
+          }
           const a = camera.screenToIso(ev.rect.x, ev.rect.y);
           const picked = this.selection.unitsInIsoRect({ x: a.x, y: a.y, w: ev.rect.w / camera.zoom, h: ev.rect.h / camera.zoom }, this.humanPlayer.id);
           this.selection.selectUnits(
@@ -888,6 +964,117 @@ export class Game {
     if (drag.x !== 0 || drag.y !== 0) camera.panBy(-drag.x / camera.zoom, -drag.y / camera.zoom);
   }
 
+  /**
+   * Left click (RA2): select one of my units (Shift toggles it in / out of the group, double-click selects every
+   * unit of that type on screen), or a building (double-click one of mine: everyone stationed inside comes out).
+   * Anything else clears the selection.
+   */
+  private leftClick(world: WorldPoint, shift: boolean, double: boolean): void {
+    const me = this.humanPlayer.id;
+    const unit = this.selection.pickUnit(world);
+    if (unit && unit.owner === me) {
+      if (double) this.selection.selectUnits(this.sameTypeOnScreen(unit).map((u) => u.id), shift);
+      else if (shift) this.selection.toggleUnit(unit.id);
+      else this.selection.selectUnits([unit.id]);
+      return;
+    }
+    const hit = unit ? null : this.selection.pick(world);
+    if (hit) {
+      const now = performance.now();
+      const dbl = this.lastBuildingClick?.id === hit.id && now - this.lastBuildingClick.at < 400;
+      this.lastBuildingClick = { id: hit.id, at: now };
+      if (dbl && hit.owner === me && hit.garrison.length > 0) {
+        this.ejectUnits(hit, [...hit.garrison]);
+        return;
+      }
+      this.selection.selectedUnits.clear();
+      this.selection.select(hit.id);
+      return;
+    }
+    if (!shift) this.selection.clearAll();
+  }
+
+  /**
+   * Right click (RA2): orders for the selected units — board a transport, attack an enemy, enter / repair / capture
+   * a building, or move. Ctrl+Shift: attack-move (fight anything met on the way). Nothing selected: deselect.
+   */
+  private rightClick(world: WorldPoint, attackMove: boolean): void {
+    const me = this.humanPlayer.id;
+    const selected = this.selection.selectedUnitList();
+    if (selected.length === 0) {
+      this.selection.clearAll();
+      return;
+    }
+    const unit = this.selection.pickUnit(world);
+    if (unit && unit.owner !== me && this.orderAttack(unit)) return;
+    if (attackMove) {
+      this.orderHumanAttackMove(selected, world);
+      return;
+    }
+    // Soldiers / vehicles selected + right-click on one of my parked transports: they climb aboard.
+    if (unit instanceof Vehicle && unit.isTransport && unit.owner === me && !this.selection.selectedUnits.has(unit.id)) {
+      const riders = selected.filter((u) => !u.aircraft);
+      if (riders.length > 0 && this.orderBoard(unit, riders)) return;
+    }
+    const hit = unit ? null : this.selection.pick(world);
+    if (hit && this.orderOnBuilding(hit)) return;
+    // A loaded transport sent over open water has nowhere to set down: its passengers stay aboard.
+    const loaded = selected.find((u): u is Vehicle => u instanceof Vehicle && u.isTransport && u.cargo.length > 0);
+    if (loaded && !this.landingSpot(world.x, world.y, loaded)) this.sidebar.notify(`The ${loaded.name} cannot land there (open water) — the passengers stay aboard.`);
+    this.orderMove(world);
+  }
+
+  /** Ctrl+Shift+right-click: armed units attack-move to the spot, the unarmed ones simply go there. */
+  private orderHumanAttackMove(units: readonly Unit[], world: WorldPoint): void {
+    if (!this.map.cellAt(world.x, world.y)) return;
+    const armed = units.filter((u) => u.weapon !== null && !(u instanceof Vehicle && u.isTransport));
+    for (const u of armed) u.chasing = false;
+    this.orderAttackMove(armed, world);
+    const unarmed = units.filter((u) => !armed.includes(u));
+    if (unarmed.length > 0) this.orderMove(world, unarmed);
+    this.moveMarker = { x: world.x, y: world.y, at: this.time };
+  }
+
+  /** My living units of the same kind as `unit` (same soldier tier / vehicle type) that are on screen. */
+  private sameTypeOnScreen(unit: Unit): Unit[] {
+    const kind = (u: Unit): string => (u instanceof Infantry ? `i:${u.tier}` : u instanceof Vehicle ? `v:${u.type}` : '');
+    const want = kind(unit);
+    const cam = this.camera;
+    return this.entities.fieldMovers().filter((u) => {
+      if (!u.alive || u.owner !== unit.owner || kind(u) !== want) return false;
+      const p = cam.worldToScreen(u.px, u.py);
+      return p.x >= 0 && p.x <= cam.viewWidth && p.y >= 0 && p.y <= cam.viewHeight;
+    });
+  }
+
+  /** X key (RA2 scatter): the selected units spread out a few cells away from the middle of the group. */
+  private scatterSelected(): void {
+    const units = this.selection.selectedUnitList().filter((u) => !u.fixed);
+    if (units.length === 0) return;
+    const cx = units.reduce((s, u) => s + u.px, 0) / units.length;
+    const cy = units.reduce((s, u) => s + u.py, 0) / units.length;
+    units.forEach((u, k) => {
+      u.parade = null;
+      u.task = null;
+      u.attackTarget = null;
+      u.attackMove = null;
+      u.chasing = false;
+      // Away from the middle of the group; units standing right on it fan out by the golden angle.
+      const away = Math.hypot(u.px - cx, u.py - cy);
+      const angle = away > 0.5 ? Math.atan2(u.py - cy, u.px - cx) + (((k * 37) % 7) - 3) * 0.12 : k * 2.39996;
+      const dist = SCATTER_CELLS * CELL_SIZE * (u.aircraft ? 2 : 1);
+      const goal = { x: u.px + Math.cos(angle) * dist, y: u.py + Math.sin(angle) * dist };
+      if (u.aircraft) {
+        u.follow([goal]);
+        return;
+      }
+      const cell = this.map.cellAt(goal.x, goal.y);
+      const spot = cell ? this.pathfinder.nearestPassable(cell.x, cell.y, 3, undefined, u.swims) : null;
+      if (!spot) return;
+      u.follow(this.pathfinder.find({ x: u.px, y: u.py }, spot, u.swims));
+    });
+  }
+
   private handleKey(code: string): void {
     // While the pause menu is open only Esc (resume) works.
     if (this.paused && code !== 'Escape') return;
@@ -919,6 +1106,9 @@ export class Game {
         break;
       case 'KeyU':
         this.unloadSelectedTransport();
+        break;
+      case 'KeyX':
+        this.scatterSelected();
         break;
       case 'KeyR':
         // While positioning a structure: turn it 90° (footprint d × w, art mirrored), still square to the grid.
@@ -1361,8 +1551,8 @@ export class Game {
             ? `Transport aircraft are at their limit of ${MAX_TRANSPORTS}.`
             : result === 'noParking'
             ? 'No free parking spot — build another Airfield or send aircraft out.'
-            : option.requires === 'airfield'
-              ? 'Requires an Airfield.'
+            : result === 'noAirfield'
+              ? 'Aircraft are ordered at the War Factory, but only once you own an Airfield to park them on.'
               : 'Requires a War Factory.',
     );
     this.sidebarTimer = SIDEBAR_REFRESH;
@@ -1612,7 +1802,7 @@ export class Game {
   }
 
   /**
-   * Left-click on a building with soldiers selected:
+   * Right-click on a building with soldiers selected:
    *  - own building that accepts them (capital ← President, hospital ← wounded): enter;
    *  - own damaged building + engineers: repair;
    *  - enemy building + engineers: capture it (neutral buildings are immune).
@@ -1767,8 +1957,7 @@ export class Game {
   }
 
   /** Moves the selected soldiers, spreading them over distinct nearby cells. */
-  private orderMove(world: WorldPoint): void {
-    const units = this.selection.selectedUnitList();
+  private orderMove(world: WorldPoint, units: Unit[] = this.selection.selectedUnitList()): void {
     if (!this.map.cellAt(world.x, world.y) || units.length === 0) return;
     // Closest soldiers take the spots nearest the click; the first stands exactly on it.
     units.sort((a, b) => Math.hypot(a.px - world.x, a.py - world.y) - Math.hypot(b.px - world.x, b.py - world.y));

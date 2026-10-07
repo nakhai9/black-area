@@ -113,6 +113,8 @@ export interface InfantryLook {
   weapon: 'rifle' | 'smg' | 'sniper' | 'wrench' | 'none';
   /** Camouflage blotches on the uniform. */
   camo?: boolean;
+  /** Sprite sheet to draw with (default GI). */
+  sprite?: 'gi' | 'ranger' | 'spetsnaz' | 'conscript';
 }
 
 export interface InfantryProfile {

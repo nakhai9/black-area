@@ -2,6 +2,8 @@ import './styles.css';
 import { EARTH_TEXTURE_URL, FACTION_ORDER } from './constants';
 import { Game } from './core/Game';
 import { loadEarthData } from './map/EarthData';
+import { loadAircraftSprites } from './render/AircraftSheets';
+import { loadSoldierSprites } from './render/InfantryArt';
 import type { FactionId } from './types';
 import { FactionPicker } from './ui/FactionPicker';
 
@@ -20,6 +22,10 @@ async function boot(): Promise<void> {
   // Start downloading the Earth texture while the player picks a side.
   const earth = loadEarthData(EARTH_TEXTURE_URL);
   earth.catch(() => undefined); // surfaced below once awaited
+  const soldiers = loadSoldierSprites();
+  soldiers.catch(() => undefined);
+  const aircraft = loadAircraftSprites();
+  aircraft.catch(() => undefined);
 
   try {
     // `?faction=usa|russia|china|europe` skips the picker (demos/tests).
@@ -30,6 +36,8 @@ async function boot(): Promise<void> {
 
     loading.textContent = 'Generating Earth…';
     loading.hidden = false;
+    await soldiers; // sidebar cameos and units draw from the GI sheet
+    await aircraft;
     await nextPaint(); // let the loading screen paint before the heavy terrain bake
 
     const game = await Game.create(

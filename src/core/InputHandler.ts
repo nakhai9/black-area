@@ -2,12 +2,15 @@ import { CAMERA_EDGE_MARGIN } from '../constants';
 import type { Rect } from '../types';
 
 export type InputEvent =
-  | { type: 'click'; button: 'left' | 'right'; x: number; y: number; shift: boolean }
+  | { type: 'click'; button: 'left' | 'right'; x: number; y: number; shift: boolean; ctrl: boolean; double: boolean }
   | { type: 'boxSelect'; rect: Rect; shift: boolean }
   | { type: 'wheel'; deltaY: number; x: number; y: number }
   | { type: 'keyDown'; code: string };
 
 const DRAG_THRESHOLD = 5;
+/** Two left clicks closer than this (ms and screen px) make a double-click. */
+const DOUBLE_CLICK_MS = 350;
+const DOUBLE_CLICK_PX = 6;
 /** When the cursor exits the window this close to an edge, keep scrolling that way. */
 const EXIT_EDGE_MARGIN = 64;
 const PREVENT_DEFAULT_KEYS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'Tab']);
@@ -37,10 +40,11 @@ export class InputHandler {
   private queue: InputEvent[] = [];
   private pan = { x: 0, y: 0 };
   private middleDown = false;
-  private leftDown = false;
-  /** Where the right button went down; dragging from here sweeps a selection box. */
-  private rightStart: { x: number; y: number } | null = null;
+  private rightDown = false;
+  /** Where the left button went down; dragging from here sweeps a selection box. */
+  private leftStart: { x: number; y: number } | null = null;
   private dragging = false;
+  private lastLeftClick: { x: number; y: number; at: number } | null = null;
   private readonly abort = new AbortController();
 
   constructor(private readonly target: HTMLElement) {
@@ -62,9 +66,9 @@ export class InputHandler {
     return this.keys.has(code);
   }
 
-  /** Screen-space rectangle of an in-progress right-drag, or null. */
+  /** Screen-space rectangle of an in-progress left-drag, or null. */
   get selectionRect(): Rect | null {
-    return this.dragging && this.rightStart ? normalizeRect(this.rightStart, this.mouse) : null;
+    return this.dragging && this.leftStart ? normalizeRect(this.leftStart, this.mouse) : null;
   }
 
   /** Returns and resets the accumulated middle-mouse drag delta (screen px). */
@@ -100,13 +104,13 @@ export class InputHandler {
   private readonly onPointerDown = (e: PointerEvent): void => {
     const p = this.local(e);
     if (e.button === 0) {
-      this.leftDown = true;
+      this.leftStart = p;
+      this.dragging = false;
     } else if (e.button === 1) {
       this.middleDown = true;
       e.preventDefault();
     } else if (e.button === 2) {
-      this.rightStart = p;
-      this.dragging = false;
+      this.rightDown = true;
     }
   };
 
@@ -119,8 +123,8 @@ export class InputHandler {
       this.pan.x += e.movementX;
       this.pan.y += e.movementY;
     }
-    if (this.rightStart && !this.dragging) {
-      this.dragging = Math.hypot(p.x - this.rightStart.x, p.y - this.rightStart.y) > DRAG_THRESHOLD;
+    if (this.leftStart && !this.dragging) {
+      this.dragging = Math.hypot(p.x - this.leftStart.x, p.y - this.leftStart.y) > DRAG_THRESHOLD;
     }
   };
 
@@ -131,20 +135,25 @@ export class InputHandler {
   };
 
   private readonly onPointerUp = (e: PointerEvent): void => {
-    if (e.button === 0 && this.leftDown) {
-      // Left button: always a click (select one / give an order); it never sweeps a box.
-      this.leftDown = false;
-      this.queue.push({ type: 'click', button: 'left', ...this.local(e), shift: e.shiftKey });
-    } else if (e.button === 2 && this.rightStart) {
-      // Right button: drag sweeps a selection box, a plain click deselects / cancels placing.
+    if (e.button === 0 && this.leftStart) {
+      // Left button (RA2): drag sweeps a selection box, a click selects (twice quickly = double-click).
       const p = this.local(e);
       if (this.dragging) {
-        this.queue.push({ type: 'boxSelect', rect: normalizeRect(this.rightStart, p), shift: e.shiftKey });
+        this.queue.push({ type: 'boxSelect', rect: normalizeRect(this.leftStart, p), shift: e.shiftKey });
+        this.lastLeftClick = null;
       } else {
-        this.queue.push({ type: 'click', button: 'right', ...p, shift: e.shiftKey });
+        const now = performance.now();
+        const last = this.lastLeftClick;
+        const double = last !== null && now - last.at < DOUBLE_CLICK_MS && Math.hypot(p.x - last.x, p.y - last.y) < DOUBLE_CLICK_PX;
+        this.lastLeftClick = double ? null : { ...p, at: now };
+        this.queue.push({ type: 'click', button: 'left', ...p, shift: e.shiftKey, ctrl: e.ctrlKey, double });
       }
-      this.rightStart = null;
+      this.leftStart = null;
       this.dragging = false;
+    } else if (e.button === 2 && this.rightDown) {
+      // Right button (RA2): give an order to the selection (move / attack / enter…), or cancel placing.
+      this.rightDown = false;
+      this.queue.push({ type: 'click', button: 'right', ...this.local(e), shift: e.shiftKey, ctrl: e.ctrlKey, double: false });
     } else if (e.button === 1) {
       this.middleDown = false;
     }
@@ -167,8 +176,8 @@ export class InputHandler {
     this.edge.x = 0;
     this.edge.y = 0;
     this.middleDown = false;
-    this.leftDown = false;
-    this.rightStart = null;
+    this.rightDown = false;
+    this.leftStart = null;
     this.dragging = false;
   };
 }

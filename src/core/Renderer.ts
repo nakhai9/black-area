@@ -1,6 +1,6 @@
 import { ChevronDown } from 'lucide';
 import { BUILD_RISE_SECONDS, CELL_SIZE, CRUISE_ALTITUDE, ISO_X, ISO_Y } from '../constants';
-import { blitUnit, objectKey, unitSprite } from '../render/UnitSprites';
+import { blitUnit, unitSprite } from '../render/UnitSprites';
 import type { Building } from '../entities/Building';
 import { Infantry } from '../entities/Infantry';
 import type { Unit } from '../entities/Unit';
@@ -9,6 +9,7 @@ import { SQUASH, drawVehicle } from '../render/VehicleArt';
 import { isoHeading, worldToIso } from './IsoView';
 import type { Effect } from './Effects';
 import { drawSoldier } from '../render/InfantryArt';
+import { drawAircraftSheet } from '../render/AircraftSheets';
 import { FACTIONS, teamColors } from '../factions';
 import type { TerrainRenderer } from '../map/TerrainRenderer';
 import { get2d } from '../render/Canvas';
@@ -72,7 +73,11 @@ const HEADINGS = 48;
  */
 const AIR_HEADINGS = 24;
 const AIR_BURNER_FRAMES = 2;
-const WALK_FRAMES = 8;
+/** Walk cycle buckets: 24 is a multiple of every sheet's walk frames (GI 4, Ranger 6, Spetsnaz 8). */
+const GI_WALK_FRAMES = 24;
+const GI_FIRE_FRAMES = 3;
+/** How long the muzzle-flash poses play after each shot. */
+const GI_FIRE_SECONDS = 0.3;
 const GROUND_BOX = { w: 26, h: 22, ox: 13, oy: 15 };
 const AIR_PARKED_BOX = { w: 30, h: 20, ox: 15, oy: 12 };
 const AIR_CRUISE_BOX = { w: 34, h: CRUISE_ALTITUDE + 30, ox: 15, oy: CRUISE_ALTITUDE + 10 };
@@ -195,7 +200,7 @@ export class Renderer {
     for (const f of focus) if (f.entity.kind !== 'building' && !selUnits.has(f.entity.id) && f.entity.hp >= f.entity.maxHp) this.drawUnitHealth(f.entity);
     for (const u of units) {
       if (u.rank > 0) this.drawRank(u);
-      if (u instanceof Vehicle && u.isTransport && u.cargo.length > 0) this.drawCargoBadge(u);
+      if (u instanceof Vehicle && u.isTransport && (u.cargo.length > 0 || u.incoming > 0)) this.drawCargoBadge(u);
     }
     // Effects are stored in iso px already.
     const isoIn = (x: number, y: number): boolean => x >= left && x <= right && y >= top && y <= bottom + margin;
@@ -203,7 +208,7 @@ export class Renderer {
 
     for (const b of sorted) {
       if (b === selected) this.drawSelectionOverlay(b);
-      else if (focus.some((f) => f.entity === b)) this.drawSelectionOverlay(b, '#ff3b30');
+      else if (focus.some((f) => f.entity === b)) this.drawSelectionOverlay(b, '#3fdc4a', 2.5);
       else if (b.id === scene.hoveredId) this.drawLabel(b, 0.8);
     }
 
@@ -294,6 +299,7 @@ export class Renderer {
     const { ctx } = this;
     const P = worldToIso(u.px, u.py);
     if (u instanceof Vehicle) {
+      if (u.aircraft && drawAircraftSheet(ctx, u, P.x, P.y)) return;
       const heading = isoHeading(u.heading, u.aircraft ? 0.8 : SQUASH);
       // On the iso ground a vehicle's neighbours are half as far apart on screen: ground vehicles are drawn a bit
       // smaller so they never look piled on top of each other (their collision circles keep them apart).
@@ -335,10 +341,29 @@ export class Renderer {
     const pose = { x: P.x, y: P.y, facing: u.facing, walkPhase: u.walkPhase, moving: u.moving };
     if (!u.inWater) {
       const special = u.tier === 'special';
-      const frame = u.moving ? ((Math.floor((u.walkPhase / (Math.PI * 2)) * WALK_FRAMES) % WALK_FRAMES) + WALK_FRAMES) % WALK_FRAMES : -1;
+      const frame = u.moving ? ((Math.floor((u.walkPhase / (Math.PI * 2)) * GI_WALK_FRAMES) % GI_WALK_FRAMES) + GI_WALK_FRAMES) % GI_WALK_FRAMES : -1;
+      const sinceShot = u.weapon ? u.weapon.cooldown - u.cooldown : Infinity;
+      const fire = sinceShot >= 0 && sinceShot < GI_FIRE_SECONDS ? Math.min(GI_FIRE_FRAMES - 1, Math.floor((sinceShot / GI_FIRE_SECONDS) * GI_FIRE_FRAMES)) : -1;
+      const aiming = !u.moving && u.engaged;
+      const oct = ((Math.round(u.heading / (Math.PI / 4)) % 8) + 8) % 8;
       const look = u.profile.look;
-      const sprite = unitSprite(`s:${objectKey(look)}:${f.colors.primary}:${special ? 1 : 0}:${u.facing}:${frame}`, 6, 5, 3, 4, (c) =>
-        drawSoldier(c, { x: 0, y: 0, facing: u.facing, walkPhase: (Math.max(0, frame) / WALK_FRAMES) * Math.PI * 2, moving: frame >= 0 }, look, f.colors.primary, special),
+      const sprite = unitSprite(`${look.sprite ?? 'gi'}:${f.colors.primary}:${special ? 1 : 0}:${oct}:${frame}:${fire}:${aiming ? 1 : 0}`, 6, 6, 3, 5, (c) =>
+        drawSoldier(
+          c,
+          {
+            x: 0,
+            y: 0,
+            facing: u.facing,
+            heading: (oct * Math.PI) / 4,
+            walkPhase: ((Math.max(0, frame) + 0.5) / GI_WALK_FRAMES) * Math.PI * 2,
+            moving: frame >= 0,
+            fire: fire >= 0 ? (fire + 0.5) / GI_FIRE_FRAMES : -1,
+            aiming,
+          },
+          look,
+          f.colors.primary,
+          special,
+        ),
       );
       blitUnit(ctx, sprite, P.x, P.y);
       return;
@@ -348,7 +373,7 @@ export class Renderer {
     ctx.beginPath();
     ctx.rect(P.x - 3, P.y - 6, 6, 6 - 0.55 + 0.0);
     ctx.clip();
-    drawSoldier(ctx, { ...pose, y: P.y + 0.9, moving: false }, u.profile.look, f.colors.primary, true);
+    drawSoldier(ctx, { ...pose, y: P.y + 0.9, moving: false, heading: u.heading }, u.profile.look, f.colors.primary, true);
     ctx.restore();
     const t = u.walkPhase;
     ctx.strokeStyle = 'rgba(230,240,255,0.75)';
@@ -485,12 +510,13 @@ export class Renderer {
   private drawCargoBadge(t: Vehicle): void {
     const { ctx } = this;
     const k = 1 / this.camera.zoom;
-    const soldiers = t.soldiersAboard;
+    // RA2 style: seats taken / seats there are (e.g. 3/12), plus what it is doing.
     const vehicles = t.vehiclesAboard;
-    const parts: string[] = [];
-    if (soldiers > 0) parts.push(`${soldiers} soldier${soldiers > 1 ? 's' : ''}`);
-    if (vehicles > 0) parts.push(`${vehicles} vehicle${vehicles > 1 ? 's' : ''}`);
-    const text = `${t.full ? 'FULL · ' : ''}${parts.join(' + ')}`;
+    const parts = [`${t.soldiersAboard}/${t.soldierCapacity} inf`];
+    if (vehicles > 0) parts.push(`${vehicles}/${t.vehicleCapacity} veh`);
+    const state = t.carrierState;
+    const prefix = t.full ? 'FULL · ' : state === 'loading' ? 'LOADING · ' : state === 'unloading' ? 'UNLOADING · ' : '';
+    const text = `${prefix}${parts.join(' + ')}`;
     ctx.save();
     ctx.font = `700 ${10 * k}px "Segoe UI", system-ui, sans-serif`;
     const w = ctx.measureText(text).width + 8 * k;
@@ -712,13 +738,13 @@ export class Renderer {
   }
 
   /** RA2-style white corner brackets + pip health bar + name label. */
-  private drawSelectionOverlay(b: Building, bracket = '#ffffff'): void {
+  private drawSelectionOverlay(b: Building, bracket = '#ffffff', width = 1.5): void {
     const { ctx } = this;
     const r = this.spriteRect(b);
     const k = 1 / this.camera.zoom;
     const len = 10 * k;
     ctx.strokeStyle = bracket;
-    ctx.lineWidth = 1.5 * k;
+    ctx.lineWidth = width * k;
     ctx.beginPath();
     for (const [cx, cy, sx, sy] of [
       [r.x, r.y, 1, 1],

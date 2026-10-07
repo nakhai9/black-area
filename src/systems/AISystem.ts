@@ -5,6 +5,7 @@ import type { EntityManager } from '../entities/EntityManager';
 import { Infantry } from '../entities/Infantry';
 import { Vehicle } from '../entities/Vehicle';
 import type { Unit } from '../entities/Unit';
+import { canTarget } from './CombatSystem';
 import type { OilMarket } from './OilMarket';
 import type { Pathfinder } from '../map/Pathfinder';
 import type { TileMap } from '../map/TileMap';
@@ -326,7 +327,7 @@ export class AISystem implements GameSystem {
     const budget = p.credits - reserve;
     let vehicleCount = 0;
     for (const n of f.vehicles.values()) vehicleCount += n;
-    const canVehicles = owned.has('warFactory') || owned.has('airfield');
+    const canVehicles = owned.has('warFactory'); // every order (aircraft too) is placed at the War Factory
     // Which side is short: soldiers or vehicles?
     const wantVehicle = canVehicles && f.soldiers >= vehicleCount * st.style.soldiersPerVehicle;
 
@@ -345,7 +346,7 @@ export class AISystem implements GameSystem {
       if (q.items.length < depth && budget > (threat > 0 ? 500 : 700)) {
         // Pick the kind furthest below its share of the fleet, among those this base can build.
         const able = (k: VehicleKind): boolean =>
-          k === 'jet' ? owned.has('airfield') && !assist : k === 'ifv' ? owned.has('warFactory') && owned.has('techCenter') : owned.has('warFactory');
+          k === 'jet' ? owned.has('warFactory') && owned.has('airfield') && !assist : k === 'ifv' ? owned.has('warFactory') && owned.has('techCenter') : owned.has('warFactory');
         let kind: VehicleKind | null = null;
         let worst = Infinity;
         // Across the sea only aircraft (and what transports carry) reach the enemy: favour jets, keep transports.
@@ -354,7 +355,7 @@ export class AISystem implements GameSystem {
           .fieldMovers()
           .filter((u) => u instanceof Vehicle && u.owner === p.id && u.alive && u.isTransport).length;
         const queuedTransports = q.items.filter((k) => k === 'transport').length;
-        if (!assist && st.overseas && owned.has('airfield') && transports + queuedTransports < OVERSEAS_TRANSPORTS) {
+        if (!assist && st.overseas && owned.has('warFactory') && owned.has('airfield') && transports + queuedTransports < OVERSEAS_TRANSPORTS) {
           production.enqueue(p, 'transport');
           return;
         }
@@ -457,19 +458,22 @@ export class AISystem implements GameSystem {
     // Defence: enemies close to the capital draw the whole army.
     const cx = (capital.x + capital.w / 2) * CELL_SIZE;
     const cy = (capital.y + capital.d / 2) * CELL_SIZE;
+    // Only threats the army can actually fight count: an enemy jet over the sea must not send the ground army
+    // (which can neither hit it nor reach it) on an unreachable route every think.
     let nearest: Unit | null = null;
     let nearestD = DEFENCE_RADIUS;
     for (const e of all) {
       if (e.owner === p.id || e.owner === NEUTRAL_OWNER) continue;
       const d = Math.hypot(e.px - cx, e.py - cy);
-      if (d < nearestD) {
+      if (d < nearestD && army.some((u) => canTarget(u, e))) {
         nearest = e;
         nearestD = d;
       }
     }
     if (nearest) {
-      const reachable = army.filter((u) => !u.attackMove || u.chasing === false);
-      this.host.orderAttackMove(reachable, { x: nearest.px, y: nearest.py });
+      const threat = nearest;
+      const responders = army.filter((u) => canTarget(u, threat) && (!u.attackMove || u.chasing === false));
+      this.host.orderAttackMove(responders, { x: threat.px, y: threat.py });
       return;
     }
 

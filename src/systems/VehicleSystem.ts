@@ -13,8 +13,10 @@ export interface VehicleOption {
   description: string;
   cost: number;
   trainSeconds: number;
-  /** Building that must exist: aircraft come from the Airfield, the rest from the War Factory. */
+  /** Every order is placed at the War Factory. */
   requires: BuildingType;
+  /** Aircraft: the War Factory only takes the order while the nation owns an Airfield (where the aircraft parks). */
+  needsAirfield: boolean;
 }
 
 const KINDS: readonly VehicleKind[] = ['light', 'tank', 'ifv', 'jet', 'transport'];
@@ -27,12 +29,13 @@ function vehicleOptions(faction: FactionId): VehicleOption[] {
     description: f.vehicles[kind].description,
     cost: Math.round((VEHICLE_BASE[kind].cost * f.stats.cost) / 10) * 10,
     trainSeconds: VEHICLE_BASE[kind].trainSeconds + f.stats.trainDelay,
-    requires: isAircraftKind(kind) ? 'airfield' : 'warFactory',
+    requires: 'warFactory',
+    needsAirfield: isAircraftKind(kind),
   }));
 }
 
-export type VehicleQueueState = 'idle' | 'building' | 'onHold' | 'noFactory';
-export type VehicleEnqueueResult = 'ok' | 'full' | 'noFactory' | 'noParking' | 'tech' | 'cap' | 'transportCap';
+export type VehicleQueueState = 'idle' | 'building' | 'onHold' | 'noFactory' | 'noAirfield';
+export type VehicleEnqueueResult = 'ok' | 'full' | 'noFactory' | 'noAirfield' | 'noParking' | 'tech' | 'cap' | 'transportCap';
 
 export interface VehicleQueue {
   /** Waiting vehicles; the first one is in production. */
@@ -46,9 +49,10 @@ export interface VehicleQueue {
 
 /**
  * Vehicle and aircraft production: one queue per nation, separate from
- * structures and infantry. Needs a War Factory (vehicles) or an Airfield
- * (aircraft); cost is paid gradually from the treasury and the finished
- * machine rolls out of its producing building via `spawn`.
+ * structures and infantry. Every order is placed at the War Factory; aircraft
+ * orders are only taken while the nation also owns an Airfield. Cost is paid
+ * gradually from the treasury; a finished vehicle rolls out of the War Factory
+ * and a finished aircraft is parked on an Airfield (both via `spawn`).
  */
 export class VehicleSystem implements GameSystem {
   private readonly queues = new Map<number, VehicleQueue>();
@@ -80,7 +84,15 @@ export class VehicleSystem implements GameSystem {
     return this.entities.buildings().find((b) => b.owner === player.id && b.alive && b.spec.type === type) ?? null;
   }
 
-  private requirement(player: PlayerState, kind: VehicleKind): Building | null {
+  /** Why `kind` cannot be ordered right now (no War Factory / aircraft without an Airfield), or null. */
+  private missingBuilding(player: PlayerState, kind: VehicleKind): 'noFactory' | 'noAirfield' | null {
+    if (!this.producerOf(player, 'warFactory')) return 'noFactory';
+    if (isAircraftKind(kind) && !this.producerOf(player, 'airfield')) return 'noAirfield';
+    return null;
+  }
+
+  /** Where the finished machine appears: the War Factory for vehicles, an Airfield for aircraft. */
+  private deliveryPoint(player: PlayerState, kind: VehicleKind): Building | null {
     return this.producerOf(player, isAircraftKind(kind) ? 'airfield' : 'warFactory');
   }
 
@@ -109,7 +121,8 @@ export class VehicleSystem implements GameSystem {
 
   enqueue(player: PlayerState, kind: VehicleKind): VehicleEnqueueResult {
     const q = this.queue(player);
-    if (!this.requirement(player, kind)) return 'noFactory';
+    const missing = this.missingBuilding(player, kind);
+    if (missing) return missing;
     if (TECH_VEHICLES.includes(kind) && !this.hasTech(player)) return 'tech';
     // BuildLimit: only the orders waiting are limited, not the vehicles the nation owns.
     if (!AVAILABLE_VEHICLES.includes(kind) || q.items.length >= BUILD_LIMIT_VEHICLES) return 'full';
@@ -158,9 +171,11 @@ export class VehicleSystem implements GameSystem {
         q.state = 'idle';
         continue;
       }
-      const producer = this.requirement(p, kind);
-      if (!producer) {
-        q.state = 'noFactory';
+      // War Factory gone, or an aircraft order without an Airfield (destroyed meanwhile): the order waits, unpaid.
+      const missing = this.missingBuilding(p, kind);
+      const producer = this.deliveryPoint(p, kind);
+      if (missing || !producer) {
+        q.state = missing ?? 'noFactory';
         continue;
       }
       // Without a High-Tech Center (destroyed meanwhile) second-tier vehicles wait, unpaid.

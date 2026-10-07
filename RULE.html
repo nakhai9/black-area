@@ -110,13 +110,20 @@ npm run build:earth  # tạo lại public/data/earth.png từ dữ liệu Trái 
 <tr><th>Loại</th><th>Giá</th><th>HP</th><th>Tốc độ (ô/s)</th><th>Vũ khí</th><th>Nơi SX</th></tr>
 <tr><td>tank</td><td>1200</td><td>420</td><td>1.4</td><td>cannon</td><td>War Factory</td></tr>
 <tr><td>ifv</td><td>900</td><td>300</td><td>1.8</td><td>autocannon</td><td>War Factory (cần Tech Center)</td></tr>
-<tr><td>jet</td><td>1600</td><td>220</td><td>9</td><td>missile</td><td>Airfield</td></tr>
-<tr><td>transport</td><td>1400</td><td>260</td><td>5.5</td><td>không</td><td>Airfield</td></tr>
+<tr><td>jet</td><td>1600</td><td>220</td><td>9</td><td>missile</td><td>War Factory + Airfield</td></tr>
+<tr><td>transport</td><td>1400</td><td>260</td><td>5.5</td><td>không</td><td>War Factory + Airfield</td></tr>
 <tr><td>light</td><td>600</td><td>180</td><td>2.4</td><td>mg</td><td>Ẩn (không có trong <code>AVAILABLE_VEHICLES</code>)</td></tr>
 </table>
 <ul>
   <li><b>BuildLimit</b> (giới hạn đơn hàng chờ, không giới hạn quân sở hữu): 15 lính, 10 xe.</li>
-  <li><b>Máy bay vận tải</b>: 12 lính; hoặc 8 lính + 1 xe; hoặc 3 xe. Chọn lính/xe rồi click vào máy bay đang đỗ để lên; <code>U</code> để thả.</li>
+  <li><b>Máy bay vận tải</b>: 12 lính; hoặc 8 lính + 1 xe; hoặc 3 xe. Trạng thái (kiểu RA2): <i>Trống → Đang nạp → Đang chở → Đang thả</i>.
+    <ul>
+      <li><b>Lên</b>: chọn lính/xe, chuột phải vào máy bay vận tải của mình (con trỏ đổi thành mũi tên đi vào). Chỉ gửi đúng số quân còn chỗ; quân đi bộ tới sát máy bay và lên từng người một (chớp sáng + tiếng cửa). Máy bay đang bay thì hạ cánh xuống đất liền ngay dưới nó trước (không hạ xuống biển).</li>
+      <li><b>Trong máy bay</b>: quân được bảo vệ hoàn toàn; máy bay nổ thì toàn bộ quân bên trong chết theo. Máy bay vận tải không có vũ khí.</li>
+      <li><b>Xuống</b>: chọn máy bay → <code>U</code> hoặc nút <b>Unload</b> ở sidebar (sáng lên khi có quân), hoặc chuột phải lên đất để bay tới đó rồi thả. Đang bay thì hạ cánh trước; quân nhảy ra lần lượt mỗi 0.3 s vào ô trống quanh máy bay (không nước, không nhà, không ô đã có người). Hết chỗ thì phần còn lại ở lại trên máy bay. Thả xong máy bay nhận lệnh mới hoặc tự bay về sân bay.</li>
+      <li>Huy hiệu trên máy bay và panel Transport ở sidebar hiện số chỗ: <code>3/12 inf</code>, <code>1/1 veh</code>.</li>
+    </ul>
+  </li>
   <li><b>Cấp bậc</b>: Veteran / Elite / Elite+ khi giá trị địch tiêu diệt đạt 3× / 6× / 9× giá của chính unit.</li>
   <li><b>Tự hồi máu</b>: từ Elite (2 vạch) trở lên, unit tự hồi 1% máu tối đa mỗi giây, chỉ bắt đầu sau 5s không bị trúng đòn.</li>
   <li>Không có hai lính/xe/máy bay đứng chồng một điểm (<code>separateUnits</code>, <code>UNIT_SPACING</code> 2.2).</li>
@@ -152,7 +159,7 @@ npm run build:earth  # tạo lại public/data/earth.png từ dữ liệu Trái 
 <tr><td><b>Barracks</b></td><td>Phe</td><td>1000</td><td>−10</td><td>Phá / chiếm được</td><td>Mở hàng huấn luyện lính. Lính ra đứng thành hàng duyệt binh cách tường ≤ 2 ô. Lính ra ở Barracks còn sống đầu tiên của phe.</td></tr>
 <tr><td><b>War Factory</b></td><td>Phe</td><td>1800</td><td>−50</td><td>Phá / chiếm được</td><td>Cần Barracks. Sản xuất xe mặt đất (tank, ifv). Xe lăn ra từ nhà máy đầu tiên còn sống.</td></tr>
 <tr><td><b>Hospital</b></td><td>Phe</td><td>1200</td><td>−20</td><td>Phá / chiếm được</td><td>Cần Barracks. Chỉ nhận người <b>bị thương</b> (hp &lt; max) cùng phe, tối đa 20. Hồi 10 HP/s; hồi đầy thì tự đi ra. Double-click để cho tất cả ra.</td></tr>
-<tr><td><b>Airfield</b></td><td>Phe</td><td>1500</td><td>−40</td><td>Phá / chiếm được</td><td>Cần War Factory. 12×6 ô, 6 chỗ đỗ. Số máy bay (đang có + đang đặt) ≤ 6 × số Airfield; máy bay chết trả lại chỗ. Máy bay đỗ được sửa 2% HP mỗi 4s. Máy bay xong lệnh 1s thì bay về, hạ cánh, lăn về chỗ đỗ. Mất sân bay → tìm sân khác hoặc rơi.</td></tr>
+<tr><td><b>Airfield</b></td><td>Phe</td><td>1500</td><td>−40</td><td>Phá / chiếm được</td><td>Cần War Factory. 12×6 ô, 6 chỗ đỗ. Máy bay được đặt hàng ở <b>War Factory</b>, nhưng xưởng chỉ nhận đơn máy bay khi phe đang có ít nhất 1 Airfield; máy bay xong được đỗ trên Airfield. Mất War Factory hoặc mất hết Airfield thì đơn máy bay đang chờ dừng lại (không trừ tiền) cho tới khi có lại. Số máy bay (đang có + đang đặt) ≤ 6 × số Airfield; máy bay chết trả lại chỗ. Máy bay đỗ được sửa 2% HP mỗi 4s. Máy bay xong lệnh 1s thì bay về, hạ cánh, lăn về chỗ đỗ. Mất sân bay → tìm sân khác hoặc rơi.</td></tr>
 <tr><td><b>High-Tech Center</b></td><td>Phe</td><td>2500</td><td>−80</td><td>Phá / chiếm được</td><td>Cần War Factory, 4×4, giá 8000. Khi còn đứng: mở lính <code>special</code> và xe <code>ifv</code>.</td></tr>
 <tr><td><b>Happy City</b> (<code>entities/HappyCity.ts</code>, art <code>render/sprites/HappyCity.ts</code>)</td><td>Phe</td><td>4000</td><td>0</td><td>Phá / chiếm được</td><td>8×8 ô, không cần công trình nào trước, xây bao nhiêu cũng được, giá 10000 TB cho mọi phe (<code>fixedCost</code>). Đường vành đai + ngã tư, cây xanh, công viên, nhà cao tầng, xe chạy, người đi bộ. Kiến trúc theo phe: USA nhà chọc trời + tháp kiểu Empire State; Russia tháp "Bảy chị em" + sao đỏ + mái vòm củ hành; China tháp truyền hình kiểu Minh Châu + mái chùa đỏ; Europe phố cổ mái dốc + nhà thờ tháp đồng hồ. <b>Thuế</b> (<code>systems/TaxSystem.ts</code>): mỗi thành phố nộp 500 TB mỗi 60s theo đồng hồ riêng tính từ lúc đặt, nên nhiều thành phố nộp lệch giờ nhau; tiền đi qua <code>OilMarket.receive()</code> (trừ nợ trước). Phe bị loại không thu thuế. Thành phố bị chiếm → thuế về phe mới. AI <b>có</b> xây Happy City: coi đây là khoản đầu tư chính, xây nhiều nhất trong khả năng (tối đa 10 × khẩu vị theo tính cách), chỉ xây bằng tiền mặt — không bao giờ vay để xây — và chỉ khi quân số còn trên ngưỡng.</td></tr>
 <tr><td><b>Oil Derrick</b></td><td>Phe</td><td>1000</td><td>0</td><td>Thường: phá / chiếm được. <b>Giếng do World Bank quản lý</b>: không phá, không chiếm được</td><td>Đặt sẵn thành 1 hàng, không xây được. Bơm 0.1 thùng mỗi 10s trong 180s, nghỉ 60s; các giếng trong hàng lệch pha 40s để thu nhập đều. Mỗi hàng có 1 giếng do Bank quản lý — dầu vẫn về phe chủ. Phím <code>O</code> duyệt giếng.</td></tr>
@@ -233,12 +240,18 @@ npm run build:earth  # tạo lại public/data/earth.png từ dữ liệu Trái 
 <h2 id="ctrl">8. Điều khiển</h2>
 <table>
 <tr><th>Thao tác</th><th>Tác dụng</th></tr>
-<tr><td>Chuột trái vào quân mình</td><td>Chọn (Shift = thêm)</td></tr>
-<tr><td>Chuột trái lên đất</td><td>Di chuyển quân đang chọn (hiện đường nét đứt màu phe tới đích)</td></tr>
-<tr><td>Chuột trái vào địch</td><td>Tấn công</td></tr>
-<tr><td>Chuột trái vào công trình</td><td>Chọn; hoặc vào/sửa/chiếm nếu đang chọn lính. Double-click nhà mình: cho mọi người ra</td></tr>
-<tr><td>Kéo chuột phải</td><td>Khung chọn nhiều quân (không chọn công trình)</td></tr>
-<tr><td>Click chuột phải</td><td>Bỏ chọn / huỷ đặt nhà</td></tr>
+<tr><td>Chuột trái vào quân mình</td><td>Chọn 1 quân</td></tr>
+<tr><td>Kéo chuột trái</td><td>Khung chọn nhiều quân (không chọn công trình); Shift = thêm vào nhóm</td></tr>
+<tr><td>Shift + chuột trái vào quân</td><td>Thêm vào nhóm / bỏ ra nếu đã chọn</td></tr>
+<tr><td>Double-click chuột trái vào quân</td><td>Chọn mọi quân cùng loại (cùng tier lính / cùng loại xe) đang hiện trên màn hình</td></tr>
+<tr><td>Chuột trái vào công trình</td><td>Chọn công trình. Double-click nhà mình: cho mọi người ra</td></tr>
+<tr><td>Chuột trái lên đất trống</td><td>Bỏ chọn</td></tr>
+<tr><td>Chuột phải lên đất</td><td>Di chuyển quân đang chọn (hiện đường nét đứt màu phe tới đích); không chọn gì = bỏ chọn; đang đặt nhà = huỷ</td></tr>
+<tr><td>Chuột phải vào địch</td><td>Tấn công</td></tr>
+<tr><td>Chuột phải vào công trình</td><td>Vào / sửa / chiếm / tấn công (focus) tuỳ quân đang chọn</td></tr>
+<tr><td>Chuột phải vào máy bay vận tải của mình</td><td>Quân đang chọn lên máy bay (đang bay thì nó hạ cánh trước)</td></tr>
+<tr><td><code>Ctrl</code> + <code>Shift</code> + chuột phải</td><td>Attack-move: đi tới đó, gặp địch trên đường thì dừng lại bắn (quân không vũ khí chỉ đi tới)</td></tr>
+<tr><td><code>X</code></td><td>Tản ra (scatter): quân đang chọn chạy ra xa giữa nhóm ~3 ô (máy bay ~6 ô)</td></tr>
 <tr><td>Chuột giữa kéo / WASD / mũi tên / mép màn hình</td><td>Cuộn camera</td></tr>
 <tr><td>Lăn chuột, <code>+</code> <code>-</code></td><td>Zoom</td></tr>
 <tr><td><code>1</code>–<code>9</code></td><td>Nhảy tới landmark</td></tr>
@@ -246,7 +259,7 @@ npm run build:earth  # tạo lại public/data/earth.png từ dữ liệu Trái 
 <tr><td><code>O</code></td><td>Lần lượt các giếng dầu</td></tr>
 <tr><td><code>F</code></td><td>Bật/tắt tự phòng thủ</td></tr>
 <tr><td><code>R</code></td><td>Xoay công trình</td></tr>
-<tr><td><code>U</code></td><td>Thả quân từ máy bay vận tải</td></tr>
+<tr><td><code>U</code> / nút Unload</td><td>Thả quân từng người một (đang bay thì hạ cánh xuống đất liền trước)</td></tr>
 <tr><td><code>M</code></td><td>Tắt/bật âm</td></tr>
 <tr><td><code>Tab</code></td><td>Ẩn/hiện sidebar</td></tr>
 <tr><td><code>Esc</code></td><td>Huỷ đặt công trình; nếu không đang đặt: tạm dừng game (menu Tiếp tục / Thoát game về màn chọn phe)</td></tr>
@@ -275,7 +288,7 @@ npm run build:earth  # tạo lại public/data/earth.png từ dữ liệu Trái 
 <tr><td>Thêm/bật lại loại xe</td><td><code>VehicleKind</code> (types) → <code>VEHICLE_BASE</code>, <code>VEHICLE_WEAPON</code>, <code>AVAILABLE_VEHICLES</code> → tên ở <code>factions/*.ts</code> → art ở <code>render/VehicleArt.ts</code></td></tr>
 <tr><td>Thêm công trình</td><td><code>BuildingType</code> → class trong <code>entities/</code> → sprite trong <code>render/sprites/</code> + đăng ký <code>sprites/index.ts</code> → <code>BUILD_OPTIONS</code> → <code>BUILDING_VALUE</code> → <code>BUILD_PLAN</code> của AI</td></tr>
 <tr><td>Thêm phím tắt</td><td><code>Game.handleKey</code> + bảng điều khiển ở file này</td></tr>
-<tr><td>Hành vi click</td><td><code>Game.handleInput</code>; vùng bắt chuột unit: <code>UNIT_PICK_RADIUS</code> trong <code>SelectionSystem.ts</code></td></tr>
+<tr><td>Hành vi click</td><td><code>Game.leftClick</code> / <code>Game.rightClick</code> (gọi từ <code>Game.handleInput</code>), scatter <code>Game.scatterSelected</code>; vùng bắt chuột unit: <code>UNIT_PICK_RADIUS</code> trong <code>SelectionSystem.ts</code></td></tr>
 <tr><td>Hiển thị overlay (vòng chọn, đường đi, thanh máu)</td><td><code>Renderer.render</code> (thứ tự vẽ: ground → upright → screen space)</td></tr>
 <tr><td>Hành vi AI</td><td><code>AISystem.ts</code> (hằng số đầu file)</td></tr>
 <tr><td>Thêm phe</td><td><code>FactionId</code> → file mới trong <code>factions/</code> → <code>FACTIONS</code>, <code>FACTION_ORDER</code>, <code>CAPITAL_LOCATIONS</code>, <code>OIL_DERRICK_COUNT</code>, <code>Territories</code>, sprite thủ đô</td></tr>

@@ -78,6 +78,14 @@ export class SelectionSystem {
     this.bus.emit('selection:changed', { entityId: null });
   }
 
+  /** Shift+click (RA2): adds the unit to the group, or takes it out if it is already in. */
+  toggleUnit(id: number): void {
+    if (this.selectedUnits.has(id)) this.selectedUnits.delete(id);
+    else this.selectedUnits.add(id);
+    if (this.selectedId !== null) this.select(null);
+    this.bus.emit('selection:changed', { entityId: null });
+  }
+
   /** Own living units whose picture centre is inside a rectangle given in iso (screen-plane) coordinates. */
   unitsInIsoRect(r: Rect, owner: number): Unit[] {
     return this.entities.fieldMovers().filter((u) => {

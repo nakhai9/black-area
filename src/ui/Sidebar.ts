@@ -7,6 +7,26 @@ import { MIN_SALE_STOCK } from '../systems/OilMarket';
 import type { ArmyCount, TrainOption, TrainingQueue } from '../systems/TrainingSystem';
 import type { VehicleOption, VehicleQueue } from '../systems/VehicleSystem';
 import type { BuildingType, FactionId, PlayerState, WorldPoint } from '../types';
+import type { CarrierState } from '../entities/Vehicle';
+
+/** The selected transport, for the Transport panel (RA2: passengers aboard + the Deploy / Unload button). */
+export interface TransportInfo {
+  name: string;
+  soldiers: number;
+  soldierCapacity: number;
+  vehicles: number;
+  vehicleCapacity: number;
+  /** Units still walking up to climb aboard. */
+  incoming: number;
+  state: CarrierState;
+}
+
+const CARRIER_STATE_LABEL: Readonly<Record<CarrierState, string>> = {
+  idle: 'Empty',
+  loading: 'Loading…',
+  carrying: 'Carrying',
+  unloading: 'Unloading…',
+};
 
 type TabId = 'build' | 'defense' | 'infantry' | 'vehicles';
 /** Sidebar pages: the command centre (budget, oil, alerts), production (build, train) and the world ranking. */
@@ -71,6 +91,8 @@ export interface SidebarModel {
   parkingFree: number;
   /** Every nation, for the Rank tab (null while that tab is hidden: nothing to compute). */
   ranking: readonly RankRow[] | null;
+  /** The selected transport of the player, or null (hides the Transport panel). */
+  transport: TransportInfo | null;
 }
 
 export interface SidebarHandlers {
@@ -94,6 +116,8 @@ export interface SidebarHandlers {
   onSellOil: () => void;
   /** The Emergency loan button: borrow from the World Bank (only at 0 TB). */
   onLoan: () => void;
+  /** The Unload button of the Transport panel (same as the U key). */
+  onUnload: () => void;
   /** An alert in the alert section was clicked: look at where it happened. */
   onAlert: (at: WorldPoint) => void;
 }
@@ -135,6 +159,12 @@ export class Sidebar {
   private readonly radarPanel: HTMLElement;
   private readonly alertList: HTMLElement;
   private readonly alertEmpty: HTMLElement;
+  private readonly transportPanel: HTMLElement;
+  private readonly transportName: HTMLElement;
+  private readonly transportSoldiers: HTMLElement;
+  private readonly transportVehicles: HTMLElement;
+  private readonly transportState: HTMLElement;
+  private readonly unloadButton: HTMLButtonElement;
   private readonly alerts: AlertEntry[] = [];
   private readonly faction: FactionId;
   private readonly mainTabs = new Map<ViewId, HTMLButtonElement>();
@@ -204,6 +234,14 @@ export class Sidebar {
           <div class="sb-power-track"><div class="sb-power-fill"></div></div>
         </div>
       </section>
+      <section class="sb-panel sb-transport" hidden>
+        <h3>Transport</h3>
+        <div class="sb-muted sb-transport-name"></div>
+        <div class="sb-oil">SOLDIERS <span class="sb-transport-soldiers"></span></div>
+        <div class="sb-oil">VEHICLES <span class="sb-transport-vehicles"></span></div>
+        <div class="sb-oil">STATUS <span class="sb-transport-state"></span></div>
+        <button class="sb-unload" type="button" title="Let the passengers out one by one (U). In the air the transport first lands on solid ground below it.">Unload (U)</button>
+      </section>
       <section class="sb-panel sb-alerts" aria-live="polite">
         <h3>Alerts</h3>
         <ul class="sb-alert-list"></ul>
@@ -213,10 +251,11 @@ export class Sidebar {
         <summary>Controls</summary>
         <ul>
           <li><kbd>Click</kbd> cameo — build/train · <kbd>Right-click</kbd> cameo — cancel (refund)</li>
-          <li>Soldiers &amp; vehicles: <kbd>Right-drag</kbd> sweep-select · <kbd>Left-click</kbd> a unit select · <kbd>Left-click</kbd> ground — move · <kbd>Right-click</kbd> deselect · <kbd>Shift</kbd> add</li>
-          <li>Armed units: <kbd>Left-click</kbd> an enemy to attack — they never shoot buildings on their own, <kbd>Left-click</kbd> the building to focus it · enemy engineers capture buildings · <kbd>M</kbd> sound on/off</li>
+          <li>Soldiers &amp; vehicles: <kbd>Left-drag</kbd> box-select · <kbd>Left-click</kbd> a unit select · <kbd>Shift</kbd>+<kbd>Left-click</kbd> add/remove · <kbd>Double-click</kbd> all of that type on screen · <kbd>Left-click</kbd> ground — deselect</li>
+          <li>Orders: <kbd>Right-click</kbd> ground — move · <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Right-click</kbd> attack-move · <kbd>X</kbd> scatter</li>
+          <li>Armed units: <kbd>Right-click</kbd> an enemy to attack — they never shoot buildings on their own, <kbd>Right-click</kbd> the building to focus it · enemy engineers capture buildings · <kbd>M</kbd> sound on/off</li>
           <li>Elite (type II) soldiers: at most 2 for every 3 regulars · orders: up to 15 soldiers and 10 vehicles waiting at once — a new one the moment one is done, whatever your army size · special forces swim · tanks run soldiers over · only aircraft shoot aircraft</li>
-          <li>Transport: select soldiers/vehicles, <kbd>Left-click</kbd> the parked transport to board · <kbd>Left-click</kbd> ground — it flies there, lands and unloads · <kbd>U</kbd> unload on the airfield</li>
+          <li>Transport: select soldiers/vehicles, <kbd>Right-click</kbd> your transport to board (one in the air lands first) · select the transport, <kbd>Right-click</kbd> ground — it flies there, lands and unloads · <kbd>U</kbd>/<b>Unload</b> — let them out here, one by one</li>
           <li>When <b>READY</b>: click cameo, then click the map to place · <kbd>R</kbd> turn it 90° · <kbd>Esc</kbd>/<kbd>Right-click</kbd> stop placing</li>
           <li><kbd>WASD</kbd>/<kbd>Arrows</kbd>/screen edge — scroll · <kbd>Wheel</kbd> zoom · <kbd>Middle-drag</kbd> pan</li>
           <li><kbd>Click</kbd> select · <kbd>1</kbd>–<kbd>5</kbd> landmarks · <kbd>O</kbd> oil · <kbd>H</kbd> home · <kbd>Tab</kbd> sidebar</li>
@@ -265,6 +304,13 @@ export class Sidebar {
     this.radarPanel = q('.sb-radar');
     this.alertList = q('.sb-alert-list');
     this.alertEmpty = q('.sb-alert-empty');
+    this.transportPanel = q('.sb-transport');
+    this.transportName = q('.sb-transport-name');
+    this.transportSoldiers = q('.sb-transport-soldiers');
+    this.transportVehicles = q('.sb-transport-vehicles');
+    this.transportState = q('.sb-transport-state');
+    this.unloadButton = q<HTMLButtonElement>('.sb-unload');
+    this.unloadButton.addEventListener('click', () => this.handlers.onUnload());
     // No browser context menu anywhere on the sidebar (radar, cameos, panels): right-click is a game command.
     root.addEventListener('contextmenu', (e) => e.preventDefault());
     this.buildMainTabs(q('.sb-main-tabs'));
@@ -343,6 +389,19 @@ export class Sidebar {
     this.messageTimer = seconds;
   }
 
+  /** Transport panel: seats taken / free and the Unload button, lit while there are passengers to let out. */
+  private renderTransport(t: TransportInfo | null): void {
+    this.transportPanel.hidden = t === null;
+    if (!t) return;
+    this.transportName.textContent = t.incoming > 0 ? `${t.name} · ${t.incoming} on the way` : t.name;
+    this.transportSoldiers.textContent = `${t.soldiers}/${t.soldierCapacity}`;
+    this.transportVehicles.textContent = `${t.vehicles}/${t.vehicleCapacity}`;
+    this.transportState.textContent = CARRIER_STATE_LABEL[t.state];
+    const passengers = t.soldiers + t.vehicles;
+    this.unloadButton.disabled = passengers === 0 || t.state === 'unloading';
+    this.unloadButton.classList.toggle('lit', passengers > 0 && t.state !== 'unloading');
+  }
+
   update(model: SidebarModel, dt: number): void {
     const { player, queue } = model;
     this.credits.textContent = Math.floor(player.credits).toLocaleString('en-US');
@@ -361,6 +420,7 @@ export class Sidebar {
       model.loanBlocker ??
       `Borrow ${model.loanSize.toLocaleString('en-US')} ${CURRENCY} now. Credit line ${model.creditLine.toLocaleString('en-US')} ${CURRENCY}, based on your oil stock and assets. Oil sales pay the debt back automatically.`;
     this.derricks.textContent = `${model.pumping}/${model.derricks} pumping`;
+    this.renderTransport(model.transport);
 
     const produced = player.powerProduced;
     const used = player.powerConsumed;
@@ -384,8 +444,8 @@ export class Sidebar {
       infantryTab.classList.toggle('sb-attention', model.hasBarracks && !this.infantrySeen);
     }
     if (!model.hasBarracks && this.activeTab === 'infantry') this.switchTab('build');
-    // Vehicles tab: unlocked by a War Factory or an Airfield; blinks until opened.
-    const canMake = model.hasWarFactory || model.hasAirfield;
+    // Vehicles tab: unlocked by a War Factory (aircraft orders also need an Airfield); blinks until opened.
+    const canMake = model.hasWarFactory;
     const vehicleTab = this.tabButtons.get('vehicles');
     if (vehicleTab) {
       vehicleTab.disabled = !canMake;
@@ -590,7 +650,7 @@ export class Sidebar {
     for (const option of this.vehicleOptions) {
       const c = this.vehicleCameos.get(option.kind);
       if (!c) continue;
-      const have = option.requires === 'airfield' ? model.hasAirfield : model.hasWarFactory;
+      const have = model.hasWarFactory && (!option.needsAirfield || model.hasAirfield);
       const count = q.items.filter((k) => k === option.kind).length;
       const producing = head === option.kind;
       c.el.dataset.state = producing ? q.state : count > 0 ? 'queued' : 'idle';
@@ -613,10 +673,18 @@ export class Sidebar {
       c.state.textContent = !producing
         ? count > 0
           ? 'QUEUED'
-          : `${option.cost} ${CURRENCY}`
-        : q.state === 'onHold'
-            ? `ON HOLD ${Math.floor(q.progress * 100)}%`
-            : `${Math.floor(q.progress * 100)}%`;
+          : !model.hasWarFactory
+            ? 'NO FACTORY'
+            : !have
+              ? 'NO AIRFIELD'
+              : `${option.cost} ${CURRENCY}`
+        : q.state === 'noAirfield'
+          ? 'NO AIRFIELD'
+          : q.state === 'noFactory'
+            ? 'NO FACTORY'
+            : q.state === 'onHold'
+              ? `ON HOLD ${Math.floor(q.progress * 100)}%`
+              : `${Math.floor(q.progress * 100)}%`;
     }
   }
 

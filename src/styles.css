@@ -1086,3 +1086,30 @@ details.sb-help[open] > summary {
   letter-spacing: 0.5px;
   line-height: 1.15;
 }
+
+/* ------------------------------------------------------------- Transport panel (selected transport) */
+.sb-unload {
+  width: 100%;
+  margin: 6px 0 0;
+  padding: 6px 8px;
+  border: 1px solid #2f7a3a;
+  border-radius: 3px;
+  background: linear-gradient(#1d4a24, #123017);
+  color: #b9ffc3;
+  font: inherit;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.sb-unload:hover:not(:disabled) {
+  background: linear-gradient(#276330, #18401f);
+}
+.sb-unload.lit {
+  border-color: #5cff6a;
+  box-shadow: 0 0 6px rgba(92, 255, 106, 0.55);
+}
+.sb-unload:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}

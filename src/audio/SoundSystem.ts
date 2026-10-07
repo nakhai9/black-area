@@ -15,9 +15,10 @@ const BATTLE_CRY: Readonly<Record<FactionId, { lang: string; lines: readonly str
   europe: { lang: 'fr-FR', lines: ["À l'attaque !", 'En avant !', 'Allons-y !'] },
 };
 const CRY_COOLDOWN = 7;
-const MIN_GAP: Readonly<Record<string, number>> = { rifle: 0.05, smg: 0.045, sniper: 0.1, mg: 0.05, cannon: 0.12, autocannon: 0.06, missile: 0.15, explosion: 0.1 };
+const MIN_GAP: Readonly<Record<string, number>> = { rifle: 0.05, smg: 0.045, sniper: 0.1, mg: 0.05, cannon: 0.12, autocannon: 0.06, missile: 0.15, explosion: 0.1, board: 0.12 };
 
-type Kind = WeaponKind | 'explosion';
+/** `board`: the hatch clunk of a unit climbing into / jumping out of a transport. */
+type Kind = WeaponKind | 'explosion' | 'board';
 
 /**
  * Procedural sound effects and background music (Web Audio — no audio files): gunfire per weapon
@@ -116,6 +117,10 @@ export class SoundSystem {
         break;
       case 'missile':
         this.sweep(vol * 0.55, 0.7);
+        break;
+      case 'board':
+        this.thump(vol * 0.35, 170 * jitter, 0.09);
+        this.burst(vol * 0.12, 0.05, 'bandpass', 900 * jitter, 1.0);
         break;
       case 'explosion':
         this.burst(vol * 0.95, 1.0, 'lowpass', 380 * jitter, 0.6);

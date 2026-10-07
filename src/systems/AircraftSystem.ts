@@ -40,14 +40,21 @@ const clamp01 = (t: number): number => Math.max(0, Math.min(1, t));
 export interface AircraftHooks {
   /** Nearest spot at or near (x, y) where a transport can set down, or null (open water, buildings…). */
   landingSpot(x: number, y: number, self: Vehicle): WorldPoint | null;
-  /** Everyone aboard `transport` steps out around it. */
-  unload(transport: Vehicle): void;
+  /** The next passenger of `transport` steps out onto a free cell beside it; false when nobody could get out (no room). */
+  unloadOne(transport: Vehicle): boolean;
 }
+
+/** Result of an unload order (U key / Unload button). */
+export type UnloadResult = 'ok' | 'empty' | 'noSpot' | 'busy';
 
 /** Descent, unloading pause and climb-out of a transport at its drop-off point (seconds). */
 const DESCEND_SECONDS = 1.2;
 const UNLOAD_PAUSE = 1.2;
 const CLIMB_SECONDS = 1.0;
+/** Passengers step out one at a time, this many seconds apart (RA2). */
+const EJECT_STEP = 0.3;
+/** After the last one is out the transport waits this long before it climbs away (s). */
+const AFTER_UNLOAD = 0.4;
 /** An empty transport that has set down in the field waits this long for passengers, then flies home (s). */
 const LANDED_WAIT = 40;
 
@@ -65,6 +72,7 @@ export class AircraftSystem implements GameSystem {
       // Drawn right after its airfield only while it is on the airfield's apron or runway.
       const onAirfield = v.flight === 'parked' || v.flight === 'taxi' || v.flight === 'takeoff' || v.flight === 'landing' || v.flight === 'taxiHome';
       v.drawDepth = base && onAirfield ? base.depth + 0.02 : null;
+      if (v.ejecting && v.flight !== 'parked' && v.flight !== 'landed' && v.flight !== 'unloading') v.ejecting = false;
       switch (v.flight) {
         case 'parked':
           this.parked(v, dt);
@@ -132,6 +140,15 @@ export class AircraftSystem implements GameSystem {
     // Its airfield is gone: fly to another airfield of the nation, or crash if there is none.
     if (!this.home(v)) {
       this.abort(v);
+      return;
+    }
+    // Letting passengers out on the apron: orders wait until the last one has stepped out.
+    if (v.ejecting) {
+      this.stashOrders(v);
+      if (!this.eject(v, dt) && v.mission) {
+        v.follow(v.mission);
+        v.mission = null;
+      }
       return;
     }
     const wantsOut = v.moving || v.attackTarget !== null || v.attackMove !== null;
@@ -417,7 +434,11 @@ export class AircraftSystem implements GameSystem {
       v.landedIdle = 0;
     } else if (t < DESCEND_SECONDS + UNLOAD_PAUSE) {
       v.altitude = 0;
-      if (v.cargo.length > 0) this.hooks.unload(v);
+      // Passengers jump out one at a time; the transport holds on the ground until the last one is out.
+      if (v.cargo.length > 0) {
+        if (this.eject(v, dt)) v.phaseTime = DESCEND_SECONDS + UNLOAD_PAUSE - AFTER_UNLOAD;
+        else if (v.cargo.length > 0) v.phaseTime = DESCEND_SECONDS + UNLOAD_PAUSE; // no room here: the rest stay aboard
+      }
     } else if (t < DESCEND_SECONDS + UNLOAD_PAUSE + CLIMB_SECONDS) {
       v.altitude = CRUISE_ALTITUDE * clamp01((t - DESCEND_SECONDS - UNLOAD_PAUSE) / CLIMB_SECONDS);
     } else {
@@ -432,6 +453,18 @@ export class AircraftSystem implements GameSystem {
   /** Standing on solid ground away from an airfield: takes passengers, then flies off when given a destination. */
   private landed(v: Vehicle, dt: number): void {
     v.altitude = 0;
+    // Letting passengers out: a new order waits until the last one has stepped out, then it lifts off.
+    if (v.ejecting) {
+      if (v.moving) {
+        v.mission = [...v.waypoints()];
+        v.stop();
+      }
+      if (!this.eject(v, dt) && v.mission) {
+        v.flight = 'liftoff';
+        v.phaseTime = 0;
+      }
+      return;
+    }
     if (v.moving || v.attackTarget !== null) {
       v.mission = [...v.waypoints()];
       v.stop();
@@ -448,6 +481,56 @@ export class AircraftSystem implements GameSystem {
         v.phaseTime = 0;
       }
     } else v.landedIdle = 0;
+  }
+
+  /** One passenger out every EJECT_STEP seconds; true while more are waiting to get out (and there is room). */
+  private eject(v: Vehicle, dt: number): boolean {
+    v.ejecting = true;
+    v.ejectClock -= dt;
+    if (v.ejectClock > 0) return true;
+    v.ejectClock = EJECT_STEP;
+    if (v.cargo.length === 0 || !this.hooks.unloadOne(v) || v.cargo.length === 0) {
+      v.ejecting = false;
+      v.ejectClock = 0;
+      return false;
+    }
+    return true;
+  }
+
+  /**
+   * Unload order (U key / Unload button): on the ground the passengers step out one by one; in the air the
+   * transport first sets down on the nearest solid ground below it (never on the sea).
+   */
+  requestUnload(v: Vehicle): UnloadResult {
+    if (!v.isTransport || !v.alive || v.cargo.length === 0) return 'empty';
+    if (v.flight === 'parked' || v.flight === 'landed') {
+      v.ejecting = true;
+      v.ejectClock = 0;
+      return 'ok';
+    }
+    if (v.flight !== 'airborne' && v.flight !== 'approach') return 'busy';
+    return this.setDown(v, false) ? 'ok' : 'noSpot';
+  }
+
+  /** An airborne transport lands right where it is to take passengers aboard (they walk up to it). False: no ground here. */
+  setDownForPickup(v: Vehicle): boolean {
+    if (!v.isTransport || !v.alive || (v.flight !== 'airborne' && v.flight !== 'approach')) return false;
+    return this.setDown(v, true);
+  }
+
+  private setDown(v: Vehicle, pickup: boolean): boolean {
+    const spot = this.hooks.landingSpot(v.px, v.py, v);
+    if (!spot) return false;
+    v.dropSpot = spot;
+    v.pickup = pickup;
+    v.landedIdle = 0;
+    v.returningHome = false;
+    v.mission = null;
+    v.attackMove = null;
+    v.flight = 'unloading';
+    v.phaseTime = 0;
+    v.stop();
+    return true;
   }
 
   /** Climbs out of a landing on open ground and carries on with the order that was given (or heads home). */

@@ -19,12 +19,12 @@ export const RUSSIA: FactionConfig = {
     regular: {
       name: 'Red Army',
       description: 'Massed Russian conscript riflemen, tough in the cold.',
-      look: { uniform: '#5f6b34', trousers: '#4a5428', headgear: 'ushanka', headColor: '#56602f', weapon: 'rifle' },
+      look: { uniform: '#5f6b34', trousers: '#4a5428', headgear: 'ushanka', headColor: '#56602f', weapon: 'rifle', sprite: 'conscript' },
     },
     special: {
       name: 'Spetsnaz',
       description: 'Special-purpose commandos for sabotage and raids.',
-      look: { uniform: '#2b3a32', trousers: '#212d27', headgear: 'balaclava', headColor: '#121212', weapon: 'rifle', camo: true },
+      look: { uniform: '#2b3a32', trousers: '#212d27', headgear: 'balaclava', headColor: '#121212', weapon: 'rifle', camo: true, sprite: 'spetsnaz' },
     },
     president: {
       name: 'President',
