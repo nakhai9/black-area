@@ -41,7 +41,7 @@ export const RUSSIA: FactionConfig = {
     light: { name: "UAZ Patrol", description: "Russian light patrol vehicle, cheap and quick." },
     tank: { name: "T-90", description: "T-90 main battle tank, tough and long-ranged." },
     ifv: { name: "BMP-3", description: "BMP-3 armoured fighting vehicle with a heavy autocannon." },
-    jet: { name: "Su-27", description: "Su-27 long-range air superiority fighter." },
-    transport: { name: "Il-17", description: "Il-17 military transport aircraft: carries soldiers and vehicles; unarmed." },
+    jet: { name: "Su-57", description: "Su-57 stealth air superiority fighter." },
+    transport: { name: "Il-76", description: "Il-76 military transport aircraft: carries soldiers and vehicles; unarmed." },
   },
 };

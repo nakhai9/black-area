@@ -31,6 +31,7 @@ const SHEETS: Partial<Record<`${FactionId}:${VehicleKind}`, AircraftSheet>> = {
   'russia:transport': sheet('transport-russia.png', 128, 13),
   'china:transport': sheet('transport-china.png', 128, 13),
   'europe:transport': sheet('transport-europe.png', 128, 13),
+  'usa:jet': sheet('jet-usa.png', 128, 10),
   'russia:jet': sheet('jet-russia.png', 128, 10),
   'china:jet': sheet('jet-china.png', 128, 10),
   'europe:jet': sheet('jet-europe.png', 128, 10),

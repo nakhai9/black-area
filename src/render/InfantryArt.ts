@@ -14,6 +14,8 @@ export interface SoldierPose {
   fire?: number;
   /** Standing in combat: hold the rifle up. */
   aiming?: boolean;
+  /** In the water: sheets with swim rows draw the swimming poses (ripples included). */
+  swimming?: boolean;
 }
 
 interface SoldierSheet {
@@ -25,6 +27,8 @@ interface SoldierSheet {
   readonly layout: 'rows8' | 'dir16';
   /** Sheet drawn instead while this one is missing or failed to load. */
   readonly fallback?: SoldierSheetId;
+  /** 'dir16' sheets of swimmers carry 4 swimming frames (rows 11–14) with their own ripples. */
+  readonly swim?: boolean;
   readonly image: HTMLImageElement;
   /** Cell size and the feet point inside a cell, in sheet px. */
   readonly cw: number;
@@ -58,10 +62,11 @@ const sheet = (file: string, cw: number, ch: number, feetY: number, walk: number
  * The soldier stands ≈48 px tall with the feet at y ≈ 88 of the cell; the team colour is already painted on.
  */
 const DIR16_ROW = { idle: 0, walk: 1, aim: 5, fire: 6, swim: 11, shadow: 15 } as const;
-const sheet16 = (file: string, fallback: SoldierSheetId): SoldierSheet => ({
+const sheet16 = (file: string, fallback: SoldierSheetId, swim = false): SoldierSheet => ({
   url: `${import.meta.env.BASE_URL}sprites/${file}`,
   layout: 'dir16',
   fallback,
+  swim,
   image: new Image(),
   cw: 128,
   ch: 128,
@@ -73,13 +78,13 @@ const sheet16 = (file: string, fallback: SoldierSheetId): SoldierSheet => ({
 });
 const SHEETS: Record<SoldierSheetId, SoldierSheet> = {
   usRegular: sheet16('us-regular.png', 'gi'),
-  usSpecial: sheet16('us-special.png', 'ranger'),
+  usSpecial: sheet16('us-special.png', 'ranger', true),
   ruRegular: sheet16('ru-regular.png', 'conscript'),
-  ruSpecial: sheet16('ru-special.png', 'spetsnaz'),
+  ruSpecial: sheet16('ru-special.png', 'spetsnaz', true),
   cnRegular: sheet16('cn-regular.png', 'gi'),
-  cnSpecial: sheet16('cn-special.png', 'gi'),
+  cnSpecial: sheet16('cn-special.png', 'gi', true),
   euRegular: sheet16('eu-regular.png', 'gi'),
-  euSpecial: sheet16('eu-special.png', 'gi'),
+  euSpecial: sheet16('eu-special.png', 'gi', true),
   gi: sheet('gi.png', 64, 64, 61, 4, 51, [-3, -40]),
   ranger: sheet('ranger.png', 96, 128, 124, 6, 112, [-6, -82]),
   spetsnaz: sheet('spetsnaz.png', 64, 64, 61, 8, 52, [-3, -40]),
@@ -116,8 +121,7 @@ export function drawSoldier(
   team: string,
   special: boolean,
 ): void {
-  let sh = SHEETS[look.sprite ?? 'gi'];
-  if (sh.fallback && (!sh.image.complete || sh.image.naturalWidth === 0)) sh = SHEETS[sh.fallback];
+  const sh = activeSheet(look);
   const img = sh.image;
   if (!img.complete || img.naturalWidth === 0) return;
   if (sh.layout === 'dir16') {
@@ -155,6 +159,19 @@ export function drawSoldier(
   ctx.restore();
 }
 
+/** The sheet actually drawn for `look` (its fallback while a 16-direction sheet is missing). */
+function activeSheet(look: InfantryLook): SoldierSheet {
+  const sh = SHEETS[look.sprite ?? 'gi'];
+  if (sh.fallback && (!sh.image.complete || sh.image.naturalWidth === 0)) return SHEETS[sh.fallback];
+  return sh;
+}
+
+/** Does this soldier's sheet draw its own swimming poses (and ripples)? */
+export function drawsOwnSwim(look: InfantryLook): boolean {
+  const sh = activeSheet(look);
+  return sh.layout === 'dir16' && sh.swim === true && sh.image.naturalWidth > 0;
+}
+
 /** Screen angle of the pose (radians, 0 = east, clockwise with y down). */
 function screenAngle(pose: SoldierPose): number {
   if (pose.heading === undefined) return pose.facing < 0 ? Math.PI : 0;
@@ -168,16 +185,19 @@ function drawDir16(ctx: CanvasRenderingContext2D, sh: SoldierSheet, pose: Soldie
   const col = ((Math.round((screenAngle(pose) + Math.PI / 2) / (Math.PI / 8)) % 16) + 16) % 16;
   const fire = pose.fire ?? -1;
   let row: number;
-  if (fire >= 0) row = fire < 1 / FIRE_FRAMES ? DIR16_ROW.fire : DIR16_ROW.aim;
+  if (pose.swimming && sh.swim) row = DIR16_ROW.swim + ((Math.floor((pose.walkPhase / (Math.PI * 2)) * 4) % 4) + 4) % 4;
+  else if (fire >= 0) row = fire < 1 / FIRE_FRAMES ? DIR16_ROW.fire : DIR16_ROW.aim;
   else if (pose.moving) row = DIR16_ROW.walk + ((Math.floor((pose.walkPhase / (Math.PI * 2)) * sh.walk) % sh.walk) + sh.walk) % sh.walk;
   else row = pose.aiming ? DIR16_ROW.aim : DIR16_ROW.idle;
   ctx.save();
   ctx.translate(pose.x, pose.y);
   ctx.scale(sh.scale, sh.scale);
   ctx.imageSmoothingEnabled = true;
-  ctx.globalAlpha = 0.5;
-  ctx.drawImage(sh.image, col * sh.cw, DIR16_ROW.shadow * sh.ch, sh.cw, sh.ch, -sh.feetX, -sh.feetY, sh.cw, sh.ch);
-  ctx.globalAlpha = 1;
+  if (!pose.swimming) {
+    ctx.globalAlpha = 0.5;
+    ctx.drawImage(sh.image, col * sh.cw, DIR16_ROW.shadow * sh.ch, sh.cw, sh.ch, -sh.feetX, -sh.feetY, sh.cw, sh.ch);
+    ctx.globalAlpha = 1;
+  }
   ctx.drawImage(sh.image, col * sh.cw, row * sh.ch, sh.cw, sh.ch, -sh.feetX, -sh.feetY, sh.cw, sh.ch);
   ctx.restore();
 }

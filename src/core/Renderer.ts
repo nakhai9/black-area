@@ -8,7 +8,7 @@ import { Vehicle } from '../entities/Vehicle';
 import { SQUASH, drawVehicle } from '../render/VehicleArt';
 import { isoHeading, worldToIso } from './IsoView';
 import type { Effect } from './Effects';
-import { drawSoldier } from '../render/InfantryArt';
+import { drawSoldier, drawsOwnSwim } from '../render/InfantryArt';
 import { drawAircraftSheet } from '../render/AircraftSheets';
 import { FACTIONS, teamColors } from '../factions';
 import type { TerrainRenderer } from '../map/TerrainRenderer';
@@ -368,7 +368,12 @@ export class Renderer {
       blitUnit(ctx, sprite, P.x, P.y);
       return;
     }
-    // Swimming: body sinks to the chest, paddling with ripples around it.
+    // Swimming: a 16-direction sheet has its own swimming poses with ripples.
+    if (drawsOwnSwim(u.profile.look)) {
+      drawSoldier(ctx, { ...pose, heading: u.heading, swimming: true }, u.profile.look, f.colors.primary, true);
+      return;
+    }
+    // Older sheets: body sinks to the chest, paddling with ripples around it.
     ctx.save();
     ctx.beginPath();
     ctx.rect(P.x - 3, P.y - 6, 6, 6 - 0.55 + 0.0);

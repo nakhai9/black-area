@@ -41,7 +41,7 @@ export const EUROPE: FactionConfig = {
     light: { name: "VBL Scout", description: "Light armoured European reconnaissance vehicle." },
     tank: { name: "Leopard 2", description: "Leopard 2 main battle tank, precise and well protected." },
     ifv: { name: "Puma", description: "Puma armoured fighting vehicle, modern and fast." },
-    jet: { name: "Eurofighter", description: "Eurofighter Typhoon multirole fighter." },
+    jet: { name: "Rafale", description: "Dassault Rafale multirole fighter." },
     transport: { name: "C-130", description: "C-130 transport aircraft: carries soldiers and vehicles; unarmed." },
   },
 };
