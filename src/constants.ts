@@ -247,7 +247,7 @@ export const CHHG_LOCATION: GeoPoint = { lon: 20, lat: -78 };
 
 // ---------------------------------------------------------------- Oil (replaces RA2 ore)
 /** Barrels of oil pumped per second by each derrick while it is pumping (oil is sold to the World Bank for TB). */
-export const OIL_DERRICK_OUTPUT = 0.1 / 10; // 0.1 barrel every 10 s
+export const OIL_DERRICK_OUTPUT = 0.5; // barrels/s per derrick
 /** Every nation starts with some oil in stock, so the first sale can pay for the first buildings. */
 export const STARTING_OIL = 20;
 /**
@@ -306,13 +306,14 @@ export const OIL_REST_SECONDS = 60;
 // ---------------------------------------------------------------- Power (nuclear plants burn oil)
 /**
  * Every structure drains power (units/s, see each entity's powerDrain). Nuclear plants turn the nation's oil
- * stock into power: 0.001 barrel → 1 power, so a plant burning at full rate uses 0.01 bbl/s for 10 power/s —
- * about one derrick's output. Each plant also stores up to POWER_PLANT_STORAGE; a new plant starts empty (0).
+ * stock into power: 0.001 barrel → 1 power, so a plant burning at full rate uses 0.025 bbl/s for 25 power/s.
+ * One plant covers exactly one of each: capital 1 + barracks 1 + hospital 2 + war factory 3 + airfield 4 +
+ * tech center 6 + city 8 = 25. Anything beyond that needs another plant (or the nation is short of power). Each plant also stores up to POWER_PLANT_STORAGE; a new plant starts empty (0).
  * When the grid runs dry (drain > generation and storage empty) the World Bank is forced to sell the missing
  * oil at OIL_GRID_MARKUP × the posted price; with an empty treasury the nation falls into a blackout (low power).
  */
 export const POWER_PER_BARREL = 1000;
-export const POWER_PLANT_OUTPUT = 10;
+export const POWER_PLANT_OUTPUT = 25;
 export const POWER_PLANT_STORAGE = 300;
 export const POWER_PLANT_COST = 1500;
 export const OIL_GRID_MARKUP = 1.25;
