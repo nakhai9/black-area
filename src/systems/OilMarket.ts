@@ -3,11 +3,15 @@ import {
   LOAN_MIN,
   LOAN_SHARE,
   LOAN_TO_VALUE,
+  MAP_SEED,
   RESALE_SHARE,
   VEHICLE_BASE,
-  OIL_DEMAND_BASE,
-  OIL_DEMAND_PER_SOLDIER,
-  OIL_DEMAND_PER_VEHICLE,
+  OIL_FLOW_MEMORY,
+  OIL_FLOW_REF,
+  OIL_FLOW_WEIGHT,
+  OIL_MOOD_MAX,
+  OIL_MOOD_PULL,
+  OIL_MOOD_STEP,
   OIL_PRICE_EASE,
   OIL_PRICE_INTERVAL,
   OIL_PRICE_MAX,
@@ -15,11 +19,12 @@ import {
   OIL_PRICE_START,
   OIL_RESERVE,
   OIL_SALE_COOLDOWN,
-  OIL_SUPPLY_FLOOR,
+  OIL_WEALTH_REF,
+  OIL_WEALTH_WEIGHT,
   WB_MAX_SHARE,
 } from '../constants';
+import { mulberry32 } from '../core/Random';
 import type { EntityManager } from '../entities/EntityManager';
-import { OilDerrick } from '../entities/OilDerrick';
 import type { FactionId, PlayerState } from '../types';
 import { BUILD_OPTIONS, buildCost } from './ConstructionSystem';
 import type { GameSystem } from './GameSystem';
@@ -30,6 +35,9 @@ export type SaleResult =
 
 export type LoanResult = { kind: 'granted'; amount: number; debt: number } | { kind: 'refused'; reason: string };
 
+/** Price revisions kept for the chart (10 s each → the last 5 minutes). */
+const PRICE_HISTORY = 30;
+
 /** Smallest stock worth offering to the World Bank (barrels). */
 export const MIN_SALE_STOCK = 0.5;
 
@@ -37,9 +45,9 @@ export const MIN_SALE_STOCK = 0.5;
  * The World Bank (Zürich): a neutral, purely financial institution. It runs the oil market and emergency
  * credit automatically and never takes sides.
  *
- * Price — never random: the balance of RegulatedSupply (the one Bank-monitored derrick of every nation that is
- * pumping right now; their oil still belongs to their nations) against Demand (power drain of every structure
- * plus every army). The posted price eases towards that balance every OIL_PRICE_INTERVAL seconds.
+ * Price — see the OIL_* constants: it falls when nations sell a lot of oil, rises when the Bank has to sell oil
+ * to their power grids and when the world grows richer, plus a small seeded market mood. The posted price eases
+ * towards that target every OIL_PRICE_INTERVAL seconds.
  *
  * Credit — a nation at 0 TB may take an emergency loan (DEBT); income from oil sales pays the debt back first.
  */
@@ -47,9 +55,13 @@ export class OilMarket implements GameSystem {
   /** Current price and the one before it (TB per barrel). */
   price = OIL_PRICE_START;
   previous = OIL_PRICE_START;
-  /** Last measured RegulatedSupply share (0..1) and Demand (demand units), for the UI. */
-  supply = 1;
-  demand = 0;
+  /** Posted prices, oldest first (the last PRICE_HISTORY revisions), for the Price page chart. */
+  readonly history: number[] = [OIL_PRICE_START];
+  /** Barrels sold to the Bank / bought from it for power grids lately (decaying memory), and the mood (±). */
+  sold = 0;
+  bought = 0;
+  mood = 0;
+  private readonly rng = mulberry32(MAP_SEED ^ 0x0b1);
   private clock = OIL_PRICE_INTERVAL;
   /** Market time (s) and the times each nation offered oil lately (rate limit). */
   private now = 0;
@@ -67,6 +79,9 @@ export class OilMarket implements GameSystem {
 
   update(dt: number): void {
     this.now += dt;
+    const fade = Math.exp(-dt / OIL_FLOW_MEMORY);
+    this.sold *= fade;
+    this.bought *= fade;
     this.clock -= dt;
     while (this.clock <= 0) {
       this.clock += OIL_PRICE_INTERVAL;
@@ -74,32 +89,29 @@ export class OilMarket implements GameSystem {
     }
   }
 
-  /** Price at which Demand balances RegulatedSupply. */
+  /** Average net worth of the nations still at war: budget + oil + resale value of assets − debt. */
+  averageWealth(): number {
+    const live = this.players.filter((p) => !p.defeated);
+    if (live.length === 0) return 0;
+    const total = live.reduce((sum, p) => sum + Math.max(0, p.credits + this.collateral(p) - p.debt), 0);
+    return total / live.length;
+  }
+
+  /** Price the market is heading for (before the mood): wealth × flow. */
   balancePrice(): number {
-    const live = new Set(this.players.filter((p) => !p.defeated).map((p) => p.id));
-    let monitored = 0;
-    let pumping = 0;
-    let demand = 0;
-    for (const b of this.entities.buildings()) {
-      if (!b.alive) continue;
-      if (b instanceof OilDerrick && b.bankManaged) {
-        monitored++;
-        if (live.has(b.owner) && b.pumping) pumping++;
-      }
-      if (live.has(b.owner)) demand += b.spec.powerDrain;
-    }
-    for (const u of this.entities.units()) if (u.alive && live.has(u.owner)) demand += OIL_DEMAND_PER_SOLDIER;
-    for (const v of this.entities.vehicles()) if (v.alive && live.has(v.owner)) demand += OIL_DEMAND_PER_VEHICLE;
-    this.supply = monitored > 0 ? pumping / monitored : 0;
-    this.demand = demand;
-    const ratio = (OIL_DEMAND_BASE + demand) / OIL_DEMAND_BASE / Math.max(OIL_SUPPLY_FLOOR, this.supply);
-    return Math.max(OIL_PRICE_MIN, Math.min(OIL_PRICE_MAX, OIL_PRICE_START * ratio));
+    const wealth = Math.pow((OIL_WEALTH_REF + this.averageWealth()) / OIL_WEALTH_REF, OIL_WEALTH_WEIGHT);
+    const flow = Math.pow((OIL_FLOW_REF + this.bought) / (OIL_FLOW_REF + this.sold), OIL_FLOW_WEIGHT);
+    return OIL_PRICE_START * wealth * flow;
   }
 
   private reprice(): void {
     this.previous = this.price;
-    const target = this.balancePrice();
+    this.mood += (this.rng() * 2 - 1) * OIL_MOOD_STEP - this.mood * OIL_MOOD_PULL;
+    this.mood = Math.max(-OIL_MOOD_MAX, Math.min(OIL_MOOD_MAX, this.mood));
+    const target = Math.max(OIL_PRICE_MIN, Math.min(OIL_PRICE_MAX, this.balancePrice() * (1 + this.mood)));
     this.price = Math.round(this.price + (target - this.price) * OIL_PRICE_EASE);
+    this.history.push(this.price);
+    if (this.history.length > PRICE_HISTORY) this.history.shift();
   }
 
   /** Seconds until the nation may sell again (0 when it can sell now): one offer every OIL_SALE_COOLDOWN seconds. */
@@ -129,8 +141,21 @@ export class OilMarket implements GameSystem {
     const barrels = Math.min(stock, stock * WB_MAX_SHARE * appetite);
     const revenue = Math.round(barrels * this.price);
     player.oil -= barrels;
+    this.sold += barrels;
     const repaid = this.receive(player, revenue);
     return { kind: 'sold', barrels, price: this.price, revenue, repaid };
+  }
+
+  /**
+   * Forced sale to a power grid that ran dry: the Bank sells up to `barrels` at `markup` × the posted price,
+   * as much as the treasury can pay. Returns the barrels delivered (burned straight into the grid).
+   */
+  sellForGrid(player: PlayerState, barrels: number, markup: number): number {
+    const unit = this.price * markup;
+    const delivered = Math.max(0, Math.min(barrels, player.credits / unit));
+    player.credits -= delivered * unit;
+    this.bought += delivered;
+    return delivered;
   }
 
   /** What the nation could sell to repay the Bank: oil at the posted price + resale value of structures and vehicles. */

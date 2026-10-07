@@ -63,7 +63,7 @@ export class FactionPicker {
         <header class="fp-header">
           <div class="sb-logo">BLACK<span>AREA</span></div>
           <h1 id="fp-title">Choose your side</h1>
-          <p>Every nation starts with 0 ${CURRENCY} and some oil. Derricks pump oil (${OIL_DERRICK_OUTPUT} barrels/s each) for ${OIL_MINE_SECONDS} s, then rest ${OIL_REST_SECONDS} s. Oil is sold to the World Bank for ${CURRENCY} at a price that changes every 6 minutes — weigh war against weapons. Three derricks per nation, four for Europe.</p>
+          <p>Every nation starts with 0 ${CURRENCY} and some oil. Derricks pump oil (${OIL_DERRICK_OUTPUT} barrels/s each) for ${OIL_MINE_SECONDS} s, then rest ${OIL_REST_SECONDS} s. Oil is sold to the World Bank (one offer every 2 s) at a price driven by how much oil is sold and how rich the world is. Nuclear Power Plants burn oil for power (0.001 bbl = 1e); when your grid runs dry the Bank forces you to buy oil at +25%. Three derricks per nation, four for Europe.</p>
         </header>
         <div class="fp-grid"></div>
         <footer class="fp-footer">

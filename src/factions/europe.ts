@@ -13,7 +13,7 @@ export const EUROPE: FactionConfig = {
     city: 'Brussels',
     description: 'Unified command of the European Union, flanked by the flags of its member states.',
     maxHp: 5200,
-    powerOutput: 200,
+    powerOutput: 0,
   },
   infantry: {
     regular: {

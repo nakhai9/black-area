@@ -13,7 +13,7 @@ export const USA: FactionConfig = {
     city: 'Washington, D.C.',
     description: 'Seat of Allied command. Losing it collapses the U.S. war effort.',
     maxHp: 5000,
-    powerOutput: 200,
+    powerOutput: 0,
   },
   infantry: {
     regular: {

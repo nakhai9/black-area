@@ -251,24 +251,33 @@ export const OIL_DERRICK_OUTPUT = 0.1 / 10; // 0.1 barrel every 10 s
 /** Every nation starts with some oil in stock, so the first sale can pay for the first buildings. */
 export const STARTING_OIL = 20;
 /**
- * World Bank oil market: one price for everybody (TB per barrel), never random. It follows supply and demand:
- * RegulatedSupply = the Bank-monitored derricks pumping right now, Demand = industry (power drain of every
- * structure) plus armies. Supply above demand → the price falls; scarcity (war, sabotage) → it rises, capped at
- * OIL_PRICE_MAX. The posted price eases towards that balance every OIL_PRICE_INTERVAL seconds.
+ * World Bank oil market: one price for everybody (TB per barrel). It rises and falls mainly with
+ *   - FLOW: barrels the nations sold to the Bank lately (more oil sold → cheaper) against barrels the Bank had
+ *     to sell them for their power grids (more bought → dearer), both remembered over ~OIL_FLOW_MEMORY seconds;
+ *   - WEALTH: the average net worth of the nations still in the war (richer world → dearer oil);
+ *   - a small mean-reverting market mood (±OIL_MOOD_MAX) so the chart never sits flat.
+ *   target = OIL_PRICE_START × wealthFactor × flowFactor × (1 + mood), clamped to [MIN, MAX];
+ * the posted price eases towards that target every OIL_PRICE_INTERVAL seconds.
  */
 export const OIL_PRICE_START = 600;
-export const OIL_PRICE_MIN = 100;
-export const OIL_PRICE_MAX = 1200;
+export const OIL_PRICE_MIN = 150;
+export const OIL_PRICE_MAX = 1500;
 export const OIL_PRICE_INTERVAL = 10;
-/** Share of the gap to the balance price closed at each revision (0..1). */
-export const OIL_PRICE_EASE = 0.3;
-/** Demand that balances a full RegulatedSupply at OIL_PRICE_START (demand units). */
-export const OIL_DEMAND_BASE = 800;
-/** Demand units per soldier and per vehicle / aircraft; structures add their power drain. */
-export const OIL_DEMAND_PER_SOLDIER = 1;
-export const OIL_DEMAND_PER_VEHICLE = 4;
-/** Lowest supply share used in the balance (all monitored derricks down never divides by zero). */
-export const OIL_SUPPLY_FLOOR = 0.25;
+/** Share of the gap to the target price closed at each revision (0..1). */
+export const OIL_PRICE_EASE = 0.35;
+/** Seconds over which sold / bought barrels fade out of the market's memory (exponential decay). */
+export const OIL_FLOW_MEMORY = 90;
+/** Barrels of flow that move the price noticeably (smaller = jumpier market). */
+export const OIL_FLOW_REF = 3;
+/** Exponent on the flow ratio (0.5 = square root: doubling sales cuts the price by ~30%). */
+export const OIL_FLOW_WEIGHT = 0.5;
+/** Average net worth per nation (TB) at which wealth leaves the price unchanged, and its exponent. */
+export const OIL_WEALTH_REF = 15000;
+export const OIL_WEALTH_WEIGHT = 0.3;
+/** Market mood: at most ±12%, stepping by up to ±4% per revision and pulled 15% back to 0 each time. */
+export const OIL_MOOD_MAX = 0.12;
+export const OIL_MOOD_STEP = 0.04;
+export const OIL_MOOD_PULL = 0.15;
 /**
  * World Bank credit: when the treasury is at 0 TB the player may press "Emergency loan" (never automatic). No interest.
  * The Bank lends against what the nation could sell to pay it back (its collateral):
@@ -285,7 +294,7 @@ export const DEBT_RESUME_SHARE = 0.5;
 /** The Bank never buys more than this share of the offered stock in one sale. */
 export const WB_MAX_SHARE = 0.25;
 /** No limit on the number of sales, but a nation must wait this many seconds between two offers. */
-export const OIL_SALE_COOLDOWN = 3;
+export const OIL_SALE_COOLDOWN = 2;
 /** Barrels that always stay in the nation's stock: a sale never dips below this reserve. */
 export const OIL_RESERVE = 1.0;
 /** Oil derricks per nation, built in one straight row on the safest ground: 4, or 5 for Europe (it also runs the World Bank). */
@@ -293,6 +302,20 @@ export const OIL_DERRICK_COUNT: Readonly<Record<FactionId, number>> = { usa: 4, 
 /** Oil cycle: pump for 3 minutes, then rest 1 minute while the field recovers. */
 export const OIL_MINE_SECONDS = 180;
 export const OIL_REST_SECONDS = 60;
+
+// ---------------------------------------------------------------- Power (nuclear plants burn oil)
+/**
+ * Every structure drains power (units/s, see each entity's powerDrain). Nuclear plants turn the nation's oil
+ * stock into power: 0.001 barrel → 1 power, so a plant burning at full rate uses 0.01 bbl/s for 10 power/s —
+ * about one derrick's output. Each plant also stores up to POWER_PLANT_STORAGE; a new plant starts empty (0).
+ * When the grid runs dry (drain > generation and storage empty) the World Bank is forced to sell the missing
+ * oil at OIL_GRID_MARKUP × the posted price; with an empty treasury the nation falls into a blackout (low power).
+ */
+export const POWER_PER_BARREL = 1000;
+export const POWER_PLANT_OUTPUT = 10;
+export const POWER_PLANT_STORAGE = 300;
+export const POWER_PLANT_COST = 1500;
+export const OIL_GRID_MARKUP = 1.25;
 
 /** Price-equivalent of a destroyed structure, for veteran experience (default 1000). */
 export const BUILDING_VALUE: Readonly<Partial<Record<BuildingType, number>>> = {
@@ -302,6 +325,7 @@ export const BUILDING_VALUE: Readonly<Partial<Record<BuildingType, number>>> = {
   airfield: AIRFIELD_COST,
   techCenter: TECH_CENTER_COST,
   happyCity: HAPPY_CITY_COST,
+  powerPlant: POWER_PLANT_COST,
   capital: 4000,
   oilDerrick: 1500,
 };

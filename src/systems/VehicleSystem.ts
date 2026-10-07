@@ -34,7 +34,7 @@ function vehicleOptions(faction: FactionId): VehicleOption[] {
   }));
 }
 
-export type VehicleQueueState = 'idle' | 'building' | 'onHold' | 'noFactory' | 'noAirfield';
+export type VehicleQueueState = 'idle' | 'building' | 'onHold' | 'noFactory' | 'noAirfield' | 'noPower';
 export type VehicleEnqueueResult = 'ok' | 'full' | 'noFactory' | 'noAirfield' | 'noParking' | 'tech' | 'cap' | 'transportCap';
 
 export interface VehicleQueue {
@@ -181,6 +181,11 @@ export class VehicleSystem implements GameSystem {
       // Without a High-Tech Center (destroyed meanwhile) second-tier vehicles wait, unpaid.
       if (TECH_VEHICLES.includes(kind) && !this.hasTech(p)) {
         q.state = 'onHold';
+        continue;
+      }
+      // Factories and airfields do not run without power.
+      if (p.powerShort) {
+        q.state = 'noPower';
         continue;
       }
       const option = this.optionsFor(p).find((o) => o.kind === kind);

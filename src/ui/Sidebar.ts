@@ -1,5 +1,5 @@
-import { type IconNode, Factory, Hammer, PersonStanding, Radar, Shield, Trophy, Truck, createElement } from 'lucide';
-import { BUILD_LIMIT_VEHICLES, CURRENCY, TECH_TIERS, TECH_VEHICLES, isAircraftKind } from '../constants';
+import { type IconNode, ChartLine, Clock, Droplet, Factory, Hammer, Minus, PersonStanding, Radar, Shield, TrendingDown, TrendingUp, Trophy, Truck, Zap, createElement } from 'lucide';
+import { BUILD_LIMIT_VEHICLES, CURRENCY, OIL_GRID_MARKUP, POWER_PER_BARREL, TECH_TIERS, TECH_VEHICLES, isAircraftKind } from '../constants';
 import { FACTIONS } from '../factions';
 import { getFlagTexture } from '../render/Flags';
 import { type BuildOption, type QueueSlot, buildCost, missingRequirement } from '../systems/ConstructionSystem';
@@ -30,7 +30,7 @@ const CARRIER_STATE_LABEL: Readonly<Record<CarrierState, string>> = {
 
 type TabId = 'build' | 'defense' | 'infantry' | 'vehicles';
 /** Sidebar pages: the command centre (budget, oil, alerts), production (build, train) and the world ranking. */
-type ViewId = 'command' | 'production' | 'rank';
+type ViewId = 'command' | 'production' | 'rank' | 'price';
 
 /** One nation in the ranking tab. */
 export interface RankRow {
@@ -59,8 +59,12 @@ export interface SidebarModel {
   player: PlayerState;
   /** Oil output in barrels per second. */
   oilRate: number;
-  /** The price the World Bank pays right now, in TB per barrel. */
+  /** The price the World Bank pays right now, in TB per barrel, the one before it and the recent history. */
   oilPrice: number;
+  previousPrice: number;
+  priceHistory: readonly number[];
+  /** Seconds until the Bank posts a new price. */
+  priceChangeIn: number;
   /** Barrels above the 1.0 reserve that may be offered, and seconds until the 10 s sale cooldown ends. */
   sellable: number;
   salesWait: number;
@@ -151,8 +155,12 @@ export class Sidebar {
   private readonly debt: HTMLElement;
   private readonly loanButton: HTMLButtonElement;
   private readonly derricks: HTMLElement;
-  private readonly powerFill: HTMLElement;
   private readonly powerText: HTMLElement;
+  private readonly powerPrice: HTMLElement;
+  private readonly priceTrend: HTMLElement;
+  private readonly priceClock: HTMLElement;
+  private readonly priceLine: HTMLElement;
+  private trendKey = 0;
   private readonly message: HTMLElement;
   private readonly autoButton: HTMLElement;
   private autoDefense = false;
@@ -182,11 +190,8 @@ export class Sidebar {
   private readonly cameos = new Map<string, Cameo>();
   private readonly unitCameos = new Map<string, Cameo>();
   private readonly vehicleCameos = new Map<string, Cameo>();
-  private vehiclesSeen = false;
   private readonly panels = new Map<TabId, HTMLElement>();
   private activeTab: TabId = 'build';
-  /** The Infantry tab blinks once a Barracks exists, until the player opens it. */
-  private infantrySeen = false;
   private messageTimer = 0;
   private alertClock = 0;
 
@@ -221,7 +226,6 @@ export class Sidebar {
         <div class="sb-credits"><span>0</span> <small>${CURRENCY}</small></div>
         <div class="sb-oil">OIL OUTPUT <span class="sb-income"></span></div>
         <div class="sb-oil">OIL STOCK <span class="sb-stock"></span></div>
-        <div class="sb-oil">BANK BUYS AT <span class="sb-price"></span></div>
         <div class="sb-oil">DEBT <span class="sb-debt"></span></div>
         <div class="sb-oil">DERRICKS <span class="sb-derricks"></span></div>
         <div class="sb-actions">
@@ -229,10 +233,7 @@ export class Sidebar {
           <button class="sb-sell sb-loan" type="button" title="Emergency loan from the World Bank (only when your budget is 0 ${CURRENCY}). Oil sales pay the debt back automatically.">Emergency loan</button>
           <button class="sb-auto" type="button" aria-pressed="false" title="Automatically train soldiers and vehicles to defend your base (F)">Auto-defense: OFF</button>
         </div>
-        <div class="sb-power">
-          <div class="sb-power-label">POWER <span></span></div>
-          <div class="sb-power-track"><div class="sb-power-fill"></div></div>
-        </div>
+        <div class="sb-oil sb-power">POWER <span class="sb-power-value"></span></div>
       </section>
       <section class="sb-panel sb-transport" hidden>
         <h3>Transport</h3>
@@ -270,6 +271,14 @@ export class Sidebar {
           <ol class="sb-rank-list" data-rank="military"></ol>
         </section>
       </div>
+      <div class="sb-view" data-page="price" hidden>
+        <section class="sb-panel sb-prices">
+          <div class="sb-price-row" title="Oil: what the World Bank pays per barrel"><i data-icon="oil"></i><b class="sb-price"></b><i class="sb-price-trend"></i></div>
+          <div class="sb-price-row" title="Power: what the World Bank charges when your grid runs dry (oil at +${Math.round((OIL_GRID_MARKUP - 1) * 100)}%, per 1Ke)"><i data-icon="power"></i><b class="sb-power-price"></b></div>
+          <div class="sb-price-row" title="Next price revision"><i data-icon="clock"></i><b class="sb-price-clock"></b></div>
+          <svg class="sb-price-chart" viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Oil price, last 5 minutes"><polyline fill="none" stroke-width="1.5" vector-effect="non-scaling-stroke"></polyline></svg>
+        </section>
+      </div>
       <div class="sb-view" data-page="production">
       <nav class="sb-tabs" aria-label="Construction"></nav>
       <section class="sb-panel sb-build">
@@ -296,8 +305,7 @@ export class Sidebar {
     this.loanButton = q<HTMLButtonElement>('.sb-loan');
     this.loanButton.addEventListener('click', () => this.handlers.onLoan());
     this.derricks = q('.sb-derricks');
-    this.powerFill = q('.sb-power-fill');
-    this.powerText = q('.sb-power-label span');
+    this.powerText = q('.sb-power-value');
     this.message = q('.sb-msg');
     this.autoButton = q('.sb-auto');
     this.autoButton.addEventListener('click', () => this.toggleAutoDefense());
@@ -317,6 +325,16 @@ export class Sidebar {
     this.views.set('command', q('[data-page=command]'));
     this.views.set('production', q('[data-page=production]'));
     this.views.set('rank', q('[data-page=rank]'));
+    this.views.set('price', q('[data-page=price]'));
+    this.powerPrice = q('.sb-power-price');
+    this.priceTrend = q('.sb-price-trend');
+    this.priceClock = q('.sb-price-clock');
+    this.priceLine = q<HTMLElement>('.sb-price-chart polyline');
+    const icons: Readonly<Record<string, IconNode>> = { oil: Droplet, power: Zap, clock: Clock };
+    for (const slot of root.querySelectorAll<HTMLElement>('.sb-price-row [data-icon]')) {
+      const icon = icons[slot.dataset.icon ?? ''];
+      if (icon) slot.replaceWith(createElement(icon, { width: 16, height: 16, 'stroke-width': 2, 'aria-hidden': 'true' }));
+    }
     this.rankEconomy = q('[data-rank=economy]');
     this.rankMilitary = q('[data-rank=military]');
     this.buildTabs(q('.sb-tabs'));
@@ -411,7 +429,7 @@ export class Sidebar {
     }
     this.income.textContent = `+${model.oilRate.toFixed(2)} bbl/s`;
     this.stock.textContent = `${player.oil.toFixed(1)} bbl`;
-    this.price.textContent = `${model.oilPrice} ${CURRENCY}/bbl`;
+    this.renderPrices(model);
     this.sellButton.disabled = player.defeated || model.sellable < MIN_SALE_STOCK || model.salesWait > 0;
     this.sellButton.textContent = model.salesWait > 0 ? `Sell oil · wait ${model.salesWait}s` : 'Sell oil';
     this.debt.textContent = `${Math.ceil(player.debt).toLocaleString('en-US')} / ${model.creditLine.toLocaleString('en-US')} ${CURRENCY}`;
@@ -422,12 +440,14 @@ export class Sidebar {
     this.derricks.textContent = `${model.pumping}/${model.derricks} pumping`;
     this.renderTransport(model.transport);
 
-    const produced = player.powerProduced;
-    const used = player.powerConsumed;
-    this.powerText.textContent = `${used} / ${produced}`;
-    // Full green bar = surplus; shrinks and turns red when demand exceeds supply.
-    this.powerFill.style.width = `${produced > 0 ? (produced / Math.max(used, produced)) * 100 : 0}%`;
-    this.powerFill.classList.toggle('low', used > produced);
+    // POWER: what the nuclear plants can generate / what the structures need (e/s); red while short.
+    this.powerText.textContent = `${compactUnit(player.powerSupply, 'e')} / ${compactUnit(player.powerConsumed, 'e')}`;
+    this.powerText.classList.toggle('low', player.powerShort);
+    this.powerText.parentElement!.title = player.blackout
+      ? 'BLACKOUT: no power and no TB to buy oil from the World Bank. No construction, vehicles or take-offs.'
+      : player.powerShort
+        ? 'Not enough power: the World Bank sells oil for the missing power (+25%), but construction (except power plants), vehicles and take-offs stop.'
+        : `Stored ${compactUnit(player.powerStored, 'e')} / ${compactUnit(player.powerCapacity, 'e')}. Plants burn your oil (0.001 bbl = 1e).`;
 
     // The radar picture is blurred and dimmed until the nation owns an Airfield.
     this.radarPanel.classList.toggle('offline', !model.owned.has('airfield'));
@@ -441,7 +461,6 @@ export class Sidebar {
       infantryTab.disabled = !model.hasBarracks;
       infantryTab.title = model.hasBarracks ? 'Infantry' : '';
       infantryTab.classList.toggle('no-icon', !model.hasBarracks);
-      infantryTab.classList.toggle('sb-attention', model.hasBarracks && !this.infantrySeen);
     }
     if (!model.hasBarracks && this.activeTab === 'infantry') this.switchTab('build');
     // Vehicles tab: unlocked by a War Factory (aircraft orders also need an Airfield); blinks until opened.
@@ -451,16 +470,12 @@ export class Sidebar {
       vehicleTab.disabled = !canMake;
       vehicleTab.title = canMake ? 'Vehicles & aircraft' : '';
       vehicleTab.classList.toggle('no-icon', !canMake);
-      vehicleTab.classList.toggle('sb-attention', canMake && !this.vehiclesSeen);
     }
     if (!canMake && this.activeTab === 'vehicles') this.switchTab('build');
-    this.opener.classList.toggle(
-      'sb-attention',
-      awaiting || (model.hasBarracks && !this.infantrySeen) || (canMake && !this.vehiclesSeen),
-    );
+    this.opener.classList.toggle('sb-attention', awaiting);
     // The page you are not looking at calls for attention: green when something can be built / placed / unlocked,
     // red while a fresh alert (an attack) is showing.
-    const productionNews = awaiting || (model.hasBarracks && !this.infantrySeen) || (canMake && !this.vehiclesSeen);
+    const productionNews = awaiting;
     const freshAlert = this.alerts.some((a) => performance.now() - a.born < 4000);
     this.mainTabs.get('production')?.classList.toggle('sb-attention', this.activeView !== 'production' && productionNews);
     this.mainTabs.get('command')?.classList.toggle('sb-alerting', this.activeView !== 'command' && freshAlert);
@@ -491,6 +506,8 @@ export class Sidebar {
               : 'READY'
             : state === 'onHold'
               ? `ON HOLD ${Math.floor(queue.progress * 100)}%`
+              : state === 'noPower'
+                ? `NO POWER ${Math.floor(queue.progress * 100)}%`
               : `${Math.floor(queue.progress * 100)}%`;
     }
 
@@ -515,6 +532,7 @@ export class Sidebar {
       { id: 'command', label: 'Command', icon: Radar },
       { id: 'production', label: 'Production', icon: Factory },
       { id: 'rank', label: 'Rank', icon: Trophy },
+      { id: 'price', label: 'Price', icon: ChartLine },
     ];
     for (const page of pages) {
       const btn = document.createElement('button');
@@ -522,14 +540,35 @@ export class Sidebar {
       btn.dataset.view = page.id;
       btn.setAttribute('aria-pressed', String(page.id === this.activeView));
       btn.classList.toggle('active', page.id === this.activeView);
+      // Icon only: the name is in the tooltip and for screen readers.
       btn.title = page.label;
-      const label = document.createElement('span');
-      label.textContent = page.label;
-      btn.append(createElement(page.icon, { width: 15, height: 15, 'stroke-width': 2, 'aria-hidden': 'true' }), label);
+      btn.setAttribute('aria-label', page.label);
+      btn.append(createElement(page.icon, { width: 18, height: 18, 'stroke-width': 2, 'aria-hidden': 'true' }));
       btn.addEventListener('click', () => this.switchView(page.id));
       nav.append(btn);
       this.mainTabs.set(page.id, btn);
     }
+  }
+
+  /** Price page: oil and grid-power prices, the trend since the last revision, the countdown and a chart. */
+  private renderPrices(model: SidebarModel): void {
+    this.price.textContent = compactMoney(model.oilPrice);
+    this.powerPrice.textContent = compactMoney(((model.oilPrice * OIL_GRID_MARKUP) / POWER_PER_BARREL) * 1000);
+    this.priceClock.textContent = `${model.priceChangeIn}s`;
+    const trend = Math.sign(model.oilPrice - model.previousPrice);
+    if (trend !== this.trendKey || this.priceTrend.childElementCount === 0) {
+      this.trendKey = trend;
+      const icon = trend > 0 ? TrendingUp : trend < 0 ? TrendingDown : Minus;
+      this.priceTrend.replaceChildren(createElement(icon, { width: 16, height: 16, 'stroke-width': 2.5, 'aria-hidden': 'true' }));
+      this.priceTrend.dataset.trend = trend > 0 ? 'up' : trend < 0 ? 'down' : 'flat';
+    }
+    const h = model.priceHistory;
+    const lo = Math.min(...h);
+    const hi = Math.max(...h);
+    const span = Math.max(1, hi - lo);
+    const points = h.map((v, i) => `${h.length > 1 ? (i / (h.length - 1)) * 100 : 100},${38 - ((v - lo) / span) * 36}`);
+    if (h.length === 1) points.unshift(`0,${38 - ((h[0] - lo) / span) * 36}`);
+    this.priceLine.setAttribute('points', points.join(' '));
   }
 
   /** Fills both ranking lists, best nation first. */
@@ -551,14 +590,12 @@ export class Sidebar {
           flag.className = 'sb-rank-flag';
           flag.alt = '';
           flag.src = this.flagUrl(r.faction);
-          const name = document.createElement('span');
-          name.className = 'sb-rank-name';
-          name.textContent = r.isHuman ? `${r.name} (you)` : r.name;
-          name.title = detail(r);
+          flag.title = detail(r);
           const value = document.createElement('span');
           value.className = 'sb-rank-value';
-          value.textContent = `${Math.round(r[key]).toLocaleString('en-US')} ${CURRENCY}`;
-          li.append(pos, flag, name, value);
+          value.textContent = compactMoney(r[key]);
+          value.title = detail(r);
+          li.append(pos, flag, value);
           return li;
         }),
       );
@@ -597,8 +634,6 @@ export class Sidebar {
 
   private switchTab(id: TabId): void {
     this.activeTab = id;
-    if (id === 'infantry') this.infantrySeen = true;
-    if (id === 'vehicles') this.vehiclesSeen = true;
     for (const [tab, btn] of this.tabButtons) {
       btn.classList.toggle('active', tab === id);
       btn.setAttribute('aria-pressed', String(tab === id));
@@ -682,7 +717,9 @@ export class Sidebar {
           ? 'NO AIRFIELD'
           : q.state === 'noFactory'
             ? 'NO FACTORY'
-            : q.state === 'onHold'
+            : q.state === 'noPower'
+              ? `NO POWER ${Math.floor(q.progress * 100)}%`
+              : q.state === 'onHold'
               ? `ON HOLD ${Math.floor(q.progress * 100)}%`
               : `${Math.floor(q.progress * 100)}%`;
     }
@@ -786,6 +823,26 @@ export class Sidebar {
       if (wipe && state) this.cameos.set(option.id, { el, wipe, state });
     }
   }
+}
+
+/** 1 234 → "1.23KTB", 1 234 567 → "1.23MTB", 1.2e9 → "1.2BTB" (below 1 000: plain "950TB"). */
+export function compactMoney(value: number): string {
+  return compactUnit(value, CURRENCY);
+}
+
+/** Same K / M / B shortening for any unit (power: "e"). */
+export function compactUnit(value: number, unit: string): string {
+  const sign = value < 0 ? '-' : '';
+  const v = Math.abs(value);
+  const units: readonly [number, string][] = [
+    [1e9, 'B'],
+    [1e6, 'M'],
+    [1e3, 'K'],
+  ];
+  for (const [size, suffix] of units) {
+    if (v >= size) return `${sign}${parseFloat((v / size).toFixed(2))}${suffix}${unit}`;
+  }
+  return `${sign}${Math.floor(v)}${unit}`;
 }
 
 /** Fits a sprite canvas into the cameo picture. */

@@ -226,6 +226,11 @@ export class Game {
       defeated: false,
       powerProduced: 0,
       powerConsumed: 0,
+      powerStored: 0,
+      powerCapacity: 0,
+      blackout: false,
+      powerSupply: 0,
+      powerShort: false,
     }));
 
     // Landmarks and oil derricks at real-world locations.
@@ -270,6 +275,7 @@ export class Game {
     this.aircraft = new AircraftSystem(this.entities, (b) => this.airfieldGeometry(b), {
       landingSpot: (x, y, self) => this.landingSpot(x, y, self),
       unloadOne: (t) => this.unloadOne(t),
+      powered: (owner) => !this.players.find((p) => p.id === owner)?.powerShort,
     });
     this.combat = new CombatSystem(this.entities, this.pathfinder, {
       onFire: (s, t, w, impact) => this.onFire(s, t, w, impact),
@@ -280,7 +286,7 @@ export class Game {
       this,
     );
     this.systems = [
-      new PowerSystem(this.players, this.entities),
+      new PowerSystem(this.players, this.entities, this.oilMarket),
       this.economy,
       this.oilMarket,
       new TaxSystem(this.players, this.entities, this.oilMarket, (player, _city, amount) => {
@@ -859,6 +865,7 @@ export class Game {
     if (queue.state !== this.lastQueueState) {
       if (queue.state === 'ready') this.sidebar.notify('Construction complete — click the cameo, then place it.');
       if (queue.state === 'onHold') this.sidebar.notify(`Not enough ${CURRENCY} — construction on hold.`);
+      if (queue.state === 'noPower') this.sidebar.notify('Not enough power — construction stopped. Build a Nuclear Power Plant.');
       this.lastQueueState = queue.state;
       this.sidebarTimer = SIDEBAR_REFRESH;
     }
@@ -874,6 +881,9 @@ export class Game {
           player: this.humanPlayer,
           oilRate: this.economy.oilRate(this.humanPlayer),
           oilPrice: this.oilMarket.price,
+          previousPrice: this.oilMarket.previous,
+          priceHistory: this.oilMarket.history,
+          priceChangeIn: Math.ceil(this.oilMarket.secondsToChange),
           sellable: this.oilMarket.sellable(this.humanPlayer),
           salesWait: this.oilMarket.waitSeconds(this.humanPlayer),
           loanBlocker: this.oilMarket.loanBlocker(this.humanPlayer),

@@ -4,7 +4,7 @@ import { Building } from './Building';
 
 /**
  * A faction's capital landmark (Washington, Moscow, Beijing, Brussels). Acts
- * as the player's HQ: provides base power and is the primary objective to defend.
+ * as the player's HQ and is the primary objective to defend.
  */
 export class Capital extends Building {
   readonly city: string;
@@ -17,7 +17,7 @@ export class Capital extends Building {
       footprint: FOOTPRINT_CAPITAL,
       maxHp: faction.capital.maxHp,
       powerOutput: faction.capital.powerOutput,
-      powerDrain: 0,
+      powerDrain: 1,
       incomePerSecond: 0,
       garrison: { capacity: 1, accepts: 'president' },
       spriteKey: `capital:${faction.id}`,

@@ -13,7 +13,7 @@ export const CHINA: FactionConfig = {
     city: 'Beijing',
     description: 'Imperial heart of the People’s Army, guarded by the Tiananmen gate.',
     maxHp: 6000,
-    powerOutput: 200,
+    powerOutput: 0,
   },
   infantry: {
     regular: {

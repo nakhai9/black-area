@@ -11,7 +11,7 @@ export class WarFactory extends Building {
       footprint: FOOTPRINT_LARGE,
       maxHp: 1800,
       powerOutput: 0,
-      powerDrain: 50,
+      powerDrain: 3,
       incomePerSecond: 0,
       spriteKey: `warFactory:${faction}`,
     });

@@ -43,7 +43,7 @@ export interface AIHost {
 }
 
 /** Order in which an AI nation builds its base. */
-const BUILD_PLAN: readonly BuildOption['id'][] = ['barracks', 'warFactory', 'hospital', 'airfield', 'techCenter'];
+const BUILD_PLAN: readonly BuildOption['id'][] = ['powerPlant', 'barracks', 'warFactory', 'hospital', 'airfield', 'techCenter'];
 const THINK_PERIOD = 1.5;
 /**
  * Economic policy. A Happy City is the best investment a nation can make — it pays HAPPY_CITY_TAX into the
@@ -279,7 +279,16 @@ export class AISystem implements GameSystem {
       else this.host.construction.cancel(p); // nowhere to put it: refund and try the next plan step
       return;
     }
-    if (slot.state !== 'idle') return;
+    // Stuck for lack of power: refund it so a power plant can go into the queue first.
+    if (slot.state === 'noPower') this.host.construction.cancel(p);
+    else if (slot.state !== 'idle') return;
+    // Another nuclear plant once the drain outgrows what the plants can generate (oil from the Bank is dear).
+    const plants = this.host.entities.buildings().filter((b) => b.owner === p.id && b.alive && b.spec.type === 'powerPlant').length;
+    const plant = BUILD_OPTIONS.find((o) => o.id === 'powerPlant');
+    if (plant && plants > 0 && p.powerConsumed > p.powerSupply && p.credits >= buildCost(plant, p.faction) * 0.3) {
+      this.host.construction.start(p, plant);
+      return;
+    }
     let next = BUILD_PLAN.map((id) => BUILD_OPTIONS.find((o) => o.id === id)).find(
       (o) => o && !owned.has(o.id as BuildingType) && missingRequirement(o, owned) === null,
     );

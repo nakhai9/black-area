@@ -16,7 +16,7 @@ export class EconomySystem implements GameSystem {
   /** Current oil output of a player in barrels per second. */
   oilRate(player: PlayerState): number {
     if (player.defeated) return 0;
-    const lowPower = player.powerConsumed > player.powerProduced;
+    const lowPower = player.blackout;
     let rate = 0;
     for (const b of this.entities.buildings()) {
       if (b.alive && b.owner === player.id) rate += b.income;

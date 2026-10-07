@@ -11,7 +11,7 @@ export class Airfield extends Building {
       footprint: FOOTPRINT_AIRFIELD,
       maxHp: 1500,
       powerOutput: 0,
-      powerDrain: 40,
+      powerDrain: 4,
       incomePerSecond: 0,
       spriteKey: `airfield:${faction}`,
     });

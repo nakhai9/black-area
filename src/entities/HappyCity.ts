@@ -17,7 +17,7 @@ export class HappyCity extends Building {
       footprint: FOOTPRINT_CITY,
       maxHp: 4000,
       powerOutput: 0,
-      powerDrain: 0,
+      powerDrain: 8,
       incomePerSecond: 0,
       spriteKey: `happyCity:${faction}`,
     });

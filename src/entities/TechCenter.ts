@@ -14,7 +14,7 @@ export class TechCenter extends Building {
       footprint: FOOTPRINT_SMALL,
       maxHp: 2500,
       powerOutput: 0,
-      powerDrain: 80,
+      powerDrain: 6,
       incomePerSecond: 0,
       spriteKey: `techCenter:${faction}`,
     });

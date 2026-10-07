@@ -11,7 +11,7 @@ export class Barracks extends Building {
       footprint: FOOTPRINT_SMALL,
       maxHp: 1000,
       powerOutput: 0,
-      powerDrain: 10,
+      powerDrain: 1,
       incomePerSecond: 0,
       spriteKey: `barracks:${faction}`,
     });

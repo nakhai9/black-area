@@ -13,7 +13,7 @@ export const RUSSIA: FactionConfig = {
     city: 'Moscow',
     description: 'Fortress of the Russian high command behind crenellated red walls.',
     maxHp: 5500,
-    powerOutput: 200,
+    powerOutput: 0,
   },
   infantry: {
     regular: {

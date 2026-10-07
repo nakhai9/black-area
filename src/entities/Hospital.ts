@@ -14,7 +14,7 @@ export class Hospital extends Building {
       footprint: FOOTPRINT_LARGE,
       maxHp: 1200,
       powerOutput: 0,
-      powerDrain: 20,
+      powerDrain: 2,
       incomePerSecond: 0,
       spriteKey: `hospital:${faction}`,
       garrison: { capacity: HOSPITAL_CAPACITY, accepts: 'wounded', healPerSecond: HOSPITAL_HEAL_PER_SECOND },

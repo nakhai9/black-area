@@ -10,6 +10,7 @@ import { ChhgArt } from './Chhg';
 import type { BuildingArt } from './BuildingArt';
 import { MoscowKremlinArt } from './MoscowKremlin';
 import { createOilDerrickArt } from './OilDerrick';
+import { createPowerPlantArt } from './PowerPlant';
 import { WashingtonCapitolArt } from './WashingtonCapitol';
 import { WorldBankArt } from './WorldBank';
 import { FACTIONS } from '../../factions';
@@ -50,6 +51,11 @@ export const BUILDING_ART: Readonly<Record<string, BuildingArt>> = {
   'techCenter:russia': createTechCenterArt('russia'),
   'techCenter:china': createTechCenterArt('china'),
   'techCenter:europe': createTechCenterArt('europe'),
+  // Nuclear power plant in each nation's team colour.
+  'powerPlant:usa': createPowerPlantArt('usa'),
+  'powerPlant:russia': createPowerPlantArt('russia'),
+  'powerPlant:china': createPowerPlantArt('china'),
+  'powerPlant:europe': createPowerPlantArt('europe'),
   // Happy City in each nation's own architecture.
   'happyCity:usa': createHappyCityArt('usa'),
   'happyCity:russia': createHappyCityArt('russia'),

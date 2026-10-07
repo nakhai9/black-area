@@ -11,12 +11,14 @@ import {
   FOOTPRINT_LARGE,
   FOOTPRINT_SMALL,
   HOSPITAL_COST,
+  POWER_PLANT_COST,
   WAR_FACTORY_COST,
 } from '../constants';
 import { Airfield } from '../entities/Airfield';
 import { FACTIONS } from '../factions';
 import { HappyCity } from '../entities/HappyCity';
 import { Hospital } from '../entities/Hospital';
+import { PowerPlant } from '../entities/PowerPlant';
 import { TechCenter } from '../entities/TechCenter';
 import { WarFactory } from '../entities/WarFactory';
 import { Barracks } from '../entities/Barracks';
@@ -26,7 +28,7 @@ import type { GameSystem } from './GameSystem';
 
 /** A structure that can be produced from the sidebar's Build tab. */
 export interface BuildOption {
-  id: 'barracks' | 'warFactory' | 'hospital' | 'airfield' | 'techCenter' | 'happyCity';
+  id: 'powerPlant' | 'barracks' | 'warFactory' | 'hospital' | 'airfield' | 'techCenter' | 'happyCity';
   name: string;
   /** Tech tree: these buildings must already stand (barracks → war factory/hospital → airfield → happy city). */
   requires?: BuildingType | readonly BuildingType[];
@@ -45,6 +47,14 @@ const center = (x: number, y: number, f: { w: number; d: number }) => ({
 });
 
 export const BUILD_OPTIONS: readonly BuildOption[] = [
+  {
+    id: 'powerPlant',
+    name: 'Nuclear Power Plant',
+    cost: POWER_PLANT_COST,
+    footprint: FOOTPRINT_SMALL,
+    spriteKey: (f) => `powerPlant:${f}`,
+    create: (owner, faction, x, y) => new PowerPlant(owner, faction, center(x, y, FOOTPRINT_SMALL)),
+  },
   {
     id: 'barracks',
     name: 'Barracks',
@@ -113,7 +123,7 @@ export function buildCost(option: BuildOption, faction: FactionId): number {
   return Math.round((option.cost * FACTIONS[faction].stats.cost) / 10) * 10;
 }
 
-export type QueueState = 'idle' | 'building' | 'onHold' | 'ready';
+export type QueueState = 'idle' | 'building' | 'onHold' | 'noPower' | 'ready';
 
 /** One structure is produced at a time per nation (RA2 rule). */
 export interface QueueSlot {
@@ -173,7 +183,12 @@ export class ConstructionSystem implements GameSystem {
   update(dt: number): void {
     for (const p of this.players) {
       const s = this.slot(p);
-      if (!s.option || (s.state !== 'building' && s.state !== 'onHold')) continue;
+      if (!s.option || (s.state !== 'building' && s.state !== 'onHold' && s.state !== 'noPower')) continue;
+      // Short of power the economy slows to a halt: only a power plant can still be built.
+      if (p.powerShort && s.option.id !== 'powerPlant') {
+        s.state = 'noPower';
+        continue;
+      }
       const cost = buildCost(s.option, p.faction);
       const want = Math.min(cost * RATE * dt, cost - s.paid);
       const pay = Math.max(0, Math.min(want, p.credits));

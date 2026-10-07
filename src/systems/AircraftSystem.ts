@@ -42,6 +42,8 @@ export interface AircraftHooks {
   landingSpot(x: number, y: number, self: Vehicle): WorldPoint | null;
   /** The next passenger of `transport` steps out onto a free cell beside it; false when nobody could get out (no room). */
   unloadOne(transport: Vehicle): boolean;
+  /** Does the owner have enough power? The airfield cannot launch aircraft without it. */
+  powered(owner: number): boolean;
 }
 
 /** Result of an unload order (U key / Unload button). */
@@ -182,7 +184,10 @@ export class AircraftSystem implements GameSystem {
     this.stashOrders(v);
     const g = this.geometry(home);
     // One aircraft on the runway at a time: wait short of it while another one rolls or lands.
-    if (Math.hypot(v.px - g.runwayStart.x, v.py - g.runwayStart.y) < 12 && this.runwayBusy(v, home)) return;
+    const atThreshold = Math.hypot(v.px - g.runwayStart.x, v.py - g.runwayStart.y) < 12;
+    if (atThreshold && this.runwayBusy(v, home)) return;
+    // No power: the airfield cannot clear the aircraft for take-off, it waits at the runway threshold.
+    if (atThreshold && !this.hooks.powered(v.owner)) return;
     if (this.moveTo(v, g.runwayStart, TAXI_SPEED, dt)) {
       v.flight = 'takeoff';
       v.phaseTime = 0;
