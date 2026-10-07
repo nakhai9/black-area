@@ -28,6 +28,9 @@ const sheet = (file: string, cell: number, length: number): AircraftSheet => ({
 
 const SHEETS: Partial<Record<`${FactionId}:${VehicleKind}`, AircraftSheet>> = {
   'usa:transport': sheet('transport-usa.png', 128, 13),
+  'russia:transport': sheet('transport-russia.png', 128, 13),
+  'china:transport': sheet('transport-china.png', 128, 13),
+  'europe:transport': sheet('transport-europe.png', 128, 13),
 };
 
 /** Turn rate (rad/s) above which an airborne aircraft is drawn banked. */
