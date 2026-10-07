@@ -30,7 +30,7 @@ import type { GameSystem } from './GameSystem';
 export interface BuildOption {
   id: 'powerPlant' | 'barracks' | 'warFactory' | 'hospital' | 'airfield' | 'techCenter' | 'happyCity';
   name: string;
-  /** Tech tree: these buildings must already stand (barracks → war factory/hospital → airfield → happy city). */
+  /** Tech tree: these buildings must already stand (power plant → barracks → war factory/hospital → airfield → happy city). */
   requires?: BuildingType | readonly BuildingType[];
   cost: number;
   /** Same price for every nation (the faction cost multiplier is not applied). */
@@ -58,6 +58,8 @@ export const BUILD_OPTIONS: readonly BuildOption[] = [
   {
     id: 'barracks',
     name: 'Barracks',
+    // First building of every nation is a power plant: nothing else runs without power.
+    requires: 'powerPlant',
     cost: BARRACKS_COST,
     footprint: FOOTPRINT_SMALL,
     spriteKey: (f) => `barracks:${f}`,

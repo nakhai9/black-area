@@ -310,7 +310,9 @@ export class Game {
       onTrain: (option) => this.onTrainClick(option.tier),
       onTrainCancel: (option) => this.onTrainCancel(option.tier),
       trainPreview: (option) => soldierPortrait(human.faction, option.tier),
-      onAlert: (at) => this.camera.centerOn(at.x, at.y),
+      onAlert: (at) => {
+        if (!this.paused) this.camera.centerOn(at.x, at.y);
+      },
       onSellOil: () => this.sellOil(),
       onLoan: () => this.takeLoan(),
       onUnload: () => this.unloadSelectedTransport(),
@@ -323,7 +325,9 @@ export class Game {
     );
     this.status = new StatusBar(dom.status, this.map);
 
-    this.bus.on('camera:focus', (p) => this.camera.centerOn(p.x, p.y));
+    this.bus.on('camera:focus', (p) => {
+      if (!this.paused) this.camera.centerOn(p.x, p.y);
+    });
     this.bus.on('selection:changed', () => (this.sidebarTimer = SIDEBAR_REFRESH));
     new ResizeObserver(() => this.renderer.resize()).observe(dom.canvas);
 
@@ -913,6 +917,13 @@ export class Game {
 
   private handleInput(dt: number): void {
     const { input, camera } = this;
+
+    // Paused: the battlefield is frozen, the camera too — only Esc (resume) gets through.
+    if (this.paused) {
+      for (const ev of input.drain()) if (ev.type === 'keyDown' && ev.code === 'Escape') this.handleKey(ev.code);
+      input.consumePan();
+      return;
+    }
 
     for (const ev of input.drain()) {
       if (ev.type === 'click' || ev.type === 'keyDown') this.sound.unlock(); // browsers need a user gesture
