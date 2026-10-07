@@ -64,6 +64,8 @@ export const CRUISE_ALTITUDE =
 /** Large structures (War Factory, Hospital) occupy 5×4 cells, everything else 4×4 (7 px cells). */
 export const FOOTPRINT_LARGE = { w: 5, d: 4 } as const;
 export const FOOTPRINT_SMALL = { w: 4, d: 4 } as const;
+/** Flagpole: exactly one cell. */
+export const FOOTPRINT_FLAGPOLE = { w: 1, d: 1 } as const;
 /**
  * Capitals sit on a 5 × 8 plot: the palace itself on roughly 5 × 5, and the nation's ceremonial approach
  * (the Mall, Red Square, the outer courtyard, the esplanade) on the 5 × 3 in front of it. The art is
@@ -77,7 +79,18 @@ export const FOOTPRINT_CITY = { w: 8, d: 8 } as const;
 
 // ---------------------------------------------------------------- Simulation & camera
 export const TICK_RATE = 30;
-export const CAMERA_PAN_SPEED = 1100; // screen px / second
+/** Mercy bonus: the Global Financial Center pays a nation this much for each retreating enemy group it lets go unchased (once per group, whatever its size). */
+export const MERCY_BONUS = 100;
+/**
+ * Grace period for the player's oil derricks: they cannot be attacked until enemy nations have launched this many
+ * attacks (all nations together) on the player's structures. An attack starts when a nation hits one of them after
+ * DERRICK_GRACE_GAP seconds without having hit any.
+ */
+export const DERRICK_GRACE_ATTACKS = 5;
+export const DERRICK_GRACE_GAP = 30;
+export const CAMERA_PAN_SPEED = 1100; // screen px / second (keyboard)
+/** Slower pan while the cursor rests on the screen edge, so the view does not fly off. */
+export const CAMERA_EDGE_PAN_SPEED = 450; // screen px / second
 export const CAMERA_EDGE_MARGIN = 16; // px from the window edge that triggers scrolling
 export const CAMERA_EDGE_SCROLL = true;
 /** Tactical zoom only — the whole-world overview lives on the sidebar radar. */
@@ -96,6 +109,8 @@ export const BUILD_STEP_SECONDS = 4;
 export const BUILD_STEP_FRACTION = 0.2;
 /** Cost of an infantry barracks, paid gradually from the nation's treasury. */
 export const BARRACKS_COST = 800;
+/** A national flagpole: one cell, decoration that also counts as one of the nation's structures. */
+export const FLAGPOLE_COST = 100;
 export const HOSPITAL_COST = 1200;
 export const AIRFIELD_COST = 2000;
 /** High-Tech Center (a high-rise): base price; it unlocks the second-tier soldiers and vehicles. */
@@ -118,7 +133,6 @@ export const BUILD_RISE_SECONDS = 1.2;
 export const INFANTRY_BASE = {
   regular: { cost: 200, trainSeconds: 5, maxHp: 125, speed: 1.4 },
   special: { cost: 500, trainSeconds: 10, maxHp: 200, speed: 1.7 },
-  president: { cost: 1000, trainSeconds: 12, maxHp: 150, speed: 1.2 },
   engineer: { cost: 400, trainSeconds: 6, maxHp: 100, speed: 1.3 },
 } as const;
 /**
@@ -300,8 +314,11 @@ export const VETERAN_REGEN_CALM = 5;
 export const JANITOR_INTERVAL = 180;
 export const WAR_FACTORY_COST = 2000;
 
-/** Unused: engineers now restore a friendly building to 100% at once and are consumed. */
-export const ENGINEER_REPAIR_HP_PER_SECOND = 60;
+/**
+ * Engineers repair from inside the building: each one restores this share of the building's full health per
+ * second until it is back to 100%, then they walk out. Hits keep taking health off meanwhile.
+ */
+export const ENGINEER_REPAIR_SHARE = 0.06;
 /** Hospital: HP per second restored to each patient inside, and its capacity. */
 export const HOSPITAL_HEAL_PER_SECOND = 10;
 export const HOSPITAL_CAPACITY = 20;
@@ -325,20 +342,20 @@ export const CAPITAL_LOCATIONS: Readonly<Record<FactionId, NamedSite>> = {
   usa: { lon: -77.04, lat: 38.9, name: "Washington, D.C." },
   russia: { lon: 37.62, lat: 55.75, name: "Moscow" },
   china: { lon: 116.4, lat: 39.9, name: "Beijing" },
-  europe: { lon: 4.35, lat: 50.85, name: "Brussels" },
+  europe: { lon: 2.35, lat: 48.86, name: "Paris" },
 };
 export const WORLD_BANK_LOCATION: GeoPoint = { lon: 8.54, lat: 47.37 }; // Zürich
 /** Neutral CHHG complex on the Antarctic ice (inland, Queen Maud Land). */
 export const CHHG_LOCATION: GeoPoint = { lon: 20, lat: -78 };
 
 // ---------------------------------------------------------------- Oil (replaces RA2 ore)
-/** Barrels of oil pumped per second by each derrick while it is pumping (oil is sold to the World Bank for TB). */
-export const OIL_DERRICK_OUTPUT = 0.3; // barrels/s per derrick
+/** Barrels of oil pumped per second by each derrick while it is pumping (oil is sold to the Global Financial Center for TB). */
+export const OIL_DERRICK_OUTPUT = 0.08; // barrels/s per derrick
 /** Every nation starts with some oil in stock, so the first sale can pay for the first buildings. */
 export const STARTING_OIL = 20;
 /**
- * World Bank oil market: one price for everybody (TB per barrel). It rises and falls mainly with
- *   - FLOW: barrels the nations sold to the Bank lately (more oil sold → cheaper) against barrels the Bank had
+ * Global Financial Center oil market: one price for everybody (TB per barrel). It rises and falls mainly with
+ *   - FLOW: barrels the nations sold to the Center lately (more oil sold → cheaper) against barrels the Center had
  *     to sell them for their power grids (more bought → dearer), both remembered over ~OIL_FLOW_MEMORY seconds;
  *   - WEALTH: the average net worth of the nations still in the war (richer world → dearer oil);
  *   - a small mean-reverting market mood (±OIL_MOOD_MAX) so the chart never sits flat.
@@ -365,8 +382,8 @@ export const OIL_MOOD_MAX = 0.12;
 export const OIL_MOOD_STEP = 0.04;
 export const OIL_MOOD_PULL = 0.15;
 /**
- * World Bank credit: when the treasury is at 0 TB the player may press "Emergency loan" (never automatic). No interest.
- * The Bank lends against what the nation could sell to pay it back (its collateral):
+ * Global Financial Center credit: when the treasury is at 0 TB the player may press "Emergency loan" (never automatic). No interest.
+ * The Center lends against what the nation could sell to pay it back (its collateral):
  *   collateral = oil stock × posted price + RESALE_SHARE × (structures' build cost × health share + vehicles' cost)
  *   credit line = LOAN_TO_VALUE × collateral
  * Each loan pays LOAN_SHARE of the credit line (at least LOAN_MIN, never past the line) and adds it to DEBT.
@@ -377,13 +394,13 @@ export const LOAN_TO_VALUE = 0.5;
 export const LOAN_SHARE = 0.25;
 export const LOAN_MIN = 1000;
 export const DEBT_RESUME_SHARE = 0.5;
-/** The Bank never buys more than this share of the offered stock in one sale. */
+/** The Center never buys more than this share of the offered stock in one sale. */
 export const WB_MAX_SHARE = 0.25;
 /** No limit on the number of sales, but a nation must wait this many seconds between two offers. */
 export const OIL_SALE_COOLDOWN = 2;
 /** Barrels that always stay in the nation's stock: a sale never dips below this reserve. */
 export const OIL_RESERVE = 1.0;
-/** Oil derricks per nation, built in one straight row on the safest ground: 4, or 5 for Europe (it also runs the World Bank). */
+/** Oil derricks per nation, built in one straight row on the safest ground: 4, or 5 for Europe (it also runs the Global Financial Center). */
 export const OIL_DERRICK_COUNT: Readonly<Record<FactionId, number>> = {
   usa: 4,
   russia: 4,
@@ -400,7 +417,7 @@ export const OIL_REST_SECONDS = 60;
  * stock into power: 0.001 barrel → 1 power, so a plant burning at full rate uses 0.025 bbl/s for 25 power/s.
  * One plant covers exactly one of each: capital 1 + barracks 1 + hospital 2 + war factory 3 + airfield 4 +
  * tech center 6 + city 8 = 25. Anything beyond that needs another plant (or the nation is short of power). Each plant also stores up to POWER_PLANT_STORAGE; a new plant starts empty (0).
- * When the grid runs dry (drain > generation and storage empty) the World Bank is forced to sell the missing
+ * When the grid runs dry (drain > generation and storage empty) the Global Financial Center is forced to sell the missing
  * oil at OIL_GRID_MARKUP × the posted price; with an empty treasury the nation falls into a blackout (low power).
  */
 export const POWER_PER_BARREL = 1000;
@@ -418,6 +435,7 @@ export const BUILDING_VALUE: Readonly<Partial<Record<BuildingType, number>>> = {
   techCenter: TECH_CENTER_COST,
   happyCity: HAPPY_CITY_COST,
   powerPlant: POWER_PLANT_COST,
+  flagpole: FLAGPOLE_COST,
   capital: 4000,
   oilDerrick: 1500,
 };

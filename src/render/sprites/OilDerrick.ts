@@ -2,7 +2,7 @@ import { HALF_TW } from '../../constants';
 import type { FactionColors } from '../../types';
 import { shade } from '../Color';
 import type { IsoPainter } from '../IsoPainter';
-import { type BuildingArt, groundShadow } from './BuildingArt';
+import type { BuildingArt } from './BuildingArt';
 
 const CONCRETE = '#9d9a90';
 const RUST = '#8b5a2b';
@@ -58,12 +58,13 @@ export function createOilDerrickArt(team: FactionColors): BuildingArt {
   const RAIL = team.light;
   return {
   footprint: { w: 2, d: 2 },
+  // Authored in 2 × 2 units, drawn 2× to fill its 4 × 4 plot (FOOTPRINT_SMALL) edge to edge.
+  scale: 2,
   height: 70,
 
   drawStatic(p) {
-    groundShadow(p, 2, 2);
-    p.box(0.12, 0.12, 1.76, 1.76, 0, 3, CONCRETE);
-    p.topRect(0.2, 0.2, 1.8, 1.8, 3, 'rgba(60,50,30,0.18)');
+    p.box(0, 0, 2, 2, 0, 3, CONCRETE);
+    p.topRect(0.08, 0.08, 1.92, 1.92, 3, 'rgba(60,50,30,0.18)');
 
     // Storage tank (back-left) and motor/gearbox (rear).
     p.cylinder(0.42, 0.42, 0.2, 3, 16, '#c9c3b5', 6);
@@ -73,8 +74,8 @@ export function createOilDerrickArt(team: FactionColors): BuildingArt {
     p.box(0.3, 0.9, 1.55, 0.2, 3, 3, '#5d5a52');
 
     // Team-colour hazard stripe along the front of the pad.
-    p.faceRect('left', 0.12, 0.12, 1.76, 1.76, 0, 3, 0, 1, 0.15, 0.85, shade(team.primary, 0.8));
-    p.faceRect('right', 0.12, 0.12, 1.76, 1.76, 0, 3, 0, 1, 0.15, 0.85, team.primary);
+    p.faceRect('left', 0, 0, 2, 2, 0, 3, 0, 1, 0.15, 0.85, shade(team.primary, 0.8));
+    p.faceRect('right', 0, 0, 2, 2, 0, 3, 0, 1, 0.15, 0.85, team.primary);
 
     samsonPost(p, 0.78, shade(STEEL, 0.85));
     samsonPost(p, 1.22, STEEL);

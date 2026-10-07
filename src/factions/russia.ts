@@ -5,6 +5,7 @@ export const RUSSIA: FactionConfig = {
   id: 'russia',
   name: 'Russian Federation',
   shortName: 'Russia',
+  leader: { title: 'President', name: 'Vladimir Putin' },
   doctrine: 'Artillery and defence: long-range firepower behind fortified lines.',
   colors: { primary: '#d22b2b', light: '#ff9c9c', dark: '#5e0e0e' },
   stats: { unitSpeed: 0.95, armor: 1.1, firepower: 1.2, range: 1.3, buildSpeed: 0.95, cost: 1.0, trainDelay: 0 },
@@ -12,7 +13,7 @@ export const RUSSIA: FactionConfig = {
     name: 'The Kremlin',
     city: 'Moscow',
     description: 'Fortress of the Russian high command behind crenellated red walls.',
-    maxHp: 5500,
+    maxHp: 16500,
     powerOutput: 0,
   },
   infantry: {
@@ -25,11 +26,6 @@ export const RUSSIA: FactionConfig = {
       name: 'Spetsnaz',
       description: 'Special-purpose commandos for sabotage and raids.',
       look: { uniform: '#2b3a32', trousers: '#212d27', headgear: 'balaclava', headColor: '#121212', weapon: 'rifle', camo: true, sprite: 'ruSpecial' },
-    },
-    president: {
-      name: 'President',
-      description: "President of the Russian Federation, head of state and symbol of the nation.",
-      look: { uniform: '#2b2b30', trousers: '#1f1f23', headgear: 'none', headColor: '#000000', weapon: 'none' },
     },
     engineer: {
       name: 'Engineer',

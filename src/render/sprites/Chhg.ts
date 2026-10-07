@@ -1,9 +1,9 @@
-import { HALF_TW } from '../../constants';
+import { HALF_TH, HALF_TW } from '../../constants';
 import { archPath } from '../Canvas';
 import { shade } from '../Color';
 import { drawFlagOnPole } from '../Flags';
-import type { IsoPainter } from '../IsoPainter';
-import { type BuildingArt, groundShadow } from './BuildingArt';
+import { IsoPainter } from '../IsoPainter';
+import type { BuildingArt } from './BuildingArt';
 
 const PLAZA = '#d9d6cc';
 const WHITE = '#f3f0e8';
@@ -37,13 +37,19 @@ function minaret(p: IsoPainter, u: number, v: number): void {
  * dome, four minarets and a reflecting pool. Belongs to no nation and can
  * never be destroyed or captured.
  */
+/** Painter shifted half a unit along u, so the 4 × 4 complex sits in the middle of the 5 × 4 plaza. */
+function centred(p: IsoPainter): IsoPainter {
+  return new IsoPainter(p.ctx, p.ox + 0.5 * HALF_TW, p.oy + 0.5 * HALF_TH);
+}
+
 export const ChhgArt: BuildingArt = {
-  footprint: { w: 4, d: 4 },
+  // 5 × 4 plot (FOOTPRINT_LARGE): plaza over all of it, the 4 × 4 complex centred along u.
+  footprint: { w: 5, d: 4 },
   height: 112,
 
-  drawStatic(p) {
-    groundShadow(p, 4, 4);
-    p.box(0, 0, 4, 4, 0, 2, PLAZA);
+  drawStatic(base) {
+    base.box(0, 0, 5, 4, 0, 2, PLAZA);
+    const p = centred(base);
     // Star-pattern courtyard and reflecting pool.
     p.topRect(1.2, 3.0, 2.8, 3.8, 2, shade(STONE, 0.9));
     p.topRect(1.35, 3.12, 2.65, 3.68, 2, '#6fb4cc');
@@ -84,7 +90,8 @@ export const ChhgArt: BuildingArt = {
     p.pole(FLAG.u, FLAG.v, FLAG.z, FLAG.h);
   },
 
-  drawAnimated(p, time) {
+  drawAnimated(base, time) {
+    const p = centred(base);
     drawFlagOnPole(p, 'neutral', FLAG.u, FLAG.v, FLAG.z + FLAG.h, time, 0.2, 18, 11);
     // Softly pulsing light on the finial.
     const [x, y] = p.project(2.0, 1.8, 82);

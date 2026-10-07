@@ -12,7 +12,7 @@ import { drawSoldier, drawsOwnSwim } from '../render/InfantryArt';
 import { drawAircraftSheet } from '../render/AircraftSheets';
 import { FACTIONS, teamColors } from '../factions';
 import type { TerrainRenderer } from '../map/TerrainRenderer';
-import { get2d } from '../render/Canvas';
+import { createCanvas, get2d } from '../render/Canvas';
 import { withAlpha } from '../render/Color';
 import { IsoPainter } from '../render/IsoPainter';
 import type { Sprite, SpriteCache } from '../render/SpriteCache';
@@ -50,6 +50,8 @@ export interface RenderScene {
   readonly ghost?: PlacementGhost | null;
   /** World rects where the player may build (shown while placing). */
   readonly buildZones?: readonly Rect[];
+  /** Green safe zones of the Global Financial Center (world px). */
+  readonly safeZones?: readonly Rect[];
   readonly units?: readonly Unit[];
   /** Tracers, flashes, explosions and smoke. */
   readonly effects?: readonly Effect[];
@@ -89,8 +91,32 @@ const CHEVRON = new Path2D(String((ChevronDown[0]?.[1] as { d?: string } | undef
  * Draws one frame: terrain blit → water shimmer → selection ring →
  * depth-sorted buildings (+ animated layers) → HUD overlays → screen FX.
  */
+const SMOKE = 'rgb(70,66,62)';
+let blast: HTMLCanvasElement | null = null;
+/** Fireball picture (radial gradient), drawn once and reused for every explosion. */
+function blastSprite(): HTMLCanvasElement {
+  if (blast) return blast;
+  const { canvas, ctx } = createCanvas(64, 64);
+  const g = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+  g.addColorStop(0, 'rgba(255,240,170,1)');
+  g.addColorStop(0.45, 'rgba(255,140,50,0.85)');
+  g.addColorStop(1, 'rgba(90,40,20,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 64, 64);
+  blast = canvas;
+  return canvas;
+}
+
+/** Painter's order (back to front). */
+const byDepth = (a: { depth: number }, b: { depth: number }): number => a.depth - b.depth;
+
 export class Renderer {
   private readonly ctx: CanvasRenderingContext2D;
+  /** Per-frame scratch lists, reused so drawing a frame allocates no new arrays. */
+  private readonly visibleBuildings: Building[] = [];
+  private readonly visibleUnits: Unit[] = [];
+  private readonly drawables: (Building | Unit)[] = [];
+  private readonly focusedIds = new Set<number>();
   private dpr = 1;
   private vignette: CanvasGradient | null = null;
 
@@ -162,20 +188,23 @@ export class Renderer {
     this.terrain.drawTrees(ctx, view, camera.zoom);
 
     this.ground();
-    const sorted = scene.buildings
-      .filter((b) => {
-        const c = b.centerWorld();
-        return b.id === scene.selectedId || onScreen(c.x, c.y, (b.w + b.d) * CELL_SIZE);
-      })
-      .sort((a, b) => a.depth - b.depth);
+    // Scratch arrays reused every frame (no new arrays at 60 fps); depth order barely changes between frames.
+    const sorted = this.visibleBuildings;
+    sorted.length = 0;
+    for (const b of scene.buildings) {
+      const c = b.centerWorld();
+      if (b.id === scene.selectedId || onScreen(c.x, c.y, (b.w + b.d) * CELL_SIZE)) sorted.push(b);
+    }
+    sorted.sort(byDepth);
     const selected = sorted.find((b) => b.id === scene.selectedId) ?? null;
-    for (const b of sorted) this.drawContactShadow(b);
-    this.drawFloors(sorted);
     if (selected) this.drawFootprint(selected, scene.time);
+    if (scene.safeZones?.length) this.drawSafeZones(scene.safeZones, scene.time);
     if (scene.buildZones?.length) this.drawBuildZones(scene.buildZones, scene.ghost?.faction);
 
     // Buildings and soldiers share one painter's-algorithm pass (by depth).
-    const units = (scene.units ?? []).filter((u) => onScreen(u.px, u.py));
+    const units = this.visibleUnits;
+    units.length = 0;
+    for (const u of scene.units ?? []) if (onScreen(u.px, u.py)) units.push(u);
     const selUnits = scene.selectedUnits ?? new Set<number>();
     for (const u of units) if (selUnits.has(u.id)) this.drawMoveLine(u);
     for (const u of units) if (selUnits.has(u.id)) this.drawUnitRing(u, '#5cff6a');
@@ -186,8 +215,11 @@ export class Renderer {
     for (const f of focus) if (f.entity.kind !== 'building') this.drawFocusRing(f.entity, f.strong, scene.time);
 
     this.upright();
-    const drawables: (Building | Unit)[] = [...sorted, ...units.filter((u) => !u.flies)];
-    drawables.sort((a, b) => a.depth - b.depth);
+    const drawables = this.drawables;
+    drawables.length = 0;
+    for (const b of sorted) drawables.push(b);
+    for (const u of units) if (!u.flies) drawables.push(u);
+    drawables.sort(byDepth);
     for (const d of drawables) {
       if (d.kind === 'building') this.drawBuilding(d, scene.time);
       else this.drawUnit(d);
@@ -207,9 +239,12 @@ export class Renderer {
     const isoIn = (x: number, y: number): boolean => x >= left && x <= right && y >= top && y <= bottom + margin;
     if (scene.effects) this.drawEffects(scene.effects.filter((e) => (e.kind === 'tracer' ? isoIn(e.x0, e.y0) || isoIn(e.x1, e.y1) : isoIn(e.x, e.y))));
 
+    const focused = this.focusedIds;
+    focused.clear();
+    for (const f of focus) focused.add(f.entity.id);
     for (const b of sorted) {
       if (b === selected) this.drawSelectionOverlay(b);
-      else if (focus.some((f) => f.entity === b)) this.drawSelectionOverlay(b, '#3fdc4a', 2.5);
+      else if (focused.has(b.id)) this.drawSelectionOverlay(b, '#3fdc4a', 2.5);
       else if (b.id === scene.hoveredId) this.drawLabel(b, 0.8);
     }
 
@@ -236,73 +271,6 @@ export class Renderer {
   /** Sprite scale: its art diamond is exactly the diamond the grid footprint covers on screen. */
   private scaleOf(b: Building): number {
     return this.sprites.fitScale(b.spriteKey);
-  }
-
-  /**
-   * Seats the building on the tile ground (ground transform): a ring of trodden earth round the footprint that
-   * fades into the terrain, plus a cast shadow, so the concrete base reads as built into the land instead of
-   * floating on it.
-   */
-  private drawContactShadow(b: Building): void {
-    const f = b.footprintWorld();
-    const { ctx } = this;
-    ctx.fillStyle = 'rgba(20,16,8,0.24)';
-    ctx.fillRect(f.x + CELL_SIZE * 0.8, f.y + CELL_SIZE * 0.15, f.w, f.h);
-    for (let i = 3; i >= 1; i--) {
-      const e = (CELL_SIZE * 0.7 * i) / 3;
-      ctx.fillStyle = 'rgba(104,88,58,0.2)';
-      ctx.fillRect(f.x - e, f.y - e, f.w + 2 * e, f.h + 2 * e);
-    }
-  }
-
-  /**
-   * Concrete base (ground transform): each structure sits on a slab one cell wider than its footprint. Slabs of
-   * one owner are merged cell by cell, so buildings placed side by side (up to 2 cells apart) share one floor,
-   * with a kerb drawn only round the outer edge. Oil derricks and naval structures keep their own ground.
-   */
-  private drawFloors(buildings: readonly Building[]): void {
-    const PAD = 1;
-    const byOwner = new Map<number, Set<number>>();
-    const key = (x: number, y: number): number => (y + 0x8000) * 0x10000 + (x + 0x8000);
-    for (const b of buildings) {
-      if (!b.alive || b.naval || b.spriteKey.startsWith('oil:')) continue;
-      let cells = byOwner.get(b.owner);
-      if (!cells) byOwner.set(b.owner, (cells = new Set()));
-      for (let y = b.y - PAD; y < b.y + b.d + PAD; y++) for (let x = b.x - PAD; x < b.x + b.w + PAD; x++) cells.add(key(x, y));
-    }
-    const { ctx } = this;
-    const C = CELL_SIZE;
-    for (const cells of byOwner.values()) {
-      ctx.fillStyle = '#8f8c84';
-      for (const k of cells) {
-        const x = (k % 0x10000) - 0x8000;
-        const y = Math.floor(k / 0x10000) - 0x8000;
-        ctx.fillRect(x * C - 0.5, y * C - 0.5, C + 1, C + 1); // overlap hides seams between cells
-      }
-      // Joint lines every cell, then the kerb on outer edges only.
-      ctx.strokeStyle = 'rgba(60,58,52,0.25)';
-      ctx.lineWidth = 0.6;
-      ctx.beginPath();
-      for (const k of cells) {
-        const x = (k % 0x10000) - 0x8000;
-        const y = Math.floor(k / 0x10000) - 0x8000;
-        if (cells.has(key(x + 1, y))) { ctx.moveTo((x + 1) * C, y * C); ctx.lineTo((x + 1) * C, (y + 1) * C); }
-        if (cells.has(key(x, y + 1))) { ctx.moveTo(x * C, (y + 1) * C); ctx.lineTo((x + 1) * C, (y + 1) * C); }
-      }
-      ctx.stroke();
-      ctx.strokeStyle = '#5e5b54';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      for (const k of cells) {
-        const x = (k % 0x10000) - 0x8000;
-        const y = Math.floor(k / 0x10000) - 0x8000;
-        if (!cells.has(key(x - 1, y))) { ctx.moveTo(x * C, y * C); ctx.lineTo(x * C, (y + 1) * C); }
-        if (!cells.has(key(x + 1, y))) { ctx.moveTo((x + 1) * C, y * C); ctx.lineTo((x + 1) * C, (y + 1) * C); }
-        if (!cells.has(key(x, y - 1))) { ctx.moveTo(x * C, y * C); ctx.lineTo((x + 1) * C, y * C); }
-        if (!cells.has(key(x, y + 1))) { ctx.moveTo(x * C, (y + 1) * C); ctx.lineTo((x + 1) * C, (y + 1) * C); }
-      }
-      ctx.stroke();
-    }
   }
 
   private drawBuilding(b: Building, time: number): void {
@@ -643,21 +611,19 @@ export class Renderer {
         ctx.fill();
         ctx.globalAlpha = 1;
       } else if (e.kind === 'blast') {
+        // One pre-rendered fireball, scaled and faded (no gradient or colour strings built per blast per frame).
         const r = e.radius * (0.35 + t * 0.9);
-        const g = ctx.createRadialGradient(e.x, e.y, 0, e.x, e.y, r);
-        g.addColorStop(0, `rgba(255,240,170,${(1 - t).toFixed(3)})`);
-        g.addColorStop(0.45, `rgba(255,140,50,${(0.85 * (1 - t)).toFixed(3)})`);
-        g.addColorStop(1, 'rgba(90,40,20,0)');
-        ctx.fillStyle = g;
-        ctx.beginPath();
-        ctx.arc(e.x, e.y, r, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.globalAlpha = 1 - t;
+        ctx.drawImage(blastSprite(), e.x - r, e.y - r, r * 2, r * 2);
+        ctx.globalAlpha = 1;
       } else {
         const r = e.radius * (0.5 + t * 1.2);
-        ctx.fillStyle = `rgba(70,66,62,${(0.5 * (1 - t)).toFixed(3)})`;
+        ctx.globalAlpha = 0.5 * (1 - t);
+        ctx.fillStyle = SMOKE;
         ctx.beginPath();
         ctx.ellipse(e.x, e.y - t * 6, r, r * 0.8, 0, 0, Math.PI * 2);
         ctx.fill();
+        ctx.globalAlpha = 1;
       }
     }
     void k;
@@ -691,6 +657,25 @@ export class Renderer {
   }
 
   /** Allowed build area around the player's buildings (soft tint + dashed edge). */
+  /** Safe zones: a green square on the ground with a pulsing border and a SAFE ZONE marking. */
+  private drawSafeZones(zones: readonly Rect[], time: number): void {
+    const { ctx } = this;
+    const k = 3 / this.camera.zoom;
+    const pulse = 0.65 + Math.sin(time * 3) * 0.25;
+    for (const z of zones) {
+      ctx.fillStyle = 'rgba(60,200,90,0.32)';
+      ctx.fillRect(z.x, z.y, z.w, z.h);
+      ctx.strokeStyle = `rgba(110,255,140,${pulse.toFixed(3)})`;
+      ctx.lineWidth = k;
+      ctx.strokeRect(z.x, z.y, z.w, z.h);
+      ctx.fillStyle = 'rgba(235,255,238,0.9)';
+      ctx.font = `700 ${Math.max(3, z.w * 0.14)}px "Segoe UI", system-ui, sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('SAFE ZONE', z.x + z.w / 2, z.y + z.h / 2);
+    }
+  }
+
   private drawBuildZones(zones: readonly Rect[], faction?: FactionId): void {
     const { ctx } = this;
     const color = faction ? teamColors(faction).primary : '#ffffff';
@@ -838,7 +823,7 @@ export class Renderer {
     const r = this.spriteRect(b);
     const inside = b.garrison.length > 0 ? ` · ${b.garrison.length} inside` : '';
     const managed = 'bankManaged' in b && (b as { bankManaged: boolean }).bankManaged;
-    const text = managed ? `${b.spec.name} · World Bank managed` : b.indestructible ? `${b.spec.name} · Neutral · Protected` : `${b.spec.name}${inside}`;
+    const text = managed ? `${b.spec.name} · Global Financial Center managed` : b.indestructible ? `${b.spec.name} · Neutral · Protected` : `${b.spec.name}${inside}`;
     ctx.font = `600 ${12 * k}px "Segoe UI", system-ui, sans-serif`;
     const w = ctx.measureText(text).width + 12 * k;
     const h = 18 * k;

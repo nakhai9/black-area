@@ -3,7 +3,7 @@ import type { WorldPoint } from '../types';
 import { Building } from './Building';
 
 /**
- * The World Bank — a neutral landmark shared by every nation.
+ * The Global Financial Center — a neutral landmark shared by every nation.
  * By rule it can never be destroyed, damaged, captured or occupied.
  */
 export class WorldBank extends Building {
@@ -13,7 +13,7 @@ export class WorldBank extends Building {
   constructor(center: WorldPoint) {
     super(NEUTRAL_OWNER, 'neutral', center, {
       type: 'bank',
-      name: 'World Bank',
+      name: 'Global Financial Center',
       footprint: FOOTPRINT_SMALL,
       maxHp: 3000,
       powerOutput: 0,

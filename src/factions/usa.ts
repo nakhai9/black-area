@@ -5,14 +5,15 @@ export const USA: FactionConfig = {
   id: 'usa',
   name: 'United States',
   shortName: 'USA',
+  leader: { title: 'President', name: 'Donald Trump' },
   doctrine: 'High-tech mobility: fast units, air superiority and precision strikes.',
   colors: { primary: '#2f6fe0', light: '#9cc0ff', dark: '#14306b' },
   stats: { unitSpeed: 1.25, armor: 0.9, firepower: 1.0, range: 1.05, buildSpeed: 1.1, cost: 1.3, trainDelay: 2 },
   capital: {
-    name: 'The Capitol',
+    name: 'The White House',
     city: 'Washington, D.C.',
     description: 'Seat of Allied command. Losing it collapses the U.S. war effort.',
-    maxHp: 5000,
+    maxHp: 15000,
     powerOutput: 0,
   },
   infantry: {
@@ -25,11 +26,6 @@ export const USA: FactionConfig = {
       name: 'Ranger',
       description: 'Elite light infantry: fast, accurate and deadly at close range.',
       look: { uniform: '#7d8083', trousers: '#5f6265', headgear: 'boonie', headColor: '#6e7275', weapon: 'rifle', camo: true, sprite: 'usSpecial' },
-    },
-    president: {
-      name: 'President',
-      description: "President of the United States, head of state and symbol of the nation.",
-      look: { uniform: '#1c2748', trousers: '#141c36', headgear: 'none', headColor: '#000000', weapon: 'none' },
     },
     engineer: {
       name: 'Engineer',

@@ -1,7 +1,7 @@
 import { shade } from '../Color';
 import { drawFlagOnPole } from '../Flags';
 import { type IsoPainter, LIGHT } from '../IsoPainter';
-import { type BuildingArt, groundShadow } from './BuildingArt';
+import type { BuildingArt } from './BuildingArt';
 
 const PLAZA = '#c4bdae';
 const STONE = '#e9e3d4';
@@ -26,7 +26,7 @@ function glassTower(p: IsoPainter): void {
 }
 
 /**
- * World Bank (Zürich, neutral) — neoclassical banking hall with a colonnade
+ * Global Financial Center (Zürich, neutral) — neoclassical banking hall with a colonnade
  * and pediment, crowned by a modern glass tower and a golden globe.
  */
 export const WorldBankArt: BuildingArt = {
@@ -34,7 +34,6 @@ export const WorldBankArt: BuildingArt = {
   height: 112,
 
   drawStatic(p) {
-    groundShadow(p, 4, 4);
     p.box(0, 0, 4, 4, 0, 3, PLAZA);
     p.topRect(0.2, 3.1, 3.8, 3.85, 3, shade(PLAZA, 1.08));
 

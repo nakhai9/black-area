@@ -5,14 +5,15 @@ export const EUROPE: FactionConfig = {
   id: 'europe',
   name: 'European Union',
   shortName: 'Europe',
+  leader: { title: 'Commission President', name: 'Ursula von der Leyen' },
   doctrine: 'Economic power and coalition: strong income, advanced air defence and balanced forces.',
   colors: { primary: '#8a5cf6', light: '#c9b5ff', dark: '#3b237a' },
   stats: { unitSpeed: 1.05, armor: 1.0, firepower: 1.05, range: 1.1, buildSpeed: 1.05, cost: 1.25, trainDelay: 2 },
   capital: {
     name: 'EU Headquarters',
-    city: 'Brussels',
+    city: 'Paris',
     description: 'Unified command of the European Union, flanked by the flags of its member states.',
-    maxHp: 5200,
+    maxHp: 15600,
     powerOutput: 0,
   },
   infantry: {
@@ -25,11 +26,6 @@ export const EUROPE: FactionConfig = {
       name: 'EU Spec',
       description: 'European special operators — long-range precision marksmen.',
       look: { uniform: '#5e6c78', trousers: '#4a5661', headgear: 'reverseCap', headColor: '#3f4a54', weapon: 'rifle', camo: true, sprite: 'euSpecial' },
-    },
-    president: {
-      name: 'President',
-      description: "President of the European Union, head of state and symbol of the union.",
-      look: { uniform: '#222c4a', trousers: '#192138', headgear: 'none', headColor: '#000000', weapon: 'none' },
     },
     engineer: {
       name: 'Engineer',

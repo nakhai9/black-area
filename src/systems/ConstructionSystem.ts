@@ -7,6 +7,8 @@ import {
   CELL_SIZE,
   FOOTPRINT_AIRFIELD,
   FOOTPRINT_CITY,
+  FOOTPRINT_FLAGPOLE,
+  FLAGPOLE_COST,
   HAPPY_CITY_COST,
   FOOTPRINT_LARGE,
   FOOTPRINT_SMALL,
@@ -22,13 +24,14 @@ import { PowerPlant } from '../entities/PowerPlant';
 import { TechCenter } from '../entities/TechCenter';
 import { WarFactory } from '../entities/WarFactory';
 import { Barracks } from '../entities/Barracks';
+import { Flagpole } from '../entities/Flagpole';
 import type { Building } from '../entities/Building';
 import type { BuildingType, FactionId, PlayerState } from '../types';
 import type { GameSystem } from './GameSystem';
 
 /** A structure that can be produced from the sidebar's Build tab. */
 export interface BuildOption {
-  id: 'powerPlant' | 'barracks' | 'warFactory' | 'hospital' | 'airfield' | 'techCenter' | 'happyCity';
+  id: 'powerPlant' | 'barracks' | 'warFactory' | 'hospital' | 'airfield' | 'techCenter' | 'happyCity' | 'flagpole';
   name: string;
   /** Tech tree: these buildings must already stand (power plant → barracks → war factory/hospital → airfield → happy city). */
   requires?: BuildingType | readonly BuildingType[];
@@ -57,7 +60,7 @@ export const BUILD_OPTIONS: readonly BuildOption[] = [
   },
   {
     id: 'barracks',
-    name: 'Barracks',
+    name: 'Ministry of Defence',
     // First building of every nation is a power plant: nothing else runs without power.
     requires: 'powerPlant',
     cost: BARRACKS_COST,
@@ -110,6 +113,14 @@ export const BUILD_OPTIONS: readonly BuildOption[] = [
     footprint: FOOTPRINT_CITY,
     spriteKey: (f) => `happyCity:${f}`,
     create: (owner, faction, x, y) => new HappyCity(owner, faction, center(x, y, FOOTPRINT_CITY)),
+  },
+  {
+    id: 'flagpole',
+    name: 'Flagpole',
+    cost: FLAGPOLE_COST,
+    footprint: FOOTPRINT_FLAGPOLE,
+    spriteKey: (f) => `flagpole:${f}`,
+    create: (owner, faction, x, y) => new Flagpole(owner, faction, center(x, y, FOOTPRINT_FLAGPOLE)),
   },
 ];
 

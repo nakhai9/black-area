@@ -8,7 +8,7 @@ import type { OilMarket } from './OilMarket';
 /**
  * City taxes: every Happy City pays HAPPY_CITY_TAX TB to its nation every HAPPY_CITY_TAX_PERIOD seconds, on its own
  * clock (from when it was placed), so several cities pay at different moments. The money is income: it goes
- * through the World Bank, which takes any debt first. A damaged city pays in proportion to its health.
+ * through the Global Financial Center, which takes any debt first. A damaged city pays in proportion to its health.
  */
 export class TaxSystem implements GameSystem {
   constructor(

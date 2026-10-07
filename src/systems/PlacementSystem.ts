@@ -1,10 +1,11 @@
 import type { EntityManager } from '../entities/EntityManager';
+import { CELL_SIZE } from '../constants';
 import type { PlacementBlocker, TileMap } from '../map/TileMap';
 
 /** Max gap (in cells) between a new building and the nearest friendly building. */
 export const BUILD_RADIUS = 3;
 
-export type PlacementResult = { ok: true } | { ok: false; reason: PlacementBlocker | 'tooFar' };
+export type PlacementResult = { ok: true } | { ok: false; reason: PlacementBlocker | 'units' | 'tooFar' };
 
 export interface PlacementRequest {
   /** Player who is building. */
@@ -31,6 +32,7 @@ function cellGap(
  * Construction rules for new buildings (player or AI):
  * 1. every cell must be legal terrain and free — no trees, no water (naval: water only),
  *    no ice, never on top of an existing building;
+ *    no soldier or vehicle (parked aircraft included) may stand on any of its cells;
  * 2. the footprint must lie within BUILD_RADIUS cells of one of the builder's own buildings.
  */
 export class PlacementSystem {
@@ -42,6 +44,7 @@ export class PlacementSystem {
   check(req: PlacementRequest): PlacementResult {
     const blocker = this.map.placementBlocker(req.x, req.y, req.w, req.d, req.naval === true);
     if (blocker) return { ok: false, reason: blocker };
+    if (this.unitsInside(req)) return { ok: false, reason: 'units' };
     return this.nearOwnBase(req) ? { ok: true } : { ok: false, reason: 'tooFar' };
   }
 
@@ -50,5 +53,16 @@ export class PlacementSystem {
     return this.entities
       .buildings()
       .some((b) => b.owner === req.owner && b.alive && cellGap(req, b) <= BUILD_RADIUS);
+  }
+
+  /** Does any living soldier or ground vehicle (anyone's) stand on one of the footprint's cells? */
+  private unitsInside(req: PlacementRequest): boolean {
+    const x0 = req.x * CELL_SIZE;
+    const y0 = req.y * CELL_SIZE;
+    const x1 = (req.x + req.w) * CELL_SIZE;
+    const y1 = (req.y + req.d) * CELL_SIZE;
+    return this.entities
+      .fieldMovers()
+      .some((u) => u.alive && !u.flies && u.px + u.radius > x0 && u.px - u.radius < x1 && u.py + u.radius > y0 && u.py - u.radius < y1);
   }
 }

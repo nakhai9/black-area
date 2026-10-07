@@ -13,6 +13,12 @@ export interface CombatHooks {
   onFire(shooter: Unit, target: Entity, weapon: WeaponSpec, impact: WorldPoint): void;
   /** An entity ran out of health: remove it and show the explosion. */
   onDeath(entity: Entity, killer: Entity | undefined): void;
+  /** `nation` let the retreating `fugitive` go instead of chasing it (once per nation per retreat). */
+  onSpare(nation: number, fugitive: Unit): void;
+  /** Is (x, y) inside a safe zone of the Global Financial Center? Nobody fights there. */
+  safeAt(x: number, y: number): boolean;
+  /** Structure that may not be attacked right now (the player's derricks during their grace period). */
+  shielded(target: Entity): boolean;
 }
 
 /** Two entities are enemies when they belong to different nations (neutral ones are never targets). */
@@ -54,6 +60,8 @@ const HASH = 48;
 export class CombatSystem implements GameSystem {
   private time = 0;
   private readonly chaseAt = new Map<number, number>();
+  private readonly grid = new Map<number, Unit[]>();
+  private readonly pool: Unit[][] = [];
 
   constructor(
     private readonly entities: EntityManager,
@@ -64,14 +72,24 @@ export class CombatSystem implements GameSystem {
   update(dt: number): void {
     this.time += dt;
     const movers = this.entities.fieldMovers();
-    const grid = new Map<number, Unit[]>();
+    // Spatial hash reused every tick: emptied bucket arrays go back to a pool instead of becoming garbage.
+    const grid = this.grid;
+    for (const list of grid.values()) {
+      list.length = 0;
+      this.pool.push(list);
+    }
+    grid.clear();
     const key = (cx: number, cy: number): number => cx * 100003 + cy;
     for (const u of movers) {
       if (!u.alive) continue;
       const k = key(Math.floor(u.px / HASH), Math.floor(u.py / HASH));
       const list = grid.get(k);
       if (list) list.push(u);
-      else grid.set(k, [u]);
+      else {
+        const fresh = this.pool.pop() ?? [];
+        fresh.push(u);
+        grid.set(k, fresh);
+      }
     }
     for (const s of movers) {
       if (!s.alive) continue;
@@ -86,13 +104,24 @@ export class CombatSystem implements GameSystem {
   private think(s: Unit, grid: Map<number, Unit[]>): void {
     const w = s.weapon;
     if (!w) return;
-    if (!s.moving) s.chasing = false;
+    // Safe zone: units inside it never fight.
+    if (this.hooks.safeAt(s.px, s.py)) {
+      s.combatTarget = null;
+      s.attackTarget = null;
+      s.engaged = false;
+      this.resumeAttackMove(s);
+      return;
+    }
+    if (!s.moving) {
+      s.chasing = false;
+      s.retreating = false;
+    }
     let target = this.currentTarget(s);
 
     // Explicit attack order beats everything else.
     if (s.attackTarget !== null) {
       const ordered = this.entities.get(s.attackTarget);
-      if (!ordered || !ordered.alive || !isHostile(s, ordered) || !this.canHit(s, w, ordered)) s.attackTarget = null;
+      if (!ordered || !ordered.alive || !isHostile(s, ordered) || !this.canHit(s, w, ordered) || this.sheltered(ordered)) s.attackTarget = null;
       else target = ordered;
     }
 
@@ -118,6 +147,18 @@ export class CombatSystem implements GameSystem {
     }
 
     const d = distanceTo(s.px, s.py, target);
+    // A retreating enemy may be shot while in range, but never chased.
+    if (target instanceof Unit && target.retreating && d > w.range) {
+      if (!target.sparedBy.has(s.owner)) {
+        target.sparedBy.add(s.owner);
+        this.hooks.onSpare(s.owner, target);
+      }
+      if (s.attackTarget === target.id) s.attackTarget = null;
+      s.combatTarget = null;
+      s.engaged = false;
+      this.resumeAttackMove(s);
+      return;
+    }
     const tx = target instanceof Unit ? target.px : target instanceof Building ? target.centerWorld().x : s.px;
     const ty = target instanceof Unit ? target.py : target instanceof Building ? target.centerWorld().y : s.py;
     if (d <= w.range) {
@@ -139,7 +180,14 @@ export class CombatSystem implements GameSystem {
     const e = this.entities.get(s.combatTarget);
     if (!e || !e.alive || !isHostile(s, e) || !canTarget(s, e)) return undefined;
     if (e instanceof Unit && !e.visible) return undefined;
+    if (this.sheltered(e)) return undefined;
     return e;
+  }
+
+  /** A unit standing (or flying) inside a safe zone may not be attacked. */
+  private sheltered(e: Entity): boolean {
+    if (e instanceof Unit) return this.hooks.safeAt(e.px, e.py);
+    return this.hooks.shielded(e);
   }
 
   private canHit(s: Unit, _w: WeaponSpec, t: Entity): boolean {
@@ -158,9 +206,12 @@ export class CombatSystem implements GameSystem {
     let bestD = w.range * GUARD_VISION_FACTOR;
     for (let dx = -reach; dx <= reach; dx++) {
       for (let dy = -reach; dy <= reach; dy++) {
-        for (const o of grid.get((cx + dx) * 100003 + cy + dy) ?? []) {
+        const cell = grid.get((cx + dx) * 100003 + cy + dy);
+        if (!cell) continue;
+        for (const o of cell) {
           if (!isHostile(s, o) || !this.canHit(s, w, o)) continue;
           const d = Math.hypot(o.px - s.px, o.py - s.py);
+          if ((o.retreating && d > w.range) || this.sheltered(o)) continue;
           if (d < bestD) {
             best = o;
             bestD = d;
@@ -172,7 +223,7 @@ export class CombatSystem implements GameSystem {
     // Hit back at whoever shot us recently, even from beyond our range.
     if (s.lastAttackerId !== null && this.time - s.lastAttackedAt < 6) {
       const a = this.entities.get(s.lastAttackerId);
-      if (a && a.alive && isHostile(s, a) && this.canHit(s, w, a) && distanceTo(s.px, s.py, a) < w.range * RETALIATE_RANGE_FACTOR) return a;
+      if (a && a.alive && isHostile(s, a) && this.canHit(s, w, a) && !this.sheltered(a) && distanceTo(s.px, s.py, a) < w.range * RETALIATE_RANGE_FACTOR) return a;
     }
     return undefined;
   }
@@ -186,7 +237,7 @@ export class CombatSystem implements GameSystem {
     t.lastAttackedAt = this.time;
     if (w.splash > 0) {
       for (const o of this.entities.fieldMovers()) {
-        if (o === t || !isHostile(s, o) || !this.canHit(s, w, o)) continue;
+        if (o === t || !isHostile(s, o) || !this.canHit(s, w, o) || this.sheltered(o)) continue;
         if (Math.hypot(o.px - impact.x, o.py - impact.y) <= w.splash) {
           o.damage(dmg * 0.5);
           o.lastAttackerId = s.id;

@@ -5,7 +5,7 @@ import type { GameSystem } from './GameSystem';
 /**
  * Oil economy: a nation's derricks (buildings with `incomePerSecond`) pump barrels of oil into its stock.
  * Output is halved while the owner is low on power (RA2-style penalty). The oil is turned into TB by
- * selling it to the World Bank (see OilMarket); a nation that has lost its capital pumps nothing.
+ * selling it to the Global Financial Center (see OilMarket); a nation that has lost its capital pumps nothing.
  */
 export class EconomySystem implements GameSystem {
   constructor(

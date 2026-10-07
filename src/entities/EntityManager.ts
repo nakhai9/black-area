@@ -9,7 +9,7 @@ export class EntityManager {
   private readonly byId = new Map<number, Entity>();
   /** Bumped on add / remove; together with Unit.insideVersion it tells when the cached lists are stale. */
   private version = 0;
-  private readonly lists = new Map<string, { key: string; list: readonly Entity[] }>();
+  private readonly lists = new Map<string, { version: number; inside: number; list: readonly Entity[] }>();
 
   add<T extends Entity>(entity: T): T {
     this.byId.set(entity.id, entity);
@@ -26,11 +26,11 @@ export class EntityManager {
    * an entity was added / removed or a unit went in or out of a building. Callers must not mutate them.
    */
   private cached<T extends Entity>(name: string, build: () => T[]): readonly T[] {
-    const key = `${this.version}:${Unit.insideVersion}`;
+    // Two number compares (no key string built per call).
     const hit = this.lists.get(name);
-    if (hit && hit.key === key) return hit.list as readonly T[];
+    if (hit && hit.version === this.version && hit.inside === Unit.insideVersion) return hit.list as readonly T[];
     const list = build();
-    this.lists.set(name, { key, list });
+    this.lists.set(name, { version: this.version, inside: Unit.insideVersion, list });
     return list;
   }
 

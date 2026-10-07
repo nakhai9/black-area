@@ -1,4 +1,4 @@
-import { type IconNode, ChartLine, Clock, Droplet, Factory, Hammer, Minus, PersonStanding, Radar, Shield, TrendingDown, TrendingUp, Trophy, Truck, Zap, createElement } from 'lucide';
+import { type IconNode, Clock, Info, Droplet, Factory, Hammer, Minus, PersonStanding, Radar, Shield, TrendingDown, TrendingUp, Trophy, Truck, Zap, createElement } from 'lucide';
 import { BUILD_LIMIT_VEHICLES, CURRENCY, OIL_GRID_MARKUP, POWER_PER_BARREL, TECH_TIERS, TECH_VEHICLES, isAircraftKind } from '../constants';
 import { FACTIONS } from '../factions';
 import { getFlagTexture } from '../render/Flags';
@@ -29,8 +29,8 @@ const CARRIER_STATE_LABEL: Readonly<Record<CarrierState, string>> = {
 };
 
 type TabId = 'build' | 'defense' | 'infantry' | 'vehicles';
-/** Sidebar pages: the command centre (budget, oil, alerts), production (build, train) and the world ranking. */
-type ViewId = 'command' | 'production' | 'rank' | 'price';
+/** Sidebar pages: the command centre (budget, oil, alerts), production (build, train) and the world ranking with oil & power prices. */
+type ViewId = 'command' | 'production' | 'rank';
 
 /** One nation in the ranking tab. */
 export interface RankRow {
@@ -59,16 +59,16 @@ export interface SidebarModel {
   player: PlayerState;
   /** Oil output in barrels per second. */
   oilRate: number;
-  /** The price the World Bank pays right now, in TB per barrel, the one before it and the recent history. */
+  /** The price the Global Financial Center pays right now, in TB per barrel, the one before it and the recent history. */
   oilPrice: number;
   previousPrice: number;
   priceHistory: readonly number[];
-  /** Seconds until the Bank posts a new price. */
+  /** Seconds until the Center posts a new price. */
   priceChangeIn: number;
   /** Barrels above the 1.0 reserve that may be offered, and seconds until the 10 s sale cooldown ends. */
   sellable: number;
   salesWait: number;
-  /** Why the World Bank would refuse a loan now (null = available). */
+  /** Why the Global Financial Center would refuse a loan now (null = available). */
   loanBlocker: string | null;
   /** Most the nation may owe (from its oil and assets) and the size of the next loan. */
   creditLine: number;
@@ -100,8 +100,6 @@ export interface SidebarModel {
 }
 
 export interface SidebarHandlers {
-  /** Auto-defence switched on/off (keeps training soldiers and vehicles to protect the base). */
-  onAutoDefense: (on: boolean) => void;
   /** Left click on a build cameo. */
   onBuild: (option: BuildOption) => void;
   /** Right click on a build cameo (cancel / refund). */
@@ -116,9 +114,9 @@ export interface SidebarHandlers {
   /** Right click on an infantry cameo: remove one from the queue (refund if in training). */
   onTrainCancel: (option: TrainOption) => void;
   trainPreview: (option: TrainOption) => HTMLCanvasElement;
-  /** The Sell oil button: offer the stock to the World Bank. */
+  /** The Sell oil button: offer the stock to the Global Financial Center. */
   onSellOil: () => void;
-  /** The Emergency loan button: borrow from the World Bank (only at 0 TB). */
+  /** The Emergency loan button: borrow from the Global Financial Center (only at 0 TB). */
   onLoan: () => void;
   /** The Unload button of the Transport panel (same as the U key). */
   onUnload: () => void;
@@ -162,8 +160,6 @@ export class Sidebar {
   private readonly priceLine: HTMLElement;
   private trendKey = 0;
   private readonly message: HTMLElement;
-  private readonly autoButton: HTMLElement;
-  private autoDefense = false;
   private readonly radarPanel: HTMLElement;
   private readonly alertList: HTMLElement;
   private readonly alertEmpty: HTMLElement;
@@ -208,7 +204,6 @@ export class Sidebar {
     root.innerHTML = `
       <header class="sb-header">
         <div class="sb-logo">BLACK<span>AREA</span></div>
-        <div class="sb-sub">Command centre · orders, budget &amp; map</div>
         <button class="sb-collapse" title="Hide sidebar (Tab)">⟩</button>
       </header>
       <section class="sb-panel sb-radar"><canvas class="sb-minimap"></canvas></section>
@@ -220,6 +215,7 @@ export class Sidebar {
           <div>
             <div class="sb-player-name">${player.name}</div>
             <div class="sb-muted">${faction.name}</div>
+            <div class="sb-muted sb-leader" title="Head of state">${faction.leader.title}: ${faction.leader.name}</div>
           </div>
         </div>
         <div class="sb-budget-label">National budget</div>
@@ -229,9 +225,8 @@ export class Sidebar {
         <div class="sb-oil">DEBT <span class="sb-debt"></span></div>
         <div class="sb-oil">DERRICKS <span class="sb-derricks"></span></div>
         <div class="sb-actions">
-          <button class="sb-sell" type="button" title="Offer your oil to the World Bank: it decides whether and how much to buy (at most 25% per sale) and pays the posted price into your budget">Sell oil</button>
-          <button class="sb-sell sb-loan" type="button" title="Emergency loan from the World Bank (only when your budget is 0 ${CURRENCY}). Oil sales pay the debt back automatically.">Emergency loan</button>
-          <button class="sb-auto" type="button" aria-pressed="false" title="Automatically train soldiers and vehicles to defend your base (F)">Auto-defense: OFF</button>
+          <button class="sb-sell" type="button" title="Offer your oil to the Global Financial Center: it decides whether and how much to buy (at most 25% per sale) and pays the posted price into your budget">Sell oil</button>
+          <button class="sb-sell sb-loan" type="button" title="Emergency loan from the Global Financial Center (only when your budget is 0 ${CURRENCY}). Oil sales pay the debt back automatically.">Emergency loan</button>
         </div>
         <div class="sb-oil sb-power">POWER <span class="sb-power-value"></span></div>
       </section>
@@ -264,19 +259,17 @@ export class Sidebar {
       </details>
       </div>
       <div class="sb-view" data-page="rank" hidden>
+        <section class="sb-panel sb-prices">
+          <div class="sb-price-row" title="Oil: what the Global Financial Center pays per barrel"><i data-icon="oil"></i><b class="sb-price"></b><i class="sb-price-trend"></i></div>
+          <div class="sb-price-row" title="Power: what the Global Financial Center charges when your grid runs dry (oil at +${Math.round((OIL_GRID_MARKUP - 1) * 100)}%, per 1 Ke)"><i data-icon="power"></i><b class="sb-power-price"></b></div>
+          <div class="sb-price-row" title="Next price revision"><i data-icon="clock"></i><b class="sb-price-clock"></b></div>
+          <svg class="sb-price-chart" viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Oil price, last 5 minutes"><polyline fill="none" stroke-width="1.5" vector-effect="non-scaling-stroke"></polyline></svg>
+        </section>
         <section class="sb-panel sb-rank">
           <h3 class="sb-rank-title">ECONOMY <small>budget + oil − debt</small></h3>
           <ol class="sb-rank-list" data-rank="economy"></ol>
           <h3 class="sb-rank-title">MILITARY <small>value of soldiers &amp; vehicles</small></h3>
           <ol class="sb-rank-list" data-rank="military"></ol>
-        </section>
-      </div>
-      <div class="sb-view" data-page="price" hidden>
-        <section class="sb-panel sb-prices">
-          <div class="sb-price-row" title="Oil: what the World Bank pays per barrel"><i data-icon="oil"></i><b class="sb-price"></b><i class="sb-price-trend"></i></div>
-          <div class="sb-price-row" title="Power: what the World Bank charges when your grid runs dry (oil at +${Math.round((OIL_GRID_MARKUP - 1) * 100)}%, per 1Ke)"><i data-icon="power"></i><b class="sb-power-price"></b></div>
-          <div class="sb-price-row" title="Next price revision"><i data-icon="clock"></i><b class="sb-price-clock"></b></div>
-          <svg class="sb-price-chart" viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Oil price, last 5 minutes"><polyline fill="none" stroke-width="1.5" vector-effect="non-scaling-stroke"></polyline></svg>
         </section>
       </div>
       <div class="sb-view" data-page="production">
@@ -307,8 +300,6 @@ export class Sidebar {
     this.derricks = q('.sb-derricks');
     this.powerText = q('.sb-power-value');
     this.message = q('.sb-msg');
-    this.autoButton = q('.sb-auto');
-    this.autoButton.addEventListener('click', () => this.toggleAutoDefense());
     this.radarPanel = q('.sb-radar');
     this.alertList = q('.sb-alert-list');
     this.alertEmpty = q('.sb-alert-empty');
@@ -325,7 +316,6 @@ export class Sidebar {
     this.views.set('command', q('[data-page=command]'));
     this.views.set('production', q('[data-page=production]'));
     this.views.set('rank', q('[data-page=rank]'));
-    this.views.set('price', q('[data-page=price]'));
     this.powerPrice = q('.sb-power-price');
     this.priceTrend = q('.sb-price-trend');
     this.priceClock = q('.sb-price-clock');
@@ -358,17 +348,6 @@ export class Sidebar {
     document.body.append(opener);
   }
 
-  /** Switches automatic defence on/off (button or F key); returns the new state. */
-  toggleAutoDefense(): boolean {
-    this.autoDefense = !this.autoDefense;
-    this.autoButton.textContent = `Auto-defense: ${this.autoDefense ? 'ON' : 'OFF'}`;
-    this.autoButton.setAttribute('aria-pressed', String(this.autoDefense));
-    this.autoButton.classList.toggle('on', this.autoDefense);
-    this.handlers.onAutoDefense(this.autoDefense);
-    this.notify(this.autoDefense ? 'Auto-defense ON — soldiers and vehicles are trained automatically.' : 'Auto-defense OFF.');
-    return this.autoDefense;
-  }
-
   toggle(): void {
     document.body.classList.toggle('sidebar-hidden');
   }
@@ -390,7 +369,7 @@ export class Sidebar {
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = secs < 4 ? 'sb-alert fresh' : 'sb-alert';
-        btn.innerHTML = `<span class="sb-alert-text"></span><span class="sb-alert-age">${secs < 60 ? `${secs}s` : `${Math.floor(secs / 60)}m`}</span>`;
+        btn.innerHTML = `<span class="sb-alert-text"></span><span class="sb-alert-age">${secs < 60 ? `${secs} s` : `${Math.floor(secs / 60)} m`}</span>`;
         const label = btn.querySelector('.sb-alert-text');
         if (label) label.textContent = a.text;
         btn.title = 'Click to look at it';
@@ -431,7 +410,7 @@ export class Sidebar {
     this.stock.textContent = `${player.oil.toFixed(1)} bbl`;
     this.renderPrices(model);
     this.sellButton.disabled = player.defeated || model.sellable < MIN_SALE_STOCK || model.salesWait > 0;
-    this.sellButton.textContent = model.salesWait > 0 ? `Sell oil · wait ${model.salesWait}s` : 'Sell oil';
+    this.sellButton.textContent = model.salesWait > 0 ? `Sell oil · wait ${model.salesWait} s` : 'Sell oil';
     this.debt.textContent = `${Math.ceil(player.debt).toLocaleString('en-US')} / ${model.creditLine.toLocaleString('en-US')} ${CURRENCY}`;
     this.loanButton.disabled = model.loanBlocker !== null;
     this.loanButton.title =
@@ -444,10 +423,10 @@ export class Sidebar {
     this.powerText.textContent = `${compactUnit(player.powerSupply, 'e')} / ${compactUnit(player.powerConsumed, 'e')}`;
     this.powerText.classList.toggle('low', player.powerShort);
     this.powerText.parentElement!.title = player.blackout
-      ? 'BLACKOUT: no power and no TB to buy oil from the World Bank. No construction, vehicles or take-offs.'
+      ? 'BLACKOUT: no power and no TB to buy oil from the Global Financial Center. No construction, vehicles or take-offs.'
       : player.powerShort
-        ? 'Not enough power: the World Bank sells oil for the missing power (+25%), but construction (except power plants), vehicles and take-offs stop.'
-        : `Stored ${compactUnit(player.powerStored, 'e')} / ${compactUnit(player.powerCapacity, 'e')}. Plants burn your oil (0.001 bbl = 1e).`;
+        ? 'Not enough power: the Global Financial Center sells oil for the missing power (+25%), but construction (except power plants), vehicles and take-offs stop.'
+        : `Stored ${compactUnit(player.powerStored, 'e')} / ${compactUnit(player.powerCapacity, 'e')}. Plants burn your oil (0.001 bbl = 1 e).`;
 
     // The radar picture is blurred and dimmed until the nation owns an Airfield.
     this.radarPanel.classList.toggle('offline', !model.owned.has('airfield'));
@@ -463,8 +442,8 @@ export class Sidebar {
       infantryTab.classList.toggle('no-icon', !model.hasBarracks);
     }
     if (!model.hasBarracks && this.activeTab === 'infantry') this.switchTab('build');
-    // Vehicles tab: unlocked by a War Factory (aircraft orders also need an Airfield); blinks until opened.
-    const canMake = model.hasWarFactory;
+    // Vehicles tab: unlocked by a War Factory (ground vehicles) or an Airfield (aircraft); blinks until opened.
+    const canMake = model.hasWarFactory || model.hasAirfield;
     const vehicleTab = this.tabButtons.get('vehicles');
     if (vehicleTab) {
       vehicleTab.disabled = !canMake;
@@ -488,16 +467,19 @@ export class Sidebar {
       const mine = queue.option?.id === option.id;
       const state = mine ? queue.state : 'idle';
       const busyElsewhere = !mine && queue.state !== 'idle';
-      c.el.dataset.state = model.placing && mine ? 'placing' : state;
+      setData(c.el, 'state', model.placing && mine ? 'placing' : state);
       const missing = missingRequirement(option, model.owned);
       const locked = busyElsewhere || (missing !== null && !mine);
       c.el.classList.toggle('locked', locked);
       (c.el as HTMLButtonElement).disabled = locked;
       // RA2 clock wipe: the dark sector shrinks as the build progresses.
       const remaining = mine && state !== 'ready' ? 1 - queue.progress : 0;
-      c.wipe.style.background =
-        mine && state !== 'idle' ? `conic-gradient(rgba(0,0,0,0.62) 0 ${remaining * 360}deg, transparent 0)` : 'none';
-      c.state.textContent =
+      setBackground(
+        c.wipe,
+        mine && state !== 'idle' ? `conic-gradient(rgba(0,0,0,0.62) 0 ${Math.round(remaining * 360)}deg, transparent 0)` : 'none',
+      );
+      setText(
+        c.state,
         !mine || state === 'idle'
           ? `${buildCost(option, this.faction)} ${CURRENCY}`
           : state === 'ready'
@@ -508,7 +490,8 @@ export class Sidebar {
               ? `ON HOLD ${Math.floor(queue.progress * 100)}%`
               : state === 'noPower'
                 ? `NO POWER ${Math.floor(queue.progress * 100)}%`
-              : `${Math.floor(queue.progress * 100)}%`;
+              : `${Math.floor(queue.progress * 100)}%`,
+      );
     }
 
     if (this.alerts.length > 0) {
@@ -532,7 +515,6 @@ export class Sidebar {
       { id: 'command', label: 'Command', icon: Radar },
       { id: 'production', label: 'Production', icon: Factory },
       { id: 'rank', label: 'Rank', icon: Trophy },
-      { id: 'price', label: 'Price', icon: ChartLine },
     ];
     for (const page of pages) {
       const btn = document.createElement('button');
@@ -554,7 +536,7 @@ export class Sidebar {
   private renderPrices(model: SidebarModel): void {
     this.price.textContent = compactMoney(model.oilPrice);
     this.powerPrice.textContent = compactMoney(((model.oilPrice * OIL_GRID_MARKUP) / POWER_PER_BARREL) * 1000);
-    this.priceClock.textContent = `${model.priceChangeIn}s`;
+    this.priceClock.textContent = `${model.priceChangeIn} s`;
     const trend = Math.sign(model.oilPrice - model.previousPrice);
     if (trend !== this.trendKey || this.priceTrend.childElementCount === 0) {
       this.trendKey = trend;
@@ -649,12 +631,11 @@ export class Sidebar {
       if (!c) continue;
       const count = q.items.filter((t) => t === option.tier).length;
       const training = head === option.tier;
-      c.el.dataset.state = training ? q.state : count > 0 ? 'queued' : 'idle';
+      setData(c.el, 'state', training ? q.state : count > 0 ? 'queued' : 'idle');
       const atLimit = model.army.queued >= model.army.limit && count === 0;
-      const inOffice = option.tier === 'president' && model.army.presidentTaken && count === 0;
       const noTech = TECH_TIERS.includes(option.tier) && !model.owned.has('techCenter');
       const overElite = option.tier === 'special' && model.army.special >= model.army.specialCap && count === 0;
-      const locked = !model.hasBarracks || atLimit || inOffice || noTech || overElite;
+      const locked = !model.hasBarracks || atLimit || noTech || overElite;
       c.el.classList.toggle('locked', locked);
       (c.el as HTMLButtonElement).disabled = locked;
       if (c.badge) {
@@ -662,20 +643,20 @@ export class Sidebar {
         c.badge.hidden = count === 0;
       }
       const remaining = training ? 1 - q.progress : 0;
-      c.wipe.style.background = training
-        ? `conic-gradient(rgba(0,0,0,0.62) 0 ${remaining * 360}deg, transparent 0)`
+      setBackground(c.wipe, training
+        ? `conic-gradient(rgba(0,0,0,0.62) 0 ${Math.round(remaining * 360)}deg, transparent 0)`
         : count > 0
           ? 'rgba(0,0,0,0.45)'
-          : 'none';
-      c.state.textContent = !training
+          : 'none');
+      setText(c.state, !training
         ? count > 0
           ? 'QUEUED'
           : `${option.cost} ${CURRENCY}`
         : q.state === 'noBarracks'
-          ? 'NO BARRACKS'
+          ? 'NO MINISTRY'
           : q.state === 'onHold'
             ? `ON HOLD ${Math.floor(q.progress * 100)}%`
-            : `${Math.floor(q.progress * 100)}%`;
+            : `${Math.floor(q.progress * 100)}%`);
     }
   }
 
@@ -685,10 +666,10 @@ export class Sidebar {
     for (const option of this.vehicleOptions) {
       const c = this.vehicleCameos.get(option.kind);
       if (!c) continue;
-      const have = model.hasWarFactory && (!option.needsAirfield || model.hasAirfield);
+      const have = option.needsAirfield ? model.hasAirfield : model.hasWarFactory;
       const count = q.items.filter((k) => k === option.kind).length;
       const producing = head === option.kind;
-      c.el.dataset.state = producing ? q.state : count > 0 ? 'queued' : 'idle';
+      setData(c.el, 'state', producing ? q.state : count > 0 ? 'queued' : 'idle');
       const atLimit = model.vehicleQueued >= BUILD_LIMIT_VEHICLES && count === 0;
       const noTech = TECH_VEHICLES.includes(option.kind) && !model.owned.has('techCenter');
       const noParking = isAircraftKind(option.kind) && model.parkingFree <= 0 && count === 0;
@@ -700,19 +681,19 @@ export class Sidebar {
         c.badge.hidden = count === 0;
       }
       const remaining = producing ? 1 - q.progress : 0;
-      c.wipe.style.background = producing
-        ? `conic-gradient(rgba(0,0,0,0.62) 0 ${remaining * 360}deg, transparent 0)`
+      setBackground(c.wipe, producing
+        ? `conic-gradient(rgba(0,0,0,0.62) 0 ${Math.round(remaining * 360)}deg, transparent 0)`
         : count > 0
           ? 'rgba(0,0,0,0.45)'
-          : 'none';
-      c.state.textContent = !producing
+          : 'none');
+      setText(c.state, !producing
         ? count > 0
           ? 'QUEUED'
-          : !model.hasWarFactory
-            ? 'NO FACTORY'
-            : !have
+          : !have
+            ? option.needsAirfield
               ? 'NO AIRFIELD'
-              : `${option.cost} ${CURRENCY}`
+              : 'NO FACTORY'
+            : `${option.cost} ${CURRENCY}`
         : q.state === 'noAirfield'
           ? 'NO AIRFIELD'
           : q.state === 'noFactory'
@@ -721,7 +702,7 @@ export class Sidebar {
               ? `NO POWER ${Math.floor(q.progress * 100)}%`
               : q.state === 'onHold'
               ? `ON HOLD ${Math.floor(q.progress * 100)}%`
-              : `${Math.floor(q.progress * 100)}%`;
+              : `${Math.floor(q.progress * 100)}%`);
     }
   }
 
@@ -730,15 +711,16 @@ export class Sidebar {
       const el = document.createElement('button');
       el.type = 'button';
       el.className = 'sb-cameo';
-      el.title = `${option.name} — ${option.cost} ${CURRENCY}, ${option.trainSeconds}s. ${option.description} Click to build, right-click to cancel.`;
+      el.title = `${option.name} — ${option.cost} ${CURRENCY}, ${option.trainSeconds} s. ${option.description} Click to build, right-click to cancel.`;
       el.innerHTML = `
         <canvas width="128" height="96"></canvas>
         <span class="sb-cameo-wipe"></span>
-        <span class="sb-cameo-name">${option.name}</span>
+        <span class="sb-cameo-info"></span>
         <span class="sb-cameo-badge" hidden></span>
         <span class="sb-cameo-state"></span>`;
       const canvas = el.querySelector('canvas');
       if (canvas) drawPreview(canvas, this.handlers.vehiclePreview(option));
+      addInfoIcon(el, option.name);
       el.addEventListener('click', () => this.handlers.onVehicle(option));
       el.addEventListener('contextmenu', (e) => {
         e.preventDefault();
@@ -757,15 +739,16 @@ export class Sidebar {
       const el = document.createElement('button');
       el.type = 'button';
       el.className = 'sb-cameo';
-      el.title = `${option.name} — ${option.cost} ${CURRENCY}, ${option.trainSeconds}s. ${option.description} Click to train, right-click to cancel.`;
+      el.title = `${option.name} — ${option.cost} ${CURRENCY}, ${option.trainSeconds} s. ${option.description} Click to train, right-click to cancel.`;
       el.innerHTML = `
         <canvas width="128" height="96"></canvas>
         <span class="sb-cameo-wipe"></span>
-        <span class="sb-cameo-name">${option.name}</span>
+        <span class="sb-cameo-info"></span>
         <span class="sb-cameo-badge" hidden></span>
         <span class="sb-cameo-state"></span>`;
       const canvas = el.querySelector('canvas');
       if (canvas) drawPreview(canvas, this.handlers.trainPreview(option));
+      addInfoIcon(el, option.name);
       el.addEventListener('click', () => this.handlers.onTrain(option));
       el.addEventListener('contextmenu', (e) => {
         e.preventDefault();
@@ -808,10 +791,11 @@ export class Sidebar {
       el.innerHTML = `
         <canvas width="128" height="96"></canvas>
         <span class="sb-cameo-wipe"></span>
-        <span class="sb-cameo-name">${option.name}</span>
+        <span class="sb-cameo-info"></span>
         <span class="sb-cameo-state"></span>`;
       const canvas = el.querySelector('canvas');
       if (canvas) drawPreview(canvas, this.handlers.preview(option));
+      addInfoIcon(el, option.name);
       el.addEventListener('click', () => this.handlers.onBuild(option));
       el.addEventListener('contextmenu', (e) => {
         e.preventDefault();
@@ -825,7 +809,7 @@ export class Sidebar {
   }
 }
 
-/** 1 234 → "1.23KTB", 1 234 567 → "1.23MTB", 1.2e9 → "1.2BTB" (below 1 000: plain "950TB"). */
+/** 1 234 → "1.23 KTB", 1 234 567 → "1.23 MTB", 1.2e9 → "1.2 BTB" (below 1 000: plain "950 TB"). */
 export function compactMoney(value: number): string {
   return compactUnit(value, CURRENCY);
 }
@@ -840,9 +824,36 @@ export function compactUnit(value: number, unit: string): string {
     [1e3, 'K'],
   ];
   for (const [size, suffix] of units) {
-    if (v >= size) return `${sign}${parseFloat((v / size).toFixed(2))}${suffix}${unit}`;
+    if (v >= size) return `${sign}${parseFloat((v / size).toFixed(2))} ${suffix}${unit}`;
   }
-  return `${sign}${Math.floor(v)}${unit}`;
+  return `${sign}${Math.floor(v)} ${unit}`;
+}
+
+/**
+ * The sidebar refreshes several times a second: these write to the DOM only when the value really changed, so an
+ * unchanged cameo costs no style recalculation.
+ */
+function setText(el: HTMLElement, text: string): void {
+  if (el.textContent !== text) el.textContent = text;
+}
+function setBackground(el: HTMLElement, value: string): void {
+  // The browser rewrites style values, so the last written value is remembered on the element instead.
+  if (el.dataset.bg !== value) {
+    el.dataset.bg = value;
+    el.style.background = value;
+  }
+}
+function setData(el: HTMLElement, key: string, value: string): void {
+  if (el.dataset[key] !== value) el.dataset[key] = value;
+}
+
+/** Info icon in the cameo corner: the name lives in its tooltip (and the button's accessible name), not on the picture. */
+function addInfoIcon(el: HTMLElement, name: string): void {
+  el.setAttribute('aria-label', name);
+  const slot = el.querySelector<HTMLElement>('.sb-cameo-info');
+  if (!slot) return;
+  slot.title = el.title;
+  slot.append(createElement(Info, { width: 14, height: 14, 'stroke-width': 2.25, 'aria-hidden': 'true' }));
 }
 
 /** Fits a sprite canvas into the cameo picture. */

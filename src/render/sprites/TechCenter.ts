@@ -2,7 +2,7 @@ import { HALF_TW } from '../../constants';
 import { FACTIONS } from '../../factions';
 import type { FactionId } from '../../types';
 import { shade } from '../Color';
-import { type BuildingArt, groundShadow } from './BuildingArt';
+import type { BuildingArt } from './BuildingArt';
 
 const PAD = '#a7a79b';
 const CONCRETE = '#cfd3d8';
@@ -24,7 +24,6 @@ export function createTechCenterArt(faction: FactionId): BuildingArt {
     height: 205,
 
     drawStatic(p) {
-      groundShadow(p, 4, 4);
       p.box(0, 0, 4, 4, 0, 2, PAD);
       p.topRect(0.15, 3.05, 1.15, 3.85, 2, LAWN);
       p.topRect(2.85, 3.05, 3.85, 3.85, 2, LAWN);

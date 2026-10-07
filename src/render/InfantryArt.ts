@@ -58,8 +58,9 @@ const sheet = (file: string, cw: number, ch: number, feetY: number, walk: number
   patch,
 });
 /**
- * 16-direction sheet (2048², 128 px cells): idle, 4 walk frames, aim, fire, 4 dying, 4 swimming, ground shadow.
- * The soldier stands ≈48 px tall with the feet at y ≈ 88 of the cell; the team colour is already painted on.
+ * 16-direction sheet (1536², 96 px cells — rendered at 2048² / 128 px and shipped at 75% to save download and
+ * memory): idle, 4 walk frames, aim, fire, 4 dying, 4 swimming, ground shadow. The soldier stands ≈36 px tall with
+ * the feet at y ≈ 66 of the cell; the team colour is already painted on.
  */
 const DIR16_ROW = { idle: 0, walk: 1, aim: 5, fire: 6, swim: 11, shadow: 15 } as const;
 const sheet16 = (file: string, fallback: SoldierSheetId, swim = false): SoldierSheet => ({
@@ -68,12 +69,12 @@ const sheet16 = (file: string, fallback: SoldierSheetId, swim = false): SoldierS
   fallback,
   swim,
   image: new Image(),
-  cw: 128,
-  ch: 128,
-  feetX: 64,
-  feetY: 88,
+  cw: 96,
+  ch: 96,
+  feetX: 48,
+  feetY: 66,
   walk: 4,
-  scale: 4 / 48,
+  scale: 4 / 36,
   patch: [0, 0],
 });
 const SHEETS: Record<SoldierSheetId, SoldierSheet> = {
@@ -97,19 +98,27 @@ const OCTANT_ROW: readonly (readonly [number, boolean])[] = [
 
 let sheetsLoaded: Promise<void> | null = null;
 
-/** Starts (once) and returns the soldier sprite sheet downloads; await it before the first frame. */
+/** Downloads one sheet; a 16-direction sheet that fails falls back to (and downloads) its older sheet instead. */
+function loadSheet(s: SoldierSheet): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    s.image.onload = () => resolve();
+    s.image.onerror = () => {
+      if (!s.fallback) reject(new Error(`Could not load soldier sprites '${s.url}'.`));
+      else loadSheet(SHEETS[s.fallback]).then(resolve, reject);
+    };
+    s.image.src = s.url;
+  });
+}
+
+/**
+ * Starts (once) and returns the soldier sprite downloads; await it before the first frame. Only the sheets the
+ * factions actually use are fetched (plus the GI sheet, worn by engineers); the older fallback sheets are fetched
+ * only if a 16-direction sheet fails to load.
+ */
 export function loadSoldierSprites(): Promise<void> {
-  sheetsLoaded ??= Promise.all(
-    Object.values(SHEETS).map(
-      (s) =>
-        new Promise<void>((resolve, reject) => {
-          s.image.onload = () => resolve();
-          // A missing 16-direction sheet is optional: its fallback sheet is drawn instead.
-          s.image.onerror = () => (s.fallback ? resolve() : reject(new Error(`Could not load soldier sprites '${s.url}'.`)));
-          s.image.src = s.url;
-        }),
-    ),
-  ).then(() => undefined);
+  const used = new Set<SoldierSheetId>(['gi']);
+  for (const f of Object.values(FACTIONS)) for (const t of Object.values(f.infantry)) used.add(t.look.sprite ?? 'gi');
+  sheetsLoaded ??= Promise.all([...used].map((id) => loadSheet(SHEETS[id]))).then(() => undefined);
   return sheetsLoaded;
 }
 

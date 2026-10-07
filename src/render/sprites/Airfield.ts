@@ -3,7 +3,7 @@ import type { FactionId } from '../../types';
 import { shade } from '../Color';
 import type { IsoPainter } from '../IsoPainter';
 
-import { type BuildingArt, groundShadow } from './BuildingArt';
+import type { BuildingArt } from './BuildingArt';
 
 const GROUND = '#9a9a8e';
 const RUNWAY = '#3c3f44';
@@ -54,7 +54,6 @@ export function createAirfieldArt(faction: FactionId): BuildingArt {
     height: 60,
 
     drawStatic(p) {
-      groundShadow(p, W, D);
       // The whole block is paved.
       p.box(0, 0, W, D, 0, 2, GROUND, { edge: null });
 

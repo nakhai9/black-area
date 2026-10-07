@@ -7,7 +7,7 @@ export class Barracks extends Building {
   constructor(owner: number, faction: FactionId, center: WorldPoint) {
     super(owner, faction, center, {
       type: 'barracks',
-      name: 'Barracks',
+      name: 'Ministry of Defence',
       footprint: FOOTPRINT_SMALL,
       maxHp: 1000,
       powerOutput: 0,

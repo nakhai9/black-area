@@ -5,7 +5,7 @@ import { Unit } from './Unit';
 
 export type { UnitTask } from './Unit';
 
-/** A foot soldier (regular, special forces, the President or an engineer). */
+/** A foot soldier (regular, special forces or an engineer). */
 export class Infantry extends Unit {
   readonly profile: InfantryProfile;
   readonly speed: number;
@@ -36,10 +36,6 @@ export class Infantry extends Unit {
   /** Special forces can swim across water; regulars cannot. */
   override get swims(): boolean {
     return this.tier === 'special';
-  }
-
-  get isPresident(): boolean {
-    return this.tier === 'president';
   }
 
   get isEngineer(): boolean {

@@ -1,8 +1,8 @@
 import { starPath } from '../Canvas';
 import { shade } from '../Color';
-import { drawFlagOnPole } from '../Flags';
+import { drawFlagOnPole, drawNationalPole } from '../Flags';
 import type { Face, IsoPainter } from '../IsoPainter';
-import { type BuildingArt, groundShadow } from './BuildingArt';
+import type { BuildingArt } from './BuildingArt';
 
 const PLAZA = '#b9bcc0';
 const GLASS = '#79a6c8';
@@ -77,7 +77,6 @@ export const BrusselsEUHeadquartersArt: BuildingArt = {
   height: 96,
 
   drawStatic(p) {
-    groundShadow(p, 4, ART_D);
     p.box(0, 0, 4, ART_D, 0, 3, PLAZA);
     p.topRect(0.15, 0.15, 1.35, 1.35, 3, LAWN);
     p.topRect(2.65, 0.15, 3.85, 1.35, 3, LAWN);
@@ -102,7 +101,7 @@ export const BrusselsEUHeadquartersArt: BuildingArt = {
     p.ctx.stroke();
     p.pole(2.0, 2.0, 3 + CORE_H + 10, 8, '#9aa3ab');
 
-    for (const u of FLAG_U) p.pole(u, FLAG_V, 3, POLE_H);
+    for (const u of FLAG_U) drawNationalPole(p, 'europe', u, FLAG_V, 3, POLE_H);
 
     esplanade(p);
   },

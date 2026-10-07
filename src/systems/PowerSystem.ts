@@ -10,9 +10,9 @@ import type { OilMarket } from './OilMarket';
  *  1. drains power for all its structures (spec.powerDrain per second);
  *  2. its nuclear plants burn oil from the stock (1 barrel = POWER_PER_BARREL power) to cover the drain and
  *     refill their storage, each at most spec.powerOutput × health per second;
- *  3. anything still missing is bought from the World Bank as oil, at OIL_GRID_MARKUP × the posted price;
+ *  3. anything still missing is bought from the Global Financial Center as oil, at OIL_GRID_MARKUP × the posted price;
  *  4. what the treasury cannot pay for leaves the nation in a blackout.
- * A nation whose plants cannot cover its drain (or in a blackout) is short of power: the Bank keeps its
+ * A nation whose plants cannot cover its drain (or in a blackout) is short of power: the Center keeps its
  * structures running, but construction (except power plants), vehicle production and take-offs stop.
  */
 export class PowerSystem implements GameSystem {
@@ -67,7 +67,7 @@ export class PowerSystem implements GameSystem {
       plant.stored -= used;
       need -= used;
     }
-    // Still short: the World Bank must sell the nation the missing oil.
+    // Still short: the Global Financial Center must sell the nation the missing oil.
     if (need > 0) need -= this.market.sellForGrid(p, need / POWER_PER_BARREL, OIL_GRID_MARKUP) * POWER_PER_BARREL;
     p.blackout = need > 1e-6;
     p.powerProduced = produced / dt;

@@ -41,7 +41,7 @@ function remember(id: FactionId): void {
 
 /**
  * Pre-game modal: pick one of the four factions. Click a card or use
- * 1–4 / ←→ to highlight, Enter or "Deploy" to confirm.
+ * 1–4 / ←→ to highlight; only the "Deploy as …" button starts the game.
  */
 export class FactionPicker {
   private readonly root: HTMLElement;
@@ -63,11 +63,11 @@ export class FactionPicker {
         <header class="fp-header">
           <div class="sb-logo">BLACK<span>AREA</span></div>
           <h1 id="fp-title">Choose your side</h1>
-          <p>Every nation starts with 0 ${CURRENCY} and some oil. Derricks pump oil (${parseFloat(OIL_DERRICK_OUTPUT.toFixed(3))} barrels/s each) for ${OIL_MINE_SECONDS} s, then rest ${OIL_REST_SECONDS} s. Oil is sold to the World Bank (one offer every 2 s) at a price driven by how much oil is sold and how rich the world is. Nuclear Power Plants burn oil for power (0.001 bbl = 1e); when your grid runs dry the Bank forces you to buy oil at +25%. Three derricks per nation, four for Europe.</p>
+          <p>Every nation starts with 0 ${CURRENCY} and some oil. Derricks pump oil (${parseFloat(OIL_DERRICK_OUTPUT.toFixed(3))} barrels/s each) for ${OIL_MINE_SECONDS} s, then rest ${OIL_REST_SECONDS} s. Oil is sold to the Global Financial Center (one offer every 2 s) at a price driven by how much oil is sold and how rich the world is. Nuclear Power Plants burn oil for power (0.001 bbl = 1 e); when your grid runs dry the Center forces you to buy oil at +25%. Three derricks per nation, four for Europe.</p>
         </header>
         <div class="fp-grid"></div>
         <footer class="fp-footer">
-          <span class="fp-hint"><kbd>1</kbd>–<kbd>4</kbd> select · <kbd>Enter</kbd> deploy</span>
+          <span class="fp-hint"><kbd>1</kbd>–<kbd>4</kbd> select</span>
           <button class="fp-deploy" type="button">Deploy</button>
         </footer>
       </div>`;
@@ -103,7 +103,6 @@ export class FactionPicker {
           this.highlight(FACTION_ORDER[(idx + 1) % FACTION_ORDER.length] ?? this.selected, true);
         else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp')
           this.highlight(FACTION_ORDER[(idx - 1 + FACTION_ORDER.length) % FACTION_ORDER.length] ?? this.selected, true);
-        else if (e.key === 'Enter') confirm(this.selected);
         else return;
         e.preventDefault();
       };
@@ -111,7 +110,6 @@ export class FactionPicker {
       deploy?.addEventListener('click', () => confirm(this.selected));
       for (const [id, card] of this.cards) {
         card.addEventListener('click', () => this.highlight(id));
-        card.addEventListener('dblclick', () => confirm(id));
       }
     });
   }

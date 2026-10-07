@@ -3,7 +3,8 @@ import type { Vehicle } from '../entities/Vehicle';
 import type { FactionId, VehicleKind } from '../types';
 
 /**
- * Pre-drawn aircraft sheets (RA2 style), built with scripts/build-aircraft-sheet.mjs.
+ * Pre-drawn aircraft sheets (RA2 style), built with scripts/build-aircraft-sheet.mjs at 128 px cells and shipped
+ * at 75% (96 px cells) to save download and memory.
  * Columns: 16 screen headings, clockwise from N (nose up the screen). Rows below.
  */
 const COLS = 16;
@@ -27,14 +28,14 @@ const sheet = (file: string, cell: number, length: number): AircraftSheet => ({
 });
 
 const SHEETS: Partial<Record<`${FactionId}:${VehicleKind}`, AircraftSheet>> = {
-  'usa:transport': sheet('transport-usa.png', 128, 13),
-  'russia:transport': sheet('transport-russia.png', 128, 13),
-  'china:transport': sheet('transport-china.png', 128, 13),
-  'europe:transport': sheet('transport-europe.png', 128, 13),
-  'usa:jet': sheet('jet-usa.png', 128, 10),
-  'russia:jet': sheet('jet-russia.png', 128, 10),
-  'china:jet': sheet('jet-china.png', 128, 10),
-  'europe:jet': sheet('jet-europe.png', 128, 10),
+  'usa:transport': sheet('transport-usa.png', 96, 13),
+  'russia:transport': sheet('transport-russia.png', 96, 13),
+  'china:transport': sheet('transport-china.png', 96, 13),
+  'europe:transport': sheet('transport-europe.png', 96, 13),
+  'usa:jet': sheet('jet-usa.png', 96, 10),
+  'russia:jet': sheet('jet-russia.png', 96, 10),
+  'china:jet': sheet('jet-china.png', 96, 10),
+  'europe:jet': sheet('jet-europe.png', 96, 10),
 };
 
 /** Turn rate (rad/s) above which an airborne aircraft is drawn banked. */
@@ -133,5 +134,23 @@ export function drawAircraftSheet(ctx: CanvasRenderingContext2D, v: Vehicle, x: 
   // Body: its centre sits about 1.5 px over the wheels.
   ctx.drawImage(img, col * sh.cell, row * sh.cell, sh.cell, sh.cell, x - half, y - v.altitude - 1.5 - half, size, size);
   ctx.imageSmoothingEnabled = prevSmooth;
+  return true;
+}
+
+/**
+ * Draws the faction's aircraft sheet (flying pose, `heading` world radians) centred in a w × h cameo.
+ * Returns false when there is no loaded sheet for it.
+ */
+export function drawAircraftPortrait(ctx: CanvasRenderingContext2D, faction: FactionId, kind: VehicleKind, w: number, h: number, heading: number): boolean {
+  const sh = SHEETS[`${faction}:${kind}`];
+  if (!sh) return false;
+  const img = sh.image;
+  if (!img.complete || img.naturalWidth === 0) return false;
+  const col = column(heading);
+  const size = Math.min(w / 0.74, h * 1.35);
+  ctx.save();
+  ctx.imageSmoothingEnabled = true;
+  ctx.drawImage(img, col * sh.cell, ROW.flyA * sh.cell, sh.cell, sh.cell, (w - size) / 2, (h - size) / 2, size, size);
+  ctx.restore();
   return true;
 }

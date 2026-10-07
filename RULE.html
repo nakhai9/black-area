@@ -70,7 +70,7 @@ npm run build:earth  # tạo lại public/data/earth.png từ dữ liệu Trái 
 <ul>
   <li>Bản đồ là Trái Đất thật (equirectangular 4096×2048 texel, <code>WORLD_SCALE</code> 2.25 world px/texel).</li>
   <li>Lưới logic: ô <code>CELL_SIZE</code> = 7 world px. Hiển thị isometric kiểu Red Alert 2 (camera cố định, không xoay).</li>
-  <li>Thủ đô đặt ở toạ độ thật: Washington, Moscow, Beijing, Brussels. World Bank (trung lập) ở Zürich; CHHG trung lập ở Nam Cực.</li>
+  <li>Thủ đô đặt ở toạ độ thật: Washington, Moscow, Beijing, Paris. Global Financial Center (trung lập) ở Zürich; CHHG trung lập ở Nam Cực.</li>
   <li>Rừng làm chậm mọi đơn vị mặt đất (×0.78). Nước: chỉ lính đặc nhiệm bơi được (×0.6 tốc độ); xe không xuống nước.</li>
   <li>Zoom chiến thuật 3–7; toàn cảnh xem trên radar sidebar.</li>
 </ul>
@@ -79,14 +79,14 @@ npm run build:earth  # tạo lại public/data/earth.png từ dữ liệu Trái 
 <ul>
   <li>Tiền tệ: <b>TB</b>. Mọi phe bắt đầu với 0 TB và 20 thùng dầu.</li>
   <li>Giếng dầu (OilDerrick) đặt sẵn thành 1 hàng ở nơi an toàn, xa mọi thủ đô: 4 giếng/phe, Europe 5. Mỗi giếng bơm 0.1 thùng mỗi 10s (0.01 thùng/s); chu kỳ bơm 180s, nghỉ 60s.</li>
-  <li>Bán dầu cho World Bank: giá chung theo cung–cầu (không ngẫu nhiên), khởi điểm 600, trong 100–1200, cập nhật mỗi 10s. Mỗi lần Bank mua tối đa 25% lượng chào bán; giữa 2 lần bán phải chờ 3s. Hết tiền có thể vay khẩn cấp — xem mục 7b.</li>
+  <li>Bán dầu cho Global Financial Center: giá chung theo cung–cầu (không ngẫu nhiên), khởi điểm 600, trong 100–1200, cập nhật mỗi 10s. Mỗi lần Bank mua tối đa 25% lượng chào bán; giữa 2 lần bán phải chờ 3s. Hết tiền có thể vay khẩn cấp — xem mục 7b.</li>
   <li>Công trình được trả tiền dần trong lúc xây: mỗi 4s tiến 20%.</li>
 </ul>
 
 <h2 id="build">5. Công trình</h2>
 <table>
 <tr><th>Công trình</th><th>Giá (TB)</th><th>Yêu cầu</th><th>Footprint</th><th>Ghi chú</th></tr>
-<tr><td>Capital</td><td>—</td><td>có sẵn</td><td>5×8</td><td>Chứa Tổng thống; mất thủ đô + hết quân = thua. Khu đất gồm dinh thự (~5×5) + sân nghi lễ riêng của từng phe (5×3): National Mall (USA), Quảng trường Đỏ (Russia), sân ngoài Tử Cấm Thành (China), quảng trường sao EU (Europe).</td></tr>
+<tr><td>Capital</td><td>—</td><td>có sẵn</td><td>5×8</td><td>Mất thủ đô + hết quân = thua. Khu đất gồm dinh thự (~5×5) + sân nghi lễ riêng của từng phe (5×3): South Lawn (USA), Quảng trường Đỏ (Russia), đại lộ Trường An trước Tân Hoa Môn (China), quảng trường sao EU (Europe).</td></tr>
 <tr><td>Barracks</td><td>800</td><td>—</td><td>4×4</td><td>Huấn luyện lính.</td></tr>
 <tr><td>War Factory</td><td>2000</td><td>Barracks</td><td>5×4</td><td>Sản xuất xe mặt đất.</td></tr>
 <tr><td>Hospital</td><td>1200</td><td>Barracks</td><td>5×4</td><td>20 bệnh nhân, hồi 10 HP/s.</td></tr>
@@ -102,16 +102,15 @@ npm run build:earth  # tạo lại public/data/earth.png từ dữ liệu Trái 
 <tr><th>Tier</th><th>Giá</th><th>Train (s)</th><th>HP</th><th>Tốc độ</th><th>Ghi chú</th></tr>
 <tr><td>regular</td><td>200</td><td>5</td><td>125</td><td>1.4</td><td>Lính thường.</td></tr>
 <tr><td>special</td><td>500</td><td>10</td><td>200</td><td>1.7</td><td>Cần Tech Center; bơi được. Số elite ≤ floor(regular × 2/3).</td></tr>
-<tr><td>engineer</td><td>400</td><td>6</td><td>100</td><td>1.3</td><td>Sửa nhà 60 HP/s, chiếm công trình địch.</td></tr>
-<tr><td>president</td><td>1000</td><td>12</td><td>150</td><td>1.2</td><td>Không vũ trang; chỉ vào được Capital.</td></tr>
+<tr><td>engineer</td><td>400</td><td>6</td><td>100</td><td>1.3</td><td>Vào trong nhà để sửa (mỗi kỹ sư 6% máu tối đa/s) tới 100% rồi ra; nhà bị phá hủy lúc đang sửa thì kỹ sư chết cùng nhà. Chiếm công trình địch.</td></tr>
 </table>
 <h3>Xe & máy bay — <code>VEHICLE_BASE</code></h3>
 <table>
 <tr><th>Loại</th><th>Giá</th><th>HP</th><th>Tốc độ (ô/s)</th><th>Vũ khí</th><th>Nơi SX</th></tr>
 <tr><td>tank</td><td>1200</td><td>420</td><td>1.4</td><td>cannon</td><td>War Factory</td></tr>
 <tr><td>ifv</td><td>900</td><td>300</td><td>1.8</td><td>autocannon</td><td>War Factory (cần Tech Center)</td></tr>
-<tr><td>jet</td><td>1600</td><td>220</td><td>9</td><td>missile</td><td>War Factory + Airfield</td></tr>
-<tr><td>transport</td><td>1400</td><td>260</td><td>5.5</td><td>không</td><td>War Factory + Airfield</td></tr>
+<tr><td>jet</td><td>1600</td><td>220</td><td>9</td><td>missile</td><td>Airfield</td></tr>
+<tr><td>transport</td><td>1400</td><td>260</td><td>5.5</td><td>không</td><td>Airfield</td></tr>
 <tr><td>light</td><td>600</td><td>180</td><td>2.4</td><td>mg</td><td>Ẩn (không có trong <code>AVAILABLE_VEHICLES</code>)</td></tr>
 </table>
 <ul>
@@ -146,7 +145,7 @@ npm run build:earth  # tạo lại public/data/earth.png từ dữ liệu Trái 
   <li><b>Unit không bao giờ tự tấn công công trình</b> — phải có lệnh focus (click vào công trình địch).</li>
   <li>Xe mặt đất cán chết lính địch trong bán kính 2.4 px.</li>
   <li>Máy bay mất sân bay sẽ tìm sân khác hoặc rơi.</li>
-  <li>Công trình <code>indestructible</code> (World Bank, CHHG) không thể bị phá.</li>
+  <li>Công trình <code>indestructible</code> (Global Financial Center, CHHG) không thể bị phá.</li>
 </ul>
 
 <h2 id="detail">7b. Nguyên tắc chi tiết từng đối tượng</h2>
@@ -155,15 +154,15 @@ npm run build:earth  # tạo lại public/data/earth.png từ dữ liệu Trái 
 <h3>Công trình</h3>
 <table>
 <tr><th>Công trình</th><th>Chủ</th><th>HP</th><th>Điện</th><th>Phá huỷ / Chiếm</th><th>Nguyên tắc</th></tr>
-<tr><td><b>Capital</b> (<code>entities/Capital.ts</code>)</td><td>Phe</td><td>theo phe (China 6000, EU 5200…)</td><td>+200</td><td>Phá được; chiếm được (không có <code>uncapturable</code>)</td><td>Có sẵn ở toạ độ thật, không xây được. Chứa đúng 1 người: Tổng thống của phe đó. Mất Capital + hết quân vũ trang = bị loại. Phím <code>H</code> nhảy về.</td></tr>
+<tr><td><b>Capital</b> (<code>entities/Capital.ts</code>)</td><td>Phe</td><td>theo phe (USA 15000, EU 15600, Russia 16500, China 18000)</td><td>+200</td><td>Phá được; chiếm được (không có <code>uncapturable</code>)</td><td>Có sẵn ở toạ độ thật, không xây được. Mất Capital + hết quân vũ trang = bị loại. Phím <code>H</code> nhảy về.</td></tr>
 <tr><td><b>Barracks</b></td><td>Phe</td><td>1000</td><td>−10</td><td>Phá / chiếm được</td><td>Mở hàng huấn luyện lính. Lính ra đứng thành hàng duyệt binh cách tường ≤ 2 ô. Lính ra ở Barracks còn sống đầu tiên của phe.</td></tr>
 <tr><td><b>War Factory</b></td><td>Phe</td><td>1800</td><td>−50</td><td>Phá / chiếm được</td><td>Cần Barracks. Sản xuất xe mặt đất (tank, ifv). Xe lăn ra từ nhà máy đầu tiên còn sống.</td></tr>
 <tr><td><b>Hospital</b></td><td>Phe</td><td>1200</td><td>−20</td><td>Phá / chiếm được</td><td>Cần Barracks. Chỉ nhận người <b>bị thương</b> (hp &lt; max) cùng phe, tối đa 20. Hồi 10 HP/s; hồi đầy thì tự đi ra. Double-click để cho tất cả ra.</td></tr>
-<tr><td><b>Airfield</b></td><td>Phe</td><td>1500</td><td>−40</td><td>Phá / chiếm được</td><td>Cần War Factory. 12×6 ô, 6 chỗ đỗ. Máy bay được đặt hàng ở <b>War Factory</b>, nhưng xưởng chỉ nhận đơn máy bay khi phe đang có ít nhất 1 Airfield; máy bay xong được đỗ trên Airfield. Mất War Factory hoặc mất hết Airfield thì đơn máy bay đang chờ dừng lại (không trừ tiền) cho tới khi có lại. Số máy bay (đang có + đang đặt) ≤ 6 × số Airfield; máy bay chết trả lại chỗ. Máy bay đỗ được sửa 2% HP mỗi 4s. Máy bay xong lệnh 1s thì bay về, hạ cánh, lăn về chỗ đỗ. Mất sân bay → tìm sân khác hoặc rơi.</td></tr>
+<tr><td><b>Airfield</b></td><td>Phe</td><td>1500</td><td>−40</td><td>Phá / chiếm được</td><td>Cần War Factory. 12×6 ô, 6 chỗ đỗ. Máy bay do <b>Airfield</b> sản xuất (không liên quan War Factory); máy bay xong được đỗ trên Airfield. Mất hết Airfield thì đơn máy bay đang chờ dừng lại (không trừ tiền) cho tới khi có lại. Số máy bay (đang có + đang đặt) ≤ 6 × số Airfield; máy bay chết trả lại chỗ. Máy bay đỗ được sửa 2% HP mỗi 4s. Máy bay xong lệnh 1s thì bay về, hạ cánh, lăn về chỗ đỗ. Mất sân bay → tìm sân khác hoặc rơi.</td></tr>
 <tr><td><b>High-Tech Center</b></td><td>Phe</td><td>2500</td><td>−80</td><td>Phá / chiếm được</td><td>Cần War Factory, 4×4, giá 8000. Khi còn đứng: mở lính <code>special</code> và xe <code>ifv</code>.</td></tr>
 <tr><td><b>Happy City</b> (<code>entities/HappyCity.ts</code>, art <code>render/sprites/HappyCity.ts</code>)</td><td>Phe</td><td>4000</td><td>0</td><td>Phá / chiếm được</td><td>8×8 ô, không cần công trình nào trước, xây bao nhiêu cũng được, giá 10000 TB cho mọi phe (<code>fixedCost</code>). Đường vành đai + ngã tư, cây xanh, công viên, nhà cao tầng, xe chạy, người đi bộ. Kiến trúc theo phe: USA nhà chọc trời + tháp kiểu Empire State; Russia tháp "Bảy chị em" + sao đỏ + mái vòm củ hành; China tháp truyền hình kiểu Minh Châu + mái chùa đỏ; Europe phố cổ mái dốc + nhà thờ tháp đồng hồ. <b>Thuế</b> (<code>systems/TaxSystem.ts</code>): mỗi thành phố nộp 500 TB mỗi 60s theo đồng hồ riêng tính từ lúc đặt, nên nhiều thành phố nộp lệch giờ nhau; tiền đi qua <code>OilMarket.receive()</code> (trừ nợ trước). Phe bị loại không thu thuế. Thành phố bị chiếm → thuế về phe mới. AI <b>có</b> xây Happy City: coi đây là khoản đầu tư chính, xây nhiều nhất trong khả năng (tối đa 10 × khẩu vị theo tính cách), chỉ xây bằng tiền mặt — không bao giờ vay để xây — và chỉ khi quân số còn trên ngưỡng.</td></tr>
-<tr><td><b>Oil Derrick</b></td><td>Phe</td><td>1000</td><td>0</td><td>Thường: phá / chiếm được. <b>Giếng do World Bank quản lý</b>: không phá, không chiếm được</td><td>Đặt sẵn thành 1 hàng, không xây được. Bơm 0.1 thùng mỗi 10s trong 180s, nghỉ 60s; các giếng trong hàng lệch pha 40s để thu nhập đều. Mỗi hàng có 1 giếng do Bank quản lý — dầu vẫn về phe chủ. Phím <code>O</code> duyệt giếng.</td></tr>
-<tr><td><b>World Bank</b> (Zürich)</td><td>Trung lập</td><td>3000</td><td>0</td><td><b>Không</b> phá, không gây sát thương, không chiếm, không vào</td><td>Chợ dầu chung (<code>systems/OilMarket.ts</code>) — xem bên dưới.</td></tr>
+<tr><td><b>Oil Derrick</b></td><td>Phe</td><td>1000</td><td>0</td><td>Thường: phá / chiếm được. <b>Giếng do Global Financial Center quản lý</b>: không phá, không chiếm được</td><td>Đặt sẵn thành 1 hàng, không xây được. Bơm 0.1 thùng mỗi 10s trong 180s, nghỉ 60s; các giếng trong hàng lệch pha 40s để thu nhập đều. Mỗi hàng có 1 giếng do Bank quản lý — dầu vẫn về phe chủ. Phím <code>O</code> duyệt giếng.</td></tr>
+<tr><td><b>Global Financial Center</b> (Zürich)</td><td>Trung lập</td><td>3000</td><td>0</td><td><b>Không</b> phá, không gây sát thương, không chiếm, không vào</td><td>Chợ dầu chung (<code>systems/OilMarket.ts</code>) — xem bên dưới.</td></tr>
 <tr><td><b>CHHG</b> (Nam Cực)</td><td>Trung lập</td><td>5000</td><td>0</td><td><b>Không</b> phá, không chiếm, không vào</td><td>Landmark trang trí. Engineer click vào → thông báo "Neutral buildings cannot be captured or destroyed."</td></tr>
 </table>
 
@@ -175,9 +174,9 @@ npm run build:earth  # tạo lại public/data/earth.png từ dữ liệu Trái 
   <li>Tối đa 5 lần chào bán trong mỗi cửa sổ 30s.</li>
 </ul>
 
-<h3>Quy tắc vận hành kinh tế & World Bank (đã cài)</h3>
+<h3>Quy tắc vận hành kinh tế & Global Financial Center (đã cài)</h3>
 
-<p><b>1. Bản chất của World Bank (Zürich)</b></p>
+<p><b>1. Bản chất của Global Financial Center (Zürich)</b></p>
 <ul>
   <li><b>Trung lập tuyệt đối & bất khả xâm phạm</b> (<code>indestructible</code>): Bank đứng ngoài chiến tranh, không có quân đội riêng, không thể bị tấn công, chiếm giữ hay phá huỷ. <i>(Đã có trong code.)</i></li>
   <li><b>Thể chế tài chính thuần tuý</b>: không can thiệp chính trị, không ép buộc các phe; chỉ tự động vận hành thanh khoản, tín dụng và thị trường dầu mỏ.</li>
@@ -185,7 +184,7 @@ npm run build:earth  # tạo lại public/data/earth.png từ dữ liệu Trái 
 
 <p><b>2. Giếng dầu & giám sát kỹ thuật</b></p>
 <ul>
-  <li>Trong cụm giếng đặt sẵn của mỗi phe có <b>đúng 1 giếng</b> nối hạ tầng đo lường với World Bank (<code>OilDerrick.bankManaged</code> — đã có).</li>
+  <li>Trong cụm giếng đặt sẵn của mỗi phe có <b>đúng 1 giếng</b> nối hạ tầng đo lường với Global Financial Center (<code>OilDerrick.bankManaged</code> — đã có).</li>
   <li>Dầu từ giếng này <b>thuộc hoàn toàn về phe đó</b>. Bank không sở hữu giếng, chỉ dùng sản lượng của nó làm tín hiệu gốc để tính cung–cầu.</li>
 </ul>
 
@@ -220,8 +219,7 @@ npm run build:earth  # tạo lại public/data/earth.png từ dữ liệu Trái 
 <tr><th>Loại</th><th>Vũ khí</th><th>Nguyên tắc</th></tr>
 <tr><td><b>regular</b></td><td>rifle (cả 4 phe)</td><td>Không giới hạn số sở hữu; chỉ giới hạn 15 đơn chờ chung cho lính.</td></tr>
 <tr><td><b>special</b></td><td>USA smg, Russia smg, China smg, Europe sniper</td><td>Cần High-Tech Center. Số special (sống + đang đặt) ≤ floor(regular × 2/3). Bơi được (60% tốc độ).</td></tr>
-<tr><td><b>engineer</b></td><td>không (cờ lê)</td><td>Click nhà mình bị hỏng → sửa 60 HP/s tới đầy (không sửa nhà indestructible). Click nhà địch chiếm được → đi tới cửa, <b>engineer mất</b>, nhà đổi phe và đổi màu. Không chiếm được nhà trung lập.</td></tr>
-<tr><td><b>president</b></td><td>không</td><td>Mỗi phe đúng 1 Tổng thống (sống, đang ở trong nhà, hoặc đang đặt). Chỉ vào được Capital phe mình.</td></tr>
+<tr><td><b>engineer</b></td><td>không (cờ lê)</td><td>Click nhà mình bị hỏng → kỹ sư đi vào nhà, sửa tới 100% (mỗi kỹ sư 6% máu tối đa/s; nhiều kỹ sư cộng dồn; nhà vẫn mất máu khi bị bắn) rồi tự đi ra, không thông báo. Nhà bị phá hủy trong lúc sửa → kỹ sư chết cùng nhà (tính là bị tiêu diệt bởi bên phá nhà). Bán nhà (Ctrl+click) lúc đang sửa → kỹ sư ra an toàn. Không sửa nhà indestructible. Click nhà địch chiếm được → đi tới cửa, <b>engineer mất</b>, nhà đổi phe và đổi màu. Không chiếm được nhà trung lập.</td></tr>
 </table>
 <ul>
   <li>Tầm bắn lính = min(tầm vũ khí × hệ số range phe, 3 ô). Sát thương × hệ số firepower phe.</li>
@@ -257,7 +255,6 @@ npm run build:earth  # tạo lại public/data/earth.png từ dữ liệu Trái 
 <tr><td><code>1</code>–<code>9</code></td><td>Nhảy tới landmark</td></tr>
 <tr><td><code>H</code></td><td>Về thủ đô</td></tr>
 <tr><td><code>O</code></td><td>Lần lượt các giếng dầu</td></tr>
-<tr><td><code>F</code></td><td>Bật/tắt tự phòng thủ</td></tr>
 <tr><td><code>R</code></td><td>Xoay công trình</td></tr>
 <tr><td><code>U</code> / nút Unload</td><td>Thả quân từng người một (đang bay thì hạ cánh xuống đất liền trước)</td></tr>
 <tr><td><code>M</code></td><td>Tắt/bật âm</td></tr>

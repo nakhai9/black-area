@@ -99,6 +99,12 @@ export abstract class Unit extends Entity {
   engaged = false;
   /** Currently walking towards a target it chose itself (guard / retaliation / attack order). */
   chasing = false;
+  /** Falling back to its own land: enemies may shoot it while in range but never chase it. Cleared on arrival. */
+  retreating = false;
+  /** Nations that already let this unit go during the current retreat (each is paid the mercy bonus once). */
+  sparedBy = new Set<number>();
+  /** Units ordered to fall back together share this number: the mercy bonus is paid once per group, not per unit. */
+  retreatGroup = 0;
 
   constructor(owner: number, faction: Allegiance, at: WorldPoint, maxHp: number) {
     super(owner, faction, at.x / CELL_SIZE, at.y / CELL_SIZE, maxHp);

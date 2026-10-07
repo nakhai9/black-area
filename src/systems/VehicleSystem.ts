@@ -13,9 +13,9 @@ export interface VehicleOption {
   description: string;
   cost: number;
   trainSeconds: number;
-  /** Every order is placed at the War Factory. */
+  /** Where it is built: the War Factory for ground vehicles, the Airfield for aircraft. */
   requires: BuildingType;
-  /** Aircraft: the War Factory only takes the order while the nation owns an Airfield (where the aircraft parks). */
+  /** Aircraft: built (and parked) at an Airfield; no War Factory involved. */
   needsAirfield: boolean;
 }
 
@@ -29,7 +29,7 @@ function vehicleOptions(faction: FactionId): VehicleOption[] {
     description: f.vehicles[kind].description,
     cost: Math.round((VEHICLE_BASE[kind].cost * f.stats.cost) / 10) * 10,
     trainSeconds: VEHICLE_BASE[kind].trainSeconds + f.stats.trainDelay,
-    requires: 'warFactory',
+    requires: isAircraftKind(kind) ? 'airfield' : 'warFactory',
     needsAirfield: isAircraftKind(kind),
   }));
 }
@@ -49,8 +49,8 @@ export interface VehicleQueue {
 
 /**
  * Vehicle and aircraft production: one queue per nation, separate from
- * structures and infantry. Every order is placed at the War Factory; aircraft
- * orders are only taken while the nation also owns an Airfield. Cost is paid
+ * structures and infantry. Ground vehicles are built at the War Factory, aircraft
+ * at the Airfield (the War Factory plays no part in them). Cost is paid
  * gradually from the treasury; a finished vehicle rolls out of the War Factory
  * and a finished aircraft is parked on an Airfield (both via `spawn`).
  */
@@ -84,10 +84,11 @@ export class VehicleSystem implements GameSystem {
     return this.entities.buildings().find((b) => b.owner === player.id && b.alive && b.spec.type === type) ?? null;
   }
 
-  /** Why `kind` cannot be ordered right now (no War Factory / aircraft without an Airfield), or null. */
+  /** Why `kind` cannot be ordered right now (ground vehicle without a War Factory / aircraft without an Airfield), or null. */
   private missingBuilding(player: PlayerState, kind: VehicleKind): 'noFactory' | 'noAirfield' | null {
-    if (!this.producerOf(player, 'warFactory')) return 'noFactory';
-    if (isAircraftKind(kind) && !this.producerOf(player, 'airfield')) return 'noAirfield';
+    if (isAircraftKind(kind)) {
+      if (!this.producerOf(player, 'airfield')) return 'noAirfield';
+    } else if (!this.producerOf(player, 'warFactory')) return 'noFactory';
     return null;
   }
 
@@ -171,7 +172,7 @@ export class VehicleSystem implements GameSystem {
         q.state = 'idle';
         continue;
       }
-      // War Factory gone, or an aircraft order without an Airfield (destroyed meanwhile): the order waits, unpaid.
+      // Its War Factory / Airfield is gone (destroyed meanwhile): the order waits, unpaid.
       const missing = this.missingBuilding(p, kind);
       const producer = this.deliveryPoint(p, kind);
       if (missing || !producer) {

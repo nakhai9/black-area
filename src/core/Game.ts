@@ -1,5 +1,11 @@
 import {
   BUILDING_VALUE,
+  CAMERA_EDGE_PAN_SPEED,
+  DERRICK_GRACE_ATTACKS,
+  ENGINEER_REPAIR_SHARE,
+  DERRICK_GRACE_GAP,
+  MERCY_BONUS,
+  RESALE_SHARE,
   CAMERA_EDGE_SCROLL,
   CAMERA_PAN_SPEED,
   CAPITAL_LOCATIONS,
@@ -80,6 +86,7 @@ import { EconomySystem } from '../systems/EconomySystem';
 import type { GameSystem } from '../systems/GameSystem';
 import { BUILD_RADIUS, type PlacementRequest, type PlacementResult, PlacementSystem } from '../systems/PlacementSystem';
 import { PowerSystem } from '../systems/PowerSystem';
+import { SAFE_ZONE_SIZE, type SafeZone, SafeZoneSystem } from '../systems/SafeZoneSystem';
 import { SelectionSystem } from '../systems/SelectionSystem';
 import { TrainingSystem } from '../systems/TrainingSystem';
 import { VehicleSystem } from '../systems/VehicleSystem';
@@ -108,6 +115,7 @@ const SIDEBAR_REFRESH = 0.2;
 const BLOCK_REASONS: Readonly<Record<string, string>> = {
   outOfBounds: 'Outside the map',
   occupied: 'A building is already there',
+  units: 'Units are standing there',
   water: 'Cannot build on water',
   ice: 'Cannot build on ice',
   trees: 'Trees in the way',
@@ -164,12 +172,25 @@ export class Game {
   readonly combat: CombatSystem;
   /** Take-off, flight home, landing and parking of fighters. */
   readonly aircraft: AircraftSystem;
+  /** Green safe zones of the Global Financial Center for units evacuated by air. */
+  readonly safeZones: SafeZoneSystem;
   private repathTimer = 0;
+  /** Spatial hash of separateUnits, reused every pass (with a pool of emptied bucket arrays). */
+  private readonly sepGrid = new Map<number, Unit[]>();
+  private readonly sepPool: Unit[][] = [];
+  /** Last cursor written to the canvas style. */
+  private lastCursor = '';
+  /** Retreat groups (see Unit.retreatGroup) and the "group:nation" pairs already paid the mercy bonus. */
+  private nextRetreatGroup = 1;
+  private readonly mercyPaid = new Set<string>();
+  /** Attacks launched on the player's structures so far, and when each enemy nation last hit one of them. */
+  private attacksOnPlayer = 0;
+  private readonly lastHitOnPlayer = new Map<number, number>();
   /** Computer-controlled nations. */
   readonly ai: AISystem;
   readonly effects = new EffectsLayer();
   readonly sound: SoundSystem;
-  /** World Bank oil market (one price for every nation) and the news toasts. */
+  /** Global Financial Center oil market (one price for every nation) and the news toasts. */
   readonly oilMarket: OilMarket;
   private readonly news: NewsToast;
   private readonly endScreen = new EndScreen();
@@ -238,7 +259,7 @@ export class Game {
       const f = player.faction;
       this.landmarks.push(this.entities.add(new Capital(FACTIONS[f], player.id, geoToWorld(CAPITAL_LOCATIONS[f]))));
     }
-    // The World Bank is neutral: shared by every nation, never destroyed or occupied.
+    // The Global Financial Center is neutral: shared by every nation, never destroyed or occupied.
     this.landmarks.push(this.entities.add(new WorldBank(geoToWorld(WORLD_BANK_LOCATION))));
     // CHHG at the South Pole: neutral, indestructible, uncapturable.
     this.landmarks.push(this.entities.add(new Chhg(geoToWorld(CHHG_LOCATION))));
@@ -277,9 +298,18 @@ export class Game {
       unloadOne: (t) => this.unloadOne(t),
       powered: (owner) => !this.players.find((p) => p.id === owner)?.powerShort,
     });
+    this.safeZones = new SafeZoneSystem(
+      this.map,
+      this.pathfinder,
+      this.entities,
+      () => undefined, // zones open and close without announcements
+    );
     this.combat = new CombatSystem(this.entities, this.pathfinder, {
       onFire: (s, t, w, impact) => this.onFire(s, t, w, impact),
       onDeath: (e, killer) => this.onDeath(e, killer),
+      onSpare: (nation, fugitive) => this.payMercyBonus(nation, fugitive),
+      safeAt: (x, y) => this.safeZones.isSafe(x, y),
+      shielded: (t) => t instanceof Building && this.isShielded(t),
     });
     this.ai = new AISystem(
       this.players.filter((p) => !p.isHuman),
@@ -296,6 +326,7 @@ export class Game {
       this.training,
       this.production,
       this.aircraft,
+      this.safeZones,
       this.combat,
       this.ai,
     ];
@@ -306,7 +337,6 @@ export class Game {
       onBuild: (option) => this.onBuildClick(option),
       onCancel: () => this.onBuildCancel(),
       preview: (option) => this.sprites.get(option.spriteKey(human.faction)).canvas,
-      onAutoDefense: (on) => this.ai.setAssist(human, on),
       onTrain: (option) => this.onTrainClick(option.tier),
       onTrainCancel: (option) => this.onTrainCancel(option.tier),
       trainPreview: (option) => soldierPortrait(human.faction, option.tier),
@@ -394,17 +424,82 @@ export class Game {
       u.parade = null;
       u.task = null;
       u.attackMove = null;
+      u.retreating = false;
       u.attackTarget = target.id;
     }
   }
 
   /** Units walk to `target` and fight whatever they meet on the way. */
+  /** Falls back to `target` without stopping to fight: enemies may not chase the retreating units. */
+  orderRetreat(units: readonly Unit[], target: WorldPoint): void {
+    const stranded = this.strandedFrom(units, target);
+    const walkers = units.filter((u) => !stranded.includes(u));
+    if (walkers.length > 0) this.orderMove(target, [...walkers], false);
+    this.markRetreat(walkers);
+    if (stranded.length > 0) this.sendToSafeZone(stranded);
+  }
+
+  /** These units fall back as one group (one mercy bonus for the whole group). */
+  private markRetreat(units: readonly Unit[]): void {
+    const group = this.nextRetreatGroup++;
+    for (const u of units) {
+      u.retreating = true;
+      u.retreatGroup = group;
+      u.sparedBy.clear();
+    }
+  }
+
+  /** Ground units that cannot walk to `to` (another landmass) and cannot swim there: they must leave by air. */
+  private strandedFrom(units: readonly Unit[], to: WorldPoint): Unit[] {
+    const goal = this.map.cellAt(to.x, to.y);
+    if (!goal) return [];
+    const cell = this.pathfinder.nearestPassable(goal.x, goal.y, 10);
+    if (!cell) return [];
+    return units.filter(
+      (u) => !u.aircraft && !u.swims && !this.pathfinder.sameLandmass(Math.floor(u.px / CELL_SIZE), Math.floor(u.py / CELL_SIZE), cell.x, cell.y),
+    );
+  }
+
+  /**
+   * Units stranded on a foreign land fall back into a green safe zone that the Global Financial Center opens near
+   * them (within reach of the enemy capital they fought near). Nobody may attack inside it; transports fly them home.
+   */
+  private sendToSafeZone(units: readonly Unit[]): void {
+    const first = units[0];
+    if (!first) return;
+    const cx = units.reduce((s, u) => s + u.px, 0) / units.length;
+    const cy = units.reduce((s, u) => s + u.py, 0) / units.length;
+    let enemyCapital: WorldPoint | null = null;
+    let best = Infinity;
+    for (const b of this.entities.buildings()) {
+      if (!b.alive || b.spec.type !== 'capital' || b.owner === first.owner || b.owner === NEUTRAL_OWNER) continue;
+      const c = b.centerWorld();
+      const d = Math.hypot(c.x - cx, c.y - cy);
+      if (d < best) {
+        best = d;
+        enemyCapital = c;
+      }
+    }
+    const opened = this.safeZones.open(first.owner, { x: cx, y: cy }, enemyCapital);
+    if (!opened) return; // no room for a zone: the units hold their ground
+    const { zone } = opened;
+    this.orderMove(this.safeZones.center(zone), [...units], false);
+    this.markRetreat(units);
+    for (const u of units) zone.expected.add(u.id);
+  }
+
+  /** The nation's open safe zones (AI evacuation). */
+  safeZonesOf(p: PlayerState): SafeZone[] {
+    return this.safeZones.zonesOf(p.id);
+  }
+
   orderAttackMove(units: readonly Unit[], target: WorldPoint): void {
     const spacing = Math.max(UNIT_SPACING * 1.15, Math.max(0, ...units.map((u) => u.radius)) * 2.1);
     units.forEach((u, k) => {
       u.parade = null;
       u.task = null;
       u.attackTarget = null;
+      u.retreating = false;
       const off = spiralOffset(k, u.aircraft ? 10 : spacing);
       // Transports never attack anything: an attack-move is just a flight to the spot.
       if (u instanceof Vehicle && u.isTransport) {
@@ -458,13 +553,17 @@ export class Game {
 
   /** Tanks and armoured vehicles that drive over enemy soldiers kill them (and get the credit). */
   private crushInfantry(): void {
-    const walkers = this.entities.fieldUnits().filter((u) => u.alive);
+    const walkers = this.entities.fieldUnits();
     if (walkers.length === 0) return;
     for (const v of this.entities.vehicles()) {
-      if (!v.alive || !v.visible || v.aircraft || !v.moving || (v.type !== 'tank' && v.type !== 'ifv')) continue;
+      if (!v.alive || !v.visible || v.aircraft || !v.moving || (v.type !== 'tank' && v.type !== 'ifv') || v.owner === NEUTRAL_OWNER) continue;
       for (const u of walkers) {
-        if (!u.alive || u.owner === v.owner || u.owner === NEUTRAL_OWNER || v.owner === NEUTRAL_OWNER) continue;
-        if (Math.hypot(u.px - v.px, u.py - v.py) > CRUSH_RADIUS + u.radius) continue;
+        if (!u.alive || u.owner === v.owner || u.owner === NEUTRAL_OWNER) continue;
+        // Squared distances: no square root per tank × soldier pair.
+        const dx = u.px - v.px;
+        const dy = u.py - v.py;
+        const reach = CRUSH_RADIUS + u.radius;
+        if (dx * dx + dy * dy > reach * reach) continue;
         u.lastAttackerId = v.id;
         u.lastAttackedAt = this.time;
         u.hp = 0;
@@ -679,7 +778,12 @@ export class Game {
     for (const u of this.entities.fieldMovers()) {
       if (u.flies || u.swims || (u instanceof Vehicle && u.altitude > 0)) continue;
       if (!this.map.isWater(Math.floor(u.px / CELL_SIZE), Math.floor(u.py / CELL_SIZE))) {
-        this.lastDry.set(u.id, { x: u.px, y: u.py });
+        // Update the stored point in place: no new object per unit per tick.
+        const dry = this.lastDry.get(u.id);
+        if (dry) {
+          dry.x = u.px;
+          dry.y = u.py;
+        } else this.lastDry.set(u.id, { x: u.px, y: u.py });
         continue;
       }
       const back = this.lastDry.get(u.id);
@@ -713,6 +817,7 @@ export class Game {
     this.separateUnits();
     this.repathStuckUnits(dt);
     this.processTasks();
+    this.processRepairs(dt);
     this.healGarrisons(dt);
     this.regenVeterans(dt);
     this.janitorTimer += dt;
@@ -738,27 +843,40 @@ export class Game {
     let maxR = 0;
     for (const u of units) maxR = Math.max(maxR, u.radius);
     const bucket = Math.max(8, maxR * 2);
-    const grid = new Map<number, Unit[]>();
+    // The hash and its bucket arrays are reused from pass to pass and tick to tick (no garbage at 30 Hz × 6 passes).
+    const grid = this.sepGrid;
+    for (const list of grid.values()) {
+      list.length = 0;
+      this.sepPool.push(list);
+    }
+    grid.clear();
     const key = (cx: number, cy: number): number => cx * 100003 + cy;
     for (const u of units) {
       const k = key(Math.floor(u.px / bucket), Math.floor(u.py / bucket));
       const list = grid.get(k);
       if (list) list.push(u);
-      else grid.set(k, [u]);
+      else {
+        const fresh = this.sepPool.pop() ?? [];
+        fresh.push(u);
+        grid.set(k, fresh);
+      }
     }
     for (const a of units) {
       const bx = Math.floor(a.px / bucket);
       const by = Math.floor(a.py / bucket);
       for (let dx = -1; dx <= 1; dx++) {
         for (let dy = -1; dy <= 1; dy++) {
-          for (const b of grid.get(key(bx + dx, by + dy)) ?? []) {
+          const cell = grid.get(key(bx + dx, by + dy));
+          if (!cell) continue;
+          for (const b of cell) {
             if (b.id <= a.id || a.flies !== b.flies) continue;
             // Vehicles and aircraft hold a little clear air between their hulls; soldiers still close up.
             const gap = a.radius + b.radius + (a instanceof Vehicle && b instanceof Vehicle ? VEHICLE_GAP : 0);
             let vx = b.px - a.px;
             let vy = b.py - a.py;
+            // Cheap squared test first; the square root only for pairs that really touch.
+            if (vx * vx + vy * vy >= gap * gap) continue;
             let d = Math.hypot(vx, vy);
-            if (d >= gap) continue;
             moved = true;
             if (d < 0.01) {
               vx = (a.id % 7) - 3 || 1;
@@ -836,7 +954,12 @@ export class Game {
     // RA2 Enter cursor: the selected units can climb into the transport under the mouse.
     const hoverUnit = this.selection.hoveredUnitId === null ? undefined : this.entities.get(this.selection.hoveredUnitId);
     const entering = !this.placing && hoverUnit instanceof Vehicle && this.canBoardSelected(hoverUnit);
-    this.dom.canvas.style.cursor = this.placing || aiming ? 'crosshair' : entering ? ENTER_CURSOR : hovering ? 'pointer' : 'default';
+    const cursor = this.placing || aiming ? 'crosshair' : entering ? ENTER_CURSOR : hovering ? 'pointer' : 'default';
+    // Style writes only when the cursor actually changes (not every frame).
+    if (cursor !== this.lastCursor) {
+      this.lastCursor = cursor;
+      this.dom.canvas.style.cursor = cursor;
+    }
 
     this.effects.update(dt);
     this.smokeFromDamagedBuildings(dt);
@@ -850,6 +973,12 @@ export class Game {
       time: this.time,
       ghost: this.ghost,
       buildZones: this.placing ? this.buildZones() : [],
+      safeZones: this.safeZones.zones.map((z) => ({
+        x: z.x * CELL_SIZE,
+        y: z.y * CELL_SIZE,
+        w: SAFE_ZONE_SIZE * CELL_SIZE,
+        h: SAFE_ZONE_SIZE * CELL_SIZE,
+      })),
       units,
       selectedUnits: this.selection.selectedUnits,
       hoveredUnitId: this.placing ? null : this.selection.hoveredUnitId,
@@ -940,6 +1069,10 @@ export class Game {
           if (ev.button === 'right') {
             if (ev.ctrl && ev.shift) this.rightClick(world, true);
             else this.selection.clearAll();
+          } else if (ev.ctrl && !ev.shift) {
+            // Ctrl+click on one of my structures: sell it to the Global Financial Center.
+            const b = this.selection.pick(world);
+            if (b && b.owner === this.humanPlayer.id) this.sellBuilding(b);
           } else this.leftClick(world, ev.shift, ev.double);
           break;
         }
@@ -973,6 +1106,8 @@ export class Game {
     if (input.isKeyDown('ArrowRight') || input.isKeyDown('KeyD')) dx += 1;
     if (input.isKeyDown('ArrowUp') || input.isKeyDown('KeyW')) dy -= 1;
     if (input.isKeyDown('ArrowDown') || input.isKeyDown('KeyS')) dy += 1;
+    // Keys pan at full speed; the screen edge alone pans slower.
+    const keyPan = dx !== 0 || dy !== 0;
     if (CAMERA_EDGE_SCROLL && document.hasFocus() && !input.selectionRect) {
       dx += input.edge.x;
       dy += input.edge.y;
@@ -980,7 +1115,8 @@ export class Game {
     dx = clamp(dx, -1, 1);
     dy = clamp(dy, -1, 1);
     if (dx !== 0 || dy !== 0) {
-      const step = (CAMERA_PAN_SPEED * dt) / camera.zoom / Math.hypot(dx, dy);
+      const speed = keyPan ? CAMERA_PAN_SPEED : CAMERA_EDGE_PAN_SPEED;
+      const step = (speed * dt) / camera.zoom / Math.hypot(dx, dy);
       camera.panBy(dx * step, dy * step);
     }
 
@@ -1004,7 +1140,9 @@ export class Game {
         const riders = selected.filter((u) => !u.aircraft);
         if (riders.length > 0 && this.orderBoard(unit, riders)) return;
       }
-      if (unit && unit.owner !== me && this.orderAttack(unit)) return;
+    // Units inside a safe zone may not be attacked: the order is ignored.
+    if (unit && unit.owner !== me && this.safeZones.isSafe(unit.px, unit.py)) return;
+    if (unit && unit.owner !== me && this.orderAttack(unit)) return;
       if (!unit) {
         const hit = this.selection.pick(world);
         if (hit && this.orderOnBuilding(hit)) return;
@@ -1129,9 +1267,6 @@ export class Game {
     switch (code) {
       case 'KeyH':
         this.focusOwnCapital();
-        break;
-      case 'KeyF':
-        this.sidebar.toggleAutoDefense();
         break;
       case 'KeyM':
         this.sidebar.notify(this.sound.toggleMute() ? 'Sound off.' : 'Sound on.');
@@ -1359,6 +1494,7 @@ export class Game {
   }
 
   private onFire(s: Unit, t: Entity, w: WeaponSpec, _impact: WorldPoint): void {
+    this.countAttackOnPlayer(s, t);
     this.alertUnderAttack(t, s);
     const heavy = w.kind === 'cannon' || w.kind === 'missile';
     // Where the shot lands (world plane + height) and where the barrel is.
@@ -1406,14 +1542,14 @@ export class Game {
     this.sidebar.alert(`${name} is under attack!`, at);
   }
 
-  /** Sell button: the World Bank looks at the offer and decides whether, and how much, to buy. */
+  /** Sell button: the Global Financial Center looks at the offer and decides whether, and how much, to buy. */
   private sellOil(): void {
     const result = this.oilMarket.sell(this.humanPlayer);
     this.sidebar.notify(
       result.kind === 'sold'
-        ? `World Bank bought ${result.barrels.toFixed(1)} barrels at ${result.price} ${CURRENCY} → +${result.revenue} ${CURRENCY}` +
+        ? `Global Financial Center bought ${result.barrels.toFixed(1)} barrels at ${result.price} ${CURRENCY} → +${result.revenue} ${CURRENCY}` +
           (result.repaid > 0 ? ` (${result.repaid} ${CURRENCY} paid back on your debt)` : '')
-        : `World Bank declined: ${result.reason}.`,
+        : `Global Financial Center declined: ${result.reason}.`,
       5,
     );
     this.sidebarTimer = SIDEBAR_REFRESH;
@@ -1459,7 +1595,7 @@ export class Game {
     const result = this.oilMarket.borrow(this.humanPlayer);
     this.sidebar.notify(
       result.kind === 'granted'
-        ? `World Bank loan: +${result.amount} ${CURRENCY}. Debt ${result.debt} ${CURRENCY} — oil sales pay it back automatically.`
+        ? `Global Financial Center loan: +${result.amount} ${CURRENCY}. Debt ${result.debt} ${CURRENCY} — oil sales pay it back automatically.`
         : `Loan refused: ${result.reason}.`,
       5,
     );
@@ -1530,19 +1666,10 @@ export class Game {
       return;
     }
     if (!(e instanceof Building)) return;
-    if (this.selection.selectedId === e.id) this.selection.select(null);
-    this.ejectUnits(e, [...e.garrison]);
+    this.crushCrew(e, killer);
     if (e.spec.type === 'capital') this.defeatNation(e);
     if (e.owner === this.humanPlayer.id) this.sidebar.alert(`${e.spec.name} was destroyed!`, e.centerWorld());
-    if (e.spec.type === 'airfield') {
-      // Aircraft parked on it burn with it unless the nation has another airfield to move them to.
-      const other = this.entities.buildings().some((b) => b.id !== e.id && b.owner === e.owner && b.alive && b.spec.type === 'airfield');
-      if (!other) for (const v of this.entities.vehicles()) if (v.homeId === e.id && v.fixed) v.hp = 0;
-    }
-    this.map.occupy(e.x, e.y, e.w, e.d, null);
-    this.entities.remove(e.id);
-    const i = this.derricks.indexOf(e as OilDerrick);
-    if (i >= 0) this.derricks.splice(i, 1);
+    this.removeBuilding(e);
     const f = e.footprintWorld();
     for (let k = 0; k < 7; k++) {
       this.effects.add({
@@ -1594,7 +1721,7 @@ export class Game {
             : result === 'noParking'
             ? 'No free parking spot — build another Airfield or send aircraft out.'
             : result === 'noAirfield'
-              ? 'Aircraft are ordered at the War Factory, but only once you own an Airfield to park them on.'
+              ? 'Aircraft are built at an Airfield — build one first.'
               : 'Requires a War Factory.',
     );
     this.sidebarTimer = SIDEBAR_REFRESH;
@@ -1721,7 +1848,7 @@ export class Game {
     const player = this.humanPlayer;
     const option = this.training.optionsFor(player).find((o) => o.tier === tier);
     if (!option) return;
-    if (!this.training.barracksOf(player)) this.sidebar.notify('Requires a Barracks.');
+    if (!this.training.barracksOf(player)) this.sidebar.notify('Requires a Ministry of Defence.');
     else {
       const result = this.training.enqueue(player, tier);
       this.sidebar.notify(
@@ -1733,9 +1860,7 @@ export class Game {
             ? 'Elite soldiers never outnumber the regulars: 2 elite for every 3 regular — train more regular soldiers first.'
             : result === 'cap'
             ? `Army is at its limit of ${MAX_SOLDIERS} soldiers — train more when some have fallen.`
-            : result === 'full'
-            ? `Training orders are full (${BUILD_LIMIT_SOLDIERS}) — one more once an order is done.`
-            : 'You already have a President.',
+            : `Training orders are full (${BUILD_LIMIT_SOLDIERS}) — one more once an order is done.`,
       );
     }
     this.sidebarTimer = SIDEBAR_REFRESH;
@@ -1845,7 +1970,7 @@ export class Game {
 
   /**
    * Right-click on a building with soldiers selected:
-   *  - own building that accepts them (capital ← President, hospital ← wounded): enter;
+   *  - own building that accepts them (hospital ← wounded): enter;
    *  - own damaged building + engineers: repair;
    *  - enemy building + engineers: capture it (neutral buildings are immune).
    * Returns true if at least one soldier got an order.
@@ -1916,13 +2041,14 @@ export class Game {
           if (u.owner === this.humanPlayer.id) this.sidebar.notify(`${u.name} entered: ${b.spec.name}. Double-click it to bring them out.`);
         }
       } else if (task.type === 'repair') {
-        // Repair: the engineer goes inside and is consumed; the building is restored to 100% at once.
-        if (b.hp < b.maxHp) {
-          b.hp = b.maxHp;
-          this.entities.remove(u.id);
+        // Repair: the engineer goes inside and works there until the building is back to 100% (see processRepairs).
+        u.task = null;
+        if (b.hp < b.maxHp && b.owner === u.owner) {
+          b.crew.push(u);
+          u.insideId = b.id;
+          u.stop();
           this.selection.selectedUnits.delete(u.id);
-          if (u.owner === this.humanPlayer.id) this.sidebar.notify(`${b.spec.name} fully repaired — the engineer stays inside.`);
-        } else u.task = null;
+        }
       } else {
         // Capture: the engineer is consumed and the building changes sides.
         if (b.capture(u.owner, u.faction as FactionId)) {
@@ -1931,6 +2057,25 @@ export class Game {
           if (u.owner === this.humanPlayer.id) this.sidebar.notify(`${b.spec.name} captured!`);
         } else u.task = null;
       }
+    }
+  }
+
+  /** Engineers inside a building repair it to 100%, then walk out of it. */
+  private processRepairs(dt: number): void {
+    for (const b of this.entities.buildings()) {
+      if (b.crew.length === 0 || !b.alive) continue;
+      b.hp = Math.min(b.maxHp, b.hp + b.maxHp * ENGINEER_REPAIR_SHARE * b.crew.length * dt);
+      if (b.hp < b.maxHp) continue;
+      this.placeOutside(b, b.crew.splice(0));
+    }
+  }
+
+  /** The building is destroyed with engineers inside: they die with it, killed by whoever destroyed it. */
+  private crushCrew(b: Building, killer?: Entity): void {
+    for (const u of b.crew.splice(0)) {
+      this.awardKill(u, killer);
+      this.selection.selectedUnits.delete(u.id);
+      this.entities.remove(u.id);
     }
   }
 
@@ -1985,6 +2130,13 @@ export class Game {
       const i = b.garrison.indexOf(u);
       if (i >= 0) b.garrison.splice(i, 1);
     }
+    this.placeOutside(b, out);
+    if (out.length > 0 && why === 'healed' && b.owner === this.humanPlayer.id) this.sidebar.notify(`${out.length} healed and left the ${b.spec.name}.`);
+    else if (out.length > 0) this.sidebar.notify(`${out.length} came out of: ${b.spec.name}.`);
+  }
+
+  /** Puts people who leave `b` on free cells in front of its door. */
+  private placeOutside(b: Building, out: readonly Infantry[]): void {
     out.forEach((u, k) => {
       const off = spiralOffset(k, UNIT_SPACING * 1.15);
       const base = { x: (b.x + b.w / 2) * CELL_SIZE + off.x, y: (b.y + b.d + 1.2) * CELL_SIZE + off.y };
@@ -1994,23 +2146,107 @@ export class Game {
       u.insideId = null;
       u.stop();
     });
-    if (out.length > 0 && why === 'healed' && b.owner === this.humanPlayer.id) this.sidebar.notify(`${out.length} healed and left the ${b.spec.name}.`);
-    else if (out.length > 0) this.sidebar.notify(`${out.length} came out of: ${b.spec.name}.`);
   }
 
-  /** Moves the selected soldiers, spreading them over distinct nearby cells. */
-  private orderMove(world: WorldPoint, units: Unit[] = this.selection.selectedUnitList()): void {
+  /** A nation hitting one of the player's structures after DERRICK_GRACE_GAP s of quiet starts a new attack. */
+  private countAttackOnPlayer(s: Unit, t: Entity): void {
+    if (!(t instanceof Building) || t.owner !== this.humanPlayer.id || s.owner === t.owner) return;
+    const last = this.lastHitOnPlayer.get(s.owner);
+    if (last === undefined || this.time - last > DERRICK_GRACE_GAP) this.attacksOnPlayer++;
+    this.lastHitOnPlayer.set(s.owner, this.time);
+  }
+
+  /** The player's oil derricks cannot be attacked during the first DERRICK_GRACE_ATTACKS attacks on the player. */
+  isShielded(b: Building): boolean {
+    return b.spec.type === 'oilDerrick' && b.owner === this.humanPlayer.id && this.attacksOnPlayer < DERRICK_GRACE_ATTACKS;
+  }
+
+  /** What the Global Financial Center pays for `b` (its build cost × health × RESALE_SHARE); null: cannot be sold. */
+  private salePrice(b: Building): number | null {
+    if (!b.alive || b.indestructible || b.spec.type === 'capital') return null;
+    const option = BUILD_OPTIONS.find((o) => o.id === b.spec.type);
+    if (!option) return null;
+    return Math.round((buildCost(option, b.faction as FactionId) * RESALE_SHARE * b.hp) / b.maxHp / 10) * 10;
+  }
+
+  /**
+   * Ctrl+click on one of the player's structures: the Global Financial Center buys it back, the money goes into the
+   * national budget and the structure is taken down, leaving its ground free for the next one.
+   */
+  private sellBuilding(b: Building): void {
+    const price = this.salePrice(b);
+    if (price === null) {
+      this.sidebar.notify(`The ${b.spec.name} cannot be sold.`, 3);
+      return;
+    }
+    const p = this.players.find((pl) => pl.id === b.owner);
+    if (!p) return;
+    p.credits += price;
+    this.removeBuilding(b);
+    this.sidebar.notify(`${b.spec.name} sold to the Global Financial Center: +${price} ${CURRENCY}.`, 3);
+  }
+
+  /** Takes a structure off the map: its people step out, its aircraft move or burn, its cells become free. */
+  private removeBuilding(e: Building): void {
+    if (this.selection.selectedId === e.id) this.selection.select(null);
+    this.ejectUnits(e, [...e.garrison]);
+    this.placeOutside(e, e.crew.splice(0));
+    if (e.spec.type === 'airfield') {
+      // Aircraft parked on it burn with it unless the nation has another airfield to move them to.
+      const other = this.entities.buildings().some((b) => b.id !== e.id && b.owner === e.owner && b.alive && b.spec.type === 'airfield');
+      if (!other) for (const v of this.entities.vehicles()) if (v.homeId === e.id && v.fixed) v.hp = 0;
+    }
+    this.map.occupy(e.x, e.y, e.w, e.d, null);
+    this.entities.remove(e.id);
+    const i = this.derricks.indexOf(e as OilDerrick);
+    if (i >= 0) this.derricks.splice(i, 1);
+  }
+
+  /** Humane victor: the Global Financial Center rewards a nation that lets a retreating enemy go. */
+  private payMercyBonus(nation: number, fugitive: Unit): void {
+    // Once per retreating group and nation, however many units of the group it lets go.
+    const key = `${fugitive.retreatGroup}:${nation}`;
+    if (this.mercyPaid.has(key)) return;
+    this.mercyPaid.add(key);
+    const p = this.players.find((pl) => pl.id === nation);
+    if (!p || p.defeated) return;
+    p.credits += MERCY_BONUS;
+    if (p.isHuman) this.sidebar.notify(`Mercy bonus: you let a retreating enemy group go — Global Financial Center pays +${MERCY_BONUS} ${CURRENCY}.`, 3);
+  }
+
+  /** A plain move that takes the unit closer to its own capital is a retreat (enemies may not chase it). */
+  private isRetreat(u: Unit, to: WorldPoint): boolean {
+    const capital = this.entities.buildings().find((b) => b.owner === u.owner && b.alive && b.spec.type === 'capital');
+    if (!capital) return false;
+    const home = capital.centerWorld();
+    return Math.hypot(to.x - home.x, to.y - home.y) < Math.hypot(u.px - home.x, u.py - home.y);
+  }
+
+  private orderMove(world: WorldPoint, units: Unit[] = this.selection.selectedUnitList(), evacuate = true): void {
     if (!this.map.cellAt(world.x, world.y) || units.length === 0) return;
+    // Falling back home across the sea: the stranded ones head for a safe zone to be flown out.
+    if (evacuate) {
+      const stranded = this.strandedFrom(units, world).filter((u) => this.isRetreat(u, world) && !this.safeZones.isSafe(u.px, u.py));
+      if (stranded.length > 0) {
+        this.sendToSafeZone(stranded);
+        units = units.filter((u) => !stranded.includes(u));
+        if (units.length === 0) return;
+      }
+    }
     // Closest soldiers take the spots nearest the click; the first stands exactly on it.
     units.sort((a, b) => Math.hypot(a.px - world.x, a.py - world.y) - Math.hypot(b.px - world.x, b.py - world.y));
     // Destination spots are as far apart as the biggest unit needs, so tanks and aircraft never share a point.
     const spacing = Math.max(UNIT_SPACING * 1.15, Math.max(...units.map((u) => u.radius)) * 2.1);
+    const group = this.nextRetreatGroup++;
     units.forEach((u, k) => {
       u.parade = null; // leaves the parade ground
       u.task = null;
       u.attackTarget = null;
       u.attackMove = null;
       u.chasing = false;
+      u.retreating = this.isRetreat(u, world);
+      u.retreatGroup = group;
+      u.sparedBy.clear();
       const off = spiralOffset(k, spacing);
       let goal = { x: world.x + off.x, y: world.y + off.y };
       let cell = this.map.cellAt(goal.x, goal.y);
@@ -2071,7 +2307,7 @@ export class Game {
         continue;
       }
       row.forEach((cell, i) => {
-        // One derrick of every row is managed by the World Bank: it stays the nation's but cannot be destroyed.
+        // One derrick of every row is managed by the Global Financial Center: it stays the nation's but cannot be destroyed.
         const derrick = new OilDerrick(player.id, f, { x: 0, y: 0 }, i, i === Math.min(1, row.length - 1));
         derrick.moveTo(cell.x, cell.y);
         this.entities.add(derrick);

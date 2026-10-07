@@ -102,7 +102,7 @@ export interface VehicleProfile {
 // ---------------------------------------------------------------- Infantry
 
 /** Every nation fields a regular line infantry and a special-forces unit. */
-export type UnitTier = 'regular' | 'special' | 'president' | 'engineer';
+export type UnitTier = 'regular' | 'special' | 'engineer';
 
 /** Soldier sprite sheets in public/sprites (see render/InfantryArt). */
 export type SoldierSheetId = 'gi' | 'ranger' | 'spetsnaz' | 'conscript' | 'usRegular' | 'usSpecial' | 'ruRegular' | 'ruSpecial' | 'cnRegular' | 'cnSpecial' | 'euRegular' | 'euSpecial';
@@ -130,6 +130,8 @@ export interface FactionConfig {
   id: FactionId;
   name: string;
   shortName: string;
+  /** Current head of the nation (title and name), shown in the sidebar. */
+  leader: { title: string; name: string };
   doctrine: string;
   colors: FactionColors;
   stats: FactionStats;
@@ -149,11 +151,11 @@ export interface PlayerState {
   isHuman: boolean;
   /** Treasury in TB. */
   credits: number;
-  /** Oil in stock (barrels): pumped by the derricks, sold to the World Bank for TB. */
+  /** Oil in stock (barrels): pumped by the derricks, sold to the Global Financial Center for TB. */
   oil: number;
-  /** TB owed to the World Bank (emergency loans); income pays it back automatically. */
+  /** TB owed to the Global Financial Center (emergency loans); income pays it back automatically. */
   debt: number;
-  /** Credit frozen by the World Bank after reaching its credit line; lifted once DEBT ≤ DEBT_RESUME_SHARE of the line. */
+  /** Credit frozen by the Global Financial Center after reaching its credit line; lifted once DEBT ≤ DEBT_RESUME_SHARE of the line. */
   creditFrozen: boolean;
   /** Set when the nation's capital has been destroyed: it has lost the war. */
   defeated: boolean;
@@ -164,7 +166,7 @@ export interface PlayerState {
   /** Power stored in the nation's plants, and their total storage. */
   powerStored: number;
   powerCapacity: number;
-  /** The grid ran dry and the treasury could not buy oil from the World Bank. */
+  /** The grid ran dry and the treasury could not buy oil from the Global Financial Center. */
   blackout: boolean;
   /** Most the nation's nuclear plants can generate (e/s, scaled by their health). */
   powerSupply: number;
@@ -186,13 +188,14 @@ export type BuildingType =
   | 'airfield'
   | 'techCenter'
   | 'happyCity'
+  | 'flagpole'
   | 'oilDerrick';
 
 /** Who may be stationed inside a building, and how many. */
 export interface GarrisonSpec {
   capacity: number;
-  /** 'president' = only the nation's President; 'wounded' = anyone below full health. */
-  accepts: 'president' | 'wounded';
+  /** 'wounded' = anyone below full health. */
+  accepts: 'wounded';
   /** HP restored per second to everyone inside. */
   healPerSecond?: number;
 }
@@ -215,7 +218,7 @@ export interface BuildingSpec {
   uncapturable?: boolean;
   /** Naval structure: must be placed entirely on water (default false = land only). */
   naval?: boolean;
-  /** Can hold people inside (capital: the President; hospital: wounded soldiers). */
+  /** Can hold people inside (hospital: wounded soldiers). */
   garrison?: GarrisonSpec;
 }
 

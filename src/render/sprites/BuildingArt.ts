@@ -18,17 +18,3 @@ export interface BuildingArt {
   drawStatic(p: IsoPainter): void;
   drawAnimated?(p: IsoPainter, time: number, active: boolean): void;
 }
-
-/** Soft drop shadow cast down-right across the plaza. */
-export function groundShadow(p: IsoPainter, w: number, d: number): void {
-  p.polygon(
-    [
-      [0, 0, 0],
-      [w + 0.3, 0.15, 0],
-      [w + 0.3, d + 0.3, 0],
-      [0.15, d + 0.3, 0],
-    ],
-    'rgba(0,0,0,0.3)',
-    null,
-  );
-}

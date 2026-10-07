@@ -3,8 +3,7 @@ import type { FactionId, WorldPoint } from '../types';
 import { Building } from './Building';
 
 /**
- * Hospital: holds up to HOSPITAL_CAPACITY wounded people (soldiers and the
- * President); they heal inside and walk out on their own once fully healed.
+ * Hospital: holds up to HOSPITAL_CAPACITY wounded soldiers; they heal inside and walk out on their own once fully healed.
  */
 export class Hospital extends Building {
   constructor(owner: number, faction: FactionId, center: WorldPoint) {

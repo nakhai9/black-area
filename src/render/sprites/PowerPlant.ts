@@ -2,7 +2,7 @@ import { FACTIONS } from '../../factions';
 import type { FactionId } from '../../types';
 import { shade } from '../Color';
 import type { IsoPainter } from '../IsoPainter';
-import { type BuildingArt, groundShadow } from './BuildingArt';
+import type { BuildingArt } from './BuildingArt';
 
 const PAD = '#a3a196';
 const CONCRETE = '#d6d4cc';
@@ -40,7 +40,6 @@ export function createPowerPlantArt(faction: FactionId): BuildingArt {
     height: 110,
 
     drawStatic(p) {
-      groundShadow(p, 4, 4);
       p.box(0, 0, 4, 4, 0, 2, PAD);
 
       for (const [u, v] of STACKS) coolingTower(p, u, v, 0.62, 70);

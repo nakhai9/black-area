@@ -1,3 +1,4 @@
+import { drawAircraftPortrait } from './AircraftSheets';
 import { CRUISE_ALTITUDE } from '../constants';
 import { FACTIONS } from '../factions';
 import type { FactionId, VehicleKind } from '../types';
@@ -524,6 +525,10 @@ export function vehiclePortrait(faction: FactionId, kind: VehicleKind): HTMLCanv
   let c = portraits.get(key);
   if (!c) {
     const { canvas, ctx } = createCanvas(128, 96);
+    if (drawAircraftPortrait(ctx, faction, kind, 128, 96, 0.45)) {
+      portraits.set(key, canvas);
+      return canvas;
+    }
     // A jet hovers 7 px above its ground point, so its ground point sits lower in the picture.
     const air = kind === 'jet' || kind === 'transport';
     const scale = kind === 'transport' ? 7.5 : air ? 9 : 13;

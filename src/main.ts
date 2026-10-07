@@ -6,6 +6,7 @@ import { loadAircraftSprites } from './render/AircraftSheets';
 import { loadSoldierSprites } from './render/InfantryArt';
 import type { FactionId } from './types';
 import { FactionPicker } from './ui/FactionPicker';
+import { showBuildingGallery } from './ui/BuildingGallery';
 
 function byId<T extends HTMLElement>(id: string): T {
   const el = document.getElementById(id);
@@ -63,4 +64,6 @@ async function boot(): Promise<void> {
   }
 }
 
-void boot();
+// `?view=buildings`: gallery of every structure of every nation instead of the game.
+if (new URLSearchParams(location.search).get('view') === 'buildings') showBuildingGallery(document.body);
+else void boot();

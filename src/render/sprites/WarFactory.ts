@@ -2,8 +2,8 @@ import { HALF_TW } from '../../constants';
 import { FACTIONS } from '../../factions';
 import type { FactionId } from '../../types';
 import { shade } from '../Color';
-import { drawFlagOnPole } from '../Flags';
-import { type BuildingArt, groundShadow } from './BuildingArt';
+import { drawFlagOnPole, drawNationalPole } from '../Flags';
+import type { BuildingArt } from './BuildingArt';
 
 const PAD = '#a3a095';
 const WALL = '#b3aea0';
@@ -34,7 +34,6 @@ export function createWarFactoryArt(faction: FactionId): BuildingArt {
     height: 70,
 
     drawStatic(p) {
-      groundShadow(p, 5, 4);
       p.box(0, 0, 5, 4, 0, 2, PAD);
 
       // Vehicle test pad in front of the hall, with painted guide lines.
@@ -72,7 +71,7 @@ export function createWarFactoryArt(faction: FactionId): BuildingArt {
         p.cylinder(u, v, 0.12, 40, 1.5, '#4a4a4a');
       }
 
-      for (const [u, v] of FLAGS) p.pole(u, v, 2, 30);
+      for (const [u, v] of FLAGS) drawNationalPole(p, faction, u, v, 2, 30);
     },
 
     drawAnimated(p, time) {

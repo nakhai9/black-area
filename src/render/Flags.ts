@@ -134,3 +134,93 @@ export function drawFlagOnPole(
   const [x, y] = p.project(u, v, zTop);
   drawWavingFlag(p.ctx, faction, x + 0.6, y, w, h, time, phase);
 }
+
+/**
+ * National flagpole, drawn into a building's static sprite at (u, v) standing on height z, `h` px tall:
+ *  - USA: white pole on a stepped granite plinth, gold eagle on top;
+ *  - Russia: dark steel pole on a red granite drum, gold spearhead;
+ *  - China: tall white pole on a marble pedestal with a balustrade, gold ball;
+ *  - Europe: slim brushed-steel pole on a blue disc ringed with gold stars, silver ball;
+ *  - neutral: plain pole with a gold ball.
+ * `k` makes the shaft thicker and the finial bigger (landmark flagpoles).
+ */
+export function drawNationalPole(p: IsoPainter, nation: Allegiance, u: number, v: number, z: number, h: number, k = 1): void {
+  const { ctx } = p;
+  ctx.save();
+  // Draws the shaft (`k` times thicker), then scales the finial drawn after it by `k` around the top of the pole.
+  const shaft = (color: string, width: number): [number, number] => {
+    const [x, y] = p.project(u, v, z);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width * k;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x, y - h);
+    ctx.stroke();
+    ctx.translate(x, y - h);
+    ctx.scale(k, k);
+    ctx.translate(-x, -(y - h));
+    return [x, y - h];
+  };
+  const ball = (x: number, y: number, r: number, color: string): void => {
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+  };
+  switch (nation) {
+    case 'usa': {
+      p.box(u - 0.11, v - 0.11, 0.22, 0.22, z, 1.5, '#b9b6ae');
+      p.box(u - 0.07, v - 0.07, 0.14, 0.14, z + 1.5, 1.5, '#cfccc4');
+      const [x, y] = shaft('#f4f4f2', 1.3);
+      // Gold eagle: a ball with spread wings.
+      ctx.fillStyle = '#e2b23a';
+      ctx.beginPath();
+      ctx.moveTo(x, y - 1);
+      ctx.quadraticCurveTo(x - 2.5, y - 3.5, x - 4, y - 1.5);
+      ctx.lineTo(x, y);
+      ctx.lineTo(x + 4, y - 1.5);
+      ctx.quadraticCurveTo(x + 2.5, y - 3.5, x, y - 1);
+      ctx.fill();
+      ball(x, y + 0.6, 1, '#e2b23a');
+      break;
+    }
+    case 'russia': {
+      p.cylinder(u, v, 0.1, z, 2.5, '#8a2f26', 6);
+      const [x, y] = shaft('#4a4f55', 1.3);
+      ctx.fillStyle = '#e2b23a';
+      ctx.beginPath();
+      ctx.moveTo(x, y - 4.5);
+      ctx.lineTo(x + 1.3, y - 0.5);
+      ctx.lineTo(x, y + 0.5);
+      ctx.lineTo(x - 1.3, y - 0.5);
+      ctx.closePath();
+      ctx.fill();
+      break;
+    }
+    case 'china': {
+      p.box(u - 0.14, v - 0.14, 0.28, 0.28, z, 2, '#ebe7dc');
+      for (const [du, dv] of [[-0.14, 0.14], [0, 0.14], [0.14, 0.14], [0.14, 0], [0.14, -0.14]] as const) p.box(u + du - 0.015, v + dv - 0.015, 0.03, 0.03, z + 2, 2, '#f4f1e8');
+      p.box(u - 0.06, v - 0.06, 0.12, 0.12, z + 2, 1.5, '#f4f1e8');
+      const [x, y] = shaft('#f7f5ef', 1.4);
+      ball(x, y, 1.5, '#e2b23a');
+      break;
+    }
+    case 'europe': {
+      p.cylinder(u, v, 0.13, z, 1, '#2f4fa8');
+      const [cx, cy] = p.project(u, v, z + 1);
+      ctx.fillStyle = '#f2cf4a';
+      for (let i = 0; i < 12; i++) {
+        const a = (i / 12) * Math.PI * 2;
+        ctx.fillRect(cx + Math.cos(a) * 3 - 0.35, cy + Math.sin(a) * 1.5 - 0.35, 0.7, 0.7);
+      }
+      const [x, y] = shaft('#c3cbd2', 1);
+      ball(x, y, 1.1, '#e6eaee');
+      break;
+    }
+    default: {
+      const [x, y] = shaft('#d8d8d8', 1.2);
+      ball(x, y, 1.3, '#e8c45a');
+    }
+  }
+  ctx.restore();
+}

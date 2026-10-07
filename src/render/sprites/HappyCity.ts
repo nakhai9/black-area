@@ -2,7 +2,7 @@ import { FACTIONS } from '../../factions';
 import type { FactionId } from '../../types';
 import { shade } from '../Color';
 import type { IsoPainter } from '../IsoPainter';
-import { type BuildingArt, groundShadow } from './BuildingArt';
+import type { BuildingArt } from './BuildingArt';
 
 const N = 8;
 const ASPHALT = '#4a4d52';
@@ -28,8 +28,13 @@ interface CityStyle {
   roof: string;
   /** The nation's signature landmark, standing in the back block (u, v in 0.9…3.6). */
   landmark: (p: IsoPainter, team: string) => void;
-  /** Ordinary towers: 'glass' skyscrapers, 'panel' blocks, 'pagoda' tops or 'gable' old-town houses. */
-  towers: 'glass' | 'panel' | 'pagoda' | 'gable';
+  /**
+   * Ordinary towers: 'glass' skyscrapers, 'panel' blocks, 'pagoda' tops, 'gable' old-town houses or 'russian'
+   * pastel classical houses with green roofs and Orthodox churches among them.
+   */
+  towers: 'glass' | 'panel' | 'pagoda' | 'gable' | 'russian';
+  /** Landmark face whose windows light up at night (u, v, w, d, height). */
+  lit: readonly [number, number, number, number, number];
 }
 
 const tower = (p: IsoPainter, u: number, v: number, w: number, d: number, h: number, color: string, floors: number, z = 2): void => {
@@ -44,12 +49,53 @@ const tree = (p: IsoPainter, u: number, v: number, s = 1): void => {
   p.dome(u, v, 0.22 * s, 5 * s, 8 * s, '#3f7a34');
 };
 
+/** Onion dome on a drum: the drum, the striped or plain bulb and a small gold cross. */
+const domeOnDrum = (p: IsoPainter, u: number, v: number, r: number, z: number, drum: number, bulb: string, stripe?: string): void => {
+  p.cylinder(u, v, r * 0.8, z, drum, '#f1ead8', 6);
+  p.onion(u, v, r, z + drum, r * 60, bulb, stripe);
+  p.pole(u, v, z + drum + r * 60, 5, '#e8c45a');
+};
+
+/** Red five-pointed star centred at screen point (x, y). */
+const star = (p: IsoPainter, x: number, y: number, r: number, color: string): void => {
+  p.ctx.fillStyle = color;
+  p.ctx.beginPath();
+  for (let i = 0; i < 10; i++) {
+    const k = i % 2 === 0 ? r : r * 0.42;
+    const a = -Math.PI / 2 + (i * Math.PI) / 5;
+    p.ctx.lineTo(x + k * Math.cos(a), y + k * Math.sin(a));
+  }
+  p.ctx.fill();
+};
+
+/** Small Orthodox church: white walls, green roof, five onion domes (gold centre, blue around). */
+const church = (p: IsoPainter, u: number, v: number, w: number, d: number): void => {
+  p.box(u, v, w, d, 2, 14, '#f3eee2');
+  p.windows('left', u, v, w, d, 2, 14, 3, 1, '#5a6f8a', 0.2, 0.55);
+  p.windows('right', u, v, w, d, 2, 14, 3, 1, '#5a6f8a', 0.2, 0.55);
+  p.box(u, v, w, d, 16, 2, '#4f7a5a');
+  const cu = u + w / 2;
+  const cv = v + d / 2;
+  const r = Math.min(w, d) * 0.16;
+  for (const [du, dv] of [[-1, -1], [1, -1], [-1, 1], [1, 1]] as const) domeOnDrum(p, cu + du * w * 0.28, cv + dv * d * 0.28, r * 0.7, 18, 5, '#3f6fb0');
+  domeOnDrum(p, cu, cv, r, 18, 9, '#e2b23a');
+};
+
+/** Moscow townhouse: pastel classical façade, white cornice and window trim, green hip roof. */
+const townhouse = (p: IsoPainter, u: number, v: number, w: number, d: number, h: number, color: string, floors: number): void => {
+  tower(p, u, v, w, d, h, color, floors);
+  p.box(u - 0.03, v - 0.03, w + 0.06, d + 0.06, 2 + h, 1.5, '#f6f1e4');
+  p.faceRect('left', u, v, w, d, 2, h, 0, 1, 0, 0.12, shade(color, 0.85));
+  p.hipRoof(u, v, w, d, 3.5 + h, 4, 0.04, '#4f7a5a');
+};
+
 const STYLES: Readonly<Record<FactionId, CityStyle>> = {
   // USA: Manhattan — glass skyscrapers and an Empire State style tower with a spire.
   usa: {
     facades: ['#6f8fae', '#8aa3b8', '#5c7893', '#a8b6c2'],
     roof: '#4b5560',
     towers: 'glass',
+    lit: [1.2, 1.2, 2.2, 2.2, 40],
     landmark: (p, team) => {
       tower(p, 1.2, 1.2, 2.2, 2.2, 90, '#c9c1a8', 16);
       tower(p, 1.6, 1.6, 1.4, 1.4, 50, '#d4ccb3', 9, 92);
@@ -58,28 +104,47 @@ const STYLES: Readonly<Record<FactionId, CityStyle>> = {
       p.pole(2.3, 2.3, 172, 40, '#e8e8e8');
     },
   },
-  // Russia: a Stalinist "Seven Sisters" tower with a red star, and onion domes.
+  // Russia: Moscow — a Stalinist "Seven Sisters" skyscraper with its red star behind St Basil's Cathedral and its
+  // colourful onion domes, pastel classical townhouses with green roofs and Orthodox churches between them.
   russia: {
-    facades: ['#c9b89a', '#b7a888', '#d8cdb5', '#a89b80'],
-    roof: '#6a5a48',
-    towers: 'panel',
-    landmark: (p, team) => {
-      tower(p, 1.0, 1.0, 2.6, 2.6, 50, '#e2d6bd', 9);
-      tower(p, 1.5, 1.5, 1.6, 1.6, 45, '#e8dcc4', 8, 52);
-      tower(p, 1.85, 1.85, 0.9, 0.9, 35, '#efe4cc', 6, 97);
-      p.pyramid(1.85, 1.85, 0.9, 0.9, 132, 26, '#c7b98f');
-      p.pole(2.3, 2.3, 158, 22, '#e8c45a');
-      const [x, y] = p.project(2.3, 2.3, 182);
-      p.ctx.fillStyle = team;
-      p.ctx.beginPath();
-      for (let i = 0; i < 10; i++) {
-        const r = i % 2 === 0 ? 4 : 1.7;
-        const a = -Math.PI / 2 + (i * Math.PI) / 5;
-        p.ctx.lineTo(x + r * Math.cos(a), y + r * Math.sin(a));
+    facades: ['#e9c46a', '#e8b4a0', '#a8c8a0', '#f0dfb0', '#c9d6e3'],
+    roof: '#4f7a5a',
+    towers: 'russian',
+    lit: [0.95, 0.95, 1.6, 1.4, 34],
+    landmark: (p) => {
+      // Seven Sisters (Moscow State University style): wings, stepped tower, golden spire and star.
+      const STONE = '#e6dac0';
+      tower(p, 0.85, 0.9, 1.9, 1.5, 34, STONE, 6);
+      tower(p, 1.25, 1.1, 1.1, 1.1, 40, '#ece1c9', 7, 36);
+      tower(p, 1.5, 1.35, 0.6, 0.6, 26, '#f1e7d0', 4, 76);
+      p.box(1.45, 1.3, 0.7, 0.7, 102, 3, '#f6efdc');
+      p.pyramid(1.55, 1.4, 0.5, 0.5, 105, 22, '#d9b45a');
+      p.pole(1.8, 1.65, 127, 14, '#e8c45a');
+      const [x, y] = p.project(1.8, 1.65, 143);
+      star(p, x, y, 4.5, '#d42a1e');
+      // Red Square cobbles in front of the cathedral.
+      p.topRect(0.85, 2.55, 3.65, 3.7, 2, '#8d6f62');
+      // St Basil's Cathedral: red-brick base, a tall central tent spire and a ring of striped onion domes.
+      const BRICK = '#b5462f';
+      p.box(1.9, 2.0, 1.55, 1.25, 2, 12, BRICK, { top: '#9c3c28' });
+      p.windows('left', 1.9, 2.0, 1.55, 1.25, 2, 12, 6, 1, '#f3eee2', 0.15, 0.6);
+      p.windows('right', 1.9, 2.0, 1.55, 1.25, 2, 12, 5, 1, '#f3eee2', 0.15, 0.6);
+      p.cylinder(2.68, 2.62, 0.2, 14, 26, '#c9573c', 8);
+      p.pyramid(2.5, 2.44, 0.36, 0.36, 40, 30, '#2f7a4f');
+      p.onion(2.68, 2.62, 0.08, 70, 6, '#e2b23a');
+      const domes: readonly [number, number, number, string, string][] = [
+        [2.1, 2.2, 0.17, '#2f7a4f', '#e2b23a'],
+        [3.25, 2.2, 0.17, '#3f6fb0', '#f3eee2'],
+        [2.1, 3.05, 0.18, '#d23b2b', '#f2d36b'],
+        [3.25, 3.05, 0.18, '#e2b23a', '#2f7a4f'],
+        [2.68, 2.12, 0.15, '#c94a8a', '#f3eee2'],
+        [2.68, 3.12, 0.16, '#2f7a4f', '#f2d36b'],
+      ];
+      for (const [u, v, r, bulb, stripe] of domes) {
+        p.cylinder(u, v, r * 0.85, 14, 12, '#d6a24a', 6);
+        p.onion(u, v, r, 26, r * 90, bulb, stripe);
+        p.pole(u, v, 26 + r * 90, 5, '#e8c45a');
       }
-      p.ctx.fill();
-      p.cylinder(0.75, 3.25, 0.22, 2, 14, '#efe7d6');
-      p.onion(0.75, 3.25, 0.26, 16, 14, '#3f8a5a', '#f2d36b');
     },
   },
   // China: an Oriental Pearl style TV tower and towers crowned with pagoda roofs.
@@ -87,6 +152,7 @@ const STYLES: Readonly<Record<FactionId, CityStyle>> = {
     facades: ['#b8b2a6', '#9fb3c2', '#c7bfae', '#8ea4b5'],
     roof: '#8a2a1f',
     towers: 'pagoda',
+    lit: [1.2, 1.2, 2.2, 2.2, 40],
     landmark: (p, team) => {
       p.box(1.1, 1.1, 2.4, 2.4, 2, 6, '#d9d2c4');
       for (const [du, dv] of [[0.4, 1.8], [1.8, 0.4], [1.8, 1.8]] as const) p.cylinder(1.1 + du, 1.1 + dv, 0.12, 8, 34, '#d8d8d8');
@@ -102,6 +168,7 @@ const STYLES: Readonly<Record<FactionId, CityStyle>> = {
     facades: ['#e3d3b4', '#d9b99a', '#e8e0c8', '#c9a98a'],
     roof: '#9a4a32',
     towers: 'gable',
+    lit: [1.2, 1.2, 2.2, 2.2, 40],
     landmark: (p, team) => {
       p.box(1.0, 1.3, 2.6, 1.6, 2, 34, '#d8cdb3');
       p.windows('left', 1.0, 1.3, 2.6, 1.6, 2, 34, 6, 2, '#5a6f8a', 0.1, 0.5);
@@ -177,6 +244,15 @@ export function createHappyCityArt(faction: FactionId): BuildingArt {
         return;
       }
       const color = style.facades[Math.floor(rnd() * style.facades.length)] ?? '#999';
+      if (style.towers === 'russian') {
+        if (li === (bi + 1) % 4) {
+          pieces.push({ key: lot.u + lot.v + lot.w + lot.d, draw: (p) => church(p, lot.u + 0.1, lot.v + 0.1, lot.w - 0.2, lot.d - 0.2) });
+          return;
+        }
+        const tall = 16 + rnd() * (bi === 3 ? 14 : 26);
+        pieces.push({ key: lot.u + lot.v + lot.w + lot.d, draw: (p) => townhouse(p, lot.u, lot.v, lot.w, lot.d, tall, color, Math.max(3, Math.round(tall / 7))) });
+        return;
+      }
       const tall = style.towers === 'gable' ? 14 + rnd() * 14 : 24 + rnd() * (bi === 3 ? 40 : 70);
       const floors = Math.max(3, Math.round(tall / 7));
       pieces.push({
@@ -209,7 +285,6 @@ export function createHappyCityArt(faction: FactionId): BuildingArt {
     height: 220,
 
     drawStatic(p) {
-      groundShadow(p, N, N);
       p.box(0, 0, N, N, 0, 2, SIDEWALK);
       p.topRect(0.1, 0.1, N - 0.1, N - 0.1, 2, LAWN);
       // Roads: ring + cross, with lane markings.
@@ -248,10 +323,11 @@ export function createHappyCityArt(faction: FactionId): BuildingArt {
         p.ctx.fillRect(x - 0.4, y - 1.6, 0.8, 1.6);
       }
       // Lit windows on the landmark block.
+      const [lu, lv, lw, ld, lh] = style.lit;
       for (let i = 0; i < 6; i++) {
         if (Math.sin(time * 1.3 + i * 2.1) < 0.4) continue;
         const s = (i * 0.17) % 0.9;
-        p.faceRect('left', 1.2, 1.2, 2.2, 2.2, 2, 40, s, s + 0.06, 0.2 + (i % 3) * 0.25, 0.26 + (i % 3) * 0.25, LIT);
+        p.faceRect('left', lu, lv, lw, ld, 2, lh, s, s + 0.06, 0.2 + (i % 3) * 0.25, 0.26 + (i % 3) * 0.25, LIT);
       }
     },
   };

@@ -38,14 +38,14 @@ export type LoanResult = { kind: 'granted'; amount: number; debt: number } | { k
 /** Price revisions kept for the chart (10 s each → the last 5 minutes). */
 const PRICE_HISTORY = 30;
 
-/** Smallest stock worth offering to the World Bank (barrels). */
+/** Smallest stock worth offering to the Global Financial Center (barrels). */
 export const MIN_SALE_STOCK = 0.5;
 
 /**
- * The World Bank (Zürich): a neutral, purely financial institution. It runs the oil market and emergency
+ * The Global Financial Center (Zürich): a neutral, purely financial institution. It runs the oil market and emergency
  * credit automatically and never takes sides.
  *
- * Price — see the OIL_* constants: it falls when nations sell a lot of oil, rises when the Bank has to sell oil
+ * Price — see the OIL_* constants: it falls when nations sell a lot of oil, rises when the Center has to sell oil
  * to their power grids and when the world grows richer, plus a small seeded market mood. The posted price eases
  * towards that target every OIL_PRICE_INTERVAL seconds.
  *
@@ -57,7 +57,7 @@ export class OilMarket implements GameSystem {
   previous = OIL_PRICE_START;
   /** Posted prices, oldest first (the last PRICE_HISTORY revisions), for the Price page chart. */
   readonly history: number[] = [OIL_PRICE_START];
-  /** Barrels sold to the Bank / bought from it for power grids lately (decaying memory), and the mood (±). */
+  /** Barrels sold to the Center / bought from it for power grids lately (decaying memory), and the mood (±). */
   sold = 0;
   bought = 0;
   mood = 0;
@@ -72,7 +72,7 @@ export class OilMarket implements GameSystem {
     private readonly entities: EntityManager,
   ) {}
 
-  /** Seconds until the Bank posts a new price. */
+  /** Seconds until the Center posts a new price. */
   get secondsToChange(): number {
     return Math.max(0, this.clock);
   }
@@ -127,7 +127,7 @@ export class OilMarket implements GameSystem {
   }
 
   /**
-   * `player` offers all of its oil. The Bank buys a share of the stock — the cheaper the oil, the larger the share
+   * `player` offers all of its oil. The Center buys a share of the stock — the cheaper the oil, the larger the share
    * (never more than WB_MAX_SHARE) — and pays barrels × the posted price; any DEBT is paid back first.
    */
   sell(player: PlayerState): SaleResult {
@@ -147,7 +147,7 @@ export class OilMarket implements GameSystem {
   }
 
   /**
-   * Forced sale to a power grid that ran dry: the Bank sells up to `barrels` at `markup` × the posted price,
+   * Forced sale to a power grid that ran dry: the Center sells up to `barrels` at `markup` × the posted price,
    * as much as the treasury can pay. Returns the barrels delivered (burned straight into the grid).
    */
   sellForGrid(player: PlayerState, barrels: number, markup: number): number {
@@ -158,7 +158,7 @@ export class OilMarket implements GameSystem {
     return delivered;
   }
 
-  /** What the nation could sell to repay the Bank: oil at the posted price + resale value of structures and vehicles. */
+  /** What the nation could sell to repay the Center: oil at the posted price + resale value of structures and vehicles. */
   collateral(player: PlayerState): number {
     let assets = 0;
     for (const b of this.entities.buildings()) {
@@ -170,7 +170,7 @@ export class OilMarket implements GameSystem {
     return Math.max(0, player.oil) * this.price + RESALE_SHARE * assets;
   }
 
-  /** The most the nation may owe the Bank right now (rounded down to 100 TB). */
+  /** The most the nation may owe the Center right now (rounded down to 100 TB). */
   creditLine(player: PlayerState): number {
     return Math.floor((LOAN_TO_VALUE * this.collateral(player)) / 100) * 100;
   }
@@ -181,7 +181,7 @@ export class OilMarket implements GameSystem {
     return Math.max(0, Math.min(line - player.debt, Math.max(LOAN_MIN, Math.round((line * LOAN_SHARE) / 100) * 100)));
   }
 
-  /** Income for `player`: the Bank automatically takes what is owed first. Returns the amount repaid. */
+  /** Income for `player`: the Center automatically takes what is owed first. Returns the amount repaid. */
   receive(player: PlayerState, amount: number): number {
     const repaid = Math.min(player.debt, amount);
     player.debt -= repaid;

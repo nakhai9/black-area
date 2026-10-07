@@ -1,25 +1,26 @@
 import { createAirfieldArt } from './Airfield';
 import { createBarracksArt } from './Barracks';
+import { createFlagpoleArt } from './Flagpole';
 import { createHappyCityArt } from './HappyCity';
 import { createHospitalArt } from './Hospital';
 import { createTechCenterArt } from './TechCenter';
 import { createWarFactoryArt } from './WarFactory';
-import { BeijingForbiddenCityArt } from './BeijingForbiddenCity';
+import { BeijingZhongnanhaiArt } from './BeijingZhongnanhai';
 import { BrusselsEUHeadquartersArt } from './BrusselsEUHeadquarters';
 import { ChhgArt } from './Chhg';
 import type { BuildingArt } from './BuildingArt';
 import { MoscowKremlinArt } from './MoscowKremlin';
 import { createOilDerrickArt } from './OilDerrick';
 import { createPowerPlantArt } from './PowerPlant';
-import { WashingtonCapitolArt } from './WashingtonCapitol';
+import { WashingtonWhiteHouseArt } from './WashingtonWhiteHouse';
 import { WorldBankArt } from './WorldBank';
 import { FACTIONS } from '../../factions';
 
 /** Sprite key → artwork. Register new building art here. */
 export const BUILDING_ART: Readonly<Record<string, BuildingArt>> = {
-  'capital:usa': WashingtonCapitolArt,
+  'capital:usa': WashingtonWhiteHouseArt,
   'capital:russia': MoscowKremlinArt,
-  'capital:china': BeijingForbiddenCityArt,
+  'capital:china': BeijingZhongnanhaiArt,
   'capital:europe': BrusselsEUHeadquartersArt,
   'bank:world': WorldBankArt,
   'chhg:world': ChhgArt,
@@ -61,6 +62,11 @@ export const BUILDING_ART: Readonly<Record<string, BuildingArt>> = {
   'happyCity:russia': createHappyCityArt('russia'),
   'happyCity:china': createHappyCityArt('china'),
   'happyCity:europe': createHappyCityArt('europe'),
+  // National flagpoles (one cell).
+  'flagpole:usa': createFlagpoleArt('usa'),
+  'flagpole:russia': createFlagpoleArt('russia'),
+  'flagpole:china': createFlagpoleArt('china'),
+  'flagpole:europe': createFlagpoleArt('europe'),
 };
 
 export type { BuildingArt } from './BuildingArt';

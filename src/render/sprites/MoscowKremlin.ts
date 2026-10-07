@@ -1,8 +1,8 @@
 import { HALF_TW } from '../../constants';
 import { archPath, starPath } from '../Canvas';
-import { drawFlagOnPole } from '../Flags';
+import { drawFlagOnPole, drawNationalPole } from '../Flags';
 import type { IsoPainter } from '../IsoPainter';
-import { type BuildingArt, groundShadow } from './BuildingArt';
+import type { BuildingArt } from './BuildingArt';
 
 const BRICK = '#a5372c';
 const BRICK_CAP = '#b9483a';
@@ -147,7 +147,6 @@ export const MoscowKremlinArt: BuildingArt = {
   height: 104,
 
   drawStatic(p) {
-    groundShadow(p, 4, ART_D);
     p.box(0, 0, 4, ART_D, 0, 3, COBBLE);
 
     // Back and side walls, corner towers (all mirrored about u = 2).
@@ -202,7 +201,7 @@ export const MoscowKremlinArt: BuildingArt = {
 
     tower(p, 3.48, 3.48);
 
-    for (const [u, v] of FLAGS) p.pole(u, v, 3, FLAG_Z);
+    for (const [u, v] of FLAGS) drawNationalPole(p, 'russia', u, v, 3, FLAG_Z);
 
     redSquare(p);
   },

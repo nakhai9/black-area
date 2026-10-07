@@ -5,14 +5,15 @@ export const CHINA: FactionConfig = {
   id: 'china',
   name: "People's Republic of China",
   shortName: 'China',
+  leader: { title: 'President', name: 'Xi Jinping' },
   doctrine: 'Heavy armour and mass: cheap, durable units fielded in overwhelming numbers.',
   colors: { primary: '#e8b10a', light: '#ffe48a', dark: '#6b4b00' },
   stats: { unitSpeed: 0.85, armor: 1.3, firepower: 1.0, range: 0.95, buildSpeed: 1.2, cost: 0.85, trainDelay: 0 },
   capital: {
-    name: 'The Forbidden City',
+    name: 'Zhongnanhai',
     city: 'Beijing',
-    description: 'Imperial heart of the People’s Army, guarded by the Tiananmen gate.',
-    maxHp: 6000,
+    description: 'Leadership compound of the People’s Republic, behind the Xinhuamen gate.',
+    maxHp: 18000,
     powerOutput: 0,
   },
   infantry: {
@@ -25,11 +26,6 @@ export const CHINA: FactionConfig = {
       name: 'Tiger',
       description: 'Elite marine commandos trained for amphibious assault.',
       look: { uniform: '#5b6a3a', trousers: '#47532c', headgear: 'helmet', headColor: '#4e5b31', weapon: 'rifle', camo: true, sprite: 'cnSpecial' },
-    },
-    president: {
-      name: 'President',
-      description: "President of the People's Republic of China, head of state and symbol of the nation.",
-      look: { uniform: '#5b6a5a', trousers: '#3f4b3e', headgear: 'none', headColor: '#000000', weapon: 'none' },
     },
     engineer: {
       name: 'Engineer',

@@ -2,8 +2,8 @@ import { HALF_TW } from '../../constants';
 import { FACTIONS } from '../../factions';
 import type { FactionId } from '../../types';
 import { shade } from '../Color';
-import { drawFlagOnPole } from '../Flags';
-import { type BuildingArt, groundShadow } from './BuildingArt';
+import { drawFlagOnPole, drawNationalPole } from '../Flags';
+import type { BuildingArt } from './BuildingArt';
 
 const PAD = '#b9b6ac';
 const WHITE = '#f4f4f0';
@@ -29,7 +29,6 @@ export function createHospitalArt(faction: FactionId): BuildingArt {
     height: 72,
 
     drawStatic(p) {
-      groundShadow(p, 5, 4);
       p.box(0, 0, 5, 4, 0, 2, PAD);
       p.topRect(0.2, 2.95, 1.7, 3.8, 2, LAWN);
       p.topRect(3.1, 2.95, 4.8, 3.8, 2, LAWN);
@@ -73,7 +72,7 @@ export function createHospitalArt(faction: FactionId): BuildingArt {
       p.box(2.92, 2.72, 0.08, 0.08, 2, 9, WHITE);
       p.box(1.9, 2.7, 1.2, 0.55, 11, 2, team.primary);
 
-      for (const [u, v] of FLAGS) p.pole(u, v, 2, 30);
+      for (const [u, v] of FLAGS) drawNationalPole(p, faction, u, v, 2, 30);
     },
 
     drawAnimated(p, time) {

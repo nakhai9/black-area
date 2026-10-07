@@ -17,7 +17,7 @@ export interface TrainOption {
 /** Faction-specific infantry options (cost scaled by the faction's cost multiplier). */
 function trainOptions(faction: FactionId): TrainOption[] {
   const f = FACTIONS[faction];
-  return (['regular', 'special', 'president', 'engineer'] as const).map((tier) => ({
+  return (['regular', 'special', 'engineer'] as const).map((tier) => ({
     tier,
     name: f.infantry[tier].name,
     description: f.infantry[tier].description,
@@ -28,9 +28,9 @@ function trainOptions(faction: FactionId): TrainOption[] {
 
 export type TrainingState = 'idle' | 'training' | 'onHold' | 'noBarracks';
 
-export type EnqueueResult = 'ok' | 'full' | 'noBarracks' | 'unique' | 'tech' | 'ratio' | 'cap';
+export type EnqueueResult = 'ok' | 'full' | 'noBarracks' | 'tech' | 'ratio' | 'cap';
 
-/** Orders waiting (BuildLimit) and the President rule. */
+/** Orders waiting (BuildLimit) and the elite ratio. */
 export interface ArmyCount {
   /** Soldiers in the training queue, and the most that may wait there. */
   queued: number;
@@ -39,8 +39,6 @@ export interface ArmyCount {
   regular: number;
   special: number;
   specialCap: number;
-  /** A nation has exactly one President: alive (even inside a building) or queued. */
-  presidentTaken: boolean;
 }
 
 export interface TrainingQueue {
@@ -93,20 +91,18 @@ export class TrainingSystem implements GameSystem {
     return this.entities.buildings().some((b) => b.owner === player.id && b.alive && b.spec.type === 'techCenter');
   }
 
-  /** Pending orders, and whether the nation's one President is alive (even inside a building) or queued. */
+  /** Pending orders, and the elite/regular counts. */
   army(player: PlayerState): ArmyCount {
-    let presidentTaken = false;
     let regular = 0;
     let special = 0;
     const count = (tier: UnitTier): void => {
       if (tier === 'regular') regular++;
       else if (tier === 'special') special++;
-      else if (tier === 'president') presidentTaken = true;
     };
     for (const u of this.entities.units()) if (u.owner === player.id && u.alive) count(u.tier);
     const items = this.queue(player).items;
     for (const t of items) count(t);
-    return { queued: items.length, limit: BUILD_LIMIT_SOLDIERS, regular, special, specialCap: eliteCap(regular), presidentTaken };
+    return { queued: items.length, limit: BUILD_LIMIT_SOLDIERS, regular, special, specialCap: eliteCap(regular) };
   }
 
   /**
@@ -120,7 +116,6 @@ export class TrainingSystem implements GameSystem {
     if (q.items.length >= BUILD_LIMIT_SOLDIERS) return 'full';
     if (this.soldierCount(player) >= MAX_SOLDIERS) return 'cap';
     const army = this.army(player);
-    if (tier === 'president' && army.presidentTaken) return 'unique';
     // Elite soldiers never outnumber the regulars: 2 elite for every 3 regular (alive + already on order).
     if (tier === 'special' && army.special + 1 > army.specialCap) return 'ratio';
     q.items.push(tier);

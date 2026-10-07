@@ -11,8 +11,10 @@ export class Building extends Entity {
   readonly kind = 'building' as const;
   /** Game time when the player placed it (drives the build-up animation); null for map-authored. */
   placedAt: number | null = null;
-  /** People stationed inside (capital: the President; hospital: patients). */
+  /** People stationed inside (hospital: patients). */
   readonly garrison: Infantry[] = [];
+  /** Engineers inside repairing it (they walk out at 100%, and die with it if it is destroyed meanwhile). */
+  readonly crew: Infantry[] = [];
   private spriteKeyOverride: string | null = null;
 
   constructor(
@@ -47,7 +49,7 @@ export class Building extends Entity {
 
   /**
    * Transfers ownership (e.g. an engineer occupying it). Returns false for
-   * protected buildings such as the World Bank.
+   * protected buildings such as the Global Financial Center.
    */
   capture(owner: number, faction: FactionId): boolean {
     if (!this.capturable || !this.alive) return false;
@@ -68,7 +70,7 @@ export class Building extends Entity {
   canEnter(u: Infantry): boolean {
     const g = this.spec.garrison;
     if (!g || !this.alive || u.owner !== this.owner || this.garrison.length >= g.capacity) return false;
-    return g.accepts === 'president' ? u.isPresident : u.hp < u.maxHp;
+    return u.hp < u.maxHp;
   }
 
   get naval(): boolean {
