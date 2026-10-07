@@ -31,6 +31,9 @@ const SHEETS: Partial<Record<`${FactionId}:${VehicleKind}`, AircraftSheet>> = {
   'russia:transport': sheet('transport-russia.png', 128, 13),
   'china:transport': sheet('transport-china.png', 128, 13),
   'europe:transport': sheet('transport-europe.png', 128, 13),
+  'russia:jet': sheet('jet-russia.png', 128, 10),
+  'china:jet': sheet('jet-china.png', 128, 10),
+  'europe:jet': sheet('jet-europe.png', 128, 10),
 };
 
 /** Turn rate (rad/s) above which an airborne aircraft is drawn banked. */

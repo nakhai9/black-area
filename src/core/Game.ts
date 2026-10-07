@@ -967,11 +967,29 @@ export class Game {
   /**
    * Left click (RA2): select one of my units (Shift toggles it in / out of the group, double-click selects every
    * unit of that type on screen), or a building (double-click one of mine: everyone stationed inside comes out).
+   * With units selected, a click on open ground, an enemy, a transport or a building they can enter gives that order.
    * Anything else clears the selection.
    */
   private leftClick(world: WorldPoint, shift: boolean, double: boolean): void {
     const me = this.humanPlayer.id;
     const unit = this.selection.pickUnit(world);
+    const selected = this.selection.selectedUnitList();
+    // RA2 default: with units selected, a left click is also an order (board / attack / enter / move).
+    if (selected.length > 0 && !shift && !double) {
+      if (unit instanceof Vehicle && unit.isTransport && unit.owner === me && !this.selection.selectedUnits.has(unit.id)) {
+        const riders = selected.filter((u) => !u.aircraft);
+        if (riders.length > 0 && this.orderBoard(unit, riders)) return;
+      }
+      if (unit && unit.owner !== me && this.orderAttack(unit)) return;
+      if (!unit) {
+        const hit = this.selection.pick(world);
+        if (hit && this.orderOnBuilding(hit)) return;
+        if (!hit) {
+          this.orderMove(world);
+          return;
+        }
+      }
+    }
     if (unit && unit.owner === me) {
       if (double) this.selection.selectUnits(this.sameTypeOnScreen(unit).map((u) => u.id), shift);
       else if (shift) this.selection.toggleUnit(unit.id);
