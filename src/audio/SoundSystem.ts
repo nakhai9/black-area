@@ -17,6 +17,18 @@ const BATTLE_CRY: Readonly<Record<FactionId, { lang: string; lines: readonly str
 const CRY_COOLDOWN = 7;
 const MIN_GAP: Readonly<Record<string, number>> = { rifle: 0.05, smg: 0.045, sniper: 0.1, mg: 0.05, cannon: 0.12, autocannon: 0.06, missile: 0.15, explosion: 0.1, board: 0.12 };
 
+const MUSIC_VOLUME_KEY = 'black-area.musicVolume';
+
+function loadMusicVolume(): number {
+  try {
+    const v = Number(localStorage.getItem(MUSIC_VOLUME_KEY));
+    if (localStorage.getItem(MUSIC_VOLUME_KEY) !== null && Number.isFinite(v)) return Math.min(1, Math.max(0, v));
+  } catch {
+    /* storage unavailable */
+  }
+  return 0.7;
+}
+
 /** `board`: the hatch clunk of a unit climbing into / jumping out of a transport. */
 type Kind = WeaponKind | 'explosion' | 'board';
 
@@ -32,6 +44,7 @@ export class SoundSystem {
   private noise: AudioBuffer | null = null;
   private muted = false;
   private music: MusicSystem | null = null;
+  private musicVolume = loadMusicVolume();
   private readonly lastPlayed = new Map<string, number>();
   private readonly lastCry = new Map<FactionId, number>();
   private active = 0;
@@ -65,10 +78,26 @@ export class SoundSystem {
       const data = this.noise.getChannelData(0);
       for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
       this.music = new MusicSystem(this.ctx, this.master, this.noise);
+      this.music.setVolume(this.musicVolume);
       this.music.setMuted(this.muted);
       this.music.start();
     }
     if (this.ctx.state === 'suspended') void this.ctx.resume();
+  }
+
+  get musicLevel(): number {
+    return this.musicVolume;
+  }
+
+  /** Background music volume, 0..1 (remembered across sessions). */
+  setMusicVolume(volume: number): void {
+    this.musicVolume = Math.min(1, Math.max(0, volume));
+    this.music?.setVolume(this.musicVolume);
+    try {
+      localStorage.setItem(MUSIC_VOLUME_KEY, String(this.musicVolume));
+    } catch {
+      /* storage unavailable */
+    }
   }
 
   toggleMute(): boolean {

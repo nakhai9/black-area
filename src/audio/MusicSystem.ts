@@ -8,7 +8,8 @@
 const BPM = 118;
 const STEP = 60 / BPM / 4; // 16th note (s)
 const LOOKAHEAD = 0.25;
-const VOLUME = 0.55;
+/** Gain at full slider (volume = 1). */
+const MAX_GAIN = 1.6;
 const MIDI = (n: number): number => 440 * 2 ** ((n - 69) / 12);
 
 /** Root note (MIDI) per bar of the 4-bar progression: Am – F – G – E (the E major turns back to A minor). */
@@ -32,6 +33,8 @@ export class MusicSystem {
   private nextTime = 0;
   private step = 0;
   private bar = 0;
+  private muted = false;
+  private volume = 0.7;
 
   constructor(
     private readonly ctx: AudioContext,
@@ -39,7 +42,7 @@ export class MusicSystem {
     private readonly noise: AudioBuffer,
   ) {
     this.out = ctx.createGain();
-    this.out.gain.value = VOLUME;
+    this.out.gain.value = 0;
     // Gentle low-pass keeps the saws from sounding harsh over long play sessions.
     const soften = ctx.createBiquadFilter();
     soften.type = 'lowpass';
@@ -57,7 +60,18 @@ export class MusicSystem {
   }
 
   setMuted(muted: boolean): void {
-    this.out.gain.setTargetAtTime(muted ? 0 : VOLUME, this.ctx.currentTime, 0.05);
+    this.muted = muted;
+    this.applyGain();
+  }
+
+  /** Music volume, 0..1. */
+  setVolume(volume: number): void {
+    this.volume = Math.min(1, Math.max(0, volume));
+    this.applyGain();
+  }
+
+  private applyGain(): void {
+    this.out.gain.setTargetAtTime(this.muted ? 0 : this.volume * MAX_GAIN, this.ctx.currentTime, 0.05);
   }
 
   private schedule(): void {

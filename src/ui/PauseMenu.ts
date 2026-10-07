@@ -1,8 +1,14 @@
-/** Esc pause modal: "Continue" resumes the game, "Quit game" goes back to the faction picker. */
+/** Background-music volume control wired into the pause menu. */
+export interface MusicVolumeControl {
+  get: () => number;
+  set: (volume: number) => void;
+}
+
+/** Esc pause modal: music volume slider, "Continue" resumes the game, "Quit game" goes back to the faction picker. */
 export class PauseMenu {
   private readonly root: HTMLDivElement;
 
-  constructor(onContinue: () => void, parent: HTMLElement = document.body) {
+  constructor(onContinue: () => void, music: MusicVolumeControl, parent: HTMLElement = document.body) {
     this.root = document.createElement('div');
     this.root.className = 'end-screen pause-screen';
     this.root.setAttribute('role', 'dialog');
@@ -15,6 +21,24 @@ export class PauseMenu {
     title.textContent = 'PAUSED';
     const text = document.createElement('p');
     text.textContent = 'The game is paused. Press Esc or Continue to resume.';
+    const volume = document.createElement('label');
+    volume.className = 'pause-volume';
+    const volumeText = document.createElement('span');
+    const slider = document.createElement('input');
+    slider.type = 'range';
+    slider.min = '0';
+    slider.max = '100';
+    slider.step = '1';
+    const showVolume = (): void => {
+      volumeText.textContent = `Music volume: ${slider.value}%`;
+    };
+    slider.value = String(Math.round(music.get() * 100));
+    showVolume();
+    slider.addEventListener('input', () => {
+      music.set(Number(slider.value) / 100);
+      showVolume();
+    });
+    volume.append(volumeText, slider);
     const resume = document.createElement('button');
     resume.type = 'button';
     resume.textContent = 'Continue';
@@ -27,7 +51,7 @@ export class PauseMenu {
     const actions = document.createElement('div');
     actions.className = 'pause-actions';
     actions.append(resume, quit);
-    card.append(title, text, actions);
+    card.append(title, text, volume, actions);
     this.root.append(card);
     parent.append(this.root);
   }

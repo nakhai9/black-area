@@ -194,7 +194,10 @@ export class Game {
   readonly oilMarket: OilMarket;
   private readonly news: NewsToast;
   private readonly endScreen = new EndScreen();
-  private readonly pauseMenu = new PauseMenu(() => this.togglePause());
+  private readonly pauseMenu = new PauseMenu(() => this.togglePause(), {
+    get: () => this.sound.musicLevel,
+    set: (v) => this.sound.setMusicVolume(v),
+  });
   /** The war is decided (victory or game over): the simulation stops. */
   private ended = false;
   private paused = false;

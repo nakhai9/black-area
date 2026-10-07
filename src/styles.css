@@ -1101,3 +1101,15 @@ details.sb-help[open] > summary {
 .sb-price-chart polyline {
   stroke: #ffe08a;
 }
+
+.pause-volume {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 0 16px;
+  font-size: 14px;
+}
+.pause-volume input[type='range'] {
+  width: 100%;
+  accent-color: #f5c542;
+}
