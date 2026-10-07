@@ -68,6 +68,8 @@ const ORBIT_RADIUS = 3 * CELL_SIZE;
 export class AircraftSystem implements GameSystem {
   /** Centre and current angle of the waiting circle of each idle selected fighter. */
   private readonly orbits = new Map<number, { cx: number; cy: number; angle: number }>();
+  /** Runway queue of each airfield (aircraft ids, first come first served) for take-offs and landings. */
+  private readonly runwayQueues = new Map<number, number[]>();
 
   constructor(
     private readonly entities: EntityManager,
@@ -191,12 +193,11 @@ export class AircraftSystem implements GameSystem {
     if (!home) return this.abort(v);
     this.stashOrders(v);
     const g = this.geometry(home);
-    // One aircraft on the runway at a time: wait short of it while another one rolls or lands.
+    // One aircraft on the runway at a time, in queue order: wait short of it until cleared.
     const atThreshold = Math.hypot(v.px - g.runwayStart.x, v.py - g.runwayStart.y) < 12;
-    if (atThreshold && this.runwayBusy(v, home)) return;
-    // No power: the airfield cannot clear the aircraft for take-off, it waits at the runway threshold.
-    if (atThreshold && !this.hooks.powered(v.owner)) return;
+    if (atThreshold && !this.cleared(v, home)) return;
     if (this.moveTo(v, g.runwayStart, TAXI_SPEED, dt)) {
+      this.leaveQueue(v);
       v.flight = 'takeoff';
       v.phaseTime = 0;
       v.heading = g.heading;
@@ -291,13 +292,15 @@ export class AircraftSystem implements GameSystem {
     const last = v.waypoints()[v.waypoints().length - 1];
     // A new order replaces the approach path: abort the landing.
     if (v.moving && last && Math.hypot(last.x - g.approach.x, last.y - g.approach.y) > 1) {
+      this.leaveQueue(v);
       v.flight = 'airborne';
       v.idleFor = 0;
       return;
     }
     if (!v.moving) {
-      // The runway is in use (another aircraft takes off or lands): keep circling over the approach point.
-      if (this.runwayBusy(v, home)) return;
+      // Not cleared yet (runway in use or others ahead in the queue): hold over the approach point.
+      if (!this.cleared(v, home)) return;
+      this.leaveQueue(v);
       this.place(v, g.approach.x, g.approach.y);
       v.flight = 'landing';
       v.phaseTime = 0;
@@ -404,6 +407,36 @@ export class AircraftSystem implements GameSystem {
     v.idleFor = 0;
     if (v.mission) v.follow(v.mission);
     v.mission = null;
+  }
+
+  /**
+   * Joins the airfield's runway queue and reports whether the aircraft may use the runway now: the runway must be
+   * free and nobody eligible may be ahead of it. Without power take-offs are held, but landings still go first.
+   */
+  private cleared(v: Vehicle, home: Building): boolean {
+    let q = this.runwayQueues.get(home.id);
+    if (!q) this.runwayQueues.set(home.id, (q = []));
+    // Drop aircraft that died, re-homed or stopped waiting for this runway.
+    for (let i = q.length - 1; i >= 0; i--) {
+      const o = this.entities.get(q[i]!) as Vehicle | undefined;
+      if (!o || !o.alive || o.homeId !== home.id || (o.flight !== 'taxi' && o.flight !== 'approach')) q.splice(i, 1);
+    }
+    if (!q.includes(v.id)) q.push(v.id);
+    if (this.runwayBusy(v, home)) return false;
+    const powered = this.hooks.powered(v.owner);
+    for (const id of q) {
+      const o = this.entities.get(id) as Vehicle;
+      if (o.flight === 'taxi' && !powered) continue; // held on the ground: lets the next one through
+      return o === v;
+    }
+    return false;
+  }
+
+  private leaveQueue(v: Vehicle): void {
+    for (const q of this.runwayQueues.values()) {
+      const i = q.indexOf(v.id);
+      if (i >= 0) q.splice(i, 1);
+    }
   }
 
   /** Is another aircraft of this airfield taking off or landing right now? */
