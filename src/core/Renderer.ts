@@ -169,9 +169,10 @@ export class Renderer {
       })
       .sort((a, b) => a.depth - b.depth);
     const selected = sorted.find((b) => b.id === scene.selectedId) ?? null;
+    for (const b of sorted) this.drawContactShadow(b);
+    this.drawFloors(sorted);
     if (selected) this.drawFootprint(selected, scene.time);
     if (scene.buildZones?.length) this.drawBuildZones(scene.buildZones, scene.ghost?.faction);
-    for (const b of sorted) this.drawContactShadow(b);
 
     // Buildings and soldiers share one painter's-algorithm pass (by depth).
     const units = (scene.units ?? []).filter((u) => onScreen(u.px, u.py));
@@ -251,6 +252,56 @@ export class Renderer {
       const e = (CELL_SIZE * 0.7 * i) / 3;
       ctx.fillStyle = 'rgba(104,88,58,0.2)';
       ctx.fillRect(f.x - e, f.y - e, f.w + 2 * e, f.h + 2 * e);
+    }
+  }
+
+  /**
+   * Concrete base (ground transform): each structure sits on a slab one cell wider than its footprint. Slabs of
+   * one owner are merged cell by cell, so buildings placed side by side (up to 2 cells apart) share one floor,
+   * with a kerb drawn only round the outer edge. Oil derricks and naval structures keep their own ground.
+   */
+  private drawFloors(buildings: readonly Building[]): void {
+    const PAD = 1;
+    const byOwner = new Map<number, Set<number>>();
+    const key = (x: number, y: number): number => (y + 0x8000) * 0x10000 + (x + 0x8000);
+    for (const b of buildings) {
+      if (!b.alive || b.naval || b.spriteKey.startsWith('oil:')) continue;
+      let cells = byOwner.get(b.owner);
+      if (!cells) byOwner.set(b.owner, (cells = new Set()));
+      for (let y = b.y - PAD; y < b.y + b.d + PAD; y++) for (let x = b.x - PAD; x < b.x + b.w + PAD; x++) cells.add(key(x, y));
+    }
+    const { ctx } = this;
+    const C = CELL_SIZE;
+    for (const cells of byOwner.values()) {
+      ctx.fillStyle = '#8f8c84';
+      for (const k of cells) {
+        const x = (k % 0x10000) - 0x8000;
+        const y = Math.floor(k / 0x10000) - 0x8000;
+        ctx.fillRect(x * C - 0.5, y * C - 0.5, C + 1, C + 1); // overlap hides seams between cells
+      }
+      // Joint lines every cell, then the kerb on outer edges only.
+      ctx.strokeStyle = 'rgba(60,58,52,0.25)';
+      ctx.lineWidth = 0.6;
+      ctx.beginPath();
+      for (const k of cells) {
+        const x = (k % 0x10000) - 0x8000;
+        const y = Math.floor(k / 0x10000) - 0x8000;
+        if (cells.has(key(x + 1, y))) { ctx.moveTo((x + 1) * C, y * C); ctx.lineTo((x + 1) * C, (y + 1) * C); }
+        if (cells.has(key(x, y + 1))) { ctx.moveTo(x * C, (y + 1) * C); ctx.lineTo((x + 1) * C, (y + 1) * C); }
+      }
+      ctx.stroke();
+      ctx.strokeStyle = '#5e5b54';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      for (const k of cells) {
+        const x = (k % 0x10000) - 0x8000;
+        const y = Math.floor(k / 0x10000) - 0x8000;
+        if (!cells.has(key(x - 1, y))) { ctx.moveTo(x * C, y * C); ctx.lineTo(x * C, (y + 1) * C); }
+        if (!cells.has(key(x + 1, y))) { ctx.moveTo((x + 1) * C, y * C); ctx.lineTo((x + 1) * C, (y + 1) * C); }
+        if (!cells.has(key(x, y - 1))) { ctx.moveTo(x * C, y * C); ctx.lineTo((x + 1) * C, y * C); }
+        if (!cells.has(key(x, y + 1))) { ctx.moveTo(x * C, (y + 1) * C); ctx.lineTo((x + 1) * C, (y + 1) * C); }
+      }
+      ctx.stroke();
     }
   }
 
