@@ -1,5 +1,6 @@
 import './styles.css';
 import { EARTH_TEXTURE_URL, FACTION_ORDER } from './constants';
+import { SoundSystem } from './audio/SoundSystem';
 import { Game } from './core/Game';
 import { loadEarthData } from './map/EarthData';
 import { loadAircraftSprites } from './render/AircraftSheets';
@@ -14,6 +15,14 @@ function byId<T extends HTMLElement>(id: string): T {
   return el as T;
 }
 
+/** Alt+F: full screen on / off (works on every screen: faction picker, game, gallery). */
+window.addEventListener('keydown', (e) => {
+  if (!e.altKey || e.code !== 'KeyF' || e.repeat) return;
+  e.preventDefault();
+  if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined);
+  else void document.documentElement.requestFullscreen().catch(() => undefined);
+});
+
 const nextPaint = (): Promise<void> => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
 
 async function boot(): Promise<void> {
@@ -27,6 +36,12 @@ async function boot(): Promise<void> {
   soldiers.catch(() => undefined);
   const aircraft = loadAircraftSprites();
   aircraft.catch(() => undefined);
+
+  // Music starts on the faction picker: browsers only allow audio after the first click or key press.
+  const sound = new SoundSystem();
+  const unlock = (): void => sound.unlock();
+  window.addEventListener('pointerdown', unlock);
+  window.addEventListener('keydown', unlock);
 
   try {
     // `?faction=usa|russia|china|europe` skips the picker (demos/tests).
@@ -45,6 +60,7 @@ async function boot(): Promise<void> {
       { canvas: byId<HTMLCanvasElement>('game'), sidebar: byId('sidebar'), status: byId('status') },
       faction,
       earth,
+      sound,
     );
     game.start();
     loading.remove();

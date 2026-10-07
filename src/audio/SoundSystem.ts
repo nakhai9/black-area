@@ -50,7 +50,8 @@ export class SoundSystem {
   private active = 0;
   private voices: SpeechSynthesisVoice[] = [];
 
-  constructor(private readonly listener: () => Listener) {
+  /** `listener` defaults to "hear everything" (menus); the game sets the camera with setListener. */
+  constructor(private listener: () => Listener = () => ({ centre: { x: 0, y: 0 }, range: Infinity })) {
     if (typeof speechSynthesis !== 'undefined') {
       const load = (): void => {
         this.voices = speechSynthesis.getVoices();
@@ -58,6 +59,10 @@ export class SoundSystem {
       load();
       speechSynthesis.addEventListener?.('voiceschanged', load);
     }
+  }
+
+  setListener(listener: () => Listener): void {
+    this.listener = listener;
   }
 
   get isMuted(): boolean {

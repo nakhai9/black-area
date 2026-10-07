@@ -62,7 +62,7 @@ import { WorldBank } from '../entities/WorldBank';
 import { FACTIONS } from '../factions';
 import { computeBiomes } from '../map/Biomes';
 import { type EarthData, loadEarthData } from '../map/EarthData';
-import { geoToWorld } from '../map/Geo';
+import { formatGeo, geoToWorld, worldToGeo } from '../map/Geo';
 import { TerrainRenderer } from '../map/TerrainRenderer';
 import { Pathfinder } from '../map/Pathfinder';
 import { TileMap } from '../map/TileMap';
@@ -86,6 +86,8 @@ import { NewsToast } from '../ui/NewsToast';
 import { BUILD_OPTIONS, type BuildOption, ConstructionSystem, type QueueState, buildCost, missingRequirement } from '../systems/ConstructionSystem';
 import { EconomySystem } from '../systems/EconomySystem';
 
+/** An ally hit within this many seconds shows as under attack in the Allies tab. */
+const ALLY_ALERT_SECONDS = 5;
 /** The military ranking is re-counted this often (s): soldiers die and vehicles are lost in between. */
 const MILITARY_RANK_INTERVAL = 240;
 import type { GameSystem } from '../systems/GameSystem';
@@ -99,7 +101,7 @@ import { VehicleSystem } from '../systems/VehicleSystem';
 import type { BuildingType, FactionId, GameEvents, PlayerState, UnitTier, VehicleKind, WeaponSpec, WorldPoint } from '../types';
 import { Minimap } from '../ui/Minimap';
 import { sweepUnitSprites, unitSpriteBytes } from '../render/UnitSprites';
-import { type TransportInfo, type RankRow, Sidebar } from '../ui/Sidebar';
+import { type TransportInfo, type RankRow, type AllyInfo, Sidebar } from '../ui/Sidebar';
 import { StatusBar } from '../ui/StatusBar';
 import { Camera } from './Camera';
 import { EffectsLayer } from './Effects';
@@ -239,14 +241,16 @@ export class Game {
     dom: GameDom,
     playerFaction: FactionId,
     earth: Promise<EarthData> = loadEarthData(EARTH_TEXTURE_URL),
+    sound: SoundSystem = new SoundSystem(),
   ): Promise<Game> {
-    return new Game(dom, playerFaction, await earth);
+    return new Game(dom, playerFaction, await earth, sound);
   }
 
   private constructor(
     private readonly dom: GameDom,
     playerFaction: FactionId,
     earth: EarthData,
+    sound: SoundSystem,
   ) {
     this.players = FACTION_ORDER.map((faction, i) => ({
       id: i + 1,
@@ -302,7 +306,9 @@ export class Game {
     this.production = new VehicleSystem(this.players, this.entities, (player, kind, producer) =>
       this.spawnVehicle(player, kind, producer),
     );
-    this.sound = new SoundSystem(() => {
+    // The sound system (and its music) already runs since the faction picker; now it hears from the camera.
+    this.sound = sound;
+    this.sound.setListener(() => {
       const v = this.camera.viewRect();
       return { centre: { x: v.x + v.w / 2, y: v.y + v.h / 2 }, range: Math.hypot(v.w, v.h) / 2 };
     });
@@ -457,6 +463,28 @@ export class Game {
     flag.placedAt = this.time;
     this.map.occupy(flag.x, flag.y, flag.w, flag.d, flag.id);
     return null;
+  }
+
+  /** The player's Allied Buildings, then its claim flags on new land that have no Allied Building yet (Allies tab). */
+  private alliesInfo(): AllyInfo[] {
+    const me = this.humanPlayer.id;
+    const mine = this.entities.buildings().filter((b) => b.owner === me && b.alive);
+    const allied = mine.filter((b) => b.spec.type === 'alliedBuilding');
+    const claims = mine.filter(
+      (b) => b.spec.type === 'flagpole' && isClaimable(this.map, b.x, b.y) && !allied.some((a) => Math.hypot(a.x - b.x, a.y - b.y) < 14),
+    );
+    return [...allied, ...claims].map((b) => {
+      const at = b.centerWorld();
+      return {
+        id: b.id,
+        built: b.spec.type === 'alliedBuilding',
+        place: formatGeo(worldToGeo(at)),
+        at,
+        hp: b.hp,
+        maxHp: b.maxHp,
+        underAttack: this.time - b.lastAttackedAt < ALLY_ALERT_SECONDS,
+      };
+    });
   }
 
   /** F key: every selected Squatters team plants its flag where it stands. */
@@ -1113,6 +1141,7 @@ export class Game {
           parkingFree: this.production.parkingFree(this.humanPlayer),
           ranking: this.sidebar.wantsRanking(elapsed) ? this.ranking() : null,
           transport: this.transportInfo(),
+          allies: this.alliesInfo(),
         },
         elapsed,
       );

@@ -937,6 +937,9 @@ details.sb-help[open] > summary {
   border-radius: 3px;
   cursor: pointer;
 }
+.sb-main-tabs button[hidden] {
+  display: none;
+}
 .sb-main-tabs button > svg {
   flex: none;
 }
@@ -1112,4 +1115,65 @@ details.sb-help[open] > summary {
 .pause-volume input[type='range'] {
   width: 100%;
   accent-color: #f5c542;
+}
+
+/* ------------------------------------------------------------- allies tab */
+.sb-ally-list {
+  margin: 0 0 10px;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.sb-ally-list li {
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 6px;
+  font-size: 12px;
+  color: #cfd8e0;
+  background: #161c22;
+  border: 1px solid #2a333c;
+  cursor: pointer;
+}
+.sb-ally-list li:hover {
+  border-color: var(--accent);
+}
+.sb-ally-list li.pending {
+  opacity: 0.7;
+  border-style: dashed;
+}
+.sb-ally-list li.hit {
+  border-color: #e0483a;
+}
+.sb-ally-name {
+  font-weight: 600;
+}
+.sb-ally-list li.hit .sb-ally-name {
+  color: #ff7a6b;
+}
+.sb-ally-place {
+  font-size: 11px;
+}
+.sb-ally-hp {
+  height: 4px;
+  margin-top: 3px;
+  background: #0b0f13;
+}
+.sb-ally-hp i {
+  display: block;
+  height: 100%;
+  background: #4cc26a;
+}
+.sb-ally-hp i[data-level='low'] {
+  background: #e6b53a;
+}
+.sb-ally-hp i[data-level='critical'] {
+  background: #e0483a;
+}
+.sb-allies-hint {
+  font-size: 11px;
+  margin: 0;
 }

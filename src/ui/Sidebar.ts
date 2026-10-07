@@ -1,5 +1,5 @@
-import { type IconNode, Clock, Info, Droplet, Factory, Hammer, Minus, PersonStanding, Radar, Shield, TrendingDown, TrendingUp, Trophy, Truck, Zap, createElement } from 'lucide';
-import { BUILD_LIMIT_VEHICLES, CURRENCY, OIL_GRID_MARKUP, POWER_PER_BARREL, TECH_TIERS, TECH_VEHICLES, isAircraftKind } from '../constants';
+import { type IconNode, Clock, Handshake, Info, Droplet, Factory, Hammer, Minus, PersonStanding, Radar, Shield, TrendingDown, TrendingUp, Trophy, Truck, Zap, createElement } from 'lucide';
+import { BUILD_LIMIT_VEHICLES, CURRENCY, MAX_ALLIES, OIL_GRID_MARKUP, POWER_PER_BARREL, TECH_TIERS, TECH_VEHICLES, isAircraftKind } from '../constants';
 import { FACTIONS } from '../factions';
 import { getFlagTexture } from '../render/Flags';
 import { type BuildOption, type QueueSlot, buildCost, missingRequirement } from '../systems/ConstructionSystem';
@@ -30,7 +30,21 @@ const CARRIER_STATE_LABEL: Readonly<Record<CarrierState, string>> = {
 
 type TabId = 'build' | 'defense' | 'infantry' | 'vehicles';
 /** Sidebar pages: the command centre (budget, oil, alerts), production (build, train) and the world ranking with oil & power prices. */
-type ViewId = 'command' | 'production' | 'rank';
+type ViewId = 'command' | 'production' | 'rank' | 'allies';
+
+/** One of the player's allies (Allied Building) or a claim flag still waiting for its ally, for the Allies tab. */
+export interface AllyInfo {
+  id: number;
+  /** Allied Building standing (false: only the claim flag so far). */
+  built: boolean;
+  /** Where it stands (latitude / longitude). */
+  place: string;
+  at: WorldPoint;
+  hp: number;
+  maxHp: number;
+  /** Hit within the last few seconds. */
+  underAttack: boolean;
+}
 
 /** One nation in the ranking tab. */
 export interface RankRow {
@@ -95,6 +109,8 @@ export interface SidebarModel {
   ranking: readonly RankRow[] | null;
   /** The selected transport of the player, or null (hides the Transport panel). */
   transport: TransportInfo | null;
+  /** The player's allies and open claims (the Allies tab shows up once there is at least one ally). */
+  allies: readonly AllyInfo[];
 }
 
 export interface SidebarHandlers {
@@ -177,6 +193,9 @@ export class Sidebar {
   private lastRanking: readonly RankRow[] = [];
   /** What the lists show now: the DOM is rebuilt only when this changes. */
   private rankKey = '';
+  private allyList!: HTMLElement;
+  private allyCount!: HTMLElement;
+  private allyKey = '';
   private rankTimer = 0;
   private readonly flagUrls = new Map<FactionId, string>();
   private readonly tabButtons = new Map<TabId, HTMLButtonElement>();
@@ -271,6 +290,13 @@ export class Sidebar {
           <ol class="sb-rank-list" data-rank="military"></ol>
         </section>
       </div>
+      <div class="sb-view" data-page="allies" hidden>
+        <section class="sb-panel sb-allies">
+          <h3 class="sb-rank-title">ALLIES <small class="sb-allies-count"></small></h3>
+          <ol class="sb-ally-list"></ol>
+          <p class="sb-muted sb-allies-hint">Click an ally to look at it. Raise up to ${MAX_ALLIES} allies on land claimed by Squatters.</p>
+        </section>
+      </div>
       <div class="sb-view" data-page="production">
       <nav class="sb-tabs" aria-label="Construction"></nav>
       <section class="sb-panel sb-build">
@@ -315,6 +341,9 @@ export class Sidebar {
     this.views.set('command', q('[data-page=command]'));
     this.views.set('production', q('[data-page=production]'));
     this.views.set('rank', q('[data-page=rank]'));
+    this.views.set('allies', q('[data-page=allies]'));
+    this.allyList = q('.sb-ally-list');
+    this.allyCount = q('.sb-allies-count');
     this.powerPrice = q('.sb-power-price');
     this.priceTrend = q('.sb-price-trend');
     this.priceClock = q('.sb-price-clock');
@@ -401,6 +430,7 @@ export class Sidebar {
   update(model: SidebarModel, dt: number): void {
     const { player, queue } = model;
     this.credits.textContent = Math.floor(player.credits).toLocaleString('en-US');
+    this.renderAllies(model.allies);
     if (model.ranking) {
       this.lastRanking = model.ranking;
       this.renderRanking(model.ranking);
@@ -514,6 +544,7 @@ export class Sidebar {
       { id: 'command', label: 'Command', icon: Radar },
       { id: 'production', label: 'Production', icon: Factory },
       { id: 'rank', label: 'Rank', icon: Trophy },
+      { id: 'allies', label: 'Allies', icon: Handshake },
     ];
     for (const page of pages) {
       const btn = document.createElement('button');
@@ -526,6 +557,8 @@ export class Sidebar {
       btn.setAttribute('aria-label', page.label);
       btn.append(createElement(page.icon, { width: 18, height: 18, 'stroke-width': 2, 'aria-hidden': 'true' }));
       btn.addEventListener('click', () => this.switchView(page.id));
+      // The Allies tab only shows up once the nation has its first ally.
+      if (page.id === 'allies') btn.hidden = true;
       nav.append(btn);
       this.mainTabs.set(page.id, btn);
     }
@@ -600,6 +633,56 @@ export class Sidebar {
       this.flagUrls.set(faction, url);
     }
     return url;
+  }
+
+  /**
+   * Allies tab: one row per Allied Building (health, under attack) and per claim flag still waiting for its
+   * building. The tab button appears with the first ally (and blinks until opened); it goes away if all are lost.
+   */
+  private renderAllies(allies: readonly AllyInfo[]): void {
+    const tab = this.mainTabs.get('allies');
+    const built = allies.filter((a) => a.built).length;
+    if (tab) {
+      const show = built > 0;
+      if (show && tab.hidden) tab.classList.add('sb-attention');
+      tab.hidden = !show;
+      if (!show && this.activeView === 'allies') this.switchView('command');
+    }
+    if (this.activeView === 'allies') tab?.classList.remove('sb-attention');
+    const key = allies.map((a) => `${a.id}:${a.built}:${Math.ceil((a.hp / a.maxHp) * 20)}:${a.underAttack}`).join('|');
+    if (key === this.allyKey) return;
+    this.allyKey = key;
+    this.allyCount.textContent = `${built} / ${MAX_ALLIES}`;
+    let n = 0;
+    this.allyList.replaceChildren(
+      ...allies.map((a) => {
+        const li = document.createElement('li');
+        li.classList.toggle('pending', !a.built);
+        li.classList.toggle('hit', a.underAttack);
+        li.title = 'Look at it';
+        const pos = document.createElement('span');
+        pos.className = 'sb-rank-pos';
+        pos.textContent = a.built ? String(++n) : '⚑';
+        const info = document.createElement('div');
+        const name = document.createElement('div');
+        name.className = 'sb-ally-name';
+        name.textContent = a.built ? `Ally ${n}${a.underAttack ? ' · under attack!' : ''}` : 'Claimed land · no ally yet';
+        const place = document.createElement('div');
+        place.className = 'sb-muted sb-ally-place';
+        place.textContent = a.place;
+        const bar = document.createElement('div');
+        bar.className = 'sb-ally-hp';
+        const fill = document.createElement('i');
+        const share = Math.max(0, Math.min(1, a.hp / a.maxHp));
+        fill.style.width = `${Math.round(share * 100)}%`;
+        fill.dataset.level = share > 0.6 ? 'ok' : share > 0.3 ? 'low' : 'critical';
+        bar.append(fill);
+        info.append(name, place, bar);
+        li.append(pos, info);
+        li.addEventListener('click', () => this.handlers.onAlert(a.at));
+        return li;
+      }),
+    );
   }
 
   /** True when the Rank tab is open and its 1 s refresh is due (the ranking is only computed then). */

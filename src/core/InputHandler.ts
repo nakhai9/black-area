@@ -166,7 +166,8 @@ export class InputHandler {
 
   private readonly onKeyDown = (e: KeyboardEvent): void => {
     if (PREVENT_DEFAULT_KEYS.has(e.code)) e.preventDefault();
-    if (!e.repeat) this.queue.push({ type: 'keyDown', code: e.code });
+    // Alt+key combos belong to the browser shell (Alt+F: full screen, see main.ts), not to the game.
+    if (!e.repeat && !e.altKey) this.queue.push({ type: 'keyDown', code: e.code });
     this.keys.add(e.code);
   };
 
