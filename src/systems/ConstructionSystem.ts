@@ -1,5 +1,6 @@
 import {
   AIRFIELD_COST,
+  ALLIED_BUILDING_COST,
   TECH_CENTER_COST,
   BARRACKS_COST,
   BUILD_STEP_FRACTION,
@@ -17,6 +18,7 @@ import {
   WAR_FACTORY_COST,
 } from '../constants';
 import { Airfield } from '../entities/Airfield';
+import { AlliedBuilding } from '../entities/AlliedBuilding';
 import { FACTIONS } from '../factions';
 import { HappyCity } from '../entities/HappyCity';
 import { Hospital } from '../entities/Hospital';
@@ -31,7 +33,7 @@ import type { GameSystem } from './GameSystem';
 
 /** A structure that can be produced from the sidebar's Build tab. */
 export interface BuildOption {
-  id: 'powerPlant' | 'barracks' | 'warFactory' | 'hospital' | 'airfield' | 'techCenter' | 'happyCity' | 'flagpole';
+  id: 'powerPlant' | 'barracks' | 'warFactory' | 'hospital' | 'airfield' | 'techCenter' | 'happyCity' | 'flagpole' | 'alliedBuilding';
   name: string;
   /** Tech tree: these buildings must already stand (power plant → barracks → war factory/hospital → airfield → happy city). */
   requires?: BuildingType | readonly BuildingType[];
@@ -121,6 +123,16 @@ export const BUILD_OPTIONS: readonly BuildOption[] = [
     footprint: FOOTPRINT_FLAGPOLE,
     spriteKey: (f) => `flagpole:${f}`,
     create: (owner, faction, x, y) => new Flagpole(owner, faction, center(x, y, FOOTPRINT_FLAGPOLE)),
+  },
+  {
+    // Seat of an ally: only on land claimed by a Squatters team (see Game.alliedBlocker), at most MAX_ALLIES per nation.
+    id: 'alliedBuilding',
+    name: 'Allied Building',
+    requires: 'flagpole',
+    cost: ALLIED_BUILDING_COST,
+    footprint: FOOTPRINT_SMALL,
+    spriteKey: (f) => `alliedBuilding:${f}`,
+    create: (owner, faction, x, y) => new AlliedBuilding(owner, faction, center(x, y, FOOTPRINT_SMALL)),
   },
 ];
 

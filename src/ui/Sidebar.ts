@@ -39,12 +39,10 @@ export interface RankRow {
   name: string;
   isHuman: boolean;
   defeated: boolean;
-  /** Budget + oil stock at the posted price − debt, in TB. */
+  /** Wealth: oil stock + structures (by health) + soldiers & vehicles + budget + unused stored power, in TB. */
   economy: number;
-  /** Total price of the nation's living soldiers and vehicles, in TB. */
+  /** Price of the living soldiers and working vehicles (snapshot, refreshed every 4 min); only the rank is shown. */
   military: number;
-  soldiers: number;
-  vehicles: number;
 }
 
 /** Construction tabs (RA2 sidebar), shown as Lucide icons. */
@@ -65,7 +63,7 @@ export interface SidebarModel {
   priceHistory: readonly number[];
   /** Seconds until the Center posts a new price. */
   priceChangeIn: number;
-  /** Barrels above the 1.0 reserve that may be offered, and seconds until the 10 s sale cooldown ends. */
+  /** Barrels above the 1.0 reserve that may be offered, and seconds until the sale pause (after 6 sales in a row) ends. */
   sellable: number;
   salesWait: number;
   /** Why the Global Financial Center would refuse a loan now (null = available). */
@@ -252,6 +250,7 @@ export class Sidebar {
           <li>Armed units: <kbd>Left-click</kbd> an enemy to attack — they never shoot buildings on their own, <kbd>Left-click</kbd> the building to focus it · enemy engineers capture buildings · <kbd>M</kbd> sound on/off</li>
           <li>Elite (type II) soldiers: at most 2 for every 3 regulars · orders: up to 15 soldiers and 10 vehicles waiting at once — a new one the moment one is done, whatever your army size · special forces swim · tanks run soldiers over · only aircraft shoot aircraft</li>
           <li>Transport: select soldiers/vehicles, <kbd>Left-click</kbd> your transport to board (one in the air lands first) · select the transport, <kbd>Left-click</kbd> ground — it flies there, lands and unloads · <kbd>U</kbd>/<b>Unload</b> — let them out here, one by one</li>
+          <li>Squatters (flag bearer + escort, one unit): fly it by transport to unclaimed land (not your rivals' home lands, never Antarctica), select it, <kbd>F</kbd> — plant the flag (the Squatters are gone once it stands) · then build an <b>Allied Building</b> beside it (max 3 allies)</li>
           <li>When <b>READY</b>: click cameo, then click the map to place · <kbd>R</kbd> turn it 90° · <kbd>Esc</kbd>/<kbd>Right-click</kbd> stop placing</li>
           <li><kbd>WASD</kbd>/<kbd>Arrows</kbd>/screen edge — scroll · <kbd>Wheel</kbd> zoom · <kbd>Middle-drag</kbd> pan</li>
           <li><kbd>Click</kbd> select · <kbd>1</kbd>–<kbd>5</kbd> landmarks · <kbd>O</kbd> oil · <kbd>H</kbd> home · <kbd>Tab</kbd> sidebar</li>
@@ -266,9 +265,9 @@ export class Sidebar {
           <svg class="sb-price-chart" viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Oil price, last 5 minutes"><polyline fill="none" stroke-width="1.5" vector-effect="non-scaling-stroke"></polyline></svg>
         </section>
         <section class="sb-panel sb-rank">
-          <h3 class="sb-rank-title">ECONOMY <small>budget + oil − debt</small></h3>
+          <h3 class="sb-rank-title">ECONOMY <small>oil + assets + budget + spare power</small></h3>
           <ol class="sb-rank-list" data-rank="economy"></ol>
-          <h3 class="sb-rank-title">MILITARY <small>value of soldiers &amp; vehicles</small></h3>
+          <h3 class="sb-rank-title">MILITARY <small>rank 1 = strongest · updated every 4 min</small></h3>
           <ol class="sb-rank-list" data-rank="military"></ol>
         </section>
       </div>
@@ -555,10 +554,10 @@ export class Sidebar {
 
   /** Fills both ranking lists, best nation first. */
   private renderRanking(rows: readonly RankRow[]): void {
-    const key = rows.map((r) => `${r.playerId}:${Math.round(r.economy)}:${r.military}:${r.soldiers}:${r.vehicles}:${r.defeated}`).join('|');
+    const key = rows.map((r) => `${r.playerId}:${Math.round(r.economy)}:${r.military}:${r.defeated}`).join('|');
     if (key === this.rankKey) return;
     this.rankKey = key;
-    const fill = (list: HTMLElement, key: 'economy' | 'military', detail: (r: RankRow) => string): void => {
+    const fill = (list: HTMLElement, key: 'economy' | 'military', detail: ((r: RankRow) => string) | null): void => {
       const sorted = [...rows].sort((a, b) => Number(a.defeated) - Number(b.defeated) || b[key] - a[key]);
       list.replaceChildren(
         ...sorted.map((r, i) => {
@@ -572,7 +571,15 @@ export class Sidebar {
           flag.className = 'sb-rank-flag';
           flag.alt = '';
           flag.src = this.flagUrl(r.faction);
-          flag.title = detail(r);
+          flag.title = r.name;
+          if (!detail) {
+            // Military: only the position is shown, never the money behind it.
+            const name = document.createElement('span');
+            name.className = 'sb-rank-value';
+            name.textContent = r.name;
+            li.append(pos, flag, name);
+            return li;
+          }
           const value = document.createElement('span');
           value.className = 'sb-rank-value';
           value.textContent = compactMoney(r[key]);
@@ -583,7 +590,7 @@ export class Sidebar {
       );
     };
     fill(this.rankEconomy, 'economy', (r) => `Economy ${Math.round(r.economy).toLocaleString('en-US')} ${CURRENCY}`);
-    fill(this.rankMilitary, 'military', (r) => `${r.soldiers} soldiers · ${r.vehicles} vehicles`);
+    fill(this.rankMilitary, 'military', null);
   }
 
   private flagUrl(faction: FactionId): string {

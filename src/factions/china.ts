@@ -30,7 +30,12 @@ export const CHINA: FactionConfig = {
     engineer: {
       name: 'Engineer',
       description: "PLA engineer: repairs buildings and captures enemy structures.",
-      look: { uniform: '#6e7a4a', trousers: '#4b5533', headgear: 'hardhat', headColor: '#f2c230', weapon: 'wrench' },
+      look: { uniform: '#6e7a4a', trousers: '#4b5533', headgear: 'hardhat', headColor: '#f2c230', weapon: 'wrench', sprite: 'cnEngineer' },
+    },
+    squatters: {
+      name: 'Squatters',
+      description: "PLA flag bearer and rifleman escort, moving as one: flown by transport to unclaimed land, they plant the national flag there (F key) — their mission done, they are gone.",
+      look: { uniform: '#5b6a3a', trousers: '#47532c', headgear: 'helmet', headColor: '#4e5b31', weapon: 'rifle', camo: true, sprite: 'cnSpecial' },
     },
   },
   vehicles: {

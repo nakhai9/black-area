@@ -1,4 +1,5 @@
 import { createAirfieldArt } from './Airfield';
+import { createAlliedBuildingArt } from './AlliedBuilding';
 import { createBarracksArt } from './Barracks';
 import { createFlagpoleArt } from './Flagpole';
 import { createHappyCityArt } from './HappyCity';
@@ -67,6 +68,11 @@ export const BUILDING_ART: Readonly<Record<string, BuildingArt>> = {
   'flagpole:russia': createFlagpoleArt('russia'),
   'flagpole:china': createFlagpoleArt('china'),
   'flagpole:europe': createFlagpoleArt('europe'),
+  // Allied Building in the architecture of the nation the ally follows.
+  'alliedBuilding:usa': createAlliedBuildingArt('usa'),
+  'alliedBuilding:russia': createAlliedBuildingArt('russia'),
+  'alliedBuilding:china': createAlliedBuildingArt('china'),
+  'alliedBuilding:europe': createAlliedBuildingArt('europe'),
 };
 
 export type { BuildingArt } from './BuildingArt';

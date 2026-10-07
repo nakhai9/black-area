@@ -7,6 +7,8 @@ export interface MusicVolumeControl {
 /** Esc pause modal: music volume slider, "Continue" resumes the game, "Quit game" goes back to the faction picker. */
 export class PauseMenu {
   private readonly root: HTMLDivElement;
+  /** Re-reads the music volume into the slider (the sound system may not exist yet at construction). */
+  private readonly syncVolume: () => void;
 
   constructor(onContinue: () => void, music: MusicVolumeControl, parent: HTMLElement = document.body) {
     this.root = document.createElement('div');
@@ -32,8 +34,10 @@ export class PauseMenu {
     const showVolume = (): void => {
       volumeText.textContent = `Music volume: ${slider.value}%`;
     };
-    slider.value = String(Math.round(music.get() * 100));
-    showVolume();
+    this.syncVolume = (): void => {
+      slider.value = String(Math.round(music.get() * 100));
+      showVolume();
+    };
     slider.addEventListener('input', () => {
       music.set(Number(slider.value) / 100);
       showVolume();
@@ -61,6 +65,7 @@ export class PauseMenu {
   }
 
   setOpen(open: boolean): void {
+    if (open) this.syncVolume();
     this.root.hidden = !open;
   }
 }

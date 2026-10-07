@@ -34,14 +34,17 @@ const clamp01 = (t: number): number => Math.max(0, Math.min(1, t));
 /**
  * Aircraft life cycle. Fighters sit parked on their airfield's apron. When
  * given an order they taxi to the runway, roll for take-off (accelerating
- * before they lift off), fly to the target and, once they have nothing left
- * to do, return to the airfield, land and taxi back to their parking spot.
+ * before they lift off) and fly to the target. With nothing left to do, a
+ * selected fighter circles on station waiting for its next order; an unselected
+ * one returns to the airfield, lands and taxis back to its parking spot.
  */
 export interface AircraftHooks {
   /** Nearest spot at or near (x, y) where a transport can set down, or null (open water, buildings…). */
   landingSpot(x: number, y: number, self: Vehicle): WorldPoint | null;
   /** The next passenger of `transport` steps out onto a free cell beside it; false when nobody could get out (no room). */
   unloadOne(transport: Vehicle): boolean;
+  /** Is the aircraft currently selected by the player? */
+  selected(v: Vehicle): boolean;
   /** Does the owner have enough power? The airfield cannot launch aircraft without it. */
   powered(owner: number): boolean;
 }
@@ -59,8 +62,13 @@ const EJECT_STEP = 0.3;
 const AFTER_UNLOAD = 0.4;
 /** An empty transport that has set down in the field waits this long for passengers, then flies home (s). */
 const LANDED_WAIT = 40;
+/** Radius (px) of the circle an idle selected fighter flies while it waits for orders. */
+const ORBIT_RADIUS = 3 * CELL_SIZE;
 
 export class AircraftSystem implements GameSystem {
+  /** Centre and current angle of the waiting circle of each idle selected fighter. */
+  private readonly orbits = new Map<number, { cx: number; cy: number; angle: number }>();
+
   constructor(
     private readonly entities: EntityManager,
     private readonly geometry: (airfield: Building) => AirfieldGeometry,
@@ -240,12 +248,19 @@ export class AircraftSystem implements GameSystem {
     }
     const busy = v.moving || v.attackTarget !== null || v.attackMove !== null || v.combatTarget !== null;
     if (busy) {
+      this.orbits.delete(v.id);
       if (v.moving) v.returningHome = false;
       v.idleFor = 0;
       return;
     }
     v.idleFor += dt;
     if (v.idleFor < RETURN_AFTER) return;
+    // A selected fighter with nothing to do circles where it is, waiting for its next order; once deselected it heads home.
+    if (!v.isTransport && !v.returningHome && this.hooks.selected(v)) {
+      this.orbit(v, dt);
+      return;
+    }
+    this.orbits.delete(v.id);
     let home = this.home(v);
     if (!home) return; // no airfield left: circle where it is
     // An empty transport coming back from the field parks at whichever airfield of the nation still has room.
@@ -323,6 +338,24 @@ export class AircraftSystem implements GameSystem {
   }
 
   // ------------------------------------------------------------------ helpers
+
+  /** Flies a circle around the point where the fighter ran out of orders (clockwise, at cruise speed). */
+  private orbit(v: Vehicle, dt: number): void {
+    let o = this.orbits.get(v.id);
+    if (!o) {
+      // The circle starts at the aircraft's position, curving off its current heading.
+      const side = v.heading + Math.PI / 2;
+      o = { cx: v.px + Math.cos(side) * ORBIT_RADIUS, cy: v.py + Math.sin(side) * ORBIT_RADIUS, angle: side + Math.PI };
+      this.orbits.set(v.id, o);
+    }
+    o.angle += ((v.speed * 0.7) / ORBIT_RADIUS) * dt;
+    const x = o.cx + Math.cos(o.angle) * ORBIT_RADIUS;
+    const y = o.cy + Math.sin(o.angle) * ORBIT_RADIUS;
+    v.heading = Math.atan2(y - v.py, x - v.px);
+    v.facing = Math.cos(v.heading) < 0 ? -1 : 1;
+    v.walkPhase += Math.hypot(x - v.px, y - v.py);
+    this.place(v, x, y);
+  }
 
   /**
    * Lowest free parking spot at `home` (the aircraft's own spot is kept if nobody took it); -1 when the apron is full.

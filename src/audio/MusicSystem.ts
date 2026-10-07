@@ -29,6 +29,8 @@ const LEAD: readonly (readonly (number | null)[])[] = [
 
 export class MusicSystem {
   private readonly out: GainNode;
+  /** Volume/mute stage after the compressor, so the slider is not flattened by it. */
+  private readonly level: GainNode;
   private timer: number | null = null;
   private nextTime = 0;
   private step = 0;
@@ -42,7 +44,9 @@ export class MusicSystem {
     private readonly noise: AudioBuffer,
   ) {
     this.out = ctx.createGain();
-    this.out.gain.value = 0;
+    this.out.gain.value = 1;
+    this.level = ctx.createGain();
+    this.level.gain.value = 0;
     // Gentle low-pass keeps the saws from sounding harsh over long play sessions.
     const soften = ctx.createBiquadFilter();
     soften.type = 'lowpass';
@@ -50,7 +54,7 @@ export class MusicSystem {
     const comp = ctx.createDynamicsCompressor();
     comp.threshold.value = -16;
     comp.ratio.value = 5;
-    this.out.connect(soften).connect(comp).connect(destination);
+    this.out.connect(soften).connect(comp).connect(this.level).connect(destination);
   }
 
   start(): void {
@@ -71,7 +75,7 @@ export class MusicSystem {
   }
 
   private applyGain(): void {
-    this.out.gain.setTargetAtTime(this.muted ? 0 : this.volume * MAX_GAIN, this.ctx.currentTime, 0.05);
+    this.level.gain.setTargetAtTime(this.muted ? 0 : this.volume * MAX_GAIN, this.ctx.currentTime, 0.05);
   }
 
   private schedule(): void {

@@ -119,6 +119,20 @@ function drawWavingFlag(
   }
 }
 
+/**
+ * A flag carried on a hand-held pole (Squatters bearer): pole from the hand at (x, y) up `h` px, flag waving
+ * to the right of its top. Drawn in whatever space `ctx` is in (iso px for units).
+ */
+export function drawCarriedFlag(ctx: CanvasRenderingContext2D, faction: Allegiance, x: number, y: number, h: number, time: number): void {
+  ctx.strokeStyle = '#3a2c1c';
+  ctx.lineWidth = 0.22;
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+  ctx.lineTo(x, y - h);
+  ctx.stroke();
+  drawWavingFlag(ctx, faction, x + 0.05, y - h, h * 0.55, h * 0.36, time, 0);
+}
+
 /** Convenience: waving flag attached to the top of a pole in a building's local space. */
 export function drawFlagOnPole(
   p: IsoPainter,

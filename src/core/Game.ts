@@ -43,6 +43,8 @@ import {
   WORLD_WIDTH,
   ZOOM_STEP,
   isAircraftKind,
+  POWER_PER_BARREL,
+  MAX_ALLIES,
 } from '../constants';
 import { worldToIso } from './IsoView';
 import { Building } from '../entities/Building';
@@ -83,8 +85,12 @@ import { PauseMenu } from '../ui/PauseMenu';
 import { NewsToast } from '../ui/NewsToast';
 import { BUILD_OPTIONS, type BuildOption, ConstructionSystem, type QueueState, buildCost, missingRequirement } from '../systems/ConstructionSystem';
 import { EconomySystem } from '../systems/EconomySystem';
+
+/** The military ranking is re-counted this often (s): soldiers die and vehicles are lost in between. */
+const MILITARY_RANK_INTERVAL = 240;
 import type { GameSystem } from '../systems/GameSystem';
-import { BUILD_RADIUS, type PlacementRequest, type PlacementResult, PlacementSystem } from '../systems/PlacementSystem';
+import { BUILD_RADIUS, type PlacementRequest, type PlacementResult, PlacementSystem, isClaimable } from '../systems/PlacementSystem';
+import { Flagpole } from '../entities/Flagpole';
 import { PowerSystem } from '../systems/PowerSystem';
 import { SAFE_ZONE_SIZE, type SafeZone, SafeZoneSystem } from '../systems/SafeZoneSystem';
 import { SelectionSystem } from '../systems/SelectionSystem';
@@ -121,6 +127,7 @@ const BLOCK_REASONS: Readonly<Record<string, string>> = {
   trees: 'Trees in the way',
   needsWater: 'Must be built on water',
   tooFar: `Too far from your base (max ${BUILD_RADIUS} cells)`,
+  claimed: 'Allied Buildings stand only on unclaimed land claimed with a Squatters team',
 };
 /** Map-authored buildings may shift this many cells to find tree-free ground… */
 const PRESET_SNAP_RADIUS = 2;
@@ -219,6 +226,9 @@ export class Game {
 
   private mouseWorld: WorldPoint | null = null;
   private time = 0;
+  /** Military ranking snapshot (owner → value of living soldiers + working vehicles) and the game time it was taken. */
+  private militarySnapshot: Map<number, number> | null = null;
+  private militarySnapshotAt = 0;
   private sidebarTimer = SIDEBAR_REFRESH; // refresh on the first frame
 
   /**
@@ -299,6 +309,7 @@ export class Game {
     this.aircraft = new AircraftSystem(this.entities, (b) => this.airfieldGeometry(b), {
       landingSpot: (x, y, self) => this.landingSpot(x, y, self),
       unloadOne: (t) => this.unloadOne(t),
+      selected: (v) => this.selection.selectedUnits.has(v.id),
       powered: (owner) => !this.players.find((p) => p.id === owner)?.powerShort,
     });
     this.safeZones = new SafeZoneSystem(
@@ -397,12 +408,73 @@ export class Game {
     const option = slot.option;
     if (!option || slot.state !== 'ready') return false;
     const { w, d } = option.footprint;
-    if (!this.placement.check({ owner: player.id, x, y, w, d }).ok) return false;
+    if (!this.placement.check({ owner: player.id, x, y, w, d, unclaimedOnly: option.id === 'alliedBuilding' }).ok) return false;
     if (!this.construction.takeReady(player)) return false;
     const b = this.entities.add(option.create(player.id, player.faction, x, y));
     b.placedAt = this.time;
     this.map.occupy(b.x, b.y, b.w, b.d, b.id);
     return true;
+  }
+
+  /** Allies the nation leads: its Allied Buildings standing, plus one under construction. */
+  alliesOf(player: PlayerState): number {
+    const built = this.entities.buildings().filter((b) => b.owner === player.id && b.alive && b.spec.type === 'alliedBuilding').length;
+    return built + (this.construction.slot(player).option?.id === 'alliedBuilding' ? 1 : 0);
+  }
+
+  /**
+   * A Squatters team plants its nation's flag on the unclaimed land it stands on (or a free cell right next to it): the
+   * flag becomes one of the nation's structures and the team is used up. It must have been flown there by a
+   * transport. Returns null on success, else why not.
+   */
+  plantFlag(u: Infantry): string | null {
+    if (!u.alive || !u.isSquatters) return 'not Squatters';
+    if (!u.airlifted) return 'the Squatters must be flown to new land by a transport aircraft';
+    const here = this.map.cellAt(u.px, u.py);
+    if (!here) return 'outside the map';
+    let spot: { x: number; y: number } | null = null;
+    let best = Infinity;
+    for (let dy = -2; dy <= 2; dy++) {
+      for (let dx = -2; dx <= 2; dx++) {
+        const x = here.x + dx;
+        const y = here.y + dy;
+        if (!isClaimable(this.map, x, y) || this.map.placementBlocker(x, y, 1, 1) !== null) continue;
+        const dist = Math.hypot(dx, dy);
+        if (dist < best) {
+          best = dist;
+          spot = { x, y };
+        }
+      }
+    }
+    if (!spot) {
+      return isClaimable(this.map, here.x, here.y) ? 'no free ground here for the flag' : 'this land is already claimed (only unclaimed land, never Antarctica)';
+    }
+    const player = this.players.find((p) => p.id === u.owner);
+    if (!player) return 'no nation';
+    this.entities.remove(u.id);
+    this.selection.selectedUnits.delete(u.id);
+    const flag = this.entities.add(new Flagpole(player.id, player.faction, { x: (spot.x + 0.5) * CELL_SIZE, y: (spot.y + 0.5) * CELL_SIZE }));
+    flag.placedAt = this.time;
+    this.map.occupy(flag.x, flag.y, flag.w, flag.d, flag.id);
+    return null;
+  }
+
+  /** F key: every selected Squatters team plants its flag where it stands. */
+  private plantSelectedFlags(): void {
+    const teams = this.selection.selectedUnitList().filter((u): u is Infantry => u instanceof Infantry && u.isSquatters && u.owner === this.humanPlayer.id);
+    if (teams.length === 0) return;
+    let planted = 0;
+    let why = '';
+    for (const t of teams) {
+      const r = this.plantFlag(t);
+      if (r === null) planted++;
+      else why = r;
+    }
+    this.sidebar.notify(planted > 0 ? 'Flag planted — the Squatters have done their duty. This land is claimed: raise an Allied Building beside it.' : `Cannot plant the flag: ${why}.`, 4);
+    if (planted > 0) {
+      this.bus.emit('selection:changed', { entityId: null });
+      this.sidebarTimer = SIDEBAR_REFRESH;
+    }
   }
 
   ownedTypesOf(player: PlayerState): Set<BuildingType> {
@@ -617,6 +689,7 @@ export class Game {
     u.insideId = null;
     u.boardTarget = null;
     u.stop();
+    if (u instanceof Infantry && u.isSquatters) u.airlifted = true;
     t.cargo.shift();
     this.hatch(u.px, u.py);
     if (t.cargo.length === 0 && t.owner === this.humanPlayer.id) this.sidebar.notify(`Everyone is out of the ${t.name}.`);
@@ -1290,6 +1363,9 @@ export class Game {
       case 'KeyX':
         this.scatterSelected();
         break;
+      case 'KeyF':
+        this.plantSelectedFlags();
+        break;
       case 'KeyR':
         // While positioning a structure: turn it 90° (footprint d × w, art mirrored), still square to the grid.
         if (this.placing) {
@@ -1335,9 +1411,17 @@ export class Game {
     const player = this.humanPlayer;
     const slot = this.construction.slot(player);
     if (slot.state === 'idle') {
+      if (option.id === 'alliedBuilding' && this.alliesOf(player) >= MAX_ALLIES) {
+        this.sidebar.notify(`A nation leads at most ${MAX_ALLIES} allies.`);
+        return;
+      }
       const need = missingRequirement(option, this.ownedTypes());
       if (need) {
-        this.sidebar.notify(`${option.name} requires a ${BUILD_OPTIONS.find((o) => o.id === need)?.name ?? need} first.`);
+        this.sidebar.notify(
+          option.id === 'alliedBuilding'
+            ? 'Allied Building: first fly a Squatters team to unclaimed land and plant your flag there (F).'
+            : `${option.name} requires a ${BUILD_OPTIONS.find((o) => o.id === need)?.name ?? need} first.`,
+        );
         return;
       }
       this.construction.start(player, option);
@@ -1385,7 +1469,7 @@ export class Game {
     const y = Math.round(b.y + b.d / 2 - d / 2);
     // Free its own cells while checking the turned footprint.
     this.map.occupy(b.x, b.y, b.w, b.d, null);
-    const result = this.placement.check({ owner: b.owner, x, y, w, d });
+    const result = this.placement.check({ owner: b.owner, x, y, w, d, unclaimedOnly: t === 'alliedBuilding' });
     if (!result.ok) {
       this.map.occupy(b.x, b.y, b.w, b.d, b.id);
       this.sidebar.notify(`Cannot turn it here: ${BLOCK_REASONS[result.reason] ?? result.reason}.`, 3);
@@ -1417,7 +1501,7 @@ export class Game {
     const d = this.placingRotated ? fp.w : fp.d;
     const x = Math.floor(this.mouseWorld.x / CELL_SIZE - w / 2 + 0.5);
     const y = Math.floor(this.mouseWorld.y / CELL_SIZE - d / 2 + 0.5);
-    const result = this.placement.check({ owner: this.humanPlayer.id, x, y, w, d });
+    const result = this.placement.check({ owner: this.humanPlayer.id, x, y, w, d, unclaimedOnly: this.placing.id === 'alliedBuilding' });
     this.ghost = {
       spriteKey: this.placing.spriteKey(this.humanPlayer.faction),
       faction: this.humanPlayer.faction,
@@ -1558,33 +1642,41 @@ export class Game {
     this.sidebarTimer = SIDEBAR_REFRESH;
   }
 
-  /** Economy and military standing of every nation (Rank tab). */
+  /**
+   * Economy and military standing of every nation (Rank tab).
+   *  - Wealth: oil in stock at the posted price + structures (build cost × health left) + soldiers and vehicles
+   *    + budget + unused stored power (valued at the oil it was made from).
+   *  - Military: price of the living soldiers and working vehicles, re-counted only every MILITARY_RANK_INTERVAL s.
+   */
   private ranking(): RankRow[] {
-    // One pass over every unit, tallied per owner (not one pass per nation).
-    const tally = new Map<number, { military: number; soldiers: number; vehicles: number }>();
-    const add = (owner: number, value: number, soldier: boolean): void => {
-      let t = tally.get(owner);
-      if (!t) tally.set(owner, (t = { military: 0, soldiers: 0, vehicles: 0 }));
-      t.military += value;
-      if (soldier) t.soldiers++;
-      else t.vehicles++;
+    const units = new Map<number, number>();
+    const add = (owner: number, value: number): void => {
+      units.set(owner, (units.get(owner) ?? 0) + value);
     };
-    for (const u of this.entities.units()) if (u.alive) add(u.owner, u.value, true);
-    for (const v of this.entities.vehicles()) if (v.alive) add(v.owner, v.value, false);
-    return this.players.map((p) => {
-      const { military, soldiers, vehicles } = tally.get(p.id) ?? { military: 0, soldiers: 0, vehicles: 0 };
-      return {
-        playerId: p.id,
-        faction: p.faction as FactionId,
-        name: FACTIONS[p.faction].name,
-        isHuman: p.isHuman,
-        defeated: p.defeated,
-        economy: p.credits + p.oil * this.oilMarket.price - p.debt,
-        military,
-        soldiers,
-        vehicles,
-      };
-    });
+    for (const u of this.entities.units()) if (u.alive) add(u.owner, u.value);
+    for (const v of this.entities.vehicles()) if (v.alive) add(v.owner, v.value);
+    const structures = new Map<number, number>();
+    for (const b of this.entities.buildings()) {
+      if (!b.alive || b.indestructible) continue;
+      const option = BUILD_OPTIONS.find((o) => o.id === b.spec.type);
+      if (!option) continue;
+      structures.set(b.owner, (structures.get(b.owner) ?? 0) + buildCost(option, b.faction as FactionId) * (b.hp / b.maxHp));
+    }
+    if (!this.militarySnapshot || this.time - this.militarySnapshotAt >= MILITARY_RANK_INTERVAL) {
+      this.militarySnapshot = new Map(units);
+      this.militarySnapshotAt = this.time;
+    }
+    const price = this.oilMarket.price;
+    return this.players.map((p) => ({
+      playerId: p.id,
+      faction: p.faction as FactionId,
+      name: FACTIONS[p.faction].name,
+      isHuman: p.isHuman,
+      defeated: p.defeated,
+      economy:
+        p.oil * price + (structures.get(p.id) ?? 0) + (units.get(p.id) ?? 0) + p.credits + (p.powerStored / POWER_PER_BARREL) * price,
+      military: this.militarySnapshot?.get(p.id) ?? 0,
+    }));
   }
 
   /** Esc: freezes the simulation and opens the pause menu (Continue / Quit game). */

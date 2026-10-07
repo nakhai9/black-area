@@ -30,7 +30,12 @@ export const RUSSIA: FactionConfig = {
     engineer: {
       name: 'Engineer',
       description: "Russian sapper: repairs buildings and captures enemy structures.",
-      look: { uniform: '#7c7552', trousers: '#4f4a34', headgear: 'hardhat', headColor: '#f2c230', weapon: 'wrench' },
+      look: { uniform: '#7c7552', trousers: '#4f4a34', headgear: 'hardhat', headColor: '#f2c230', weapon: 'wrench', sprite: 'ruEngineer' },
+    },
+    squatters: {
+      name: 'Squatters',
+      description: "Russian flag bearer and rifleman escort, moving as one: flown by transport to unclaimed land, they plant the national flag there (F key) — their mission done, they are gone.",
+      look: { uniform: '#2b3a32', trousers: '#212d27', headgear: 'balaclava', headColor: '#121212', weapon: 'rifle', camo: true, sprite: 'ruSpecial' },
     },
   },
   vehicles: {

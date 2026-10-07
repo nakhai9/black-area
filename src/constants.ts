@@ -111,6 +111,12 @@ export const BUILD_STEP_FRACTION = 0.2;
 export const BARRACKS_COST = 800;
 /** A national flagpole: one cell, decoration that also counts as one of the nation's structures. */
 export const FLAGPOLE_COST = 100;
+/**
+ * Allied Building: the seat of an allied nation, raised on land the nation has claimed with a Squatters team. A nation
+ * leads at most MAX_ALLIES allies (built or under construction).
+ */
+export const ALLIED_BUILDING_COST = 6000;
+export const MAX_ALLIES = 3;
 export const HOSPITAL_COST = 1200;
 export const AIRFIELD_COST = 2000;
 /** High-Tech Center (a high-rise): base price; it unlocks the second-tier soldiers and vehicles. */
@@ -134,6 +140,8 @@ export const INFANTRY_BASE = {
   regular: { cost: 200, trainSeconds: 5, maxHp: 125, speed: 1.4 },
   special: { cost: 500, trainSeconds: 10, maxHp: 200, speed: 1.7 },
   engineer: { cost: 400, trainSeconds: 6, maxHp: 100, speed: 1.3 },
+  /** Two men counted as one: the flag bearer and his escort (hp covers both). */
+  squatters: { cost: 1400, trainSeconds: 12, maxHp: 320, speed: 1.4 },
 } as const;
 /**
  * BuildLimit: how many orders a nation may have waiting at once (the one being made included). Any type may be
@@ -396,8 +404,9 @@ export const LOAN_MIN = 1000;
 export const DEBT_RESUME_SHARE = 0.5;
 /** The Center never buys more than this share of the offered stock in one sale. */
 export const WB_MAX_SHARE = 0.25;
-/** No limit on the number of sales, but a nation must wait this many seconds between two offers. */
-export const OIL_SALE_COOLDOWN = 2;
+/** A nation may make OIL_SALE_BURST offers in a row, then must wait OIL_SALE_COOLDOWN seconds before the next one. */
+export const OIL_SALE_BURST = 6;
+export const OIL_SALE_COOLDOWN = 3;
 /** Barrels that always stay in the nation's stock: a sale never dips below this reserve. */
 export const OIL_RESERVE = 1.0;
 /** Oil derricks per nation, built in one straight row on the safest ground: 4, or 5 for Europe (it also runs the Global Financial Center). */
@@ -436,6 +445,7 @@ export const BUILDING_VALUE: Readonly<Partial<Record<BuildingType, number>>> = {
   happyCity: HAPPY_CITY_COST,
   powerPlant: POWER_PLANT_COST,
   flagpole: FLAGPOLE_COST,
+  alliedBuilding: ALLIED_BUILDING_COST,
   capital: 4000,
   oilDerrick: 1500,
 };

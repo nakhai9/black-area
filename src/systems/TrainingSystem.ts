@@ -17,7 +17,7 @@ export interface TrainOption {
 /** Faction-specific infantry options (cost scaled by the faction's cost multiplier). */
 function trainOptions(faction: FactionId): TrainOption[] {
   const f = FACTIONS[faction];
-  return (['regular', 'special', 'engineer'] as const).map((tier) => ({
+  return (['regular', 'special', 'engineer', 'squatters'] as const).map((tier) => ({
     tier,
     name: f.infantry[tier].name,
     description: f.infantry[tier].description,

@@ -5,7 +5,10 @@ import { Unit } from './Unit';
 
 export type { UnitTask } from './Unit';
 
-/** A foot soldier (regular, special forces or an engineer). */
+/**
+ * A foot soldier (regular, special forces or an engineer), or a Squatters team: a flag bearer and his rifleman escort
+ * drawn as two men that always move together — one entity, so they can never be selected or ordered apart.
+ */
 export class Infantry extends Unit {
   readonly profile: InfantryProfile;
   readonly speed: number;
@@ -13,6 +16,8 @@ export class Infantry extends Unit {
   readonly bodyHeight = 1.6;
   /** Price paid for it (faction cost applied). */
   readonly value: number;
+  /** Squatters: has been flown in by a transport (it may only claim land it was airlifted to). */
+  airlifted = false;
 
   constructor(
     owner: number,
@@ -36,6 +41,10 @@ export class Infantry extends Unit {
   /** Special forces can swim across water; regulars cannot. */
   override get swims(): boolean {
     return this.tier === 'special';
+  }
+
+  get isSquatters(): boolean {
+    return this.tier === 'squatters';
   }
 
   get isEngineer(): boolean {

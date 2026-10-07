@@ -1,11 +1,23 @@
 import type { EntityManager } from '../entities/EntityManager';
-import { CELL_SIZE } from '../constants';
+import { CELL_SIZE, GRID_HEIGHT } from '../constants';
 import type { PlacementBlocker, TileMap } from '../map/TileMap';
 
 /** Max gap (in cells) between a new building and the nearest friendly building. */
 export const BUILD_RADIUS = 3;
 
-export type PlacementResult = { ok: true } | { ok: false; reason: PlacementBlocker | 'units' | 'tooFar' };
+export type PlacementResult = { ok: true } | { ok: false; reason: PlacementBlocker | 'units' | 'tooFar' | 'claimed' };
+
+/** Antarctica (south of 60°S) can never be claimed. */
+const ANTARCTIC_ROW = Math.floor(((90 + 60) / 180) * GRID_HEIGHT);
+
+/**
+ * Land nobody owns yet, where a Squatters team may plant its flag and an Allied Building may stand: dry land outside
+ * every nation's home territory, never water, ice or Antarctica.
+ */
+export function isClaimable(map: TileMap, x: number, y: number): boolean {
+  const t = map.typeAt(x, y);
+  return t !== undefined && t !== 'water' && t !== 'snow' && y < ANTARCTIC_ROW && map.territory[map.index(x, y)] === 0;
+}
 
 export interface PlacementRequest {
   /** Player who is building. */
@@ -16,6 +28,8 @@ export interface PlacementRequest {
   w: number;
   d: number;
   naval?: boolean;
+  /** Allied Building: every cell must be unclaimed land (see isClaimable). */
+  unclaimedOnly?: boolean;
 }
 
 /** Cells between two rectangles along the worst axis (0 = touching or overlapping). */
@@ -33,7 +47,8 @@ function cellGap(
  * 1. every cell must be legal terrain and free — no trees, no water (naval: water only),
  *    no ice, never on top of an existing building;
  *    no soldier or vehicle (parked aircraft included) may stand on any of its cells;
- * 2. the footprint must lie within BUILD_RADIUS cells of one of the builder's own buildings.
+ * 2. the footprint must lie within BUILD_RADIUS cells of one of the builder's own buildings;
+ * 3. an Allied Building stands on unclaimed land only (land claimed by a Squatters team, see isClaimable).
  */
 export class PlacementSystem {
   constructor(
@@ -44,6 +59,7 @@ export class PlacementSystem {
   check(req: PlacementRequest): PlacementResult {
     const blocker = this.map.placementBlocker(req.x, req.y, req.w, req.d, req.naval === true);
     if (blocker) return { ok: false, reason: blocker };
+    if (req.unclaimedOnly && !this.allClaimable(req)) return { ok: false, reason: 'claimed' };
     if (this.unitsInside(req)) return { ok: false, reason: 'units' };
     return this.nearOwnBase(req) ? { ok: true } : { ok: false, reason: 'tooFar' };
   }
@@ -53,6 +69,11 @@ export class PlacementSystem {
     return this.entities
       .buildings()
       .some((b) => b.owner === req.owner && b.alive && cellGap(req, b) <= BUILD_RADIUS);
+  }
+
+  private allClaimable(req: PlacementRequest): boolean {
+    for (let y = req.y; y < req.y + req.d; y++) for (let x = req.x; x < req.x + req.w; x++) if (!isClaimable(this.map, x, y)) return false;
+    return true;
   }
 
   /** Does any living soldier or ground vehicle (anyone's) stand on one of the footprint's cells? */

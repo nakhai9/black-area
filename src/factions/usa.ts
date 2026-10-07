@@ -30,7 +30,12 @@ export const USA: FactionConfig = {
     engineer: {
       name: 'Engineer',
       description: "U.S. Army engineer: repairs buildings and captures enemy structures.",
-      look: { uniform: '#8a7a55', trousers: '#5a5038', headgear: 'hardhat', headColor: '#f2c230', weapon: 'wrench' },
+      look: { uniform: '#8a7a55', trousers: '#5a5038', headgear: 'hardhat', headColor: '#f2c230', weapon: 'wrench', sprite: 'usEngineer' },
+    },
+    squatters: {
+      name: 'Squatters',
+      description: "U.S. flag bearer and rifleman escort, moving as one: flown by transport to unclaimed land, they plant the national flag there (F key) — their mission done, they are gone.",
+      look: { uniform: '#7d8083', trousers: '#5f6265', headgear: 'boonie', headColor: '#6e7275', weapon: 'rifle', camo: true, sprite: 'usSpecial' },
     },
   },
   vehicles: {

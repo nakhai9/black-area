@@ -1,6 +1,7 @@
 import { FACTIONS } from '../factions';
 import type { FactionId, InfantryLook, SoldierSheetId, UnitTier } from '../types';
 import { createCanvas } from './Canvas';
+import { drawCarriedFlag } from './Flags';
 
 export interface SoldierPose {
   x: number;
@@ -86,6 +87,11 @@ const SHEETS: Record<SoldierSheetId, SoldierSheet> = {
   cnSpecial: sheet16('cn-special.png', 'gi', true),
   euRegular: sheet16('eu-regular.png', 'gi'),
   euSpecial: sheet16('eu-special.png', 'gi', true),
+  // Engineers (tools/engineer-render): hard hat, safety vest, wrench; no swim rows.
+  usEngineer: sheet16('us-engineer.png', 'gi'),
+  ruEngineer: sheet16('ru-engineer.png', 'gi'),
+  cnEngineer: sheet16('cn-engineer.png', 'gi'),
+  euEngineer: sheet16('eu-engineer.png', 'gi'),
   gi: sheet('gi.png', 64, 64, 61, 4, 51, [-3, -40]),
   ranger: sheet('ranger.png', 96, 128, 124, 6, 112, [-6, -82]),
   spetsnaz: sheet('spetsnaz.png', 64, 64, 61, 8, 52, [-3, -40]),
@@ -223,7 +229,13 @@ export function soldierPortrait(faction: FactionId, tier: UnitTier): HTMLCanvasE
     const scale = 18;
     ctx.setTransform(scale, 0, 0, scale, 64, 88);
     const pose = { x: 0, y: 0, facing: 1 as const, walkPhase: 0, moving: false, heading: Math.PI / 4 };
-    drawSoldier(ctx, pose, f.infantry[tier].look, f.colors.primary, tier === 'special');
+    if (tier === 'squatters') {
+      // Escort behind (left), flag bearer in front with the national flag.
+      const look = f.infantry[tier].look;
+      drawSoldier(ctx, { ...pose, x: -1.4, y: -0.4 }, look, f.colors.primary, true);
+      drawSoldier(ctx, { ...pose, x: 1.2, y: 0.2 }, look, f.colors.primary, true);
+      drawCarriedFlag(ctx, faction, 2.1, -2.4, 3.2, 0.4);
+    } else drawSoldier(ctx, pose, f.infantry[tier].look, f.colors.primary, tier === 'special');
     portraits.set(key, canvas);
     c = canvas;
   }

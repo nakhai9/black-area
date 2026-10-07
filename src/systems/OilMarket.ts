@@ -18,6 +18,7 @@ import {
   OIL_PRICE_MIN,
   OIL_PRICE_START,
   OIL_RESERVE,
+  OIL_SALE_BURST,
   OIL_SALE_COOLDOWN,
   OIL_WEALTH_REF,
   OIL_WEALTH_WEIGHT,
@@ -66,6 +67,8 @@ export class OilMarket implements GameSystem {
   /** Market time (s) and the times each nation offered oil lately (rate limit). */
   private now = 0;
   private readonly offers = new Map<number, number>();
+  /** Offers made in the current burst, per player (see OIL_SALE_BURST). */
+  private readonly streak = new Map<number, number>();
 
   constructor(
     private readonly players: readonly PlayerState[],
@@ -114,10 +117,10 @@ export class OilMarket implements GameSystem {
     if (this.history.length > PRICE_HISTORY) this.history.shift();
   }
 
-  /** Seconds until the nation may sell again (0 when it can sell now): one offer every OIL_SALE_COOLDOWN seconds. */
+  /** Seconds until the nation may sell again (0 when it can sell now): OIL_SALE_BURST offers, then OIL_SALE_COOLDOWN s rest. */
   waitSeconds(player: PlayerState): number {
     const last = this.offers.get(player.id);
-    if (last === undefined) return 0;
+    if (last === undefined || (this.streak.get(player.id) ?? 0) < OIL_SALE_BURST) return 0;
     return Math.max(0, Math.ceil(OIL_SALE_COOLDOWN - (this.now - last)));
   }
 
@@ -133,9 +136,13 @@ export class OilMarket implements GameSystem {
   sell(player: PlayerState): SaleResult {
     if (player.defeated) return { kind: 'declined', reason: 'your nation has fallen' };
     const wait = this.waitSeconds(player);
-    if (wait > 0) return { kind: 'declined', reason: `one sale every ${OIL_SALE_COOLDOWN} seconds — try again in ${wait} s` };
+    if (wait > 0) return { kind: 'declined', reason: `${OIL_SALE_BURST} sales in a row, then a ${OIL_SALE_COOLDOWN} s pause — try again in ${wait} s` };
     const stock = this.sellable(player);
     if (stock < MIN_SALE_STOCK) return { kind: 'declined', reason: `not enough oil to offer (${OIL_RESERVE.toFixed(1)} barrels stay in reserve)` };
+    // A new burst starts once the last one has rested (OIL_SALE_COOLDOWN s since the previous offer).
+    const last = this.offers.get(player.id);
+    const rested = last === undefined || this.now - last >= OIL_SALE_COOLDOWN;
+    this.streak.set(player.id, (rested ? 0 : (this.streak.get(player.id) ?? 0)) + 1);
     this.offers.set(player.id, this.now);
     const appetite = 1 - (0.6 * this.price) / OIL_PRICE_MAX; // 1 at a price of 0 … 0.4 at the maximum
     const barrels = Math.min(stock, stock * WB_MAX_SHARE * appetite);

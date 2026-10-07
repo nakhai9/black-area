@@ -102,10 +102,11 @@ export interface VehicleProfile {
 // ---------------------------------------------------------------- Infantry
 
 /** Every nation fields a regular line infantry and a special-forces unit. */
-export type UnitTier = 'regular' | 'special' | 'engineer';
+/** `squatters`: a flag bearer and his rifleman escort, trained, selected and moved as one unit (see Infantry). */
+export type UnitTier = 'regular' | 'special' | 'engineer' | 'squatters';
 
 /** Soldier sprite sheets in public/sprites (see render/InfantryArt). */
-export type SoldierSheetId = 'gi' | 'ranger' | 'spetsnaz' | 'conscript' | 'usRegular' | 'usSpecial' | 'ruRegular' | 'ruSpecial' | 'cnRegular' | 'cnSpecial' | 'euRegular' | 'euSpecial';
+export type SoldierSheetId = 'gi' | 'ranger' | 'spetsnaz' | 'conscript' | 'usRegular' | 'usSpecial' | 'ruRegular' | 'ruSpecial' | 'cnRegular' | 'cnSpecial' | 'euRegular' | 'euSpecial' | 'usEngineer' | 'ruEngineer' | 'cnEngineer' | 'euEngineer';
 
 /** Procedural look of a soldier (team colour is added as a vest stripe). */
 export interface InfantryLook {
@@ -189,6 +190,7 @@ export type BuildingType =
   | 'techCenter'
   | 'happyCity'
   | 'flagpole'
+  | 'alliedBuilding'
   | 'oilDerrick';
 
 /** Who may be stationed inside a building, and how many. */

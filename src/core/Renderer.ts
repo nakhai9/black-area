@@ -9,6 +9,7 @@ import { SQUASH, drawVehicle } from '../render/VehicleArt';
 import { isoHeading, worldToIso } from './IsoView';
 import type { Effect } from './Effects';
 import { drawSoldier, drawsOwnSwim } from '../render/InfantryArt';
+import { drawCarriedFlag } from '../render/Flags';
 import { drawAircraftSheet } from '../render/AircraftSheets';
 import { FACTIONS, teamColors } from '../factions';
 import type { TerrainRenderer } from '../map/TerrainRenderer';
@@ -77,6 +78,8 @@ const AIR_HEADINGS = 24;
 const AIR_BURNER_FRAMES = 2;
 /** Walk cycle buckets: 24 is a multiple of every sheet's walk frames (GI 4, Ranger 6, Spetsnaz 8). */
 const GI_WALK_FRAMES = 24;
+/** Squatters: world px between the unit's position and each of its two men (bearer ahead, escort behind). */
+const SQUATTERS_GAP = 0.9;
 const GI_FIRE_FRAMES = 3;
 /** How long the muzzle-flash poses play after each shot. */
 const GI_FIRE_SECONDS = 0.3;
@@ -366,7 +369,7 @@ export class Renderer {
       const aiming = !u.moving && u.engaged;
       const oct = ((Math.round(u.heading / (Math.PI / 8)) % 16) + 16) % 16;
       const look = u.profile.look;
-      const sprite = unitSprite(`${look.sprite ?? 'gi'}:${f.colors.primary}:${special ? 1 : 0}:${oct}:${frame}:${fire}:${aiming ? 1 : 0}`, 6, 6, 3, 5, (c) =>
+      const soldier = (fire: number, aiming: boolean) => unitSprite(`${look.sprite ?? 'gi'}:${f.colors.primary}:${special ? 1 : 0}:${oct}:${frame}:${fire}:${aiming ? 1 : 0}`, 6, 6, 3, 5, (c) =>
         drawSoldier(
           c,
           {
@@ -384,7 +387,11 @@ export class Renderer {
           special,
         ),
       );
-      blitUnit(ctx, sprite, P.x, P.y);
+      if (u.isSquatters) {
+        this.drawSquatters(u, P, (bearer) => (bearer ? soldier(-1, false) : soldier(fire, aiming)));
+        return;
+      }
+      blitUnit(ctx, soldier(fire, aiming), P.x, P.y);
       return;
     }
     // Swimming: a 16-direction sheet has its own swimming poses with ripples.
@@ -410,6 +417,25 @@ export class Renderer {
       ctx.stroke();
     }
     ctx.globalAlpha = 1;
+  }
+
+  /**
+   * Squatters: the flag bearer walks in front, his rifleman escort right behind him (SQUATTERS_GAP world px apart
+   * along the heading), the nearer one drawn last. The bearer carries the nation's flag on a pole.
+   */
+  private drawSquatters(u: Infantry, P: { x: number; y: number }, sprite: (bearer: boolean) => ReturnType<typeof unitSprite>): void {
+    const { ctx } = this;
+    const dx = Math.cos(u.heading) * SQUATTERS_GAP;
+    const dy = Math.sin(u.heading) * SQUATTERS_GAP;
+    const front = worldToIso(dx, dy);
+    const men = [
+      { bearer: true, x: P.x + front.x, y: P.y + front.y },
+      { bearer: false, x: P.x - front.x, y: P.y - front.y },
+    ].sort((a, b) => a.y - b.y);
+    for (const m of men) {
+      blitUnit(ctx, sprite(m.bearer), m.x, m.y);
+      if (m.bearer) drawCarriedFlag(ctx, u.faction as FactionId, m.x + 0.9, m.y - 2.6, 4.2, performance.now() / 1000 + u.id);
+    }
   }
 
   /** RA2-style selection ring under a unit's feet: a circle on the ground, so an ellipse on screen (ground transform). */
