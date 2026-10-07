@@ -251,11 +251,11 @@ export class Sidebar {
         <summary>Controls</summary>
         <ul>
           <li><kbd>Click</kbd> cameo — build/train · <kbd>Right-click</kbd> cameo — cancel (refund)</li>
-          <li>Soldiers &amp; vehicles: <kbd>Left-drag</kbd> box-select · <kbd>Left-click</kbd> a unit select · <kbd>Shift</kbd>+<kbd>Left-click</kbd> add/remove · <kbd>Double-click</kbd> all of that type on screen · <kbd>Left-click</kbd> ground — deselect</li>
-          <li>Orders: <kbd>Right-click</kbd> ground — move · <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Right-click</kbd> attack-move · <kbd>X</kbd> scatter</li>
-          <li>Armed units: <kbd>Right-click</kbd> an enemy to attack — they never shoot buildings on their own, <kbd>Right-click</kbd> the building to focus it · enemy engineers capture buildings · <kbd>M</kbd> sound on/off</li>
+          <li>Soldiers &amp; vehicles: <kbd>Left-drag</kbd> box-select · <kbd>Left-click</kbd> a unit select · <kbd>Shift</kbd>+<kbd>Left-click</kbd> add/remove · <kbd>Double-click</kbd> all of that type on screen · <kbd>Right-click</kbd> — deselect (units keep going)</li>
+          <li>Orders: <kbd>Left-click</kbd> ground — move · <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Right-click</kbd> attack-move · <kbd>X</kbd> scatter</li>
+          <li>Armed units: <kbd>Left-click</kbd> an enemy to attack — they never shoot buildings on their own, <kbd>Left-click</kbd> the building to focus it · enemy engineers capture buildings · <kbd>M</kbd> sound on/off</li>
           <li>Elite (type II) soldiers: at most 2 for every 3 regulars · orders: up to 15 soldiers and 10 vehicles waiting at once — a new one the moment one is done, whatever your army size · special forces swim · tanks run soldiers over · only aircraft shoot aircraft</li>
-          <li>Transport: select soldiers/vehicles, <kbd>Right-click</kbd> your transport to board (one in the air lands first) · select the transport, <kbd>Right-click</kbd> ground — it flies there, lands and unloads · <kbd>U</kbd>/<b>Unload</b> — let them out here, one by one</li>
+          <li>Transport: select soldiers/vehicles, <kbd>Left-click</kbd> your transport to board (one in the air lands first) · select the transport, <kbd>Left-click</kbd> ground — it flies there, lands and unloads · <kbd>U</kbd>/<b>Unload</b> — let them out here, one by one</li>
           <li>When <b>READY</b>: click cameo, then click the map to place · <kbd>R</kbd> turn it 90° · <kbd>Esc</kbd>/<kbd>Right-click</kbd> stop placing</li>
           <li><kbd>WASD</kbd>/<kbd>Arrows</kbd>/screen edge — scroll · <kbd>Wheel</kbd> zoom · <kbd>Middle-drag</kbd> pan</li>
           <li><kbd>Click</kbd> select · <kbd>1</kbd>–<kbd>5</kbd> landmarks · <kbd>O</kbd> oil · <kbd>H</kbd> home · <kbd>Tab</kbd> sidebar</li>

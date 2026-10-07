@@ -914,9 +914,12 @@ export class Game {
             break;
           }
           const world = camera.screenToWorld(ev.x, ev.y);
-          // RA2 mouse: left button selects, right button gives orders.
-          if (ev.button === 'right') this.rightClick(world, ev.ctrl && ev.shift);
-          else this.leftClick(world, ev.shift, ev.double);
+          // RA2 mouse: left button selects and gives orders; right button only deselects (units keep their orders).
+          // Ctrl+Shift+right-click is still attack-move.
+          if (ev.button === 'right') {
+            if (ev.ctrl && ev.shift) this.rightClick(world, true);
+            else this.selection.clearAll();
+          } else this.leftClick(world, ev.shift, ev.double);
           break;
         }
         case 'wheel':
