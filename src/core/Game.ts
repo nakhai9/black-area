@@ -74,8 +74,9 @@ import { computeSafety, findOilRow } from '../map/OilSite';
 import { TERRITORIES } from '../map/Territories';
 import { buildWorld } from '../map/WorldGenerator';
 import { TreeLayer } from '../map/Trees';
-import { soldierPortrait } from '../render/InfantryArt';
+import { SOLDIER_DEATH_SECONDS, hasSoldierDeath, soldierPortrait } from '../render/InfantryArt';
 import { vehiclePortrait } from '../render/VehicleArt';
+import { TANK_DEATH_SECONDS, hasTankSheet } from '../render/TankSheets';
 import { SpriteCache } from '../render/SpriteCache';
 import { BUILDING_ART } from '../render/sprites';
 import { AIRFIELD_SLOTS, RUNWAY_D, AIRFIELD_SIZE } from '../render/sprites/Airfield';
@@ -276,6 +277,7 @@ export class Game {
       debt: 0,
       creditFrozen: false,
       defeated: false,
+      capitalLost: false,
       powerProduced: 0,
       powerConsumed: 0,
       powerStored: 0,
@@ -334,6 +336,12 @@ export class Game {
       selected: (v) => this.selection.selectedUnits.has(v.id),
       powered: (owner) => !this.players.find((p) => p.id === owner)?.powerShort,
       newTanker: (t) => this.newTanker(t),
+      pay: (owner, amount) => {
+        const p = this.players.find((pl) => pl.id === owner);
+        if (!p || p.capitalLost || p.credits < amount) return false;
+        p.credits -= amount;
+        return true;
+      },
     });
     this.safeZones = new SafeZoneSystem(
       this.map,
@@ -1588,7 +1596,10 @@ export class Game {
         );
         return;
       }
-      this.construction.start(player, option);
+      if (!this.construction.start(player, option)) {
+        if (player.capitalLost) this.sidebar.notify('Your capital is lost — you can no longer buy anything.');
+        return;
+      }
       this.sidebar.notify(`Building ${option.name} — ${buildCost(option, player.faction)} ${CURRENCY}`);
     } else if (slot.state === 'ready' && slot.option?.id === option.id) {
       this.placing = option;
@@ -1885,6 +1896,15 @@ export class Game {
    * the game when defeated; the player wins once every other nation is defeated.
    */
   private evaluateNations(): void {
+    // A nation whose own capital is destroyed or captured can no longer buy anything (a captured enemy capital
+    // does not count as its own).
+    for (const p of this.players) {
+      if (p.capitalLost) continue;
+      const own = this.entities.buildings().some((b) => b.alive && b.owner === p.id && b.spec.type === 'capital' && b.spec.spriteKey === `capital:${p.faction}`);
+      if (own) continue;
+      p.capitalLost = true;
+      if (p.isHuman) this.sidebar.notify('Your capital is lost — you can no longer buy anything.', 6);
+    }
     for (const p of this.players) {
       if (p.defeated) continue;
       const hasCapital = this.entities.buildings().some((b) => b.owner === p.id && b.alive && b.spec.type === 'capital');
@@ -1917,8 +1937,15 @@ export class Game {
       }
       this.entities.remove(e.id);
       const vehicle = e instanceof Vehicle;
+      if (e instanceof Infantry && !e.inWater && hasSoldierDeath(e.profile.look)) {
+        this.effects.add({ kind: 'soldierDeath', ...this.fx(e.px, e.py), age: 0, ttl: SOLDIER_DEATH_SECONDS, look: e.profile.look, heading: e.heading });
+        return;
+      }
       this.effects.add({ kind: 'smoke', ...this.fx(e.px, e.py, 1 + this.liftOf(e)), age: 0, ttl: 1.2, radius: vehicle ? 5 : 2.2 });
-      if (vehicle) {
+      if (vehicle && e.type === 'tank' && hasTankSheet(e.faction as FactionId)) {
+        this.effects.add({ kind: 'tankDeath', ...this.fx(e.px, e.py), age: 0, ttl: TANK_DEATH_SECONDS, faction: e.faction as FactionId });
+        this.sound.play('explosion', { x: e.px, y: e.py });
+      } else if (vehicle) {
         this.effects.add({ kind: 'blast', ...this.fx(e.px, e.py, e.flies ? 2 + e.altitude : 2), age: 0, ttl: 0.5, radius: e.flies ? 14 : 10 });
         this.sound.play('explosion', { x: e.px, y: e.py });
       }
@@ -1969,6 +1996,8 @@ export class Game {
     this.sidebar.notify(
       result === 'ok'
         ? `Building ${option.name} — ${option.cost} ${CURRENCY}`
+        : result === 'noCapital'
+          ? 'Your capital is lost — you can no longer buy anything.'
         : result === 'full'
           ? `Vehicle orders are full (${BUILD_LIMIT_VEHICLES}) — one more once an order is done.`
           : result === 'tech'
@@ -2193,6 +2222,8 @@ export class Game {
       this.sidebar.notify(
         result === 'ok'
           ? `Training ${option.name} — ${option.cost} ${CURRENCY}`
+          : result === 'noCapital'
+            ? 'Your capital is lost — you can no longer buy anything.'
           : result === 'tech'
             ? 'Second-tier soldiers need a High-Tech Center.'
             : result === 'ratio'
@@ -2690,6 +2721,7 @@ export class Game {
       u.attackTarget = null;
       u.attackMove = null;
       u.chasing = false;
+      u.chaseFrom = null; // a new move order: any later chase is measured from where it gets to
       u.retreating = this.isRetreat(u, world);
       u.retreatGroup = group;
       u.sparedBy.clear();

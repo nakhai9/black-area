@@ -2,7 +2,7 @@ import { HALF_TH, HALF_TW, SPRITE_SCALE } from '../constants';
 import type { Rect } from '../types';
 import { createCanvas } from './Canvas';
 import { IsoPainter } from './IsoPainter';
-import type { BuildingArt } from './sprites';
+import { flagVariantArt, type BuildingArt } from './sprites';
 
 /** Sprites are rasterised at 2× for crisp results when zoomed in / on HiDPI. */
 const RASTER_SCALE = 2;
@@ -79,7 +79,11 @@ export class SpriteCache {
   }
 
   private build(key: string, mirrored: boolean): Sprite {
-    const art = this.registry.get(key);
+    let art = this.registry.get(key);
+    if (!art) {
+      art = flagVariantArt(key);
+      if (art) this.registry.set(key, art);
+    }
     if (!art) throw new Error(`No building art registered for '${key}'`);
     // An art piece may be drawn larger than it was authored (see BuildingArt.scale): everything the sprite is
     // measured from — footprint and height — grows with it, and the painter draws into a scaled context.

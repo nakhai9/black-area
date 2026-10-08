@@ -1,4 +1,4 @@
-import { CELL_SIZE, REFUEL_RANGE_CELLS, REFUEL_RATE, TANKER_ESCORT_DISTANCE, TANKER_LEAD_CELLS, TRANSPORT_FUEL_CELLS } from '../constants';
+import { BOMB_COST, BOMB_LOAD_SECONDS, JET_BOMB_COST, CELL_SIZE, REFUEL_RANGE_CELLS, REFUEL_RATE, TANKER_ESCORT_DISTANCE, TANKER_LEAD_CELLS, TRANSPORT_FUEL_CELLS } from '../constants';
 import type { Building } from '../entities/Building';
 import type { EntityManager } from '../entities/EntityManager';
 import { CRUISE_ALTITUDE, type Vehicle } from '../entities/Vehicle';
@@ -51,6 +51,8 @@ export interface AircraftHooks {
   powered(owner: number): boolean;
   /** A transport parked at home without a tanker gets a new one on a free spot; false when there is no room. */
   newTanker(transport: Vehicle): boolean;
+  /** Charges `owner` `amount` (a bomb reload); false, and nothing is charged, when it cannot pay. */
+  pay(owner: number, amount: number): boolean;
 }
 
 /** Result of an unload order (U key / Unload button). */
@@ -191,9 +193,17 @@ export class AircraftSystem implements GameSystem {
       }
       return;
     }
+    // A bomber may not take off without at least one bomb aboard: its order waits until one is loaded. (A fighter
+    // still has its guns.)
+    const unarmed = v.type === 'bomber' && v.bombs < 1;
+    if (!unarmed && v.mission && !v.moving) {
+      v.follow(v.mission);
+      v.mission = null;
+    }
     const wantsOut = v.moving || v.attackTarget !== null || v.attackMove !== null;
     if (!wantsOut) return;
     this.stashOrders(v);
+    if (unarmed) return;
     const home = this.home(v);
     if (!home) {
       // Its airfield is gone: take off from where it stands and head for another one (or crash).
@@ -203,8 +213,21 @@ export class AircraftSystem implements GameSystem {
     v.flight = 'taxi';
   }
 
+  /** Bombs are loaded on the apron one at a time, each paid for (BOMB_COST); without the money it waits. */
+  private rearm(v: Vehicle, dt: number): void {
+    if (v.bombs >= v.maxBombs) {
+      v.rearmClock = 0;
+      return;
+    }
+    v.rearmClock += dt;
+    if (v.rearmClock < BOMB_LOAD_SECONDS) return;
+    v.rearmClock = 0;
+    if (this.hooks.pay(v.owner, v.type === 'jet' ? JET_BOMB_COST : BOMB_COST)) v.bombs++;
+  }
+
   /** Maintenance at the airfield: +2% health every 4 s while the aircraft stands on its apron. */
   private service(v: Vehicle, dt: number): void {
+    if (v.maxBombs > 0) this.rearm(v, dt);
     if (v.hp >= v.maxHp || !this.home(v)) {
       v.repairClock = 0;
       return;
@@ -278,7 +301,8 @@ export class AircraftSystem implements GameSystem {
     const busy = v.moving || v.attackTarget !== null || v.attackMove !== null || v.combatTarget !== null;
     if (busy) {
       this.orbits.delete(v.id);
-      if (v.moving) v.returningHome = false;
+      // A new order cancels the trip home; flying to its own airfield's approach point (waiting for room) does not.
+      if (v.moving && !this.headingForApproach(v)) v.returningHome = false;
       v.idleFor = 0;
       return;
     }
@@ -298,8 +322,8 @@ export class AircraftSystem implements GameSystem {
     this.orbits.delete(v.id);
     let home = this.home(v);
     if (!home) return; // no airfield left: circle where it is
-    // An empty transport coming back from the field parks at whichever airfield of the nation still has room.
-    if (v.isTransport && v.cargo.length === 0 && this.freeSlot(v, home) < 0) {
+    // No spot left on its apron: it parks at whichever airfield of the nation still has room.
+    if (this.freeSlot(v, home) < 0) {
       const other = this.airfieldWithRoom(v);
       if (other) {
         v.homeId = other.id;
@@ -309,7 +333,8 @@ export class AircraftSystem implements GameSystem {
     }
     const slot = this.freeSlot(v, home);
     if (slot < 0) {
-      // Apron full: wait over the airfield's approach point and try again in a moment.
+      // Every apron full: wait over the airfield's approach point and try again in a moment.
+      v.returningHome = true;
       v.idleFor = RETURN_AFTER - 1.5;
       v.follow([this.geometry(home).approach]);
       return;
@@ -615,7 +640,25 @@ export class AircraftSystem implements GameSystem {
   }
 
   /** Makes the nearest living airfield of the owner the aircraft's new home. False when the nation has none. */
+  /** Is the aircraft flying to its own airfield's approach point? */
+  private headingForApproach(v: Vehicle): boolean {
+    const home = this.home(v);
+    const pts = v.waypoints();
+    const last = pts[pts.length - 1];
+    if (!home || !last) return false;
+    const a = this.geometry(home).approach;
+    return Math.hypot(last.x - a.x, last.y - a.y) <= 1;
+  }
+
   private adoptHome(v: Vehicle): boolean {
+    // An airfield with a free spot first; a full one only when there is nothing else.
+    const roomy = this.airfieldWithRoom(v);
+    if (roomy) {
+      v.homeId = roomy.id;
+      v.slot = -1;
+      v.idleFor = RETURN_AFTER;
+      return true;
+    }
     let best: Building | null = null;
     let bestD = Infinity;
     for (const b of this.entities.buildings()) {

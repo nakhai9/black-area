@@ -1,4 +1,5 @@
 import { drawAircraftPortrait } from './AircraftSheets';
+import { drawTankPortrait } from './TankSheets';
 import { CRUISE_ALTITUDE } from '../constants';
 import { FACTIONS } from '../factions';
 import type { FactionId, VehicleKind } from '../types';
@@ -525,7 +526,7 @@ export function vehiclePortrait(faction: FactionId, kind: VehicleKind): HTMLCanv
   let c = portraits.get(key);
   if (!c) {
     const { canvas, ctx } = createCanvas(128, 96);
-    if (drawAircraftPortrait(ctx, faction, kind, 128, 96, 0.45)) {
+    if (drawAircraftPortrait(ctx, faction, kind, 128, 96, 0.45) || (kind === 'tank' && drawTankPortrait(ctx, faction, 128, 96, 0.45))) {
       portraits.set(key, canvas);
       return canvas;
     }

@@ -29,7 +29,7 @@ function trainOptions(faction: FactionId): TrainOption[] {
 
 export type TrainingState = 'idle' | 'training' | 'onHold' | 'noBarracks';
 
-export type EnqueueResult = 'ok' | 'full' | 'noBarracks' | 'tech' | 'ratio' | 'cap';
+export type EnqueueResult = 'ok' | 'full' | 'noBarracks' | 'tech' | 'ratio' | 'cap' | 'noCapital';
 
 /** Orders waiting (BuildLimit) and the elite ratio. */
 export interface ArmyCount {
@@ -112,6 +112,7 @@ export class TrainingSystem implements GameSystem {
    */
   enqueue(player: PlayerState, tier: UnitTier): EnqueueResult {
     const q = this.queue(player);
+    if (player.capitalLost) return 'noCapital';
     if (!this.barracksOf(player)) return 'noBarracks';
     if (TECH_TIERS.includes(tier) && !this.hasTech(player)) return 'tech';
     if (q.items.length >= BUILD_LIMIT_SOLDIERS) return 'full';
@@ -180,7 +181,7 @@ export class TrainingSystem implements GameSystem {
       const option = this.optionsFor(p).find((o) => o.tier === tier);
       if (!option) continue;
       const want = Math.min((option.cost / option.trainSeconds) * dt, option.cost - q.paid);
-      const pay = Math.max(0, Math.min(want, p.credits));
+      const pay = p.capitalLost ? 0 : Math.max(0, Math.min(want, p.credits));
       p.credits -= pay;
       q.paid += pay;
       q.progress = Math.min(1, q.paid / option.cost);

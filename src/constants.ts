@@ -98,10 +98,10 @@ export const CAMERA_EDGE_MARGIN = 16; // px from the window edge that triggers s
 export const CAMERA_EDGE_SCROLL = true;
 /** Tactical zoom only — the whole-world overview lives on the sidebar radar. */
 export const ZOOM_MIN = 3;
-export const ZOOM_MAX = 7;
+export const ZOOM_MAX = 9;
 export const ZOOM_STEP = 1.12;
 /** Zoom used at start and when jumping to a building. */
-export const FOCUS_ZOOM = 7;
+export const FOCUS_ZOOM = 8;
 
 // ---------------------------------------------------------------- Players & economy
 /** In-game currency unit shown everywhere in the UI. */
@@ -266,6 +266,12 @@ export const INFANTRY_MAX_RANGE_CELLS = 3;
 /** How often (s) an idle armed unit looks for a new target / repaths while chasing. */
 export const ACQUIRE_PERIOD = 0.3;
 export const CHASE_PERIOD = 0.8;
+/** Ground vehicles give up a chase once they are this many cells from where it started (no hunting a fleeing enemy home). */
+export const CHASE_LIMIT_CELLS = 5;
+/** After giving up a chase, the target is left alone this long (s) unless it comes into weapon range. */
+export const CHASE_GIVE_UP_SECONDS = 8;
+/** A retreat protects a unit only from nations it traded fire with within this many seconds; any other nation may attack it. */
+export const FIGHT_MEMORY_SECONDS = 20;
 /** A unit that was shot at hits back at an attacker up to this many times its weapon range away. */
 export const RETALIATE_RANGE_FACTOR = 2.2;
 /** Idle armed units notice enemies up to this many times their weapon range away and move in to fight. */
@@ -290,13 +296,37 @@ export const VEHICLE_BASE = {
     speed: 5.5,
     radius: 3.6,
   },
-  /** National heavy bomber (Russia's Tu-26, the USA's B-52; no other nation has one): slow, tough, flattens ground targets and structures; cannot hit aircraft. */
-  bomber: { cost: 2600, trainSeconds: 22, maxHp: 380, speed: 6.5, radius: 3.8 },
+  /** National heavy bomber (Russia's Tu-16, the USA's B-52; no other nation has one): tough, flattens ground targets and structures; cannot hit aircraft. */
+  bomber: { cost: 2600, trainSeconds: 22, maxHp: 380, speed: 8.5, radius: 3.8 },
   /** Aerial refueler: never sold on its own — every transport comes with one that flies escort and keeps it fuelled. */
   tanker: { cost: 0, trainSeconds: 0, maxHp: 160, speed: 6, radius: 3.2 },
 } as const;
 
 /** Transport fuel: a full tank lasts this many cells of flight (enough for a round trip to the tanker-escort distance); the escorting tanker refills it. */
+/** Bomber payload: bombs carried per sortie (reloaded on its airfield) and bombs released per drop. */
+export const BOMBER_BOMBS = 6;
+export const BOMBS_PER_DROP = 2;
+/** Fighters carry this many bombs, one per drop: the only way they can hit a structure (JET_BOMB_VS_STRUCTURE of
+ * its max health each). While any are left they are also dropped on ground units (JET_BOMB_VS_VEHICLE of a
+ * vehicle's max health, a soldier killed); aircraft, and ground units once the bombs are gone, get the guns. */
+export const JET_BOMBS = 2;
+export const JET_BOMB_VS_STRUCTURE = 0.1;
+export const JET_BOMB_VS_VEHICLE = 0.6;
+/** A fighter's bomb costs this much to load (a bomber's costs BOMB_COST). */
+export const JET_BOMB_COST = 400;
+/** Reloading on the airfield is not free: each bomb costs this much, loaded one every BOMB_LOAD_SECONDS. */
+export const BOMB_COST = 800;
+export const BOMB_LOAD_SECONDS = 3;
+/** One drop destroys a structure outright, except these kinds, which lose this share of their max health. */
+export const BOMB_TOUGH_STRUCTURES: readonly string[] = [
+  "happyCity",
+  "airfield",
+];
+export const BOMB_TOUGH_DAMAGE = 0.5;
+/** A drop on troops hits the whole group within this many cells of the impact: below BOMB_GROUP_SIZE soldiers /
+ * vehicles all of them die, from BOMB_GROUP_SIZE up a third of them (the ones nearest the impact). */
+export const BOMB_GROUP_RADIUS_CELLS = 2.5;
+export const BOMB_GROUP_SIZE = 10;
 export const TRANSPORT_FUEL_CELLS = 800;
 /** A tanker within this many cells of its transport refuels it, at this many full tanks per second. */
 export const REFUEL_RANGE_CELLS = 4;
@@ -321,7 +351,6 @@ export const isAircraftKind = (kind: VehicleKind): boolean =>
  */
 export const AVAILABLE_VEHICLES: readonly VehicleKind[] = [
   "tank",
-  "ifv",
   "jet",
   "bomber",
   "transport",

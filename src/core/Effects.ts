@@ -1,9 +1,15 @@
+import type { FactionId, InfantryLook } from '../types';
+
 /** Short-lived visual effects drawn on top of units. Positions are world px. */
 export type Effect =
   | { kind: 'tracer'; x0: number; y0: number; x1: number; y1: number; age: number; ttl: number; color: string; width: number; shell: boolean }
   | { kind: 'flash'; x: number; y: number; age: number; ttl: number; size: number }
   | { kind: 'blast'; x: number; y: number; age: number; ttl: number; radius: number }
-  | { kind: 'smoke'; x: number; y: number; age: number; ttl: number; radius: number };
+  | { kind: 'smoke'; x: number; y: number; age: number; ttl: number; radius: number }
+  /** A main battle tank blowing up and burning out, from its faction's tank sheet. */
+  | { kind: 'tankDeath'; x: number; y: number; age: number; ttl: number; faction: FactionId }
+  /** A killed soldier falling and lying a moment, from their sheet's dying frames. */
+  | { kind: 'soldierDeath'; x: number; y: number; age: number; ttl: number; look: InfantryLook; heading: number };
 
 /** Holds and ages the active effects. */
 export class EffectsLayer {

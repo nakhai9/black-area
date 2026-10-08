@@ -158,6 +158,7 @@ export class OilMarket implements GameSystem {
    * as much as the treasury can pay. Returns the barrels delivered (burned straight into the grid).
    */
   sellForGrid(player: PlayerState, barrels: number, markup: number): number {
+    if (player.capitalLost) return 0; // a nation without its capital cannot buy, not even oil for its grid
     const unit = this.price * markup;
     const delivered = Math.max(0, Math.min(barrels, player.credits / unit));
     player.credits -= delivered * unit;

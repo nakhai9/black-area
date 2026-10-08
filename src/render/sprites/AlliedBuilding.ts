@@ -98,8 +98,8 @@ const STYLES: Record<FactionId, { height: number; draw: (p: IsoPainter, team: st
   },
 };
 
-/** Allied Building (4×4 tiles) in the leading nation's architecture, with its flag at two corners. */
-export function createAlliedBuildingArt(faction: FactionId): BuildingArt {
+/** Allied Building (4×4 tiles) in the leading nation's architecture, with the owner's flag (`flag`) at two corners. */
+export function createAlliedBuildingArt(faction: FactionId, flag: FactionId = faction): BuildingArt {
   const team = FACTIONS[faction].colors.primary;
   const style = STYLES[faction];
   return {
@@ -109,11 +109,11 @@ export function createAlliedBuildingArt(faction: FactionId): BuildingArt {
     drawStatic(p) {
       plot(p);
       style.draw(p, team);
-      for (const [u, v] of FLAGS) drawNationalPole(p, faction, u, v, 2, 30);
+      for (const [u, v] of FLAGS) drawNationalPole(p, flag, u, v, 2, 30);
     },
 
     drawAnimated(p, time) {
-      FLAGS.forEach(([u, v], i) => drawFlagOnPole(p, faction, u, v, 32, time, i * 1.1, 15, 9));
+      FLAGS.forEach(([u, v], i) => drawFlagOnPole(p, flag, u, v, 32, time, i * 1.1, 15, 9));
     },
   };
 }

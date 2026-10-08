@@ -8,9 +8,11 @@ import { Vehicle } from '../entities/Vehicle';
 import { SQUASH, drawVehicle } from '../render/VehicleArt';
 import { isoHeading, worldToIso } from './IsoView';
 import type { Effect } from './Effects';
-import { drawSoldier, drawsOwnSwim } from '../render/InfantryArt';
+import { drawSoldier, drawSoldierDeath, drawsOwnSwim, drawsSquad } from '../render/InfantryArt';
 import { drawCarriedFlag } from '../render/Flags';
 import { drawAircraftSheet } from '../render/AircraftSheets';
+import { drawFlagOnPole, drawNationalPole } from '../render/Flags';
+import { drawTankDeath, drawTankSheet } from '../render/TankSheets';
 import { FACTIONS, teamColors } from '../factions';
 import type { TerrainRenderer } from '../map/TerrainRenderer';
 import { createCanvas, get2d } from '../render/Canvas';
@@ -70,6 +72,19 @@ export interface RenderScene {
 
 
 const HEALTH_PIPS = 24;
+
+/** Where a bomber's bomb bars sit (iso px): a row centred just above the airframe. */
+function bombRow(v: Vehicle): { x0: number; y: number; bar: number; gap: number; h: number } {
+  const P = worldToIso(v.px, v.py);
+  const bar = 0.35;
+  const gap = 0.25;
+  const h = 0.9;
+  const w = v.maxBombs * bar + (v.maxBombs - 1) * gap;
+  return { x0: P.x - w / 2, y: P.y - v.altitude - v.bodyHeight - 0.4 - h, bar, gap, h };
+}
+/** Structures whose art has no flag of its own (sprite key kinds): the renderer gives them a flag pole. */
+const FLAGLESS_ART: ReadonlySet<string> = new Set(['oil', 'airfield', 'techCenter', 'powerPlant', 'happyCity']);
+const FLAG_POLE_HEIGHT = 30;
 /** How long an RA2 order line stays on screen after the order (s). */
 const ORDER_LINE_SECONDS = 1;
 /** How long the RA2 move marker (green arrows) stays on screen (s). */
@@ -254,6 +269,7 @@ export class Renderer {
     for (const f of focus) if (f.entity.kind !== 'building') this.drawFocusMarks(f.entity, f.strong);
     for (const u of units) if (selUnits.has(u.id) || u.hp < u.maxHp) this.drawUnitHealth(u);
     // The fuel gauge shows only while the transport is out on a sortie; parked or taxiing at home it is idle (hidden).
+    for (const u of units) if (u instanceof Vehicle && u.maxBombs > 0) this.drawBombs(u);
     for (const u of units) if (u instanceof Vehicle && u.isTransport && u.flight !== 'parked' && u.flight !== 'taxi' && u.flight !== 'taxiHome') this.drawFuel(u);
     for (const f of focus) if (f.entity.kind !== 'building' && !selUnits.has(f.entity.id) && f.entity.hp >= f.entity.maxHp) this.drawUnitHealth(f.entity);
     for (const u of units) {
@@ -353,6 +369,20 @@ export class Renderer {
       s.art.drawAnimated(new IsoPainter(ctx, s.originX / s.artScale, s.originY / s.artScale), time, b.active);
       ctx.restore();
     }
+    // Every structure flies its owner's national flag: ones whose art has no flag get a pole at their front corner.
+    const kind = b.spriteKey.split(':')[0] ?? '';
+    if (FLAGLESS_ART.has(kind) && b.faction !== 'neutral') {
+      ctx.save();
+      ctx.translate(c.x, c.y);
+      const a = k * s.artScale;
+      ctx.scale(b.rotated ? -a : a, a);
+      const p = new IsoPainter(ctx, s.originX / s.artScale, s.originY / s.artScale);
+      const u = s.art.footprint.w - 0.35;
+      const v = s.art.footprint.d - 0.35;
+      drawNationalPole(p, b.faction, u, v, 0, FLAG_POLE_HEIGHT);
+      drawFlagOnPole(p, b.faction, u, v, FLAG_POLE_HEIGHT, time, (b.id % 7) * 0.9, 15, 9);
+      ctx.restore();
+    }
   }
 
   private drawUnit(u: Unit): void {
@@ -362,6 +392,7 @@ export class Renderer {
     const P = worldToIso(u.px, u.py);
     if (u instanceof Vehicle) {
       if (u.aircraft && drawAircraftSheet(ctx, u, P.x, P.y)) return;
+      if (u.type === 'tank' && drawTankSheet(ctx, u, P.x, P.y)) return;
       const heading = isoHeading(u.heading, u.aircraft ? 0.8 : SQUASH);
       // On the iso ground a vehicle's neighbours are half as far apart on screen: ground vehicles are drawn a bit
       // smaller so they never look piled on top of each other (their collision circles keep them apart).
@@ -427,6 +458,11 @@ export class Renderer {
           special,
         ),
       );
+      if (u.isSquatters && drawsSquad(look)) {
+        // Squad sheet: bearer, escort and flag in one picture (too tall for the cached soldier box: drawn live).
+        drawSoldier(ctx, { x: P.x, y: P.y, facing: u.facing, heading: u.heading, walkPhase: u.walkPhase, moving: u.moving, fire: fire >= 0 ? (fire + 0.5) / GI_FIRE_FRAMES : -1, aiming }, look, f.colors.primary, true);
+        return;
+      }
       if (u.isSquatters) {
         this.drawSquatters(u, P, (bearer) => (bearer ? soldier(-1, false) : soldier(fire, aiming)));
         return;
@@ -589,14 +625,20 @@ export class Renderer {
     ctx.restore();
   }
 
-  /** Veteran chevrons (Lucide ChevronDown ×1, ×2, ×3) hovering above the unit. */
+  /** Veteran chevrons (Lucide ChevronDown ×1, ×2, ×3) hovering above the unit; on a bomber, left of its bomb row. */
   private drawRank(u: Unit): void {
     const { ctx } = this;
     const lift = (u as { altitude?: number }).altitude ?? 0;
     const size = 2.6; // world px per chevron (24 icon units)
     const sc = size / 24;
-    const P = worldToIso(u.px, u.py);
-    const top = P.y - lift - u.bodyHeight - 1.4 - 3.4;
+    let P = worldToIso(u.px, u.py);
+    let top = P.y - lift - u.bodyHeight - 1.4 - 3.4;
+    if (u instanceof Vehicle && u.maxBombs > 0) {
+      // The stack ends level with the bottom of the bomb bars, just left of them.
+      const r = bombRow(u);
+      P = { x: r.x0 - 0.4 - size / 2, y: P.y };
+      top = r.y + r.h - size * 0.65;
+    }
     ctx.save();
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
@@ -675,6 +717,20 @@ export class Renderer {
     ctx.fillRect(x, y, w * v.fuel, 0.4);
   }
 
+  /** Bomber payload: a row of small upright green bars right above the airframe, one per bomb (dark when dropped). */
+  private drawBombs(v: Vehicle): void {
+    const { ctx } = this;
+    const k = 1 / this.camera.zoom;
+    const { x0, y, bar, gap, h } = bombRow(v);
+    for (let i = 0; i < v.maxBombs; i++) {
+      const x = x0 + i * (bar + gap);
+      ctx.fillStyle = 'rgba(0,0,0,0.6)';
+      ctx.fillRect(x - k, y - k, bar + 2 * k, h + 2 * k);
+      ctx.fillStyle = i < v.bombs ? '#3ddc4a' : '#1d3320';
+      ctx.fillRect(x, y, bar, h);
+    }
+  }
+
   private drawEffects(list: readonly Effect[]): void {
     const { ctx } = this;
     const k = 1 / this.camera.zoom;
@@ -715,6 +771,10 @@ export class Renderer {
         ctx.globalAlpha = 1 - t;
         ctx.drawImage(blastSprite(), e.x - r, e.y - r, r * 2, r * 2);
         ctx.globalAlpha = 1;
+      } else if (e.kind === 'soldierDeath') {
+        drawSoldierDeath(ctx, e.look, e.x, e.y, e.heading, e.age, e.ttl);
+      } else if (e.kind === 'tankDeath') {
+        drawTankDeath(ctx, e.faction, e.x, e.y, e.age, e.ttl);
       } else {
         const r = e.radius * (0.5 + t * 1.2);
         ctx.globalAlpha = 0.5 * (1 - t);

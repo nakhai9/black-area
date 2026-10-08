@@ -35,7 +35,7 @@ export const EUROPE: FactionConfig = {
     squatters: {
       name: 'Squatters',
       description: "EU flag bearer and rifleman escort, moving as one: flown by transport to unclaimed land, they plant the national flag there (F key) — their mission done, they are gone.",
-      look: { uniform: '#5e6c78', trousers: '#4a5661', headgear: 'reverseCap', headColor: '#3f4a54', weapon: 'rifle', camo: true, sprite: 'euSpecial' },
+      look: { uniform: '#5e6c78', trousers: '#4a5661', headgear: 'reverseCap', headColor: '#3f4a54', weapon: 'rifle', camo: true, sprite: 'euSquatters' },
     },
   },
   vehicles: {

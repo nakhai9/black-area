@@ -28,7 +28,7 @@ export type Flight = 'parked' | 'taxi' | 'takeoff' | 'airborne' | 'approach' | '
 export type CarrierState = 'idle' | 'loading' | 'carrying' | 'unloading';
 
 /** Cruise height of an aircraft above the ground (world px, drawn offset). */
-import { CRUISE_ALTITUDE } from '../constants';
+import { BOMBER_BOMBS, CRUISE_ALTITUDE, JET_BOMBS } from '../constants';
 export { CRUISE_ALTITUDE };
 
 /** Handling per vehicle kind: seconds to full speed, turn rate (rad/s), whether it must face where it drives. */
@@ -85,6 +85,10 @@ export class Vehicle extends Unit {
   landedIdle = 0;
   /** Transport only: on its way back to the airfield — does not set down again on the way. */
   returningHome = false;
+  /** Bombers and fighters: bombs left aboard (refilled on the airfield's apron, paid per bomb). */
+  bombs = 0;
+  /** Bomber only: time towards loading the next bomb on the apron. */
+  rearmClock = 0;
   /** Transport only: soldiers and vehicles aboard (hidden from the map while inside). */
   readonly cargo: Unit[] = [];
   /** Transport only: units on their way to climb aboard (recounted every tick). */
@@ -121,6 +125,7 @@ export class Vehicle extends Unit {
       const spec = WEAPONS[weapon];
       this.weapon = { ...spec, damage: spec.damage * f.stats.firepower, range: spec.range * f.stats.range };
     }
+    this.bombs = this.maxBombs;
     const h = HANDLING[type];
     this.accelTime = h.accel;
     this.turnRate = h.turn;
@@ -144,6 +149,11 @@ export class Vehicle extends Unit {
 
   override get unarmedTransport(): boolean {
     return this.isTransport || this.isTanker;
+  }
+
+  /** Bombs a full load holds: the bomber's payload, a fighter's pair, none for anything else. */
+  get maxBombs(): number {
+    return this.type === 'bomber' ? BOMBER_BOMBS : this.type === 'jet' ? JET_BOMBS : 0;
   }
 
   get isTanker(): boolean {

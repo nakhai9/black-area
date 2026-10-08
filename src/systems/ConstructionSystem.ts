@@ -185,7 +185,7 @@ export class ConstructionSystem implements GameSystem {
   /** Starts producing `option`; only when the slot is free. */
   start(player: PlayerState, option: BuildOption): boolean {
     const s = this.slot(player);
-    if (s.state !== 'idle') return false;
+    if (s.state !== 'idle' || player.capitalLost) return false;
     Object.assign(s, { option, state: 'building', progress: 0, paid: 0 });
     return true;
   }
@@ -217,7 +217,7 @@ export class ConstructionSystem implements GameSystem {
       }
       const cost = buildCost(s.option, p.faction);
       const want = Math.min(cost * RATE * dt, cost - s.paid);
-      const pay = Math.max(0, Math.min(want, p.credits));
+      const pay = p.capitalLost ? 0 : Math.max(0, Math.min(want, p.credits));
       p.credits -= pay;
       s.paid += pay;
       s.progress = Math.min(1, s.paid / cost);

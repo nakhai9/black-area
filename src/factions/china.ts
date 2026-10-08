@@ -35,7 +35,7 @@ export const CHINA: FactionConfig = {
     squatters: {
       name: 'Squatters',
       description: "PLA flag bearer and rifleman escort, moving as one: flown by transport to unclaimed land, they plant the national flag there (F key) — their mission done, they are gone.",
-      look: { uniform: '#5b6a3a', trousers: '#47532c', headgear: 'helmet', headColor: '#4e5b31', weapon: 'rifle', camo: true, sprite: 'cnSpecial' },
+      look: { uniform: '#5b6a3a', trousers: '#47532c', headgear: 'helmet', headColor: '#4e5b31', weapon: 'rifle', camo: true, sprite: 'cnSquatters' },
     },
   },
   vehicles: {

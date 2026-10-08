@@ -1,9 +1,10 @@
 import { movesRight } from '../core/IsoView';
-import { ACQUIRE_PERIOD, CELL_SIZE, CHASE_PERIOD, GUARD_VISION_FACTOR, NEUTRAL_OWNER, RETALIATE_RANGE_FACTOR } from '../constants';
+import { JET_BOMB_VS_STRUCTURE, JET_BOMB_VS_VEHICLE, ACQUIRE_PERIOD, BOMB_GROUP_RADIUS_CELLS, BOMB_GROUP_SIZE, BOMB_TOUGH_DAMAGE, BOMB_TOUGH_STRUCTURES, BOMBS_PER_DROP, CELL_SIZE, CHASE_GIVE_UP_SECONDS, CHASE_LIMIT_CELLS, CHASE_PERIOD, FIGHT_MEMORY_SECONDS, GUARD_VISION_FACTOR, NEUTRAL_OWNER, RETALIATE_RANGE_FACTOR } from '../constants';
 import { Building } from '../entities/Building';
 import type { Entity } from '../entities/Entity';
 import type { EntityManager } from '../entities/EntityManager';
 import { Unit } from '../entities/Unit';
+import { Vehicle } from '../entities/Vehicle';
 import type { Pathfinder } from '../map/Pathfinder';
 import type { WeaponSpec, WorldPoint } from '../types';
 import type { GameSystem } from './GameSystem';
@@ -104,6 +105,21 @@ export class CombatSystem implements GameSystem {
   private think(s: Unit, grid: Map<number, Unit[]>): void {
     const w = s.weapon;
     if (!w) return;
+    // Out of bombs: a bomber is done and flies home at once to rearm; a fighter sent against a structure (which
+    // only bombs can hit) does the same, otherwise it keeps fighting with its guns.
+    const bombingOrder = s.attackTarget !== null && this.entities.get(s.attackTarget) instanceof Building;
+    if (s instanceof Vehicle && s.maxBombs > 0 && s.bombs <= 0 && (s.type === 'bomber' || bombingOrder)) {
+      if (s.flies && !s.returningHome) {
+        s.combatTarget = null;
+        s.attackTarget = null;
+        s.attackMove = null;
+        s.engaged = false;
+        s.stop();
+        s.returningHome = true; // even while selected it does not wait for orders
+        s.idleFor = Number.POSITIVE_INFINITY;
+      }
+      return;
+    }
     // Safe zone: units inside it never fight.
     if (this.hooks.safeAt(s.px, s.py)) {
       s.combatTarget = null;
@@ -148,6 +164,8 @@ export class CombatSystem implements GameSystem {
     s.combatTarget = target?.id ?? null;
 
     if (!target) {
+      // Back home (or stopped) with nobody to fight: the next chase measures from here.
+      if (!s.moving) s.chaseFrom = null;
       s.engaged = false;
       this.resumeAttackMove(s);
       return;
@@ -155,7 +173,7 @@ export class CombatSystem implements GameSystem {
 
     const d = distanceTo(s.px, s.py, target);
     // A retreating enemy may be shot while in range, but never chased.
-    if (target instanceof Unit && target.retreating && d > w.range) {
+    if (target instanceof Unit && this.protectedFrom(s, target) && d > w.range) {
       if (!target.sparedBy.has(s.owner)) {
         target.sparedBy.add(s.owner);
         this.hooks.onSpare(s.owner, target);
@@ -168,6 +186,7 @@ export class CombatSystem implements GameSystem {
     }
     const tx = target instanceof Unit ? target.px : target instanceof Building ? target.centerWorld().x : s.px;
     const ty = target instanceof Unit ? target.py : target instanceof Building ? target.centerWorld().y : s.py;
+    s.aimHeading = Math.atan2(ty - s.py, tx - s.px);
     if (d <= w.range) {
       s.facing = movesRight(tx - s.px, ty - s.py) ? 1 : -1;
       s.heading = Math.atan2(ty - s.py, tx - s.px);
@@ -185,7 +204,7 @@ export class CombatSystem implements GameSystem {
   private currentTarget(s: Unit): Entity | undefined {
     if (s.combatTarget === null) return undefined;
     const e = this.entities.get(s.combatTarget);
-    if (!e || !e.alive || !isHostile(s, e) || !canTarget(s, e)) return undefined;
+    if (!e || !e.alive || !isHostile(s, e) || !s.weapon || !this.canHit(s, s.weapon, e)) return undefined;
     if (e instanceof Unit && !e.visible) return undefined;
     if (this.sheltered(e)) return undefined;
     return e;
@@ -198,6 +217,8 @@ export class CombatSystem implements GameSystem {
   }
 
   private canHit(s: Unit, _w: WeaponSpec, t: Entity): boolean {
+    // Aircraft hit structures only with bombs; a fighter fights every other unit with its guns.
+    if (s instanceof Vehicle && s.type === 'jet' && t instanceof Building && s.bombs <= 0) return false;
     return canTarget(s, t);
   }
 
@@ -218,7 +239,8 @@ export class CombatSystem implements GameSystem {
         for (const o of cell) {
           if (!isHostile(s, o) || !this.canHit(s, w, o)) continue;
           const d = Math.hypot(o.px - s.px, o.py - s.py);
-          if ((o.retreating && d > w.range) || this.sheltered(o)) continue;
+          if ((this.protectedFrom(s, o) && d > w.range) || this.sheltered(o)) continue;
+          if (d > w.range && (s.ignoreUntil.get(o.id) ?? 0) > this.time) continue;
           if (d < bestD) {
             best = o;
             bestD = d;
@@ -230,14 +252,68 @@ export class CombatSystem implements GameSystem {
     // Hit back at whoever shot us recently, even from beyond our range.
     if (s.lastAttackerId !== null && this.time - s.lastAttackedAt < 6) {
       const a = this.entities.get(s.lastAttackerId);
-      if (a && a.alive && isHostile(s, a) && this.canHit(s, w, a) && !this.sheltered(a) && distanceTo(s.px, s.py, a) < w.range * RETALIATE_RANGE_FACTOR) return a;
+      if (a && a.alive && isHostile(s, a) && this.canHit(s, w, a) && !this.sheltered(a) && (s.ignoreUntil.get(a.id) ?? 0) <= this.time && distanceTo(s.px, s.py, a) < w.range * RETALIATE_RANGE_FACTOR) return a;
     }
     return undefined;
   }
 
+  /**
+   * Does `s` have to let the retreating `o` go (shoot only while in range, never chase)? Only for nations `o` was
+   * fighting: a nation that stayed out of that fight may attack a retreating unit passing by like any other enemy.
+   */
+  private protectedFrom(s: Unit, o: Unit): boolean {
+    if (!o.retreating) return false;
+    const at = o.fightingWith.get(s.owner);
+    return at !== undefined && this.time - at <= FIGHT_MEMORY_SECONDS;
+  }
+
+  /**
+   * A bomber's drop (BOMBS_PER_DROP bombs): a structure is destroyed outright (cities and airfields lose
+   * BOMB_TOUGH_DAMAGE of their max health instead); on troops the whole group around the impact is hit — a group
+   * smaller than BOMB_GROUP_SIZE is wiped out, a bigger one loses a third (nearest the impact first).
+   */
+  private dropBombs(s: Vehicle, t: Entity, impact: WorldPoint): void {
+    s.bombs = Math.max(0, s.bombs - BOMBS_PER_DROP); // the last bomb is dropped alone
+    const hit = (o: Entity, amount: number): void => {
+      o.damage(amount);
+      o.lastAttackerId = s.id;
+      o.lastAttackedAt = this.time;
+    };
+    if (t instanceof Building) {
+      hit(t, BOMB_TOUGH_STRUCTURES.includes(t.spec.type) ? t.maxHp * BOMB_TOUGH_DAMAGE : t.hp);
+      return;
+    }
+    const at = t instanceof Unit ? { x: t.px, y: t.py } : impact;
+    const group = this.entities
+      .fieldMovers()
+      .filter((o) => o.alive && !o.flies && isHostile(s, o) && !this.sheltered(o) && Math.hypot(o.px - at.x, o.py - at.y) <= BOMB_GROUP_RADIUS_CELLS * CELL_SIZE)
+      .sort((a, b) => Math.hypot(a.px - at.x, a.py - at.y) - Math.hypot(b.px - at.x, b.py - at.y));
+    const dead = group.length < BOMB_GROUP_SIZE ? group.length : Math.round(group.length / 3);
+    for (const o of group.slice(0, dead)) hit(o, o.hp);
+  }
+
   private fire(s: Unit, t: Entity, w: WeaponSpec): void {
     s.cooldown = w.cooldown;
+    s.fightingWith.set(t.owner, this.time);
+    if (t instanceof Unit) t.fightingWith.set(s.owner, this.time);
     const impact = this.impactPoint(t);
+    if (s instanceof Vehicle && s.type === 'bomber') {
+      this.dropBombs(s, t, impact);
+      s.engaged = true;
+      this.hooks.onFire(s, t, w, impact);
+      return;
+    }
+    if (s instanceof Vehicle && s.type === 'jet' && s.bombs > 0 && !(t instanceof Unit && t.flies)) {
+      // Fighter on a ground target with a bomb left: a tenth of a structure, 60% of a vehicle, a soldier dead.
+      // (Aircraft, and ground units once the bombs are gone, get the guns below.)
+      s.bombs--;
+      t.damage(t instanceof Building ? t.maxHp * JET_BOMB_VS_STRUCTURE : t instanceof Vehicle ? t.maxHp * JET_BOMB_VS_VEHICLE : t.hp);
+      t.lastAttackerId = s.id;
+      t.lastAttackedAt = this.time;
+      s.engaged = true;
+      this.hooks.onFire(s, t, { ...w, kind: 'bomb' }, impact);
+      return;
+    }
     const dmg = w.damage * (t instanceof Building ? w.vsBuilding : 1);
     t.damage(dmg);
     t.lastAttackerId = s.id;
@@ -267,6 +343,24 @@ export class CombatSystem implements GameSystem {
 
   /** Walks (or flies) towards the target until it is in range. */
   private chase(s: Unit, t: Entity, w: WeaponSpec): void {
+    // Ground vehicles never hunt a fleeing enemy far: CHASE_LIMIT_CELLS from where the chase began they give up and
+    // head back there on their own (an explicit order to attack that target is exempt).
+    if (s instanceof Vehicle && !s.aircraft && s.attackTarget === null) {
+      // The spot is kept while it switches from one target to the next: the limit counts from where the fighting began.
+      if (!s.chaseFrom) s.chaseFrom = { x: s.px, y: s.py, target: t.id };
+      const from = s.chaseFrom;
+      if (Math.hypot(s.px - from.x, s.py - from.y) > CHASE_LIMIT_CELLS * CELL_SIZE) {
+        s.ignoreUntil.set(t.id, this.time + CHASE_GIVE_UP_SECONDS);
+        s.chaseFrom = null;
+        s.combatTarget = null;
+        s.engaged = false;
+        s.chasing = false;
+        const back = this.pathfinder.nearestPassable(Math.floor(from.x / CELL_SIZE), Math.floor(from.y / CELL_SIZE), 6, undefined, s.swims);
+        if (back) s.follow(this.pathfinder.find({ x: s.px, y: s.py }, back, s.swims));
+        else s.stop();
+        return;
+      }
+    }
     if ((this.chaseAt.get(s.id) ?? 0) > this.time) return;
     this.chaseAt.set(s.id, this.time + CHASE_PERIOD);
     s.chasing = true;

@@ -4,6 +4,7 @@ import { SoundSystem } from './audio/SoundSystem';
 import { Game } from './core/Game';
 import { loadEarthData } from './map/EarthData';
 import { loadAircraftSprites } from './render/AircraftSheets';
+import { loadTankSprites } from './render/TankSheets';
 import { loadSoldierSprites } from './render/InfantryArt';
 import type { FactionId } from './types';
 import { FactionPicker } from './ui/FactionPicker';
@@ -36,6 +37,8 @@ async function boot(): Promise<void> {
   soldiers.catch(() => undefined);
   const aircraft = loadAircraftSprites();
   aircraft.catch(() => undefined);
+  const tanks = loadTankSprites();
+  tanks.catch(() => undefined);
 
   // Music starts on the faction picker: browsers only allow audio after the first click or key press.
   const sound = new SoundSystem();
@@ -56,6 +59,7 @@ async function boot(): Promise<void> {
     loading.hidden = false;
     await soldiers; // sidebar cameos and units draw from the GI sheet
     await aircraft;
+    await tanks;
     await nextPaint(); // let the loading screen paint before the heavy terrain bake
 
     const game = await Game.create(

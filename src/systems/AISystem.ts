@@ -1,4 +1,4 @@
-import { CELL_SIZE, MAX_ALLIES, NEUTRAL_OWNER } from '../constants';
+import { AVAILABLE_VEHICLES, CELL_SIZE, MAX_ALLIES, NEUTRAL_OWNER } from '../constants';
 import type { Building } from '../entities/Building';
 import type { Entity } from '../entities/Entity';
 import type { EntityManager } from '../entities/EntityManager';
@@ -533,7 +533,7 @@ export class AISystem implements GameSystem {
       if (q.items.length < depth && budget > (threat > 0 ? 500 : 700)) {
         // Pick the kind furthest below its share of the fleet, among those this base can build.
         const able = (k: VehicleKind): boolean =>
-          k === 'jet' ? owned.has('airfield') : k === 'ifv' ? owned.has('warFactory') && owned.has('techCenter') : owned.has('warFactory');
+          AVAILABLE_VEHICLES.includes(k) && (k === 'jet' ? owned.has('airfield') : k === 'ifv' ? owned.has('warFactory') && owned.has('techCenter') : owned.has('warFactory'));
         let kind: VehicleKind | null = null;
         let worst = Infinity;
         // Across the sea only aircraft (and what transports carry) reach the enemy: favour jets, keep transports.

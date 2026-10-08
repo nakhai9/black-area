@@ -35,7 +35,7 @@ export const RUSSIA: FactionConfig = {
     squatters: {
       name: 'Squatters',
       description: "Russian flag bearer and rifleman escort, moving as one: flown by transport to unclaimed land, they plant the national flag there (F key) — their mission done, they are gone.",
-      look: { uniform: '#2b3a32', trousers: '#212d27', headgear: 'balaclava', headColor: '#121212', weapon: 'rifle', camo: true, sprite: 'ruSpecial' },
+      look: { uniform: '#2b3a32', trousers: '#212d27', headgear: 'balaclava', headColor: '#121212', weapon: 'rifle', camo: true, sprite: 'ruSquatters' },
     },
   },
   vehicles: {
@@ -44,7 +44,7 @@ export const RUSSIA: FactionConfig = {
     ifv: { name: "BMP-3", description: "BMP-3 armoured fighting vehicle with a heavy autocannon." },
     jet: { name: "Su-57", description: "Su-57 stealth air superiority fighter." },
     transport: { name: "Il-76", description: "Il-76 military transport aircraft: carries soldiers and vehicles; unarmed." },
-    bomber: { name: "Tu-26", description: "Tu-26 supersonic strategic bomber, Russia only: heavy bombs that flatten ground forces and structures; cannot hit aircraft." },
+    bomber: { name: "Tu-16", description: "Tu-16 strategic bomber, Russia only: heavy bombs that flatten ground forces and structures; cannot hit aircraft." },
     tanker: { name: "Il-78", description: "Il-78 aerial tanker: flies escort behind its Il-76 and keeps it fuelled; unarmed." },
   },
 };

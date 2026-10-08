@@ -37,7 +37,7 @@ function vehicleOptions(faction: FactionId): VehicleOption[] {
 }
 
 export type VehicleQueueState = 'idle' | 'building' | 'onHold' | 'noFactory' | 'noAirfield' | 'noPower';
-export type VehicleEnqueueResult = 'ok' | 'full' | 'noFactory' | 'noAirfield' | 'noParking' | 'tech' | 'cap' | 'transportCap';
+export type VehicleEnqueueResult = 'ok' | 'full' | 'noFactory' | 'noAirfield' | 'noParking' | 'tech' | 'cap' | 'transportCap' | 'noCapital';
 
 export interface VehicleQueue {
   /** Waiting vehicles; the first one is in production. */
@@ -125,6 +125,7 @@ export class VehicleSystem implements GameSystem {
   }
 
   enqueue(player: PlayerState, kind: VehicleKind): VehicleEnqueueResult {
+    if (player.capitalLost) return 'noCapital';
     const q = this.queue(player);
     const missing = this.missingBuilding(player, kind);
     if (missing) return missing;
@@ -196,7 +197,7 @@ export class VehicleSystem implements GameSystem {
       const option = this.optionsFor(p).find((o) => o.kind === kind);
       if (!option) continue;
       const want = Math.min((option.cost / option.trainSeconds) * dt, option.cost - q.paid);
-      const pay = Math.max(0, Math.min(want, p.credits));
+      const pay = p.capitalLost ? 0 : Math.max(0, Math.min(want, p.credits));
       p.credits -= pay;
       q.paid += pay;
       q.progress = Math.min(1, q.paid / option.cost);

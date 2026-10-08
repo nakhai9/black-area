@@ -2,6 +2,7 @@ import { HALF_TW } from '../../constants';
 import { archPath, starPath } from '../Canvas';
 import { drawFlagOnPole, drawNationalPole } from '../Flags';
 import type { IsoPainter } from '../IsoPainter';
+import type { Allegiance } from '../../types';
 import type { BuildingArt } from './BuildingArt';
 
 const BRICK = '#a5372c';
@@ -138,90 +139,94 @@ function clockFace(ctx: CanvasRenderingContext2D, x: number, y: number): void {
  * two chapels, and the Spasskaya clock tower with its glowing red star at the
  * centre of the front wall.
  */
-export const MoscowKremlinArt: BuildingArt = {
-  footprint: { w: 4, d: ART_D },
-  // The capital sits on a 5 × 8 plot (FOOTPRINT_CAPITAL). The art below is authored in 4 × 6.4 units and drawn
-  // 1.25× to fill it: the palace itself keeps its square proportions in v 0…4, and the nation's own ceremonial
-  // approach fills v 4…6.4 in front of it.
-  scale: 5 / 4,
-  height: 104,
+/** The landmark with `flag` flying over it (its own nation's, until it is captured). */
+export function createMoscowKremlinArt(flag: Allegiance = 'russia'): BuildingArt {
+  return {
+    footprint: { w: 4, d: ART_D },
+    // The capital sits on a 5 × 8 plot (FOOTPRINT_CAPITAL). The art below is authored in 4 × 6.4 units and drawn
+    // 1.25× to fill it: the palace itself keeps its square proportions in v 0…4, and the nation's own ceremonial
+    // approach fills v 4…6.4 in front of it.
+    scale: 5 / 4,
+    height: 104,
 
-  drawStatic(p) {
-    p.box(0, 0, 4, ART_D, 0, 3, COBBLE);
+    drawStatic(p) {
+      p.box(0, 0, 4, ART_D, 0, 3, COBBLE);
 
-    // Back and side walls, corner towers (all mirrored about u = 2).
-    tower(p, 0.08, 0.08);
-    wall(p, 0.52, 0.2, 2.96, 0.2);
-    wall(p, 0.2, 0.52, 0.2, 2.96);
-    tower(p, 3.48, 0.08);
-    tower(p, 0.08, 3.48);
+      // Back and side walls, corner towers (all mirrored about u = 2).
+      tower(p, 0.08, 0.08);
+      wall(p, 0.52, 0.2, 2.96, 0.2);
+      wall(p, 0.2, 0.52, 0.2, 2.96);
+      tower(p, 3.48, 0.08);
+      tower(p, 0.08, 3.48);
 
-    // Grand Kremlin Palace across the back, centred.
-    p.box(0.8, 0.55, 2.4, 0.8, 3, 22, CREAM);
-    p.windows('left', 0.8, 0.55, 2.4, 0.8, 3, 22, 9, 3, GLASS);
-    p.windows('right', 0.8, 0.55, 2.4, 0.8, 3, 22, 3, 3, GLASS);
-    p.hipRoof(0.8, 0.55, 2.4, 0.8, 25, 9, 0.04, GREEN);
-    p.cylinder(2.0, 0.95, 0.13, 30, 6, CREAM);
-    p.dome(2.0, 0.95, 0.13, 36, 8, GREEN);
+      // Grand Kremlin Palace across the back, centred.
+      p.box(0.8, 0.55, 2.4, 0.8, 3, 22, CREAM);
+      p.windows('left', 0.8, 0.55, 2.4, 0.8, 3, 22, 9, 3, GLASS);
+      p.windows('right', 0.8, 0.55, 2.4, 0.8, 3, 22, 3, 3, GLASS);
+      p.hipRoof(0.8, 0.55, 2.4, 0.8, 25, 9, 0.04, GREEN);
+      p.cylinder(2.0, 0.95, 0.13, 30, 6, CREAM);
+      p.dome(2.0, 0.95, 0.13, 36, 8, GREEN);
 
-    // Left bell tower + chapel, central cathedral, right chapel + bell tower.
-    bellTower(p, 0.95, 2.2);
-    chapel(p, 0.95, 3.0);
+      // Left bell tower + chapel, central cathedral, right chapel + bell tower.
+      bellTower(p, 0.95, 2.2);
+      chapel(p, 0.95, 3.0);
 
-    p.box(1.5, 1.7, 1.0, 1.0, 3, 20, WHITE);
-    p.windows('left', 1.5, 1.7, 1.0, 1.0, 3, 20, 3, 2, GLASS, 0.15, 0.55);
-    p.windows('right', 1.5, 1.7, 1.0, 1.0, 3, 20, 3, 2, GLASS, 0.15, 0.55);
-    cupola(p, 1.65, 1.85, 0.11, 23, 22);
-    cupola(p, 2.35, 1.85, 0.11, 23, 22);
-    cupola(p, 2.0, 2.2, 0.16, 23, 30);
-    cupola(p, 1.65, 2.55, 0.11, 23, 22);
-    cupola(p, 2.35, 2.55, 0.11, 23, 22);
+      p.box(1.5, 1.7, 1.0, 1.0, 3, 20, WHITE);
+      p.windows('left', 1.5, 1.7, 1.0, 1.0, 3, 20, 3, 2, GLASS, 0.15, 0.55);
+      p.windows('right', 1.5, 1.7, 1.0, 1.0, 3, 20, 3, 2, GLASS, 0.15, 0.55);
+      cupola(p, 1.65, 1.85, 0.11, 23, 22);
+      cupola(p, 2.35, 1.85, 0.11, 23, 22);
+      cupola(p, 2.0, 2.2, 0.16, 23, 30);
+      cupola(p, 1.65, 2.55, 0.11, 23, 22);
+      cupola(p, 2.35, 2.55, 0.11, 23, 22);
 
-    bellTower(p, 3.05, 2.2);
-    chapel(p, 3.05, 3.0);
+      bellTower(p, 3.05, 2.2);
+      chapel(p, 3.05, 3.0);
 
-    // Right wall, then the front wall split around the central Spasskaya Tower.
-    wall(p, 3.6, 0.52, 0.2, 2.96);
-    wall(p, 0.52, 3.6, 1.18, 0.2);
-    wall(p, 2.3, 3.6, 1.18, 0.2);
+      // Right wall, then the front wall split around the central Spasskaya Tower.
+      wall(p, 3.6, 0.52, 0.2, 2.96);
+      wall(p, 0.52, 3.6, 1.18, 0.2);
+      wall(p, 2.3, 3.6, 1.18, 0.2);
 
-    p.box(1.75, 3.45, 0.5, 0.5, 3, 32, BRICK);
-    p.faceTransform('left', 1.75, 3.95, 3, (ctx) => {
-      ctx.fillStyle = DOOR;
-      archPath(ctx, 0.25 * HALF_TW, 6, 14);
+      p.box(1.75, 3.45, 0.5, 0.5, 3, 32, BRICK);
+      p.faceTransform('left', 1.75, 3.95, 3, (ctx) => {
+        ctx.fillStyle = DOOR;
+        archPath(ctx, 0.25 * HALF_TW, 6, 14);
+        ctx.fill();
+      });
+      p.box(1.72, 3.42, 0.56, 0.56, 35, 3, BRICK_CAP);
+      p.box(1.82, 3.52, 0.36, 0.36, 38, 14, BRICK);
+      p.faceTransform('left', 1.82, 3.88, 38, (ctx) => clockFace(ctx, 0.18 * HALF_TW, 7));
+      p.faceTransform('right', 2.18, 3.88, 38, (ctx) => clockFace(ctx, 0.18 * HALF_TW, 7));
+      p.box(1.8, 3.5, 0.4, 0.4, 52, 3, BRICK_CAP);
+      p.box(1.88, 3.58, 0.24, 0.24, 55, 9, '#d8cfbd');
+      p.pyramid(1.88, 3.58, 0.24, 0.24, 64, 30, SPIRE);
+
+      tower(p, 3.48, 3.48);
+
+      for (const [u, v] of FLAGS) drawNationalPole(p, flag, u, v, 3, FLAG_Z);
+
+      redSquare(p);
+    },
+
+    drawAnimated(p, time) {
+      // Glowing ruby star on the Spasskaya spire.
+      const [x, y] = p.project(SPIRE_TOP[0], SPIRE_TOP[1], SPIRE_TOP[2]);
+      const { ctx } = p;
+      ctx.save();
+      ctx.shadowColor = 'rgba(255,40,30,0.9)';
+      ctx.shadowBlur = 6 + Math.sin(time * 3) * 3;
+      ctx.fillStyle = '#e8261c';
+      ctx.strokeStyle = '#ffd36b';
+      ctx.lineWidth = 0.6;
+      ctx.beginPath();
+      starPath(ctx, x, y - 4, 4.5);
       ctx.fill();
-    });
-    p.box(1.72, 3.42, 0.56, 0.56, 35, 3, BRICK_CAP);
-    p.box(1.82, 3.52, 0.36, 0.36, 38, 14, BRICK);
-    p.faceTransform('left', 1.82, 3.88, 38, (ctx) => clockFace(ctx, 0.18 * HALF_TW, 7));
-    p.faceTransform('right', 2.18, 3.88, 38, (ctx) => clockFace(ctx, 0.18 * HALF_TW, 7));
-    p.box(1.8, 3.5, 0.4, 0.4, 52, 3, BRICK_CAP);
-    p.box(1.88, 3.58, 0.24, 0.24, 55, 9, '#d8cfbd');
-    p.pyramid(1.88, 3.58, 0.24, 0.24, 64, 30, SPIRE);
+      ctx.stroke();
+      ctx.restore();
 
-    tower(p, 3.48, 3.48);
-
-    for (const [u, v] of FLAGS) drawNationalPole(p, 'russia', u, v, 3, FLAG_Z);
-
-    redSquare(p);
-  },
-
-  drawAnimated(p, time) {
-    // Glowing ruby star on the Spasskaya spire.
-    const [x, y] = p.project(SPIRE_TOP[0], SPIRE_TOP[1], SPIRE_TOP[2]);
-    const { ctx } = p;
-    ctx.save();
-    ctx.shadowColor = 'rgba(255,40,30,0.9)';
-    ctx.shadowBlur = 6 + Math.sin(time * 3) * 3;
-    ctx.fillStyle = '#e8261c';
-    ctx.strokeStyle = '#ffd36b';
-    ctx.lineWidth = 0.6;
-    ctx.beginPath();
-    starPath(ctx, x, y - 4, 4.5);
-    ctx.fill();
-    ctx.stroke();
-    ctx.restore();
-
-    FLAGS.forEach(([u, v], i) => drawFlagOnPole(p, 'russia', u, v, 3 + FLAG_Z, time, 0.4 + i * 1.1, 18, 11));
-  },
-};
+      FLAGS.forEach(([u, v], i) => drawFlagOnPole(p, flag, u, v, 3 + FLAG_Z, time, 0.4 + i * 1.1, 18, 11));
+    },
+  };
+}
+export const MoscowKremlinArt: BuildingArt = createMoscowKremlinArt();

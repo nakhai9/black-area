@@ -100,6 +100,8 @@ export abstract class Unit extends Entity {
   attackMove: WorldPoint | null = null;
   /** Entity id the unit is currently shooting at (explicit, auto-acquired or retaliation). */
   combatTarget: number | null = null;
+  /** World heading to the current combat target (tank turrets track it); meaningful while `combatTarget` is set. */
+  aimHeading = 0;
   /** Time of the last acquire / chase update (throttling). */
   nextThink = 0;
   /** True while in a fight; used to trigger the battle cry once per engagement. */
@@ -110,6 +112,12 @@ export abstract class Unit extends Entity {
   retreating = false;
   /** Nations that already let this unit go during the current retreat (each is paid the mercy bonus once). */
   sparedBy = new Set<number>();
+  /** Nations this unit has traded fire with → combat time of the last shot. A retreat only protects it from these. */
+  fightingWith = new Map<number, number>();
+  /** Ground vehicles: where the current chase started (and of whom); the chase is dropped CHASE_LIMIT_CELLS from here. */
+  chaseFrom: { x: number; y: number; target: number } | null = null;
+  /** Targets this unit gave up chasing → combat time until which it leaves them alone (unless they come into range). */
+  ignoreUntil = new Map<number, number>();
   /** Units ordered to fall back together share this number: the mercy bonus is paid once per group, not per unit. */
   retreatGroup = 0;
 
