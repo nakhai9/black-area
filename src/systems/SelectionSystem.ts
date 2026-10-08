@@ -16,8 +16,16 @@ function bodyLift(u: Unit): number {
 /** Tankers fly escort on their own: they are never picked or selected. */
 const isEscort = (u: Unit): boolean => (u as { isTanker?: boolean }).isTanker === true;
 
-/** Pick radius around a soldier's body (world px). */
+/** Smallest pick radius of an aircraft (iso px). */
 const UNIT_PICK_RADIUS = 3.5;
+/** A soldier's clickable figure (iso px): half its width, how far below the feet and how high above them. */
+const SOLDIER_PICK_HALF_W = 1.3;
+const SOLDIER_PICK_BELOW = 0.4;
+const SOLDIER_PICK_HEIGHT = 4.6;
+/** Units at least this big (world px radius) are vehicles; their hull is clickable within these radius factors. */
+const VEHICLE_RADIUS = 3;
+const VEHICLE_PICK_X = 0.75;
+const VEHICLE_PICK_Y = 0.5;
 
 export class SelectionSystem {
   selectedId: number | null = null;
@@ -48,20 +56,37 @@ export class SelectionSystem {
     return null;
   }
 
-  /** Closest living soldier whose body is under `world`. */
+  /**
+   * The unit whose drawn body is under `world` (front-most when several overlap). Only a click on the body itself
+   * counts — a soldier's figure, a vehicle's hull — not the ground around it. Aircraft stay big targets.
+   */
   pickUnit(world: WorldPoint): Unit | null {
     let best: Unit | null = null;
-    let bestScore = Infinity;
+    let bestY = -Infinity;
     const m = worldToIso(world.x, world.y);
     for (const u of this.entities.fieldMovers()) {
       if (!u.alive || isEscort(u)) continue;
       const iso = worldToIso(u.px, u.py);
-      // Aircraft (even parked on the airfield) are big targets: clicking the plane selects it, no sweep needed.
-      const reach = Math.max(UNIT_PICK_RADIUS, u.radius * (u.aircraft ? 2.8 : 1.8));
-      const d = Math.hypot(m.x - iso.x, m.y - (iso.y - bodyLift(u)));
-      if (d < reach && d / reach < bestScore) {
+      const dx = Math.abs(m.x - iso.x);
+      let hit: boolean;
+      if (u.aircraft) {
+        // Clicking the plane (even parked on the airfield) selects it.
+        const reach = Math.max(UNIT_PICK_RADIUS, u.radius * 2.8);
+        hit = Math.hypot(m.x - iso.x, m.y - (iso.y - bodyLift(u))) < reach;
+      } else if (u.radius >= VEHICLE_RADIUS) {
+        // Ground vehicle: its hull, an ellipse a little wider than tall around the body centre.
+        const rx = u.radius * VEHICLE_PICK_X;
+        const ry = u.radius * VEHICLE_PICK_Y;
+        const dy = m.y - (iso.y - u.bodyHeight * 0.5);
+        hit = (dx / rx) ** 2 + (dy / ry) ** 2 <= 1;
+      } else {
+        // Soldier: the standing figure, from the feet up to the head.
+        hit = dx <= SOLDIER_PICK_HALF_W && m.y <= iso.y + SOLDIER_PICK_BELOW && m.y >= iso.y - SOLDIER_PICK_HEIGHT;
+      }
+      // Overlapping units: the one drawn in front (lower on screen) wins.
+      if (hit && iso.y > bestY) {
         best = u;
-        bestScore = d / reach;
+        bestY = iso.y;
       }
     }
     return best;
