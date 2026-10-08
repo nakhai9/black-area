@@ -12,15 +12,16 @@ const PAINT = '#ecebe3';
 const TAXI = '#d6c24a';
 const TANK = '#bfc3c8';
 
-/** The airfield covers 12×6 tiles (the footprint in constants.ts must match). */
-export const AIRFIELD_SIZE = { w: 12, d: 6 } as const;
+/** The airfield covers 12×8 tiles (the footprint in constants.ts must match). */
+export const AIRFIELD_SIZE = { w: 12, d: 8 } as const;
 const W = AIRFIELD_SIZE.w;
 const D = AIRFIELD_SIZE.d;
 /** The runway occupies the back strip v ∈ [0, RUNWAY_D]; its centre line is v = RUNWAY_D / 2. */
 export const RUNWAY_D = 1.6;
 const ROW_1 = 3.1;
 const ROW_2 = 4.95;
-/** Six parking spots on the apron, two rows of three (tile coordinates, mirror-symmetric about u = 6). */
+const ROW_3 = 6.8;
+/** Nine parking spots on the apron, three rows of three (tile coordinates, mirror-symmetric about u = 6). */
 export const AIRFIELD_SLOTS: readonly (readonly [number, number])[] = [
   [2, ROW_1],
   [6, ROW_1],
@@ -28,6 +29,9 @@ export const AIRFIELD_SLOTS: readonly (readonly [number, number])[] = [
   [2, ROW_2],
   [6, ROW_2],
   [10, ROW_2],
+  [2, ROW_3],
+  [6, ROW_3],
+  [10, ROW_3],
 ];
 const LIGHTS_U: number[] = [];
 for (let u = 0.15; u < W; u += 1.1) LIGHTS_U.push(u);
@@ -42,9 +46,9 @@ function outline(p: IsoPainter, u0: number, v0: number, u1: number, v1: number):
 }
 
 /**
- * Airfield (12×6 tiles, mirror-symmetric about its centre line): a long runway along the
- * back, and below it an apron that fills the rest of the block with six marked parking spots
- * in two rows (the fighters are real units), a control tower beside the runway, and fuel
+ * Airfield (12×8 tiles, mirror-symmetric about its centre line): a long runway along the
+ * back, and below it an apron that fills the rest of the block with nine marked parking spots
+ * in three rows (the fighters are real units), a control tower beside the runway, and fuel
  * tanks and service lanes at both ends. Aircraft that return here are repaired.
  */
 export function createAirfieldArt(faction: FactionId): BuildingArt {
@@ -72,10 +76,11 @@ export function createAirfieldArt(faction: FactionId): BuildingArt {
       // Taxi lanes: one above each row of parking spots, joined at both ends.
       const laneA = 2.4;
       const laneB = 4.1;
-      for (const v of [laneA, laneB]) p.topRect(0.5, v - 0.04, W - 0.5, v + 0.04, 2.2, TAXI);
-      for (const u of [0.5, W - 0.5]) p.topRect(u - 0.04, laneA, u + 0.04, laneB, 2.2, TAXI);
+      const laneC = 5.95;
+      for (const v of [laneA, laneB, laneC]) p.topRect(0.5, v - 0.04, W - 0.5, v + 0.04, 2.2, TAXI);
+      for (const u of [0.5, W - 0.5]) p.topRect(u - 0.04, laneA, u + 0.04, laneC, 2.2, TAXI);
       for (const [u, v] of AIRFIELD_SLOTS) {
-        const lane = v < 4 ? laneA : laneB;
+        const lane = v < 4 ? laneA : v < 5.5 ? laneB : laneC;
         p.topRect(u - 0.04, lane, u + 0.04, v - 0.45, 2.2, TAXI);
         outline(p, u - 1.25, v - 0.45, u + 1.25, v + 0.42);
       }

@@ -3,6 +3,9 @@ import { movesRight } from '../core/IsoView';
 import type { Allegiance, WeaponSpec, WorldPoint } from '../types';
 import { Entity } from './Entity';
 
+/** Seconds a unit stays blocked (re-routes included) before it gives up and stops. */
+const BLOCKED_GIVE_UP = 4;
+
 /** A standing order with a building as its target. */
 export interface UnitTask {
   type: 'enter' | 'repair' | 'capture';
@@ -67,6 +70,8 @@ export abstract class Unit extends Entity {
   /** 0..1 share of full speed currently reached. */
   protected speedRatio = 0;
   private stuckFor = 0;
+  /** Seconds spent blocked since it last made real progress (kept across re-routes): too long and it gives up. */
+  private blockedFor = 0;
   private lastX: number;
   private lastY: number;
 
@@ -173,6 +178,7 @@ export abstract class Unit extends Entity {
   }
 
   stop(): void {
+    this.blockedFor = 0;
     this.path = [];
     this.destination = null;
     this.needsRepath = false;
@@ -247,7 +253,15 @@ export abstract class Unit extends Entity {
       return;
     }
     const expected = this.speed * this.terrainFactor * dt;
-    this.stuckFor = moved < expected * 0.2 ? this.stuckFor + dt : Math.max(0, this.stuckFor - dt * 2);
+    const blocked = moved < expected * 0.2;
+    this.stuckFor = blocked ? this.stuckFor + dt : Math.max(0, this.stuckFor - dt * 2);
+    this.blockedFor = blocked ? this.blockedFor + dt : Math.max(0, this.blockedFor - dt * 2);
+    // Something stands in the way and re-routing did not help: stop where it is instead of pushing on.
+    if (this.blockedFor > BLOCKED_GIVE_UP) {
+      this.stop();
+      this.stuckFor = 0;
+      return;
+    }
     const goal = this.path[this.path.length - 1];
     const toEnd = goal ? Math.hypot(goal.x - this.px, goal.y - this.py) : 0;
     if (this.stuckFor > 0.7 && toEnd < Math.max(7, this.radius * 3)) {

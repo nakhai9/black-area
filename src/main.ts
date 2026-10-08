@@ -1,5 +1,5 @@
 import './styles.css';
-import { EARTH_TEXTURE_URL, FACTION_ORDER } from './constants';
+import { DEMO_MODE, EARTH_TEXTURE_URL, FACTION_ORDER } from './constants';
 import { SoundSystem } from './audio/SoundSystem';
 import { Game } from './core/Game';
 import { loadEarthData } from './map/EarthData';
@@ -48,7 +48,9 @@ async function boot(): Promise<void> {
     const preset = params.get('faction');
     const { faction, demo } = (FACTION_ORDER as readonly string[]).includes(preset ?? '')
       ? { faction: preset as FactionId, demo: false }
-      : await new FactionPicker(document.body).choose();
+      : DEMO_MODE
+        ? { faction: 'russia' as FactionId, demo: true } // DEMO_MODE: straight into a demo game as Russia
+        : await new FactionPicker(document.body).choose();
 
     loading.textContent = 'Generating Earth…';
     loading.hidden = false;

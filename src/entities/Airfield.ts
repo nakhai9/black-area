@@ -2,7 +2,7 @@ import { FOOTPRINT_AIRFIELD } from '../constants';
 import type { FactionId, WorldPoint } from '../types';
 import { Building } from './Building';
 
-/** Airfield: 12×6 cells with six parking spots; aircraft that land here are repaired. */
+/** Airfield: 12×8 cells with nine parking spots; aircraft that land here are repaired. */
 export class Airfield extends Building {
   constructor(owner: number, faction: FactionId, center: WorldPoint) {
     super(owner, faction, center, {

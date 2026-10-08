@@ -62,6 +62,8 @@ export interface RenderScene {
   readonly focus?: readonly FocusTarget[];
   /** Last move order (world px) and when it was given, for the RA2-style marker. */
   readonly moveMarker?: { x: number; y: number; at: number } | null;
+  /** A right-clicked moving unit whose line to its destination is shown even when it is not selected. */
+  readonly pathPeekId?: number | null;
   /** Waypoint mode: the route being plotted (first point = the selection, then the clicked points). */
   readonly waypointPlan?: readonly { x: number; y: number }[] | null;
 }
@@ -127,6 +129,7 @@ export class Renderer {
   private readonly visibleUnits: Unit[] = [];
   private readonly drawables: (Building | Unit)[] = [];
   private readonly focusedIds = new Set<number>();
+  private readonly unitDepth = new Map<number, number>();
   private dpr = 1;
   private vignette: CanvasGradient | null = null;
 
@@ -216,7 +219,6 @@ export class Renderer {
     units.length = 0;
     for (const u of scene.units ?? []) if (onScreen(u.px, u.py)) units.push(u);
     const selUnits = scene.selectedUnits ?? new Set<number>();
-    for (const u of units) if (selUnits.has(u.id)) this.drawOrderLine(u, scene.time);
     for (const u of units) if (selUnits.has(u.id)) this.drawUnitRing(u, '#5cff6a');
     const hovered = units.find((u) => u.id === scene.hoveredUnitId);
     if (hovered && !selUnits.has(hovered.id)) this.drawUnitRing(hovered, 'rgba(255,255,255,0.6)');
@@ -230,11 +232,21 @@ export class Renderer {
     drawables.length = 0;
     for (const b of sorted) drawables.push(b);
     for (const u of units) if (!u.flies) drawables.push(u);
-    drawables.sort(byDepth);
+    // A unit beside a big structure is ordered against the structure's edges, not its centre:
+    // in front of the near edge it is drawn after it, behind the far edge before it.
+    const unitDepth = this.unitDepth;
+    unitDepth.clear();
+    for (const u of units) if (!u.flies) unitDepth.set(u.id, this.depthNear(u, sorted));
+    const depthOf = (d: Building | Unit): number => (d.kind === 'building' ? d.depth : (unitDepth.get(d.id) ?? d.depth));
+    drawables.sort((a, b) => depthOf(a) - depthOf(b));
     for (const d of drawables) {
       if (d.kind === 'building') this.drawBuilding(d, scene.time);
       else this.drawUnit(d);
     }
+    // Order lines go over the structures (a route across a base must not vanish under it), under the aircraft.
+    this.ground();
+    for (const u of units) if (selUnits.has(u.id) || u.id === scene.pathPeekId) this.drawOrderLine(u, scene.time);
+    this.upright();
     // Aircraft fly above everything on the ground.
     for (const u of units) if (u.flies) this.drawUnit(u);
     if (scene.ghost) this.drawGhost(scene.ghost);
@@ -275,6 +287,24 @@ export class Renderer {
       ctx.fillStyle = this.vignette;
       ctx.fillRect(0, 0, camera.viewWidth, camera.viewHeight);
     }
+  }
+
+  /** Draw depth of a ground unit, adjusted so the ground slab of a nearby structure never covers it. */
+  private depthNear(u: Unit, buildings: readonly Building[]): number {
+    let depth = u.depth;
+    if (u instanceof Vehicle && u.drawDepth !== null && u.fixed) return depth; // on its airfield: already placed
+    const cx = u.px / CELL_SIZE;
+    const cy = u.py / CELL_SIZE;
+    const r = u.radius / CELL_SIZE;
+    for (const b of buildings) {
+      if (cx < b.x - 3 || cy < b.y - 3 || cx > b.x + b.w + 3 || cy > b.y + b.d + 3) continue;
+      // Behind only when wholly past the far edges; anything else (touching or overlapping the near edges) is in front.
+      const behind = cx + r <= b.x || cy + r <= b.y;
+      const inFront = !behind;
+      if (inFront && depth <= b.depth) depth = b.depth + 0.01;
+      else if (behind && depth >= b.depth) depth = b.depth - 0.01;
+    }
+    return depth;
   }
 
   private sprite(b: Building): Sprite {

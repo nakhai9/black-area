@@ -72,7 +72,7 @@ export interface CapitalSpec {
 
 // ---------------------------------------------------------------- Weapons
 
-export type WeaponKind = 'rifle' | 'smg' | 'sniper' | 'mg' | 'cannon' | 'autocannon' | 'missile';
+export type WeaponKind = 'rifle' | 'smg' | 'sniper' | 'mg' | 'cannon' | 'autocannon' | 'missile' | 'bomb';
 
 export interface WeaponSpec {
   kind: WeaponKind;
@@ -92,7 +92,8 @@ export interface WeaponSpec {
 // ---------------------------------------------------------------- Vehicles
 
 /** Light car, main battle tank, armoured vehicle (IFV) and fighter aircraft. */
-export type VehicleKind = 'light' | 'tank' | 'ifv' | 'jet' | 'transport' | 'tanker';
+/** `bomber` is a national special: only nations that list it in their `vehicles` can build it (Russia's Tu-26, the USA's B-52). */
+export type VehicleKind = 'light' | 'tank' | 'ifv' | 'jet' | 'transport' | 'tanker' | 'bomber';
 
 export interface VehicleProfile {
   name: string;
@@ -140,7 +141,7 @@ export interface FactionConfig {
   /** Ground forces trained at the Barracks. */
   infantry: Readonly<Record<UnitTier, InfantryProfile>>;
   /** Vehicles (War Factory) and aircraft (Airfield). */
-  vehicles: Readonly<Record<VehicleKind, VehicleProfile>>;
+  vehicles: Readonly<Record<Exclude<VehicleKind, 'bomber'>, VehicleProfile>> & { readonly bomber?: VehicleProfile };
 }
 
 // ---------------------------------------------------------------- Players & buildings

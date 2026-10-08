@@ -44,6 +44,7 @@ export const USA: FactionConfig = {
     ifv: { name: "Bradley", description: "M2 Bradley armoured fighting vehicle for infantry support." },
     jet: { name: "F-35", description: "F-35 Lightning II stealth multirole fighter." },
     transport: { name: "C-17", description: "Heavy transport aircraft: carries soldiers and vehicles; unarmed." },
+    bomber: { name: "B-52", description: "B-52 Stratofortress long-range heavy bomber, USA only: heavy bombs that flatten ground forces and structures; cannot hit aircraft." },
     tanker: { name: "KC-46", description: "KC-46 Pegasus aerial tanker: flies escort behind its C-17 and keeps it fuelled; unarmed." },
   },
 };

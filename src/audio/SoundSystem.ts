@@ -149,6 +149,9 @@ export class SoundSystem {
         this.burst(vol * 0.8, 0.55, 'lowpass', 600 * jitter, 0.7);
         this.thump(vol * 0.9, 55, 0.4);
         break;
+      case 'bomb':
+        this.burst(vol * 0.95, 1.0, 'lowpass', 380 * jitter, 0.6);
+        break;
       case 'missile':
         this.sweep(vol * 0.55, 0.7);
         break;

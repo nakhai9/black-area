@@ -39,6 +39,7 @@ const HANDLING: Readonly<Record<VehicleKind, { accel: number; turn: number; pivo
   jet: { accel: 0.6, turn: 2.2, pivot: false },
   transport: { accel: 0.9, turn: 1.6, pivot: false },
   tanker: { accel: 0.8, turn: 2.2, pivot: false },
+  bomber: { accel: 1.0, turn: 1.4, pivot: false },
 };
 
 /** Can `soldiers` soldiers and `vehicles` vehicles travel together in one transport? */
@@ -110,7 +111,7 @@ export class Vehicle extends Unit {
     const f = FACTIONS[faction];
     const base = VEHICLE_BASE[type];
     super(owner, faction, at, Math.round(base.maxHp * f.stats.armor));
-    this.profile = f.vehicles[type];
+    this.profile = (type === 'bomber' ? f.vehicles.bomber : f.vehicles[type]) ?? { name: type, description: '' };
     this.speed = base.speed * f.stats.unitSpeed * CELL_SIZE;
     this.radius = base.radius;
     this.value = Math.round((base.cost * f.stats.cost) / 10) * 10;

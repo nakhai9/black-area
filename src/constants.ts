@@ -9,6 +9,9 @@ import type {
   WeaponSpec,
 } from "./types";
 
+/** DEMO: skip the faction screen and start a solo test game as Russia (no AI opponents). Set to false for production. */
+export const DEMO_MODE = false;
+
 // ---------------------------------------------------------------- World (real Earth)
 /** Packed Earth texture built by `npm run build:earth` (see scripts/build-earth.mjs). */
 export const EARTH_TEXTURE_URL = `${import.meta.env.BASE_URL}data/earth.png`;
@@ -72,8 +75,8 @@ export const FOOTPRINT_FLAGPOLE = { w: 1, d: 1 } as const;
  * authored in 4 × 6.4 units and drawn 1.25× to fill the plot.
  */
 export const FOOTPRINT_CAPITAL = { w: 5, d: 8 } as const;
-/** Airfield: a long runway + an apron with six parking spots, 12×6 tiles. */
-export const FOOTPRINT_AIRFIELD = { w: 12, d: 6 } as const;
+/** Airfield: a long runway + an apron with nine parking spots, 12×8 tiles. */
+export const FOOTPRINT_AIRFIELD = { w: 12, d: 8 } as const;
 /** Happy City: a whole city block, 8×8 tiles. */
 export const FOOTPRINT_CITY = { w: 8, d: 8 } as const;
 
@@ -229,6 +232,15 @@ export const WEAPONS: Readonly<Record<WeaponKind, WeaponSpec>> = {
     hitsAir: true,
     splash: 0,
   },
+  bomb: {
+    kind: "bomb",
+    damage: 140,
+    range: 14,
+    cooldown: 3.2,
+    vsBuilding: 2.2,
+    hitsAir: false,
+    splash: 10,
+  },
   missile: {
     kind: "missile",
     damage: 45,
@@ -247,6 +259,7 @@ export const VEHICLE_WEAPON: Readonly<
   tank: "cannon",
   ifv: "autocannon",
   jet: "missile",
+  bomber: "bomb",
 };
 /** Soldiers only shoot at enemies within this many cells (vehicles keep their own, longer ranges). */
 export const INFANTRY_MAX_RANGE_CELLS = 3;
@@ -277,6 +290,8 @@ export const VEHICLE_BASE = {
     speed: 5.5,
     radius: 3.6,
   },
+  /** National heavy bomber (Russia's Tu-26, the USA's B-52; no other nation has one): slow, tough, flattens ground targets and structures; cannot hit aircraft. */
+  bomber: { cost: 2600, trainSeconds: 22, maxHp: 380, speed: 6.5, radius: 3.8 },
   /** Aerial refueler: never sold on its own — every transport comes with one that flies escort and keeps it fuelled. */
   tanker: { cost: 0, trainSeconds: 0, maxHp: 160, speed: 6, radius: 3.2 },
 } as const;
@@ -295,7 +310,10 @@ export const TANKER_ESCORT_DISTANCE = 50 * TRANSPORT_LENGTH;
 
 /** Aircraft are built at the Airfield and use its runway; everything else rolls out of the War Factory. */
 export const isAircraftKind = (kind: VehicleKind): boolean =>
-  kind === "jet" || kind === "transport" || kind === "tanker";
+  kind === "jet" ||
+  kind === "transport" ||
+  kind === "tanker" ||
+  kind === "bomber";
 
 /**
  * Temporary: only these vehicles can be produced (sidebar and AI). The rest stay in the code but are
@@ -305,6 +323,7 @@ export const AVAILABLE_VEHICLES: readonly VehicleKind[] = [
   "tank",
   "ifv",
   "jet",
+  "bomber",
   "transport",
 ];
 
@@ -467,8 +486,6 @@ export const BUILDING_VALUE: Readonly<Partial<Record<BuildingType, number>>> = {
 /** Waypoint mode (Z): most points a route may have. */
 export const MAX_WAYPOINTS = 5;
 
-/** DEMO button on the faction screen (solo test, no AI opponents). Set to false for production. */
-export const DEMO_MODE = true;
 /** In a DEMO game every structure, soldier and vehicle costs this much. */
 export const DEMO_PRICE = 100;
 /** In a DEMO game finances are off: the budget (and oil stock) is held at this amount all the time. */

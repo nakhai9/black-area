@@ -20,14 +20,15 @@ export interface VehicleOption {
   needsAirfield: boolean;
 }
 
-const KINDS: readonly VehicleKind[] = ['light', 'tank', 'ifv', 'jet', 'transport'];
+const KINDS: readonly VehicleKind[] = ['light', 'tank', 'ifv', 'jet', 'bomber', 'transport'];
 
 function vehicleOptions(faction: FactionId): VehicleOption[] {
   const f = FACTIONS[faction];
-  return KINDS.filter((kind) => AVAILABLE_VEHICLES.includes(kind)).map((kind) => ({
+  // National specials (the bomber) are offered only to the nations that list them.
+  return KINDS.filter((kind) => AVAILABLE_VEHICLES.includes(kind) && f.vehicles[kind as keyof typeof f.vehicles]).map((kind) => ({
     kind,
-    name: f.vehicles[kind].name,
-    description: f.vehicles[kind].description,
+    name: f.vehicles[kind as keyof typeof f.vehicles]?.name ?? kind,
+    description: f.vehicles[kind as keyof typeof f.vehicles]?.description ?? '',
     cost: demoPrice(Math.round((VEHICLE_BASE[kind].cost * f.stats.cost) / 10) * 10),
     trainSeconds: VEHICLE_BASE[kind].trainSeconds + f.stats.trainDelay,
     requires: isAircraftKind(kind) ? 'airfield' : 'warFactory',

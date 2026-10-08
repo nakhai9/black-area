@@ -7,7 +7,7 @@ import type { GameSystem } from './GameSystem';
 
 /** Layout of an airfield in world px (derived from its sprite, scale and rotation). */
 export interface AirfieldGeometry {
-  /** Parking spots on the apron, numbered I…VI (index 0…5) in this order; not shown on screen. */
+  /** Parking spots on the apron, numbered I…IX (index 0…8) in this order; not shown on screen. */
   slots: readonly WorldPoint[];
   /** Ends of the runway centre line; take-off rolls from start towards end. */
   runwayStart: WorldPoint;
@@ -18,7 +18,7 @@ export interface AirfieldGeometry {
   approach: WorldPoint;
 }
 
-export const PARKING_SLOTS = 6;
+export const PARKING_SLOTS = 9;
 /** Spots per apron row; within a row the next spot lies ahead (towards the runway end). */
 const SLOTS_PER_ROW = 3;
 const TAXI_SPEED = 11;
