@@ -80,6 +80,8 @@ export interface SidebarModel {
   /** Barrels above the 1.0 reserve that may be offered, and seconds until the sale pause (after 6 sales in a row) ends. */
   sellable: number;
   salesWait: number;
+  /** Auto sell is on: the oil is offered whenever a sale is allowed. */
+  autoSell: boolean;
   /** The player leads the oil cartel: its production policy, and seconds until it may change again. */
   cartel: boolean;
   oilPolicy: OilPolicy;
@@ -134,6 +136,8 @@ export interface SidebarHandlers {
   trainPreview: (option: TrainOption) => HTMLCanvasElement;
   /** The Sell oil button: offer the stock to the Global Financial Center. */
   onSellOil: () => void;
+  /** The Auto sell button: turn automatic oil sales on / off. */
+  onToggleAutoSell: () => void;
   /** The Emergency loan button: borrow from the Global Financial Center (only at 0 TB). */
   onLoan: () => void;
   /** A cartel policy button (oil-cartel nation only). */
@@ -172,6 +176,7 @@ export class Sidebar {
   private readonly sellButton: HTMLButtonElement;
   private readonly debt: HTMLElement;
   private readonly loanButton: HTMLButtonElement;
+  private readonly autoSellButton: HTMLButtonElement;
   private readonly cartelPanel: HTMLElement;
   private readonly policyText: HTMLElement;
   private readonly policyButtons: HTMLButtonElement[];
@@ -252,6 +257,7 @@ export class Sidebar {
         <div class="sb-oil">DERRICKS <span class="sb-derricks"></span></div>
         <div class="sb-actions">
           <button class="sb-sell" type="button" title="Offer your oil to the Global Financial Center: it decides whether and how much to buy (at most 25% per sale) and pays the posted price into your budget">Sell oil</button>
+          <button class="sb-sell sb-auto" type="button" title="Auto sell: offer your oil to the Global Financial Center automatically whenever a sale is allowed">Auto sell: OFF</button>
           <button class="sb-sell sb-loan" type="button" title="Emergency loan from the Global Financial Center (only when your budget is 0 ${CURRENCY}). Oil sales pay the debt back automatically.">Emergency loan</button>
         </div>
         <div class="sb-cartel" hidden>
@@ -286,7 +292,7 @@ export class Sidebar {
           <li>Armed units: <kbd>Left-click</kbd> an enemy to attack — they never shoot buildings on their own, <kbd>Left-click</kbd> the building to focus it · enemy engineers capture buildings · <kbd>M</kbd> sound on/off</li>
           <li>Elite (type II) soldiers: at most 2 for every 3 regulars · orders: up to 15 soldiers and 10 vehicles waiting at once — a new one the moment one is done, whatever your army size · special forces swim · tanks run soldiers over · only aircraft shoot aircraft</li>
           <li>Transport: select soldiers/vehicles, <kbd>Left-click</kbd> your transport to board (one in the air lands first) · select the transport, <kbd>Left-click</kbd> ground — it flies there, lands and unloads · <kbd>U</kbd>/<b>Unload</b> — let them out here, one by one</li>
-          <li>Squatters (flag bearer + escort, one unit): fly it by transport to unclaimed land (not your rivals' home lands, never Antarctica), select it, <kbd>F</kbd> — plant the flag (the Squatters are gone once it stands) · then build an <b>Allied Building</b> beside it (max 3 allies)</li>
+          <li>Squatters (flag bearer + escort, one unit): walk it (or fly it by transport) to unclaimed land (not your rivals' home lands, never Antarctica), select it, <kbd>F</kbd> — plant the flag (the Squatters are gone once it stands) · then build an <b>Allied Building</b> beside it (max 3 allies)</li>
           <li>When <b>READY</b>: click cameo, then click the map to place · <kbd>R</kbd> turn it 90° · <kbd>Esc</kbd>/<kbd>Right-click</kbd> stop placing</li>
           <li><kbd>WASD</kbd>/<kbd>Arrows</kbd>/screen edge — scroll · <kbd>Wheel</kbd> zoom · <kbd>Middle-drag</kbd> pan</li>
           <li><kbd>Click</kbd> select · <kbd>1</kbd>–<kbd>5</kbd> landmarks · <kbd>O</kbd> oil · <kbd>H</kbd> home · <kbd>Tab</kbd> sidebar</li>
@@ -336,6 +342,8 @@ export class Sidebar {
     this.price = q('.sb-price');
     this.sellButton = q('.sb-sell');
     this.sellButton.addEventListener('click', () => this.handlers.onSellOil());
+    this.autoSellButton = q<HTMLButtonElement>('.sb-auto');
+    this.autoSellButton.addEventListener('click', () => this.handlers.onToggleAutoSell());
     this.debt = q('.sb-debt');
     this.loanButton = q<HTMLButtonElement>('.sb-loan');
     this.loanButton.addEventListener('click', () => this.handlers.onLoan());
@@ -461,6 +469,8 @@ export class Sidebar {
     this.renderPrices(model);
     this.sellButton.disabled = player.defeated || model.sellable < MIN_SALE_STOCK || model.salesWait > 0;
     this.sellButton.textContent = model.salesWait > 0 ? `Sell oil · wait ${model.salesWait} s` : 'Sell oil';
+    this.autoSellButton.textContent = model.autoSell ? 'Auto sell: ON' : 'Auto sell: OFF';
+    this.autoSellButton.classList.toggle('on', model.autoSell);
     this.debt.textContent = `${Math.ceil(player.debt).toLocaleString('en-US')} / ${model.creditLine.toLocaleString('en-US')} ${CURRENCY}`;
     this.loanButton.disabled = model.loanBlocker !== null;
     this.loanButton.title =

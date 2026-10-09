@@ -1300,3 +1300,8 @@ details.sb-help[open] > summary {
   width: 40px;
   height: 24px;
 }
+.sb-auto.on {
+  background: linear-gradient(#2f6a1e, #1c4211);
+  border-color: #6fbf4a;
+  color: #d8ffc4;
+}

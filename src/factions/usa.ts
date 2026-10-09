@@ -34,7 +34,7 @@ export const USA: FactionConfig = {
     },
     squatters: {
       name: 'Squatters',
-      description: "U.S. flag bearer and rifleman escort, moving as one: flown by transport to unclaimed land, they plant the national flag there (F key) — their mission done, they are gone.",
+      description: "U.S. flag bearer and rifleman escort, moving as one: sent on foot or by transport to unclaimed land, they plant the national flag there (F key) — their mission done, they are gone.",
       look: { uniform: '#7d8083', trousers: '#5f6265', headgear: 'boonie', headColor: '#6e7275', weapon: 'rifle', camo: true, sprite: 'usSquatters' },
     },
   },

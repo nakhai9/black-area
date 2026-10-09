@@ -103,7 +103,7 @@ import { AIRFIELD_SLOTS, RUNWAY_D, AIRFIELD_SIZE } from '../render/sprites/Airfi
 import { AircraftSystem, type AirfieldGeometry } from '../systems/AircraftSystem';
 import { AISystem } from '../systems/AISystem';
 import { canTarget, CombatSystem, distanceTo, isHostile } from '../systems/CombatSystem';
-import { OilMarket } from '../systems/OilMarket';
+import { MIN_SALE_STOCK, OilMarket } from '../systems/OilMarket';
 import { TaxSystem } from '../systems/TaxSystem';
 import { EndScreen } from '../ui/EndScreen';
 import { PauseMenu } from '../ui/PauseMenu';
@@ -272,6 +272,8 @@ export class Game {
   private militarySnapshot: Map<number, number> | null = null;
   private militarySnapshotAt = 0;
   private sidebarTimer = SIDEBAR_REFRESH; // refresh on the first frame
+  /** Auto sell toggle: offer the oil stock whenever the market allows a sale. */
+  private autoSellOil = false;
 
   /**
    * Builds the game for the chosen faction. Pass an already-started Earth
@@ -431,6 +433,11 @@ export class Game {
         if (!this.paused) this.camera.centerOn(at.x, at.y);
       },
       onSellOil: () => this.sellOil(),
+      onToggleAutoSell: () => {
+        this.autoSellOil = !this.autoSellOil;
+        this.sidebar.notify(this.autoSellOil ? 'Auto sell ON: oil is offered to the Global Financial Center whenever a sale is allowed.' : 'Auto sell OFF.', 3);
+        this.sidebarTimer = SIDEBAR_REFRESH;
+      },
       onLoan: () => this.takeLoan(),
       onOilPolicy: (policy) => this.setOilPolicy(policy),
       onUnload: () => this.unloadSelectedTransport(),
@@ -662,12 +669,10 @@ export class Game {
 
   /**
    * A Squatters team plants its nation's flag on the unclaimed land it stands on (or a free cell right next to it): the
-   * flag becomes one of the nation's structures and the team is used up. It must have been flown there by a
-   * transport. Returns null on success, else why not.
+   * flag becomes one of the nation's structures and the team is used up. Returns null on success, else why not.
    */
   plantFlag(u: Infantry): string | null {
     if (!u.alive || !u.isSquatters) return 'not Squatters';
-    if (!u.airlifted) return 'the Squatters must be flown to new land by a transport aircraft';
     const here = this.map.cellAt(u.px, u.py);
     if (!here) return 'outside the map';
     let spot: { x: number; y: number } | null = null;
@@ -1501,6 +1506,13 @@ export class Game {
     if (this.sidebarTimer >= SIDEBAR_REFRESH) {
       const elapsed = this.sidebarTimer;
       this.sidebarTimer = 0;
+      if (
+        this.autoSellOil &&
+        !this.humanPlayer.defeated &&
+        this.oilMarket.sellable(this.humanPlayer) >= MIN_SALE_STOCK &&
+        this.oilMarket.waitSeconds(this.humanPlayer) === 0
+      )
+        this.sellOil(true);
       const own = this.derricks.filter((d) => d.owner === this.humanPlayer.id && d.alive);
       const pumping = own.filter((d) => d.pumping).length;
       this.sidebar.update(
@@ -1513,6 +1525,7 @@ export class Game {
           priceChangeIn: Math.ceil(this.oilMarket.secondsToChange),
           sellable: this.oilMarket.sellable(this.humanPlayer),
           salesWait: this.oilMarket.waitSeconds(this.humanPlayer),
+          autoSell: this.autoSellOil,
           cartel: this.oilMarket.isCartel(this.humanPlayer),
           oilPolicy: this.oilMarket.policy,
           policyWait: this.oilMarket.policyWait(),
@@ -2209,8 +2222,9 @@ export class Game {
   }
 
   /** Sell button: the Global Financial Center looks at the offer and decides whether, and how much, to buy. */
-  private sellOil(): void {
+  private sellOil(auto = false): void {
     const result = this.oilMarket.sell(this.humanPlayer);
+    if (auto && result.kind !== 'sold') return; // auto sell stays quiet when the Center declines
     this.sidebar.notify(
       result.kind === 'sold'
         ? `Global Financial Center bought ${result.barrels.toFixed(1)} barrels at ${result.price} ${CURRENCY} → +${result.revenue} ${CURRENCY}` +

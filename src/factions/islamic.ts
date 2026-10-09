@@ -88,7 +88,7 @@ export const ISLAMIC: FactionConfig = {
     squatters: {
       name: "Squatters",
       description:
-        "Islamic flag bearer and rifleman escort, moving as one: flown by transport to unclaimed land, they plant the national flag there (F key) — their mission done, they are gone.",
+        "Islamic flag bearer and rifleman escort, moving as one: sent on foot or by transport to unclaimed land, they plant the national flag there (F key) — their mission done, they are gone.",
       look: {
         uniform: "#4f5a3a",
         trousers: "#3d4630",

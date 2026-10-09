@@ -68,7 +68,7 @@ export const RUSSIA: FactionConfig = {
     squatters: {
       name: "Squatters",
       description:
-        "Russian flag bearer and rifleman escort, moving as one: flown by transport to unclaimed land, they plant the national flag there (F key) — their mission done, they are gone.",
+        "Russian flag bearer and rifleman escort, moving as one: sent on foot or by transport to unclaimed land, they plant the national flag there (F key) — their mission done, they are gone.",
       look: {
         uniform: "#2b3a32",
         trousers: "#212d27",
