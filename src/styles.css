@@ -42,6 +42,30 @@ body {
   letter-spacing: 2px;
   text-transform: uppercase;
 }
+.ld-box {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  width: min(360px, calc(100vw - 32px));
+}
+.ld-bar {
+  width: 100%;
+  height: 8px;
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.ld-bar i {
+  display: block;
+  width: 0;
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.2s ease-out;
+}
+#loading-pct {
+  font-size: 13px;
+  letter-spacing: 1px;
+}
 #loading.error {
   color: #ff8a7a;
   text-transform: none;

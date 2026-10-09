@@ -13,7 +13,13 @@
       <div id="status"></div>
     </main>
     <aside id="sidebar"></aside>
-    <div id="loading" hidden>Generating Earth…</div>
+    <div id="loading" hidden>
+      <div class="ld-box">
+        <div id="loading-text">Generating Earth…</div>
+        <div class="ld-bar"><i id="loading-fill"></i></div>
+        <div id="loading-pct">0%</div>
+      </div>
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

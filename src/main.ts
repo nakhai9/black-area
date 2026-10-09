@@ -32,6 +32,15 @@ window.addEventListener('keydown', (e) => {
   else void document.documentElement.requestFullscreen().catch(() => undefined);
 });
 
+/** Loading screen progress bar (0–100) under "Generating Earth…". */
+function setProgress(pct: number): void {
+  const p = Math.round(Math.max(0, Math.min(100, pct)));
+  const fill = document.getElementById('loading-fill');
+  const label = document.getElementById('loading-pct');
+  if (fill) fill.style.width = `${p}%`;
+  if (label) label.textContent = `${p}%`;
+}
+
 const nextPaint = (): Promise<void> => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
 
 async function boot(): Promise<void> {
@@ -84,12 +93,14 @@ async function boot(): Promise<void> {
       loading.hidden = true;
       await confirmLoadedGame({ faction: pending.faction, savedAt: pending.savedAt });
     }
-    loading.textContent = 'Generating Earth…';
+    byId('loading-text').textContent = 'Generating Earth…';
     loading.hidden = false;
-    await soldiers; // sidebar cameos and units draw from the GI sheet
-    await aircraft;
-    await tanks;
-    await repairs;
+    // Downloads fill the bar to 80%; the terrain bake (synchronous) takes it to 100%.
+    const steps = [earth, soldiers, aircraft, tanks, repairs]; // sidebar cameos and units draw from the GI sheet
+    let done = 0;
+    setProgress(0);
+    await Promise.all(steps.map((p) => p.then(() => setProgress((++done / steps.length) * 80))));
+    setProgress(90);
     await nextPaint(); // let the loading screen paint before the heavy terrain bake
 
     const game = await Game.create(
@@ -100,6 +111,8 @@ async function boot(): Promise<void> {
       demo,
     );
     if (pending) game.importSave(pending);
+    setProgress(100);
+    await nextPaint();
     loading.remove();
     game.start();
 
