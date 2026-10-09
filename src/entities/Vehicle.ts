@@ -28,7 +28,7 @@ export type Flight = 'parked' | 'taxi' | 'takeoff' | 'airborne' | 'approach' | '
 export type CarrierState = 'idle' | 'loading' | 'carrying' | 'unloading';
 
 /** Cruise height of an aircraft above the ground (world px, drawn offset). */
-import { BOMBER_BOMBS, CRUISE_ALTITUDE, JET_BOMBS } from '../constants';
+import { BOMBER_BOMBS, CRUISE_ALTITUDE, JET_BOMBS, TRUCK_SOLDIERS, TRUCK_TANKS } from '../constants';
 export { CRUISE_ALTITUDE };
 
 /** Handling per vehicle kind: seconds to full speed, turn rate (rad/s), whether it must face where it drives. */
@@ -41,6 +41,7 @@ const HANDLING: Readonly<Record<VehicleKind, { accel: number; turn: number; pivo
   tanker: { accel: 0.8, turn: 2.2, pivot: false },
   bomber: { accel: 1.0, turn: 1.4, pivot: false },
   repair: { accel: 1.0, turn: 2.0, pivot: true },
+  truck: { accel: 0.6, turn: 3.0, pivot: true },
 };
 
 /** Can `soldiers` soldiers and `vehicles` vehicles travel together in one transport? */
@@ -147,6 +148,7 @@ export class Vehicle extends Unit {
     this.accelTime = h.accel;
     this.turnRate = h.turn;
     this.turnsToMove = h.pivot;
+    this.drivesForward = true;
     if (isAircraftKind(type)) this.altitude = CRUISE_ALTITUDE;
   }
 
@@ -165,7 +167,7 @@ export class Vehicle extends Unit {
   }
 
   override get unarmedTransport(): boolean {
-    return this.isTransport || this.isTanker;
+    return this.isTransport || this.isTanker || this.isTruck;
   }
 
   /** Bombs a full load holds: the bomber's payload, a fighter's pair, none for anything else. */
@@ -182,8 +184,13 @@ export class Vehicle extends Unit {
     return this.type === 'repair';
   }
 
+  /** Army truck: unarmed ground carrier (soldiers, or one tank). */
+  get isTruck(): boolean {
+    return this.type === 'truck';
+  }
+
   override get canFight(): boolean {
-    if (this.isTransport || this.isTanker || this.isRepair) return false;
+    if (this.isTransport || this.isTanker || this.isRepair || this.isTruck) return false;
     return !this.aircraft ||(this.flight === 'airborne' && this.weapon !== null);
   }
 
@@ -201,9 +208,21 @@ export class Vehicle extends Unit {
     return this.type === 'transport';
   }
 
-  /** Takes passengers: a transport aircraft. */
+  /** Takes passengers: a transport aircraft, or an army truck on the ground. */
   get isCarrier(): boolean {
-    return this.isTransport;
+    return this.isTransport || this.isTruck;
+  }
+
+  /** Standing where riders can climb in: a truck always (it stops for them), an aircraft only on the ground. */
+  get boardable(): boolean {
+    return this.isTruck || this.flight === 'parked' || this.flight === 'landed';
+  }
+
+  /** Could this unit ride in this carrier at all? A truck takes soldiers and tanks only; nothing carries aircraft. */
+  accepts(u: Unit): boolean {
+    if (!(u instanceof Vehicle)) return true;
+    if (u.aircraft) return false;
+    return !this.isTruck || u.type === 'tank';
   }
 
   get soldiersAboard(): number {
@@ -216,22 +235,29 @@ export class Vehicle extends Unit {
 
   /** May `u` climb aboard right now? Only a transport standing on the ground takes passengers; fighters and transports never do. */
   canLoad(u: Unit): boolean {
-    if (!this.isCarrier || (this.flight !== 'parked' && this.flight !== 'landed') || !this.alive) return false;
+    if (!this.isCarrier || !this.boardable || !this.alive || !this.accepts(u)) return false;
     const vehicle = u instanceof Vehicle;
-    if (vehicle && u.aircraft) return false;
     const s = this.soldiersAboard + (vehicle ? 0 : 1);
     const v = this.vehiclesAboard + (vehicle ? 1 : 0);
-    return transportFits(s, v);
+    return this.loadFits(s, v);
+  }
+
+  /** The load limits of this carrier: the truck's (soldiers or one tank) or the transport aircraft's. */
+  private loadFits(soldiers: number, vehicles: number): boolean {
+    if (this.isTruck) return vehicles === 0 ? soldiers <= TRUCK_SOLDIERS : soldiers === 0 && vehicles <= TRUCK_TANKS;
+    return transportFits(soldiers, vehicles);
   }
 
   /** Soldier seats with the vehicles now aboard (12 alone, 8 beside one vehicle, none beside two or more). */
   get soldierCapacity(): number {
+    if (this.isTruck) return this.vehiclesAboard > 0 ? 0 : TRUCK_SOLDIERS;
     const v = this.vehiclesAboard;
     return v === 0 ? TRANSPORT_SOLDIERS : v === 1 ? TRANSPORT_MIXED_SOLDIERS : 0;
   }
 
   /** Vehicle places with the soldiers now aboard (3 when empty of soldiers, 1 beside up to 8 soldiers, else none). */
   get vehicleCapacity(): number {
+    if (this.isTruck) return this.soldiersAboard > 0 ? 0 : TRUCK_TANKS;
     const s = this.soldiersAboard;
     return s === 0 ? TRANSPORT_VEHICLES : s <= TRANSPORT_MIXED_SOLDIERS ? 1 : 0;
   }
@@ -240,20 +266,20 @@ export class Vehicle extends Unit {
   get carrierState(): CarrierState {
     if (!this.isCarrier) return 'idle';
     if (this.cargo.length > 0 && (this.ejecting || (this.flight === 'unloading' && !this.pickup))) return 'unloading';
-    if (this.incoming > 0 && (this.flight === 'parked' || this.flight === 'landed' || (this.flight === 'unloading' && this.pickup))) return 'loading';
+    if (this.incoming > 0 && (this.boardable || (this.flight === 'unloading' && this.pickup))) return 'loading';
     return this.cargo.length > 0 ? 'carrying' : 'idle';
   }
 
   /** Would `soldiers` more soldiers and `vehicles` more vehicles still fit beside the current cargo? */
   fitsWith(soldiers: number, vehicles: number): boolean {
-    return transportFits(this.soldiersAboard + soldiers, this.vehiclesAboard + vehicles);
+    return this.loadFits(this.soldiersAboard + soldiers, this.vehiclesAboard + vehicles);
   }
 
   /** Nothing more fits: another soldier and another vehicle would both break the load limits. */
   get full(): boolean {
     const s = this.soldiersAboard;
     const v = this.vehiclesAboard;
-    return !transportFits(s + 1, v) && !transportFits(s, v + 1);
+    return !this.loadFits(s + 1, v) && !this.loadFits(s, v + 1);
   }
 
   override update(dt: number): void {

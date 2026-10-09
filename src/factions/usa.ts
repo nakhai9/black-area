@@ -45,6 +45,11 @@ export const USA: FactionConfig = {
     jet: { name: "F-22", description: "F-22 Raptor stealth air superiority fighter." },
     transport: { name: "C-17", description: "Heavy transport aircraft: carries soldiers and vehicles; unarmed." },
     bomber: { name: "B-52", description: "B-52 Stratofortress long-range heavy bomber, USA only: heavy bombs that flatten ground forces and structures; cannot hit aircraft." },
+    truck: {
+      name: "LVSR",
+      description:
+        "Oshkosh LVSR heavy army truck: unarmed and faster than soldiers or tanks; carries up to 8 soldiers under its canvas cover, or one tank on its flatbed (never both). Ground only — it cannot cross the sea. Select soldiers or a tank and click the truck to board; select the truck and press U to unload.",
+    },
     repair: {
       name: "M88",
       description:

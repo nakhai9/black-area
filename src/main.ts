@@ -8,6 +8,7 @@ import { loadBombSprites } from './render/BombSheets';
 import { loadMissileSprites } from './render/MissileSheet';
 import { loadShellSprites } from './render/ShellSheet';
 import { loadRepairSprites } from './render/RepairSheets';
+import { loadTruckSprites } from './render/TruckSheets';
 import { loadTankSprites } from './render/TankSheets';
 import { loadSoldierSprites } from './render/InfantryArt';
 import type { FactionId } from './types';
@@ -58,6 +59,8 @@ async function boot(): Promise<void> {
   tanks.catch(() => undefined);
   const repairs = loadRepairSprites();
   repairs.catch(() => undefined);
+  const trucks = loadTruckSprites();
+  trucks.catch(() => undefined);
   loadBombSprites().catch(() => undefined);
   loadMissileSprites().catch(() => undefined);
   loadShellSprites().catch(() => undefined);
@@ -96,7 +99,7 @@ async function boot(): Promise<void> {
     byId('loading-text').textContent = 'Generating Earth…';
     loading.hidden = false;
     // Downloads fill the bar to 80%; the terrain bake (synchronous) takes it to 100%.
-    const steps = [earth, soldiers, aircraft, tanks, repairs]; // sidebar cameos and units draw from the GI sheet
+    const steps = [earth, soldiers, aircraft, tanks, repairs, trucks]; // sidebar cameos and units draw from the GI sheet
     let done = 0;
     setProgress(0);
     await Promise.all(steps.map((p) => p.then(() => setProgress((++done / steps.length) * 80))));

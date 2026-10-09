@@ -1,4 +1,4 @@
-import { CELL_SIZE, MAX_ALLIES, NEUTRAL_OWNER, TECH_VEHICLES } from '../constants';
+import { CELL_SIZE, INFANTRY_MARCH_CELLS, MAX_ALLIES, NEUTRAL_OWNER, TECH_VEHICLES, TRUCK_SOLDIERS } from '../constants';
 import type { Building } from '../entities/Building';
 import type { Entity } from '../entities/Entity';
 import type { EntityManager } from '../entities/EntityManager';
@@ -35,8 +35,14 @@ export interface AIHost {
   orderEnter(u: Infantry, b: Building): void;
   /** Sends an engineer to repair an own damaged building. */
   orderRepair(u: Infantry, b: Building): void;
+  /** Sends repair vehicles (ARV) among `units` to mend a damaged friendly ground vehicle. */
+  orderMend(target: Vehicle, units: readonly Unit[]): boolean;
   /** Soldiers / vehicles walk to a parked transport and climb aboard. */
   orderBoard(t: Vehicle, riders: Unit[]): boolean;
+  /** Plain move (no fighting on the way) — trucks driving a convoy. */
+  orderMoveUnits(units: readonly Unit[], target: WorldPoint): void;
+  /** A truck lets everyone out where it stands. */
+  unloadTruck(t: Vehicle): void;
   /** Soldiers/vehicles walk to `target`, fighting everything on the way. */
   orderAttackMove(units: readonly Unit[], target: WorldPoint): void;
   /** Focus on an enemy structure or unit: soldiers and vehicles only attack buildings when told to. */
@@ -83,16 +89,24 @@ const VEHICLE_WEIGHT: Readonly<Partial<Record<VehicleKind, number>>> = {
   bomber: 0.1,
   repair: 0.04,
 };
-/** A structure below this share of its health is worth an engineer. */
-const REPAIR_BELOW = 0.65;
+/** Repairs come first: any structure below this share of its health gets an engineer. */
+const REPAIR_BELOW = 0.98;
 /** Seconds a structure must go unhit before an engineer is sent inside to repair it. */
-const REPAIR_CALM = 8;
-/** A soldier below this share of its health goes to hospital once out of the fight. */
-const HEAL_BELOW = 0.55;
+const REPAIR_CALM = 3;
+/** A soldier below this share of its health goes to the nearest hospital. */
+const HEAL_BELOW = 0.85;
 /** Seconds without being hit before a wounded soldier leaves the fight for hospital. */
-const HEAL_CALM = 4;
+const HEAL_CALM = 1.5;
+/** Repair vehicles look for damaged friendly ground vehicles within this many cells. */
+const MEND_SEARCH_CELLS = 60;
 /** Overseas war: transport aircraft kept at home, and the smallest force worth sending across the ocean. */
 const OVERSEAS_TRANSPORTS = 2;
+/** Army trucks: at most this many per nation, one per TRUCK_SEATS soldiers; soldiers within TRUCK_PICKUP_CELLS of an
+ * idle truck ride it, and it lets them out UNLOAD_SHORT_CELLS short of the target. */
+const MAX_TRUCKS = 4;
+const TRUCK_SEATS = TRUCK_SOLDIERS;
+const TRUCK_PICKUP_CELLS = 25;
+const UNLOAD_SHORT_CELLS = 8;
 const OVERSEAS_MIN_FORCE = 10;
 /** Soldiers sent to fill one transport (its capacity for soldiers only). */
 const TRANSPORT_LOAD = 12;
@@ -100,8 +114,8 @@ const TRANSPORT_LOAD = 12;
  * Claiming new land for allies: from this game time on, with a calm home front and this much cash, the nation
  * flies a Squatters team to unclaimed land and raises an Allied Building there (at most MAX_ALLIES).
  */
-const CLAIM_FROM = 300;
-const CLAIM_MIN_CREDITS = 4000;
+const CLAIM_FROM = 120;
+const CLAIM_MIN_CREDITS = 2500;
 /** A claim is kept at least this far (cells) from any enemy structure, and from every other claim. */
 const CLAIM_ENEMY_GAP = 18;
 const CLAIM_SPACING = 30;
@@ -189,6 +203,8 @@ interface AIState {
   overseas: boolean;
   /** Where the current Squatters is headed (cell), or null while none is picked. */
   claimSite: GridPoint | null;
+  /** Truck id → where it carries its soldiers (they would have to rest on the march on foot). */
+  convoys: Map<number, WorldPoint>;
 }
 
 /**
@@ -224,6 +240,7 @@ export class AISystem implements GameSystem {
       style,
       overseas: false,
       claimSite: null,
+      convoys: new Map(),
     };
     this.state.set(p.id, st);
     return st;
@@ -261,9 +278,11 @@ export class AISystem implements GameSystem {
     this.build(p, st, capital, owned, threat);
     this.train(p, st, owned, threat);
     this.repairBase(p, owned);
+    this.mendFleet(p);
     this.claimLand(p, st, capital, owned, threat);
     if (st.overseas) this.loadTransports(p, st, capital);
     this.healWounded(p);
+    this.driveConvoys(st);
     this.evacuate(p, capital);
     this.army(p, st, capital);
   }
@@ -410,8 +429,26 @@ export class AISystem implements GameSystem {
     const aboard = this.host.entities
       .vehicles()
       .filter((v) => v.owner === p.id && v.alive && v.isTransport && v.cargo.some((c) => c instanceof Infantry && c.isSquatters));
-    // Teams in the field: plant the flag once flown in, or go aboard a transport.
+    // Teams in the field: walk to a site on their own landmass and plant the flag there; a site across the sea
+    // (they cannot swim) means flying in by transport.
     for (const u of teams) {
+      st.claimSite ??= this.pickClaimSite(p, st, capital);
+      const site = st.claimSite;
+      const cx = Math.floor(u.px / CELL_SIZE);
+      const cy = Math.floor(u.py / CELL_SIZE);
+      if (!u.airlifted && site && (u.swims || this.host.pathfinder.sameLandmass(cx, cy, site.x, site.y))) {
+        if (u.moving || u.boardTarget !== null) continue;
+        if (Math.hypot(site.x - cx, site.y - cy) <= 2 && this.host.plantFlag(u) === null) {
+          st.claimSite = null;
+          continue;
+        }
+        if (isClaimable(this.host.map, cx, cy) && this.host.plantFlag(u) === null) {
+          st.claimSite = null;
+          continue;
+        }
+        this.host.orderAttackMove([u], { x: (site.x + 0.5) * CELL_SIZE, y: (site.y + 0.5) * CELL_SIZE });
+        continue;
+      }
       if (u.airlifted) {
         if (u.moving || u.boardTarget !== null) continue;
         if (this.host.plantFlag(u) === null) {
@@ -436,13 +473,18 @@ export class AISystem implements GameSystem {
     }
     const wanted = this.host.alliesOf(p) + this.openClaims(p).length < MAX_ALLIES;
     if (!wanted || teams.length > 0 || aboard.length > 0 || threat > 0 || this.time < CLAIM_FROM) return;
-    if (!owned.has('barracks') || !owned.has('airfield') || p.credits < CLAIM_MIN_CREDITS || p.debt > 0) return;
+    if (!owned.has('barracks') || p.credits < CLAIM_MIN_CREDITS || p.debt > 0) return;
     if (this.host.training.queue(p).items.includes('squatters')) return;
     st.claimSite = this.pickClaimSite(p, st, capital);
     if (!st.claimSite) return;
-    // A transport to fly the team over.
-    const transports = this.host.entities.vehicles().filter((v) => v.owner === p.id && v.alive && v.isTransport).length;
-    if (transports === 0 && !this.host.production.queue(p).items.includes('transport')) this.host.production.enqueue(p, 'transport');
+    // Overseas site: a transport is needed to fly the team over (a site on the home landmass is reached on foot).
+    const door = this.host.pathfinder.nearestPassable(capital.x + Math.floor(capital.w / 2), capital.y + capital.d, 8);
+    const overland = door !== null && this.host.pathfinder.sameLandmass(door.x, door.y, st.claimSite.x, st.claimSite.y);
+    if (!overland) {
+      if (!owned.has('airfield')) return;
+      const transports = this.host.entities.vehicles().filter((v) => v.owner === p.id && v.alive && v.isTransport).length;
+      if (transports === 0 && !this.host.production.queue(p).items.includes('transport')) this.host.production.enqueue(p, 'transport');
+    }
     this.host.training.enqueue(p, 'squatters');
   }
 
@@ -485,8 +527,9 @@ export class AISystem implements GameSystem {
         let nearEconomy = Infinity;
         for (const b of economy) nearEconomy = Math.min(nearEconomy, Math.hypot(b.x - x, b.y - y));
         if (!Number.isFinite(nearEconomy)) nearEconomy = nearEnemy;
-        // Threaten a rival's economy, but keep the flight short; a little randomness so every AI plays differently.
-        const score = nearEconomy + 0.35 * Math.hypot(x - home.x, y - home.y) + st.rng() * 12;
+        // As close to a rival as the rules allow (its structures and above all its economy are threatened), the trip
+        // only a small tie-breaker; a little randomness so every AI plays differently.
+        const score = nearEnemy + 0.5 * nearEconomy + 0.1 * Math.hypot(x - home.x, y - home.y) + st.rng() * 6;
         if (score < bestScore) {
           bestScore = score;
           best = { x, y };
@@ -566,6 +609,14 @@ export class AISystem implements GameSystem {
         const evacuating = this.host.safeZones.zonesOf(p.id).length > 0;
         if ((st.overseas || evacuating) && able('transport') && transports + queuedTransports < OVERSEAS_TRANSPORTS) {
           production.enqueue(p, 'transport');
+          return;
+        }
+        // Trucks: soldiers tire on long marches, so keep one truck for every 8 soldiers (at most MAX_TRUCKS) to
+        // carry them to the front fresh — on the home continent; across the sea it is the transport aircraft's job.
+        const trucks = f.vehicles.get('truck') ?? 0;
+        const queuedTrucks = q.items.filter((k) => k === 'truck').length;
+        if (!st.overseas && able('truck') && trucks + queuedTrucks < Math.min(MAX_TRUCKS, Math.ceil(f.soldiers / TRUCK_SEATS))) {
+          production.enqueue(p, 'truck');
           return;
         }
         // Pick the kind furthest below its wanted share of the fleet.
@@ -660,7 +711,7 @@ export class AISystem implements GameSystem {
     if (hurt.length === 0) return;
     const engineers = this.host.entities.fieldUnits().filter((u): u is Infantry => u instanceof Infantry && u.owner === p.id && u.alive && u.isEngineer);
     const covered = new Set(engineers.filter((u) => u.task?.type === 'repair').map((u) => u.task?.buildingId));
-    const free = engineers.filter((u) => u.task === null && !u.moving);
+    const free = engineers.filter((u) => u.task === null && u.insideId === null);
     for (const b of hurt) {
       if (covered.has(b.id)) continue;
       const u = free.shift();
@@ -674,7 +725,35 @@ export class AISystem implements GameSystem {
     if (queued < needed && free.length === 0 && p.credits > 600) this.host.training.enqueue(p, 'engineer');
   }
 
-  /** Wounded soldiers who are out of the fight go to the nearest hospital with a free bed (same rule as the player). */
+  /**
+   * Every repair vehicle (ARV) with nothing to mend drives to the most urgent damaged friendly ground vehicle nearby
+   * (lowest health first, then the nearest), one ARV per patient.
+   */
+  private mendFleet(p: PlayerState): void {
+    const mine = this.host.entities.vehicles().filter((v) => v.owner === p.id && v.alive && v.insideId === null && !v.aircraft);
+    const menders = mine.filter((v) => v.isRepair);
+    if (menders.length === 0) return;
+    const taken = new Set(menders.map((v) => v.repairTargetId).filter((id): id is number => id !== null));
+    const reach = MEND_SEARCH_CELLS * CELL_SIZE;
+    for (const r of menders) {
+      if (r.repairTargetId !== null) continue;
+      let best: Vehicle | null = null;
+      let bestScore = Infinity;
+      for (const v of mine) {
+        if (v === r || v.hp >= v.maxHp || taken.has(v.id) || v.seekRepairId !== null) continue;
+        const d = Math.hypot(v.px - r.px, v.py - r.py);
+        if (d > reach) continue;
+        const score = (v.hp / v.maxHp) * reach + d;
+        if (score < bestScore) {
+          bestScore = score;
+          best = v;
+        }
+      }
+      if (best && this.host.orderMend(best, [r])) taken.add(best.id);
+    }
+  }
+
+  /** Wounded soldiers go to the nearest hospital with a free bed as soon as they are out of the line of fire. */
   private healWounded(p: PlayerState): void {
     const hospitals = this.host.entities.buildings().filter((b) => b.owner === p.id && b.alive && b.spec.garrison);
     if (hospitals.length === 0) return;
@@ -878,10 +957,61 @@ export class AISystem implements GameSystem {
     if (!target) return;
     const goal = target.centerWorld();
     const cell = this.host.pathfinder.nearestPassable(Math.floor(goal.x / CELL_SIZE), Math.floor((goal.y + 10) / CELL_SIZE), 10);
-    const going = idle.filter(
+    let going = idle.filter(
       (u) => u.aircraft || u.swims || (cell !== null && this.host.pathfinder.sameLandmass(Math.floor(u.px / CELL_SIZE), Math.floor(u.py / CELL_SIZE), cell.x, cell.y)),
     );
+    // Far away: soldiers who would have to rest on the march ride the nation's trucks to the front instead.
+    going = this.motorize(p, st, going, { x: goal.x, y: goal.y + CELL_SIZE * 3 });
     if (going.length > 0) this.host.orderAttackMove(going, { x: goal.x, y: goal.y + CELL_SIZE * 3 });
+  }
+
+  /**
+   * Puts the tiring soldiers of an attack group into idle trucks nearby when the target is beyond a day's march
+   * (they would have to stop and rest on the way); returns the units still to go on foot / under their own power.
+   */
+  private motorize(p: PlayerState, st: AIState, going: readonly Unit[], goal: WorldPoint): Unit[] {
+    const far = (u: Unit): boolean => Math.hypot(goal.x - u.px, goal.y - u.py) > INFANTRY_MARCH_CELLS * CELL_SIZE * 1.5;
+    const riders = going.filter((u): u is Infantry => u instanceof Infantry && !u.swims && !u.isSquatters && !u.isEngineer && far(u));
+    if (riders.length === 0) return [...going];
+    const trucks = this.host.entities
+      .vehicles()
+      .filter((t) => t.owner === p.id && t.alive && t.isTruck && t.insideId === null && !t.moving && t.cargo.length === 0 && t.incoming === 0 && !st.convoys.has(t.id));
+    const aboard = new Set<Unit>();
+    for (const t of trucks) {
+      const near = riders.filter((u) => !aboard.has(u) && Math.hypot(u.px - t.px, u.py - t.py) < TRUCK_PICKUP_CELLS * CELL_SIZE).slice(0, TRUCK_SEATS);
+      if (near.length === 0) continue;
+      if (!this.host.orderBoard(t, near)) continue;
+      for (const u of near) aboard.add(u);
+      st.convoys.set(t.id, goal);
+    }
+    return going.filter((u) => !aboard.has(u));
+  }
+
+  /**
+   * Convoys: a truck whose soldiers are all aboard drives to UNLOAD_SHORT_CELLS short of the target and lets them
+   * out there, fresh for the fight; an empty truck back home is free for the next run.
+   */
+  private driveConvoys(st: AIState): void {
+    for (const [id, goal] of st.convoys) {
+      const t = this.host.entities.get(id);
+      if (!(t instanceof Vehicle) || !t.alive) {
+        st.convoys.delete(id);
+        continue;
+      }
+      if (t.incoming > 0 || t.ejecting) continue; // still loading / unloading
+      if (t.cargo.length === 0) {
+        st.convoys.delete(id);
+        continue;
+      }
+      if (t.moving) continue;
+      const d = Math.hypot(goal.x - t.px, goal.y - t.py);
+      if (d <= (UNLOAD_SHORT_CELLS + 2) * CELL_SIZE) {
+        this.host.unloadTruck(t);
+        continue;
+      }
+      const k = (d - UNLOAD_SHORT_CELLS * CELL_SIZE) / d;
+      this.host.orderMoveUnits([t], { x: t.px + (goal.x - t.px) * k, y: t.py + (goal.y - t.py) * k });
+    }
   }
 
   /** True when the nearest enemy structure cannot be reached by land from the capital. */

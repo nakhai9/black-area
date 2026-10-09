@@ -20,7 +20,7 @@ export interface VehicleOption {
   needsAirfield: boolean;
 }
 
-const KINDS: readonly VehicleKind[] = ['light', 'tank', 'ifv', 'jet', 'bomber', 'transport', 'repair'];
+const KINDS: readonly VehicleKind[] = ['light', 'tank', 'ifv', 'jet', 'bomber', 'transport', 'repair', 'truck'];
 
 function vehicleOptions(faction: FactionId): VehicleOption[] {
   const f = FACTIONS[faction];
@@ -37,7 +37,7 @@ function vehicleOptions(faction: FactionId): VehicleOption[] {
   }));
 }
 
-export type VehicleQueueState = 'idle' | 'building' | 'onHold' | 'noFactory' | 'noAirfield' | 'noPower';
+export type VehicleQueueState = 'idle' | 'building' | 'onHold' | 'noFactory' | 'noAirfield' | 'noPower' | 'exitBlocked';
 export type VehicleEnqueueResult = 'ok' | 'full' | 'noFactory' | 'noAirfield' | 'noParking' | 'tech' | 'cap' | 'transportCap' | 'noCapital';
 
 export interface VehicleQueue {
@@ -65,6 +65,8 @@ export class VehicleSystem implements GameSystem {
     private readonly players: readonly PlayerState[],
     private readonly entities: EntityManager,
     private readonly spawn: (player: PlayerState, kind: VehicleKind, producer: Building) => void,
+    /** Is the War Factory's exit clear for a new ground vehicle? (RA2: a finished vehicle waits while it is blocked.) */
+    private readonly exitClear: (producer: Building) => boolean = () => true,
   ) {
     for (const p of players) {
       this.queues.set(p.id, { items: [], state: 'idle', progress: 0, paid: 0 });
@@ -205,6 +207,11 @@ export class VehicleSystem implements GameSystem {
       q.progress = Math.min(1, q.paid / option.cost);
       q.state = pay < want - 1e-6 ? 'onHold' : 'building';
       if (q.progress >= 1) {
+        // RA2: the finished vehicle stays inside, production paused, until nothing stands in the factory's exit.
+        if (!needsAirfield(kind) && !this.exitClear(producer)) {
+          q.state = 'exitBlocked';
+          continue;
+        }
         q.items.shift();
         q.paid = 0;
         q.progress = 0;

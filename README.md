@@ -4,6 +4,8 @@
 
 <h1 align="center">Black Area</h1>
 
+<p align="center"><sub>Phiên bản 1.4.0</sub></p>
+
 <p align="center"><b><a href="https://black-area.vercel.app">▶ CHƠI NGAY: black-area.vercel.app</a></b></p>
 
 > **Thế giới chỉ có một. Dầu thì không đủ cho tất cả.**

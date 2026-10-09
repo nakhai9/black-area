@@ -9,6 +9,7 @@ export type Effect =
   /** A main battle tank blowing up and burning out, from its faction's tank sheet. */
   | { kind: 'tankDeath'; x: number; y: number; age: number; ttl: number; faction: FactionId }
   | { kind: 'repairDeath'; x: number; y: number; age: number; ttl: number; faction: FactionId; heading: number }
+  | { kind: 'truckDeath'; x: number; y: number; age: number; ttl: number; faction: FactionId; heading: number; flatbed: boolean }
   /** A bomb from a nation's bomb sheet: falling from (x0, y0) to (x1, y1), its shadow from (gx, gy) to the impact. */
   | { kind: 'bombFall'; x0: number; y0: number; x1: number; y1: number; gx: number; gy: number; age: number; ttl: number; faction: FactionId }
   /** A Crazy Soldier's planted charge (position follows its target while it ticks) and its blast. */

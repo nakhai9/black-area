@@ -63,8 +63,18 @@ export class MusicSystem {
     this.timer = window.setInterval(() => this.schedule(), 60);
   }
 
+  private duck = 1;
+
   setMuted(muted: boolean): void {
     this.muted = muted;
+    this.applyGain();
+  }
+
+  /** Ducking, 0..1: the music is turned down to this share while the battlefield is loud (vehicles on the move). */
+  setDuck(share: number): void {
+    const d = Math.min(1, Math.max(0, share));
+    if (Math.abs(d - this.duck) < 0.01) return;
+    this.duck = d;
     this.applyGain();
   }
 
@@ -75,7 +85,7 @@ export class MusicSystem {
   }
 
   private applyGain(): void {
-    this.level.gain.setTargetAtTime(this.muted ? 0 : this.volume * MAX_GAIN, this.ctx.currentTime, 0.05);
+    this.level.gain.setTargetAtTime(this.muted ? 0 : this.volume * MAX_GAIN * this.duck, this.ctx.currentTime, 0.05);
   }
 
   private schedule(): void {

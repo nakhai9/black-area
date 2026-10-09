@@ -7,6 +7,7 @@ import { FACTIONS } from '../factions';
 import { drawAircraftSheet, loadAircraftSprites } from '../render/AircraftSheets';
 import { drawSoldier, loadSoldierSprites } from '../render/InfantryArt';
 import { drawRepairSheet, loadRepairSprites } from '../render/RepairSheets';
+import { drawTruckSheet, loadTruckSprites } from '../render/TruckSheets';
 import { drawTankSheet, loadTankSprites } from '../render/TankSheets';
 import { SQUASH, drawVehicle } from '../render/VehicleArt';
 import type { FactionId, UnitTier, VehicleKind } from '../types';
@@ -61,7 +62,7 @@ export async function showUnitGallery(root: HTMLElement): Promise<void> {
   root.replaceChildren(page);
 
   // The pictures come from the same sheets the game draws with (missing ones fall back to the vector art).
-  await Promise.allSettled([loadSoldierSprites(), loadTankSprites(), loadAircraftSprites(), loadRepairSprites()]);
+  await Promise.allSettled([loadSoldierSprites(), loadTankSprites(), loadAircraftSprites(), loadRepairSprites(), loadTruckSprites()]);
 
   const at = { x: 0, y: 0 };
   const cards: Card[] = [];
@@ -124,7 +125,7 @@ function draw(card: Card, time: number): void {
     ctx.scale(zoom, zoom);
     const y = air ? u.altitude / 2 : 0; // aircraft hover over their ground point: centre the whole picture
     // Sheet aircraft are drawn altitude + 1.5 px above their ground point: put the plane itself in the middle.
-    const sheet = (air && drawAircraftSheet(ctx, u, 0, u.altitude + 1.5)) || (u.type === 'tank' && drawTankSheet(ctx, u, 0, y)) || (u.type === 'repair' && drawRepairSheet(ctx, u, 0, y));
+    const sheet = (air && drawAircraftSheet(ctx, u, 0, u.altitude + 1.5)) || (u.type === 'tank' && drawTankSheet(ctx, u, 0, y)) || (u.type === 'repair' && drawRepairSheet(ctx, u, 0, y)) || (u.type === 'truck' && drawTruckSheet(ctx, u, 0, y));
     if (!sheet) drawVehicle(ctx, { x: 0, y, heading: isoHeading(heading, air ? 0.8 : SQUASH), phase: 0, moving: false, altitude: air ? u.altitude : undefined }, u.type, u.faction as FactionId);
   } else if (u instanceof Infantry) {
     ctx.scale(ZOOM.soldier, ZOOM.soldier);

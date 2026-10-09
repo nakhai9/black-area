@@ -174,8 +174,10 @@ export class FactionPicker {
     card.innerHTML = `
       <kbd class="fp-key">${hotkey}</kbd>
       <div class="fp-ident">
-        ${FACTION_EMBLEMS.has(id) ? `<img class="fp-emblem" src="${import.meta.env.BASE_URL}emblems/${id}.png" alt="">` : ""}
-        <img class="fp-flag" src="${getFlagTexture(id).toDataURL()}" alt="">
+        <span class="flag-badge">
+          ${FACTION_EMBLEMS.has(id) ? `<img class="fp-emblem" src="${import.meta.env.BASE_URL}emblems/${id}.png" alt="">` : ""}
+          <img class="fp-flag" src="${getFlagTexture(id).toDataURL()}" alt="">
+        </span>
       </div>
       <h2>${f.name}</h2>
       <div class="fp-capital">${f.capital.name} · ${CAPITAL_LOCATIONS[id].name}</div>

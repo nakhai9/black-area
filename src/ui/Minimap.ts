@@ -88,8 +88,11 @@ export class Minimap {
       ctx.fillStyle = teamColors(b.faction).primary;
       ctx.strokeStyle = '#000';
       ctx.lineWidth = 1;
-      ctx.fillRect(c.x - 3, c.y - 3, 6, 6);
-      ctx.strokeRect(c.x - 3, c.y - 3, 6, 6);
+      // A small round dot per structure (radius 2.2 px, outlined in black).
+      ctx.beginPath();
+      ctx.arc(c.x, c.y, 2.2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
     }
 
     for (const u of units) {

@@ -9,8 +9,8 @@ export type InputEvent =
 
 const DRAG_THRESHOLD = 10;
 /** Two left clicks closer than this (ms and screen px) make a double-click. */
-const DOUBLE_CLICK_MS = 350;
-const DOUBLE_CLICK_PX = 6;
+const DOUBLE_CLICK_MS = 500;
+const DOUBLE_CLICK_PX = 10;
 /** When the cursor exits the window this close to an edge, keep scrolling that way. */
 const EXIT_EDGE_MARGIN = 64;
 const PREVENT_DEFAULT_KEYS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'Tab']);

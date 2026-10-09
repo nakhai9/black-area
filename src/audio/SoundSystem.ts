@@ -1,5 +1,5 @@
 import { MusicSystem } from './MusicSystem';
-import type { FactionId, WeaponKind, WorldPoint } from '../types';
+import type { FactionId, VehicleKind, WeaponKind, WorldPoint } from '../types';
 
 /** What the player can currently see/hear: the camera centre and a distance (world px) beyond which sounds fade out. */
 export interface Listener {
@@ -7,12 +7,69 @@ export interface Listener {
   range: number;
 }
 
-/** Moving units the camera can hear, by how they move (0 = none, 1 = a crowd): footsteps, tracks, aircraft engines. */
+/**
+ * Moving units the camera can hear: marching soldiers (0 = none, 1 = right in the middle of the screen) and, per
+ * vehicle model (its on-screen name, e.g. "Abrams", "Su-57"), how loud its engine should be (same scale).
+ */
 export interface MotionLevels {
   foot: number;
-  tracks: number;
-  jet: number;
+  engines: ReadonlyMap<string, { kind: VehicleKind; level: number }>;
 }
+
+/**
+ * Engine character of each vehicle, picked by its name (the real machine's engine), else by its kind:
+ *  - dieselTank: V-12 diesel throb under clanking tracks (T-90, Leopard 2, Type 99, Karrar);
+ *  - turbineTank: the M1 Abrams' AGT1500 gas turbine — a high jet-like whine over the tracks;
+ *  - recovery: heavy, slower diesel of an armoured recovery vehicle, loud track clank (BREM-1, M88, Type 99II);
+ *  - wheeled: truck engine, no tracks (KamAZ, Humvee, jeeps, scouts);
+ *  - fighter: afterburning turbofans, a sharp roar with a high whine (F-22, Su-57, J-15, Rafale, Su-35);
+ *  - bomber: many big jet engines beating against each other, deep and heavy (B-52, Tu-16);
+ *  - airlifter: four big turbofans, a broad steady drone (C-17, Il-76, Y-20, A400M, tankers).
+ */
+type EngineProfile = 'dieselTank' | 'turbineTank' | 'recovery' | 'wheeled' | 'fighter' | 'bomber' | 'airlifter';
+const ENGINE_BY_NAME: Readonly<Record<string, EngineProfile>> = {
+  Abrams: 'turbineTank',
+  'T-90': 'dieselTank',
+  'Leopard 2': 'dieselTank',
+  'Type 99': 'dieselTank',
+  Karrar: 'dieselTank',
+  'BREM-1': 'recovery',
+  M88: 'recovery',
+  'Type 99II': 'recovery',
+  'F-22': 'fighter',
+  'Su-57': 'fighter',
+  'J-15': 'fighter',
+  Rafale: 'fighter',
+  'Su-35': 'fighter',
+  'B-52': 'bomber',
+  'Tu-16': 'bomber',
+  KamAZ: 'wheeled',
+  LVSR: 'wheeled',
+  IVECO: 'wheeled',
+};
+const ENGINE_BY_KIND: Readonly<Record<VehicleKind, EngineProfile>> = {
+  light: 'wheeled',
+  tank: 'dieselTank',
+  ifv: 'dieselTank',
+  repair: 'recovery',
+  jet: 'fighter',
+  bomber: 'bomber',
+  transport: 'airlifter',
+  tanker: 'airlifter',
+  truck: 'wheeled',
+};
+/** Synthesis recipe per engine: rumble (low-passed noise, pulsed by an LFO), a whine band and a track-clank band. */
+const ENGINE_RECIPES: Readonly<Record<EngineProfile, { rumble: number; pulse: number; depth: number; whine: number; whineGain: number; clank: number; clankGain: number; gain: number }>> = {
+  dieselTank: { rumble: 150, pulse: 11, depth: 0.45, whine: 0, whineGain: 0, clank: 2200, clankGain: 0.2, gain: 1 },
+  turbineTank: { rumble: 220, pulse: 0, depth: 0, whine: 2900, whineGain: 0.4, clank: 2200, clankGain: 0.16, gain: 0.95 },
+  recovery: { rumble: 110, pulse: 7, depth: 0.55, whine: 0, whineGain: 0, clank: 1800, clankGain: 0.28, gain: 1 },
+  wheeled: { rumble: 320, pulse: 18, depth: 0.3, whine: 0, whineGain: 0, clank: 0, clankGain: 0, gain: 0.7 },
+  fighter: { rumble: 1100, pulse: 0, depth: 0, whine: 4200, whineGain: 0.28, clank: 0, clankGain: 0, gain: 0.8 },
+  bomber: { rumble: 480, pulse: 3, depth: 0.22, whine: 1800, whineGain: 0.12, clank: 0, clankGain: 0, gain: 0.95 },
+  airlifter: { rumble: 750, pulse: 1.5, depth: 0.1, whine: 3000, whineGain: 0.18, clank: 0, clankGain: 0, gain: 0.85 },
+};
+/** File name of a vehicle's own recording: "Leopard 2" → "leopard-2" (public/sounds/vehicles/leopard-2.mp3). */
+const slug = (name: string): string => name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
 /** Battle cry per nation, spoken in that nation's own language. */
 const BATTLE_CRY: Readonly<Record<FactionId, { lang: string; lines: readonly string[] }>> = {
@@ -29,8 +86,12 @@ const MIN_GAP: Readonly<Record<string, number>> = { rifle: 0.05, smg: 0.045, sni
  * Optional recordings: drop real sounds into public/sounds/ under these names (mp3, ogg or wav) and they replace the
  * synthesised ones. Anything missing keeps the synthesised sound.
  */
-const SAMPLE_KINDS: readonly string[] = ['rifle', 'smg', 'mg', 'autocannon', 'sniper', 'cannon', 'bomb', 'missile', 'explosion', 'board', 'foot', 'tracks', 'jet'];
+const SAMPLE_KINDS: readonly string[] = ['rifle', 'smg', 'mg', 'autocannon', 'sniper', 'cannon', 'bomb', 'missile', 'explosion', 'board', 'foot'];
 const SAMPLE_EXTS = ['mp3', 'ogg', 'wav'] as const;
+/** Peak gain of the vehicle engine sounds; the music is also ducked (MUSIC_DUCK) while they play. */
+const VEHICLE_BED_GAIN = 0.75;
+/** Share the music is turned down by while vehicles are heard. */
+const MUSIC_DUCK = 0.55;
 /** Seconds between the footstep sounds of a marching group. */
 const STEP_GAP = 0.32;
 
@@ -68,8 +129,10 @@ export class SoundSystem {
   private voices: SpeechSynthesisVoice[] = [];
   /** Decoded recordings from public/sounds/ (see SAMPLE_KINDS). */
   private readonly samples = new Map<string, AudioBuffer>();
-  /** Looping engine beds (tracks, jets): their gain follows the motion levels. */
-  private readonly beds = new Map<'tracks' | 'jet', GainNode>();
+  /** Looping engine sound per vehicle model (by name): its gain follows the motion levels. */
+  private readonly beds = new Map<string, GainNode>();
+  /** Recordings of single vehicle models (public/sounds/vehicles/<name>.*): loading, found, or not there. */
+  private readonly vehicleSamples = new Map<string, AudioBuffer | 'loading' | 'none'>();
   private nextStep = 0;
 
   /** `listener` defaults to "hear everything" (menus); the game sets the camera with setListener. */
@@ -213,12 +276,22 @@ export class SoundSystem {
     const ctx = this.ctx;
     if (!ctx || !this.master || !this.noise || ctx.state !== 'running') return;
     const on = this.muted ? 0 : 1;
-    this.bed('tracks', Math.min(1, levels.tracks) * 0.22 * on);
-    this.bed('jet', Math.min(1, levels.jet) * 0.16 * on);
+    // Engines always sit above the music: a single vehicle is already clearly audible, a column louder still,
+    // and the music is ducked while they are heard.
+    // Near loud, far quiet: the level (1 = in the middle of the screen, 0 = at its edge) scales the engines directly.
+    let loudest = 0;
+    for (const [name, e] of levels.engines) {
+      this.bed(name, e.kind, VEHICLE_BED_GAIN * Math.min(1, e.level) * on);
+      loudest = Math.max(loudest, e.level);
+    }
+    // Models no longer moving on screen fade out.
+    for (const name of this.beds.keys()) if (!levels.engines.has(name)) this.bed(name, 'tank', 0);
+    const engines = Math.min(1, loudest * 1.5);
+    this.music?.setDuck(1 - MUSIC_DUCK * engines);
     const now = ctx.currentTime;
     if (on && levels.foot > 0 && now >= this.nextStep) {
       this.nextStep = now + STEP_GAP * (0.85 + Math.random() * 0.3);
-      const vol = Math.min(1, 0.4 + levels.foot) * 0.22;
+      const vol = Math.min(1, levels.foot) * 0.45;
       if (!this.sample('foot', vol)) {
         // Boots on dirt: a soft low knock and a short gritty scuff.
         this.thump(vol * 0.8, 95 + Math.random() * 25, 0.06);
@@ -290,58 +363,82 @@ export class SoundSystem {
 
   // ------------------------------------------------------------------ synthesis
 
-  /** A looping engine sound whose volume eases towards `gain` (a recording if one was dropped in, else synthesised). */
-  private bed(kind: 'tracks' | 'jet', gain: number): void {
+  /** Loads (once, in the background) the recording of one vehicle model if the game ships one. */
+  private loadVehicleSample(name: string): void {
+    const ctx = this.ctx;
+    if (!ctx || this.vehicleSamples.has(name)) return;
+    this.vehicleSamples.set(name, 'loading');
+    void (async () => {
+      for (const ext of SAMPLE_EXTS) {
+        try {
+          const res = await fetch(`${import.meta.env.BASE_URL}sounds/vehicles/${slug(name)}.${ext}`);
+          if (!res.ok || (res.headers.get('content-type') ?? '').includes('text/html')) continue;
+          this.vehicleSamples.set(name, await ctx.decodeAudioData(await res.arrayBuffer()));
+          this.beds.get(name)?.disconnect(); // rebuilt with the recording next frame
+          this.beds.delete(name);
+          return;
+        } catch {
+          /* not there or not audio: try the next format */
+        }
+      }
+      this.vehicleSamples.set(name, 'none');
+    })();
+  }
+
+  /**
+   * The looping engine of one vehicle model, its volume easing towards `gain`: the model's own recording if the game
+   * ships one, else synthesised from its engine profile (see ENGINE_BY_NAME).
+   */
+  private bed(name: string, kind: VehicleKind, gain: number): void {
     const ctx = this.ctx;
     if (!ctx || !this.master || !this.noise) return;
-    let g = this.beds.get(kind);
+    let g = this.beds.get(name);
     if (!g) {
       if (gain <= 0) return;
+      this.loadVehicleSample(name);
+      const profile = ENGINE_BY_NAME[name] ?? ENGINE_BY_KIND[kind];
+      const r = ENGINE_RECIPES[profile];
       g = ctx.createGain();
       g.gain.value = 0;
-      g.connect(this.master);
-      const rec = this.samples.get(kind);
+      const out = ctx.createGain();
+      out.gain.value = r.gain;
+      g.connect(out).connect(this.master);
+      const rec = this.vehicleSamples.get(name);
       const src = ctx.createBufferSource();
-      src.buffer = rec ?? this.noise;
+      src.buffer = rec instanceof AudioBuffer ? rec : this.noise;
       src.loop = true;
-      if (rec) src.connect(g);
-      else if (kind === 'tracks') {
-        // Diesel rumble (low and throbbing) under the squeal and clank of the tracks.
+      if (rec instanceof AudioBuffer) src.connect(g);
+      else {
         const low = ctx.createBiquadFilter();
         low.type = 'lowpass';
-        low.frequency.value = 140;
+        low.frequency.value = r.rumble;
         const throb = ctx.createGain();
-        throb.gain.value = 0.6;
-        const lfo = ctx.createOscillator();
-        lfo.frequency.value = 11;
-        const depth = ctx.createGain();
-        depth.gain.value = 0.45;
-        lfo.connect(depth).connect(throb.gain);
-        lfo.start();
+        throb.gain.value = r.depth > 0 ? 1 - r.depth : 1;
+        if (r.pulse > 0) {
+          const lfo = ctx.createOscillator();
+          lfo.frequency.value = r.pulse;
+          const depth = ctx.createGain();
+          depth.gain.value = r.depth;
+          lfo.connect(depth).connect(throb.gain);
+          lfo.start();
+        }
         src.connect(low).connect(throb).connect(g);
-        const clank = ctx.createBiquadFilter();
-        clank.type = 'bandpass';
-        clank.frequency.value = 2200;
-        clank.Q.value = 3;
-        const clankGain = ctx.createGain();
-        clankGain.gain.value = 0.18;
-        src.connect(clank).connect(clankGain).connect(g);
-      } else {
-        // Turbine: a broad roar with a high whine on top.
-        const roar = ctx.createBiquadFilter();
-        roar.type = 'lowpass';
-        roar.frequency.value = 900;
-        src.connect(roar).connect(g);
-        const whine = ctx.createBiquadFilter();
-        whine.type = 'bandpass';
-        whine.frequency.value = 3800;
-        whine.Q.value = 6;
-        const whineGain = ctx.createGain();
-        whineGain.gain.value = 0.25;
-        src.connect(whine).connect(whineGain).connect(g);
+        for (const [freq, level, q] of [
+          [r.whine, r.whineGain, 7],
+          [r.clank, r.clankGain, 3],
+        ] as const) {
+          if (freq <= 0 || level <= 0) continue;
+          const band = ctx.createBiquadFilter();
+          band.type = 'bandpass';
+          band.frequency.value = freq;
+          band.Q.value = q;
+          const bg = ctx.createGain();
+          bg.gain.value = level;
+          src.connect(band).connect(bg).connect(g);
+        }
       }
       src.start();
-      this.beds.set(kind, g);
+      this.beds.set(name, g);
     }
     g.gain.setTargetAtTime(gain, ctx.currentTime, 0.25);
   }

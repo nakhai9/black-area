@@ -1,4 +1,4 @@
-import { type IconNode, Clock, Handshake, Info, Droplet, Factory, Hammer, Minus, PersonStanding, Radar, Shield, TrendingDown, TrendingUp, Trophy, Truck, Zap, createElement } from 'lucide';
+import { type IconNode, Clock, Handshake, Info, Droplet, Factory, Hammer, LogIn, LogOut, Minus, PersonStanding, Radar, Shield, TrendingDown, TrendingUp, Trophy, Truck, Zap, createElement } from 'lucide';
 import { BUILD_LIMIT_VEHICLES, CURRENCY, MAX_ALLIES, OIL_GRID_MARKUP, OIL_POLICIES, POWER_PER_BARREL, TECH_TIERS, TECH_VEHICLES, isAircraftKind } from '../constants';
 import { FACTIONS } from '../factions';
 import { getFlagTexture } from '../render/Flags';
@@ -201,7 +201,7 @@ export class Sidebar {
   private readonly faction: FactionId;
   private readonly mainTabs = new Map<ViewId, HTMLButtonElement>();
   private readonly views = new Map<ViewId, HTMLElement>();
-  private activeView: ViewId = 'production';
+  private activeView: ViewId = 'command';
   private rankEconomy!: HTMLElement;
   private rankMilitary!: HTMLElement;
   private lastRanking: readonly RankRow[] = [];
@@ -235,18 +235,20 @@ export class Sidebar {
     root.innerHTML = `
       <header class="sb-header">
         <div class="sb-logo"><img src="${import.meta.env.BASE_URL}logo.png" alt="Black Area" /></div>
-        <button class="sb-collapse" title="Hide sidebar (Tab)">⟩</button>
+        <button class="sb-collapse" title="Hide sidebar (Tab)" aria-label="Hide sidebar"></button>
       </header>
       <section class="sb-panel sb-radar"><canvas class="sb-minimap"></canvas></section>
       <nav class="sb-main-tabs" aria-label="Sidebar pages"></nav>
-      <div class="sb-view" data-page="command" hidden>
+      <div class="sb-view" data-page="command">
       <section class="sb-panel sb-resources">
         <div class="sb-player">
-          <img class="sb-flag" src="${getFlagTexture(player.faction).toDataURL()}" alt="">
+          <span class="flag-badge">
+            <img class="sb-emblem" src="${import.meta.env.BASE_URL}emblems/${player.faction}.png" alt="" onerror="this.remove()">
+            <img class="sb-flag" src="${getFlagTexture(player.faction).toDataURL()}" alt="">
+          </span>
           <div>
-            <div class="sb-player-name">${player.name}</div>
-            <div class="sb-muted">${faction.name}</div>
-            <div class="sb-muted sb-leader" title="Head of state">${faction.leader.title}: ${faction.leader.name}</div>
+            <div class="sb-player-name">${faction.name}</div>
+            <div class="sb-muted sb-leader" title="Head of state">${faction.leader.name}</div>
           </div>
         </div>
         <div class="sb-budget-label">National budget</div>
@@ -292,7 +294,7 @@ export class Sidebar {
           <li>Armed units: <kbd>Left-click</kbd> an enemy to attack — they never shoot buildings on their own, <kbd>Left-click</kbd> the building to focus it · enemy engineers capture buildings · <kbd>M</kbd> sound on/off</li>
           <li>Elite (type II) soldiers: at most 2 for every 3 regulars · orders: up to 15 soldiers and 10 vehicles waiting at once — a new one the moment one is done, whatever your army size · special forces swim · tanks run soldiers over · only aircraft shoot aircraft</li>
           <li>Transport: select soldiers/vehicles, <kbd>Left-click</kbd> your transport to board (one in the air lands first) · select the transport, <kbd>Left-click</kbd> ground — it flies there, lands and unloads · <kbd>U</kbd>/<b>Unload</b> — let them out here, one by one</li>
-          <li>Squatters (flag bearer + escort, one unit): walk it (or fly it by transport) to unclaimed land (not your rivals' home lands, never Antarctica), double-click it while it stands still — plant the flag (the Squatters are gone once it stands) · then build an <b>Allied Building</b> beside it (max 3 allies)</li>
+          <li>Squatters (flag bearer + escort, one unit): walk it (or fly it by transport) to unclaimed land (not your rivals' home lands, never Antarctica), select it and press <kbd>F</kbd> (or double-click it) — the flag goes up on the nearest open cell, on any land (the Squatters are gone once it stands) · then build an <b>Allied Building</b> beside it (max 3 allies)</li>
           <li>When <b>READY</b>: click cameo, then click the map to place · <kbd>R</kbd> turn it 90° (only before it is placed) · <kbd>Esc</kbd>/<kbd>Right-click</kbd> stop placing</li>
           <li><kbd>WASD</kbd>/<kbd>Arrows</kbd>/screen edge — scroll · <kbd>Wheel</kbd> zoom · <kbd>Middle-drag</kbd> pan</li>
           <li><kbd>Click</kbd> select · <kbd>1</kbd>–<kbd>5</kbd> landmarks · <kbd>O</kbd> oil · <kbd>H</kbd> home · <kbd>Tab</kbd> sidebar</li>
@@ -320,7 +322,7 @@ export class Sidebar {
           <p class="sb-muted sb-allies-hint">Click an ally to look at it. Raise up to ${MAX_ALLIES} allies on land claimed by Squatters.</p>
         </section>
       </div>
-      <div class="sb-view" data-page="production">
+      <div class="sb-view" data-page="production" hidden>
       <nav class="sb-tabs" aria-label="Construction"></nav>
       <section class="sb-panel sb-build">
         <div class="sb-cameos" data-panel="build"></div>
@@ -394,13 +396,16 @@ export class Sidebar {
     this.buildVehicleCameos(vehiclePanel);
     this.buildCameos(buildPanel);
     this.buildUnitCameos(infantryPanel);
-    q('.sb-collapse').addEventListener('click', () => this.toggle());
+    const collapse = q('.sb-collapse');
+    collapse.append(createElement(LogOut, { width: 16, height: 16, 'stroke-width': 2, 'aria-hidden': 'true' }));
+    collapse.addEventListener('click', () => this.toggle());
 
     const opener = document.createElement('button');
     this.opener = opener;
     opener.className = 'sb-open';
     opener.title = 'Show sidebar (Tab)';
-    opener.textContent = '⟨';
+    opener.setAttribute('aria-label', 'Show sidebar');
+    opener.append(createElement(LogIn, { width: 16, height: 16, 'stroke-width': 2, 'aria-hidden': 'true' }));
     opener.addEventListener('click', () => this.toggle());
     document.body.append(opener);
   }
@@ -831,6 +836,8 @@ export class Sidebar {
             ? 'NO FACTORY'
             : q.state === 'noPower'
               ? `NO POWER ${Math.floor(q.progress * 100)}%`
+              : q.state === 'exitBlocked'
+              ? 'EXIT BLOCKED'
               : q.state === 'onHold'
               ? `ON HOLD ${Math.floor(q.progress * 100)}%`
               : `${Math.floor(q.progress * 100)}%`);

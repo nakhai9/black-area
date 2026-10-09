@@ -13,6 +13,16 @@ import type {
 /** DEMO: skip the faction screen and start a solo test game as Russia (no AI opponents). Set to false for production. */
 export const DEMO_MODE = false;
 
+/**
+ * Version of the game, x.y.z (semantic versioning):
+ *  - x (major): a big change that breaks compatibility — old save files no longer load, or the game is reworked;
+ *  - y (minor): new content or rules — a new unit, structure, faction feature or game rule (saves still load);
+ *  - z (patch): fixes and tuning — bug fixes, balance numbers, art / UI touch-ups, no new features.
+ * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
+ * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
+ */
+export const GAME_VERSION = "1.4.0";
+
 // ---------------------------------------------------------------- World (real Earth)
 /** Packed Earth texture built by `npm run build:earth` (see scripts/build-earth.mjs). */
 export const EARTH_TEXTURE_URL = `${import.meta.env.BASE_URL}data/earth.png`;
@@ -35,7 +45,8 @@ export const MAP_SEED = 20261005;
 
 // ---------------------------------------------------------------- Logic grid
 /**
- * Size of one gameplay cell ("ô vuông") in world px — pathing & building placement.
+ * Size of one unit cell ("ô đơn vị", the 1×1 cell every system counts in) in world px — pathing, building
+ * placement, footprints, flags, ranges in cells.
  * The grid is rounded up, so the last column/row may poke slightly past the world edge.
  */
 export const CELL_SIZE = 7;
@@ -323,6 +334,9 @@ export const VEHICLE_BASE = {
   bomber: { cost: 2600, trainSeconds: 22, maxHp: 380, speed: 8.5, radius: 3.8 },
   /** National armoured recovery vehicle (Russia's BREM-1): slow and unarmed, it mends friendly ground vehicles (see REPAIR_VEHICLE_*). */
   repair: { cost: 800, trainSeconds: 10, maxHp: 360, speed: 1.0, radius: 4.2 },
+  /** National army truck (KamAZ: Russia, China, the Islamic world; LVSR: USA; IVECO: Europe), a little bigger than a tank: unarmed, faster than soldiers and tanks, carries
+   * TRUCK_SOLDIERS soldiers (covered cargo truck) or one tank on its flatbed; ground only. */
+  truck: { cost: 700, trainSeconds: 9, maxHp: 240, speed: 2.1, radius: 4.6 },
   /** Aerial refueler: never sold on its own — every transport comes with one that flies escort and keeps it fuelled. */
   tanker: { cost: 0, trainSeconds: 0, maxHp: 160, speed: 6, radius: 3.2 },
 } as const;
@@ -373,7 +387,21 @@ export const isAircraftKind = (kind: VehicleKind): boolean =>
   kind === "bomber";
 
 /** Aircraft are built at, park at and take off from an airfield. */
-export const needsAirfield = (kind: VehicleKind): boolean => isAircraftKind(kind);
+export const needsAirfield = (kind: VehicleKind): boolean =>
+  isAircraftKind(kind);
+
+/**
+ * Marching on foot tires soldiers out (every soldier except special forces): after INFANTRY_MARCH_CELLS unit cells of
+ * walking a soldier halts where he is for INFANTRY_REST_SECONDS, then marches on — to the end of any order, fights
+ * included. Riding a truck or a transport aircraft costs no strength. Standing INFANTRY_RECOVER_SECONDS rests him too.
+ */
+export const INFANTRY_MARCH_CELLS = 10;
+export const INFANTRY_REST_SECONDS = 35;
+export const INFANTRY_RECOVER_SECONDS = 10;
+
+/** Army truck loads: soldiers in the covered cargo truck, or a single tank on the flatbed (never both, nothing else). */
+export const TRUCK_SOLDIERS = 8;
+export const TRUCK_TANKS = 1;
 
 /**
  * Temporary: only these vehicles can be produced (sidebar and AI). The rest stay in the code but are
@@ -385,6 +413,7 @@ export const AVAILABLE_VEHICLES: readonly VehicleKind[] = [
   "bomber",
   "transport",
   "repair",
+  "truck",
 ];
 
 /**
@@ -531,7 +560,9 @@ export const OIL_SITES: Readonly<Partial<Record<FactionId, NamedSite>>> = {
   islamic: { lon: 29.5, lat: 30.2, name: "Northern Egypt oil fields" },
 };
 /** Nations whose OIL_SITES field may stand outside their own land (on neutral ground). */
-export const OIL_SITES_ABROAD: ReadonlySet<FactionId> = new Set<FactionId>(["islamic"]);
+export const OIL_SITES_ABROAD: ReadonlySet<FactionId> = new Set<FactionId>([
+  "islamic",
+]);
 /**
  * Oil cartel (FactionConfig.oilCartel, like OPEC): its production policy scales the cartel's own derrick output and
  * the world price the market heads for, as in real life — a cut pumps less but lifts the price for everybody, a flood

@@ -5,7 +5,10 @@ import type { PlacementBlocker, TileMap } from '../map/TileMap';
 /** Max gap (in cells) between a new building and the nearest friendly building. */
 export const BUILD_RADIUS = 3;
 
-export type PlacementResult = { ok: true } | { ok: false; reason: PlacementBlocker | 'units' | 'tooFar' | 'claimed' };
+export type PlacementResult = { ok: true } | { ok: false; reason: PlacementBlocker | 'units' | 'tooFar' | 'claimed' | 'nearOil' };
+
+/** Free cells every new structure (any nation) must leave between itself and the edge of any oil derrick. */
+export const OIL_DERRICK_CLEARANCE = 4;
 
 /** Antarctica (south of 60°S) can never be claimed. */
 const ANTARCTIC_ROW = Math.floor(((90 + 60) / 180) * GRID_HEIGHT);
@@ -48,7 +51,8 @@ function cellGap(
  *    no ice, never on top of an existing building;
  *    no soldier or vehicle (parked aircraft included) may stand on any of its cells;
  * 2. the footprint must lie within BUILD_RADIUS cells of one of the builder's own buildings;
- * 3. an Allied Building stands on unclaimed land only (land claimed by a Squatters team, see isClaimable).
+ * 3. an Allied Building stands on unclaimed land only (land claimed by a Squatters team, see isClaimable);
+ * 4. at least OIL_DERRICK_CLEARANCE free cells between it and the edge of every oil derrick (anyone's).
  */
 export class PlacementSystem {
   constructor(
@@ -60,6 +64,7 @@ export class PlacementSystem {
     const blocker = this.map.placementBlocker(req.x, req.y, req.w, req.d, req.naval === true);
     if (blocker) return { ok: false, reason: blocker };
     if (req.unclaimedOnly && !this.allClaimable(req)) return { ok: false, reason: 'claimed' };
+    if (this.nearDerrick(req)) return { ok: false, reason: 'nearOil' };
     if (this.unitsInside(req)) return { ok: false, reason: 'units' };
     return this.nearOwnBase(req) ? { ok: true } : { ok: false, reason: 'tooFar' };
   }
@@ -69,6 +74,11 @@ export class PlacementSystem {
     return this.entities
       .buildings()
       .some((b) => b.owner === req.owner && b.alive && cellGap(req, b) <= BUILD_RADIUS);
+  }
+
+  /** Is any living oil derrick closer than OIL_DERRICK_CLEARANCE cells to the footprint? */
+  private nearDerrick(req: PlacementRequest): boolean {
+    return this.entities.buildings().some((b) => b.alive && b.spec.type === 'oilDerrick' && cellGap(req, b) < OIL_DERRICK_CLEARANCE);
   }
 
   private allClaimable(req: PlacementRequest): boolean {

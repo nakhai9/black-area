@@ -26,7 +26,7 @@
 <body>
 <main>
 <img class="logo" src="/logo.png" alt="Black Area" />
-<h1>Black Area — RULE</h1>
+<h1>Black Area — RULE <small>v1.4.0</small></h1>
 <p class="lead">Tài liệu luật chơi + kiến trúc code dành cho AI/dev sửa game. Mọi con số gameplay chính xác nằm trong <code>src/constants.ts</code> và <code>src/factions/*.ts</code>. Nếu tài liệu này khác code thì <b>code đúng</b>. <b>Khi đổi luật/số trong code, phải cập nhật file này.</b></p>
 <nav><a href="#s1">Quy tắc làm việc cho AI</a><a href="#s2">Chạy dự án</a><a href="#s3">Kiến trúc thư mục</a><a href="#s4">Thế giới</a><a href="#s5">Kinh tế (dầu)</a><a href="#s6">Công trình (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Quân đội</a><a href="#s8">Chiến đấu</a><a href="#s9">Điều khiển (Game.handleKey, handleInput)</a><a href="#s10">Giới hạn &amp; hiệu năng</a><a href="#s11">Thắng / thua &amp; AI</a><a href="#s12">Công thức sửa thường gặp</a></nav>
 <h2 id="s1">0. Quy tắc làm việc cho AI</h2>
@@ -38,6 +38,7 @@
   <li>Giữ phong cách code xung quanh: JSDoc ngắn, tiếng Anh, tên rõ nghĩa.</li>
   <li>Không đổi tên hiển thị của unit trên màn hình khi chỉ đổi sprite/nội bộ.</li>
   <li><b>Hỏi người dùng trước mỗi lần <code>git push</code>.</b></li>
+  <li>Phiên bản: <code>GAME_VERSION</code> (x.y.z) trong <code>src/constants.ts</code>, ngay dưới <code>DEMO_MODE</code>. Sau mỗi thay đổi: sửa lỗi / chỉnh số → tăng z; thêm nội dung / luật mới → tăng y, z về 0; thay đổi lớn làm file save cũ không tải được → tăng x, y và z về 0. Ghi cùng số vào tiêu đề RULE.html và README.md.</li>
   <li>Hai hệ toạ độ: world px (logic, ô vuông <code>CELL_SIZE</code>) và iso screen (kim cương 2:1, <code>ISO_X = 0.5</code>, <code>ISO_Y = 0.25</code>, xem <code>core/IsoView.ts</code>).</li>
 </ul>
 <h2 id="s2">1. Chạy dự án</h2>
@@ -74,7 +75,7 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 <h2 id="s4">3. Thế giới</h2>
 <ul>
   <li>Bản đồ = Trái Đất thật (texture 4096×2048, <code>WORLD_SCALE = 2.25</code> world px/texel). <code>MAP_SEED = 20261005</code>.</li>
-  <li>Ô logic <code>CELL_SIZE = 7</code> world px. Hiển thị isometric kiểu RA2, camera không xoay.</li>
+  <li><b>Ô đơn vị</b>: ô 1×1 của lưới, đơn vị đo chung cho cả hệ thống (đường đi, đặt công trình, footprint, cờ, khoảng cách tính bằng ô); kích thước <code>CELL_SIZE = 7</code> world px. Ở chế độ DEMO toàn bộ lưới ô đơn vị (cả đất liền lẫn biển) được vẽ lên bản đồ. Hiển thị isometric kiểu RA2, camera không xoay.</li>
   <li>Zoom chiến thuật <code>ZOOM_MIN 3</code> – <code>ZOOM_MAX 9</code> (bước <code>1.12</code>, <code>FOCUS_ZOOM 8</code>); toàn cảnh xem trên radar sidebar.</li>
   <li>Thủ đô ở toạ độ thật (<code>CAPITAL_LOCATIONS</code>): Washington D.C., Moscow, Beijing, Paris, <b>Riyadh</b> (Islamic). Global Financial Center (trung lập, <code>WorldBank</code>) ở Zürich.</li>
   <li>Rừng làm chậm đơn vị mặt đất ×0.78. Nước: chỉ lính special bơi được (<code>SWIM_SPEED_FACTOR 0.6</code>); xe không xuống nước.</li>
@@ -195,12 +196,13 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 <tr><td><code>airfield</code></td><td>Sản xuất máy bay (jet, bomber, transport) và là nơi đỗ: 9 chỗ, số máy bay ≤ 9 × số airfield. Sửa máy bay đỗ 2% HP mỗi 4 s, nạp bom (trả tiền). Có airfield thì radar sidebar mới hoạt động. Mất airfield: máy bay tìm airfield khác, không có thì rơi.</td></tr>
 <tr><td><code>techCenter</code> (High-Tech Center)</td><td>Khi còn đứng: mở lính <code>special</code>, <code>demolition</code> và máy bay <code>transport</code>. Mất nó thì đơn hàng các loại này dừng (không trừ tiền) cho tới khi có lại.</td></tr>
 <tr><td><code>happyCity</code></td><td>Khoản đầu tư kinh tế: mỗi thành phố nộp 500 TB thuế / 60 s (theo máu còn lại), mỗi thành phố một đồng hồ riêng. Không giới hạn số lượng; bị chiếm thì thuế về phe mới.</td></tr>
-<tr><td><code>flagpole</code></td><td>Cột cờ quốc gia, tính là công trình của phe (mở rộng vùng được xây). Đội Squatters cắm cờ (double-click chuột trái vào đội, kể cả khi đang đi; không cần phím) trên đất chưa ai sở hữu sẽ tạo cột cờ đánh dấu đất đó là của mình.</td></tr>
+<tr><td><code>flagpole</code></td><td>Cột cờ quốc gia, tính là công trình của phe (mở rộng vùng được xây). Đội Squatters cắm cờ (chọn đội rồi nhấn <b>F</b> hoặc double-click: cờ cắm vào ô trống gần nhất, đất nào cũng được) trên đất chưa ai sở hữu sẽ tạo cột cờ đánh dấu đất đó là của mình.</td></tr>
 <tr><td><code>alliedBuilding</code> (Allied Building)</td><td>Trụ sở đồng minh, chỉ xây trên đất đã cắm cờ bằng Squatters; mỗi phe tối đa 3. Hiện chỉ là công trình (chưa có kinh tế đồng minh), hiện ở tab Allies.</td></tr>
 <tr><td><code>oilDerrick</code></td><td>Nguồn thu chính: bơm dầu vào kho (0.08 thùng/s, bơm 180 s nghỉ 60 s), dầu đem bán cho Center lấy TB hoặc đốt ra điện. Đặt sẵn, không xây được. Giếng <code>bankManaged</code> và giếng Islamic không phá / chiếm được; giếng Islamic cho phe khác thuê bằng engineer.</td></tr>
 <tr><td><code>WorldBank</code> (Global Financial Center, Zürich)</td><td>Trung lập, không phá / chiếm / vào được. Mua dầu, đặt giá dầu chung, cho vay khẩn cấp, ép bán dầu cho lưới điện thiếu, trả tiền thưởng tha quân rút lui.</td></tr>
 </table>
 <p>Mọi công trình của phe đều mở rộng vùng được xây quanh nó (<code>BUILD_RADIUS = 3</code> ô, <code>PlacementSystem</code>). Mọi công trình (trừ loại không phá được) có thể bị phá; engineer địch chiếm được nếu không có <code>uncapturable</code>.</p>
+<p><b>Bắt buộc, mọi phe:</b> công trình mới phải cách rìa mọi giếng dầu (của bất kỳ ai) ít nhất <code>OIL_DERRICK_CLEARANCE = 4</code> ô trống (<code>PlacementSystem</code>, lý do <code>nearOil</code>).</p>
 <h2 id="s7">6. Quân đội</h2>
 <h3>Bộ binh (<code>INFANTRY_BASE</code>, sản xuất ở barracks)</h3>
 <table>
@@ -208,7 +210,7 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 <tr><td><code>regular</code></td><td>200</td><td>5</td><td>125</td><td>1.4</td><td>Lính thường, rifle.</td></tr>
 <tr><td><code>special</code></td><td>500</td><td>10</td><td>200</td><td>1.7</td><td>Rifle. Cần Tech Center; bơi được. Elite ≤ <code>eliteCap = floor(regular × 2/3)</code>.</td></tr>
 <tr><td><code>engineer</code></td><td>400</td><td>6</td><td>100</td><td>1.3</td><td>Sửa / chiếm công trình; thuê giếng Islamic.</td></tr>
-<tr><td><code>squatters</code></td><td>1400</td><td>12</td><td>320</td><td>1.4</td><td>Người cầm cờ + hộ tống tính là 1. Đi bộ hoặc được chở tới đất chưa ai sở hữu (không phải Nam Cực), double-click chuột trái vào đội để cắm cờ (không cần phím) → thành <code>Flagpole</code>, đội biến mất.</td></tr>
+<tr><td><code>squatters</code></td><td>1400</td><td>12</td><td>320</td><td>1.4</td><td>Người cầm cờ + hộ tống tính là 1. Đi bộ hoặc được chở tới đất chưa ai sở hữu (không phải Nam Cực), chọn đội rồi nhấn <b>F</b> hoặc double-click chuột trái vào đội: cờ cắm vào ô đơn vị trống gần đội nhất (trong 8 ô; không đá, cây, nước, băng, công trình hay quân khác), trên bất kỳ vùng đất nào (của mình, của địch hay vô chủ), đội biến mất. Đội đang được chọn và đứng yên hiện dòng "Double-click / F: plant flag" trên đầu. Allied Building vẫn chỉ xây được trên đất vô chủ → thành <code>Flagpole</code>, đội biến mất.</td></tr>
 <tr><td><code>demolition</code></td><td>900</td><td>10</td><td>110</td><td>1.6</td><td>"Crazy Soldier", chỉ Islamic, cần Tech Center. <b>Hiện không luyện được vì Islamic <code>peaceful</code>.</b></td></tr>
 </table>
 <p>Crazy Soldier (<code>DEMO_*</code>, <code>Game.processDemolition</code> / <code>detonate</code>): chạy tới mục tiêu, đặt bom trong <code>1.5</code> ô rồi đi tiếp; nạp lại <code>5</code> s; bom nổ sau <code>4</code> s. Công trình ≤ 16 ô bị phá, lớn hơn mất 40% máu tối đa; đơn vị chiến đấu địch trong <code>2.5</code> ô: ≤ 8 chết hết, &gt; 8 chết một nửa (gần nhất).</p>
@@ -231,7 +233,7 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 <tr><td>Lính thường (<code>regular</code>)</td><td><b>GI</b></td><td>Lính bộ binh đa năng của Mỹ — xương sống của quân Đồng minh.</td></tr>
 <tr><td>Đặc nhiệm (<code>special</code>)</td><td><b>Ranger</b></td><td>Bộ binh tinh nhuệ: nhanh, chính xác và rất nguy hiểm ở cự ly gần.</td></tr>
 <tr><td>Kỹ sư (<code>engineer</code>)</td><td><b>Engineer</b></td><td>Kỹ sư Lục quân Mỹ: sửa công trình và chiếm công trình địch.</td></tr>
-<tr><td>Squatters (<code>squatters</code>)</td><td><b>Squatters</b></td><td>Người cầm cờ Mỹ và lính hộ tống, đi cùng nhau như một đơn vị: đi bộ (hoặc được máy bay vận tải chở) tới đất chưa ai sở hữu, cắm quốc kỳ ở đó (double-click chuột trái vào đội, kể cả khi đang đi; không cần phím) — xong nhiệm vụ thì cả đội biến mất.</td></tr>
+<tr><td>Squatters (<code>squatters</code>)</td><td><b>Squatters</b></td><td>Người cầm cờ Mỹ và lính hộ tống, đi cùng nhau như một đơn vị: đi bộ (hoặc được máy bay vận tải chở) tới đất chưa ai sở hữu, cắm quốc kỳ ở đó (chọn đội rồi nhấn <b>F</b> hoặc double-click: cờ cắm vào ô trống gần nhất, đất nào cũng được) — xong nhiệm vụ thì cả đội biến mất.</td></tr>
 <tr><td>Xe tăng (<code>tank</code>)</td><td><b>Abrams</b></td><td>Xe tăng chủ lực M1 Abrams: giáp dày, pháo mạnh.</td></tr>
 <tr><td>Tiêm kích (<code>jet</code>)</td><td><b>F-22</b></td><td>Tiêm kích chiếm ưu thế trên không tàng hình F-22 Raptor.</td></tr>
 <tr><td>Máy bay ném bom (<code>bomber</code>)</td><td><b>B-52</b></td><td>Máy bay ném bom hạng nặng tầm xa B-52 Stratofortress, chỉ USA có: bom nặng san phẳng quân mặt đất và công trình; không bắn được máy bay.</td></tr>
@@ -245,7 +247,7 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 <tr><td>Lính thường (<code>regular</code>)</td><td><b>Red Army</b></td><td>Lính nghĩa vụ Nga đông đảo, chịu lạnh tốt.</td></tr>
 <tr><td>Đặc nhiệm (<code>special</code>)</td><td><b>Spetsnaz</b></td><td>Biệt kích đặc nhiệm chuyên phá hoại và đột kích.</td></tr>
 <tr><td>Kỹ sư (<code>engineer</code>)</td><td><b>Engineer</b></td><td>Công binh Nga: sửa công trình và chiếm công trình địch.</td></tr>
-<tr><td>Squatters (<code>squatters</code>)</td><td><b>Squatters</b></td><td>Người cầm cờ Nga và lính hộ tống, đi cùng nhau như một đơn vị: đi bộ (hoặc được máy bay vận tải chở) tới đất chưa ai sở hữu, cắm quốc kỳ ở đó (double-click chuột trái vào đội, kể cả khi đang đi; không cần phím) — xong nhiệm vụ thì cả đội biến mất.</td></tr>
+<tr><td>Squatters (<code>squatters</code>)</td><td><b>Squatters</b></td><td>Người cầm cờ Nga và lính hộ tống, đi cùng nhau như một đơn vị: đi bộ (hoặc được máy bay vận tải chở) tới đất chưa ai sở hữu, cắm quốc kỳ ở đó (chọn đội rồi nhấn <b>F</b> hoặc double-click: cờ cắm vào ô trống gần nhất, đất nào cũng được) — xong nhiệm vụ thì cả đội biến mất.</td></tr>
 <tr><td>Xe tăng (<code>tank</code>)</td><td><b>T-90</b></td><td>Xe tăng chủ lực T-90, bền và bắn xa.</td></tr>
 <tr><td>Tiêm kích (<code>jet</code>)</td><td><b>Su-57</b></td><td>Tiêm kích chiếm ưu thế trên không tàng hình Su-57.</td></tr>
 <tr><td>Máy bay ném bom (<code>bomber</code>)</td><td><b>Tu-16</b></td><td>Máy bay ném bom chiến lược Tu-16, chỉ Russia có: bom nặng san phẳng quân mặt đất và công trình; không bắn được máy bay.</td></tr>
@@ -259,7 +261,7 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 <tr><td>Lính thường (<code>regular</code>)</td><td><b>PLA</b></td><td>Bộ binh chủ lực Trung Quốc có kỷ luật, rẻ và đông.</td></tr>
 <tr><td>Đặc nhiệm (<code>special</code>)</td><td><b>Tiger</b></td><td>Biệt kích thuỷ quân lục chiến tinh nhuệ, huấn luyện đổ bộ.</td></tr>
 <tr><td>Kỹ sư (<code>engineer</code>)</td><td><b>Engineer</b></td><td>Kỹ sư PLA: sửa công trình và chiếm công trình địch.</td></tr>
-<tr><td>Squatters (<code>squatters</code>)</td><td><b>Squatters</b></td><td>Người cầm cờ PLA và lính hộ tống, đi cùng nhau như một đơn vị: đi bộ (hoặc được máy bay vận tải chở) tới đất chưa ai sở hữu, cắm quốc kỳ ở đó (double-click chuột trái vào đội, kể cả khi đang đi; không cần phím) — xong nhiệm vụ thì cả đội biến mất.</td></tr>
+<tr><td>Squatters (<code>squatters</code>)</td><td><b>Squatters</b></td><td>Người cầm cờ PLA và lính hộ tống, đi cùng nhau như một đơn vị: đi bộ (hoặc được máy bay vận tải chở) tới đất chưa ai sở hữu, cắm quốc kỳ ở đó (chọn đội rồi nhấn <b>F</b> hoặc double-click: cờ cắm vào ô trống gần nhất, đất nào cũng được) — xong nhiệm vụ thì cả đội biến mất.</td></tr>
 <tr><td>Xe tăng (<code>tank</code>)</td><td><b>Type 99</b></td><td>Xe tăng chủ lực Type 99, sản xuất số lượng lớn.</td></tr>
 <tr><td>Tiêm kích (<code>jet</code>)</td><td><b>J-15</b></td><td>Tiêm kích đa năng J-15 trên tàu sân bay.</td></tr>
 <tr><td>Máy bay vận tải (<code>transport</code>)</td><td><b>Y-20</b></td><td>Máy bay vận tải hạng nặng Y-20: chở lính và xe; không vũ khí.</td></tr>
@@ -272,7 +274,7 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 <tr><td>Lính thường (<code>regular</code>)</td><td><b>Eurocorps</b></td><td>Bộ binh liên quân châu Âu, trang bị hiện đại.</td></tr>
 <tr><td>Đặc nhiệm (<code>special</code>)</td><td><b>EU Spec</b></td><td>Đặc nhiệm châu Âu — xạ thủ chính xác tầm xa.</td></tr>
 <tr><td>Kỹ sư (<code>engineer</code>)</td><td><b>Engineer</b></td><td>Kỹ sư EU: sửa công trình và chiếm công trình địch.</td></tr>
-<tr><td>Squatters (<code>squatters</code>)</td><td><b>Squatters</b></td><td>Người cầm cờ EU và lính hộ tống, đi cùng nhau như một đơn vị: đi bộ (hoặc được máy bay vận tải chở) tới đất chưa ai sở hữu, cắm quốc kỳ ở đó (double-click chuột trái vào đội, kể cả khi đang đi; không cần phím) — xong nhiệm vụ thì cả đội biến mất.</td></tr>
+<tr><td>Squatters (<code>squatters</code>)</td><td><b>Squatters</b></td><td>Người cầm cờ EU và lính hộ tống, đi cùng nhau như một đơn vị: đi bộ (hoặc được máy bay vận tải chở) tới đất chưa ai sở hữu, cắm quốc kỳ ở đó (chọn đội rồi nhấn <b>F</b> hoặc double-click: cờ cắm vào ô trống gần nhất, đất nào cũng được) — xong nhiệm vụ thì cả đội biến mất.</td></tr>
 <tr><td>Xe tăng (<code>tank</code>)</td><td><b>Leopard 2</b></td><td>Xe tăng chủ lực Leopard 2, chính xác và được bảo vệ tốt.</td></tr>
 <tr><td>Tiêm kích (<code>jet</code>)</td><td><b>Rafale</b></td><td>Tiêm kích đa năng Dassault Rafale.</td></tr>
 <tr><td>Máy bay vận tải (<code>transport</code>)</td><td><b>C-130</b></td><td>Máy bay vận tải C-130: chở lính và xe; không vũ khí.</td></tr>
@@ -285,7 +287,7 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 <tr><td>Lính thường (<code>regular</code>)</td><td><b>Basij</b></td><td>Lính bộ binh tình nguyện của thế giới Hồi giáo, đông và quyết tâm.</td></tr>
 <tr><td>Đặc nhiệm (<code>special</code>)</td><td><b>Quds Force</b></td><td>Đặc nhiệm Hồi giáo tinh nhuệ.</td></tr>
 <tr><td>Kỹ sư (<code>engineer</code>)</td><td><b>Engineer</b></td><td>Công binh chiến đấu Hồi giáo: sửa công trình và chiếm công trình địch.</td></tr>
-<tr><td>Squatters (<code>squatters</code>)</td><td><b>Squatters</b></td><td>Người cầm cờ Islamic và lính hộ tống, đi cùng nhau như một đơn vị: đi bộ (hoặc được máy bay vận tải chở) tới đất chưa ai sở hữu, cắm quốc kỳ ở đó (double-click chuột trái vào đội, kể cả khi đang đi; không cần phím) — xong nhiệm vụ thì cả đội biến mất.</td></tr>
+<tr><td>Squatters (<code>squatters</code>)</td><td><b>Squatters</b></td><td>Người cầm cờ Islamic và lính hộ tống, đi cùng nhau như một đơn vị: đi bộ (hoặc được máy bay vận tải chở) tới đất chưa ai sở hữu, cắm quốc kỳ ở đó (chọn đội rồi nhấn <b>F</b> hoặc double-click: cờ cắm vào ô trống gần nhất, đất nào cũng được) — xong nhiệm vụ thì cả đội biến mất.</td></tr>
 <tr><td>Crazy Soldier (phá hoại) (<code>demolition</code>)</td><td><b>Crazy Soldier</b></td><td>Chuyên gia phá hoại, giống Crazy Ivan: chạy tới công trình hoặc đơn vị địch và đặt bom hẹn giờ. Công trình nhỏ bị phá huỷ, lớn mất 40% máu; nhóm ≤ 8 đơn vị chiến đấu chết hết, nhóm lớn hơn mất một nửa. Cần High-Tech Center.</td></tr>
 <tr><td>Xe tăng (<code>tank</code>)</td><td><b>Karrar</b></td><td>Xe tăng chủ lực Karrar, giáp nặng của thế giới Hồi giáo.</td></tr>
 <tr><td>Tiêm kích (<code>jet</code>)</td><td><b>Su-35</b></td><td>Tiêm kích đa năng chiếm ưu thế trên không Su-35 của không quân Hồi giáo.</td></tr>
@@ -316,12 +318,34 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
   <li>Dừng khi xe được sửa đầy máu, một trong hai xe chết hoặc lên máy bay vận tải, không tới được, hoặc khi xe nhận lệnh di chuyển / lên máy bay mới.</li>
   <li>Sprite: <code>public/sprites/brem1-russia.png</code> (Russia), <code>public/sprites/arv-usa.png</code> (USA và Europe dùng chung), <code>public/sprites/type90ii-china.png</code> (China và Islamic dùng chung) — ô 80 px, 16 × 15; bảng sheet theo phe trong <code>render/RepairSheets.ts</code>.</li>
 </ul>
+<h3>Xe tải quân sự (<code>truck</code>): KamAZ (Russia, China, Islamic), LVSR (USA), IVECO (Europe)</h3>
+<ul>
+  <li>Giá gốc <code>700</code> TB, <code>9</code> s, <code>240</code> máu, tốc độ <code>2.1</code> (nhanh hơn lính 1.3–1.7 và xe tăng 1.4); không vũ khí, chỉ đi trên đất (không qua biển), sản xuất ở War Factory. Sprite: <code>public/sprites/kamaz-truck.png</code> (KamAZ), <code>public/sprites/lvsr-usa.png</code> (LVSR), <code>public/sprites/iveco-europe.png</code> (IVECO), cùng bố cục; vẽ to hơn xe tăng chủ lực một chút (scale 0.23 so với 0.2) để tăng nằm trên sàn trông vừa, vẽ bằng <code>render/TruckSheets.ts</code>.</li>
+  <li>Chở <b>tối đa 8 lính</b> (xe có thùng che bạt) <b>hoặc 1 xe tăng</b> (xe bỏ thùng, tăng nằm trên sàn sau), không chở lẫn, không chở xe khác hay máy bay/trực thăng (<code>TRUCK_SOLDIERS</code>, <code>TRUCK_TANKS</code>).</li>
+  <li>Lên xe: chọn lính / xe tăng rồi click vào xe tải (xe tải dừng chờ). Xuống xe: chọn xe tải, nhấn <b>U</b> hoặc double-click chuột trái vào chính xe đang chọn (áp dụng cho mọi xe/máy bay chở quân) — xe đứng yên, từng người (hoặc chiếc tăng) xuống ô trống bên cạnh. Xe tải bị phá thì mọi thứ trên xe mất theo.</li>
+  <li>Islamic hiện là phe <code>peaceful</code> (không sản xuất xe) nên chưa mua được xe tải dù đã có trong danh sách phe.</li>
+</ul>
+<h3>Hành quân bộ binh (mệt mỏi)</h3>
+<ul>
+  <li>Mọi lính trừ đặc nhiệm (<code>special</code>): đi bộ được <code>INFANTRY_MARCH_CELLS = 10</code> ô đơn vị thì dừng tại chỗ nghỉ <code>INFANTRY_REST_SECONDS = 35</code> s (hiện "Resting Ns" trên đầu), giữ nguyên lệnh rồi đi tiếp — kể cả khi đang đi đánh. Đứng yên <code>INFANTRY_RECOVER_SECONDS = 10</code> s cũng tính là đã nghỉ. Ngồi xe tải / máy bay vận tải không mệt.</li>
+  <li>AI: giữ 1 xe tải cho mỗi 8 lính (tối đa 4); khi mục tiêu xa hơn 15 ô, lính gần xe tải rảnh (trong 25 ô) lên xe, xe chở tới cách mục tiêu 8 ô rồi thả xuống (<code>AISystem.motorize</code> / <code>driveConvoys</code>); khác lục địa thì dùng máy bay vận tải như cũ.</li>
+</ul>
+<h3>Di chuyển và tìm đường (<code>map/PathService.ts</code>)</h3>
+<ul>
+  <li>Phương tiện chỉ đi theo hướng mũi xe (không trượt ngang): xe mặt đất lệch quá ~26° so với điểm tiếp theo thì dừng xoay tại chỗ rồi mới chạy; máy bay lượn vòng theo bán kính quay. Máy bay lăn bánh trên sân bay cũng xoay trước khi lăn.</li>
+  <li>Lệnh đi cho cả nhóm: một <b>flow field</b> chung (Dijkstra từ đích) trong <b>hành lang HPA*</b> (cụm 16×16 ô nối nhau qua đất liền), mỗi đơn vị đọc đường từ field; công việc chia nhỏ theo khung hình (<code>PATH_BUDGET_MS = 3</code> ms/frame). Đường một đơn vị lẻ vẫn dùng A* trực tiếp.</li>
+  <li>Đội hình (như RA2): đơn vị mặt đất được ra lệnh đi cùng nhau xếp thành hàng ngang vuông góc với hướng đi (hàng đầu trước, các hàng sau phía sau), tới nơi tất cả quay mặt cùng một hướng — không bao giờ đối đầu nhau.</li>
+  <li>Giao lộ: khi đoạn đường sắp đi (4 ô phía trước) của hai đơn vị mặt đất (lính, tank, xe tải, ARV) cắt nhau, đơn vị tới điểm giao trước được đi trước; đơn vị kia dừng ngay trước điểm giao chờ tới lượt (ai tới trước đi trước), chờ tối đa <code>CROSSING_MAX_WAIT = 6</code> s (<code>Game.yieldAtCrossings</code>). Máy bay không dừng mà bay cao hơn để tránh nhau.</li>
+  <li>Xếp hàng: đơn vị đi sau cùng hướng chậm lại theo xe/lính phía trước (<code>Game.queueInCrowds</code>); xe đứng chắn đường tự tránh sang bên (<code>giveWay</code>).</li>
+  <li>Xuất xưởng (War Factory): xe chỉ ra khi ô cửa trống — nếu kẹt, sản xuất dừng ở "EXIT BLOCKED" (xe của mình đứng chắn cửa được tự điều đi chỗ đậu). Xe ra cửa rồi tìm chỗ đậu quanh điểm tập kết cách cửa <code>PARKING_RALLY_CELLS = 3</code> ô (quét xoắn ốc), không bao giờ đậu trên làn ra của cửa.</li>
+</ul>
 <h3>Giới hạn</h3>
 <ul>
   <li>Đơn chờ (BuildLimit): <code>BUILD_LIMIT_SOLDIERS 15</code>, <code>BUILD_LIMIT_VEHICLES 10</code>.</li>
   <li>Trần quân: <code>MAX_SOLDIERS 25</code> lính (sống + đặt), <code>MAX_GROUND_VEHICLES 30</code> xe mặt đất, <code>MAX_TRANSPORTS 3</code> máy bay vận tải. Máy bay còn bị giới hạn bởi chỗ đỗ.</li>
   <li>Hạ cánh: chọn máy bay rồi click vào sân bay của mình (còn chỗ đỗ) → bay vào từ <b>đầu đường băng gần hơn</b> (cả hai đầu đều được, <code>AircraftSystem.land</code>); chỉ một máy bay dùng đường băng mỗi lúc, chiếc khác chờ trên điểm tiếp cận. Máy bay tự về cũng chọn đầu gần hơn.</li>
-  <li>Âm thanh (<code>audio/SoundSystem.ts</code>): tiếng súng, pháo, nổ; tiếng bước chân, động cơ + xích xe, động cơ máy bay khi di chuyển gần camera. Mặc định tổng hợp bằng Web Audio; đặt file ghi âm thật vào <code>public/sounds/</code> (tên: rifle, smg, mg, autocannon, sniper, cannon, bomb, missile, explosion, board, foot, tracks, jet; đuôi mp3/ogg/wav) thì game dùng file đó.</li>
+  <li>Click (đi / tấn công-di chuyển) trên sân bay N×M của mình hoặc trong vùng (N+2)×(M+2) quanh nó (<code>AIRFIELD_CLICK_MARGIN = 2</code> ô mỗi phía): máy bay đang đỗ không cất cánh, máy bay đang bay thì hạ cánh xuống sân bay đó. Chỉ click cách sân bay từ 3 ô trở ra mới làm máy bay cất cánh bay tới.</li>
+  <li>Âm thanh (<code>audio/SoundSystem.ts</code>): tiếng súng, pháo, nổ; tiếng bước chân, động cơ + xích xe, động cơ máy bay khi di chuyển gần camera. Mặc định tổng hợp bằng Web Audio; mỗi mẫu phương tiện có tiếng động cơ riêng theo tên (Abrams: tuabin khí; T-90/Leopard 2/Type 99/Karrar: diesel; BREM-1/M88/Type 99II: diesel xe cứu kéo; tiêm kích; B-52/Tu-16; máy bay vận tải/tiếp dầu), chỉ phát khi phương tiện trong khung hình, giữa màn hình to nhất, ra mép thì nhỏ dần. File ghi âm thật: <code>public/sounds/&lt;loại&gt;.mp3|ogg|wav</code> (rifle, smg, mg, autocannon, sniper, cannon, bomb, missile, explosion, board, foot) và <code>public/sounds/vehicles/&lt;tên-phương-tiện&gt;.mp3|ogg|wav</code> (vd. <code>abrams.mp3</code>, <code>leopard-2.mp3</code>, <code>su-57.mp3</code>).</li>
 </ul>
 <h3>Máy bay vận tải &amp; tanker</h3>
 <ul>
@@ -371,6 +395,7 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 <tr><td><b>C</b></td><td>Tản ra (scatter) ~3 ô (máy bay ×2)</td></tr>
 <tr><td><b>Z</b></td><td>Waypoint: trái-click tối đa <code>MAX_WAYPOINTS 5</code> điểm, Z lần nữa (hoặc chuột phải) để đi; Esc huỷ</td></tr>
 <tr><td>U</td><td>Thả quân khỏi transport</td></tr>
+<tr><td><b>F</b> / double-click</td><td>Squatters: cắm cờ vào ô trống gần nhất (đất nào cũng được), đội biến mất</td></tr>
 <tr><td>R</td><td>Xoay công trình 90° — chỉ khi đang đặt công trình mới lấy từ cửa hàng; xây xong thì không xoay được nữa</td></tr>
 <tr><td>H / O / 1–9</td><td>Về thủ đô / duyệt giếng dầu / nhảy tới landmark</td></tr>
 <tr><td>M</td><td>Bật/tắt âm</td></tr>
@@ -394,7 +419,7 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 <h2 id="s11">10. Thắng / thua &amp; AI</h2>
 <ul>
   <li>Phe bị loại khi không còn thủ đô <b>và</b> không còn lính/xe có vũ khí. Người chơi thua khi bị loại; thắng khi mọi phe khác bị loại.</li>
-  <li>AI (<code>systems/AISystem.ts</code>): nghĩ mỗi <code>1.5</code> s; <code>BUILD_PLAN</code>: powerPlant → barracks → warFactory → hospital → airfield → techCenter; sau đó Happy City (tối đa <code>MAX_CITIES 10</code>), cắm cờ/Allied Building khi đủ điều kiện (<code>CLAIM_*</code>); phòng thủ trong 38 ô quanh thủ đô; đợt tấn công đầu sau <code>210</code> s rồi mỗi <code>110</code> s.</li>
+  <li>AI (<code>systems/AISystem.ts</code>): nghĩ mỗi <code>1.5</code> s; <code>BUILD_PLAN</code>: powerPlant → barracks → warFactory → hospital → airfield → techCenter; sau đó Happy City (tối đa <code>MAX_CITIES 10</code>), cắm cờ/Allied Building khi đủ điều kiện (<code>CLAIM_*</code>); phòng thủ trong 38 ô quanh thủ đô; engineer sửa mọi công trình mất máu (dưới 98%, sau 3 s không bị bắn); xe sửa (ARV) tự tới sửa xe mặt đất hư nặng nhất gần đó (trong 60 ô); lính mất máu (dưới 85%) chạy tới bệnh viện gần nhất còn giường; mở đất từ <code>CLAIM_FROM 120</code> s, chọn đất vô chủ gần đối thủ nhất (cách công trình địch ≥ 18 ô) — cùng lục địa thì Squatters đi bộ tới, khác lục địa (không bơi qua được) thì bay bằng máy bay vận tải; đợt tấn công đầu sau <code>210</code> s rồi mỗi <code>110</code> s.</li>
 </ul>
 <h2 id="s12">11. Công thức sửa thường gặp</h2>
 <table>

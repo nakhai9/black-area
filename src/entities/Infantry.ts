@@ -1,4 +1,4 @@
-import { CELL_SIZE, INFANTRY_BASE, INFANTRY_MAX_RANGE_CELLS, SWIM_SPEED_FACTOR, WEAPONS } from '../constants';
+import { CELL_SIZE, INFANTRY_BASE, INFANTRY_MARCH_CELLS, INFANTRY_MAX_RANGE_CELLS, INFANTRY_RECOVER_SECONDS, INFANTRY_REST_SECONDS, SWIM_SPEED_FACTOR, WEAPONS } from '../constants';
 import { FACTIONS } from '../factions';
 import type { FactionId, InfantryProfile, UnitTier, WorldPoint } from '../types';
 import { Unit } from './Unit';
@@ -34,6 +34,12 @@ export class Infantry extends Unit {
     this.profile = f.infantry[tier] ?? f.infantry.regular;
     this.speed = base.speed * f.stats.unitSpeed * CELL_SIZE;
     this.value = Math.round((base.cost * f.stats.cost) / 10) * 10;
+    // Everyone but special forces tires on a long march (see INFANTRY_MARCH_CELLS).
+    if (tier !== 'special') {
+      this.marchLimit = INFANTRY_MARCH_CELLS * CELL_SIZE;
+      this.restSeconds = INFANTRY_REST_SECONDS;
+      this.recoverSeconds = INFANTRY_RECOVER_SECONDS;
+    }
     const w = this.profile.look.weapon;
     if (w === 'rifle' || w === 'smg' || w === 'sniper') {
       const spec = WEAPONS[w];

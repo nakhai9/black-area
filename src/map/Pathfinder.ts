@@ -108,7 +108,7 @@ export class Pathfinder {
    * Path of world-px waypoints (cell centres) from `start` to `goal`. If the
    * goal is unreachable, returns a path to the closest reachable cell.
    */
-  find(start: WorldPoint, goal: GridPoint, swim = false): WorldPoint[] {
+  find(start: WorldPoint, goal: GridPoint, swim = false, corridor: Corridor | null = null): WorldPoint[] {
     const { map } = this;
     const W = map.width;
     const sx = Math.floor(start.x / CELL_SIZE);
@@ -147,6 +147,7 @@ export class Pathfinder {
         const nx = cx + dx;
         const ny = cy + dy;
         if (!this.passable(nx, ny, swim)) continue;
+        if (corridor && !inCorridor(corridor, nx, ny)) continue;
         if (dx !== 0 && dy !== 0 && (!this.passable(cx + dx, cy, swim) || !this.passable(cx, cy + dy, swim))) continue;
         const ni = map.index(nx, ny);
         const cost = (this.g[cur] ?? 0) + step * (map.hasTrees(nx, ny) ? TREE_COST : 1);
@@ -168,7 +169,7 @@ export class Pathfinder {
    * "String pulling": drops every waypoint that has a clear straight line to a
    * later one, so units walk in natural straight lines instead of grid zig-zags.
    */
-  private smooth(sx: number, sy: number, pts: readonly GridPoint[], swim: boolean): GridPoint[] {
+  smooth(sx: number, sy: number, pts: readonly GridPoint[], swim: boolean): GridPoint[] {
     const out: GridPoint[] = [];
     let ax = sx;
     let ay = sy;
@@ -191,7 +192,7 @@ export class Pathfinder {
   }
 
   /** Is the straight line between two cell centres free of obstacles (diagonal squeezes included)? */
-  private lineClear(x0: number, y0: number, x1: number, y1: number, swim: boolean): boolean {
+  lineClear(x0: number, y0: number, x1: number, y1: number, swim: boolean): boolean {
     const dx = x1 - x0;
     const dy = y1 - y0;
     const steps = Math.ceil(Math.max(Math.abs(dx), Math.abs(dy)) * 2);
@@ -216,8 +217,22 @@ export class Pathfinder {
   }
 }
 
+/**
+ * HPA* corridor: the clusters (CLUSTER × CLUSTER cells) a fine search may enter, as a mask over the cluster grid
+ * (`width` clusters per row). Built by PathService from the coarse route between two far-apart cells.
+ */
+export interface Corridor {
+  readonly mask: Uint8Array;
+  readonly width: number;
+  readonly cluster: number;
+}
+
+export function inCorridor(c: Corridor, x: number, y: number): boolean {
+  return c.mask[((y / c.cluster) | 0) * c.width + ((x / c.cluster) | 0)] === 1;
+}
+
 /** Binary min-heap of (index, priority). */
-class MinHeap {
+export class MinHeap {
   private readonly items: number[] = [];
   private readonly prio: number[] = [];
 

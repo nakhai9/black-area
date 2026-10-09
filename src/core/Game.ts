@@ -89,6 +89,7 @@ import { type EarthData, loadEarthData } from '../map/EarthData';
 import { formatGeo, geoToWorld, worldToGeo } from '../map/Geo';
 import { TerrainRenderer } from '../map/TerrainRenderer';
 import { Pathfinder } from '../map/Pathfinder';
+import { type GroupMember, PathService } from '../map/PathService';
 import { TileMap } from '../map/TileMap';
 import { computeSafety, findOilRow } from '../map/OilSite';
 import { TERRITORIES } from '../map/Territories';
@@ -97,6 +98,7 @@ import { TreeLayer } from '../map/Trees';
 import { SOLDIER_DEATH_SECONDS, hasSoldierDeath, soldierPortrait } from '../render/InfantryArt';
 import { vehiclePortrait } from '../render/VehicleArt';
 import { REPAIR_DEATH_SECONDS, hasRepairSheet } from '../render/RepairSheets';
+import { TRUCK_DEATH_SECONDS, hasTruckSheet } from '../render/TruckSheets';
 import { TANK_DEATH_SECONDS, hasTankSheet } from '../render/TankSheets';
 import { SpriteCache } from '../render/SpriteCache';
 import { BUILDING_ART } from '../render/sprites';
@@ -117,7 +119,7 @@ const ALLY_ALERT_SECONDS = 5;
 /** The military ranking is re-counted this often (s): soldiers die and vehicles are lost in between. */
 const MILITARY_RANK_INTERVAL = 240;
 import type { GameSystem } from '../systems/GameSystem';
-import { BUILD_RADIUS, type PlacementRequest, type PlacementResult, PlacementSystem, isClaimable } from '../systems/PlacementSystem';
+import { BUILD_RADIUS, OIL_DERRICK_CLEARANCE, type PlacementRequest, type PlacementResult, PlacementSystem, isClaimable } from '../systems/PlacementSystem';
 import { Flagpole } from '../entities/Flagpole';
 import { PowerSystem } from '../systems/PowerSystem';
 import { SAFE_ZONE_SIZE, type SafeZone, SafeZoneSystem } from '../systems/SafeZoneSystem';
@@ -162,9 +164,21 @@ const BLOCK_REASONS: Readonly<Record<string, string>> = {
   needsWater: 'Must be built on water',
   tooFar: `Too far from your base (max ${BUILD_RADIUS} cells)`,
   claimed: 'Allied Buildings stand only on unclaimed land claimed with a Squatters team',
+  nearOil: `Too close to an oil derrick (keep ${OIL_DERRICK_CLEARANCE} free cells around it)`,
 };
 /** Map-authored buildings may shift this many cells to find tree-free ground… */
 const PRESET_SNAP_RADIUS = 2;
+/** Crossing routes are checked this many cells ahead; a unit gives way at most CROSSING_MAX_WAIT s. */
+const CROSSING_LOOKAHEAD_CELLS = 4;
+const CROSSING_MAX_WAIT = 6;
+/** Cells around an airfield (on top of its own N × M) where a move click keeps its aircraft home; from one more cell out they take off. */
+const AIRFIELD_CLICK_MARGIN = 2;
+/** New vehicles park around a rally point this many cells out in front of the War Factory's door. */
+const PARKING_RALLY_CELLS = 3;
+/** Seconds between two riders getting off a truck. */
+const TRUCK_EJECT_STEP = 0.35;
+/** F / double-click: the flag goes up on the nearest open cell within this many cells of the Squatters. */
+const FLAG_SEARCH_CELLS = 8;
 /** …otherwise the nearest dry spot within this radius is used and cleared of trees. */
 const PRESET_SEARCH_RADIUS = 8;
 /** RA2 Enter cursor: an arrow going down into a hatch, shown over a transport the selection can climb into. */
@@ -254,6 +268,8 @@ export class Game {
   /** Types of the human player's buildings, refreshed with the sidebar. */
   private ownedCache: Set<BuildingType> = new Set();
   readonly pathfinder: Pathfinder;
+  /** Route planning for many units: HPA* corridors, time-sliced jobs, shared flow fields (see PathService). */
+  readonly paths: PathService;
   private moveMarker: { x: number; y: number; at: number } | null = null;
   /** Right-clicked moving unit of mine: its route to the destination is shown as a green line for a moment. */
   private pathPeekId: number | null = null;
@@ -349,12 +365,18 @@ export class Game {
     this.placement = new PlacementSystem(this.map, this.entities);
     this.construction = new ConstructionSystem(this.players);
     this.pathfinder = new Pathfinder(this.map);
+    this.paths = new PathService(this.map, this.pathfinder);
+    // Label the landmasses now, behind the loading screen, not on the first order of the game (~130 ms).
+    this.pathfinder.sameLandmass(0, 0, 0, 0);
     this.training = new TrainingSystem(this.players, this.entities, (player, tier, barracks) =>
       this.spawnSoldier(player, tier, barracks),
     );
     // Income is credited before construction spends it within the same tick.
-    this.production = new VehicleSystem(this.players, this.entities, (player, kind, producer) =>
-      this.spawnVehicle(player, kind, producer),
+    this.production = new VehicleSystem(
+      this.players,
+      this.entities,
+      (player, kind, producer) => this.spawnVehicle(player, kind, producer),
+      (producer) => this.factoryExitClear(producer),
     );
     // The sound system (and its music) already runs since the faction picker; now it hears from the camera.
     this.sound = sound;
@@ -505,7 +527,7 @@ export class Game {
   }
 
   /** Game fields never written back from a save (screen / input state). */
-  private static readonly UNSAVED = ['systems', 'paused', 'ended', 'dom', 'lastCursor', 'mouseWorld', 'ghost', 'placing', 'placingRotated', 'waypoints', 'moveMarker', 'pathPeekId', 'lastBuildingClick'];
+  private static readonly UNSAVED = ['systems', 'paths', 'paused', 'ended', 'dom', 'lastCursor', 'mouseWorld', 'ghost', 'placing', 'placingRotated', 'waypoints', 'moveMarker', 'pathPeekId', 'lastBuildingClick'];
 
   /**
    * Everything needed to continue this game later, as plain JSON-ready data: players, every entity, the state of
@@ -709,27 +731,72 @@ export class Game {
    * A Squatters team plants its nation's flag on the unclaimed land it stands on (or a free cell right next to it): the
    * flag becomes one of the nation's structures and the team is used up. Returns null on success, else why not.
    */
+  /**
+   * Can a flag stand on cell (x, y)? Open ground only: no rock, trees, water or ice, no structure on it and no other
+   * soldier or vehicle standing there (`team`, the Squatters planting it, does not count).
+   */
+  private flagGround(x: number, y: number, team: Unit): boolean {
+    const t = this.map.typeAt(x, y);
+    if (!t || t === 'water' || t === 'snow' || t === 'rock' || this.map.hasTrees(x, y) || this.map.occupantAt(x, y) !== null) return false;
+    const x0 = x * CELL_SIZE;
+    const y0 = y * CELL_SIZE;
+    return !this.entities
+      .fieldMovers()
+      .some((m) => m !== team && m.alive && !m.flies && m.insideId === null && m.px > x0 && m.px < x0 + CELL_SIZE && m.py > y0 && m.py < y0 + CELL_SIZE);
+  }
+
+  /** My selected Squatters teams standing still: they show "Double-click / F: plant flag" above their heads. */
+  private flagHints(): ReadonlySet<number> {
+    const ids = new Set<number>();
+    for (const id of this.selection.selectedUnits) {
+      const u = this.entities.get(id);
+      if (u instanceof Infantry && u.isSquatters && u.alive && u.owner === this.humanPlayer.id && u.insideId === null && !u.moving) ids.add(u.id);
+    }
+    return ids;
+  }
+
+  /** F key: every selected Squatters team of mine plants its flag where it stands. */
+  private plantSelectedFlags(): void {
+    const teams = this.selection.selectedUnitList().filter((u): u is Infantry => u instanceof Infantry && u.isSquatters && u.owner === this.humanPlayer.id);
+    if (teams.length === 0) return;
+    let planted = 0;
+    let why = '';
+    for (const t of teams) {
+      const r = this.plantFlag(t);
+      if (r === null) planted++;
+      else why = r;
+    }
+    this.sidebar.notify(planted > 0 ? 'Flag planted — the Squatters have done their duty. This land is claimed: raise an Allied Building beside it.' : `Cannot plant the flag: ${why}.`, 4);
+    if (planted > 0) {
+      this.bus.emit('selection:changed', { entityId: null });
+      this.sidebarTimer = SIDEBAR_REFRESH;
+    }
+  }
+
   plantFlag(u: Infantry): string | null {
     if (!u.alive || !u.isSquatters) return 'not Squatters';
     const here = this.map.cellAt(u.px, u.py);
     if (!here) return 'outside the map';
+    // The flag goes up on the nearest unit cell (from the team) that is open ground, on any land (own, enemy or
+    // unclaimed); the team is used up.
     let spot: { x: number; y: number } | null = null;
     let best = Infinity;
-    for (let dy = -2; dy <= 2; dy++) {
-      for (let dx = -2; dx <= 2; dx++) {
-        const x = here.x + dx;
-        const y = here.y + dy;
-        if (!isClaimable(this.map, x, y) || this.map.placementBlocker(x, y, 1, 1) !== null) continue;
-        const dist = Math.hypot(dx, dy);
-        if (dist < best) {
-          best = dist;
-          spot = { x, y };
+    for (let r = 0; r <= FLAG_SEARCH_CELLS && !spot; r++) {
+      for (let dy = -r; dy <= r; dy++) {
+        for (let dx = -r; dx <= r; dx++) {
+          if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+          const x = here.x + dx;
+          const y = here.y + dy;
+          if (!this.flagGround(x, y, u)) continue;
+          const d = Math.hypot((x + 0.5) * CELL_SIZE - u.px, (y + 0.5) * CELL_SIZE - u.py);
+          if (d < best) {
+            best = d;
+            spot = { x, y };
+          }
         }
       }
     }
-    if (!spot) {
-      return isClaimable(this.map, here.x, here.y) ? 'no free ground here for the flag' : 'this land is already claimed (only unclaimed land, never Antarctica)';
-    }
+    if (!spot) return `no open ground within ${FLAG_SEARCH_CELLS} cells (rock, trees, water, structures or units everywhere)`;
     const player = this.players.find((p) => p.id === u.owner);
     if (!player) return 'no nation';
     this.entities.remove(u.id);
@@ -760,16 +827,6 @@ export class Game {
         underAttack: this.time - b.lastAttackedAt < ALLY_ALERT_SECONDS,
       };
     });
-  }
-
-  /** Double-click on one of your Squatters teams standing still: it plants its flag where it stands. */
-  private plantFlagByClick(team: Infantry): void {
-    const why = this.plantFlag(team);
-    this.sidebar.notify(why === null ? 'Flag planted — the Squatters have done their duty. This land is claimed: raise an Allied Building beside it.' : `Cannot plant the flag: ${why}.`, 4);
-    if (why === null) {
-      this.bus.emit('selection:changed', { entityId: null });
-      this.sidebarTimer = SIDEBAR_REFRESH;
-    }
   }
 
   ownedTypesOf(player: PlayerState): Set<BuildingType> {
@@ -863,7 +920,31 @@ export class Game {
     return this.safeZones.zonesOf(p.id);
   }
 
+  /**
+   * A click on an own airfield or within AIRFIELD_CLICK_MARGIN cells of it is no reason to take off: aircraft
+   * standing on the ground stay put, aircraft in the air come in to land there. Only a click farther out (from the
+   * margin + 1 cells on) sends them flying. Returns the units the order still applies to.
+   */
+  private keepAircraftAtAirfield(units: readonly Unit[], world: WorldPoint): Unit[] {
+    const cell = this.map.cellAt(world.x, world.y);
+    if (!cell || !units.some((u) => u.aircraft)) return [...units];
+    const m = AIRFIELD_CLICK_MARGIN;
+    const near = (owner: number): Building | undefined =>
+      this.entities.buildings().find(
+        (b) => b.alive && b.owner === owner && b.spec.type === 'airfield' && cell.x >= b.x - m && cell.x < b.x + b.w + m && cell.y >= b.y - m && cell.y < b.y + b.d + m,
+      );
+    return units.filter((u) => {
+      if (!(u instanceof Vehicle) || !u.aircraft) return true;
+      const field = near(u.owner);
+      if (!field) return true;
+      if (!u.flies) return false; // on the ground at (or next to) the airfield: no take-off
+      this.aircraft.land(u, field);
+      return false;
+    });
+  }
+
   orderAttackMove(units: readonly Unit[], target: WorldPoint): void {
+    units = this.keepAircraftAtAirfield(units, target);
     const spacing = Math.max(UNIT_SPACING * 1.15, Math.max(0, ...units.map((u) => u.radius)) * 2.1);
     units.forEach((u, k) => {
       u.parade = null;
@@ -892,7 +973,7 @@ export class Game {
         u.attackMove = null;
         return;
       }
-      if (goal) u.follow(this.pathfinder.find({ x: u.px, y: u.py }, goal, u.swims));
+      if (goal) u.follow(this.paths.find({ x: u.px, y: u.py }, goal, u.swims));
     });
   }
 
@@ -992,6 +1073,35 @@ export class Game {
     return true;
   }
 
+  /** AI: plain move order for `units` (convoy trucks). */
+  orderMoveUnits(units: readonly Unit[], target: WorldPoint): void {
+    this.orderMove(target, [...units], false);
+  }
+
+  /** AI: a truck lets its riders out where it stands. */
+  unloadTruck(t: Vehicle): void {
+    if (!t.isTruck || t.cargo.length === 0) return;
+    t.stop();
+    t.ejecting = true;
+    t.ejectClock = 0;
+  }
+
+  /** Trucks told to unload (U): they stand still and let their riders out one by one (a tank rolls off the bed). */
+  private processTruckUnloading(dt: number): void {
+    for (const t of this.entities.vehicles()) {
+      if (!t.isTruck || !t.ejecting) continue;
+      if (!t.alive || t.cargo.length === 0) {
+        t.ejecting = false;
+        continue;
+      }
+      if (t.moving) t.stop();
+      t.ejectClock -= dt;
+      if (t.ejectClock > 0) continue;
+      t.ejectClock = TRUCK_EJECT_STEP;
+      if (!this.unloadOne(t) || t.cargo.length === 0) t.ejecting = false;
+    }
+  }
+
   /** Little flash and hatch clunk where a unit climbs into or jumps out of a transport. */
   private hatch(x: number, y: number): void {
     this.effects.add({ kind: 'flash', ...this.fx(x, y, 2), age: 0, ttl: 0.25, size: 1.6 });
@@ -1009,7 +1119,18 @@ export class Game {
       if (transports.length > 0) this.sidebar.notify('The transport is empty.');
       return;
     }
+    this.unloadCarriers(loaded);
+  }
+
+  /** Lets the riders of these carriers out: a truck where it stands, an aircraft on the ground (setting down first). */
+  private unloadCarriers(loaded: readonly Vehicle[]): void {
     for (const t of loaded) {
+      if (t.isTruck) {
+        t.stop();
+        t.ejecting = true;
+        t.ejectClock = 0;
+        continue;
+      }
       const r = this.aircraft.requestUnload(t);
       if (r === 'noSpot') this.sidebar.notify(`The ${t.name} cannot land here (open water) — fly it over land first.`);
       else if (r === 'busy') this.sidebar.notify(`The ${t.name} is taking off or landing — unload in a moment.`);
@@ -1039,9 +1160,9 @@ export class Game {
   /** Can any of the selected units climb into transport `t` right now (RA2 Enter cursor)? */
   private canBoardSelected(t: Vehicle): boolean {
     if (!t.isCarrier || t.owner !== this.humanPlayer.id || this.selection.selectedUnits.has(t.id)) return false;
-    const usable = t.flight === 'parked' || t.flight === 'landed' || t.flight === 'airborne' || t.flight === 'approach' || (t.flight === 'unloading' && t.pickup);
+    const usable = t.boardable || t.flight === 'airborne' || t.flight === 'approach' || (t.flight === 'unloading' && t.pickup);
     if (!usable) return false;
-    return this.selection.selectedUnitList().some((u) => !u.aircraft && (u instanceof Vehicle ? t.fitsWith(0, 1) : t.fitsWith(1, 0)));
+    return this.selection.selectedUnitList().some((u) => u !== t && t.accepts(u) && (u instanceof Vehicle ? t.fitsWith(0, 1) : t.fitsWith(1, 0)));
   }
 
   /**
@@ -1051,12 +1172,13 @@ export class Game {
    */
   orderBoard(t: Vehicle, riders: Unit[]): boolean {
     if (!t.isCarrier || !t.alive) return false;
-    if ((t.flight === 'airborne' || t.flight === 'approach') && !this.aircraft.setDownForPickup(t)) {
+    if (!t.isTruck && (t.flight === 'airborne' || t.flight === 'approach') && !this.aircraft.setDownForPickup(t)) {
       if (t.owner === this.humanPlayer.id) this.sidebar.notify(`The ${t.name} cannot land here (open water) to take anyone aboard.`);
       return true;
     }
-    const grounded = t.flight === 'parked' || t.flight === 'landed' || (t.flight === 'unloading' && t.pickup);
+    const grounded = t.boardable || (t.flight === 'unloading' && t.pickup);
     if (!grounded) return false;
+    if (t.isTruck) t.stop(); // a truck waits where it is for its riders
     const spot = t.flight === 'unloading' && t.dropSpot ? t.dropSpot : { x: t.px, y: t.py };
     const here = this.map.cellAt(spot.x, spot.y);
     if (!here) return false;
@@ -1071,7 +1193,7 @@ export class Game {
     let sent = 0;
     let left = 0;
     for (const u of riders) {
-      if (u.aircraft) continue;
+      if (u === t || !t.accepts(u)) continue;
       const vehicle = u instanceof Vehicle;
       if (!t.fitsWith(soldiers + (vehicle ? 0 : 1), vehicles + (vehicle ? 1 : 0))) {
         left++;
@@ -1093,7 +1215,7 @@ export class Game {
         u.repairTargetId = null;
         u.seekRepairId = null;
       }
-      u.follow(this.pathfinder.find({ x: u.px, y: u.py }, cell, u.swims));
+      u.follow(this.paths.find({ x: u.px, y: u.py }, cell, u.swims));
       sent++;
     }
     if (t.owner === this.humanPlayer.id) {
@@ -1114,7 +1236,7 @@ export class Game {
       if (u.boardTarget === null) continue;
       const t = this.entities.get(u.boardTarget);
       const settingDown = t instanceof Vehicle && t.flight === 'unloading' && t.pickup;
-      if (!(t instanceof Vehicle) || !t.alive || (t.flight !== 'parked' && t.flight !== 'landed' && !settingDown)) {
+      if (!(t instanceof Vehicle) || !t.alive || (!t.boardable && !settingDown)) {
         u.boardTarget = null;
         continue;
       }
@@ -1122,7 +1244,7 @@ export class Game {
       if (settingDown) continue; // wait beside the landing spot until it touches down
       // Boarding needs contact: right up to a transport that stands in the field, or to the wall of the airfield.
       const home = t.homeId === null ? undefined : this.entities.get(t.homeId);
-      const reach = t.flight === 'parked' && home instanceof Building ? distanceTo(u.px, u.py, home) : Math.hypot(u.px - t.px, u.py - t.py) - t.radius * 0.5;
+      const reach = !t.isTruck && t.flight === 'parked' && home instanceof Building ? distanceTo(u.px, u.py, home) : Math.hypot(u.px - t.px, u.py - t.py) - t.radius * 0.5;
       if (reach > CELL_SIZE * 1.3) {
         if (!u.moving) u.boardTarget = null; // could not get close enough
         continue;
@@ -1224,7 +1346,7 @@ export class Game {
         if (this.time - v.seekRepathAt < REPAIR_VEHICLE_REPATH || (v.moving && !drifted)) continue;
         v.seekRepathAt = this.time;
         const cell = this.pathfinder.nearestPassable(Math.floor(r.px / CELL_SIZE), Math.floor(r.py / CELL_SIZE), 6);
-        const path = cell && this.pathfinder.sameLandmass(Math.floor(v.px / CELL_SIZE), Math.floor(v.py / CELL_SIZE), cell.x, cell.y) ? this.pathfinder.find({ x: v.px, y: v.py }, cell) : [];
+        const path = cell && this.pathfinder.sameLandmass(Math.floor(v.px / CELL_SIZE), Math.floor(v.py / CELL_SIZE), cell.x, cell.y) ? this.paths.find({ x: v.px, y: v.py }, cell) : [];
         if (path.length === 0) {
           v.seekRepairId = null; // cannot get there
           v.stop();
@@ -1268,7 +1390,7 @@ export class Game {
         if (this.time - v.mendRepathAt < REPAIR_VEHICLE_REPATH || (v.moving && !drifted)) continue;
         v.mendRepathAt = this.time;
         const cell = this.pathfinder.nearestPassable(Math.floor(t.px / CELL_SIZE), Math.floor(t.py / CELL_SIZE), 6);
-        const path = cell && this.pathfinder.sameLandmass(Math.floor(v.px / CELL_SIZE), Math.floor(v.py / CELL_SIZE), cell.x, cell.y) ? this.pathfinder.find({ x: v.px, y: v.py }, cell) : [];
+        const path = cell && this.pathfinder.sameLandmass(Math.floor(v.px / CELL_SIZE), Math.floor(v.py / CELL_SIZE), cell.x, cell.y) ? this.paths.find({ x: v.px, y: v.py }, cell) : [];
         if (path.length === 0) {
           v.repairTargetId = null; // cannot get there
           v.stop();
@@ -1322,7 +1444,7 @@ export class Game {
   /** Fixed-rate simulation step. */
   private tick(dt: number): void {
     if (this.ended || this.paused) {
-      this.sound.motion({ foot: 0, tracks: 0, jet: 0 });
+      this.sound.motion({ foot: 0, engines: new Map() });
       return;
     }
     this.endCheck += dt;
@@ -1336,11 +1458,15 @@ export class Game {
       u.inWater = !u.flies && this.map.isWater(cx, cy);
       u.terrainFactor = u.flies ? 1 : this.map.hasTrees(cx, cy) ? 0.78 : 1; // woods slow everybody down
     }
+    this.paths.update();
+    this.queueInCrowds();
+    this.yieldAtCrossings(dt);
     this.entities.update(dt);
     this.motionSound();
     this.keepOutOfWater();
     this.crushInfantry();
     this.processBoarding();
+    this.processTruckUnloading(dt);
     this.separateUnits();
     this.repathStuckUnits(dt);
     this.giveWay(dt);
@@ -1416,7 +1542,7 @@ export class Game {
             }
             // Parked / rolling aircraft never move; a unit standing still is pushed less than one walking into it.
             if (a.fixed && b.fixed) continue;
-            const wa = a.fixed ? 0 : b.fixed ? 1 : a.moving ? 0.7 : 0.3;
+            const wa = a.fixed ? 0 : b.fixed ? 1 : a.moving && a.restLeft <= 0 ? 0.7 : 0.3; // a resting soldier holds its ground
             const push = (gap - d) / d;
             // If one side is blocked (water, building), the other takes the whole push so they still come apart.
             if (!this.nudge(a, -vx * push * wa, -vy * push * wa)) this.nudge(b, vx * push * wa, vy * push * wa);
@@ -1516,6 +1642,7 @@ export class Game {
       moveMarker: this.moveMarker,
       pathPeekId: this.pathPeekId,
       waypointPlan: this.waypointPlan(),
+      flagHints: this.flagHints(),
       focus: focus.map((f) => ({ entity: f.entity, strong: f.strong })),
       effects: this.effects.list,
     });
@@ -1676,13 +1803,26 @@ export class Game {
   }
 
   /**
-   * Left click (RA2): select one of my units (Shift toggles it in / out of the group, double-click selects every
-   * unit of that type on screen), or a building (double-click one of mine: everyone stationed inside comes out).
+   * Left click: select one of my units (Shift toggles it in / out of the group; groups are only made with the
+   * selection box), or a building (double-click one of mine: everyone stationed inside comes out).
    * With units selected, a click on open ground, an enemy, a transport or a building they can enter gives that order.
    * Anything else clears the selection.
    */
   private leftClick(world: WorldPoint, shift: boolean, double: boolean): void {
     const me = this.humanPlayer.id;
+    const unit = this.selection.pickUnit(world);
+    // Double-click on one of my selected carriers (truck or transport aircraft) with riders aboard: they get out
+    // (same as the U key for that vehicle).
+    if (double && !shift && unit instanceof Vehicle && unit.isCarrier && unit.owner === me && unit.cargo.length > 0 && this.selection.selectedUnits.has(unit.id)) {
+      this.unloadCarriers([unit]);
+      return;
+    }
+    // Double-click on one of my Squatters teams: it plants its flag (same as selecting it and pressing F).
+    if (double && !shift && unit instanceof Infantry && unit.isSquatters && unit.owner === me) {
+      this.selection.selectUnits([unit.id]);
+      this.plantSelectedFlags();
+      return;
+    }
     if (this.waypoints) {
       if (this.selection.selectedUnits.size === 0) this.waypoints = null;
       else {
@@ -1691,18 +1831,10 @@ export class Game {
         return;
       }
     }
-    const unit = this.selection.pickUnit(world);
-    // Double-click on one of my Squatters teams: it plants its flag where it is (the first click may have given it a
-    // move order — that is dropped). No key needed.
-    if (double && unit instanceof Infantry && unit.isSquatters && unit.owner === me) {
-      unit.stop();
-      this.plantFlagByClick(unit);
-      return;
-    }
     const selected = this.selection.selectedUnitList();
     // RA2 default: with units selected, a left click is also an order (board / attack / enter / move).
-    // A double-click only means "select all of this type" on one of my units; anywhere else (two quick move
-    // orders in a row) it is still an order, so the group is never dropped by clicking fast.
+    // A double-click on one of my units just selects that unit; anywhere else (two quick move orders in a row) it
+    // is still an order, so the group is never dropped by clicking fast.
     if (selected.length > 0 && !shift && !(double && unit && unit.owner === me)) {
       // Clicking on (or right next to) one of the selected units is a move order there, not a re-selection:
       // a group, or an aircraft circling overhead, can then be sent anywhere without the click hitting itself.
@@ -1729,8 +1861,7 @@ export class Game {
       }
     }
     if (unit && unit.owner === me) {
-      if (double) this.selection.selectUnits(this.sameTypeOnScreen(unit).map((u) => u.id), shift);
-      else if (shift) this.selection.toggleUnit(unit.id);
+      if (shift && !double) this.selection.toggleUnit(unit.id);
       else this.selection.selectUnits([unit.id]);
       return;
     }
@@ -1803,18 +1934,6 @@ export class Game {
     this.moveMarker = { x: world.x, y: world.y, at: this.time };
   }
 
-  /** My living units of the same kind as `unit` (same soldier tier / vehicle type) that are on screen. */
-  private sameTypeOnScreen(unit: Unit): Unit[] {
-    const kind = (u: Unit): string => (u instanceof Infantry ? `i:${u.tier}` : u instanceof Vehicle ? `v:${u.type}` : '');
-    const want = kind(unit);
-    const cam = this.camera;
-    return this.entities.fieldMovers().filter((u) => {
-      if (!u.alive || u.owner !== unit.owner || kind(u) !== want) return false;
-      const p = cam.worldToScreen(u.px, u.py);
-      return p.x >= 0 && p.x <= cam.viewWidth && p.y >= 0 && p.y <= cam.viewHeight;
-    });
-  }
-
   /** X key (RA2 scatter): the selected units spread out a few cells away from the middle of the group. */
   private scatterSelected(): void {
     const units = this.selection.selectedUnitList().filter((u) => !u.fixed);
@@ -1839,7 +1958,7 @@ export class Game {
       const cell = this.map.cellAt(goal.x, goal.y);
       const spot = cell ? this.pathfinder.nearestPassable(cell.x, cell.y, 3, undefined, u.swims) : null;
       if (!spot) return;
-      u.follow(this.pathfinder.find({ x: u.px, y: u.py }, spot, u.swims));
+      u.follow(this.paths.find({ x: u.px, y: u.py }, spot, u.swims));
     });
   }
 
@@ -1904,7 +2023,7 @@ export class Game {
       claimed.push(spot);
       const cell = this.map.cellAt(spot.x, spot.y);
       if (!cell) continue;
-      const path = this.pathfinder.find({ x: u.px, y: u.py }, cell, u.swims);
+      const path = this.paths.find({ x: u.px, y: u.py }, cell, u.swims);
       const last = path[path.length - 1];
       if (last) {
         last.x = spot.x;
@@ -1943,6 +2062,9 @@ export class Game {
         break;
       case 'Tab':
         this.sidebar.toggle();
+        break;
+      case 'KeyF':
+        this.plantSelectedFlags();
         break;
       case 'KeyR':
         // Only while positioning a new structure: turn it 90° (footprint d × w, art mirrored). Once built it stays put.
@@ -2015,7 +2137,7 @@ export class Game {
       if (need) {
         this.sidebar.notify(
           option.id === 'alliedBuilding'
-            ? 'Allied Building: first send a Squatters team to unclaimed land and plant your flag there (double-click it).'
+            ? 'Allied Building: first send a Squatters team to unclaimed land and plant your flag there (select it, press F).'
             : `${option.name} requires a ${BUILD_OPTIONS.find((o) => o.id === need)?.name ?? need} first.`,
         );
         return;
@@ -2215,23 +2337,39 @@ export class Game {
 
   /** Footsteps, engines and tracks of the units moving within earshot of the camera (louder with more of them). */
   private motionSound(): void {
-    const v = this.camera.viewRect();
-    const cx = v.x + v.w / 2;
-    const cy = v.y + v.h / 2;
-    const range = Math.hypot(v.w, v.h) / 2;
-    const levels = { foot: 0, tracks: 0, jet: 0 };
+    const cam = this.camera;
+    const hw = cam.viewWidth / 2;
+    const hh = cam.viewHeight / 2;
+    // Per sound (marching feet, or one vehicle model by its name): the loudest (nearest the centre) unit sets the
+    // level, each further one adds a little.
+    const best = new Map<string, number>();
+    const more = new Map<string, number>();
+    const kinds = new Map<string, VehicleKind>();
     for (const u of this.entities.fieldMovers()) {
       if (!u.alive || u.insideId !== null) continue;
-      const d = Math.hypot(u.px - cx, u.py - cy);
-      if (d > range) continue;
-      const near = 1 - d / range;
+      let key: string | null = null;
       if (u instanceof Vehicle) {
-        const flying = u.aircraft && u.flight !== 'parked';
-        if (flying) levels.jet += near * 0.5;
-        else if (!u.aircraft && u.moving) levels.tracks += near * 0.45;
-      } else if (u.moving) levels.foot += near * 0.15;
+        // Every vehicle and aircraft: ground vehicles while they drive, aircraft whenever they are not parked.
+        if (u.aircraft ? u.flight !== 'parked' : u.moving) {
+          key = u.name;
+          kinds.set(key, u.type);
+        }
+      } else if (u.moving) key = 'foot';
+      if (!key) continue;
+      // Only units inside the frame are heard: full volume in the middle of the screen, silent at its edge.
+      const s = cam.worldToScreen(u.px, u.py);
+      const near = 1 - Math.max(Math.abs(s.x - hw) / hw, Math.abs(s.y - hh) / hh);
+      if (near <= 0) continue;
+      const top = best.get(key) ?? 0;
+      if (near > top) {
+        more.set(key, (more.get(key) ?? 0) + top);
+        best.set(key, near);
+      } else more.set(key, (more.get(key) ?? 0) + near);
     }
-    this.sound.motion(levels);
+    const level = (k: string): number => Math.min(1, (best.get(k) ?? 0) + 0.12 * (more.get(k) ?? 0));
+    const engines = new Map<string, { kind: VehicleKind; level: number }>();
+    for (const [name, kind] of kinds) if (best.has(name)) engines.set(name, { kind, level: level(name) });
+    this.sound.motion({ foot: level('foot'), engines });
   }
 
   /** Throttled "under attack" alerts for everything the player owns. */
@@ -2385,6 +2523,7 @@ export class Game {
     this.awardKill(e, killer);
     this.selection.selectedUnits.delete(e.id);
     if (e instanceof Unit) {
+      const wasCarryingTank = e instanceof Vehicle && e.vehiclesAboard > 0;
       // Everyone aboard a destroyed transport goes down with it.
       if (e instanceof Vehicle && e.cargo.length > 0) {
         for (const c of e.cargo) {
@@ -2403,6 +2542,8 @@ export class Game {
       if (vehicle && e.type === 'tank' && hasTankSheet(e.faction as FactionId)) {
         this.effects.add({ kind: 'tankDeath', ...this.fx(e.px, e.py), age: 0, ttl: TANK_DEATH_SECONDS, faction: e.faction as FactionId });
         this.sound.play('explosion', { x: e.px, y: e.py });
+      } else if (vehicle && e.isTruck && hasTruckSheet(e.faction as FactionId)) {
+        this.effects.add({ kind: 'truckDeath', ...this.fx(e.px, e.py), age: 0, ttl: TRUCK_DEATH_SECONDS, faction: e.faction as FactionId, heading: e.heading, flatbed: wasCarryingTank });
       } else if (vehicle && e.isRepair && hasRepairSheet(e.faction as FactionId)) {
         this.effects.add({ kind: 'repairDeath', ...this.fx(e.px, e.py), age: 0, ttl: REPAIR_DEATH_SECONDS, faction: e.faction as FactionId, heading: e.heading });
         this.sound.play('explosion', { x: e.px, y: e.py });
@@ -2555,6 +2696,117 @@ export class Game {
   }
 
   /**
+   * Local steering, queueing (layer 4 of the route system): a moving ground unit that closes on another unit going
+   * the same way just ahead of it slows to that unit's pace instead of ramming into it, so a column through a gap
+   * files through in order. Separation and giveWay handle the rest.
+   */
+  private queueInCrowds(): void {
+    const movers = this.entities.fieldMovers();
+    const bucket = CELL_SIZE * 2;
+    const grid = new Map<number, Unit[]>();
+    const key = (x: number, y: number): number => x * 100003 + y;
+    for (const u of movers) {
+      u.crowdFactor = 1;
+      if (u.flies || !u.alive) continue;
+      const k = key(Math.floor(u.px / bucket), Math.floor(u.py / bucket));
+      const list = grid.get(k);
+      if (list) list.push(u);
+      else grid.set(k, [u]);
+    }
+    for (const u of movers) {
+      if (!u.moving || u.flies || !u.alive) continue;
+      const next = u.waypoints()[0];
+      if (!next) continue;
+      const len = Math.hypot(next.x - u.px, next.y - u.py);
+      if (len < 0.01) continue;
+      const fx = (next.x - u.px) / len;
+      const fy = (next.y - u.py) / len;
+      const bx = Math.floor(u.px / bucket);
+      const by = Math.floor(u.py / bucket);
+      let factor = 1;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        for (const o of grid.get(key(bx + dx, by + dy)) ?? []) {
+          if (o === u || !o.moving) continue;
+          const rx = o.px - u.px;
+          const ry = o.py - u.py;
+          const along = rx * fx + ry * fy;
+          const side = Math.abs(rx * -fy + ry * fx);
+          const gap = u.radius + o.radius;
+          if (along <= 0 || along > gap + 3 || side > gap * 0.8) continue;
+          // Only traffic heading the same way: keep a car length behind it.
+          const on = o.waypoints()[0];
+          if (!on) continue;
+          const ol = Math.hypot(on.x - o.px, on.y - o.py) || 1;
+          if (((on.x - o.px) * fx + (on.y - o.py) * fy) / ol < 0.5) continue;
+          factor = Math.min(factor, Math.max(0.25, (along - gap) / 3));
+        }
+      }
+      u.crowdFactor = factor;
+    }
+  }
+
+  /**
+   * Crossing routes (soldiers, tanks, trucks, ARVs): when two ground units' next stretches cross, the one that will
+   * reach the crossing point first has right of way; the other stops short of it and waits its turn, then drives on
+   * once the first is through (first come, first served). A wait never lasts longer than CROSSING_MAX_WAIT s, so a
+   * unit that stopped in the crossing cannot hold the other forever. Aircraft never stop: they climb over each other
+   * instead (AircraftSystem.avoid).
+   */
+  private yieldAtCrossings(dt: number): void {
+    const movers = this.entities.fieldMovers().filter((u) => u.alive && !u.flies && !u.fixed && u.moving && u.restLeft <= 0);
+    const look = CROSSING_LOOKAHEAD_CELLS * CELL_SIZE;
+    const bucket = look;
+    const grid = new Map<number, Unit[]>();
+    const key = (x: number, y: number): number => x * 100003 + y;
+    const leg = new Map<number, { dx: number; dy: number; len: number }>();
+    for (const u of movers) {
+      const next = u.waypoints()[0];
+      if (!next) continue;
+      const len = Math.hypot(next.x - u.px, next.y - u.py);
+      if (len < 0.5) continue;
+      // The stretch it is about to drive: towards its next waypoint, at most `look` px.
+      leg.set(u.id, { dx: (next.x - u.px) / len, dy: (next.y - u.py) / len, len: Math.min(len, look) });
+      const k = key(Math.floor(u.px / bucket), Math.floor(u.py / bucket));
+      const list = grid.get(k);
+      if (list) list.push(u);
+      else grid.set(k, [u]);
+    }
+    const waiting = new Set<number>();
+    for (const a of movers) {
+      const la = leg.get(a.id);
+      if (!la) continue;
+      const bx = Math.floor(a.px / bucket);
+      const by = Math.floor(a.py / bucket);
+      for (let gy = -1; gy <= 1; gy++) for (let gx = -1; gx <= 1; gx++) {
+        for (const b of grid.get(key(bx + gx, by + gy)) ?? []) {
+          if (b.id <= a.id) continue;
+          const lb = leg.get(b.id);
+          if (!lb) continue;
+          // Where do the two stretches cross? (a + s·da = b + t·db)
+          const cross = la.dx * lb.dy - la.dy * lb.dx;
+          if (Math.abs(cross) < 0.35) continue; // (nearly) the same or opposite way: queueing / separation
+          const rx = b.px - a.px;
+          const ry = b.py - a.py;
+          const s = (rx * lb.dy - ry * lb.dx) / cross;
+          const t = (rx * la.dy - ry * la.dx) / cross;
+          const clear = a.radius + b.radius + 1;
+          if (s < -clear || t < -clear || s > la.len + clear || t > lb.len + clear) continue;
+          // Right of way: whoever gets to the crossing first (by time); the other stops short of it.
+          const ta = Math.max(0, s) / Math.max(0.1, a.speed);
+          const tb = Math.max(0, t) / Math.max(0.1, b.speed);
+          const [first, second, dist] = ta < tb || (ta === tb && a.id < b.id) ? [a, b, t] : [b, a, s];
+          if (second.crossingWait > CROSSING_MAX_WAIT || first.crossingWait > 0) continue;
+          // Only once it is about to enter the crossing: it stops just before it.
+          if (dist > clear + 2 && dist > second.radius * 2 + 3) continue;
+          second.crowdFactor = 0;
+          waiting.add(second.id);
+        }
+      }
+    }
+    for (const u of this.entities.fieldMovers()) u.crossingWait = waiting.has(u.id) ? u.crossingWait + dt : 0;
+  }
+
+  /**
    * A ground vehicle standing still in the way of a moving one (on the stretch just ahead of it) pulls over to
    * the side, onto a clear spot, so the mover can pass. Busy vehicles (attacking, working) stay put.
    */
@@ -2600,13 +2852,15 @@ export class Game {
         if (!spot) continue;
         const cell = this.map.cellAt(spot.x, spot.y);
         if (!cell) continue;
-        const path = this.pathfinder.find({ x: o.px, y: o.py }, cell, o.swims);
+        const path = this.paths.find({ x: o.px, y: o.py }, cell, o.swims);
         const last = path[path.length - 1];
         if (last) {
           last.x = spot.x;
           last.y = spot.y;
         } else path.push(spot);
+        const facing = o.faceOnArrival ?? o.heading;
         o.follow(path);
+        o.faceOnArrival = facing; // pulls over and lines up again the way it stood
       }
     }
   }
@@ -2630,13 +2884,13 @@ export class Game {
         u.stop();
         continue;
       }
-      const path = this.pathfinder.find({ x: u.px, y: u.py }, goal, u.swims);
+      const path = this.paths.find({ x: u.px, y: u.py }, goal, u.swims);
       const last = path[path.length - 1];
       if (last && goal.x === cell.x && goal.y === cell.y) {
         last.x = dest.x;
         last.y = dest.y;
       }
-      u.follow(path);
+      u.follow(path, true); // same order, new route: still faces the group's way on arrival
     }
   }
 
@@ -2645,30 +2899,84 @@ export class Game {
       this.spawnAircraft(player, kind, producer);
       return;
     }
-    // Land vehicles roll out of the front of the War Factory to the first free spot nearby.
-    const door = this.doorPoint(producer);
-    const startCell = this.pathfinder.nearestPassable(Math.floor(door.x / CELL_SIZE), Math.floor(door.y / CELL_SIZE), 8);
-    if (!startCell) return;
-    const start = { x: (startCell.x + 0.5) * CELL_SIZE, y: (startCell.y + 0.5) * CELL_SIZE };
-    const unit = this.entities.add(new Vehicle(player.id, player.faction as FactionId, kind, start));
+    // Land vehicles roll out of the War Factory's exit cell and drive on to a parking spot (see parkingSpot).
+    const exit = this.factoryExit(producer);
+    if (!exit) return;
+    const unit = this.entities.add(new Vehicle(player.id, player.faction as FactionId, kind, exit));
     unit.heading = Math.PI / 2;
-    const movers = this.entities.fieldMovers();
-    for (let k = 0; k < 120; k++) {
-      const off = spiralOffset(k, 9);
-      const spot = { x: door.x + off.x, y: door.y + CELL_SIZE * 3 + Math.abs(off.y) };
-      const cell = this.map.cellAt(spot.x, spot.y);
-      if (!cell || !this.pathfinder.passable(cell.x, cell.y)) continue;
-      if (movers.some((m) => m !== unit && !m.flies && Math.hypot(m.px - spot.x, m.py - spot.y) < m.radius + unit.radius + 1)) continue;
-      const path = this.pathfinder.find({ x: unit.px, y: unit.py }, cell);
+    const spot = this.parkingSpot(producer, unit);
+    const cell = spot ? this.map.cellAt(spot.x, spot.y) : null;
+    if (spot && cell) {
+      const path = this.paths.find({ x: unit.px, y: unit.py }, cell);
+      const last = path[path.length - 1];
+      if (last) {
+        last.x = spot.x;
+        last.y = spot.y;
+      } else path.push(spot);
+      unit.follow(path);
+    }
+    if (player.isHuman) this.sidebar.notify(`${unit.name} ready.`);
+  }
+
+  /** The cell a new vehicle rolls out onto: the free ground right in front of the factory's door (world px centre). */
+  private factoryExit(producer: Building): WorldPoint | null {
+    const door = this.doorPoint(producer);
+    const c = this.pathfinder.nearestPassable(Math.floor(door.x / CELL_SIZE), Math.floor(door.y / CELL_SIZE), 8);
+    return c ? { x: (c.x + 0.5) * CELL_SIZE, y: (c.y + 0.5) * CELL_SIZE } : null;
+  }
+
+  /** Nothing (no soldier, no ground vehicle) stands in the factory's exit cell or right in front of it. */
+  private factoryExitClear(producer: Building): boolean {
+    const exit = this.factoryExit(producer);
+    if (!exit) return false;
+    const reach = CELL_SIZE * 1.1;
+    const blockers = this.entities
+      .fieldMovers()
+      .filter((m) => m.alive && !m.flies && Math.hypot(m.px - exit.x, m.py - (exit.y + CELL_SIZE * 0.5)) < reach + m.radius);
+    // Own vehicles idling in the doorway are waved on to a parking spot (RA2 clears its exit the same way).
+    for (const m of blockers) {
+      if (!(m instanceof Vehicle) || m.owner !== producer.owner || m.moving || m.attackTarget !== null || m.task !== null) continue;
+      const spot = this.parkingSpot(producer, m);
+      const cell = spot ? this.map.cellAt(spot.x, spot.y) : null;
+      if (!spot || !cell) continue;
+      const path = this.paths.find({ x: m.px, y: m.py }, cell);
       const last = path[path.length - 1];
       if (last) {
         last.x = spot.x;
         last.y = spot.y;
       }
-      unit.follow(path);
-      break;
+      m.follow(path);
     }
-    if (player.isHuman) this.sidebar.notify(`${unit.name} ready.`);
+    return blockers.length === 0;
+  }
+
+  /**
+   * RA2 parking after a vehicle leaves the factory: it heads for the rally point a few cells out in front of the door;
+   * if that is taken, a spiral search round it finds the nearest free cell — never in the exit lane (the cells straight
+   * out from the door), so the next vehicle can always get out. Later vehicles line up beside and behind the first.
+   */
+  private parkingSpot(producer: Building, unit: Vehicle): WorldPoint | null {
+    const exit = this.factoryExit(producer);
+    if (!exit) return null;
+    const rally = { x: exit.x, y: exit.y + CELL_SIZE * PARKING_RALLY_CELLS };
+    const step = Math.max(unit.radius * 2.2, CELL_SIZE);
+    const others = this.entities.fieldMovers().filter((m) => m !== unit && m.alive && !m.flies);
+    for (let k = 0; k < 160; k++) {
+      const off = spiralOffset(k, step);
+      const cell = this.map.cellAt(rally.x + off.x, rally.y + off.y);
+      if (!cell || !this.pathfinder.passable(cell.x, cell.y)) continue;
+      const p = { x: (cell.x + 0.5) * CELL_SIZE, y: (cell.y + 0.5) * CELL_SIZE };
+      // Keep the exit lane open: the strip straight out from the door, as wide as a vehicle.
+      if (Math.abs(p.x - exit.x) < unit.radius + CELL_SIZE * 0.5 && p.y >= exit.y - CELL_SIZE && p.y < rally.y - CELL_SIZE * 0.5) continue;
+      if (!this.hullFits(p, unit)) continue;
+      // Taken by anyone standing there or already driving there.
+      if (others.some((m) => {
+        const at = m.destination ?? { x: m.px, y: m.py };
+        return Math.hypot(at.x - p.x, at.y - p.y) < m.radius + unit.radius + VEHICLE_GAP;
+      })) continue;
+      return p;
+    }
+    return null;
   }
 
   // ------------------------------------------------------------------ infantry
@@ -2734,7 +3042,7 @@ export class Game {
     const slotY = spot?.y ?? unit.py;
     const slotCell = { x: Math.floor(slotX / CELL_SIZE), y: Math.floor(slotY / CELL_SIZE) };
     if (spot) {
-      const path = this.pathfinder.find({ x: unit.px, y: unit.py }, slotCell, unit.swims);
+      const path = this.paths.find({ x: unit.px, y: unit.py }, slotCell, unit.swims);
       const last = path[path.length - 1];
       // The slot cell is the goal, so snap the last waypoint to the exact slot spot.
       if (last && Math.floor(last.x / CELL_SIZE) === slotCell.x && Math.floor(last.y / CELL_SIZE) === slotCell.y) {
@@ -2787,7 +3095,7 @@ export class Game {
       cell = this.pathfinder.nearestPassable(cell?.x ?? b.x, cell?.y ?? b.y + b.d, 8, undefined, u.swims);
     }
     if (!cell) return false;
-    const path = this.pathfinder.find({ x: u.px, y: u.py }, cell, u.swims);
+    const path = this.paths.find({ x: u.px, y: u.py }, cell, u.swims);
     const last = path[path.length - 1];
     // Stand exactly on the door spot when it lies in the goal cell.
     if (last && Math.floor(door.x / CELL_SIZE) === cell.x && Math.floor(door.y / CELL_SIZE) === cell.y) {
@@ -2886,7 +3194,7 @@ export class Game {
     if (!(target instanceof Unit)) return;
     const cell = this.map.cellAt(target.px, target.py);
     if (!cell) return;
-    const path = this.pathfinder.find({ x: u.px, y: u.py }, cell, u.swims);
+    const path = this.paths.find({ x: u.px, y: u.py }, cell, u.swims);
     const last = path[path.length - 1];
     if (last) {
       last.x = target.px;
@@ -3248,7 +3556,7 @@ export class Game {
           cell = near;
           goal = { x: (near.x + 0.5) * CELL_SIZE, y: (near.y + 0.5) * CELL_SIZE };
         }
-        const leg = this.pathfinder.find(from, cell, u.swims);
+        const leg = this.paths.find(from, cell, u.swims);
         const last = leg[leg.length - 1];
         if (last) {
           last.x = goal.x;
@@ -3307,6 +3615,7 @@ export class Game {
   }
 
   private orderMove(world: WorldPoint, units: Unit[] = this.selection.selectedUnitList(), evacuate = true): void {
+    units = this.keepAircraftAtAirfield(units, world);
     if (!this.map.cellAt(world.x, world.y) || units.length === 0) return;
     // A new move order ends a repair job (mending, or driving to a repair vehicle).
     for (const u of units) if (u instanceof Vehicle) {
@@ -3329,6 +3638,27 @@ export class Game {
     const group = this.nextRetreatGroup++;
     // Spots already handed out in this order: no two units of the group are sent to the same place.
     const claimed: WorldPoint[] = [];
+    // Ground units of the order, by whether they swim: each set shares one flow field (PathService).
+    const walkers: (GroupMember & { ticket: number; facing: number })[] = [];
+    const swimmers: (GroupMember & { ticket: number; facing: number })[] = [];
+    // RA2 formation: the ground units line up side by side across the way the group travels (front row first,
+    // further rows behind it) and all end up facing that way — never nose to nose.
+    const ground = units.filter((u) => !u.aircraft);
+    const gx = ground.reduce((s, u) => s + u.px, 0) / Math.max(1, ground.length);
+    const gy = ground.reduce((s, u) => s + u.py, 0) / Math.max(1, ground.length);
+    // Converging from all sides (the group's middle is already at the spot): face the way most of them are heading.
+    const hx = ground.reduce((s, u) => s + Math.cos(u.heading), 0);
+    const hy = ground.reduce((s, u) => s + Math.sin(u.heading), 0);
+    const facing = Math.hypot(world.x - gx, world.y - gy) > CELL_SIZE * 2 ? Math.atan2(world.y - gy, world.x - gx) : Math.atan2(hy, hx || 1e-6);
+    const cols = Math.min(ground.length, Math.max(2, Math.ceil(Math.sqrt(ground.length * 2))));
+    const formationOffset = (k: number): WorldPoint => {
+      const row = Math.floor(k / cols);
+      const inRow = Math.min(cols, ground.length - row * cols);
+      const across = ((k % cols) - (inRow - 1) / 2) * spacing;
+      const back = row * spacing;
+      return { x: -Math.sin(facing) * across - Math.cos(facing) * back, y: Math.cos(facing) * across - Math.sin(facing) * back };
+    };
+    let groundIndex = 0;
     units.forEach((u, k) => {
       u.parade = null; // leaves the parade ground
       u.task = null;
@@ -3340,7 +3670,7 @@ export class Game {
       u.retreating = this.isRetreat(u, world);
       u.retreatGroup = group;
       u.sparedBy.clear();
-      const off = spiralOffset(k, spacing);
+      const off = u.aircraft ? spiralOffset(k, spacing) : formationOffset(groundIndex++);
       let goal = { x: world.x + off.x, y: world.y + off.y };
       let cell = this.map.cellAt(goal.x, goal.y);
       if (!u.aircraft && (!cell || !this.pathfinder.passable(cell.x, cell.y, u.swims))) {
@@ -3364,14 +3694,28 @@ export class Game {
         return;
       }
       if (!cell) return;
-      const path = this.pathfinder.find({ x: u.px, y: u.py }, cell, u.swims);
-      const last = path[path.length - 1];
-      if (last) {
-        last.x = goal.x;
-        last.y = goal.y;
-      } else path.push(goal);
-      u.follow(path);
+      // Its route comes from the group's shared flow field a few frames later; until then it stands (and turns).
+      u.stop();
+      (u.swims ? swimmers : walkers).push({ unit: u, goal, cell, ticket: u.pathTicket, facing });
     });
+    for (const members of [walkers, swimmers]) {
+      const lead = members[0];
+      if (!lead) continue;
+      const swim = lead.unit.swims;
+      this.paths.schedule(
+        this.paths.groupJob(members, lead.cell, swim, (m, path) => {
+          const mm = m as (typeof members)[number];
+          if (!mm.unit.alive || mm.unit.pathTicket !== mm.ticket) return; // given another order meanwhile
+          const last = path[path.length - 1];
+          if (last) {
+            last.x = mm.goal.x;
+            last.y = mm.goal.y;
+          } else path.push(mm.goal);
+          mm.unit.follow(path);
+          mm.unit.faceOnArrival = mm.facing; // the whole group ends up facing the same way
+        }),
+      );
+    }
     this.moveMarker = { x: world.x, y: world.y, at: this.time };
   }
 

@@ -1,3 +1,4 @@
+import { demoActive } from './Demo';
 import { ChevronDown } from 'lucide';
 import { BUILD_RISE_SECONDS, CELL_SIZE, CRUISE_ALTITUDE, ISO_X, ISO_Y } from '../constants';
 import { blitUnit, unitSprite } from '../render/UnitSprites';
@@ -13,6 +14,7 @@ import { drawCarriedFlag } from '../render/Flags';
 import { drawAircraftSheet } from '../render/AircraftSheets';
 import { drawFlagOnPole, drawNationalPole } from '../render/Flags';
 import { drawRepairDeath, drawRepairSheet } from '../render/RepairSheets';
+import { drawTruckDeath, drawTruckSheet } from '../render/TruckSheets';
 import { drawTankDeath, drawTankSheet } from '../render/TankSheets';
 import { FACTIONS, teamColors } from '../factions';
 import type { TerrainRenderer } from '../map/TerrainRenderer';
@@ -73,6 +75,8 @@ export interface RenderScene {
   readonly pathPeekId?: number | null;
   /** Waypoint mode: the route being plotted (first point = the selection, then the clicked points). */
   readonly waypointPlan?: readonly { x: number; y: number }[] | null;
+  /** Selected Squatters teams standing still: a "Double-click / F: plant flag" hint above their heads. */
+  readonly flagHints?: ReadonlySet<number>;
 }
 
 
@@ -217,6 +221,8 @@ export class Renderer {
     this.ground();
     this.terrain.drawTiles(ctx, view, camera.zoom);
     this.terrain.drawWaterShimmer(ctx, view, scene.time);
+    // DEMO: the whole grid of unit cells (ô đơn vị) over land and sea, to see exactly where everything stands.
+    if (demoActive) this.drawCellGrid(view);
     this.upright();
     this.terrain.drawTrees(ctx, view, camera.zoom);
 
@@ -265,8 +271,10 @@ export class Renderer {
     }
     // Order lines go over the structures (a route across a base must not vanish under it), under the aircraft.
     this.ground();
-    for (const u of units) if (selUnits.has(u.id) || u.id === scene.pathPeekId) this.drawOrderLine(u, scene.time);
+    for (const u of units) if (!(u instanceof Vehicle) && (selUnits.has(u.id) || u.id === scene.pathPeekId)) this.drawOrderLine(u, scene.time);
     this.upright();
+    // Vehicles: the line leaves from the top of the vehicle and ends on the top of the vehicle it goes for.
+    for (const u of units) if (u instanceof Vehicle && (selUnits.has(u.id) || u.id === scene.pathPeekId)) this.drawOrderLine(u, scene.time);
     // Aircraft fly above everything on the ground.
     for (const u of units) if (u.flies) this.drawUnit(u);
     if (scene.ghost) this.drawGhost(scene.ghost);
@@ -277,6 +285,9 @@ export class Renderer {
     for (const u of units) if (u instanceof Vehicle && u.maxBombs > 0) this.drawBombs(u);
     for (const u of units) if (u instanceof Vehicle && u.isTransport && u.flight !== 'parked' && u.flight !== 'taxi' && u.flight !== 'taxiHome') this.drawFuel(u);
     for (const f of focus) if (f.entity.kind !== 'building' && !selUnits.has(f.entity.id) && f.entity.hp >= f.entity.maxHp) this.drawUnitHealth(f.entity);
+    const hints = scene.flagHints;
+    if (hints?.size) for (const u of units) if (hints.has(u.id)) this.drawFlagHint(u);
+    for (const u of units) if (u.restLeft > 0 && !hints?.has(u.id)) this.drawTag(u, `Resting ${Math.ceil(u.restLeft)}s`, '#9fd3ff');
     for (const u of units) {
       if (u.rank > 0) this.drawRank(u);
       if (u instanceof Vehicle && u.isCarrier && (u.cargo.length > 0 || u.incoming > 0)) this.drawCargoBadge(u);
@@ -399,6 +410,7 @@ export class Renderer {
       if (u.aircraft && drawAircraftSheet(ctx, u, P.x, P.y)) return;
       if (u.type === 'tank' && drawTankSheet(ctx, u, P.x, P.y)) return;
       if (u.type === 'repair' && drawRepairSheet(ctx, u, P.x, P.y)) return;
+      if (u.type === 'truck' && drawTruckSheet(ctx, u, P.x, P.y)) return;
       const heading = isoHeading(u.heading, u.aircraft ? 0.8 : SQUASH);
       // On the iso ground a vehicle's neighbours are half as far apart on screen: ground vehicles are drawn a bit
       // smaller so they never look piled on top of each other (their collision circles keep them apart).
@@ -541,15 +553,22 @@ export class Renderer {
     const age = time - f.at;
     if (age < 0 || age > ORDER_LINE_SECONDS) return;
     let end: { x: number; y: number } | undefined;
-    if (f.kind === 'attack') {
-      const t = f.target;
-      if (!t || !t.alive) return;
-      end = 'centerWorld' in t ? (t as Building).centerWorld() : { x: (t as Unit).px, y: (t as Unit).py };
+    // Vehicles are drawn in the upright (iso) transform: from the top of the hull to the top of a target vehicle.
+    const iso = u instanceof Vehicle;
+    const t = f.target;
+    if (f.kind === 'attack' && (!t || !t.alive)) return;
+    if (t && t.alive && (f.kind === 'attack' || t instanceof Vehicle)) {
+      if ('centerWorld' in t) {
+        const c = (t as Building).centerWorld();
+        end = iso ? worldToIso(c.x, c.y) : c;
+      } else end = iso ? this.unitTop(t as Unit) : { x: (t as Unit).px, y: (t as Unit).py };
     } else {
       const path = u.waypoints();
-      end = path[path.length - 1];
+      const last = path[path.length - 1];
+      end = last && iso ? worldToIso(last.x, last.y) : last;
     }
     if (!end) return;
+    const start = iso ? this.unitTop(u) : { x: u.px, y: u.py };
     const { ctx } = this;
     const k = 1 / this.camera.zoom;
     const color = f.kind === 'attack' ? '#ff2a1a' : '#2bff3a';
@@ -559,15 +578,45 @@ export class Renderer {
     ctx.fillStyle = color;
     ctx.lineWidth = 1.4 * k;
     ctx.beginPath();
-    ctx.moveTo(u.px, u.py);
+    ctx.moveTo(start.x, start.y);
     ctx.lineTo(end.x, end.y);
     ctx.stroke();
-    for (const p of [{ x: u.px, y: u.py }, end]) {
+    for (const p of [start, end]) {
       ctx.beginPath();
       ctx.arc(p.x, p.y, 1.6 * k, 0, Math.PI * 2);
       ctx.fill();
     }
     ctx.restore();
+  }
+
+  /** Thin lines along every unit-cell border inside `view` (world px, ground transform). */
+  private drawCellGrid(view: Rect): void {
+    const { ctx } = this;
+    const x0 = Math.max(0, Math.floor(view.x / CELL_SIZE));
+    const y0 = Math.max(0, Math.floor(view.y / CELL_SIZE));
+    const x1 = Math.ceil((view.x + view.w) / CELL_SIZE);
+    const y1 = Math.ceil((view.y + view.h) / CELL_SIZE);
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,255,255,0.45)';
+    ctx.lineWidth = 1 / this.camera.zoom;
+    ctx.beginPath();
+    for (let x = x0; x <= x1; x++) {
+      ctx.moveTo(x * CELL_SIZE, y0 * CELL_SIZE);
+      ctx.lineTo(x * CELL_SIZE, y1 * CELL_SIZE);
+    }
+    for (let y = y0; y <= y1; y++) {
+      ctx.moveTo(x0 * CELL_SIZE, y * CELL_SIZE);
+      ctx.lineTo(x1 * CELL_SIZE, y * CELL_SIZE);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  /** Top of a unit's picture in iso px (above the hull / the aircraft at its altitude). */
+  private unitTop(u: Unit): { x: number; y: number } {
+    const P = worldToIso(u.px, u.py);
+    const lift = u.flies && 'altitude' in u ? Number((u as { altitude: number }).altitude) : 0;
+    return { x: P.x, y: P.y - lift - Math.max(u.bodyHeight, 2) - 1.2 };
   }
 
   /** RA2-style target focus, part 1: a pulsing red ring under the enemy (ground transform). */
@@ -632,6 +681,30 @@ export class Renderer {
   }
 
   /** Veteran chevrons (Lucide ChevronDown ×1, ×2, ×3) hovering above the unit; on a bomber, left of its bomb row. */
+  /** "Double-click / F: plant flag" in a small dark tag above a Squatters team (upright transform). */
+  private drawFlagHint(u: Unit): void {
+    this.drawTag(u, 'Double-click / F: plant flag', '#ffd84a');
+  }
+
+  /** A short line of text in a small dark tag above a soldier's head (upright transform). */
+  private drawTag(u: Unit, text: string, color: string): void {
+    const { ctx } = this;
+    const k = 1 / this.camera.zoom;
+    const P = worldToIso(u.px, u.py);
+    ctx.save();
+    ctx.font = `700 ${11 * k}px "Segoe UI", system-ui, sans-serif`;
+    const w = ctx.measureText(text).width + 10 * k;
+    const h = 15 * k;
+    const y = P.y - 7.2 - h; // above the raised flag
+    ctx.fillStyle = 'rgba(8,12,16,0.82)';
+    ctx.fillRect(P.x - w / 2, y, w, h);
+    ctx.fillStyle = color;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, P.x, y + h / 2);
+    ctx.restore();
+  }
+
   private drawRank(u: Unit): void {
     const { ctx } = this;
     const lift = (u as { altitude?: number }).altitude ?? 0;
@@ -669,8 +742,9 @@ export class Renderer {
     const k = 1 / this.camera.zoom;
     // RA2 style: seats taken / seats there are (e.g. 3/12), plus what it is doing.
     const vehicles = t.vehiclesAboard;
-    const parts = [`${t.soldiersAboard}/${t.soldierCapacity} inf`];
-    if (vehicles > 0) parts.push(`${vehicles}/${t.vehicleCapacity} veh`);
+    // A truck carries soldiers or one tank, never both: show only what it holds.
+    const parts = t.isTruck && vehicles > 0 ? [`${vehicles}/${t.vehicleCapacity} tank`] : [`${t.soldiersAboard}/${t.soldierCapacity} inf`];
+    if (vehicles > 0 && !t.isTruck) parts.push(`${vehicles}/${t.vehicleCapacity} veh`);
     const state = t.carrierState;
     const prefix = t.full ? 'FULL · ' : state === 'loading' ? 'LOADING · ' : state === 'unloading' ? 'UNLOADING · ' : '';
     const text = `${prefix}${parts.join(' + ')}`;
@@ -802,6 +876,8 @@ export class Renderer {
         drawBombBlast(ctx, e.faction, e.x, e.y, e.age, e.ttl);
       } else if (e.kind === 'tankDeath') {
         drawTankDeath(ctx, e.faction, e.x, e.y, e.age, e.ttl);
+      } else if (e.kind === 'truckDeath') {
+        drawTruckDeath(ctx, e.faction, e.heading, e.flatbed, e.x, e.y, e.age, e.ttl);
       } else if (e.kind === 'repairDeath') {
         drawRepairDeath(ctx, e.faction, e.heading, e.x, e.y, e.age, e.ttl);
       } else {
@@ -1062,7 +1138,12 @@ export class Renderer {
     const r = this.spriteRect(b);
     const inside = b.garrison.length > 0 ? ` · ${b.garrison.length} inside` : '';
     const managed = 'bankManaged' in b && (b as { bankManaged: boolean }).bankManaged;
-    const text = managed ? `${b.spec.name} · Global Financial Center managed` : b.indestructible ? `${b.spec.name} · Neutral · Protected` : `${b.spec.name}${inside}`;
+    const health = `${Math.max(0, Math.ceil((b.hp / b.maxHp) * 100))}%`;
+    const text = managed
+      ? `${b.spec.name} · ${health} · Global Financial Center managed`
+      : b.indestructible
+        ? `${b.spec.name} · ${health} · Neutral · Protected`
+        : `${b.spec.name} · ${health}${inside}`;
     ctx.font = `600 ${12 * k}px "Segoe UI", system-ui, sans-serif`;
     const w = ctx.measureText(text).width + 12 * k;
     const h = 18 * k;

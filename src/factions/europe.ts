@@ -44,6 +44,11 @@ export const EUROPE: FactionConfig = {
     ifv: { name: "Puma", description: "Puma armoured fighting vehicle, modern and fast." },
     jet: { name: "Rafale", description: "Dassault Rafale multirole fighter." },
     transport: { name: "C-130", description: "C-130 transport aircraft: carries soldiers and vehicles; unarmed." },
+    truck: {
+      name: "IVECO",
+      description:
+        "IVECO heavy army truck: unarmed and faster than soldiers or tanks; carries up to 8 soldiers under its canvas cover, or one tank on its flatbed (never both). Ground only — it cannot cross the sea. Select soldiers or a tank and click the truck to board; select the truck and press U to unload.",
+    },
     repair: {
       name: "M88",
       description:

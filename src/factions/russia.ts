@@ -107,6 +107,11 @@ export const RUSSIA: FactionConfig = {
       description:
         "Tu-16 strategic bomber, Russia only: heavy bombs that flatten ground forces and structures; cannot hit aircraft.",
     },
+    truck: {
+      name: "KamAZ",
+      description:
+        "KamAZ army truck: unarmed and faster than soldiers or tanks; carries up to 8 soldiers under its canvas cover, or one tank on its flatbed (never both). Ground only — it cannot cross the sea. Select soldiers or a tank and click the truck to board; select the truck and press U to unload.",
+    },
     repair: {
       name: "BREM-1",
       description:

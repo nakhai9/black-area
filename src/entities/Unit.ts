@@ -18,6 +18,9 @@ export interface UnitTask {
  * follows a list of waypoints with acceleration, braking and a limited turn
  * rate, and notices when it is stuck.
  */
+/** A ground vehicle pointing farther than this (radians) from its next waypoint stops and turns on the spot first. */
+const PIVOT_ANGLE = 0.45;
+
 export abstract class Unit extends Entity {
   readonly kind = 'unit' as const;
   /** World px per second on dry land. */
@@ -32,6 +35,12 @@ export abstract class Unit extends Entity {
   protected turnRate = 14;
   /** Must face its direction of travel before it can drive at full speed (tanks, cars). */
   protected turnsToMove = false;
+  /**
+   * Machines (vehicles, aircraft) only ever travel the way their nose points, like RA2 vehicles: a ground vehicle
+   * stops and turns on the spot towards its next cell before it rolls, an aircraft banks round in an arc. Soldiers
+   * (false) simply step towards the next point.
+   */
+  protected drivesForward = false;
 
   px: number;
   py: number;
@@ -179,16 +188,40 @@ export abstract class Unit extends Entity {
     return 1;
   }
 
+  /**
+   * Bumped by every new route or stop: a route planned in the background (PathService) is only handed over if the
+   * unit got no other order meanwhile.
+   */
+  pathTicket = 0;
+  /** Speed share allowed by traffic this tick (queueing behind a slower unit ahead); 1 = free road. */
+  crowdFactor = 1;
+  /** Seconds it has been waiting at a crossing for another unit to go by. */
+  crossingWait = 0;
+  /** World px it may walk before it must rest (Infinity: never tires — vehicles, special forces). */
+  protected marchLimit = Infinity;
+  /** Seconds the rest takes. */
+  protected restSeconds = 0;
+  /** Seconds standing that count as a rest. */
+  protected recoverSeconds = 0;
+  /** World px walked since the last rest. */
+  marched = 0;
+  /** Seconds of rest still to go (it stands still, keeping its orders). */
+  restLeft = 0;
+  /** Seconds it has stood still (a long enough halt counts as a rest). */
+  private stoodFor = 0;
+
   /** Replaces the current orders with a new path (world px waypoints). */
-  follow(path: readonly WorldPoint[]): void {
+  follow(path: readonly WorldPoint[], keepFacing = false): void {
+    this.pathTicket++;
     this.path = [...path];
-    this.faceOnArrival = null;
+    if (!keepFacing) this.faceOnArrival = null;
     this.destination = path.length > 0 ? (path[path.length - 1] ?? null) : null;
     this.stuckFor = 0;
     this.needsRepath = false;
   }
 
   stop(): void {
+    this.pathTicket++;
     this.blockedFor = 0;
     this.path = [];
     this.destination = null;
@@ -201,6 +234,21 @@ export abstract class Unit extends Entity {
   }
 
   override update(dt: number): void {
+    // Resting after a long march: it stands where it is, orders kept, and sets off again when rested.
+    if (this.restLeft > 0) {
+      this.restLeft = Math.max(0, this.restLeft - dt);
+      this.speedRatio = 0;
+      this.stuckFor = 0;
+      this.blockedFor = 0;
+      return;
+    }
+    // A vehicle almost on its final spot does not pivot round and round for the last few pixels (pushed about by
+    // its neighbours): it has arrived.
+    const end = this.path.length === 1 ? this.path[0] : undefined;
+    if (end && this.drivesForward && this.turnsToMove && Math.hypot(end.x - this.px, end.y - this.py) < this.radius * 0.6) {
+      this.path.length = 0;
+      this.destination = null;
+    }
     const moving = this.path.length > 0;
     this.trackProgress(dt, moving);
 
@@ -209,12 +257,18 @@ export abstract class Unit extends Entity {
     const toEnd = goal ? Math.hypot(goal.x - this.px, goal.y - this.py) : 0;
     let target = moving ? 1 : 0;
     if (moving && this.path.length === 1) target = Math.min(1, Math.max(0.3, toEnd / (this.speed * 0.3)));
-    if (moving && this.turnsToMove) target *= this.alignment();
+    if (moving && this.drivesForward && this.turnsToMove) target *= this.rollAlignment();
+    else if (moving && this.turnsToMove) target *= this.alignment();
     const rate = dt / this.accelTime;
     this.speedRatio += Math.sign(target - this.speedRatio) * Math.min(Math.abs(target - this.speedRatio), rate);
 
-    const total = this.speed * this.speedFactor() * this.terrainFactor * this.speedRatio * dt;
+    const total = this.speed * this.speedFactor() * this.terrainFactor * this.crowdFactor * this.speedRatio * dt;
     let budget = total;
+    // A machine turns towards its next waypoint even while it stands (pivoting on the spot before it rolls).
+    const first = this.path[0];
+    if (this.drivesForward && first && budget <= 0 && Math.hypot(first.x - this.px, first.y - this.py) > 0.05) {
+      this.turnTowards(Math.atan2(first.y - this.py, first.x - this.px), dt);
+    }
     while (budget > 0 && this.path.length > 0) {
       const next = this.path[0];
       if (!next) break;
@@ -228,6 +282,12 @@ export abstract class Unit extends Entity {
         this.py = next.y;
         budget -= dist;
         this.path.shift();
+      } else if (this.drivesForward && !this.insideTurn(dist, Math.atan2(dy, dx))) {
+        // Along the nose, never sideways: the hull (or airframe) carries the machine, so it follows its heading
+        // and curves onto the route as it turns instead of gliding straight at the point.
+        this.px += Math.cos(this.heading) * budget;
+        this.py += Math.sin(this.heading) * budget;
+        budget = 0;
       } else {
         this.px += (dx / dist) * budget;
         this.py += (dy / dist) * budget;
@@ -240,8 +300,58 @@ export abstract class Unit extends Entity {
       if (Math.abs(Math.sin(this.heading - this.faceOnArrival)) < 1e-3 && Math.cos(this.heading - this.faceOnArrival) > 0) this.faceOnArrival = null;
     }
     this.walkPhase += (total - budget) * STEP_PHASE_PER_PX;
+    this.tire(total - budget, dt);
     this.x = this.px / CELL_SIZE;
     this.y = this.py / CELL_SIZE;
+  }
+
+  /** Counts the march: after marchLimit px on foot it halts to rest; a long enough halt rests it as well. */
+  private tire(walked: number, dt: number): void {
+    if (!Number.isFinite(this.marchLimit)) return;
+    if (walked > 0.001) {
+      this.stoodFor = 0;
+      this.marched += walked;
+      if (this.marched >= this.marchLimit && this.path.length > 0) {
+        this.marched = 0;
+        this.restLeft = this.restSeconds;
+      }
+      return;
+    }
+    this.stoodFor += dt;
+    if (this.stoodFor >= this.recoverSeconds) this.marched = 0;
+  }
+
+  /** Signed angle (radians, -π..π) from the heading to the direction of `bearing`. */
+  private turnLeft(bearing: number): number {
+    let diff = bearing - this.heading;
+    while (diff > Math.PI) diff -= Math.PI * 2;
+    while (diff < -Math.PI) diff += Math.PI * 2;
+    return diff;
+  }
+
+  /**
+   * Ground vehicle throttle while turning (RA2): pointing well away from the next waypoint it stops and pivots on the
+   * spot; nearly lined up it rolls, slower the more it still has to turn.
+   */
+  private rollAlignment(): number {
+    const next = this.path[0];
+    if (!next) return 1;
+    const off = Math.abs(this.turnLeft(Math.atan2(next.y - this.py, next.x - this.px)));
+    if (off > PIVOT_ANGLE) return 0;
+    return 1 - (off / PIVOT_ANGLE) * 0.7;
+  }
+
+  /**
+   * The waypoint lies inside the circle the machine would have to turn round (too close and too far to the side to
+   * reach along the nose): it is steered straight onto it instead of circling it forever.
+   */
+  private insideTurn(dist: number, bearing: number): boolean {
+    // Ground vehicles never need it: they stop and pivot on the spot instead.
+    if (this.turnsToMove) return false;
+    const off = Math.abs(this.turnLeft(bearing));
+    if (off < 0.35) return false;
+    const radius = (this.speed * this.speedFactor() * Math.max(0.2, this.speedRatio)) / Math.max(0.1, this.turnRate);
+    return dist < radius * 2.2 * Math.sin(Math.min(off, Math.PI / 2));
   }
 
   /** Cosine of the angle between the heading and the direction to the next waypoint (0.15..1). */
@@ -267,7 +377,7 @@ export abstract class Unit extends Entity {
       this.stuckFor = Math.max(0, this.stuckFor - dt);
       return;
     }
-    const expected = this.speed * this.terrainFactor * dt;
+    const expected = this.speed * this.terrainFactor * this.crowdFactor * dt;
     const blocked = moved < expected * 0.2;
     this.stuckFor = blocked ? this.stuckFor + dt : Math.max(0, this.stuckFor - dt * 2);
     this.blockedFor = blocked ? this.blockedFor + dt : Math.max(0, this.blockedFor - dt * 2);

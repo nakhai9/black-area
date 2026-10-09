@@ -622,7 +622,10 @@ export class AircraftSystem implements GameSystem {
     while (diff < -Math.PI) diff += Math.PI * 2;
     v.heading += Math.max(-4 * dt, Math.min(4 * dt, diff));
     v.facing = dx < 0 ? -1 : 1;
-    this.place(v, v.px + (dx / d) * step, v.py + (dy / d) * step);
+    // On its wheels an aircraft rolls the way its nose points: a sharp corner is turned on the spot first, so it
+    // never slides sideways across the apron.
+    if (Math.abs(diff) > 0.6) return false;
+    this.place(v, v.px + Math.cos(v.heading) * step, v.py + Math.sin(v.heading) * step);
     v.walkPhase += step;
     return false;
   }
@@ -645,10 +648,12 @@ export class AircraftSystem implements GameSystem {
    * free and nobody eligible may be ahead of it. Without power take-offs are held, but landings still go first.
    */
   private cleared(v: Vehicle, home: Building): boolean {
-    // A transport never leads: on a long sortie it waits at the threshold until its tanker has taken off ahead of it.
+    // A transport never leads: the trip is measured before it rolls (longSortie), and on a long one it waits at the
+    // threshold until its tanker's wheels are off the ground (whichever airfield the tanker stands on), so the tanker
+    // is always out ahead of the transport's nose.
     if (v.isTransport && v.tankerId !== null && this.longSortie(v)) {
       const tk = this.entities.get(v.tankerId) as Vehicle | undefined;
-      if (tk && tk.alive && tk.homeId === home.id && (tk.flight === 'parked' || tk.flight === 'taxi' || tk.flight === 'takeoff')) return false;
+      if (tk && tk.alive && (tk.flight === 'parked' || tk.flight === 'taxi' || tk.flight === 'takeoff' || tk.altitude < CRUISE_ALTITUDE * 0.5)) return false;
     }
     let q = this.runwayQueues.get(home.id);
     if (!q) this.runwayQueues.set(home.id, (q = []));

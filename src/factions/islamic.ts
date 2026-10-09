@@ -119,6 +119,11 @@ export const ISLAMIC: FactionConfig = {
       description:
         "Su-35 multirole air superiority fighter of the Islamic air force.",
     },
+    truck: {
+      name: "KamAZ",
+      description:
+        "KamAZ army truck: unarmed and faster than soldiers or tanks; carries up to 8 soldiers under its canvas cover, or one tank on its flatbed (never both). Ground only — it cannot cross the sea. Select soldiers or a tank and click the truck to board; select the truck and press U to unload.",
+    },
     repair: {
       name: "Type 99II",
       description:

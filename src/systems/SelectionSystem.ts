@@ -22,6 +22,9 @@ const UNIT_PICK_RADIUS = 3.5;
 const SOLDIER_PICK_HALF_W = 1.3;
 const SOLDIER_PICK_BELOW = 0.4;
 const SOLDIER_PICK_HEIGHT = 4.6;
+/** Squatters team (two men and a flag): wider and taller than a single soldier. */
+const SQUATTERS_PICK_HALF_W = 2.2;
+const SQUATTERS_PICK_HEIGHT = 6.2;
 /** Units at least this big (world px radius) are vehicles; their hull is clickable within these radius factors. */
 const VEHICLE_RADIUS = 3;
 const VEHICLE_PICK_X = 0.75;
@@ -80,8 +83,13 @@ export class SelectionSystem {
         const dy = m.y - (iso.y - u.bodyHeight * 0.5);
         hit = (dx / rx) ** 2 + (dy / ry) ** 2 <= 1;
       } else {
-        // Soldier: the standing figure, from the feet up to the head.
-        hit = dx <= SOLDIER_PICK_HALF_W && m.y <= iso.y + SOLDIER_PICK_BELOW && m.y >= iso.y - SOLDIER_PICK_HEIGHT;
+        // Soldier: the standing figure, from the feet up to the head. A Squatters team is two men side by side under
+        // a raised flag: its box covers both of them and the flag.
+        const team = (u as { isSquatters?: boolean }).isSquatters === true;
+        hit =
+          dx <= (team ? SQUATTERS_PICK_HALF_W : SOLDIER_PICK_HALF_W) &&
+          m.y <= iso.y + SOLDIER_PICK_BELOW &&
+          m.y >= iso.y - (team ? SQUATTERS_PICK_HEIGHT : SOLDIER_PICK_HEIGHT);
       }
       // Overlapping units: the one drawn in front (lower on screen) wins.
       if (hit && iso.y > bestY) {

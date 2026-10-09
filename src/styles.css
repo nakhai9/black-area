@@ -28,6 +28,7 @@ body {
 #viewport {
   position: fixed;
   inset: 0;
+  height: 100vh;
 }
 
 #loading {
@@ -75,7 +76,7 @@ body {
 #game {
   display: block;
   width: 100%;
-  height: 100%;
+  height: 100vh;
 }
 
 #status {
@@ -99,14 +100,14 @@ body {
   top: 0;
   right: 0;
   bottom: 0;
+  height: 100vh;
   width: var(--sidebar-w);
   display: flex;
   flex-direction: column;
   gap: 8px;
   padding: 10px;
-  overflow-y: auto;
-  /* Reserve the scrollbar's room always: tabs with more cameos must not narrow the grid. */
-  scrollbar-gutter: stable;
+  /* The sidebar itself never scrolls: only the cameo grid (and a page taller than the window) scrolls inside it. */
+  overflow: hidden;
   background: linear-gradient(180deg, rgba(27, 35, 43, 0.92), rgba(14, 19, 24, 0.94));
   backdrop-filter: blur(4px);
   border-left: 2px solid #3a4754;
@@ -544,7 +545,8 @@ kbd {
 .sb-cameos {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  grid-auto-rows: auto;
+  grid-auto-rows: max-content;
+  align-content: start;
   align-items: start;
   gap: 6px;
 }
@@ -637,6 +639,7 @@ kbd {
   }
 }
 .sb-msg {
+  flex: none;
   min-height: 1.4em;
   margin-top: 6px;
   font-size: 11px;
@@ -711,6 +714,47 @@ kbd {
 }
 .sb-cameos[hidden] {
   display: none;
+}
+
+/* Sidebar pages fill the room left under the header, radar and page tabs. */
+.sb-view:not([hidden]) {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+}
+/* Production: tabs stay put, the cameo grid scrolls on its own with a slim 4px bar (room kept for it, so the
+   cameos are a little narrower and never jump when the bar appears). */
+.sb-view[data-page='production'] {
+  overflow: hidden;
+}
+.sb-build {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.sb-cameos:not([hidden]) {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  padding-right: 2px;
+}
+.sb-cameos::-webkit-scrollbar,
+.sb-view::-webkit-scrollbar {
+  width: 4px;
+}
+.sb-cameos::-webkit-scrollbar-thumb,
+.sb-view::-webkit-scrollbar-thumb {
+  background: #4a5866;
+  border-radius: 2px;
+}
+.sb-cameos::-webkit-scrollbar-track,
+.sb-view::-webkit-scrollbar-track {
+  background: transparent;
 }
 .sb-cameo[data-state='noBarracks'] .sb-cameo-state {
   color: #ff9a8a;
@@ -1242,6 +1286,29 @@ details.sb-help[open] > summary {
 .sb-ally-hp i[data-level='critical'] {
   background: #e0483a;
 }
+/* Small national flag over the lower right corner of the nation's emblem (faction picker and player panel). */
+.flag-badge {
+  position: relative;
+  display: inline-block;
+  flex: none;
+  line-height: 0;
+  margin-right: 8px;
+}
+.flag-badge > img:last-child:not(:first-child) {
+  position: absolute;
+  right: -6px;
+  bottom: -4px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+}
+.sb-emblem {
+  width: 34px;
+  height: 34px;
+  object-fit: contain;
+}
+.flag-badge > .sb-emblem + .sb-flag {
+  width: 18px;
+  height: 11px;
+}
 .sb-allies-hint {
   font-size: 11px;
   margin: 0;
@@ -1254,7 +1321,7 @@ details.sb-help[open] > summary {
   margin: 0 auto;
 }
 .sb-header .sb-logo img {
-  max-width: 100px;
+  max-width: 80px; /* 20% smaller than before (100px) */
 }
 .fp-backdrop[data-faction='usa'] .fp-modal {
   background:
@@ -1296,9 +1363,10 @@ details.sb-help[open] > summary {
   height: 64px;
   object-fit: contain;
 }
-.fp-emblem + .fp-flag {
-  width: 40px;
-  height: 24px;
+/* Small flag over the emblem's lower right corner (faction picker). */
+.flag-badge > .fp-emblem + .fp-flag {
+  width: 30px;
+  height: 18px;
 }
 .sb-auto.on {
   background: linear-gradient(#2f6a1e, #1c4211);
@@ -1318,4 +1386,11 @@ details.sb-help[open] > summary {
   white-space: nowrap;
   text-shadow: 0 1px 2px #000, 0 0 2px #000;
   pointer-events: none;
+}
+
+/* Sidebar hide / show buttons: lucide log-out / log-in icons, centred. */
+.sb-collapse svg,
+.sb-open svg {
+  display: block;
+  margin: auto;
 }
