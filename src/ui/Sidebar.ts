@@ -293,7 +293,7 @@ export class Sidebar {
           <li>Elite (type II) soldiers: at most 2 for every 3 regulars · orders: up to 15 soldiers and 10 vehicles waiting at once — a new one the moment one is done, whatever your army size · special forces swim · tanks run soldiers over · only aircraft shoot aircraft</li>
           <li>Transport: select soldiers/vehicles, <kbd>Left-click</kbd> your transport to board (one in the air lands first) · select the transport, <kbd>Left-click</kbd> ground — it flies there, lands and unloads · <kbd>U</kbd>/<b>Unload</b> — let them out here, one by one</li>
           <li>Squatters (flag bearer + escort, one unit): walk it (or fly it by transport) to unclaimed land (not your rivals' home lands, never Antarctica), double-click it while it stands still — plant the flag (the Squatters are gone once it stands) · then build an <b>Allied Building</b> beside it (max 3 allies)</li>
-          <li>When <b>READY</b>: click cameo, then click the map to place · <kbd>Esc</kbd>/<kbd>Right-click</kbd> stop placing</li>
+          <li>When <b>READY</b>: click cameo, then click the map to place · <kbd>R</kbd> turn it 90° (only before it is placed) · <kbd>Esc</kbd>/<kbd>Right-click</kbd> stop placing</li>
           <li><kbd>WASD</kbd>/<kbd>Arrows</kbd>/screen edge — scroll · <kbd>Wheel</kbd> zoom · <kbd>Middle-drag</kbd> pan</li>
           <li><kbd>Click</kbd> select · <kbd>1</kbd>–<kbd>5</kbd> landmarks · <kbd>O</kbd> oil · <kbd>H</kbd> home · <kbd>Tab</kbd> sidebar</li>
         </ul>
@@ -302,7 +302,7 @@ export class Sidebar {
       <div class="sb-view" data-page="rank" hidden>
         <section class="sb-panel sb-prices">
           <div class="sb-price-row" title="Oil: what the Global Financial Center pays per barrel"><i data-icon="oil"></i><b class="sb-price"></b><i class="sb-price-trend"></i></div>
-          <div class="sb-price-row" title="Power: what the Global Financial Center charges when your grid runs dry (oil at +${Math.round((OIL_GRID_MARKUP - 1) * 100)}%, per 1 Ke)"><i data-icon="power"></i><b class="sb-power-price"></b></div>
+          <div class="sb-price-row" title="Power: what the Global Financial Center charges when your grid runs dry (oil at +${Math.round((OIL_GRID_MARKUP - 1) * 100)}%, per 1 kJ)"><i data-icon="power"></i><b class="sb-power-price"></b></div>
           <div class="sb-price-row" title="Next price revision"><i data-icon="clock"></i><b class="sb-price-clock"></b></div>
           <svg class="sb-price-chart" viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Oil price, last 5 minutes"><polyline fill="none" stroke-width="1.5" vector-effect="non-scaling-stroke"></polyline></svg>
         </section>
@@ -489,14 +489,14 @@ export class Sidebar {
     }
     this.renderTransport(model.transport);
 
-    // POWER: what the nuclear plants can generate / what the structures need (e/s); red while short.
-    this.powerText.textContent = `${compactUnit(player.powerSupply, 'e')} / ${compactUnit(player.powerConsumed, 'e')}`;
+    // POWER: what the nuclear plants can generate / what the structures need (J/s); red while short.
+    this.powerText.textContent = `${compactEnergy(player.powerSupply)}/s / ${compactEnergy(player.powerConsumed)}/s`;
     this.powerText.classList.toggle('low', player.powerShort);
     this.powerText.parentElement!.title = player.blackout
       ? 'BLACKOUT: no power and no TB to buy oil from the Global Financial Center. No construction, vehicles or take-offs.'
       : player.powerShort
         ? 'Not enough power: the Global Financial Center sells oil for the missing power (+25%), but construction (except power plants), vehicles and take-offs stop.'
-        : `Stored ${compactUnit(player.powerStored, 'e')} / ${compactUnit(player.powerCapacity, 'e')}. Plants burn your oil (0.001 bbl = 1 e).`;
+        : `Stored ${compactEnergy(player.powerStored)} / ${compactEnergy(player.powerCapacity)}. Plants burn your oil (0.001 bbl = 1 J).`;
 
     // The radar picture is blurred and dimmed until the nation owns an Airfield.
     this.radarPanel.classList.toggle('offline', !model.owned.has('airfield'));
@@ -947,7 +947,7 @@ export function compactMoney(value: number): string {
   return compactUnit(value, CURRENCY);
 }
 
-/** Same K / M / B shortening for any unit (power: "e"). */
+/** Same K / M / B shortening for any unit. */
 export function compactUnit(value: number, unit: string): string {
   const sign = value < 0 ? '-' : '';
   const v = Math.abs(value);
@@ -960,6 +960,16 @@ export function compactUnit(value: number, unit: string): string {
     if (v >= size) return `${sign}${parseFloat((v / size).toFixed(2))} ${suffix}${unit}`;
   }
   return `${sign}${Math.floor(v)} ${unit}`;
+}
+
+/** Energy in joules (J), named after James Prescott Joule, with SI prefixes: 950 J, 1.2 kJ, 3.4 MJ, 5 GJ. */
+export function compactEnergy(value: number): string {
+  const sign = value < 0 ? '-' : '';
+  const v = Math.abs(value);
+  for (const [size, prefix] of [[1e9, 'G'], [1e6, 'M'], [1e3, 'k']] as const) {
+    if (v >= size) return `${sign}${parseFloat((v / size).toFixed(2))} ${prefix}J`;
+  }
+  return `${sign}${Math.floor(v)} J`;
 }
 
 /**

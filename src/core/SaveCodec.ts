@@ -13,8 +13,10 @@ import { TechCenter } from '../entities/TechCenter';
 import { Vehicle } from '../entities/Vehicle';
 import { WarFactory } from '../entities/WarFactory';
 import { WorldBank } from '../entities/WorldBank';
+import { CELL_SIZE, VEHICLE_BASE } from '../constants';
+import { FACTIONS } from '../factions';
 import { BUILD_OPTIONS } from '../systems/ConstructionSystem';
-import type { FactionId, PlayerState } from '../types';
+import type { FactionId, PlayerState, UnitTier, VehicleKind, WorldPoint } from '../types';
 import { mulberry32 } from './Random';
 
 /**
@@ -44,9 +46,27 @@ const ENTITY_CLASSES: Readonly<Record<string, abstract new (...args: never[]) =>
   Vehicle,
 };
 
-/** Written into every save; a save of another format or version is refused. */
+/**
+ * A fresh instance of each entity class built from a saved entity's owner / nation / kind: it supplies the default of
+ * every field the save does not have (fields added by later versions of the game). Throws for a kind of unit the game
+ * no longer has. Classes not listed take (owner, faction, centre).
+ */
+const TEMPLATES: Readonly<Record<string, (d: Record<string, unknown>, at: WorldPoint) => Entity>> = {
+  Capital: (d, at) => new Capital(FACTIONS[d.faction as FactionId], d.owner as number, at),
+  WorldBank: (_d, at) => new WorldBank(at),
+  OilDerrick: (d, at) => new OilDerrick(d.owner as number, d.faction as FactionId, at, (d.rowIndex as number) ?? 0, d.bankManaged === true),
+  Infantry: (d, at) => new Infantry(d.owner as number, d.faction as FactionId, d.tier as UnitTier, at),
+  Vehicle: (d, at) => {
+    if (!(String(d.type) in VEHICLE_BASE)) throw new Error(`vehicle kind '${String(d.type)}' was removed`);
+    return new Vehicle(d.owner as number, d.faction as FactionId, d.type as VehicleKind, at);
+  },
+};
+
+/** Written into every save; a save of another format, or of a newer version than this game, is refused. */
 export const SAVE_FORMAT = 'black-area-save';
 export const SAVE_VERSION = 1;
+/** System fields that are catalogues built from the game's own rules (what can be bought): never taken from a save. */
+export const RULE_FIELDS: readonly string[] = ['options'];
 
 /** A whole saved game (JSON). */
 export interface SaveFile {
@@ -173,7 +193,8 @@ export class SaveCodec {
 
   decode(v: unknown): unknown {
     if (v === null || typeof v !== 'object') return v;
-    if (Array.isArray(v)) return v.map((x) => this.decode(x));
+    // A reference to an entity that was not restored (a removed kind of unit) drops out of lists.
+    if (Array.isArray(v)) return v.filter((x) => !this.isLostEntity(x)).map((x) => this.decode(x));
     const o = v as Record<string, unknown>;
     if ('$n' in o) return Number(o.$n);
     if ('$rng' in o) {
@@ -191,21 +212,49 @@ export class SaveCodec {
     return out;
   }
 
-  /** Step 1 of loading: an empty instance of the entity's class with its id, so references can point at it. */
-  createShell(saved: SavedEntity): Entity {
+  private isLostEntity(x: unknown): boolean {
+    return x !== null && typeof x === 'object' && '$e' in x && !this.entities.has((x as { $e: number }).$e);
+  }
+
+  /**
+   * Step 1 of loading: a default instance of the entity's class with the saved id, so references can point at it and
+   * fields newer than the save keep their defaults. Null for something this version of the game no longer has
+   * (it is left out of the loaded game).
+   */
+  createShell(saved: SavedEntity): Entity | null {
     const Cls = ENTITY_CLASSES[saved.cls];
-    if (!Cls) throw new Error(`Unknown entity class in save: ${saved.cls}`);
-    const e = Object.create(Cls.prototype) as Entity;
-    Object.defineProperty(e, 'id', { value: saved.data.id as number, writable: false, enumerable: true, configurable: true });
+    if (!Cls) {
+      console.warn(`Save: skipped an entity of unknown class ${saved.cls}`);
+      return null;
+    }
+    const d = saved.data;
+    const at = { x: Number(d.px ?? (Number(d.x) + 0.5) * CELL_SIZE) || 0, y: Number(d.py ?? (Number(d.y) + 0.5) * CELL_SIZE) || 0 };
+    let e: Entity;
+    try {
+      const make =
+        TEMPLATES[saved.cls] ??
+        ((s: Record<string, unknown>, p: WorldPoint) => new (Cls as unknown as new (o: number, f: FactionId, c: WorldPoint) => Entity)(s.owner as number, s.faction as FactionId, p));
+      e = make(d, at);
+    } catch (err) {
+      console.warn(`Save: skipped ${saved.cls} #${String(d.id)}:`, err instanceof Error ? err.message : err);
+      return null;
+    }
+    Object.defineProperty(e, 'id', { value: d.id as number, writable: false, enumerable: true, configurable: true });
     this.entities.set(e.id, e);
     return e;
   }
 
-  /** Step 2 of loading: the entity's fields, now that every entity exists. */
+  /**
+   * Step 2 of loading: the saved fields over the defaults, now that every entity exists. A saved plain object (a
+   * building's spec…) is laid over the default one, so properties added since the save keep their defaults.
+   */
   fillEntity(e: Entity, saved: SavedEntity): void {
+    const target = e as unknown as Record<string, unknown>;
     for (const [k, x] of Object.entries(saved.data)) {
       if (k === 'id') continue;
-      (e as unknown as Record<string, unknown>)[k] = this.decode(x);
+      const value = this.decode(x);
+      const cur = target[k];
+      target[k] = isPlain(cur) && isPlain(value) ? { ...cur, ...value } : value;
     }
   }
 
@@ -214,6 +263,7 @@ export class SaveCodec {
     if (!data) return;
     const target = obj as Record<string, unknown>;
     for (const [k, x] of Object.entries(data)) {
+      if (RULE_FIELDS.includes(k)) continue;
       const value = this.decode(x);
       const cur = target[k];
       if (cur instanceof Map && value instanceof Map) {
@@ -233,4 +283,10 @@ export class SaveCodec {
     const p = this.playersById.get(saved.id as number);
     if (p) Object.assign(p, this.decode(saved));
   }
+}
+
+function isPlain(v: unknown): v is Record<string, unknown> {
+  if (v === null || typeof v !== 'object' || Array.isArray(v)) return false;
+  const proto = Object.getPrototypeOf(v);
+  return proto === Object.prototype || proto === null;
 }

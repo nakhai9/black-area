@@ -135,6 +135,8 @@ export const TECH_VEHICLES: readonly VehicleKind[] = ["ifv", "transport"];
 export const HAPPY_CITY_COST = 10000;
 export const HAPPY_CITY_TAX = 500;
 export const HAPPY_CITY_TAX_PERIOD = 60;
+/** Every other Happy City of the nation raises each city's tax by this share of HAPPY_CITY_TAX (5 cities: ×1.6 each). */
+export const HAPPY_CITY_TAX_BONUS = 0.15;
 /** Duration of the build-up animation after placing a structure. */
 export const BUILD_RISE_SECONDS = 1.2;
 
@@ -562,7 +564,7 @@ export const OIL_REST_SECONDS = 60;
 // ---------------------------------------------------------------- Power (nuclear plants burn oil)
 /**
  * Every structure drains power (units/s, see each entity's powerDrain). Nuclear plants turn the nation's oil
- * stock into power: 0.001 barrel → 1 power, so a plant burning at full rate uses 0.025 bbl/s for 25 power/s.
+ * stock into energy, counted in joules (J): 0.001 barrel → 1 J, so a plant burning at full rate uses 0.025 bbl/s for 25 J/s.
  * One plant covers exactly one of each: capital 1 + barracks 1 + hospital 2 + war factory 3 + airfield 4 +
  * tech center 6 + city 8 = 25. Anything beyond that needs another plant (or the nation is short of power). Each plant also stores up to POWER_PLANT_STORAGE; a new plant starts empty (0).
  * When the grid runs dry (drain > generation and storage empty) the Global Financial Center is forced to sell the missing

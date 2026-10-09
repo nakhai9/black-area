@@ -68,6 +68,8 @@ export class Vehicle extends Unit {
   /** Airfield this aircraft belongs to, and its parking spot there. */
   homeId: number | null = null;
   slot = -1;
+  /** Comes in to land from the runway's far end (flying against the take-off direction). */
+  landReverse = false;
   /** Seconds into the current take-off / landing roll (or the unloading stop). */
   phaseTime = 0;
   /** Seconds the aircraft has had nothing to do while airborne. */

@@ -136,7 +136,7 @@ interface Personality {
 
 const PERSONALITIES: readonly Personality[] = [
   { name: 'economist', cityAppetite: 1, save: 0.85, waveGap: 1.3, soldiersPerVehicle: 2.5, economicFocus: 0.8, militaryFocus: 1.2 },
-  { name: 'warlord', cityAppetite: 0.5, save: 0.4, waveGap: 0.7, soldiersPerVehicle: 1.4, economicFocus: 1.15, militaryFocus: 0.8 },
+  { name: 'warlord', cityAppetite: 0.7, save: 0.4, waveGap: 0.7, soldiersPerVehicle: 1.4, economicFocus: 1.15, militaryFocus: 0.8 },
   { name: 'balanced', cityAppetite: 0.8, save: CITY_SAVE_SHARE, waveGap: 1, soldiersPerVehicle: SOLDIERS_PER_VEHICLE, economicFocus: 1, militaryFocus: 1 },
 ];
 /** Overseas war: no crossing before this game time (s), and the pause between crossings. */
@@ -300,7 +300,7 @@ export class AISystem implements GameSystem {
   /**
    * Does the nation want another Happy City right now? It does whenever it can grow without weakening
    * itself: the High-Tech Center is up, it owes the Global Financial Center nothing, and it still has an army on the
-   * field. The cap is per personality — an economist runs the full MAX_CITIES, a warlord half of them.
+   * field. The cap is per personality — an economist runs the full MAX_CITIES, a warlord 70% of them.
    */
   private savingForCity(p: PlayerState, owned: Set<BuildingType>, st?: AIState): boolean {
     const city = BUILD_OPTIONS.find((o) => o.id === 'happyCity');

@@ -336,21 +336,62 @@ export class AircraftSystem implements GameSystem {
       // Every apron full: wait over the airfield's approach point and try again in a moment.
       v.returningHome = true;
       v.idleFor = RETURN_AFTER - 1.5;
-      v.follow([this.geometry(home).approach]);
+      v.follow([this.approachFor(v, home).point]);
       return;
     }
     v.slot = slot;
     v.flight = 'approach';
-    v.follow([this.geometry(home).approach]);
+    this.pickRunwayEnd(v, home);
+    v.follow([this.approachFor(v, home).point]);
+  }
+
+  /**
+   * Ordered to land on `airfield` (an own one): it becomes the aircraft's home if it has a free spot, and the aircraft
+   * comes in over whichever runway end is nearer. False when it cannot land there.
+   */
+  land(v: Vehicle, airfield: Building): boolean {
+    if (!v.aircraft || !v.alive || v.isTanker || airfield.owner !== v.owner || !airfield.alive || airfield.spec.type !== 'airfield') return false;
+    if (v.flight !== 'airborne' && v.flight !== 'approach') return false;
+    const slot = this.freeSlot(v.homeId === airfield.id ? v : null, airfield);
+    if (slot < 0) return false;
+    this.leaveQueue(v);
+    v.homeId = airfield.id;
+    v.slot = slot;
+    v.attackTarget = null;
+    v.attackMove = null;
+    v.combatTarget = null;
+    v.mission = null;
+    v.scramble = 0;
+    v.returningHome = true;
+    v.flight = 'approach';
+    this.orbits.delete(v.id);
+    this.pickRunwayEnd(v, airfield);
+    v.follow([this.approachFor(v, airfield).point]);
+    return true;
+  }
+
+  /** Lands from the runway end nearer to the aircraft. */
+  private pickRunwayEnd(v: Vehicle, home: Building): void {
+    const g = this.geometry(home);
+    v.landReverse = Math.hypot(v.px - g.runwayEnd.x, v.py - g.runwayEnd.y) < Math.hypot(v.px - g.runwayStart.x, v.py - g.runwayStart.y);
+  }
+
+  /** Approach point and landing direction for the runway end the aircraft has picked. */
+  private approachFor(v: Vehicle, home: Building): { point: WorldPoint; heading: number } {
+    const g = this.geometry(home);
+    if (!v.landReverse) return { point: g.approach, heading: g.heading };
+    const back = g.heading + Math.PI;
+    const lead = Math.hypot(g.approach.x - g.runwayStart.x, g.approach.y - g.runwayStart.y);
+    return { point: { x: g.runwayEnd.x - Math.cos(back) * lead, y: g.runwayEnd.y - Math.sin(back) * lead }, heading: back };
   }
 
   private approach(v: Vehicle): void {
     const home = this.home(v);
     if (!home) return this.abort(v);
-    const g = this.geometry(home);
+    const a = this.approachFor(v, home);
     const last = v.waypoints()[v.waypoints().length - 1];
     // A new order replaces the approach path: abort the landing.
-    if (v.moving && last && Math.hypot(last.x - g.approach.x, last.y - g.approach.y) > 1) {
+    if (v.moving && last && Math.hypot(last.x - a.point.x, last.y - a.point.y) > 1) {
       this.leaveQueue(v);
       v.flight = 'airborne';
       v.idleFor = 0;
@@ -360,10 +401,10 @@ export class AircraftSystem implements GameSystem {
       // Not cleared yet (runway in use or others ahead in the queue): hold over the approach point.
       if (!this.cleared(v, home)) return;
       this.leaveQueue(v);
-      this.place(v, g.approach.x, g.approach.y);
+      this.place(v, a.point.x, a.point.y);
       v.flight = 'landing';
       v.phaseTime = 0;
-      v.heading = g.heading;
+      v.heading = a.heading;
     }
   }
 
@@ -371,12 +412,12 @@ export class AircraftSystem implements GameSystem {
     const home = this.home(v);
     if (!home) return this.abort(v);
     this.stashOrders(v);
-    const g = this.geometry(home);
+    const heading = this.approachFor(v, home).heading;
     v.phaseTime += dt;
     const t = clamp01(v.phaseTime / LANDING_SECONDS);
     const speed = lerp(v.speed * 0.8, 5, t);
-    v.heading = g.heading;
-    this.place(v, v.px + Math.cos(g.heading) * speed * dt, v.py + Math.sin(g.heading) * speed * dt);
+    v.heading = heading;
+    this.place(v, v.px + Math.cos(heading) * speed * dt, v.py + Math.sin(heading) * speed * dt);
     v.altitude = CRUISE_ALTITUDE * (1 - clamp01(t / 0.5));
     v.walkPhase += speed * dt;
     if (t >= 1) {
@@ -646,7 +687,7 @@ export class AircraftSystem implements GameSystem {
     const pts = v.waypoints();
     const last = pts[pts.length - 1];
     if (!home || !last) return false;
-    const a = this.geometry(home).approach;
+    const a = this.approachFor(v, home).point;
     return Math.hypot(last.x - a.x, last.y - a.y) <= 1;
   }
 

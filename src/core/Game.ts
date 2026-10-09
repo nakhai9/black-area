@@ -505,7 +505,7 @@ export class Game {
   }
 
   /** Game fields never written back from a save (screen / input state). */
-  private static readonly UNSAVED = ['systems', 'paused', 'ended', 'dom', 'lastCursor', 'mouseWorld', 'ghost', 'placing', 'waypoints', 'moveMarker', 'pathPeekId', 'lastBuildingClick'];
+  private static readonly UNSAVED = ['systems', 'paused', 'ended', 'dom', 'lastCursor', 'mouseWorld', 'ghost', 'placing', 'placingRotated', 'waypoints', 'moveMarker', 'pathPeekId', 'lastBuildingClick'];
 
   /**
    * Everything needed to continue this game later, as plain JSON-ready data: players, every entity, the state of
@@ -537,13 +537,17 @@ export class Game {
   /** Replaces the freshly generated game with a saved one (same nation, same world). */
   importSave(save: SaveFile): void {
     if (save.format !== SAVE_FORMAT) throw new Error('This file is not a Black Area save.');
-    if (save.version !== SAVE_VERSION) throw new Error(`This save was made by another version of the game (save v${save.version}, game v${SAVE_VERSION}).`);
+    if (!(save.version <= SAVE_VERSION)) throw new Error(`This save was made by a newer version of the game (save v${save.version}, game v${SAVE_VERSION}).`);
     const codec = new SaveCodec(this.players);
     // Clear the new game's starting world: its structures leave the map, every entity goes.
     for (const b of this.entities.buildings()) this.map.occupy(b.x, b.y, b.w, b.d, null);
     for (const e of [...this.entities.all()]) this.entities.remove(e.id);
     // Entities: shells first (so references between them resolve), then their fields.
-    const shells = save.entities.map((s) => [codec.createShell(s), s] as const);
+    // Anything this version no longer has (a removed kind of unit) is left out.
+    const shells = save.entities.flatMap((s) => {
+      const e = codec.createShell(s);
+      return e ? [[e, s] as const] : [];
+    });
     for (const [e, s] of shells) codec.fillEntity(e, s);
     for (const [e] of shells) this.entities.add(e);
     for (const b of this.entities.buildings()) if (b.alive) this.map.occupy(b.x, b.y, b.w, b.d, b.id);
@@ -556,6 +560,7 @@ export class Game {
       if (part) codec.restore(part, data);
     }
     codec.restore(this, save.game);
+    this.dropRemovedOrders();
     // Visual effects are not saved, except ticking charges, which draw their own.
     this.effects.list.length = 0;
     for (const c of this.charges) this.effects.add(c.fx);
@@ -565,6 +570,38 @@ export class Game {
     this.camera.setZoom(save.camera.zoom);
     this.sidebarTimer = SIDEBAR_REFRESH;
     this.sidebar.notify('Game loaded.', 3);
+  }
+
+  /**
+   * After loading an older save: orders for things this version no longer sells are dropped (what was paid for them is
+   * refunded), so every queue only holds what the shop offers today. New structures and units are on sale as usual.
+   */
+  private dropRemovedOrders(): void {
+    for (const p of this.players) {
+      const slot = this.construction.slot(p);
+      if (slot.state !== 'idle' && (!slot.option || !BUILD_OPTIONS.includes(slot.option))) {
+        p.credits += Math.floor(slot.paid);
+        Object.assign(slot, { option: null, state: 'idle', progress: 0, paid: 0 });
+      }
+      const vq = this.production.queue(p);
+      const kinds = new Set(this.production.optionsFor(p).map((o) => o.kind));
+      if (vq.items[0] !== undefined && !kinds.has(vq.items[0])) {
+        p.credits += Math.floor(vq.paid);
+        vq.paid = 0;
+        vq.progress = 0;
+      }
+      vq.items = vq.items.filter((k) => kinds.has(k));
+      if (vq.items.length === 0) vq.state = 'idle';
+      const tq = this.training.queue(p);
+      const tiers = new Set(this.training.optionsFor(p).map((o) => o.tier));
+      if (tq.items[0] !== undefined && !tiers.has(tq.items[0])) {
+        p.credits += Math.floor(tq.paid);
+        tq.paid = 0;
+        tq.progress = 0;
+      }
+      tq.items = tq.items.filter((t) => tiers.has(t));
+      if (tq.items.length === 0) tq.state = 'idle';
+    }
   }
 
   /** Pause menu → Save: downloads the save as a JSON file. */
@@ -1284,7 +1321,10 @@ export class Game {
 
   /** Fixed-rate simulation step. */
   private tick(dt: number): void {
-    if (this.ended || this.paused) return;
+    if (this.ended || this.paused) {
+      this.sound.motion({ foot: 0, tracks: 0, jet: 0 });
+      return;
+    }
     this.endCheck += dt;
     if (this.endCheck >= 1) {
       this.endCheck = 0;
@@ -1297,6 +1337,7 @@ export class Game {
       u.terrainFactor = u.flies ? 1 : this.map.hasTrees(cx, cy) ? 0.78 : 1; // woods slow everybody down
     }
     this.entities.update(dt);
+    this.motionSound();
     this.keepOutOfWater();
     this.crushInfantry();
     this.processBoarding();
@@ -1651,15 +1692,12 @@ export class Game {
       }
     }
     const unit = this.selection.pickUnit(world);
-    // Double-click on one of my Squatters teams standing still (the first click may have ordered it onto its own
-    // spot): it plants its flag there.
+    // Double-click on one of my Squatters teams: it plants its flag where it is (the first click may have given it a
+    // move order — that is dropped). No key needed.
     if (double && unit instanceof Infantry && unit.isSquatters && unit.owner === me) {
-      const dest = unit.destination;
-      if (!unit.moving || (dest && Math.hypot(dest.x - unit.px, dest.y - unit.py) < CELL_SIZE)) {
-        unit.stop();
-        this.plantFlagByClick(unit);
-        return;
-      }
+      unit.stop();
+      this.plantFlagByClick(unit);
+      return;
     }
     const selected = this.selection.selectedUnitList();
     // RA2 default: with units selected, a left click is also an order (board / attack / enter / move).
@@ -1906,6 +1944,14 @@ export class Game {
       case 'Tab':
         this.sidebar.toggle();
         break;
+      case 'KeyR':
+        // Only while positioning a new structure: turn it 90° (footprint d × w, art mirrored). Once built it stays put.
+        if (this.placing) {
+          this.placingRotated = !this.placingRotated;
+          this.updateGhost();
+          this.sidebar.notify(this.placingRotated ? 'Turned 90°.' : 'Turned back.', 1.5);
+        }
+        break;
       case 'KeyU':
         this.unloadSelectedTransport();
         break;
@@ -1981,6 +2027,7 @@ export class Game {
       this.sidebar.notify(`Building ${option.name} — ${buildCost(option, player.faction)} ${CURRENCY}`);
     } else if (slot.state === 'ready' && slot.option?.id === option.id) {
       this.placing = option;
+      this.placingRotated = false;
       this.selection.select(null);
       this.sidebar.notify('Click a free spot near your base to place it.');
     } else if (slot.option?.id !== option.id) {
@@ -2000,9 +2047,13 @@ export class Game {
     this.sidebarTimer = SIDEBAR_REFRESH;
   }
 
+  /** The structure being positioned is turned 90° (R). */
+  private placingRotated = false;
+
   private stopPlacing(): void {
     this.placing = null;
     this.ghost = null;
+    this.placingRotated = false;
   }
 
   /** Footprint under the cursor (centred on it) + legality for the preview. */
@@ -2012,7 +2063,8 @@ export class Game {
       return;
     }
     const fp = this.placing.footprint;
-    const { w, d } = fp;
+    const w = this.placingRotated ? fp.d : fp.w;
+    const d = this.placingRotated ? fp.w : fp.d;
     const x = Math.floor(this.mouseWorld.x / CELL_SIZE - w / 2 + 0.5);
     const y = Math.floor(this.mouseWorld.y / CELL_SIZE - d / 2 + 0.5);
     const result = this.placement.check({ owner: this.humanPlayer.id, x, y, w, d, unclaimedOnly: this.placing.id === 'alliedBuilding' });
@@ -2023,7 +2075,7 @@ export class Game {
       y,
       w,
       d,
-      mirrored: false,
+      mirrored: this.placingRotated,
       ok: result.ok,
       reason: result.ok ? null : (BLOCK_REASONS[result.reason] ?? result.reason),
     };
@@ -2159,6 +2211,27 @@ export class Game {
     const prev = this.lastShot.get(s.id) ?? -99;
     this.lastShot.set(s.id, this.time);
     if (this.time - prev > 8 && s.faction !== 'neutral') this.sound.battleCry(s.faction, { x: s.px, y: s.py });
+  }
+
+  /** Footsteps, engines and tracks of the units moving within earshot of the camera (louder with more of them). */
+  private motionSound(): void {
+    const v = this.camera.viewRect();
+    const cx = v.x + v.w / 2;
+    const cy = v.y + v.h / 2;
+    const range = Math.hypot(v.w, v.h) / 2;
+    const levels = { foot: 0, tracks: 0, jet: 0 };
+    for (const u of this.entities.fieldMovers()) {
+      if (!u.alive || u.insideId !== null) continue;
+      const d = Math.hypot(u.px - cx, u.py - cy);
+      if (d > range) continue;
+      const near = 1 - d / range;
+      if (u instanceof Vehicle) {
+        const flying = u.aircraft && u.flight !== 'parked';
+        if (flying) levels.jet += near * 0.5;
+        else if (!u.aircraft && u.moving) levels.tracks += near * 0.45;
+      } else if (u.moving) levels.foot += near * 0.15;
+    }
+    this.sound.motion(levels);
   }
 
   /** Throttled "under attack" alerts for everything the player owns. */
@@ -2736,6 +2809,11 @@ export class Game {
   private orderOnBuilding(b: Building): boolean {
     const me = this.humanPlayer;
     let ordered = 0;
+    // Aircraft selected + click on an own airfield: they come in to land there (from the nearer runway end).
+    if (b.owner === me.id && b.spec.type === 'airfield') {
+      for (const u of this.selection.selectedUnitList()) if (u instanceof Vehicle && this.aircraft.land(u, b)) ordered++;
+      if (ordered > 0) return true;
+    }
     for (const u of this.selection.selectedUnitList()) {
       if (!(u instanceof Infantry)) continue; // only people enter, repair or capture
       if (u.isDemolition && b.owner !== me.id && isHostile(u, b)) {

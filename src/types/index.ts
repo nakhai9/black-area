@@ -191,7 +191,7 @@ export interface PlayerState {
   powerCapacity: number;
   /** The grid ran dry and the treasury could not buy oil from the Global Financial Center. */
   blackout: boolean;
-  /** Most the nation's nuclear plants can generate (e/s, scaled by their health). */
+  /** Most the nation's nuclear plants can generate (J/s, scaled by their health). */
   powerSupply: number;
   /** Not enough power: supply below drain, or a blackout. No construction (but plants), vehicles or take-offs. */
   powerShort: boolean;

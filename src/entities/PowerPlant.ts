@@ -4,7 +4,7 @@ import { Building } from './Building';
 
 /**
  * Nuclear Power Plant (4×4): turns the nation's oil stock into power for every structure. It burns at most
- * POWER_PLANT_OUTPUT power/s worth of oil and buffers up to POWER_PLANT_STORAGE; a freshly built plant is empty.
+ * POWER_PLANT_OUTPUT J/s worth of oil and buffers up to POWER_PLANT_STORAGE; a freshly built plant is empty.
  */
 export class PowerPlant extends Building {
   /** Power stored in this plant (0 when built). */
