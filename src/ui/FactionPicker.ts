@@ -65,7 +65,7 @@ export class FactionPicker {
     this.root.innerHTML = `
       <div class="fp-modal">
         <header class="fp-header">
-          <div class="sb-logo">BLACK<span>AREA</span></div>
+          <div class="sb-logo"><img src="${import.meta.env.BASE_URL}logo.png" alt="Black Area" /></div>
           <h1 id="fp-title">Choose your side</h1>
           <p>Every nation starts with 0 ${CURRENCY} and some oil. Derricks pump oil (${parseFloat(OIL_DERRICK_OUTPUT.toFixed(3))} barrels/s each) for ${OIL_MINE_SECONDS} s, then rest ${OIL_REST_SECONDS} s. Oil is sold to the Global Financial Center (one offer every 2 s) at a price driven by how much oil is sold and how rich the world is. Nuclear Power Plants burn oil for power (0.001 bbl = 1 e); when your grid runs dry the Center forces you to buy oil at +25%. Three derricks per nation, four for Europe.</p>
         </header>
@@ -73,7 +73,7 @@ export class FactionPicker {
         <footer class="fp-footer">
           <span class="fp-hint"><kbd>1</kbd>–<kbd>4</kbd> select</span>
           ${DEMO_MODE ? '<button class="fp-demo" type="button" title="Test game: play alone, the other nations do nothing; everything built, finances off">Test</button>' : ''}
-          <button class="fp-guide" type="button" title="Open the game rules (RULE.html) in a new tab">Hướng dẫn</button>
+          <button class="fp-guide" type="button" title="Open the game rules (RULE.html) in a new tab">Guide</button>
           <button class="fp-load" type="button" title="Continue a game saved to a .json file (pause menu → Save game)">Load game</button>
           <button class="fp-deploy" type="button">Deploy</button>
         </footer>

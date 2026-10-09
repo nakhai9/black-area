@@ -1218,3 +1218,13 @@ details.sb-help[open] > summary {
   font-size: 11px;
   margin: 0;
 }
+.sb-logo img {
+  display: block;
+  width: 100%;
+  max-width: 140px;
+  height: auto;
+  margin: 0 auto;
+}
+.sb-header .sb-logo img {
+  max-width: 100px;
+}

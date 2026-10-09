@@ -4,6 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Black Area Rules</title>
+<link rel="icon" href="/favicon.ico" sizes="any" />
 <style>
   :root { --bg:#fbfaf7; --fg:#1d1f22; --muted:#5d636b; --line:#e2ded6; --code:#f1eee8; --accent:#b4321f; }
   @media (prefers-color-scheme: dark) { :root { --bg:#16181b; --fg:#e6e3dc; --muted:#9aa0a8; --line:#2c3036; --code:#1f2226; --accent:#ff7a5c; } }
@@ -19,10 +20,12 @@
   th { background:var(--code); }
   .warn { border-left:3px solid var(--accent); padding:6px 12px; background:var(--code); }
   nav a { margin-right:12px; color:var(--accent); }
+  img.logo { display:block; width:160px; height:auto; margin:0 auto 12px; }
 </style>
 </head>
 <body>
 <main>
+<img class="logo" src="/logo.png" alt="Black Area" />
 <h1>Black Area — RULE</h1>
 <p class="lead">Tài liệu luật chơi + kiến trúc code dành cho AI/dev sửa game. Mọi con số gameplay chính xác nằm trong <code>src/constants.ts</code> và <code>src/factions/*.ts</code>. Nếu tài liệu này khác code thì <b>code đúng</b>. <b>Khi đổi luật/số trong code, phải cập nhật file này.</b></p>
 <nav><a href="#s1">Quy tắc làm việc cho AI</a><a href="#s2">Chạy dự án</a><a href="#s3">Kiến trúc thư mục</a><a href="#s4">Thế giới</a><a href="#s5">Kinh tế (dầu)</a><a href="#s6">Công trình (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Quân đội</a><a href="#s8">Chiến đấu</a><a href="#s9">Điều khiển (Game.handleKey, handleInput)</a><a href="#s10">Giới hạn &amp; hiệu năng</a><a href="#s11">Thắng / thua &amp; AI</a><a href="#s12">Công thức sửa thường gặp</a></nav>

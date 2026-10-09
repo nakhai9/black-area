@@ -229,7 +229,7 @@ export class Sidebar {
     this.faction = player.faction;
     root.innerHTML = `
       <header class="sb-header">
-        <div class="sb-logo">BLACK<span>AREA</span></div>
+        <div class="sb-logo"><img src="${import.meta.env.BASE_URL}logo.png" alt="Black Area" /></div>
         <button class="sb-collapse" title="Hide sidebar (Tab)">⟩</button>
       </header>
       <section class="sb-panel sb-radar"><canvas class="sb-minimap"></canvas></section>
