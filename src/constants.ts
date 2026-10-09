@@ -21,7 +21,7 @@ export const DEMO_MODE = false;
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "1.5.0";
+export const GAME_VERSION = "1.5.1";
 
 // ---------------------------------------------------------------- World (real Earth)
 /** Packed Earth texture built by `npm run build:earth` (see scripts/build-earth.mjs). */
@@ -395,7 +395,7 @@ export const needsAirfield = (kind: VehicleKind): boolean =>
  * walking a soldier halts where he is for INFANTRY_REST_SECONDS, then marches on — to the end of any order, fights
  * included. Riding a truck or a transport aircraft costs no strength. Standing INFANTRY_RECOVER_SECONDS rests him too.
  */
-export const INFANTRY_MARCH_CELLS = 10;
+export const INFANTRY_MARCH_CELLS = 20;
 export const INFANTRY_REST_SECONDS = 35;
 export const INFANTRY_RECOVER_SECONDS = 10;
 
