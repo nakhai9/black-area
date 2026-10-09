@@ -43,7 +43,6 @@ export const EUROPE: FactionConfig = {
     tank: { name: "Leopard 2", description: "Leopard 2 main battle tank, precise and well protected." },
     ifv: { name: "Puma", description: "Puma armoured fighting vehicle, modern and fast." },
     jet: { name: "Rafale", description: "Dassault Rafale multirole fighter." },
-    helicopter: { name: "AH-64 Apache", description: "AH-64 Apache attack helicopter of the European aviation: slower than a fighter; fires missiles at ground units, aircraft and structures; carries up to 8 soldiers (no vehicles). Built at the War Factory, it takes off and sets down anywhere on solid ground." },
     transport: { name: "C-130", description: "C-130 transport aircraft: carries soldiers and vehicles; unarmed." },
     repair: {
       name: "M88",

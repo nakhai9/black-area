@@ -467,6 +467,7 @@ export class Sidebar {
     this.income.textContent = `+${model.oilRate.toFixed(2)} bbl/s`;
     this.stock.textContent = `${player.oil.toFixed(1)} bbl`;
     this.renderPrices(model);
+    this.sellButton.hidden = model.autoSell; // auto sell does the selling: no manual button
     this.sellButton.disabled = player.defeated || model.sellable < MIN_SALE_STOCK || model.salesWait > 0;
     this.sellButton.textContent = model.salesWait > 0 ? `Sell oil · wait ${model.salesWait} s` : 'Sell oil';
     this.autoSellButton.textContent = model.autoSell ? 'Auto sell: ON' : 'Auto sell: OFF';

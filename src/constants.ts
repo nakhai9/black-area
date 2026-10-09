@@ -281,7 +281,6 @@ export const VEHICLE_WEAPON: Readonly<
   ifv: "autocannon",
   jet: "missile",
   bomber: "bomb",
-  helicopter: "missile",
 };
 /** Soldiers only shoot at enemies within this many cells (vehicles keep their own, longer ranges). */
 export const INFANTRY_MAX_RANGE_CELLS = 3;
@@ -322,8 +321,6 @@ export const VEHICLE_BASE = {
   bomber: { cost: 2600, trainSeconds: 22, maxHp: 380, speed: 8.5, radius: 3.8 },
   /** National armoured recovery vehicle (Russia's BREM-1): slow and unarmed, it mends friendly ground vehicles (see REPAIR_VEHICLE_*). */
   repair: { cost: 800, trainSeconds: 10, maxHp: 360, speed: 1.0, radius: 4.2 },
-  /** Attack helicopter (AH-64 Apache, Mi-28): built at the War Factory, no airfield; fires missiles, carries HELICOPTER_SOLDIERS soldiers. */
-  helicopter: { cost: 1500, trainSeconds: 15, maxHp: 260, speed: 4.5, radius: 3.4 },
   /** Aerial refueler: never sold on its own — every transport comes with one that flies escort and keeps it fuelled. */
   tanker: { cost: 0, trainSeconds: 0, maxHp: 160, speed: 6, radius: 3.2 },
 } as const;
@@ -371,14 +368,10 @@ export const isAircraftKind = (kind: VehicleKind): boolean =>
   kind === "jet" ||
   kind === "transport" ||
   kind === "tanker" ||
-  kind === "bomber" ||
-  kind === "helicopter";
+  kind === "bomber";
 
-/** Aircraft that live on an airfield (built there, park and take off there). Helicopters do not: they roll out of
- * the War Factory, take off and set down anywhere on solid ground. */
-export const needsAirfield = (kind: VehicleKind): boolean => isAircraftKind(kind) && kind !== "helicopter";
-/** Soldiers a helicopter carries (it never takes vehicles). */
-export const HELICOPTER_SOLDIERS = 8;
+/** Aircraft are built at, park at and take off from an airfield. */
+export const needsAirfield = (kind: VehicleKind): boolean => isAircraftKind(kind);
 
 /**
  * Temporary: only these vehicles can be produced (sidebar and AI). The rest stay in the code but are
@@ -390,7 +383,6 @@ export const AVAILABLE_VEHICLES: readonly VehicleKind[] = [
   "bomber",
   "transport",
   "repair",
-  "helicopter",
 ];
 
 /**

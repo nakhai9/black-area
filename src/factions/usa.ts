@@ -43,7 +43,6 @@ export const USA: FactionConfig = {
     tank: { name: "Abrams", description: "M1 Abrams main battle tank: heavy armour and a powerful gun." },
     ifv: { name: "Bradley", description: "M2 Bradley armoured fighting vehicle for infantry support." },
     jet: { name: "F-22", description: "F-22 Raptor stealth air superiority fighter." },
-    helicopter: { name: "AH-64 Apache", description: "AH-64 Apache attack helicopter of the U.S. Army aviation: slower than a fighter; fires missiles at ground units, aircraft and structures; carries up to 8 soldiers (no vehicles). Built at the War Factory, it takes off and sets down anywhere on solid ground." },
     transport: { name: "C-17", description: "Heavy transport aircraft: carries soldiers and vehicles; unarmed." },
     bomber: { name: "B-52", description: "B-52 Stratofortress long-range heavy bomber, USA only: heavy bombs that flatten ground forces and structures; cannot hit aircraft." },
     repair: {

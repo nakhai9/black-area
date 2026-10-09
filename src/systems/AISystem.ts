@@ -79,7 +79,6 @@ const VEHICLE_WEIGHT: Readonly<Partial<Record<VehicleKind, number>>> = {
   tank: 0.34,
   ifv: 0.12,
   light: 0.06,
-  helicopter: 0.18,
   jet: 0.16,
   bomber: 0.1,
   repair: 0.04,
@@ -554,7 +553,7 @@ export class AISystem implements GameSystem {
     if (canVehicles && (wantVehicle || threat > 0)) {
       const q = production.queue(p);
       if (q.items.length < depth && budget > (threat > 0 ? 500 : 700)) {
-        // Every combat vehicle the nation can build here (its own national kinds included: bombers, helicopters…).
+        // Every combat vehicle the nation can build here (its own national kinds included: bombers…).
         const options = production.optionsFor(p);
         const able = (k: VehicleKind): boolean => {
           const o = options.find((x) => x.kind === k);
@@ -584,7 +583,7 @@ export class AISystem implements GameSystem {
             kind = k;
           }
         }
-        // Ground fleet at its cap (helicopters count there too): airfield aircraft are not, so build one of those.
+        // Ground fleet at its cap: airfield aircraft are not, so build one of those.
         if (kind && production.enqueue(p, kind) === 'cap') {
           const air = (['jet', 'bomber'] as const).filter(able);
           const pick = air[Math.floor(st.rng() * air.length)];
@@ -596,7 +595,7 @@ export class AISystem implements GameSystem {
 
   /**
    * The fleet the nation wants, reshaped from what its enemies field:
-   *  - many enemy aircraft → more fighters and helicopters (their missiles hit aircraft);
+   *  - many enemy aircraft → more fighters (their missiles hit aircraft);
    *  - many enemy structures / a big ground army → more bombers and tanks;
    *  - a war across the sea → aircraft first (only they and transports reach the enemy);
    *  - repair vehicles only once there is a ground fleet worth mending.
@@ -617,12 +616,12 @@ export class AISystem implements GameSystem {
     const out: [VehicleKind, number][] = [];
     for (const [k, base] of Object.entries(VEHICLE_WEIGHT) as [VehicleKind, number][]) {
       let w = base;
-      if (k === 'jet' || k === 'helicopter') w *= 1 + airShare * 2;
+      if (k === 'jet') w *= 1 + airShare * 2;
       if (k === 'bomber') w *= 1 + Math.min(1, structures / 40);
       if (k === 'tank') w *= 1 + Math.min(1, ground / 60) * 0.5;
-      if (st.overseas) w *= k === 'jet' || k === 'bomber' || k === 'helicopter' ? 2 : 0.5;
+      if (st.overseas) w *= k === 'jet' || k === 'bomber' ? 2 : 0.5;
       if (k === 'repair') {
-        const groundFleet = vehicleCount - (f.vehicles.get('jet') ?? 0) - (f.vehicles.get('bomber') ?? 0) - (f.vehicles.get('helicopter') ?? 0);
+        const groundFleet = vehicleCount - (f.vehicles.get('jet') ?? 0) - (f.vehicles.get('bomber') ?? 0);
         if (groundFleet < 4 || (f.vehicles.get('repair') ?? 0) >= Math.ceil(groundFleet / 5)) w = 0;
       }
       out.push([k, w]);

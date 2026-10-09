@@ -97,7 +97,6 @@ export const RUSSIA: FactionConfig = {
       name: "Su-57",
       description: "Su-57 stealth air superiority fighter.",
     },
-    helicopter: { name: "Mi-28", description: "Mi-28 attack helicopter of the Russian army aviation: slower than a fighter; fires missiles at ground units, aircraft and structures; carries up to 8 soldiers (no vehicles). Built at the War Factory, it takes off and sets down anywhere on solid ground." },
     transport: {
       name: "Il-76",
       description:

@@ -20,7 +20,7 @@ export interface VehicleOption {
   needsAirfield: boolean;
 }
 
-const KINDS: readonly VehicleKind[] = ['light', 'tank', 'ifv', 'jet', 'bomber', 'transport', 'repair', 'helicopter'];
+const KINDS: readonly VehicleKind[] = ['light', 'tank', 'ifv', 'jet', 'bomber', 'transport', 'repair'];
 
 function vehicleOptions(faction: FactionId): VehicleOption[] {
   const f = FACTIONS[faction];
@@ -149,7 +149,7 @@ export class VehicleSystem implements GameSystem {
     return n;
   }
 
-  /** Ground vehicles and helicopters of the nation (alive anywhere, aboard transports too) plus those on order; airfield aircraft excluded. */
+  /** Ground vehicles of the nation (alive anywhere, aboard transports too) plus those on order; airfield aircraft excluded. */
   groundCount(player: PlayerState): number {
     let n = this.queue(player).items.filter((k) => !needsAirfield(k)).length;
     for (const v of this.entities.vehicles()) if (v.owner === player.id && v.alive && !needsAirfield(v.type)) n++;

@@ -2568,10 +2568,6 @@ export class Game {
   }
 
   private spawnVehicle(player: PlayerState, kind: VehicleKind, producer: Building): void {
-    if (kind === 'helicopter') {
-      this.spawnHelicopter(player, producer);
-      return;
-    }
     if (isAircraftKind(kind)) {
       this.spawnAircraft(player, kind, producer);
       return;
@@ -2600,32 +2596,6 @@ export class Game {
       break;
     }
     if (player.isHuman) this.sidebar.notify(`${unit.name} ready.`);
-  }
-
-  /** A helicopter rolls out of the War Factory and stands on the first free solid ground in front of it. */
-  private spawnHelicopter(player: PlayerState, producer: Building): void {
-    const door = this.doorPoint(producer);
-    const heli = new Vehicle(player.id, player.faction as FactionId, 'helicopter', door);
-    const movers = this.entities.fieldMovers();
-    let spot: WorldPoint | null = null;
-    for (let k = 0; k < 160 && !spot; k++) {
-      const off = spiralOffset(k, 9);
-      const p = { x: door.x + off.x, y: door.y + CELL_SIZE * 4 + Math.abs(off.y) };
-      const cell = this.map.cellAt(p.x, p.y);
-      if (!cell || !this.pathfinder.passable(cell.x, cell.y)) continue;
-      if (movers.some((m) => !m.flies && Math.hypot(m.px - p.x, m.py - p.y) < m.radius + heli.radius + 2)) continue;
-      spot = p;
-    }
-    if (!spot) return;
-    heli.px = spot.x;
-    heli.py = spot.y;
-    heli.x = spot.x / CELL_SIZE;
-    heli.y = spot.y / CELL_SIZE;
-    heli.flight = 'landed';
-    heli.altitude = 0;
-    heli.heading = Math.PI / 2;
-    this.entities.add(heli);
-    if (player.isHuman) this.sidebar.notify(`${heli.name} ready.`);
   }
 
   // ------------------------------------------------------------------ infantry

@@ -40,13 +40,7 @@ const SHEETS: Partial<Record<`${FactionId}:${VehicleKind}`, AircraftSheet>> = {
   // National bombers, one nation each (built from scripts/assets/*-source.png by scripts/build-bomber-sheet.py).
   'russia:bomber': sheet('tu26-russia.png', 96, 14),
   'usa:bomber': sheet('b52-usa.png', 96, 16),
-  // AH-64 Apache (scripts/build-heli-sheet.mjs from scripts/assets/ah64-source.png), shared by the USA and Europe.
-  'usa:helicopter': sheet('ah64-usa.png', 80, 13),
 };
-SHEETS['europe:helicopter'] = SHEETS['usa:helicopter'];
-// Mi-28 (same layout, scripts/assets/mi28-source.png), shared by Russia and the Islamic world.
-SHEETS['russia:helicopter'] = sheet('mi28-russia.png', 80, 13);
-SHEETS['islamic:helicopter'] = SHEETS['russia:helicopter'];
 // Tankers: the faction's transport airframe drawn smaller (a short, fat refueler); they share the transport image.
 for (const f of ['usa', 'russia', 'china', 'europe', 'islamic'] as const) {
   const t = SHEETS[`${f}:transport`];

@@ -97,7 +97,7 @@ export interface WeaponSpec {
 /** Light car, main battle tank, armoured vehicle (IFV) and fighter aircraft. */
 /** `bomber` is a national special: only nations that list it in their `vehicles` can build it (Russia's Tu-16, the USA's B-52). */
 /** `repair` is a national special too: an unarmed armoured recovery vehicle that mends friendly ground vehicles (Russia's BREM-1). */
-export type VehicleKind = 'light' | 'tank' | 'ifv' | 'jet' | 'transport' | 'tanker' | 'bomber' | 'repair' | 'helicopter';
+export type VehicleKind = 'light' | 'tank' | 'ifv' | 'jet' | 'transport' | 'tanker' | 'bomber' | 'repair';
 
 export interface VehicleProfile {
   name: string;
@@ -146,14 +146,12 @@ export interface FactionConfig {
   /** Ground forces trained at the Barracks. */
   infantry: Readonly<Record<Exclude<UnitTier, 'demolition'>, InfantryProfile>> & { readonly demolition?: InfantryProfile };
   /** Vehicles (War Factory) and aircraft (Airfield). */
-  vehicles: Readonly<Record<Exclude<VehicleKind, 'bomber' | 'repair' | 'transport' | 'tanker' | 'helicopter'>, VehicleProfile>> & {
+  vehicles: Readonly<Record<Exclude<VehicleKind, 'bomber' | 'repair' | 'transport' | 'tanker'>, VehicleProfile>> & {
     readonly bomber?: VehicleProfile;
     readonly repair?: VehicleProfile;
     /** Transport aircraft and its escort tanker: a nation without them flies no airlifts. */
     readonly transport?: VehicleProfile;
     readonly tanker?: VehicleProfile;
-    /** Attack helicopter (Airfield): only nations that field one. */
-    readonly helicopter?: VehicleProfile;
   };
   /** Leads the world oil cartel (like OPEC in real life): sets a production policy that moves the global oil price. */
   oilCartel?: boolean;
