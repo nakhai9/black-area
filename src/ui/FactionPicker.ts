@@ -2,8 +2,6 @@ import {
   CAPITAL_LOCATIONS,
   DEMO_MODE,
   FACTION_ORDER,
-  OIL_MINE_SECONDS,
-  OIL_REST_SECONDS,
 } from "../constants";
 import { FACTIONS } from "../factions";
 import { getFlagTexture } from "../render/Flags";
@@ -173,12 +171,6 @@ export class FactionPicker {
       ([k, label]) =>
         `<li><span>${label}</span><div class="sb-bar"><i style="width:${(f.stats[k] / STAT_MAX) * 100}%"></i></div></li>`,
     ).join("");
-    const oil = [
-      "Straight row, safest inland ground",
-      `Pump 111 ${OIL_MINE_SECONDS} s · rest ${OIL_REST_SECONDS} s`,
-    ]
-      .map((t) => `<li>${t}</li>`)
-      .join("");
     card.innerHTML = `
       <kbd class="fp-key">${hotkey}</kbd>
       <div class="fp-ident">
