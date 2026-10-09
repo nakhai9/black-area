@@ -24,276 +24,369 @@
 <body>
 <main>
 <h1>Black Area — RULE</h1>
-<p class="lead">Tài liệu luật chơi + kiến trúc code dành cho AI/dev sửa game sau này. Số liệu chính xác luôn nằm trong <code>src/constants.ts</code> và <code>src/factions/*.ts</code>; khi đổi số ở code, cập nhật file này.</p>
-<nav><a href="#ai">Quy tắc cho AI</a><a href="#run">Chạy</a><a href="#arch">Kiến trúc</a><a href="#world">Thế giới</a><a href="#eco">Kinh tế</a><a href="#build">Công trình</a><a href="#units">Quân</a><a href="#combat">Chiến đấu</a><a href="#ctrl">Điều khiển</a><a href="#win">Thắng/thua</a><a href="#how">Cách sửa</a></nav>
-
-<h2 id="ai">0. Quy tắc làm việc cho AI</h2>
+<p class="lead">Tài liệu luật chơi + kiến trúc code dành cho AI/dev sửa game. Mọi con số gameplay chính xác nằm trong <code>src/constants.ts</code> và <code>src/factions/*.ts</code>. Nếu tài liệu này khác code thì <b>code đúng</b>. <b>Khi đổi luật/số trong code, phải cập nhật file này.</b></p>
+<nav><a href="#s1">Quy tắc làm việc cho AI</a><a href="#s2">Chạy dự án</a><a href="#s3">Kiến trúc thư mục</a><a href="#s4">Thế giới</a><a href="#s5">Kinh tế (dầu)</a><a href="#s6">Công trình (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Quân đội</a><a href="#s8">Chiến đấu</a><a href="#s9">Điều khiển (Game.handleKey, handleInput)</a><a href="#s10">Giới hạn &amp; hiệu năng</a><a href="#s11">Thắng / thua &amp; AI</a><a href="#s12">Công thức sửa thường gặp</a></nav>
+<h2 id="s1">0. Quy tắc làm việc cho AI</h2>
 <ul>
-  <li>TypeScript strict. Luôn chạy <code>npm run typecheck</code> sau khi sửa; không được để lỗi.</li>
-  <li>Mọi con số gameplay (giá, máu, tốc độ, tầm bắn, giới hạn) đặt trong <code>src/constants.ts</code>, có JSDoc giải thích. Không hard-code số trong system.</li>
-  <li>Khác biệt giữa phe → <code>src/factions/&lt;phe&gt;.ts</code> (hệ số <code>stats</code>), không rẽ nhánh <code>if (faction === ...)</code> trong logic.</li>
-  <li><code>src/types/index.ts</code> chỉ chứa type, không có runtime code.</li>
-  <li>Giữ phong cách code xung quanh: comment JSDoc ngắn, tiếng Anh, tên rõ nghĩa.</li>
-  <li>Commit message: một câu mô tả luật mới (vd. <em>"Aircraft and vehicles never stack on one point"</em>).</li>
+  <li>TypeScript strict. Sau khi sửa luôn chạy <code>npm run typecheck</code>, không để lỗi.</li>
+  <li>Mọi con số gameplay (giá, máu, tốc độ, tầm bắn, giới hạn) đặt trong <code>src/constants.ts</code>, có JSDoc. Không hard-code số trong system.</li>
+  <li>Khác biệt giữa phe → <code>src/factions/&lt;phe&gt;.ts</code> (hệ số <code>stats</code>, cờ <code>oilCartel</code> / <code>peaceful</code> / <code>leasesOil</code>), tránh rẽ nhánh <code>if (faction === ...)</code> trong logic.</li>
+  <li><code>src/types/index.ts</code> chỉ chứa type.</li>
+  <li>Giữ phong cách code xung quanh: JSDoc ngắn, tiếng Anh, tên rõ nghĩa.</li>
+  <li>Không đổi tên hiển thị của unit trên màn hình khi chỉ đổi sprite/nội bộ.</li>
   <li><b>Hỏi người dùng trước mỗi lần <code>git push</code>.</b></li>
-  <li>Hai hệ toạ độ: <b>world px</b> (logic, ô vuông) và <b>iso screen</b> (hiển thị kim cương 2:1). Đổi qua <code>worldToIso</code> trong <code>core/IsoView.ts</code>. Renderer có 2 transform: <code>ground()</code> (vẽ bằng toạ độ world, nằm trên mặt đất) và <code>upright()</code> (sprite đứng thẳng).</li>
+  <li>Hai hệ toạ độ: world px (logic, ô vuông <code>CELL_SIZE</code>) và iso screen (kim cương 2:1, <code>ISO_X = 0.5</code>, <code>ISO_Y = 0.25</code>, xem <code>core/IsoView.ts</code>).</li>
 </ul>
-
-<h2 id="run">1. Chạy dự án</h2>
+<h2 id="s2">1. Chạy dự án</h2>
 <pre>npm install
 npm run dev          # Vite dev server
 npm run typecheck    # tsc --noEmit
 npm run build        # typecheck + vite build
-npm run build:earth  # tạo lại public/data/earth.png từ dữ liệu Trái Đất (scripts/build-earth.mjs)</pre>
-<p>URL <code>?faction=usa|russia|china|europe|islamic</code> bỏ qua màn chọn phe (dùng khi test).</p>
-
-<h2 id="arch">2. Kiến trúc thư mục</h2>
+npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mjs)</pre>
+<ul>
+  <li>URL <code>?faction=usa|russia|china|europe|islamic</code> bỏ qua màn chọn phe (<code>src/main.ts</code>).</li>
+  <li><code>DEMO_MODE</code> (constants, mặc định <code>false</code>): vào thẳng ván test solo với Russia; giá mọi thứ <code>DEMO_PRICE = 100</code>, tiền/dầu giữ ở <code>DEMO_CREDITS = 999_999</code>, mỗi loại quân có sẵn <code>DEMO_UNITS_EACH = 2</code>.</li>
+  <li>Alt+F: bật/tắt toàn màn hình.</li>
+</ul>
+<h2 id="s3">2. Kiến trúc thư mục</h2>
 <table>
-<tr><th>Thư mục</th><th>Vai trò</th></tr>
-<tr><td><code>src/main.ts</code></td><td>Boot: chọn phe (<code>ui/FactionPicker</code>), tải Earth texture, tạo <code>Game</code>.</td></tr>
-<tr><td><code>src/core/Game.ts</code></td><td>Composition root (~1700 dòng): tạo thế giới, nối system/UI, xử lý input (<code>handleInput</code>, <code>handleKey</code>), ra lệnh (<code>orderMove</code>, <code>orderAttack</code>, <code>orderBoard</code>…), luật thắng thua. Vòng mô phỏng: <code>tick(dt)</code>; vẽ: <code>frame(dt)</code>.</td></tr>
-<tr><td><code>src/core/</code></td><td><code>Renderer</code> (vẽ mọi thứ), <code>Camera</code>, <code>InputHandler</code> (queue sự kiện), <code>GameLoop</code> (TICK_RATE 30), <code>EventBus</code>, <code>Effects</code>, <code>IsoView</code>.</td></tr>
-<tr><td><code>src/entities/</code></td><td><code>Entity</code> → <code>Building</code> (Capital, Barracks, WarFactory, Hospital, Airfield, TechCenter, OilDerrick, WorldBank) và <code>Unit</code> → <code>Infantry</code>, <code>Vehicle</code>. <code>EntityManager</code> giữ danh sách.</td></tr>
-<tr><td><code>src/systems/</code></td><td>Mỗi system implement <code>GameSystem.update(dt)</code>: Combat, AI, Construction, Placement, Training (lính), Vehicle (xe), Aircraft, Economy, OilMarket, Power, Selection.</td></tr>
-<tr><td><code>src/map/</code></td><td>Trái Đất thật: <code>EarthData</code>, <code>TileMap</code> (ô logic, nước, cây), <code>Pathfinder</code>, <code>Biomes</code>, <code>Territories</code>, <code>OilSite</code>, <code>TerrainRenderer</code>.</td></tr>
-<tr><td><code>src/render/</code></td><td>Art vẽ thủ tục: <code>InfantryArt</code>, <code>VehicleArt</code>, <code>sprites/*</code> (công trình), <code>SpriteCache</code>, <code>IsoPainter</code>, <code>Flags</code>.</td></tr>
-<tr><td><code>src/ui/</code></td><td><code>Sidebar</code> (3 trang: Command / Production / Rank — xếp hạng kinh tế &amp; quân sự), <code>Minimap</code> (radar), <code>StatusBar</code>, <code>FactionPicker</code>.</td></tr>
+<tr><th>Thư mục / file</th><th>Vai trò</th></tr>
+<tr><td><code>src/main.ts</code></td><td>Boot: chọn phe (<code>ui/FactionPicker</code>) hoặc Load game (<code>ui/LoadConfirm</code>), tải Earth texture, tạo <code>Game</code>.</td></tr>
+<tr><td><code>src/core/Game.ts</code></td><td>Composition root (~3260 dòng): dựng thế giới (<code>placeOilRows</code>…), nối system/UI, input (<code>handleInput</code>, <code>handleKey</code>), ra lệnh, phá hoại (<code>processDemolition</code>/<code>detonate</code>), cờ (<code>plantFlag</code>), lưu/tải (<code>exportSave</code>/<code>importSave</code>), thắng/thua (<code>evaluateNations</code>).</td></tr>
+<tr><td><code>src/core/</code></td><td><code>Renderer</code>, <code>Camera</code>, <code>InputHandler</code>, <code>GameLoop</code>, <code>EventBus</code>, <code>Effects</code>, <code>IsoView</code>, <code>SaveCodec</code>, <code>Demo</code>, <code>Random</code>, <code>MathUtils</code>.</td></tr>
+<tr><td><code>src/entities/</code></td><td><code>Entity</code> → <code>Building</code> (<code>Capital</code>, <code>Barracks</code>, <code>WarFactory</code>, <code>Hospital</code>, <code>Airfield</code>, <code>TechCenter</code>, <code>OilDerrick</code>, <code>WorldBank</code>, <code>HappyCity</code>, <code>PowerPlant</code>, <code>Flagpole</code>, <code>AlliedBuilding</code>) và <code>Unit</code> → <code>Infantry</code>, <code>Vehicle</code>. <code>EntityManager</code>.</td></tr>
+<tr><td><code>src/systems/</code></td><td>Mỗi system implement <code>GameSystem.update(dt)</code>: <code>Combat</code>, <code>AI</code>, <code>Construction</code>, <code>Placement</code>, <code>Training</code>, <code>Vehicle</code>, <code>Aircraft</code>, <code>Economy</code>, <code>OilMarket</code>, <code>Power</code>, <code>Tax</code>, <code>SafeZone</code>, <code>Selection</code>.</td></tr>
+<tr><td><code>src/map/</code></td><td>Trái Đất thật: <code>TileMap</code>, <code>Pathfinder</code>, <code>Biomes</code>, <code>Territories</code>, <code>OilSite</code>, <code>TerrainRenderer</code>, <code>TileTerrain</code>, <code>Trees</code>, <code>WorldGenerator</code>.</td></tr>
+<tr><td><code>src/render/</code></td><td>Art: sprite sheet (<code>TankSheets</code>, <code>AircraftSheets</code>, <code>BombSheets</code>, <code>MissileSheet</code>, <code>ShellSheet</code>, <code>UnitSprites</code> cho lính), vẽ thủ tục (<code>InfantryArt</code>, <code>VehicleArt</code>, <code>DemolitionArt</code>, <code>sprites/*</code> công trình), <code>SpriteCache</code>, <code>IsoPainter</code>, <code>Flags</code>. Ảnh PNG ở <code>public/sprites/</code>.</td></tr>
+<tr><td><code>src/ui/</code></td><td><code>Sidebar</code>, <code>Minimap</code>, <code>StatusBar</code>, <code>FactionPicker</code>, <code>PauseMenu</code>, <code>LoadConfirm</code>, <code>EndScreen</code>, <code>NewsToast</code>, <code>BuildingGallery</code>.</td></tr>
 <tr><td><code>src/audio/</code></td><td><code>SoundSystem</code>, <code>MusicSystem</code>.</td></tr>
-<tr><td><code>src/factions/</code></td><td>Cấu hình 5 phe + <code>teamColors(allegiance)</code>.</td></tr>
+<tr><td><code>src/factions/</code></td><td>5 phe + <code>FACTIONS</code>, <code>teamColors(allegiance)</code>.</td></tr>
 </table>
-<h3>Thứ tự một tick (<code>Game.tick</code>)</h3>
-<pre>evaluateNations (mỗi 1s) → cập nhật inWater/terrainFactor → entities.update
+<h3>Thứ tự một tick (<code>Game.tick</code>, <code>TICK_RATE = 30</code>)</h3>
+<pre>evaluateNations (mỗi 1 s) → cập nhật inWater / terrainFactor → entities.update
 → keepOutOfWater → crushInfantry → processBoarding → separateUnits
-→ repathStuckUnits → processTasks → healGarrisons → systems[].update</pre>
-
-<h2 id="world">3. Thế giới</h2>
+→ repathStuckUnits → giveWay → processTasks → processDemolition → processRepairs
+→ healGarrisons → regenVeterans → janitor (mỗi JANITOR_INTERVAL) → systems[].update</pre>
+<h2 id="s4">3. Thế giới</h2>
 <ul>
-  <li>Bản đồ là Trái Đất thật (equirectangular 4096×2048 texel, <code>WORLD_SCALE</code> 2.25 world px/texel).</li>
-  <li>Lưới logic: ô <code>CELL_SIZE</code> = 7 world px. Hiển thị isometric kiểu Red Alert 2 (camera cố định, không xoay).</li>
-  <li>Thủ đô đặt ở toạ độ thật: Washington, Moscow, Beijing, Paris. Global Financial Center (trung lập) ở Zürich.</li>
-  <li>Rừng làm chậm mọi đơn vị mặt đất (×0.78). Nước: chỉ lính đặc nhiệm bơi được (×0.6 tốc độ); xe không xuống nước.</li>
-  <li>Zoom chiến thuật 3–7; toàn cảnh xem trên radar sidebar.</li>
-</ul>
-
-<h2 id="eco">4. Kinh tế (dầu thay cho quặng)</h2>
-<ul>
-  <li>Tiền tệ: <b>TB</b>. Mọi phe bắt đầu với 0 TB và 20 thùng dầu.</li>
-  <li>Giếng dầu (OilDerrick) đặt sẵn thành 1 hàng ở nơi an toàn, xa mọi thủ đô: 2 giếng/phe, riêng Islamic 8 (tối đa 4 giếng một hàng, Islamic 2 hàng); mọi giếng phải nằm sâu ≥ 6 ô trong lãnh thổ phe mình (xa biên giới, xa biển), và cách mọi giếng của phe khác ≥ 40 ô (OIL_FIELD_SPACING; bất đắc dĩ mới hạ còn 20); chỉ khi không đủ chỗ mới nới ra. Mỗi giếng bơm 0.1 thùng mỗi 10s (0.01 thùng/s); chu kỳ bơm 180s, nghỉ 60s.</li>
-  <li>Bán dầu cho Global Financial Center: giá chung theo cung–cầu (không ngẫu nhiên), khởi điểm 600, trong 100–1200, cập nhật mỗi 10s. Mỗi lần Bank mua tối đa 25% lượng chào bán; giữa 2 lần bán phải chờ 3s. Hết tiền có thể vay khẩn cấp — xem mục 7b.</li>
-  <li>Công trình được trả tiền dần trong lúc xây: mỗi 4s tiến 20%.</li>
-</ul>
-
-<h2 id="build">5. Công trình</h2>
-<table>
-<tr><th>Công trình</th><th>Giá (TB)</th><th>Yêu cầu</th><th>Footprint</th><th>Ghi chú</th></tr>
-<tr><td>Capital</td><td>—</td><td>có sẵn</td><td>5×8</td><td>Mất thủ đô + hết quân = thua. Khu đất gồm dinh thự (~5×5) + sân nghi lễ riêng của từng phe (5×3): South Lawn (USA), Quảng trường Đỏ (Russia), đại lộ Trường An trước Tân Hoa Môn (China), quảng trường sao EU (Europe).</td></tr>
-<tr><td>Barracks</td><td>800</td><td>—</td><td>4×4</td><td>Huấn luyện lính.</td></tr>
-<tr><td>War Factory</td><td>2000</td><td>Barracks</td><td>5×4</td><td>Sản xuất xe mặt đất.</td></tr>
-<tr><td>Hospital</td><td>1200</td><td>Barracks</td><td>5×4</td><td>20 bệnh nhân, hồi 10 HP/s.</td></tr>
-<tr><td>Airfield</td><td>2000</td><td>War Factory</td><td>12×6</td><td>Đường băng + 6 chỗ đỗ; sửa máy bay. Số máy bay đặt hàng bị giới hạn bởi tổng chỗ đỗ.</td></tr>
-<tr><td>High-Tech Center</td><td>8000</td><td>War Factory</td><td>4×4</td><td>Mở khoá lính <code>special</code> và xe <code>ifv</code>.</td></tr>
-<tr><td>Happy City</td><td>10000 (cố định, không nhân hệ số phe)</td><td>—</td><td>8×8</td><td><b>Không giới hạn số lượng.</b> Mỗi thành phố nộp 500 TB thuế / 60s.</td></tr>
-</table>
-<p>Đặt công trình: chỉ trên đất liền, trong vùng xây được, không chồng lấn, không trên cây. <code>R</code> xoay 90°. Danh sách & điều kiện: <code>systems/ConstructionSystem.ts → BUILD_OPTIONS</code>.</p>
-
-<h2 id="units">6. Quân đội</h2>
-<h3>Bộ binh (Barracks) — <code>INFANTRY_BASE</code></h3>
-<table>
-<tr><th>Tier</th><th>Giá</th><th>Train (s)</th><th>HP</th><th>Tốc độ</th><th>Ghi chú</th></tr>
-<tr><td>regular</td><td>200</td><td>5</td><td>125</td><td>1.4</td><td>Lính thường.</td></tr>
-<tr><td>special</td><td>500</td><td>10</td><td>200</td><td>1.7</td><td>Cần Tech Center; bơi được. Số elite ≤ floor(regular × 2/3).</td></tr>
-<tr><td>engineer</td><td>400</td><td>6</td><td>100</td><td>1.3</td><td>Vào trong nhà để sửa (mỗi kỹ sư 6% máu tối đa/s) tới 100% rồi ra; nhà bị phá hủy lúc đang sửa thì kỹ sư chết cùng nhà. Chiếm công trình địch.</td></tr>
-</table>
-<h3>Xe & máy bay — <code>VEHICLE_BASE</code></h3>
-<table>
-<tr><th>Loại</th><th>Giá</th><th>HP</th><th>Tốc độ (ô/s)</th><th>Vũ khí</th><th>Nơi SX</th></tr>
-<tr><td>tank</td><td>1200</td><td>420</td><td>1.4</td><td>cannon</td><td>War Factory</td></tr>
-<tr><td>ifv</td><td>900</td><td>300</td><td>1.8</td><td>autocannon</td><td>War Factory (cần Tech Center)</td></tr>
-<tr><td>jet</td><td>1600</td><td>220</td><td>9</td><td>missile</td><td>Airfield</td></tr>
-<tr><td>transport</td><td>1400</td><td>260</td><td>5.5</td><td>không</td><td>Airfield</td></tr>
-<tr><td>light</td><td>600</td><td>180</td><td>2.4</td><td>mg</td><td>Ẩn (không có trong <code>AVAILABLE_VEHICLES</code>)</td></tr>
-</table>
-<ul>
-  <li><b>BuildLimit</b> (giới hạn đơn hàng chờ, không giới hạn quân sở hữu): 15 lính, 10 xe.</li>
-  <li><b>Máy bay vận tải</b>: 12 lính; hoặc 8 lính + 1 xe; hoặc 3 xe. Trạng thái (kiểu RA2): <i>Trống → Đang nạp → Đang chở → Đang thả</i>.
-    <ul>
-      <li><b>Lên</b>: chọn lính/xe, chuột phải vào máy bay vận tải của mình (con trỏ đổi thành mũi tên đi vào). Chỉ gửi đúng số quân còn chỗ; quân đi bộ tới sát máy bay và lên từng người một (chớp sáng + tiếng cửa). Máy bay đang bay thì hạ cánh xuống đất liền ngay dưới nó trước (không hạ xuống biển).</li>
-      <li><b>Trong máy bay</b>: quân được bảo vệ hoàn toàn; máy bay nổ thì toàn bộ quân bên trong chết theo. Máy bay vận tải không có vũ khí.</li>
-      <li><b>Xuống</b>: chọn máy bay → <code>U</code> hoặc nút <b>Unload</b> ở sidebar (sáng lên khi có quân), hoặc chuột phải lên đất để bay tới đó rồi thả. Đang bay thì hạ cánh trước; quân nhảy ra lần lượt mỗi 0.3 s vào ô trống quanh máy bay (không nước, không nhà, không ô đã có người). Hết chỗ thì phần còn lại ở lại trên máy bay. Thả xong máy bay nhận lệnh mới hoặc tự bay về sân bay.</li>
-      <li>Huy hiệu trên máy bay và panel Transport ở sidebar hiện số chỗ: <code>3/12 inf</code>, <code>1/1 veh</code>.</li>
-    </ul>
-  </li>
-  <li><b>Cấp bậc</b>: Veteran / Elite / Elite+ khi giá trị địch tiêu diệt đạt 3× / 6× / 9× giá của chính unit.</li>
-  <li><b>Tự hồi máu</b>: từ Elite (2 vạch) trở lên, unit tự hồi 1% máu tối đa mỗi giây, chỉ bắt đầu sau 5s không bị trúng đòn.</li>
-  <li>Không có hai lính/xe/máy bay đứng chồng một điểm (<code>separateUnits</code>, <code>UNIT_SPACING</code> 2.2).</li>
-  <li>Hệ số phe (<code>stats</code>) nhân lên: <code>cost</code>, <code>armor</code>→HP, <code>unitSpeed</code>, <code>firepower</code>, <code>range</code>, <code>buildSpeed</code>, <code>trainDelay</code> (giây cộng thêm).</li>
+  <li>Bản đồ = Trái Đất thật (texture 4096×2048, <code>WORLD_SCALE = 2.25</code> world px/texel). <code>MAP_SEED = 20261005</code>.</li>
+  <li>Ô logic <code>CELL_SIZE = 7</code> world px. Hiển thị isometric kiểu RA2, camera không xoay.</li>
+  <li>Zoom chiến thuật <code>ZOOM_MIN 3</code> – <code>ZOOM_MAX 9</code> (bước <code>1.12</code>, <code>FOCUS_ZOOM 8</code>); toàn cảnh xem trên radar sidebar.</li>
+  <li>Thủ đô ở toạ độ thật (<code>CAPITAL_LOCATIONS</code>): Washington D.C., Moscow, Beijing, Paris, <b>Riyadh</b> (Islamic). Global Financial Center (trung lập, <code>WorldBank</code>) ở Zürich.</li>
+  <li>Rừng làm chậm đơn vị mặt đất ×0.78. Nước: chỉ lính special bơi được (<code>SWIM_SPEED_FACTOR 0.6</code>); xe không xuống nước.</li>
 </ul>
 <h3>Phe</h3>
 <table>
-<tr><th>Phe</th><th>Màu</th><th>speed</th><th>armor</th><th>fire</th><th>range</th><th>cost</th><th>trainDelay</th></tr>
-<tr><td>USA</td><td>#2f6fe0</td><td>1.25</td><td>0.9</td><td>1.0</td><td>1.05</td><td>1.3</td><td>2</td></tr>
-<tr><td>Russia</td><td>#d22b2b</td><td>0.95</td><td>1.1</td><td>1.2</td><td>1.3</td><td>1.0</td><td>0</td></tr>
-<tr><td>China</td><td>#e8b10a</td><td>0.85</td><td>1.3</td><td>1.0</td><td>0.95</td><td>0.85</td><td>0</td></tr>
-<tr><td>Europe</td><td>#8a5cf6</td><td>1.05</td><td>1.0</td><td>1.05</td><td>1.1</td><td>1.25</td><td>2</td></tr>
+<tr><th>Phe</th><th>Màu</th><th>unitSpeed</th><th>armor</th><th>firepower</th><th>range</th><th>buildSpeed</th><th>cost</th><th>trainDelay</th><th>HP thủ đô</th><th>Ghi chú</th></tr>
+<tr><td>USA</td><td><code>#2f6fe0</code></td><td>1.25</td><td>0.9</td><td>1.0</td><td>1.05</td><td>1.1</td><td>1.3</td><td>2</td><td>15000</td><td>Có bomber B-52</td></tr>
+<tr><td>Russia</td><td><code>#d22b2b</code></td><td>0.95</td><td>1.1</td><td>1.2</td><td>1.3</td><td>0.95</td><td>1.0</td><td>0</td><td>16500</td><td>Có bomber Tu-16</td></tr>
+<tr><td>China</td><td><code>#e8b10a</code></td><td>0.85</td><td>1.3</td><td>1.0</td><td>0.95</td><td>1.2</td><td>0.85</td><td>0</td><td>18000</td><td></td></tr>
+<tr><td>Europe</td><td><code>#8a5cf6</code></td><td>1.05</td><td>1.0</td><td>1.05</td><td>1.1</td><td>1.05</td><td>1.25</td><td>2</td><td>15600</td><td></td></tr>
+<tr><td>Islamic</td><td><code>#1f9d4a</code></td><td>1.0</td><td>1.05</td><td>1.0</td><td>1.0</td><td>1.0</td><td>0.95</td><td>1</td><td>16000</td><td><code>oilCartel</code>, <code>peaceful</code>, <code>leasesOil</code></td></tr>
 </table>
-
-<h2 id="combat">7. Chiến đấu</h2>
 <ul>
-  <li>Vũ khí trong <code>WEAPONS</code>: damage, range (world px), cooldown, <code>vsBuilding</code>, <code>hitsAir</code>, <code>splash</code>. Chỉ smg, mg, autocannon, missile bắn được máy bay.</li>
-  <li>Lính chỉ bắn trong 3 ô; xe giữ tầm riêng.</li>
-  <li>Unit đứng yên tự phát hiện địch trong 1.8× tầm bắn; bị bắn thì phản kích tới 2.2× tầm.</li>
-  <li><b>Unit không bao giờ tự tấn công công trình</b> — phải có lệnh focus (click vào công trình địch).</li>
-  <li>Xe mặt đất cán chết lính địch trong bán kính 2.4 px.</li>
-  <li>Máy bay mất sân bay sẽ tìm sân khác hoặc rơi.</li>
-  <li>Công trình <code>indestructible</code> (Global Financial Center) không thể bị phá.</li>
+  <li>Giá thực = <code>round(giá gốc × cost / 10) × 10</code>; thời gian luyện + <code>trainDelay</code>; HP unit = <code>maxHp × armor</code>.</li>
+  <li><code>peaceful</code> (Islamic hiện tại): <b>không luyện lính, không sản xuất xe/máy bay</b> (<code>TrainingSystem</code>/<code>VehicleSystem</code> trả về danh sách rỗng).</li>
 </ul>
-
-<h2 id="detail">7b. Nguyên tắc chi tiết từng đối tượng</h2>
-<p>Nguồn: <code>src/entities/*.ts</code>, <code>Game.orderOnBuilding / processTasks / healGarrisons</code>, <code>systems/*</code>. Điện (<code>PowerSystem</code>): mỗi công trình cộng <code>powerOutput × tỉ lệ máu</code>, trừ <code>powerDrain</code>.</p>
-
-<h3>Công trình</h3>
+<h2 id="s5">4. Kinh tế (dầu)</h2>
+<ul>
+  <li>Tiền tệ <code>TB</code>. Mọi phe bắt đầu <code>STARTING_CREDITS = 0</code> TB và <code>STARTING_OIL = 20</code> thùng.</li>
+  <li>Công trình/quân được trả tiền dần trong lúc làm; hết tiền thì tiến độ đứng. Xây: mỗi <code>BUILD_STEP_SECONDS 4</code> s tiến <code>20%</code>.</li>
+  <li>Mất thủ đô của chính mình (<code>capitalLost</code>) → không mua được gì nữa (kể cả dầu cho lưới điện).</li>
+</ul>
+<h3>Giếng dầu (<code>OilDerrick</code>, đặt sẵn bởi <code>Game.placeOilRows</code>)</h3>
+<ul>
+  <li>Số giếng <code>OIL_DERRICK_COUNT</code>: 2/phe, <b>Islamic 8</b>. Tối đa <code>OIL_ROW_MAX = 4</code> giếng một hàng (Islamic nhiều hàng).</li>
+  <li>Vị trí: đất an toàn trong lãnh thổ mình (ưu tiên sâu ≥ 6 ô, nới dần), xa thủ đô mình và thủ đô địch; cách giếng phe khác ≥ <code>OIL_FIELD_SPACING = 40</code> ô (bất đắc dĩ còn 20). Chỉ khi hết chỗ trong nước mới được ra ngoài.</li>
+  <li><code>OIL_SITES</code>: mỏ Islamic bắt buộc gần <b>vùng dầu Vịnh Ba Tư</b> (lon 48.5, lat 27), bán kính 16 → 24 → 32 ô, luôn trong lãnh thổ mình.</li>
+  <li>Sản lượng <code>OIL_DERRICK_OUTPUT = 0.08</code> thùng/s mỗi giếng khi bơm. Chu kỳ: bơm <code>OIL_MINE_SECONDS 180</code> s, nghỉ <code>OIL_REST_SECONDS 60</code> s; các giếng lệch pha 40 s.</li>
+  <li>Mỗi mỏ có 1 giếng <code>bankManaged</code> (do Center quản lý): vẫn thuộc phe, không phá / không chiếm được.</li>
+  <li>Giếng của phe <code>leasesOil</code> (Islamic) hiện <b>không phá, không chiếm được</b>.</li>
+  <li>Grace period: giếng của người chơi không bị tấn công cho tới khi các phe địch đã mở <code>DERRICK_GRACE_ATTACKS = 5</code> đợt tấn công vào công trình người chơi (một đợt mới = đánh lại sau ≥ <code>DERRICK_GRACE_GAP = 30</code> s im lặng).</li>
+  <li>Phím O: duyệt lần lượt các giếng.</li>
+</ul>
+<h3>Giá dầu (<code>systems/OilMarket.ts</code>)</h3>
+<ul>
+  <li>Giá chung, khởi điểm <code>OIL_PRICE_START 600</code>, kẹp <code>OIL_PRICE_MIN 150</code> – <code>OIL_PRICE_MAX 1500</code> TB/thùng; xét lại mỗi <code>OIL_PRICE_INTERVAL 10</code> s, mỗi lần đi <code>OIL_PRICE_EASE 35%</code> khoảng cách tới giá mục tiêu.</li>
+  <li><code>balancePrice = 600 × wealth × flow × cartelFactor</code>:</li>
+  <li><code>flow = ((OIL_FLOW_REF 3 + bought) / (3 + sold)) ^ 0.5</code> — <code>sold</code> = thùng các phe bán cho Center, <code>bought</code> = thùng Center buộc phải bán cho lưới điện; cả hai phai dần theo <code>OIL_FLOW_MEMORY 90</code> s. Bán nhiều → rẻ; lưới điện mua nhiều → đắt.</li>
+  <li><code>wealth = ((15000 + tài sản ròng TB/phe) / 15000) ^ 0.3</code> (<code>OIL_WEALTH_*</code>; tài sản = tiền + collateral − nợ, chỉ phe chưa bị loại).</li>
+  <li><code>cartelFactor</code> = <code>OIL_POLICIES[policy].price</code> khi còn phe cartel.</li>
+  <li>Mục tiêu = <code>balancePrice × (1 + mood)</code>; mood ngẫu nhiên có seed, ±<code>OIL_MOOD_MAX 12%</code>, bước ±4%, kéo về 0 15% mỗi lần.</li>
+  <li>Biểu đồ giá giữ 30 lần xét gần nhất (5 phút).</li>
+</ul>
+<h3>Bán dầu</h3>
+<ul>
+  <li>Bán = chào toàn bộ kho trừ <code>OIL_RESERVE = 1.0</code> thùng luôn giữ lại; cần ≥ <code>0.5</code> thùng để chào.</li>
+  <li>Lượng Center mua = <code>kho × WB_MAX_SHARE (25%) × (1 − 0.6 × giá / 1500)</code>.</li>
+  <li>Tiền = <code>round(thùng × giá)</code> qua <code>OilMarket.receive()</code>: trừ nợ trước, phần còn lại vào ngân khố.</li>
+  <li>Nhịp: <code>OIL_SALE_BURST = 6</code> lần liền, sau đó chờ <code>OIL_SALE_COOLDOWN = 3</code> s.</li>
+</ul>
+<h3>Cartel dầu (Islamic, <code>oilCartel</code>)</h3>
 <table>
-<tr><th>Công trình</th><th>Chủ</th><th>HP</th><th>Điện</th><th>Phá huỷ / Chiếm</th><th>Nguyên tắc</th></tr>
-<tr><td><b>Capital</b> (<code>entities/Capital.ts</code>)</td><td>Phe</td><td>theo phe (USA 15000, EU 15600, Russia 16500, China 18000)</td><td>+200</td><td>Phá được; chiếm được (không có <code>uncapturable</code>)</td><td>Có sẵn ở toạ độ thật, không xây được. Mất Capital + hết quân vũ trang = bị loại. Phím <code>H</code> nhảy về.</td></tr>
-<tr><td><b>Barracks</b></td><td>Phe</td><td>1000</td><td>−10</td><td>Phá / chiếm được</td><td>Mở hàng huấn luyện lính. Lính ra đứng thành hàng duyệt binh cách tường ≤ 2 ô. Lính ra ở Barracks còn sống đầu tiên của phe.</td></tr>
-<tr><td><b>War Factory</b></td><td>Phe</td><td>1800</td><td>−50</td><td>Phá / chiếm được</td><td>Cần Barracks. Sản xuất xe mặt đất (tank, ifv). Xe lăn ra từ nhà máy đầu tiên còn sống.</td></tr>
-<tr><td><b>Hospital</b></td><td>Phe</td><td>1200</td><td>−20</td><td>Phá / chiếm được</td><td>Cần Barracks. Chỉ nhận người <b>bị thương</b> (hp &lt; max) cùng phe, tối đa 20. Hồi 10 HP/s; hồi đầy thì tự đi ra. Double-click để cho tất cả ra.</td></tr>
-<tr><td><b>Airfield</b></td><td>Phe</td><td>1500</td><td>−40</td><td>Phá / chiếm được</td><td>Cần War Factory. 12×6 ô, 6 chỗ đỗ. Máy bay do <b>Airfield</b> sản xuất (không liên quan War Factory); máy bay xong được đỗ trên Airfield. Mất hết Airfield thì đơn máy bay đang chờ dừng lại (không trừ tiền) cho tới khi có lại. Số máy bay (đang có + đang đặt) ≤ 6 × số Airfield; máy bay chết trả lại chỗ. Máy bay đỗ được sửa 2% HP mỗi 4s. Máy bay xong lệnh 1s thì bay về, hạ cánh, lăn về chỗ đỗ. Mất sân bay → tìm sân khác hoặc rơi.</td></tr>
-<tr><td><b>High-Tech Center</b></td><td>Phe</td><td>2500</td><td>−80</td><td>Phá / chiếm được</td><td>Cần War Factory, 4×4, giá 8000. Khi còn đứng: mở lính <code>special</code> và xe <code>ifv</code>.</td></tr>
-<tr><td><b>Happy City</b> (<code>entities/HappyCity.ts</code>, art <code>render/sprites/HappyCity.ts</code>)</td><td>Phe</td><td>4000</td><td>0</td><td>Phá / chiếm được</td><td>8×8 ô, không cần công trình nào trước, xây bao nhiêu cũng được, giá 10000 TB cho mọi phe (<code>fixedCost</code>). Đường vành đai + ngã tư, cây xanh, công viên, nhà cao tầng, xe chạy, người đi bộ. Kiến trúc theo phe: USA nhà chọc trời + tháp kiểu Empire State; Russia tháp "Bảy chị em" + sao đỏ + mái vòm củ hành; China tháp truyền hình kiểu Minh Châu + mái chùa đỏ; Europe phố cổ mái dốc + nhà thờ tháp đồng hồ. <b>Thuế</b> (<code>systems/TaxSystem.ts</code>): mỗi thành phố nộp 500 TB mỗi 60s theo đồng hồ riêng tính từ lúc đặt, nên nhiều thành phố nộp lệch giờ nhau; tiền đi qua <code>OilMarket.receive()</code> (trừ nợ trước). Phe bị loại không thu thuế. Thành phố bị chiếm → thuế về phe mới. AI <b>có</b> xây Happy City: coi đây là khoản đầu tư chính, xây nhiều nhất trong khả năng (tối đa 10 × khẩu vị theo tính cách), chỉ xây bằng tiền mặt — không bao giờ vay để xây — và chỉ khi quân số còn trên ngưỡng.</td></tr>
-<tr><td><b>Oil Derrick</b></td><td>Phe</td><td>1000</td><td>0</td><td>Thường: phá / chiếm được. <b>Giếng do Global Financial Center quản lý</b>: không phá, không chiếm được</td><td>Đặt sẵn thành 1 hàng, không xây được. Bơm 0.1 thùng mỗi 10s trong 180s, nghỉ 60s; các giếng trong hàng lệch pha 40s để thu nhập đều. Mỗi hàng có 1 giếng do Bank quản lý — dầu vẫn về phe chủ. Phím <code>O</code> duyệt giếng.</td></tr>
-<tr><td><b>Global Financial Center</b> (Zürich)</td><td>Trung lập</td><td>3000</td><td>0</td><td><b>Không</b> phá, không gây sát thương, không chiếm, không vào</td><td>Chợ dầu chung (<code>systems/OilMarket.ts</code>) — xem bên dưới.</td></tr>
+<tr><th>Chính sách</th><th>Sản lượng giếng cartel</th><th>Giá mục tiêu</th></tr>
+<tr><td><code>cut</code> (Cut output)</td><td>×0.5</td><td>×1.35</td></tr>
+<tr><td><code>hold</code> (Hold, mặc định)</td><td>×1</td><td>×1</td></tr>
+<tr><td><code>flood</code> (Flood market)</td><td>×1.6</td><td>×0.7</td></tr>
 </table>
-
-<h3>Ngân hàng thế giới — cách bán dầu (code: <code>systems/OilMarket.ts</code>)</h3>
+<p>Đổi chính sách tối đa 1 lần / <code>OIL_POLICY_COOLDOWN = 90</code> s. Chỉ có hiệu lực khi phe cartel chưa bị loại.</p>
+<h3>Thuê giếng (<code>leasesOil</code>)</h3>
 <ul>
-  <li>Bán = chào <b>toàn bộ</b> kho dầu, kho phải ≥ 0.5 thùng. Không còn từ chối ngẫu nhiên.</li>
-  <li>Lượng mua = <code>kho × 25% × (1 − 0.6 × giá/1200)</code> → giá càng rẻ Bank mua càng nhiều; không bao giờ quá 25% kho.</li>
-  <li>Tiền = <code>round(thùng × giá)</code>, đi qua <code>OilMarket.receive()</code>: <b>trừ nợ trước</b>, phần còn lại vào ngân khố.</li>
-  <li>Tối đa 5 lần chào bán trong mỗi cửa sổ 30s.</li>
+  <li>Engineer phe khác chuột phải vào giếng Islamic → thuê <code>OIL_LEASE_SECONDS = 180</code> s. Giếng bơm vào kho phe thuê (đếm riêng <code>leasedOil</code>).</li>
+  <li>Khi bán, phần tiền từ dầu thuê chia <code>OIL_LEASE_CARTEL_SHARE = 30%</code> cho phe cho thuê. Hết hạn giếng trở về Islamic.</li>
 </ul>
-
-<h3>Quy tắc vận hành kinh tế & Global Financial Center (đã cài)</h3>
-
-<p><b>1. Bản chất của Global Financial Center (Zürich)</b></p>
+<h3>Vay khẩn cấp (Global Financial Center)</h3>
 <ul>
-  <li><b>Trung lập tuyệt đối & bất khả xâm phạm</b> (<code>indestructible</code>): Bank đứng ngoài chiến tranh, không có quân đội riêng, không thể bị tấn công, chiếm giữ hay phá huỷ. <i>(Đã có trong code.)</i></li>
-  <li><b>Thể chế tài chính thuần tuý</b>: không can thiệp chính trị, không ép buộc các phe; chỉ tự động vận hành thanh khoản, tín dụng và thị trường dầu mỏ.</li>
+  <li>Chỉ khi ngân khố &lt; 1 TB, chỉ khi người chơi bấm nút (không tự động). Không lãi.</li>
+  <li><code>collateral = oil × giá + RESALE_SHARE (0.5) × (giá xây công trình × tỉ lệ máu + giá gốc xe)</code> (bỏ công trình indestructible).</li>
+  <li><code>credit line = floor(LOAN_TO_VALUE (0.5) × collateral / 100) × 100</code>.</li>
+  <li>Mỗi khoản = <code>LOAN_SHARE (25%)</code> credit line (≥ <code>LOAN_MIN 1000</code>, không vượt line). Cộng vào <code>debt</code>.</li>
+  <li>Nợ chạm line → đóng băng tín dụng tới khi <code>debt ≤ DEBT_RESUME_SHARE (0.5) × line</code>. Mọi thu nhập qua <code>receive()</code> trả nợ trước.</li>
 </ul>
-
-<p><b>2. Giếng dầu & giám sát kỹ thuật</b></p>
+<h3>Nguồn thu khác</h3>
 <ul>
-  <li>Trong cụm giếng đặt sẵn của mỗi phe có <b>đúng 1 giếng</b> nối hạ tầng đo lường với Global Financial Center (<code>OilDerrick.bankManaged</code> — đã có).</li>
-  <li>Dầu từ giếng này <b>thuộc hoàn toàn về phe đó</b>. Bank không sở hữu giếng, chỉ dùng sản lượng của nó làm tín hiệu gốc để tính cung–cầu.</li>
+  <li>Happy City: <code>HAPPY_CITY_TAX 500</code> TB mỗi <code>HAPPY_CITY_TAX_PERIOD 60</code> s, mỗi thành phố đồng hồ riêng (<code>TaxSystem</code>).</li>
+  <li>Mercy bonus: <code>MERCY_BONUS 100</code> TB khi để một nhóm địch đang rút lui đi mà không đuổi (1 lần / nhóm / phe).</li>
 </ul>
-
-<p><b>3. Giá dầu phi ngẫu nhiên (Non-Random Dynamic Pricing)</b></p>
+<h3>Điện (<code>PowerSystem</code>)</h3>
 <ul>
-  <li>Khởi điểm 600 TB/thùng, <b>không chạy ngẫu nhiên</b>.</li>
-  <li>Giá = cân bằng giữa <code>RegulatedSupply</code> (tổng sản lượng các giếng giám sát toàn bản đồ) và <code>Demand</code> (tổng nhu cầu công nghiệp từ nhà máy/quân đội).</li>
-  <li>Cung &gt; cầu → giá giảm. Khan hiếm do chiến tranh/phá hoại → giá tăng, trần 1200 TB/thùng.</li>
-  <li><b>Công thức (cài trong <code>OilMarket.balancePrice</code>)</b>:
-    <ul>
-      <li><code>RegulatedSupply</code> = số giếng <code>bankManaged</code> đang bơm (chủ chưa bị loại) / tổng giếng giám sát còn sống. Sàn 0.25.</li>
-      <li><code>Demand</code> = Σ <code>powerDrain</code> mọi công trình + 1 / lính + 4 / xe hoặc máy bay (chỉ phe chưa bị loại).</li>
-      <li><code>giá cân bằng = 600 × ((800 + Demand) / 800) / RegulatedSupply</code>, kẹp trong 100–1200.</li>
-      <li>Mỗi 10s giá niêm yết tiến 30% khoảng cách tới giá cân bằng (không nhảy đột ngột).</li>
-      <li>Hằng số: <code>OIL_PRICE_*</code>, <code>OIL_DEMAND_*</code>, <code>OIL_SUPPLY_FLOOR</code> trong <code>constants.ts</code>.</li>
-    </ul>
-  </li>
+  <li>Mỗi công trình tiêu <code>powerDrain</code>/s. Nhà máy hạt nhân sinh <code>POWER_PLANT_OUTPUT 25</code>/s bằng cách đốt dầu: <code>POWER_PER_BARREL 1000</code> (0.025 thùng/s khi chạy hết công suất), trữ tối đa <code>POWER_PLANT_STORAGE 300</code> (nhà máy mới bắt đầu 0).</li>
+  <li>Một nhà máy đủ cho 1 bộ: capital 1 + barracks 1 + hospital 2 + war factory 3 + airfield 4 + tech center 6 + city 8 = 25.</li>
+  <li>Lưới cạn (tiêu &gt; sinh, kho trống) → Center buộc bán dầu với giá <code>OIL_GRID_MARKUP 1.25 ×</code> giá niêm yết; hết tiền → mất điện.</li>
 </ul>
-
-<p><b>4. Tín dụng, vay nợ & tự động trả nợ</b></p>
-<ul>
-  <li><b>Chủ động hoàn toàn</b>: khi tài khoản về 0 TB, nhà máy tạm ngưng. UI hiện chỉ số <b>DEBT</b> và nút thủ công <b>[ Vay nợ khẩn cấp ]</b>. Người chơi có quyền không vay, chờ dầu về để tự xoay xở.</li>
-  <li><b>Vay tự nguyện</b>: bấm nút → tiền cấp ngay, cộng vào DEBT.</li>
-  <li><b>Tự động trả nợ</b>: không thao tác thủ công. Mọi dòng tiền thu về (bán dầu hoặc nguồn khác) được Bank tự cấn trừ cho tới khi DEBT = 0.</li>
-  <li><b>Thông số đã chọn</b> (<code>EMERGENCY_LOAN</code>, <code>DEBT_LIMIT</code>): mỗi lần vay 2000 TB, nợ tối đa 10000 TB, <b>không lãi</b>. Chỉ vay được khi ngân khố &lt; 1 TB. AI <b>không</b> vay.</li>
-  <li>"Nhà máy tạm ngưng" = xây công trình, luyện lính, sản xuất xe đều trả tiền dần; hết tiền thì tiến độ đứng yên (đã có sẵn trong Construction/Training/VehicleSystem).</li>
-</ul>
-<p>Code: <code>PlayerState.debt</code> (types), <code>OilMarket.borrow / loanBlocker / receive</code>, nút <b>Emergency loan</b> + dòng <b>DEBT</b> ở <code>ui/Sidebar.ts</code>, <code>Game.takeLoan</code>. Mọi nguồn thu mới sau này phải đi qua <code>OilMarket.receive()</code> để tự trả nợ.</p>
-
-<h3>Lính (bộ binh)</h3>
+<h2 id="s6">5. Công trình (<code>ConstructionSystem.BUILD_OPTIONS</code>)</h2>
 <table>
-<tr><th>Loại</th><th>Vũ khí</th><th>Nguyên tắc</th></tr>
-<tr><td><b>regular</b></td><td>rifle (cả 4 phe)</td><td>Không giới hạn số sở hữu; chỉ giới hạn 15 đơn chờ chung cho lính.</td></tr>
-<tr><td><b>special</b></td><td>USA smg, Russia smg, China smg, Europe sniper</td><td>Cần High-Tech Center. Số special (sống + đang đặt) ≤ floor(regular × 2/3). Bơi được (60% tốc độ).</td></tr>
-<tr><td><b>engineer</b></td><td>không (cờ lê)</td><td>Click nhà mình bị hỏng → kỹ sư đi vào nhà, sửa tới 100% (mỗi kỹ sư 6% máu tối đa/s; nhiều kỹ sư cộng dồn; nhà vẫn mất máu khi bị bắn) rồi tự đi ra, không thông báo. Nhà bị phá hủy trong lúc sửa → kỹ sư chết cùng nhà (tính là bị tiêu diệt bởi bên phá nhà). Bán nhà (Ctrl+click) lúc đang sửa → kỹ sư ra an toàn. Không sửa nhà indestructible. Click nhà địch chiếm được → đi tới cửa, <b>engineer mất</b>, nhà đổi phe và đổi màu. Không chiếm được nhà trung lập.</td></tr>
-<tr><td><b>Thuê dầu</b> (engineer phe khác → giếng dầu Islamic)</td><td>—</td><td>Chuột phải giếng dầu Islamic bằng engineer → kỹ sư tới cửa, thuê giếng 3 phút (<code>OIL_LEASE_SECONDS</code>), không mất kỹ sư. Trong lúc thuê giếng bơm vào kho dầu phe thuê (đếm riêng <code>leasedOil</code>); khi bán, phần tiền từ dầu thuê chia 30% cho Islamic, 70% cho phe thuê (<code>OIL_LEASE_CARTEL_SHARE</code>). Hết hạn giếng về Islamic. Giếng Islamic tạm thời không phá / không chiếm được (<code>leasesOil</code>).</td></tr>
-<tr><td><b>demolition</b> (Crazy Soldier, chỉ Islamic)</td><td>không vũ khí, đặt bom hẹn giờ</td><td>Cần High-Tech Center, 900 TB, 10s. Chuột phải lên công trình/đơn vị mặt đất của địch → chạy tới, đặt bom trong 1.5 ô rồi đi tiếp (không tự sát, giống Crazy Ivan RA2); 5s sau mới đặt quả tiếp. Bom bám theo mục tiêu, nổ sau 4s: công trình ≤ 16 ô (4×4) bị phá hủy, lớn hơn mất 40% máu tối đa; đơn vị chiến đấu địch trong 2.5 ô: ≤ 8 chết hết, > 8 chết một nửa (gần nhất). Hằng số <code>DEMO_*</code> trong <code>constants.ts</code>; code <code>Game.processDemolition / detonate</code>.</td></tr>
+<tr><th>Công trình</th><th>Tên trong game</th><th>Giá gốc (TB)</th><th>Yêu cầu</th><th>Footprint</th><th>HP</th><th>Điện</th></tr>
+<tr><td><code>capital</code></td><td>theo phe</td><td>— (có sẵn)</td><td>—</td><td>5×8</td><td>theo phe</td><td>−1</td></tr>
+<tr><td><code>powerPlant</code></td><td>Nuclear Power Plant</td><td>1500</td><td>—</td><td>4×4</td><td>1500</td><td>+25</td></tr>
+<tr><td><code>barracks</code></td><td>Ministry of Defence</td><td>800</td><td>powerPlant</td><td>4×4</td><td>1000</td><td>−1</td></tr>
+<tr><td><code>warFactory</code></td><td>War Factory</td><td>2000</td><td>barracks</td><td>5×4</td><td>1800</td><td>−3</td></tr>
+<tr><td><code>hospital</code></td><td>Hospital</td><td>1200</td><td>barracks</td><td>5×4</td><td>1200</td><td>−2</td></tr>
+<tr><td><code>airfield</code></td><td>Airfield</td><td>2000</td><td>warFactory</td><td>12×8</td><td>1500</td><td>−4</td></tr>
+<tr><td><code>techCenter</code></td><td>High-Tech Center</td><td>8000</td><td>warFactory</td><td>4×4</td><td>2500</td><td>−6</td></tr>
+<tr><td><code>happyCity</code></td><td>Happy City</td><td>10000 (<code>fixedCost</code>, không nhân hệ số)</td><td>airfield + hospital</td><td>8×8</td><td>4000</td><td>−8</td></tr>
+<tr><td><code>flagpole</code></td><td>Flagpole</td><td>100</td><td>—</td><td>1×1</td><td>300</td><td>0</td></tr>
+<tr><td><code>alliedBuilding</code></td><td>Allied Building</td><td>6000</td><td>flagpole</td><td>4×4</td><td>2000</td><td>0</td></tr>
+<tr><td><code>oilDerrick</code></td><td>Oil Derrick</td><td>— (đặt sẵn)</td><td>—</td><td>4×4</td><td>1000</td><td>0</td></tr>
+<tr><td><code>WorldBank</code></td><td>Global Financial Center</td><td>— (trung lập)</td><td>—</td><td>—</td><td>3000, indestructible, uncapturable</td><td>0</td></tr>
 </table>
 <ul>
-  <li>Tầm bắn lính = min(tầm vũ khí × hệ số range phe, 3 ô). Sát thương × hệ số firepower phe.</li>
-  <li>Giá thực = round(giá gốc × cost phe / 10) × 10. Thời gian luyện + <code>trainDelay</code> phe. Tiền trừ dần trong lúc luyện; huỷ đơn đang luyện được hoàn phần đã trả.</li>
-  <li>Chỉ <b>người</b> (Infantry) mới vào / sửa / chiếm công trình; xe thì không. Lính phải đi tới cửa (≤ 1.6 ô) mới thực hiện; không tới được thì huỷ lệnh.</li>
-  <li>Nhà địch mà không ai chiếm được → lính/xe vũ trang chuyển sang tấn công nó.</li>
+  <li>Giá thực = <code>round(giá × cost phe / 10) × 10</code> (trừ <code>fixedCost</code>).</li>
+  <li>Đặt: chỉ trên đất liền, vùng xây được, không chồng lấn, không trên cây (<code>PlacementSystem</code>, <code>TileMap.placementBlocker</code>). R xoay 90°.</li>
+  <li>Hospital: tối đa <code>HOSPITAL_CAPACITY 20</code> người bị thương cùng phe, hồi <code>HOSPITAL_HEAL_PER_SECOND 10</code> HP/s.</li>
+  <li>Airfield: <code>PARKING_SLOTS = 9</code> chỗ đỗ; số máy bay (có + đặt) ≤ 9 × số airfield. Máy bay đỗ sửa 2% HP mỗi 4 s. Mất airfield: máy bay tìm airfield khác của phe; không còn cái nào thì rơi.</li>
+  <li>High-Tech Center mở <code>TECH_TIERS</code> (<code>special</code>, <code>demolition</code>) và <code>transport</code>.</li>
+  <li>Happy City: không giới hạn số lượng.</li>
+  <li>Allied Building: chỉ trên đất do đội Squatters cắm cờ (đất chưa ai sở hữu); mỗi phe tối đa <code>MAX_ALLIES = 3</code> (đang có + đang xây).</li>
+  <li>Engineer sửa từ trong nhà: mỗi kỹ sư <code>ENGINEER_REPAIR_SHARE 6%</code> máu tối đa/s, tới 100% thì ra.</li>
 </ul>
+<h3>Chức năng / nhiệm vụ từng công trình</h3>
+<table>
+<tr><th>Công trình</th><th>Chức năng</th></tr>
+<tr><td><code>capital</code> (thủ đô)</td><td>Trụ sở quốc gia, có sẵn ở toạ độ thật. Mất thủ đô (<code>capitalLost</code>) thì không mua được gì nữa, kể cả dầu cho lưới điện; mất thủ đô <b>và</b> hết quân có vũ khí thì bị loại. Phá / chiếm được. Phím H nhảy về.</td></tr>
+<tr><td><code>powerPlant</code> (Nuclear Power Plant)</td><td>Đốt dầu trong kho thành điện (+25/s, trữ tối đa 300). Bắt buộc xây trước barracks. Thiếu điện: dừng xây công trình (trừ nhà máy điện), dừng sản xuất xe và máy bay không cất cánh; lưới cạn → Center ép mua dầu giá ×1.25, hết tiền thì mất điện (giếng bơm còn một nửa).</td></tr>
+<tr><td><code>barracks</code> (Ministry of Defence)</td><td>Luyện bộ binh: regular, engineer, squatters (special, demolition cần thêm High-Tech Center). Lính mới đứng hàng duyệt binh trước nhà (≤ 2 ô). Mở khoá War Factory và Hospital.</td></tr>
+<tr><td><code>warFactory</code></td><td>Sản xuất xe mặt đất (hiện chỉ <code>tank</code>). Mở khoá Airfield và High-Tech Center.</td></tr>
+<tr><td><code>hospital</code></td><td>Nhận tối đa 20 người <b>bị thương</b> cùng phe, hồi 10 HP/s, đủ máu thì tự đi ra (double-click để cho ra hết). Cùng Airfield mở khoá Happy City.</td></tr>
+<tr><td><code>airfield</code></td><td>Sản xuất máy bay (jet, bomber, transport) và là nơi đỗ: 9 chỗ, số máy bay ≤ 9 × số airfield. Sửa máy bay đỗ 2% HP mỗi 4 s, nạp bom (trả tiền). Có airfield thì radar sidebar mới hoạt động. Mất airfield: máy bay tìm airfield khác, không có thì rơi.</td></tr>
+<tr><td><code>techCenter</code> (High-Tech Center)</td><td>Khi còn đứng: mở lính <code>special</code>, <code>demolition</code> và máy bay <code>transport</code>. Mất nó thì đơn hàng các loại này dừng (không trừ tiền) cho tới khi có lại.</td></tr>
+<tr><td><code>happyCity</code></td><td>Khoản đầu tư kinh tế: mỗi thành phố nộp 500 TB thuế / 60 s (theo máu còn lại), mỗi thành phố một đồng hồ riêng. Không giới hạn số lượng; bị chiếm thì thuế về phe mới.</td></tr>
+<tr><td><code>flagpole</code></td><td>Cột cờ quốc gia, tính là công trình của phe (mở rộng vùng được xây). Đội Squatters cắm cờ (phím F) trên đất chưa ai sở hữu sẽ tạo cột cờ đánh dấu đất đó là của mình.</td></tr>
+<tr><td><code>alliedBuilding</code> (Allied Building)</td><td>Trụ sở đồng minh, chỉ xây trên đất đã cắm cờ bằng Squatters; mỗi phe tối đa 3. Hiện chỉ là công trình (chưa có kinh tế đồng minh), hiện ở tab Allies.</td></tr>
+<tr><td><code>oilDerrick</code></td><td>Nguồn thu chính: bơm dầu vào kho (0.08 thùng/s, bơm 180 s nghỉ 60 s), dầu đem bán cho Center lấy TB hoặc đốt ra điện. Đặt sẵn, không xây được. Giếng <code>bankManaged</code> và giếng Islamic không phá / chiếm được; giếng Islamic cho phe khác thuê bằng engineer.</td></tr>
+<tr><td><code>WorldBank</code> (Global Financial Center, Zürich)</td><td>Trung lập, không phá / chiếm / vào được. Mua dầu, đặt giá dầu chung, cho vay khẩn cấp, ép bán dầu cho lưới điện thiếu, trả tiền thưởng tha quân rút lui.</td></tr>
+</table>
+<p>Mọi công trình của phe đều mở rộng vùng được xây quanh nó (<code>BUILD_RADIUS = 3</code> ô, <code>PlacementSystem</code>). Mọi công trình (trừ loại không phá được) có thể bị phá; engineer địch chiếm được nếu không có <code>uncapturable</code>.</p>
+<h2 id="s7">6. Quân đội</h2>
+<h3>Bộ binh (<code>INFANTRY_BASE</code>, sản xuất ở barracks)</h3>
+<table>
+<tr><th>Tier</th><th>Giá</th><th>Train (s)</th><th>HP</th><th>Tốc độ</th><th>Ghi chú</th></tr>
+<tr><td><code>regular</code></td><td>200</td><td>5</td><td>125</td><td>1.4</td><td>Lính thường, rifle.</td></tr>
+<tr><td><code>special</code></td><td>500</td><td>10</td><td>200</td><td>1.7</td><td>Rifle. Cần Tech Center; bơi được. Elite ≤ <code>eliteCap = floor(regular × 2/3)</code>.</td></tr>
+<tr><td><code>engineer</code></td><td>400</td><td>6</td><td>100</td><td>1.3</td><td>Sửa / chiếm công trình; thuê giếng Islamic.</td></tr>
+<tr><td><code>squatters</code></td><td>1400</td><td>12</td><td>320</td><td>1.4</td><td>Người cầm cờ + hộ tống tính là 1. Phải được chở bằng transport tới đất chưa ai sở hữu (không phải Nam Cực), phím F cắm cờ → thành <code>Flagpole</code>, đội biến mất.</td></tr>
+<tr><td><code>demolition</code></td><td>900</td><td>10</td><td>110</td><td>1.6</td><td>"Crazy Soldier", chỉ Islamic, cần Tech Center. <b>Hiện không luyện được vì Islamic <code>peaceful</code>.</b></td></tr>
+</table>
+<p>Crazy Soldier (<code>DEMO_*</code>, <code>Game.processDemolition</code> / <code>detonate</code>): chạy tới mục tiêu, đặt bom trong <code>1.5</code> ô rồi đi tiếp; nạp lại <code>5</code> s; bom nổ sau <code>4</code> s. Công trình ≤ 16 ô bị phá, lớn hơn mất 40% máu tối đa; đơn vị chiến đấu địch trong <code>2.5</code> ô: ≤ 8 chết hết, &gt; 8 chết một nửa (gần nhất).</p>
+<h3>Xe &amp; máy bay (<code>VEHICLE_BASE</code>)</h3>
+<table>
+<tr><th>Loại</th><th>Giá</th><th>Train (s)</th><th>HP</th><th>Tốc độ (ô/s)</th><th>Vũ khí</th><th>Nơi SX</th><th>Ghi chú</th></tr>
+<tr><td><code>tank</code></td><td>1200</td><td>14</td><td>420</td><td>1.4</td><td>cannon</td><td>War Factory</td><td></td></tr>
+<tr><td><code>jet</code></td><td>1600</td><td>16</td><td>220</td><td>9</td><td>missile + 2 bom</td><td>Airfield</td><td></td></tr>
+<tr><td><code>bomber</code></td><td>2600</td><td>22</td><td>380</td><td>8.5</td><td>bomb</td><td>Airfield</td><td>chỉ USA B-52, Russia Tu-16</td></tr>
+<tr><td><code>transport</code></td><td>1400</td><td>14</td><td>260</td><td>5.5</td><td>không</td><td>Airfield, cần Tech Center</td><td></td></tr>
+<tr><td><code>tanker</code></td><td>0</td><td>0</td><td>160</td><td>6</td><td>không</td><td>đi kèm transport</td><td>không bán riêng</td></tr>
+</table>
 
-<h3>Xe & máy bay</h3>
+<h3>Lính &amp; phương tiện theo phe (<code>src/factions/*.ts</code>)</h3>
+<p>Tên hiển thị trong game; phần thông tin dịch sang tiếng Việt từ mô tả trong code (trong game vẫn là tiếng Anh). Chỉ liệt kê loại đang dùng (<code>light</code>, <code>ifv</code> đang ẩn). Islamic hiện <code>peaceful</code>: có tên nhưng chưa luyện/sản xuất được.</p>
+<h4>USA</h4>
+<table>
+<tr><th>Loại</th><th>Tên</th><th>Thông tin</th></tr>
+<tr><td>Lính thường (<code>regular</code>)</td><td><b>GI</b></td><td>Lính bộ binh đa năng của Mỹ — xương sống của quân Đồng minh.</td></tr>
+<tr><td>Đặc nhiệm (<code>special</code>)</td><td><b>Ranger</b></td><td>Bộ binh tinh nhuệ: nhanh, chính xác và rất nguy hiểm ở cự ly gần.</td></tr>
+<tr><td>Kỹ sư (<code>engineer</code>)</td><td><b>Engineer</b></td><td>Kỹ sư Lục quân Mỹ: sửa công trình và chiếm công trình địch.</td></tr>
+<tr><td>Squatters (<code>squatters</code>)</td><td><b>Squatters</b></td><td>Người cầm cờ Mỹ và lính hộ tống, đi cùng nhau như một đơn vị: được máy bay vận tải chở tới đất chưa ai sở hữu, cắm quốc kỳ ở đó (phím F) — xong nhiệm vụ thì cả đội biến mất.</td></tr>
+<tr><td>Xe tăng (<code>tank</code>)</td><td><b>Abrams</b></td><td>Xe tăng chủ lực M1 Abrams: giáp dày, pháo mạnh.</td></tr>
+<tr><td>Tiêm kích (<code>jet</code>)</td><td><b>F-35</b></td><td>Tiêm kích đa năng tàng hình F-35 Lightning II.</td></tr>
+<tr><td>Máy bay ném bom (<code>bomber</code>)</td><td><b>B-52</b></td><td>Máy bay ném bom hạng nặng tầm xa B-52 Stratofortress, chỉ USA có: bom nặng san phẳng quân mặt đất và công trình; không bắn được máy bay.</td></tr>
+<tr><td>Máy bay vận tải (<code>transport</code>)</td><td><b>C-17</b></td><td>Máy bay vận tải hạng nặng: chở lính và xe; không vũ khí.</td></tr>
+<tr><td>Máy bay tiếp dầu (<code>tanker</code>)</td><td><b>KC-46</b></td><td>Máy bay tiếp dầu KC-46 Pegasus: bay hộ tống C-17 và tiếp nhiên liệu cho nó; không vũ khí.</td></tr>
+</table>
+<h4>Russia</h4>
+<table>
+<tr><th>Loại</th><th>Tên</th><th>Thông tin</th></tr>
+<tr><td>Lính thường (<code>regular</code>)</td><td><b>Red Army</b></td><td>Lính nghĩa vụ Nga đông đảo, chịu lạnh tốt.</td></tr>
+<tr><td>Đặc nhiệm (<code>special</code>)</td><td><b>Spetsnaz</b></td><td>Biệt kích đặc nhiệm chuyên phá hoại và đột kích.</td></tr>
+<tr><td>Kỹ sư (<code>engineer</code>)</td><td><b>Engineer</b></td><td>Công binh Nga: sửa công trình và chiếm công trình địch.</td></tr>
+<tr><td>Squatters (<code>squatters</code>)</td><td><b>Squatters</b></td><td>Người cầm cờ Nga và lính hộ tống, đi cùng nhau như một đơn vị: được máy bay vận tải chở tới đất chưa ai sở hữu, cắm quốc kỳ ở đó (phím F) — xong nhiệm vụ thì cả đội biến mất.</td></tr>
+<tr><td>Xe tăng (<code>tank</code>)</td><td><b>T-90</b></td><td>Xe tăng chủ lực T-90, bền và bắn xa.</td></tr>
+<tr><td>Tiêm kích (<code>jet</code>)</td><td><b>Su-57</b></td><td>Tiêm kích chiếm ưu thế trên không tàng hình Su-57.</td></tr>
+<tr><td>Máy bay ném bom (<code>bomber</code>)</td><td><b>Tu-16</b></td><td>Máy bay ném bom chiến lược Tu-16, chỉ Russia có: bom nặng san phẳng quân mặt đất và công trình; không bắn được máy bay.</td></tr>
+<tr><td>Máy bay vận tải (<code>transport</code>)</td><td><b>Il-76</b></td><td>Máy bay vận tải quân sự Il-76: chở lính và xe; không vũ khí.</td></tr>
+<tr><td>Máy bay tiếp dầu (<code>tanker</code>)</td><td><b>Il-78</b></td><td>Máy bay tiếp dầu Il-78: bay hộ tống Il-76 và tiếp nhiên liệu cho nó; không vũ khí.</td></tr>
+</table>
+<h4>China</h4>
+<table>
+<tr><th>Loại</th><th>Tên</th><th>Thông tin</th></tr>
+<tr><td>Lính thường (<code>regular</code>)</td><td><b>PLA</b></td><td>Bộ binh chủ lực Trung Quốc có kỷ luật, rẻ và đông.</td></tr>
+<tr><td>Đặc nhiệm (<code>special</code>)</td><td><b>Tiger</b></td><td>Biệt kích thuỷ quân lục chiến tinh nhuệ, huấn luyện đổ bộ.</td></tr>
+<tr><td>Kỹ sư (<code>engineer</code>)</td><td><b>Engineer</b></td><td>Kỹ sư PLA: sửa công trình và chiếm công trình địch.</td></tr>
+<tr><td>Squatters (<code>squatters</code>)</td><td><b>Squatters</b></td><td>Người cầm cờ PLA và lính hộ tống, đi cùng nhau như một đơn vị: được máy bay vận tải chở tới đất chưa ai sở hữu, cắm quốc kỳ ở đó (phím F) — xong nhiệm vụ thì cả đội biến mất.</td></tr>
+<tr><td>Xe tăng (<code>tank</code>)</td><td><b>Type 99</b></td><td>Xe tăng chủ lực Type 99, sản xuất số lượng lớn.</td></tr>
+<tr><td>Tiêm kích (<code>jet</code>)</td><td><b>J-15</b></td><td>Tiêm kích đa năng J-15 trên tàu sân bay.</td></tr>
+<tr><td>Máy bay vận tải (<code>transport</code>)</td><td><b>Y-20</b></td><td>Máy bay vận tải hạng nặng Y-20: chở lính và xe; không vũ khí.</td></tr>
+<tr><td>Máy bay tiếp dầu (<code>tanker</code>)</td><td><b>YY-20</b></td><td>Máy bay tiếp dầu YY-20: bay hộ tống Y-20 và tiếp nhiên liệu cho nó; không vũ khí.</td></tr>
+</table>
+<h4>Europe</h4>
+<table>
+<tr><th>Loại</th><th>Tên</th><th>Thông tin</th></tr>
+<tr><td>Lính thường (<code>regular</code>)</td><td><b>Eurocorps</b></td><td>Bộ binh liên quân châu Âu, trang bị hiện đại.</td></tr>
+<tr><td>Đặc nhiệm (<code>special</code>)</td><td><b>EU Spec</b></td><td>Đặc nhiệm châu Âu — xạ thủ chính xác tầm xa.</td></tr>
+<tr><td>Kỹ sư (<code>engineer</code>)</td><td><b>Engineer</b></td><td>Kỹ sư EU: sửa công trình và chiếm công trình địch.</td></tr>
+<tr><td>Squatters (<code>squatters</code>)</td><td><b>Squatters</b></td><td>Người cầm cờ EU và lính hộ tống, đi cùng nhau như một đơn vị: được máy bay vận tải chở tới đất chưa ai sở hữu, cắm quốc kỳ ở đó (phím F) — xong nhiệm vụ thì cả đội biến mất.</td></tr>
+<tr><td>Xe tăng (<code>tank</code>)</td><td><b>Leopard 2</b></td><td>Xe tăng chủ lực Leopard 2, chính xác và được bảo vệ tốt.</td></tr>
+<tr><td>Tiêm kích (<code>jet</code>)</td><td><b>Rafale</b></td><td>Tiêm kích đa năng Dassault Rafale.</td></tr>
+<tr><td>Máy bay vận tải (<code>transport</code>)</td><td><b>C-130</b></td><td>Máy bay vận tải C-130: chở lính và xe; không vũ khí.</td></tr>
+<tr><td>Máy bay tiếp dầu (<code>tanker</code>)</td><td><b>A330 MRTT</b></td><td>Máy bay tiếp dầu A330 MRTT: bay hộ tống C-130 và tiếp nhiên liệu cho nó; không vũ khí.</td></tr>
+</table>
+<h4>Islamic</h4>
+<table>
+<tr><th>Loại</th><th>Tên</th><th>Thông tin</th></tr>
+<tr><td>Lính thường (<code>regular</code>)</td><td><b>Basij</b></td><td>Lính bộ binh tình nguyện của thế giới Hồi giáo, đông và quyết tâm.</td></tr>
+<tr><td>Đặc nhiệm (<code>special</code>)</td><td><b>Quds Force</b></td><td>Đặc nhiệm Hồi giáo tinh nhuệ.</td></tr>
+<tr><td>Kỹ sư (<code>engineer</code>)</td><td><b>Engineer</b></td><td>Công binh chiến đấu Hồi giáo: sửa công trình và chiếm công trình địch.</td></tr>
+<tr><td>Squatters (<code>squatters</code>)</td><td><b>Squatters</b></td><td>Người cầm cờ Islamic và lính hộ tống, đi cùng nhau như một đơn vị: được máy bay vận tải chở tới đất chưa ai sở hữu, cắm quốc kỳ ở đó (phím F) — xong nhiệm vụ thì cả đội biến mất.</td></tr>
+<tr><td>Crazy Soldier (phá hoại) (<code>demolition</code>)</td><td><b>Crazy Soldier</b></td><td>Chuyên gia phá hoại, giống Crazy Ivan: chạy tới công trình hoặc đơn vị địch và đặt bom hẹn giờ. Công trình nhỏ bị phá huỷ, lớn mất 40% máu; nhóm ≤ 8 đơn vị chiến đấu chết hết, nhóm lớn hơn mất một nửa. Cần High-Tech Center.</td></tr>
+<tr><td>Xe tăng (<code>tank</code>)</td><td><b>Karrar</b></td><td>Xe tăng chủ lực Karrar, giáp nặng của thế giới Hồi giáo.</td></tr>
+<tr><td>Tiêm kích (<code>jet</code>)</td><td><b>Su-35</b></td><td>Tiêm kích đa năng chiếm ưu thế trên không Su-35 của không quân Hồi giáo.</td></tr>
+<tr><td>Máy bay vận tải (<code>transport</code>)</td><td><b>Il-76</b></td><td>Máy bay vận tải Il-76: chở lính và xe; không vũ khí.</td></tr>
+<tr><td>Máy bay tiếp dầu (<code>tanker</code>)</td><td><b>Boeing 707</b></td><td>Máy bay tiếp dầu Boeing 707: bay hộ tống Il-76 và tiếp nhiên liệu cho nó; không vũ khí.</td></tr>
+</table>
+<h4>Giá · máu · thời gian luyện thực tế theo phe</h4>
+<p>Tính từ <code>INFANTRY_BASE</code> / <code>VEHICLE_BASE</code> × hệ số phe: giá = <code>round(giá × cost / 10) × 10</code>, máu = <code>round(maxHp × armor)</code>, thời gian = gốc + <code>trainDelay</code>. Islamic hiện <code>peaceful</code> nên chưa luyện/sản xuất được.</p>
+<table>
+<tr><th>Loại</th><th>USA</th><th>Russia</th><th>China</th><th>Europe</th><th>Islamic</th></tr>
+<tr><td><code>regular</code></td><td>260 TB · 113 HP · 7s</td><td>200 TB · 138 HP · 5s</td><td>170 TB · 163 HP · 5s</td><td>250 TB · 125 HP · 7s</td><td>190 TB · 131 HP · 6s</td></tr>
+<tr><td><code>special</code></td><td>650 TB · 180 HP · 12s</td><td>500 TB · 220 HP · 10s</td><td>430 TB · 260 HP · 10s</td><td>630 TB · 200 HP · 12s</td><td>480 TB · 210 HP · 11s</td></tr>
+<tr><td><code>engineer</code></td><td>520 TB · 90 HP · 8s</td><td>400 TB · 110 HP · 6s</td><td>340 TB · 130 HP · 6s</td><td>500 TB · 100 HP · 8s</td><td>380 TB · 105 HP · 7s</td></tr>
+<tr><td><code>squatters</code></td><td>1820 TB · 288 HP · 14s</td><td>1400 TB · 352 HP · 12s</td><td>1190 TB · 416 HP · 12s</td><td>1750 TB · 320 HP · 14s</td><td>1330 TB · 336 HP · 13s</td></tr>
+<tr><td><code>demolition</code></td><td>—</td><td>—</td><td>—</td><td>—</td><td>860 TB · 116 HP · 11s</td></tr>
+<tr><td><code>tank</code></td><td>1560 TB · 378 HP · 16s</td><td>1200 TB · 462 HP · 14s</td><td>1020 TB · 546 HP · 14s</td><td>1500 TB · 420 HP · 16s</td><td>1140 TB · 441 HP · 15s</td></tr>
+<tr><td><code>jet</code></td><td>2080 TB · 198 HP · 18s</td><td>1600 TB · 242 HP · 16s</td><td>1360 TB · 286 HP · 16s</td><td>2000 TB · 220 HP · 18s</td><td>1520 TB · 231 HP · 17s</td></tr>
+<tr><td><code>bomber</code></td><td>3380 TB · 342 HP · 24s</td><td>2600 TB · 418 HP · 22s</td><td>—</td><td>—</td><td>—</td></tr>
+<tr><td><code>transport</code></td><td>1820 TB · 234 HP · 16s</td><td>1400 TB · 286 HP · 14s</td><td>1190 TB · 338 HP · 14s</td><td>1750 TB · 260 HP · 16s</td><td>1330 TB · 273 HP · 15s</td></tr>
+</table>
+<h3>Giới hạn</h3>
 <ul>
-  <li><b>tank</b> (cannon, splash 7, 1.6× vs nhà), <b>ifv</b> (autocannon, bắn được máy bay; cần Tech Center), <b>jet</b> (missile, bắn được mọi thứ), <b>transport</b> (không vũ khí, không tính là "quân vũ trang" khi xét thua).</li>
-  <li>Xe mặt đất không xuống nước, đi qua rừng chậm hơn, cán chết lính địch trong 2.4 px.</li>
-  <li>Hàng sản xuất xe chung 10 đơn chờ; máy bay thêm điều kiện chỗ đỗ.</li>
+  <li>Đơn chờ (BuildLimit): <code>BUILD_LIMIT_SOLDIERS 15</code>, <code>BUILD_LIMIT_VEHICLES 10</code>.</li>
+  <li>Trần quân: <code>MAX_SOLDIERS 25</code> lính (sống + đặt), <code>MAX_GROUND_VEHICLES 30</code> xe mặt đất, <code>MAX_TRANSPORTS 3</code> máy bay vận tải. Máy bay còn bị giới hạn bởi chỗ đỗ.</li>
 </ul>
-
-<h2 id="ctrl">8. Điều khiển</h2>
+<h3>Máy bay vận tải &amp; tanker</h3>
+<ul>
+  <li>Chở: 12 lính; hoặc 8 lính + 1 xe; hoặc 3 xe (<code>TRANSPORT_*</code>). Máy bay nổ → quân bên trong chết theo.</li>
+  <li>Lên: chọn quân, chuột phải vào transport của mình. Xuống: U / nút Unload; quân ra mỗi 0.3 s.</li>
+  <li>Nhiên liệu <code>TRANSPORT_FUEL_CELLS 800</code> ô. Chuyến bay xa hơn <code>TANKER_ESCORT_DISTANCE</code> (50 × 13 px) thì tanker bay kèm, dẫn trước <code>TANKER_LEAD_CELLS 2.2</code> ô, tiếp nhiên liệu trong <code>REFUEL_RANGE_CELLS 4</code> ô với tốc độ <code>REFUEL_RATE 0.08</code> bình/s.</li>
+</ul>
+<h3>Cấp bậc</h3>
+<ul>
+  <li>Veteran / Elite / Elite+ khi giá trị địch tiêu diệt đạt 3× / 6× / 9× giá của unit (<code>RANK_KILL_MULTIPLES</code>). Giá trị công trình: <code>BUILDING_VALUE</code>.</li>
+  <li>Từ Elite (<code>VETERAN_REGEN_RANK 2</code>): tự hồi 1% máu tối đa/s sau <code>5</code> s không bị trúng đòn.</li>
+</ul>
+<h2 id="s8">7. Chiến đấu</h2>
+<table>
+<tr><th>Vũ khí</th><th>Dmg</th><th>Tầm (px)</th><th>Cooldown</th><th>vsBuilding</th><th>Bắn máy bay</th><th>Splash</th><th>Dùng cho</th></tr>
+<tr><td>rifle</td><td>9</td><td>32</td><td>0.75</td><td>0.4</td><td>không</td><td>0</td><td>mọi lính có súng</td></tr>
+<tr><td>cannon</td><td>60</td><td>50</td><td>1.8</td><td>1.6</td><td>không</td><td>7</td><td>tank</td></tr>
+<tr><td>bomb</td><td>140</td><td>14</td><td>3.2</td><td>2.2</td><td>không</td><td>10</td><td>bomber</td></tr>
+<tr><td>missile</td><td>45</td><td>60</td><td>1.4</td><td>1.3</td><td>có</td><td>4</td><td>jet</td></tr>
+</table>
+<ul>
+  <li><code>WEAPONS</code> còn <code>smg</code>, <code>sniper</code>, <code>mg</code>, <code>autocannon</code> trong code nhưng hiện không đơn vị nào dùng (xe <code>ifv</code>, <code>light</code> đang ẩn khỏi <code>AVAILABLE_VEHICLES</code>).</li>
+  <li>Hệ số phe <code>firepower</code> nhân sát thương, <code>range</code> nhân tầm. Lính chỉ bắn trong <code>INFANTRY_MAX_RANGE_CELLS 3</code> ô.</li>
+  <li>Đứng yên phát hiện địch trong 1.8× tầm (<code>GUARD_VISION_FACTOR</code>); bị bắn phản kích tới 2.2× tầm.</li>
+  <li>Xe mặt đất bỏ đuổi sau <code>CHASE_LIMIT_CELLS 5</code> ô, để yên mục tiêu <code>8</code> s. Rút lui chỉ được bảo vệ khỏi phe đã giao tranh trong <code>20</code> s (<code>FIGHT_MEMORY_SECONDS</code>): phe đó không được đuổi theo, chỉ bắn khi đơn vị rút lui nằm trong tầm. <b>Còn kẹt giữa quân địch</b>: khi còn ít nhất 1 đơn vị của nhóm rút lui (cùng một lệnh rút) nằm trong tầm bắn của bất kỳ đơn vị nào của phe đó, phe đó được đánh trả và đuổi theo <b>cả nhóm</b>; chỉ khi <b>toàn bộ</b> nhóm đã ra khỏi tầm bắn của phe đó thì nhóm mới được bảo vệ (<code>CombatSystem.markEntangled</code> / <code>protectedFrom</code>).</li>
+  <li>Xe mặt đất cán chết lính địch trong <code>CRUSH_RADIUS 2.4</code> px. Xe/máy bay giữ cách nhau <code>VEHICLE_GAP 2</code> px; lính cách nhau ≥ <code>UNIT_SPACING 2.2</code> px.</li>
+  <li><b>Bom chỉ gây sát thương khi nổ</b>: <code>BOMB_FALL_SECONDS 0.9</code> s sau khi thả.</li>
+  <li>Bomber: <code>BOMBER_BOMBS 6</code> bom/chuyến, thả <code>BOMBS_PER_DROP 2</code>/lần. Một lần thả phá huỷ công trình, trừ <code>happyCity</code> và <code>airfield</code> chỉ mất 50%. Thả vào quân: trong 2.5 ô, &lt; 10 đơn vị chết hết, ≥ 10 chết 1/3 (gần nhất). Nạp bom ở airfield: <code>BOMB_COST 800</code>/quả, mỗi <code>3</code> s.</li>
+  <li>Jet: <code>JET_BOMBS 2</code> bom, 1 quả/lần — cách duy nhất để jet đánh công trình (10% máu tối đa); vào xe 60% máu tối đa, lính chết. Hết bom thì dùng súng (không đánh được công trình). Nạp <code>JET_BOMB_COST 400</code>/quả.</li>
+  <li>Công trình indestructible (Global Financial Center, giếng <code>bankManaged</code>, giếng Islamic) không thể bị phá.</li>
+</ul>
+<h3>Safe zone (<code>SafeZoneSystem</code>)</h3>
+<ul>
+  <li>Center mở vùng xanh <code>5×5</code> ô cho quân một phe rút lui khỏi vùng chỉ rời được bằng máy bay; không ai được tấn công bên trong; transport của phe hạ cánh để chở về.</li>
+  <li>Mở cách thủ đô địch tối đa 25 ô; tồn tại ≥ 20 s; quá <code>SAFE_ZONE_LIFETIME 6 phút</code> chưa rút hết → mọi quân còn trong vùng chết.</li>
+</ul>
+<h2 id="s9">8. Điều khiển (<code>Game.handleKey</code>, <code>handleInput</code>)</h2>
 <table>
 <tr><th>Thao tác</th><th>Tác dụng</th></tr>
-<tr><td>Chuột trái vào quân mình</td><td>Chọn 1 quân</td></tr>
-<tr><td>Kéo chuột trái</td><td>Khung chọn nhiều quân (không chọn công trình); Shift = thêm vào nhóm</td></tr>
-<tr><td>Shift + chuột trái vào quân</td><td>Thêm vào nhóm / bỏ ra nếu đã chọn</td></tr>
-<tr><td>Double-click chuột trái vào quân</td><td>Chọn mọi quân cùng loại (cùng tier lính / cùng loại xe) đang hiện trên màn hình</td></tr>
-<tr><td>Chuột trái vào công trình</td><td>Chọn công trình. Double-click nhà mình: cho mọi người ra</td></tr>
-<tr><td>Chuột trái lên đất trống</td><td>Bỏ chọn</td></tr>
-<tr><td>Chuột phải lên đất</td><td>Di chuyển quân đang chọn (hiện đường nét đứt màu phe tới đích); không chọn gì = bỏ chọn; đang đặt nhà = huỷ</td></tr>
-<tr><td>Chuột phải vào địch</td><td>Tấn công</td></tr>
-<tr><td>Chuột phải vào công trình</td><td>Vào / sửa / chiếm / tấn công (focus) tuỳ quân đang chọn</td></tr>
-<tr><td>Chuột phải vào máy bay vận tải của mình</td><td>Quân đang chọn lên máy bay (đang bay thì nó hạ cánh trước)</td></tr>
-<tr><td><code>Ctrl</code> + <code>Shift</code> + chuột phải</td><td>Attack-move: đi tới đó, gặp địch trên đường thì dừng lại bắn (quân không vũ khí chỉ đi tới)</td></tr>
-<tr><td><code>X</code></td><td>Xếp đội hình duyệt binh: đơn vị mặt đất đang chọn xếp thành hàng ngay ngắn quanh chỗ đang đứng — khối ma trận 3 hàng × 5 (thêm quân thì khối mới phía sau, cách 1 hàng trống), lính khối trước, xe khối sau, tới nơi tất cả quay cùng một hướng (về phía người xem); máy bay không bị ảnh hưởng</td></tr>
-<tr><td><code>C</code></td><td>Tản ra (scatter): quân đang chọn chạy ra xa giữa nhóm ~3 ô (máy bay ~6 ô)</td></tr>
-<tr><td>Chuột giữa kéo / WASD / mũi tên / mép màn hình</td><td>Cuộn camera</td></tr>
+<tr><td>Chuột trái vào quân / kéo khung</td><td>Chọn; Shift = thêm/bớt</td></tr>
+<tr><td>Double-click quân</td><td>Chọn mọi quân cùng loại trên màn hình</td></tr>
+<tr><td>Chuột phải lên đất</td><td>Di chuyển</td></tr>
+<tr><td>Chuột phải vào địch / công trình</td><td>Tấn công / vào / sửa / chiếm / thuê giếng tuỳ quân</td></tr>
+<tr><td>Chuột phải vào transport của mình</td><td>Lên máy bay</td></tr>
+<tr><td>Ctrl + Shift + chuột phải</td><td>Attack-move</td></tr>
+<tr><td><b>X</b></td><td>Đội hình duyệt binh: khối 3 hàng × 5 (<code>FORMATION_RANKS</code> × <code>FORMATION_COLS</code>), 1 hàng trống giữa các khối, lính trước xe sau, tới nơi quay về phía người xem; máy bay bỏ qua</td></tr>
+<tr><td><b>C</b></td><td>Tản ra (scatter) ~3 ô (máy bay ×2)</td></tr>
+<tr><td><b>Z</b></td><td>Waypoint: trái-click tối đa <code>MAX_WAYPOINTS 5</code> điểm, Z lần nữa (hoặc chuột phải) để đi; Esc huỷ</td></tr>
+<tr><td><b>F</b></td><td>Squatters đang chọn cắm cờ</td></tr>
+<tr><td>U</td><td>Thả quân khỏi transport</td></tr>
+<tr><td>R</td><td>Xoay công trình 90° (khi đặt hoặc công trình đang chọn)</td></tr>
+<tr><td>H / O / 1–9</td><td>Về thủ đô / duyệt giếng dầu / nhảy tới landmark</td></tr>
+<tr><td>M</td><td>Bật/tắt âm</td></tr>
+<tr><td>Tab</td><td>Ẩn/hiện sidebar</td></tr>
 <tr><td>Lăn chuột, <code>+</code> <code>-</code></td><td>Zoom</td></tr>
-<tr><td><code>1</code>–<code>9</code></td><td>Nhảy tới landmark</td></tr>
-<tr><td><code>H</code></td><td>Về thủ đô</td></tr>
-<tr><td><code>O</code></td><td>Lần lượt các giếng dầu</td></tr>
-<tr><td><code>R</code></td><td>Xoay công trình</td></tr>
-<tr><td><code>U</code> / nút Unload</td><td>Thả quân từng người một (đang bay thì hạ cánh xuống đất liền trước)</td></tr>
-<tr><td><code>M</code></td><td>Tắt/bật âm</td></tr>
-<tr><td><code>Tab</code></td><td>Ẩn/hiện sidebar</td></tr>
-<tr><td><code>Esc</code></td><td>Huỷ đặt công trình; nếu không đang đặt: tạm dừng game (menu Tiếp tục / Thoát game về màn chọn phe)</td></tr>
-<tr><td>Esc → <b>Save game</b>; màn chọn phe → <b>Load game</b></td><td>Lưu toàn bộ ván ra file <code>.json</code> (người chơi, mọi công trình/lính/xe/máy bay, hàng chờ, chợ dầu, AI, bom đang rơi, bom hẹn giờ, camera) và mở lại để chơi tiếp. Bản đồ không lưu — dựng lại từ <code>MAP_SEED</code>. Code: <code>core/SaveCodec.ts</code>, <code>Game.exportSave / importSave</code>. Thêm class entity mới → đăng ký trong <code>ENTITY_CLASSES</code>; đổi cấu trúc dữ liệu → tăng <code>SAVE_VERSION</code>.</td></tr>
+<tr><td>WASD / mũi tên / chuột giữa / mép màn hình</td><td>Cuộn camera</td></tr>
+<tr><td>Esc</td><td>Huỷ đặt nhà → huỷ waypoint → tạm dừng</td></tr>
 </table>
-
-<h2 id="limits-perf">8b. Giới hạn &amp; giữ nhịp game</h2>
+<h3>Lưu / tải</h3>
 <ul>
-  <li><b>Máy bay vận tải</b>: mỗi phe tối đa 3 chiếc (còn sống + đang đặt hàng), <code>MAX_TRANSPORTS</code>. Máy bay chiến đấu không bị giới hạn này.</li>
-  <li><b>Khoảng cách phương tiện</b>: xe và máy bay giữ cách nhau <code>VEHICLE_GAP</code> = 2 px ngoài bán kính va chạm, cả dưới đất lẫn trên không. Bộ binh vẫn đứng sát nhau như cũ.</li>
-  <li><b>Tư thế máy bay vẽ sẵn</b>: 24 hướng × 2 khung lửa đuôi (bộ binh/xe mặt đất vẫn 48 hướng). Ảnh máy bay đang bay rất lớn nên ít tư thế hơn = ít khựng khi bay xa.</li>
-  <li><b>Bộ nhớ ảnh</b>: trần 64 MB (<code>BYTE_BUDGET</code>), cũ nhất bị bỏ trước.</li>
-  <li><b>Dọn dẹp</b> mỗi <code>JANITOR_INTERVAL</code> = 180s: bỏ ảnh và ô địa hình không được vẽ kể từ lần dọn trước, xoá sổ ghi chép của unit đã chết. Đây là dọn cache của game, không phải chạy garbage collector của trình duyệt (trang web không ép được).</li>
+  <li>Menu tạm dừng (Esc): Continue, Quit game, <b>Save game</b>, chỉnh âm lượng nhạc. Không có Load ở đây.</li>
+  <li><b>Load game</b> nằm ở màn chọn phe. Sau khi chọn file, modal <b>LOAD GAME</b> hiện trước khi dựng bản đồ, nút <b>Start</b> / <b>Main menu</b>.</li>
+  <li>File <code>.json</code> (<code>core/SaveCodec.ts</code>, <code>SAVE_FORMAT = 'black-area-save'</code>, <code>SAVE_VERSION = 1</code>); bản đồ không lưu mà dựng lại từ <code>MAP_SEED</code>.</li>
 </ul>
-
-<h2 id="win">9. Thắng / thua & AI</h2>
+<h2 id="s10">9. Giới hạn &amp; hiệu năng</h2>
 <ul>
-  <li>Một quốc gia bị loại khi <b>mất thủ đô VÀ không còn lính/xe có vũ khí</b>. Mất thủ đô mà còn quân → chỉ báo BREAKING NEWS.</li>
-  <li>Người chơi thua khi bị loại; thắng khi mọi phe khác bị loại.</li>
-  <li>AI (<code>systems/AISystem.ts</code>): suy nghĩ mỗi 1.5s, xây theo <code>BUILD_PLAN</code> (barracks → warFactory → hospital → airfield → techCenter) rồi dồn tiền vào Happy City (không còn giới hạn theo thời gian; chặn khi đang có nợ, đang bị tấn công, hoặc quân số dưới ngưỡng), bán dầu (bán ở mọi giá khi đang nợ để trả nợ trước), phòng thủ khi địch trong 38 ô quanh thủ đô, đợt tấn công đầu sau 210s rồi mỗi 110s, 45% xác suất đánh tiếp nước khác sau khi chiếm xong.</li>
+  <li>Dọn cache mỗi <code>JANITOR_INTERVAL = 180</code> s (ảnh/địa hình không dùng, sổ ghi unit đã chết).</li>
+  <li>Art dùng sprite sheet PNG trong <code>public/sprites/</code> (tank, jet/bomber, bom, tên lửa, đạn pháo, lính 8 hướng), vẽ thủ tục khi không có sheet.</li>
 </ul>
-
-<h2 id="how">10. Công thức sửa thường gặp</h2>
+<h2 id="s11">10. Thắng / thua &amp; AI</h2>
+<ul>
+  <li>Phe bị loại khi không còn thủ đô <b>và</b> không còn lính/xe có vũ khí. Người chơi thua khi bị loại; thắng khi mọi phe khác bị loại.</li>
+  <li>AI (<code>systems/AISystem.ts</code>): nghĩ mỗi <code>1.5</code> s; <code>BUILD_PLAN</code>: powerPlant → barracks → warFactory → hospital → airfield → techCenter; sau đó Happy City (tối đa <code>MAX_CITIES 10</code>), cắm cờ/Allied Building khi đủ điều kiện (<code>CLAIM_*</code>); phòng thủ trong 38 ô quanh thủ đô; đợt tấn công đầu sau <code>210</code> s rồi mỗi <code>110</code> s.</li>
+</ul>
+<h2 id="s12">11. Công thức sửa thường gặp</h2>
 <table>
 <tr><th>Muốn</th><th>Sửa ở</th></tr>
-<tr><td>Đổi giá/máu/tốc độ/tầm bắn</td><td><code>constants.ts</code></td></tr>
-<tr><td>Thêm/bật lại loại xe</td><td><code>VehicleKind</code> (types) → <code>VEHICLE_BASE</code>, <code>VEHICLE_WEAPON</code>, <code>AVAILABLE_VEHICLES</code> → tên ở <code>factions/*.ts</code> → art ở <code>render/VehicleArt.ts</code></td></tr>
-<tr><td>Thêm công trình</td><td><code>BuildingType</code> → class trong <code>entities/</code> → sprite trong <code>render/sprites/</code> + đăng ký <code>sprites/index.ts</code> → <code>BUILD_OPTIONS</code> → <code>BUILDING_VALUE</code> → <code>BUILD_PLAN</code> của AI</td></tr>
-<tr><td>Thêm phím tắt</td><td><code>Game.handleKey</code> + bảng điều khiển ở file này</td></tr>
-<tr><td>Hành vi click</td><td><code>Game.leftClick</code> / <code>Game.rightClick</code> (gọi từ <code>Game.handleInput</code>), scatter <code>Game.scatterSelected</code>; vùng bắt chuột unit: <code>UNIT_PICK_RADIUS</code> trong <code>SelectionSystem.ts</code></td></tr>
-<tr><td>Hiển thị overlay (vòng chọn, đường đi, thanh máu)</td><td><code>Renderer.render</code> (thứ tự vẽ: ground → upright → screen space)</td></tr>
+<tr><td>Đổi giá/máu/tốc độ/tầm</td><td><code>src/constants.ts</code></td></tr>
+<tr><td>Thêm/bật lại loại xe (<code>ifv</code>, <code>light</code> đang ẩn)</td><td><code>VehicleKind</code> (types) → <code>VEHICLE_BASE</code>, <code>VEHICLE_WEAPON</code>, <code>AVAILABLE_VEHICLES</code> (+ <code>TECH_VEHICLES</code> nếu cần) → tên ở <code>factions/*.ts</code> → art <code>render/VehicleArt.ts</code> hoặc sprite sheet</td></tr>
+<tr><td>Thêm công trình</td><td><code>BuildingType</code> → class trong <code>entities/</code> → sprite <code>render/sprites/</code> + <code>sprites/index.ts</code> → <code>BUILD_OPTIONS</code> → <code>BUILDING_VALUE</code> → <code>BUILD_PLAN</code> AI → đăng ký <code>ENTITY_CLASSES</code></td></tr>
+<tr><td>Thêm class entity (để lưu được)</td><td>Đăng ký trong <code>ENTITY_CLASSES</code> (<code>core/SaveCodec.ts</code>); đổi cấu trúc dữ liệu lưu → tăng <code>SAVE_VERSION</code></td></tr>
+<tr><td>Thêm phe</td><td><code>FactionId</code> → file mới trong <code>factions/</code> → <code>FACTIONS</code>, <code>FACTION_ORDER</code>, <code>CAPITAL_LOCATIONS</code>, <code>OIL_DERRICK_COUNT</code> (+ <code>OIL_SITES</code> nếu có), <code>TERRITORIES</code> (<code>map/Territories.ts</code>), sprite thủ đô</td></tr>
+<tr><td>Phím tắt</td><td><code>Game.handleKey</code> + bảng mục 8</td></tr>
 <tr><td>Hành vi AI</td><td><code>AISystem.ts</code> (hằng số đầu file)</td></tr>
-<tr><td>Thêm phe</td><td><code>FactionId</code> → file mới trong <code>factions/</code> → <code>FACTIONS</code>, <code>FACTION_ORDER</code>, <code>CAPITAL_LOCATIONS</code>, <code>OIL_DERRICK_COUNT</code>, <code>Territories</code>, sprite thủ đô</td></tr>
 </table>
-<p class="warn">Sau mỗi thay đổi luật: chạy typecheck, cập nhật mục tương ứng trong RULE.html, và hỏi người dùng trước khi push.</p>
+<p class="warn">Sau mỗi thay đổi luật: chạy <code>npm run typecheck</code>, cập nhật <code>RULE.html</code>, và hỏi người dùng trước khi push.</p>
 </main>
 </body>
 </html>

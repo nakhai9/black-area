@@ -1,5 +1,5 @@
 import { movesRight } from '../core/IsoView';
-import { BOMB_FALL_SECONDS, JET_BOMB_VS_STRUCTURE, JET_BOMB_VS_VEHICLE, ACQUIRE_PERIOD, BOMB_GROUP_RADIUS_CELLS, BOMB_GROUP_SIZE, BOMB_TOUGH_DAMAGE, BOMB_TOUGH_STRUCTURES, BOMBS_PER_DROP, CELL_SIZE, CHASE_GIVE_UP_SECONDS, CHASE_LIMIT_CELLS, CHASE_PERIOD, FIGHT_MEMORY_SECONDS, GUARD_VISION_FACTOR, NEUTRAL_OWNER, RETALIATE_RANGE_FACTOR } from '../constants';
+import { BOMB_FALL_SECONDS, JET_BOMB_VS_STRUCTURE, JET_BOMB_VS_VEHICLE, ACQUIRE_PERIOD, BOMB_GROUP_RADIUS_CELLS, BOMB_GROUP_SIZE, BOMB_TOUGH_DAMAGE, BOMB_TOUGH_STRUCTURES, BOMBS_PER_DROP, CELL_SIZE, CHASE_GIVE_UP_SECONDS, CHASE_LIMIT_CELLS, CHASE_PERIOD, FIGHT_MEMORY_SECONDS, GUARD_VISION_FACTOR, NEUTRAL_OWNER, RETALIATE_RANGE_FACTOR, WEAPONS } from '../constants';
 import { Building } from '../entities/Building';
 import type { Entity } from '../entities/Entity';
 import type { EntityManager } from '../entities/EntityManager';
@@ -50,6 +50,10 @@ export function distanceTo(x: number, y: number, e: Entity): number {
 }
 
 const HASH = 48;
+/** Longest weapon range in the game (world px, before faction multipliers), with room for them. */
+const MAX_WEAPON_RANGE = Math.max(...Object.values(WEAPONS).map((w) => w.range)) * 1.5;
+/** A retreating unit's group (one order = one group), or the unit alone. */
+const retreatKey = (u: Unit): string => (u.retreatGroup > 0 ? `g${u.retreatGroup}` : `u${u.id}`);
 
 /**
  * Fighting: every armed unit shoots the nearest enemy in range (soldiers,
@@ -63,6 +67,11 @@ export class CombatSystem implements GameSystem {
   private readonly chaseAt = new Map<number, number>();
   private readonly grid = new Map<number, Unit[]>();
   private readonly pool: Unit[][] = [];
+  /**
+   * Retreating groups still caught among a nation's units this tick, as `group:nation` keys: at least one member of the
+   * group stands within weapon range of one of that nation's units. Rebuilt every tick (see markEntangled).
+   */
+  private readonly entangled = new Set<string>();
   /** Bomb hits still falling: each lands (deals its damage) at `at` — a bomber's stick, or one fighter bomb. Plain data (saved games). */
   private readonly falling: { at: number; kind: 'stick' | 'jet'; shooter: Vehicle; target: Entity; impact: WorldPoint }[] = [];
 
@@ -101,6 +110,7 @@ export class CombatSystem implements GameSystem {
         grid.set(k, fresh);
       }
     }
+    this.markEntangled(movers, grid, key);
     for (const s of movers) {
       if (!s.alive) continue;
       s.cooldown = Math.max(0, s.cooldown - dt);
@@ -273,7 +283,31 @@ export class CombatSystem implements GameSystem {
   private protectedFrom(s: Unit, o: Unit): boolean {
     if (!o.retreating) return false;
     const at = o.fightingWith.get(s.owner);
-    return at !== undefined && this.time - at <= FIGHT_MEMORY_SECONDS;
+    if (at === undefined || this.time - at > FIGHT_MEMORY_SECONDS) return false;
+    // Still caught among that nation's units: while any unit of the retreating group is within weapon range of one of
+    // them, the whole group may be fought (and chased) by that nation. The retreat protects it only once every unit of
+    // the group is out of that nation's range.
+    return !this.entangled.has(`${retreatKey(o)}:${s.owner}`);
+  }
+
+  /** Finds the retreating groups still within weapon range of some unit of each hostile nation (see `entangled`). */
+  private markEntangled(movers: readonly Unit[], grid: Map<number, Unit[]>, key: (cx: number, cy: number) => number): void {
+    this.entangled.clear();
+    const reach = Math.ceil(MAX_WEAPON_RANGE / HASH);
+    for (const o of movers) {
+      if (!o.alive || !o.retreating || this.sheltered(o)) continue;
+      const cx = Math.floor(o.px / HASH);
+      const cy = Math.floor(o.py / HASH);
+      for (let gx = cx - reach; gx <= cx + reach; gx++) {
+        for (let gy = cy - reach; gy <= cy + reach; gy++) {
+          for (const m of grid.get(key(gx, gy)) ?? []) {
+            const w = m.weapon;
+            if (!w || !m.alive || !m.canFight || !isHostile(m, o) || !this.canHit(m, w, o)) continue;
+            if (Math.hypot(m.px - o.px, m.py - o.py) <= w.range) this.entangled.add(`${retreatKey(o)}:${m.owner}`);
+          }
+        }
+      }
+    }
   }
 
   /**
