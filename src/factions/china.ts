@@ -97,6 +97,11 @@ export const CHINA: FactionConfig = {
       description:
         "Y-20 heavy transport aircraft: carries soldiers and vehicles; unarmed.",
     },
+    repair: {
+      name: "Type 90 II",
+      description:
+        "Type 90 II armoured recovery vehicle: slow and unarmed; click a damaged friendly ground vehicle to drive up and repair it, or select damaged vehicles and click it to send them in for repair (5% of its max health every 2 s).",
+    },
     tanker: {
       name: "YY-20",
       description:

@@ -12,6 +12,8 @@ import { pickSaveFile } from "./PauseMenu";
 // The rules document at the repo root, served (and copied into the build) as a plain file.
 import RULE_URL from "../../RULE.html?url";
 
+/** Factions with an emblem image at `public/emblems/<id>.png`, shown before the flag on the card. */
+const FACTION_EMBLEMS: ReadonlySet<FactionId> = new Set<FactionId>(["usa", "europe", "russia", "china", "islamic"]);
 const STORAGE_KEY = "black-area:faction";
 const SHOWN_STATS: readonly [keyof FactionStats, string][] = [
   ["unitSpeed", "Mobility"],
@@ -69,7 +71,7 @@ export class FactionPicker {
         </header>
         <div class="fp-grid"></div>
         <footer class="fp-footer">
-          <span class="fp-hint"><kbd>1</kbd>–<kbd>4</kbd> select</span>
+          <span class="fp-hint"><kbd>1</kbd>–<kbd>${FACTION_ORDER.length}</kbd> select</span>
           ${DEMO_MODE ? '<button class="fp-demo" type="button" title="Test game: play alone, the other nations do nothing; everything built, finances off">Test</button>' : ""}
           <button class="fp-guide" type="button" title="Open the game rules (RULE.html) in a new tab">Guide</button>
           <button class="fp-load" type="button" title="Continue a game saved to a .json file (pause menu → Save game)">Load game</button>
@@ -148,6 +150,7 @@ export class FactionPicker {
     }
     const f = FACTIONS[id];
     this.root.style.setProperty("--team", f.colors.primary);
+    this.root.dataset.faction = id;
     const deploy = this.root.querySelector<HTMLButtonElement>(".fp-deploy");
     if (deploy) deploy.textContent = `Deploy as ${f.shortName}`;
     if (focus) this.cards.get(id)?.focus();
@@ -172,7 +175,10 @@ export class FactionPicker {
       .join("");
     card.innerHTML = `
       <kbd class="fp-key">${hotkey}</kbd>
-      <img class="fp-flag" src="${getFlagTexture(id).toDataURL()}" alt="">
+      <div class="fp-ident">
+        ${FACTION_EMBLEMS.has(id) ? `<img class="fp-emblem" src="${import.meta.env.BASE_URL}emblems/${id}.png" alt="">` : ""}
+        <img class="fp-flag" src="${getFlagTexture(id).toDataURL()}" alt="">
+      </div>
       <h2>${f.name}</h2>
       <div class="fp-capital">${f.capital.name} · ${CAPITAL_LOCATIONS[id].name}</div>
 

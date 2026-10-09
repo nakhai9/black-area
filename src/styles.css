@@ -1228,3 +1228,47 @@ details.sb-help[open] > summary {
 .sb-header .sb-logo img {
   max-width: 100px;
 }
+.fp-backdrop[data-faction='usa'] .fp-modal {
+  background:
+    linear-gradient(rgba(14, 19, 24, 0.7), rgba(14, 19, 24, 0.88)),
+    url('/backgrounds/usa.jpg') center / cover no-repeat,
+    #0e1318;
+}
+.fp-backdrop[data-faction='russia'] .fp-modal {
+  background:
+    linear-gradient(rgba(14, 19, 24, 0.7), rgba(14, 19, 24, 0.88)),
+    url('/backgrounds/russia.jpg') center / cover no-repeat,
+    #0e1318;
+}
+.fp-backdrop[data-faction='europe'] .fp-modal {
+  background:
+    linear-gradient(rgba(14, 19, 24, 0.7), rgba(14, 19, 24, 0.88)),
+    url('/backgrounds/europe.jpg') center / cover no-repeat,
+    #0e1318;
+}
+.fp-backdrop[data-faction='china'] .fp-modal {
+  background:
+    linear-gradient(rgba(14, 19, 24, 0.7), rgba(14, 19, 24, 0.88)),
+    url('/backgrounds/china.jpg') center / cover no-repeat,
+    #0e1318;
+}
+.fp-backdrop[data-faction='islamic'] .fp-modal {
+  background:
+    linear-gradient(rgba(14, 19, 24, 0.7), rgba(14, 19, 24, 0.88)),
+    url('/backgrounds/islamic.jpg') center / cover no-repeat,
+    #0e1318;
+}
+.fp-ident {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+}
+.fp-emblem {
+  width: 64px;
+  height: 64px;
+  object-fit: contain;
+}
+.fp-emblem + .fp-flag {
+  width: 40px;
+  height: 24px;
+}

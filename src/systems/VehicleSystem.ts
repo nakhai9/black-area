@@ -20,7 +20,7 @@ export interface VehicleOption {
   needsAirfield: boolean;
 }
 
-const KINDS: readonly VehicleKind[] = ['light', 'tank', 'ifv', 'jet', 'bomber', 'transport'];
+const KINDS: readonly VehicleKind[] = ['light', 'tank', 'ifv', 'jet', 'bomber', 'transport', 'repair'];
 
 function vehicleOptions(faction: FactionId): VehicleOption[] {
   const f = FACTIONS[faction];

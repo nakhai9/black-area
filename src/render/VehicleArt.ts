@@ -1,4 +1,5 @@
 import { drawAircraftPortrait } from './AircraftSheets';
+import { drawRepairPortrait } from './RepairSheets';
 import { drawTankPortrait } from './TankSheets';
 import { CRUISE_ALTITUDE } from '../constants';
 import { FACTIONS } from '../factions';
@@ -521,7 +522,7 @@ function transport(ctx: Ctx, pose: VehiclePose, body: string, team: string): voi
 export function drawVehicle(ctx: Ctx, pose: VehiclePose, kind: VehicleKind, faction: FactionId): void {
   const body = BODY[faction];
   const team = FACTIONS[faction].colors.primary;
-  if (kind === 'tank') tank(ctx, pose, body, team);
+  if (kind === 'tank' || kind === 'repair') tank(ctx, pose, body, team);
   else if (kind === 'ifv') ifv(ctx, pose, body, team);
   else if (kind === 'light') light(ctx, pose, body, team);
   else if (kind === 'transport') transport(ctx, pose, body, team);
@@ -536,7 +537,7 @@ export function vehiclePortrait(faction: FactionId, kind: VehicleKind): HTMLCanv
   let c = portraits.get(key);
   if (!c) {
     const { canvas, ctx } = createCanvas(128, 96);
-    if (drawAircraftPortrait(ctx, faction, kind, 128, 96, 0.45) || (kind === 'tank' && drawTankPortrait(ctx, faction, 128, 96, 0.45))) {
+    if (drawAircraftPortrait(ctx, faction, kind, 128, 96, 0.45) || (kind === 'tank' && drawTankPortrait(ctx, faction, 128, 96, 0.45)) || (kind === 'repair' && drawRepairPortrait(ctx, faction, 128, 96, 0.45))) {
       portraits.set(key, canvas);
       return canvas;
     }

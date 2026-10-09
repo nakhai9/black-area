@@ -107,6 +107,11 @@ export const RUSSIA: FactionConfig = {
       description:
         "Tu-16 strategic bomber, Russia only: heavy bombs that flatten ground forces and structures; cannot hit aircraft.",
     },
+    repair: {
+      name: "BREM-1",
+      description:
+        "BREM-1 armoured recovery vehicle, Russia only: slow and unarmed; click a damaged friendly ground vehicle to drive up and repair it, or select damaged vehicles and click it to send them in for repair (5% of its max health every 2 s).",
+    },
     tanker: {
       name: "Il-78",
       description:

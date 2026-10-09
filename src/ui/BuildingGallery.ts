@@ -49,7 +49,7 @@ export function showBuildingGallery(root: HTMLElement): void {
   const cache = new SpriteCache(BUILDING_ART);
   const page = document.createElement('div');
   page.className = 'bg-page';
-  page.innerHTML = `<h1>BUILDINGS</h1><p>Every structure of every nation. <a href="?">Back to the game</a></p>`;
+  page.innerHTML = `<h1>BUILDINGS</h1><p>Every structure of every nation. <a href="?">Back to the game</a> · <a href="?view=units">Units</a></p>`;
   root.replaceChildren(page);
 
   const groups: { id: string; name: string; color: string }[] = [

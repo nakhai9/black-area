@@ -12,6 +12,7 @@ import { drawSoldier, drawSoldierDeath, drawsOwnSwim, drawsSquad } from '../rend
 import { drawCarriedFlag } from '../render/Flags';
 import { drawAircraftSheet } from '../render/AircraftSheets';
 import { drawFlagOnPole, drawNationalPole } from '../render/Flags';
+import { drawRepairDeath, drawRepairSheet } from '../render/RepairSheets';
 import { drawTankDeath, drawTankSheet } from '../render/TankSheets';
 import { FACTIONS, teamColors } from '../factions';
 import type { TerrainRenderer } from '../map/TerrainRenderer';
@@ -397,6 +398,7 @@ export class Renderer {
     if (u instanceof Vehicle) {
       if (u.aircraft && drawAircraftSheet(ctx, u, P.x, P.y)) return;
       if (u.type === 'tank' && drawTankSheet(ctx, u, P.x, P.y)) return;
+      if (u.type === 'repair' && drawRepairSheet(ctx, u, P.x, P.y)) return;
       const heading = isoHeading(u.heading, u.aircraft ? 0.8 : SQUASH);
       // On the iso ground a vehicle's neighbours are half as far apart on screen: ground vehicles are drawn a bit
       // smaller so they never look piled on top of each other (their collision circles keep them apart).
@@ -800,6 +802,8 @@ export class Renderer {
         drawBombBlast(ctx, e.faction, e.x, e.y, e.age, e.ttl);
       } else if (e.kind === 'tankDeath') {
         drawTankDeath(ctx, e.faction, e.x, e.y, e.age, e.ttl);
+      } else if (e.kind === 'repairDeath') {
+        drawRepairDeath(ctx, e.faction, e.heading, e.x, e.y, e.age, e.ttl);
       } else {
         const r = e.radius * (0.5 + t * 1.2);
         ctx.globalAlpha = 0.5 * (1 - t);

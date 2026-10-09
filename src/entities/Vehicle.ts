@@ -40,6 +40,7 @@ const HANDLING: Readonly<Record<VehicleKind, { accel: number; turn: number; pivo
   transport: { accel: 0.9, turn: 1.6, pivot: false },
   tanker: { accel: 0.8, turn: 2.2, pivot: false },
   bomber: { accel: 1.0, turn: 1.4, pivot: false },
+  repair: { accel: 1.0, turn: 2.0, pivot: true },
 };
 
 /** Can `soldiers` soldiers and `vehicles` vehicles travel together in one transport? */
@@ -103,6 +104,20 @@ export class Vehicle extends Unit {
   tankerId: number | null = null;
   /** Tanker only: id of the transport it escorts and refuels. */
   escortOf: number | null = null;
+  /** Repair vehicle only: id of the friendly ground vehicle it was ordered to mend, or null. */
+  repairTargetId: number | null = null;
+  /** Repair vehicle only: seconds towards the next repair tick on its target. */
+  mendClock = 0;
+  /** Repair vehicle only: game time of its last route re-plan while following the target. */
+  mendRepathAt = 0;
+  /** Damaged ground vehicle sent to a repair vehicle: id of that repair vehicle, or null. */
+  seekRepairId: number | null = null;
+  /** Seconds towards the next repair tick while it is alongside the repair vehicle it was sent to. */
+  patientClock = 0;
+  /** Game time of its last route re-plan towards that repair vehicle. */
+  seekRepathAt = 0;
+  /** Repair vehicle only: alongside its target and working on it right now (drives the crane animation). */
+  mending = false;
   /** Seconds left of a scramble: shot at while parked, it took off and circles away from danger until 0. */
   scramble = 0;
 
@@ -115,7 +130,7 @@ export class Vehicle extends Unit {
     const f = FACTIONS[faction];
     const base = VEHICLE_BASE[type];
     super(owner, faction, at, Math.round(base.maxHp * f.stats.armor));
-    this.profile = (type === 'bomber' ? f.vehicles.bomber : f.vehicles[type]) ?? { name: type, description: '' };
+    this.profile = f.vehicles[type] ?? { name: type, description: '' };
     this.speed = base.speed * f.stats.unitSpeed * CELL_SIZE;
     this.radius = base.radius;
     this.value = Math.round((base.cost * f.stats.cost) / 10) * 10;
@@ -160,8 +175,13 @@ export class Vehicle extends Unit {
     return this.type === 'tanker';
   }
 
+  /** Armoured recovery vehicle: unarmed, mends friendly ground vehicles. */
+  get isRepair(): boolean {
+    return this.type === 'repair';
+  }
+
   override get canFight(): boolean {
-    if (this.isTransport || this.isTanker) return false;
+    if (this.isTransport || this.isTanker || this.isRepair) return false;
     return !this.aircraft ||(this.flight === 'airborne' && this.weapon !== null);
   }
 

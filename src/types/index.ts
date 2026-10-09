@@ -96,7 +96,8 @@ export interface WeaponSpec {
 
 /** Light car, main battle tank, armoured vehicle (IFV) and fighter aircraft. */
 /** `bomber` is a national special: only nations that list it in their `vehicles` can build it (Russia's Tu-16, the USA's B-52). */
-export type VehicleKind = 'light' | 'tank' | 'ifv' | 'jet' | 'transport' | 'tanker' | 'bomber';
+/** `repair` is a national special too: an unarmed armoured recovery vehicle that mends friendly ground vehicles (Russia's BREM-1). */
+export type VehicleKind = 'light' | 'tank' | 'ifv' | 'jet' | 'transport' | 'tanker' | 'bomber' | 'repair';
 
 export interface VehicleProfile {
   name: string;
@@ -145,7 +146,7 @@ export interface FactionConfig {
   /** Ground forces trained at the Barracks. */
   infantry: Readonly<Record<Exclude<UnitTier, 'demolition'>, InfantryProfile>> & { readonly demolition?: InfantryProfile };
   /** Vehicles (War Factory) and aircraft (Airfield). */
-  vehicles: Readonly<Record<Exclude<VehicleKind, 'bomber'>, VehicleProfile>> & { readonly bomber?: VehicleProfile };
+  vehicles: Readonly<Record<Exclude<VehicleKind, 'bomber' | 'repair'>, VehicleProfile>> & { readonly bomber?: VehicleProfile; readonly repair?: VehicleProfile };
   /** Leads the world oil cartel (like OPEC in real life): sets a production policy that moves the global oil price. */
   oilCartel?: boolean;
   /** Temporarily kept out of the fighting: trains no soldiers and builds no vehicles or aircraft (economy and oil only). */

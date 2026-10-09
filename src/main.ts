@@ -7,11 +7,13 @@ import { loadAircraftSprites } from './render/AircraftSheets';
 import { loadBombSprites } from './render/BombSheets';
 import { loadMissileSprites } from './render/MissileSheet';
 import { loadShellSprites } from './render/ShellSheet';
+import { loadRepairSprites } from './render/RepairSheets';
 import { loadTankSprites } from './render/TankSheets';
 import { loadSoldierSprites } from './render/InfantryArt';
 import type { FactionId } from './types';
 import { FactionPicker } from './ui/FactionPicker';
 import { showBuildingGallery } from './ui/BuildingGallery';
+import { showUnitGallery } from './ui/UnitGallery';
 import type { SaveFile } from './core/SaveCodec';
 import { PENDING_SAVE_KEY } from './ui/PauseMenu';
 import { confirmLoadedGame } from './ui/LoadConfirm';
@@ -45,6 +47,8 @@ async function boot(): Promise<void> {
   aircraft.catch(() => undefined);
   const tanks = loadTankSprites();
   tanks.catch(() => undefined);
+  const repairs = loadRepairSprites();
+  repairs.catch(() => undefined);
   loadBombSprites().catch(() => undefined);
   loadMissileSprites().catch(() => undefined);
   loadShellSprites().catch(() => undefined);
@@ -85,6 +89,7 @@ async function boot(): Promise<void> {
     await soldiers; // sidebar cameos and units draw from the GI sheet
     await aircraft;
     await tanks;
+    await repairs;
     await nextPaint(); // let the loading screen paint before the heavy terrain bake
 
     const game = await Game.create(
@@ -114,5 +119,8 @@ async function boot(): Promise<void> {
 }
 
 // `?view=buildings`: gallery of every structure of every nation instead of the game.
-if (new URLSearchParams(location.search).get('view') === 'buildings') showBuildingGallery(document.body);
+// `?view=units`: gallery of every soldier, vehicle and aircraft of every nation.
+const view = new URLSearchParams(location.search).get('view');
+if (view === 'buildings') showBuildingGallery(document.body);
+else if (view === 'units') void showUnitGallery(document.body);
 else void boot();

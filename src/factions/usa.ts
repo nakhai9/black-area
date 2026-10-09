@@ -45,6 +45,11 @@ export const USA: FactionConfig = {
     jet: { name: "F-35", description: "F-35 Lightning II stealth multirole fighter." },
     transport: { name: "C-17", description: "Heavy transport aircraft: carries soldiers and vehicles; unarmed." },
     bomber: { name: "B-52", description: "B-52 Stratofortress long-range heavy bomber, USA only: heavy bombs that flatten ground forces and structures; cannot hit aircraft." },
+    repair: {
+      name: "ARV",
+      description:
+        "ARV armoured recovery vehicle: slow and unarmed; click a damaged friendly ground vehicle to drive up and repair it, or select damaged vehicles and click it to send them in for repair (5% of its max health every 2 s).",
+    },
     tanker: { name: "KC-46", description: "KC-46 Pegasus aerial tanker: flies escort behind its C-17 and keeps it fuelled; unarmed." },
   },
 };

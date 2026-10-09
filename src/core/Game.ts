@@ -35,6 +35,10 @@ import {
   PARADE_MAX_CELLS,
   PARADE_SPACING,
   VETERAN_REGEN_CALM,
+  REPAIR_VEHICLE_HEAL_SHARE,
+  REPAIR_VEHICLE_INTERVAL,
+  REPAIR_VEHICLE_RANGE_CELLS,
+  REPAIR_VEHICLE_REPATH,
   VETERAN_REGEN_PER_SECOND,
   VETERAN_REGEN_RANK,
   UNIT_SPACING,
@@ -91,6 +95,7 @@ import { buildWorld } from '../map/WorldGenerator';
 import { TreeLayer } from '../map/Trees';
 import { SOLDIER_DEATH_SECONDS, hasSoldierDeath, soldierPortrait } from '../render/InfantryArt';
 import { vehiclePortrait } from '../render/VehicleArt';
+import { REPAIR_DEATH_SECONDS, hasRepairSheet } from '../render/RepairSheets';
 import { TANK_DEATH_SECONDS, hasTankSheet } from '../render/TankSheets';
 import { SpriteCache } from '../render/SpriteCache';
 import { BUILDING_ART } from '../render/sprites';
@@ -1049,6 +1054,10 @@ export class Game {
       u.attackTarget = null;
       u.attackMove = null;
       u.boardTarget = t.id;
+      if (u instanceof Vehicle) {
+        u.repairTargetId = null;
+        u.seekRepairId = null;
+      }
       u.follow(this.pathfinder.find({ x: u.px, y: u.py }, cell, u.swims));
       sent++;
     }
@@ -1094,6 +1103,153 @@ export class Game {
       u.stop();
       this.selection.selectedUnits.delete(u.id);
       this.hatch(t.px, t.py);
+    }
+  }
+
+  /**
+   * Repair vehicles among `units` (never `target` itself) are sent to mend `target`, a friendly ground vehicle.
+   * False when none of them is a repair vehicle, or the target is not something they repair (aircraft).
+   */
+  orderMend(target: Vehicle, units: readonly Unit[]): boolean {
+    if (!target.alive || target.aircraft) return false;
+    const menders = units.filter((u): u is Vehicle => u instanceof Vehicle && u.isRepair && u !== target && u.owner === target.owner);
+    if (menders.length === 0) return false;
+    if (target.hp >= target.maxHp) {
+      if (target.owner === this.humanPlayer.id) this.sidebar.notify(`The ${target.name} needs no repair.`);
+      return true;
+    }
+    for (const v of menders) {
+      v.repairTargetId = target.id;
+      v.mendClock = 0;
+      v.mendRepathAt = -Infinity;
+      v.boardTarget = null;
+      v.attackTarget = null;
+      v.attackMove = null;
+      v.task = null;
+      v.parade = null;
+      v.orderFlash = { kind: 'move', at: this.time, target };
+    }
+    if (target.owner === this.humanPlayer.id) this.moveMarker = { x: target.px, y: target.py, at: this.time };
+    return true;
+  }
+
+  /**
+   * Click (left or right) on one of my vehicles with units selected — the two repair orders:
+   *  - a damaged ground vehicle (not selected), with repair vehicles selected: they drive up and mend it;
+   *  - a repair vehicle (not selected), with damaged ground vehicles selected: those drive to it and are mended there.
+   * Anything else returns false (the click selects / moves as usual).
+   */
+  private orderRepairClick(unit: Vehicle, selected: readonly Unit[]): boolean {
+    if (!unit.alive || unit.aircraft || this.selection.selectedUnits.has(unit.id)) return false;
+    const damaged = (v: Unit): v is Vehicle => v instanceof Vehicle && v.alive && !v.aircraft && v.hp < v.maxHp && v.owner === unit.owner;
+    if (damaged(unit) && selected.some((u) => u instanceof Vehicle && u.isRepair) && this.orderMend(unit, selected)) {
+      const n = selected.filter((u) => u instanceof Vehicle && u.isRepair).length;
+      this.sidebar.notify(n === 1 ? `Repairing the ${unit.name}.` : `${n} repair vehicles sent to the ${unit.name}.`);
+      return true;
+    }
+    if (!unit.isRepair) return false;
+    const patients = selected.filter((u): u is Vehicle => damaged(u) && u !== unit);
+    if (patients.length === 0) return false;
+    for (const v of patients) {
+      v.seekRepairId = unit.id;
+      v.patientClock = 0;
+      v.seekRepathAt = -Infinity;
+      v.repairTargetId = null;
+      v.boardTarget = null;
+      v.attackTarget = null;
+      v.attackMove = null;
+      v.task = null;
+      v.parade = null;
+      v.orderFlash = { kind: 'move', at: this.time, target: unit };
+    }
+    this.sidebar.notify(`${patients.length === 1 ? `The ${patients[0]?.name ?? 'vehicle'} is` : `${patients.length} vehicles are`} heading to the ${unit.name} for repair.`);
+    this.moveMarker = { x: unit.px, y: unit.py, at: this.time };
+    return true;
+  }
+
+  /**
+   * Damaged vehicles sent to a repair vehicle: each drives up to it (re-planning if it moves) and, while within
+   * REPAIR_VEHICLE_RANGE_CELLS of its hull, gets REPAIR_VEHICLE_HEAL_SHARE of its max HP every REPAIR_VEHICLE_INTERVAL
+   * seconds. Every patient in range is mended at once. Ends when full, or the repair vehicle is gone / unreachable.
+   */
+  private processPatients(dt: number): void {
+    const reach = REPAIR_VEHICLE_RANGE_CELLS * CELL_SIZE;
+    for (const v of this.entities.vehicles()) {
+      if (v.seekRepairId === null) continue;
+      const r = this.entities.get(v.seekRepairId);
+      if (!v.alive || v.insideId !== null || v.hp >= v.maxHp || !(r instanceof Vehicle) || !r.alive || !r.isRepair || r.insideId !== null || r.owner !== v.owner) {
+        v.seekRepairId = null;
+        if (v.alive && v.insideId === null && v.moving) v.stop();
+        continue;
+      }
+      const gap = Math.hypot(r.px - v.px, r.py - v.py) - r.radius - v.radius;
+      if (gap > reach) {
+        v.patientClock = 0;
+        const drifted = !v.destination || Math.hypot(v.destination.x - r.px, v.destination.y - r.py) > CELL_SIZE;
+        if (this.time - v.seekRepathAt < REPAIR_VEHICLE_REPATH || (v.moving && !drifted)) continue;
+        v.seekRepathAt = this.time;
+        const cell = this.pathfinder.nearestPassable(Math.floor(r.px / CELL_SIZE), Math.floor(r.py / CELL_SIZE), 6);
+        const path = cell && this.pathfinder.sameLandmass(Math.floor(v.px / CELL_SIZE), Math.floor(v.py / CELL_SIZE), cell.x, cell.y) ? this.pathfinder.find({ x: v.px, y: v.py }, cell) : [];
+        if (path.length === 0) {
+          v.seekRepairId = null; // cannot get there
+          v.stop();
+          continue;
+        }
+        v.follow(path);
+        continue;
+      }
+      if (v.moving) v.stop();
+      r.mending = true;
+      if (!r.moving) r.heading = Math.atan2(v.py - r.py, v.px - r.px);
+      v.patientClock += dt;
+      if (v.patientClock >= REPAIR_VEHICLE_INTERVAL) {
+        v.patientClock -= REPAIR_VEHICLE_INTERVAL;
+        v.hp = Math.min(v.maxHp, v.hp + v.maxHp * REPAIR_VEHICLE_HEAL_SHARE);
+      }
+    }
+  }
+
+  /**
+   * Repair vehicles at work: each drives up to its target (following it if it drives off) and, while within
+   * REPAIR_VEHICLE_RANGE_CELLS of its hull, restores REPAIR_VEHICLE_HEAL_SHARE of its max HP every
+   * REPAIR_VEHICLE_INTERVAL seconds. The job ends when the target is full, dies, boards a transport or cannot be reached.
+   */
+  private processMends(dt: number): void {
+    const reach = REPAIR_VEHICLE_RANGE_CELLS * CELL_SIZE;
+    for (const v of this.entities.vehicles()) {
+      v.mending = false;
+      if (v.repairTargetId === null) continue;
+      const t = this.entities.get(v.repairTargetId);
+      if (!v.alive || v.insideId !== null || !(t instanceof Vehicle) || !t.alive || t.aircraft || t.insideId !== null || t.owner !== v.owner || t.hp >= t.maxHp) {
+        v.repairTargetId = null;
+        if (v.alive && v.insideId === null && v.moving) v.stop();
+        continue;
+      }
+      const gap = Math.hypot(t.px - v.px, t.py - v.py) - t.radius - v.radius;
+      if (gap > reach) {
+        v.mendClock = 0;
+        // Re-plan towards the target now and then (it may be driving away), or when the last route ran out.
+        const drifted = !v.destination || Math.hypot(v.destination.x - t.px, v.destination.y - t.py) > CELL_SIZE;
+        if (this.time - v.mendRepathAt < REPAIR_VEHICLE_REPATH || (v.moving && !drifted)) continue;
+        v.mendRepathAt = this.time;
+        const cell = this.pathfinder.nearestPassable(Math.floor(t.px / CELL_SIZE), Math.floor(t.py / CELL_SIZE), 6);
+        const path = cell && this.pathfinder.sameLandmass(Math.floor(v.px / CELL_SIZE), Math.floor(v.py / CELL_SIZE), cell.x, cell.y) ? this.pathfinder.find({ x: v.px, y: v.py }, cell) : [];
+        if (path.length === 0) {
+          v.repairTargetId = null; // cannot get there
+          v.stop();
+          continue;
+        }
+        v.follow(path);
+        continue;
+      }
+      if (v.moving) v.stop();
+      v.heading = Math.atan2(t.py - v.py, t.px - v.px);
+      v.mending = true;
+      v.mendClock += dt;
+      if (v.mendClock >= REPAIR_VEHICLE_INTERVAL) {
+        v.mendClock -= REPAIR_VEHICLE_INTERVAL;
+        t.hp = Math.min(t.maxHp, t.hp + t.maxHp * REPAIR_VEHICLE_HEAL_SHARE);
+      }
     }
   }
 
@@ -1152,6 +1308,8 @@ export class Game {
     this.processTasks();
     this.processDemolition(dt);
     this.processRepairs(dt);
+    this.processMends(dt);
+    this.processPatients(dt);
     this.healGarrisons(dt);
     this.regenVeterans(dt);
     this.janitorTimer += dt;
@@ -1502,6 +1660,8 @@ export class Game {
         const riders = selected.filter((u) => !u.aircraft);
         if (riders.length > 0 && this.orderBoard(unit, riders)) return;
       }
+      // Repair vehicles + click on a damaged own ground vehicle, or damaged vehicles + click on an own repair vehicle.
+      if (unit instanceof Vehicle && unit.owner === me && this.orderRepairClick(unit, selected)) return;
     // Units inside a safe zone may not be attacked: the order is ignored.
     if (unit && unit.owner !== me && this.safeZones.isSafe(unit.px, unit.py)) return;
     if (unit && unit.owner !== me && this.orderAttack(unit)) return;
@@ -1562,6 +1722,8 @@ export class Game {
       this.orderHumanAttackMove(selected, world);
       return;
     }
+    // Repair vehicles selected + right-click on one of my damaged ground vehicles: they drive up and mend it.
+    if (unit instanceof Vehicle && unit.owner === me && (this.orderRepairClick(unit, selected) || this.orderMend(unit, selected))) return;
     // Soldiers / vehicles selected + right-click on one of my parked transports: they climb aboard.
     if (unit instanceof Vehicle && unit.isTransport && unit.owner === me && !this.selection.selectedUnits.has(unit.id)) {
       const riders = selected.filter((u) => !u.aircraft);
@@ -2199,6 +2361,9 @@ export class Game {
       this.effects.add({ kind: 'smoke', ...this.fx(e.px, e.py, 1 + this.liftOf(e)), age: 0, ttl: 1.2, radius: vehicle ? 5 : 2.2 });
       if (vehicle && e.type === 'tank' && hasTankSheet(e.faction as FactionId)) {
         this.effects.add({ kind: 'tankDeath', ...this.fx(e.px, e.py), age: 0, ttl: TANK_DEATH_SECONDS, faction: e.faction as FactionId });
+        this.sound.play('explosion', { x: e.px, y: e.py });
+      } else if (vehicle && e.isRepair && hasRepairSheet(e.faction as FactionId)) {
+        this.effects.add({ kind: 'repairDeath', ...this.fx(e.px, e.py), age: 0, ttl: REPAIR_DEATH_SECONDS, faction: e.faction as FactionId, heading: e.heading });
         this.sound.play('explosion', { x: e.px, y: e.py });
       } else if (vehicle) {
         this.effects.add({ kind: 'blast', ...this.fx(e.px, e.py, e.flies ? 2 + e.altitude : 2), age: 0, ttl: 0.5, radius: e.flies ? 14 : 10 });
@@ -3097,6 +3262,11 @@ export class Game {
 
   private orderMove(world: WorldPoint, units: Unit[] = this.selection.selectedUnitList(), evacuate = true): void {
     if (!this.map.cellAt(world.x, world.y) || units.length === 0) return;
+    // A new move order ends a repair job (mending, or driving to a repair vehicle).
+    for (const u of units) if (u instanceof Vehicle) {
+      u.repairTargetId = null;
+      u.seekRepairId = null;
+    }
     // Falling back home across the sea: the stranded ones head for a safe zone to be flown out.
     if (evacuate) {
       const stranded = this.strandedFrom(units, world).filter((u) => this.isRetreat(u, world) && !this.safeZones.isSafe(u.px, u.py));

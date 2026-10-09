@@ -319,6 +319,8 @@ export const VEHICLE_BASE = {
   },
   /** National heavy bomber (Russia's Tu-16, the USA's B-52; no other nation has one): tough, flattens ground targets and structures; cannot hit aircraft. */
   bomber: { cost: 2600, trainSeconds: 22, maxHp: 380, speed: 8.5, radius: 3.8 },
+  /** National armoured recovery vehicle (Russia's BREM-1): slow and unarmed, it mends friendly ground vehicles (see REPAIR_VEHICLE_*). */
+  repair: { cost: 800, trainSeconds: 10, maxHp: 360, speed: 1.0, radius: 4.2 },
   /** Aerial refueler: never sold on its own — every transport comes with one that flies escort and keeps it fuelled. */
   tanker: { cost: 0, trainSeconds: 0, maxHp: 160, speed: 6, radius: 3.2 },
 } as const;
@@ -377,7 +379,20 @@ export const AVAILABLE_VEHICLES: readonly VehicleKind[] = [
   "jet",
   "bomber",
   "transport",
+  "repair",
 ];
+
+/**
+ * Repair vehicle (BREM-1): ordered onto a damaged friendly ground vehicle (right-click), it drives up to it and,
+ * while within REPAIR_VEHICLE_RANGE_CELLS of its hull, restores REPAIR_VEHICLE_HEAL_SHARE of the target's max HP
+ * every REPAIR_VEHICLE_INTERVAL seconds until it is full. Soldiers, aircraft and structures are not repaired.
+ */
+export const REPAIR_VEHICLE_HEAL_SHARE = 0.05;
+export const REPAIR_VEHICLE_INTERVAL = 2;
+/** Gap (cells) between the two hulls within which the repair works. */
+export const REPAIR_VEHICLE_RANGE_CELLS = 1.2;
+/** Seconds between re-plans of the route while following a target that drives off. */
+export const REPAIR_VEHICLE_REPATH = 1;
 
 /**
  * Transport aircraft load: soldiers only → 12; soldiers + a vehicle → 8 soldiers and 1 vehicle;
