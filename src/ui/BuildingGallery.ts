@@ -38,11 +38,11 @@ export function showBuildingGallery(root: HTMLElement): void {
     .bg-nation { margin: 28px 0 10px; display: flex; align-items: center; gap: 10px; font-size: 16px; text-transform: uppercase; letter-spacing: 1px; }
     .bg-swatch { width: 14px; height: 14px; border-radius: 3px; }
     .bg-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(${PIC_W}px, 1fr)); gap: 12px; }
-    .bg-card { background: #151b21; border: 1px solid #26313b; border-radius: 8px; overflow: hidden; }
-    .bg-card canvas { display: block; width: 100%; height: ${PIC_H}px; background: radial-gradient(#2a3440, #151b21); }
+    .bg-card { background: #fff; color: #1a2128; border: 1px solid #d5dbe1; border-radius: 8px; overflow: hidden; }
+    .bg-card canvas { display: block; width: 100%; height: ${PIC_H}px; background: #fff; }
     .bg-card div { padding: 8px 10px; display: flex; justify-content: space-between; gap: 8px; }
     .bg-card b { font-weight: 600; }
-    .bg-card small { color: #8a96a1; white-space: nowrap; }
+    .bg-card small { color: #5f6b76; white-space: nowrap; }
   `;
   document.head.append(style);
 

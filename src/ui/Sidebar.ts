@@ -292,8 +292,8 @@ export class Sidebar {
           <li>Armed units: <kbd>Left-click</kbd> an enemy to attack — they never shoot buildings on their own, <kbd>Left-click</kbd> the building to focus it · enemy engineers capture buildings · <kbd>M</kbd> sound on/off</li>
           <li>Elite (type II) soldiers: at most 2 for every 3 regulars · orders: up to 15 soldiers and 10 vehicles waiting at once — a new one the moment one is done, whatever your army size · special forces swim · tanks run soldiers over · only aircraft shoot aircraft</li>
           <li>Transport: select soldiers/vehicles, <kbd>Left-click</kbd> your transport to board (one in the air lands first) · select the transport, <kbd>Left-click</kbd> ground — it flies there, lands and unloads · <kbd>U</kbd>/<b>Unload</b> — let them out here, one by one</li>
-          <li>Squatters (flag bearer + escort, one unit): walk it (or fly it by transport) to unclaimed land (not your rivals' home lands, never Antarctica), select it, <kbd>F</kbd> — plant the flag (the Squatters are gone once it stands) · then build an <b>Allied Building</b> beside it (max 3 allies)</li>
-          <li>When <b>READY</b>: click cameo, then click the map to place · <kbd>R</kbd> turn it 90° · <kbd>Esc</kbd>/<kbd>Right-click</kbd> stop placing</li>
+          <li>Squatters (flag bearer + escort, one unit): walk it (or fly it by transport) to unclaimed land (not your rivals' home lands, never Antarctica), double-click it while it stands still — plant the flag (the Squatters are gone once it stands) · then build an <b>Allied Building</b> beside it (max 3 allies)</li>
+          <li>When <b>READY</b>: click cameo, then click the map to place · <kbd>Esc</kbd>/<kbd>Right-click</kbd> stop placing</li>
           <li><kbd>WASD</kbd>/<kbd>Arrows</kbd>/screen edge — scroll · <kbd>Wheel</kbd> zoom · <kbd>Middle-drag</kbd> pan</li>
           <li><kbd>Click</kbd> select · <kbd>1</kbd>–<kbd>5</kbd> landmarks · <kbd>O</kbd> oil · <kbd>H</kbd> home · <kbd>Tab</kbd> sidebar</li>
         </ul>
@@ -846,6 +846,7 @@ export class Sidebar {
         <canvas width="128" height="96"></canvas>
         <span class="sb-cameo-wipe"></span>
         <span class="sb-cameo-info"></span>
+        <span class="sb-cameo-name"></span>
         <span class="sb-cameo-badge" hidden></span>
         <span class="sb-cameo-state"></span>`;
       const canvas = el.querySelector('canvas');
@@ -874,6 +875,7 @@ export class Sidebar {
         <canvas width="128" height="96"></canvas>
         <span class="sb-cameo-wipe"></span>
         <span class="sb-cameo-info"></span>
+        <span class="sb-cameo-name"></span>
         <span class="sb-cameo-badge" hidden></span>
         <span class="sb-cameo-state"></span>`;
       const canvas = el.querySelector('canvas');
@@ -977,9 +979,11 @@ function setData(el: HTMLElement, key: string, value: string): void {
   if (el.dataset[key] !== value) el.dataset[key] = value;
 }
 
-/** Info icon in the cameo corner: the name lives in its tooltip (and the button's accessible name), not on the picture. */
+/** Info icon in the cameo corner (tooltip + accessible name); soldier and vehicle cameos also print the name small. */
 function addInfoIcon(el: HTMLElement, name: string): void {
   el.setAttribute('aria-label', name);
+  const label = el.querySelector<HTMLElement>('.sb-cameo-name');
+  if (label) label.textContent = name; // soldiers and vehicles show their name in small print
   const slot = el.querySelector<HTMLElement>('.sb-cameo-info');
   if (!slot) return;
   slot.title = el.title;

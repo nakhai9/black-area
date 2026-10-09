@@ -11,7 +11,7 @@ import type {
 } from "./types";
 
 /** DEMO: skip the faction screen and start a solo test game as Russia (no AI opponents). Set to false for production. */
-export const DEMO_MODE = false;
+export const DEMO_MODE = true;
 
 // ---------------------------------------------------------------- World (real Earth)
 /** Packed Earth texture built by `npm run build:earth` (see scripts/build-earth.mjs). */
@@ -281,6 +281,7 @@ export const VEHICLE_WEAPON: Readonly<
   ifv: "autocannon",
   jet: "missile",
   bomber: "bomb",
+  helicopter: "missile",
 };
 /** Soldiers only shoot at enemies within this many cells (vehicles keep their own, longer ranges). */
 export const INFANTRY_MAX_RANGE_CELLS = 3;
@@ -321,6 +322,8 @@ export const VEHICLE_BASE = {
   bomber: { cost: 2600, trainSeconds: 22, maxHp: 380, speed: 8.5, radius: 3.8 },
   /** National armoured recovery vehicle (Russia's BREM-1): slow and unarmed, it mends friendly ground vehicles (see REPAIR_VEHICLE_*). */
   repair: { cost: 800, trainSeconds: 10, maxHp: 360, speed: 1.0, radius: 4.2 },
+  /** Attack helicopter (AH-64 Apache, Mi-28): built at the War Factory, no airfield; fires missiles, carries HELICOPTER_SOLDIERS soldiers. */
+  helicopter: { cost: 1500, trainSeconds: 15, maxHp: 260, speed: 4.5, radius: 3.4 },
   /** Aerial refueler: never sold on its own — every transport comes with one that flies escort and keeps it fuelled. */
   tanker: { cost: 0, trainSeconds: 0, maxHp: 160, speed: 6, radius: 3.2 },
 } as const;
@@ -368,7 +371,14 @@ export const isAircraftKind = (kind: VehicleKind): boolean =>
   kind === "jet" ||
   kind === "transport" ||
   kind === "tanker" ||
-  kind === "bomber";
+  kind === "bomber" ||
+  kind === "helicopter";
+
+/** Aircraft that live on an airfield (built there, park and take off there). Helicopters do not: they roll out of
+ * the War Factory, take off and set down anywhere on solid ground. */
+export const needsAirfield = (kind: VehicleKind): boolean => isAircraftKind(kind) && kind !== "helicopter";
+/** Soldiers a helicopter carries (it never takes vehicles). */
+export const HELICOPTER_SOLDIERS = 8;
 
 /**
  * Temporary: only these vehicles can be produced (sidebar and AI). The rest stay in the code but are
@@ -380,6 +390,7 @@ export const AVAILABLE_VEHICLES: readonly VehicleKind[] = [
   "bomber",
   "transport",
   "repair",
+  "helicopter",
 ];
 
 /**
@@ -519,12 +530,14 @@ export const OIL_DERRICK_COUNT: Readonly<Record<FactionId, number>> = {
 };
 /**
  * Real oil regions some nations must put their field in (centre within 16 cells, widened to 24 / 32 only if needed,
- * always inside their own land): the Islamic world's goes to the Persian Gulf fields (eastern Saudi Arabia, Kuwait,
- * southern Iraq), never to Africa.
+ * inside their own land unless listed in OIL_SITES_ABROAD): for now the Islamic world's goes to northern Egypt
+ * (the Western Desert fields), outside its homeland.
  */
 export const OIL_SITES: Readonly<Partial<Record<FactionId, NamedSite>>> = {
-  islamic: { lon: 48.5, lat: 27, name: "Persian Gulf oil fields" },
+  islamic: { lon: 29.5, lat: 30.2, name: "Northern Egypt oil fields" },
 };
+/** Nations whose OIL_SITES field may stand outside their own land (on neutral ground). */
+export const OIL_SITES_ABROAD: ReadonlySet<FactionId> = new Set<FactionId>(["islamic"]);
 /**
  * Oil cartel (FactionConfig.oilCartel, like OPEC): its production policy scales the cartel's own derrick output and
  * the world price the market heads for, as in real life — a cut pumps less but lifts the price for everybody, a flood

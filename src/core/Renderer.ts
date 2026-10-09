@@ -279,7 +279,7 @@ export class Renderer {
     for (const f of focus) if (f.entity.kind !== 'building' && !selUnits.has(f.entity.id) && f.entity.hp >= f.entity.maxHp) this.drawUnitHealth(f.entity);
     for (const u of units) {
       if (u.rank > 0) this.drawRank(u);
-      if (u instanceof Vehicle && u.isTransport && (u.cargo.length > 0 || u.incoming > 0)) this.drawCargoBadge(u);
+      if (u instanceof Vehicle && u.isCarrier && (u.cargo.length > 0 || u.incoming > 0)) this.drawCargoBadge(u);
     }
     // Effects are stored in iso px already.
     const isoIn = (x: number, y: number): boolean => x >= left && x <= right && y >= top && y <= bottom + margin;

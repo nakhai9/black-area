@@ -1,4 +1,4 @@
-import { AVAILABLE_VEHICLES, CELL_SIZE, MAX_ALLIES, NEUTRAL_OWNER } from '../constants';
+import { CELL_SIZE, MAX_ALLIES, NEUTRAL_OWNER, TECH_VEHICLES } from '../constants';
 import type { Building } from '../entities/Building';
 import type { Entity } from '../entities/Entity';
 import type { EntityManager } from '../entities/EntityManager';
@@ -71,8 +71,19 @@ const MIN_ARMY = 8;
 const INVEST_ARMY_FACTOR = 1.5;
 /** Balanced army: about this many soldiers for every vehicle / aircraft. */
 const SOLDIERS_PER_VEHICLE = 2;
-/** Target vehicle mix (share of the vehicle fleet). */
-const VEHICLE_MIX: readonly [VehicleKind, number][] = [['tank', 0.4], ['ifv', 0.25], ['light', 0.15], ['jet', 0.2]];
+/**
+ * Base weight of each combat vehicle in the fleet the AI aims for; train() reshapes it from what the enemy fields
+ * (see fleetWeights). Kinds the nation cannot build are simply skipped.
+ */
+const VEHICLE_WEIGHT: Readonly<Partial<Record<VehicleKind, number>>> = {
+  tank: 0.34,
+  ifv: 0.12,
+  light: 0.06,
+  helicopter: 0.18,
+  jet: 0.16,
+  bomber: 0.1,
+  repair: 0.04,
+};
 /** A structure below this share of its health is worth an engineer. */
 const REPAIR_BELOW = 0.65;
 /** Seconds a structure must go unhit before an engineer is sent inside to repair it. */
@@ -507,7 +518,7 @@ export class AISystem implements GameSystem {
 
   /**
    * Keeps soldiers and vehicles coming, balanced: about SOLDIERS_PER_VEHICLE soldiers per vehicle and a vehicle
-   * fleet close to VEHICLE_MIX. Money comes first: while saving for a Happy City only the surplus is spent,
+   * fleet close to the wanted mix (VEHICLE_WEIGHT reshaped by fleetWeights). Money comes first: while saving for a Happy City only the surplus is spent,
    * unless the army is too small or the capital is under threat.
    */
   private train(p: PlayerState, st: AIState, owned: Set<BuildingType>, threat: number): void {
@@ -533,42 +544,90 @@ export class AISystem implements GameSystem {
       if (q.items.length < depth && budget > (threat > 0 ? 120 : 250)) {
         const r = training.army(p);
         let tier: UnitTier = 'regular';
+        const tiers = training.optionsFor(p).map((o) => o.tier);
         if (owned.has('techCenter') && r.special < r.specialCap && st.rng() < (threat > 0 ? 0.25 : st.overseas ? 0.75 : 0.4)) tier = 'special';
-        training.enqueue(p, tier);
+        // National demolition troops (Crazy Soldiers) now and then against a base full of structures.
+        else if (tiers.includes('demolition') && threat === 0 && st.rng() < 0.15) tier = 'demolition';
+        if (training.enqueue(p, tier) !== 'ok' && tier !== 'regular') training.enqueue(p, 'regular');
       }
     }
     if (canVehicles && (wantVehicle || threat > 0)) {
       const q = production.queue(p);
       if (q.items.length < depth && budget > (threat > 0 ? 500 : 700)) {
-        // Pick the kind furthest below its share of the fleet, among those this base can build.
-        const able = (k: VehicleKind): boolean =>
-          AVAILABLE_VEHICLES.includes(k) && (k === 'jet' ? owned.has('airfield') : k === 'ifv' ? owned.has('warFactory') && owned.has('techCenter') : owned.has('warFactory'));
-        let kind: VehicleKind | null = null;
-        let worst = Infinity;
-        // Across the sea only aircraft (and what transports carry) reach the enemy: favour jets, keep transports.
-        const mix: readonly [VehicleKind, number][] = st.overseas ? [['tank', 0.25], ['ifv', 0.15], ['light', 0.1], ['jet', 0.5]] : VEHICLE_MIX;
+        // Every combat vehicle the nation can build here (its own national kinds included: bombers, helicopters…).
+        const options = production.optionsFor(p);
+        const able = (k: VehicleKind): boolean => {
+          const o = options.find((x) => x.kind === k);
+          return !!o && owned.has(o.requires) && (!TECH_VEHICLES.includes(k) || owned.has('techCenter'));
+        };
         const transports = this.host.entities
           .fieldMovers()
           .filter((u) => u instanceof Vehicle && u.owner === p.id && u.alive && u.isTransport).length;
         const queuedTransports = q.items.filter((k) => k === 'transport').length;
         const evacuating = this.host.safeZones.zonesOf(p.id).length > 0;
-        if ((st.overseas || evacuating) && owned.has('airfield') && transports + queuedTransports < OVERSEAS_TRANSPORTS) {
+        if ((st.overseas || evacuating) && able('transport') && transports + queuedTransports < OVERSEAS_TRANSPORTS) {
           production.enqueue(p, 'transport');
           return;
         }
-        for (const [k, share] of mix) {
-          if (!able(k)) continue;
+        // Pick the kind furthest below its wanted share of the fleet.
+        const weights = this.fleetWeights(p, st, f, vehicleCount);
+        let total = 0;
+        for (const [k, w] of weights) if (able(k)) total += w;
+        let kind: VehicleKind | null = null;
+        let worst = Infinity;
+        for (const [k, w] of weights) {
+          if (!able(k) || total <= 0) continue;
           const have = (f.vehicles.get(k) ?? 0) / Math.max(1, vehicleCount);
-          const score = have - share + st.rng() * 0.05;
+          const score = have - w / total + st.rng() * 0.05;
           if (score < worst) {
             worst = score;
             kind = k;
           }
         }
-        // Ground fleet at its cap: aircraft are not limited, so build a jet instead.
-        if (kind && production.enqueue(p, kind) === 'cap' && able('jet')) production.enqueue(p, 'jet');
+        // Ground fleet at its cap (helicopters count there too): airfield aircraft are not, so build one of those.
+        if (kind && production.enqueue(p, kind) === 'cap') {
+          const air = (['jet', 'bomber'] as const).filter(able);
+          const pick = air[Math.floor(st.rng() * air.length)];
+          if (pick) production.enqueue(p, pick);
+        }
       }
     }
+  }
+
+  /**
+   * The fleet the nation wants, reshaped from what its enemies field:
+   *  - many enemy aircraft → more fighters and helicopters (their missiles hit aircraft);
+   *  - many enemy structures / a big ground army → more bombers and tanks;
+   *  - a war across the sea → aircraft first (only they and transports reach the enemy);
+   *  - repair vehicles only once there is a ground fleet worth mending.
+   */
+  private fleetWeights(p: PlayerState, st: AIState, f: { vehicles: Map<VehicleKind, number> }, vehicleCount: number): [VehicleKind, number][] {
+    let air = 0;
+    let ground = 0;
+    let structures = 0;
+    for (const v of this.host.entities.vehicles()) {
+      if (!v.alive || v.owner === p.id || v.owner === NEUTRAL_OWNER) continue;
+      if (v.aircraft && !v.isTransport && !v.isTanker) air++;
+      else if (!v.aircraft) ground++;
+    }
+    for (const u of this.host.entities.units()) if (u.alive && u.owner !== p.id && u.owner !== NEUTRAL_OWNER) ground += 0.3;
+    for (const b of this.host.entities.buildings()) if (b.alive && !b.indestructible && b.owner !== p.id && b.owner !== NEUTRAL_OWNER) structures++;
+    const enemies = Math.max(1, air + ground);
+    const airShare = air / enemies;
+    const out: [VehicleKind, number][] = [];
+    for (const [k, base] of Object.entries(VEHICLE_WEIGHT) as [VehicleKind, number][]) {
+      let w = base;
+      if (k === 'jet' || k === 'helicopter') w *= 1 + airShare * 2;
+      if (k === 'bomber') w *= 1 + Math.min(1, structures / 40);
+      if (k === 'tank') w *= 1 + Math.min(1, ground / 60) * 0.5;
+      if (st.overseas) w *= k === 'jet' || k === 'bomber' || k === 'helicopter' ? 2 : 0.5;
+      if (k === 'repair') {
+        const groundFleet = vehicleCount - (f.vehicles.get('jet') ?? 0) - (f.vehicles.get('bomber') ?? 0) - (f.vehicles.get('helicopter') ?? 0);
+        if (groundFleet < 4 || (f.vehicles.get('repair') ?? 0) >= Math.ceil(groundFleet / 5)) w = 0;
+      }
+      out.push([k, w]);
+    }
+    return out;
   }
 
   /**

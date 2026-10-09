@@ -68,7 +68,7 @@ export const RUSSIA: FactionConfig = {
     squatters: {
       name: "Squatters",
       description:
-        "Russian flag bearer and rifleman escort, moving as one: sent on foot or by transport to unclaimed land, they plant the national flag there (F key) — their mission done, they are gone.",
+        "Russian flag bearer and rifleman escort, moving as one: sent on foot or by transport to unclaimed land, they plant the national flag there (double-click the team once it stands still) — their mission done, they are gone.",
       look: {
         uniform: "#2b3a32",
         trousers: "#212d27",
@@ -97,6 +97,7 @@ export const RUSSIA: FactionConfig = {
       name: "Su-57",
       description: "Su-57 stealth air superiority fighter.",
     },
+    helicopter: { name: "Mi-28", description: "Mi-28 attack helicopter of the Russian army aviation: slower than a fighter; fires missiles at ground units, aircraft and structures; carries up to 8 soldiers (no vehicles). Built at the War Factory, it takes off and sets down anywhere on solid ground." },
     transport: {
       name: "Il-76",
       description:

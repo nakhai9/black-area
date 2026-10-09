@@ -28,7 +28,7 @@ export type Flight = 'parked' | 'taxi' | 'takeoff' | 'airborne' | 'approach' | '
 export type CarrierState = 'idle' | 'loading' | 'carrying' | 'unloading';
 
 /** Cruise height of an aircraft above the ground (world px, drawn offset). */
-import { BOMBER_BOMBS, CRUISE_ALTITUDE, JET_BOMBS } from '../constants';
+import { BOMBER_BOMBS, CRUISE_ALTITUDE, HELICOPTER_SOLDIERS, JET_BOMBS } from '../constants';
 export { CRUISE_ALTITUDE };
 
 /** Handling per vehicle kind: seconds to full speed, turn rate (rad/s), whether it must face where it drives. */
@@ -41,6 +41,7 @@ const HANDLING: Readonly<Record<VehicleKind, { accel: number; turn: number; pivo
   tanker: { accel: 0.8, turn: 2.2, pivot: false },
   bomber: { accel: 1.0, turn: 1.4, pivot: false },
   repair: { accel: 1.0, turn: 2.0, pivot: true },
+  helicopter: { accel: 0.5, turn: 3.0, pivot: false },
 };
 
 /** Can `soldiers` soldiers and `vehicles` vehicles travel together in one transport? */
@@ -199,6 +200,15 @@ export class Vehicle extends Unit {
     return this.type === 'transport';
   }
 
+  get isHelicopter(): boolean {
+    return this.type === 'helicopter';
+  }
+
+  /** Takes passengers: a transport aircraft, or a helicopter (soldiers only). */
+  get isCarrier(): boolean {
+    return this.isTransport || this.isHelicopter;
+  }
+
   get soldiersAboard(): number {
     return this.cargo.filter((u) => !(u instanceof Vehicle)).length;
   }
@@ -209,8 +219,9 @@ export class Vehicle extends Unit {
 
   /** May `u` climb aboard right now? Only a transport standing on the ground takes passengers; fighters and transports never do. */
   canLoad(u: Unit): boolean {
-    if (!this.isTransport || (this.flight !== 'parked' && this.flight !== 'landed') || !this.alive) return false;
+    if (!this.isCarrier || (this.flight !== 'parked' && this.flight !== 'landed') || !this.alive) return false;
     const vehicle = u instanceof Vehicle;
+    if (this.isHelicopter) return !vehicle && this.soldiersAboard < HELICOPTER_SOLDIERS;
     if (vehicle && u.aircraft) return false;
     const s = this.soldiersAboard + (vehicle ? 0 : 1);
     const v = this.vehiclesAboard + (vehicle ? 1 : 0);
@@ -219,19 +230,21 @@ export class Vehicle extends Unit {
 
   /** Soldier seats with the vehicles now aboard (12 alone, 8 beside one vehicle, none beside two or more). */
   get soldierCapacity(): number {
+    if (this.isHelicopter) return HELICOPTER_SOLDIERS;
     const v = this.vehiclesAboard;
     return v === 0 ? TRANSPORT_SOLDIERS : v === 1 ? TRANSPORT_MIXED_SOLDIERS : 0;
   }
 
   /** Vehicle places with the soldiers now aboard (3 when empty of soldiers, 1 beside up to 8 soldiers, else none). */
   get vehicleCapacity(): number {
+    if (this.isHelicopter) return 0;
     const s = this.soldiersAboard;
     return s === 0 ? TRANSPORT_VEHICLES : s <= TRANSPORT_MIXED_SOLDIERS ? 1 : 0;
   }
 
   /** Idle / loading / carrying / unloading (for the badge and the sidebar). */
   get carrierState(): CarrierState {
-    if (!this.isTransport) return 'idle';
+    if (!this.isCarrier) return 'idle';
     if (this.cargo.length > 0 && (this.ejecting || (this.flight === 'unloading' && !this.pickup))) return 'unloading';
     if (this.incoming > 0 && (this.flight === 'parked' || this.flight === 'landed' || (this.flight === 'unloading' && this.pickup))) return 'loading';
     return this.cargo.length > 0 ? 'carrying' : 'idle';
@@ -239,11 +252,13 @@ export class Vehicle extends Unit {
 
   /** Would `soldiers` more soldiers and `vehicles` more vehicles still fit beside the current cargo? */
   fitsWith(soldiers: number, vehicles: number): boolean {
+    if (this.isHelicopter) return vehicles === 0 && this.soldiersAboard + soldiers <= HELICOPTER_SOLDIERS;
     return transportFits(this.soldiersAboard + soldiers, this.vehiclesAboard + vehicles);
   }
 
   /** Nothing more fits: another soldier and another vehicle would both break the load limits. */
   get full(): boolean {
+    if (this.isHelicopter) return this.soldiersAboard >= HELICOPTER_SOLDIERS;
     const s = this.soldiersAboard;
     const v = this.vehiclesAboard;
     return !transportFits(s + 1, v) && !transportFits(s, v + 1);

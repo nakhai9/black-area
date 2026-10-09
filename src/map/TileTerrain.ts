@@ -16,7 +16,7 @@ const TILE_PX = 20;
 const CHUNK_PX = CHUNK_CELLS * TILE_PX;
 const CACHE_LIMIT = 260;
 /** Time budget per frame for painting new chunks (at least one is always painted). */
-const BUILD_BUDGET_MS = 10;
+const BUILD_BUDGET_MS = 4;
 /** Below this zoom the quarter-size copies are drawn. */
 const ZOOMED_OUT = 5;
 
@@ -238,20 +238,14 @@ export class TileTerrain {
     for (let py = 0; py < CHUNK_PX; py++) {
       const j = Math.floor(py / TILE_PX) + 1;
       const v = ((py % TILE_PX) + 0.5) / TILE_PX;
-      for (let px = 0; px < CHUNK_PX; px++) {
-        const i = Math.floor(px / TILE_PX) + 1;
-        const u = ((px % TILE_PX) + 0.5) / TILE_PX;
+      const cy = qy * CHUNK_CELLS + j - 1;
+      const fy = cy + v;
+      // Per tile (constant over its TILE_PX pixels): terrain codes around it and its colour variation.
+      for (let i = 1; i <= CHUNK_CELLS; i++) {
         const here = j * W + i;
         const t = T[here] ?? 0;
         const cx = qx * CHUNK_CELLS + i - 1;
-        const cy = qy * CHUNK_CELLS + j - 1;
-        const fx = cx + u;
-        const fy = cy + v;
-        const n1 = hash2((qx * CHUNK_PX + px) >> 1, (qy * CHUNK_PX + py) >> 1, seed + 5);
         const cellVar = hash2(cx, cy, seed + 11);
-        const mott = clamp01(this.noise.noise(fx * 0.22, fy * 0.22) * 0.65 + cellVar * 0.35);
-        this.base(t, fx, fy, n1, mott);
-
         const L = T[here - 1] ?? 0;
         const R = T[here + 1] ?? 0;
         const U = T[here - W] ?? 0;
@@ -260,92 +254,99 @@ export class TileTerrain {
         const UR = T[here - W + 1] ?? 0;
         const DL = T[here + W - 1] ?? 0;
         const DR = T[here + W + 1] ?? 0;
-
-        if (t !== 0) {
-          // ---- land: beach strip / cliff towards the sea, ragged blend into a different land type
-          let dW = 9;
-          if (L === 0) dW = Math.min(dW, u);
-          if (R === 0) dW = Math.min(dW, 1 - u);
-          if (U === 0) dW = Math.min(dW, v);
-          if (D === 0) dW = Math.min(dW, 1 - v);
-          if (L !== 0 && U !== 0 && UL === 0) dW = Math.min(dW, Math.hypot(u, v));
-          if (R !== 0 && U !== 0 && UR === 0) dW = Math.min(dW, Math.hypot(1 - u, v));
-          if (L !== 0 && D !== 0 && DL === 0) dW = Math.min(dW, Math.hypot(u, 1 - v));
-          if (R !== 0 && D !== 0 && DR === 0) dW = Math.min(dW, Math.hypot(1 - u, 1 - v));
-          if (dW < 9) {
-            if (t === 5) {
-              const k = smooth(0.2, 0.0, dW);
-              col[0] += (CLIFF[0] - col[0]) * k;
-              col[1] += (CLIFF[1] - col[1]) * k;
-              col[2] += (CLIFF[2] - col[2]) * k;
-            } else if (t !== 6) {
-              const k = smooth(0.42, 0.14, dW + (n1 - 0.5) * 0.08);
-              col[0] += (BEACH[0] - col[0]) * k;
-              col[1] += (BEACH[1] - col[1]) * k;
-              col[2] += (BEACH[2] - col[2]) * k;
+        // Hill-shading from the real elevation (light from the upper left of the screen = world -x).
+        const gx = (H[here + 1] ?? 0) - (H[here - 1] ?? 0);
+        const gy = (H[here + W] ?? 0) - (H[here - W] ?? 0);
+        const shade = 1 + Math.max(-0.22, Math.min(0.22, gx * 0.00022 + gy * 0.00007)) + Math.min(0.08, ((H[here] ?? 0) / 6000) * 0.1);
+        const d01 = depth[here] ?? 0;
+        for (let sx = 0; sx < TILE_PX; sx++) {
+          const px = (i - 1) * TILE_PX + sx;
+          const u = (sx + 0.5) / TILE_PX;
+          const fx = cx + u;
+          const n1 = hash2((qx * CHUNK_PX + px) >> 1, (qy * CHUNK_PX + py) >> 1, seed + 5);
+          const mott = clamp01(this.noise.noise(fx * 0.22, fy * 0.22) * 0.65 + cellVar * 0.35);
+          this.base(t, fx, fy, n1, mott);
+  
+          if (t !== 0) {
+            // ---- land: beach strip / cliff towards the sea, ragged blend into a different land type
+            let dW = 9;
+            if (L === 0) dW = Math.min(dW, u);
+            if (R === 0) dW = Math.min(dW, 1 - u);
+            if (U === 0) dW = Math.min(dW, v);
+            if (D === 0) dW = Math.min(dW, 1 - v);
+            if (L !== 0 && U !== 0 && UL === 0) dW = Math.min(dW, Math.hypot(u, v));
+            if (R !== 0 && U !== 0 && UR === 0) dW = Math.min(dW, Math.hypot(1 - u, v));
+            if (L !== 0 && D !== 0 && DL === 0) dW = Math.min(dW, Math.hypot(u, 1 - v));
+            if (R !== 0 && D !== 0 && DR === 0) dW = Math.min(dW, Math.hypot(1 - u, 1 - v));
+            if (dW < 9) {
+              if (t === 5) {
+                const k = smooth(0.2, 0.0, dW);
+                col[0] += (CLIFF[0] - col[0]) * k;
+                col[1] += (CLIFF[1] - col[1]) * k;
+                col[2] += (CLIFF[2] - col[2]) * k;
+              } else if (t !== 6) {
+                const k = smooth(0.42, 0.14, dW + (n1 - 0.5) * 0.08);
+                col[0] += (BEACH[0] - col[0]) * k;
+                col[1] += (BEACH[1] - col[1]) * k;
+                col[2] += (BEACH[2] - col[2]) * k;
+              }
             }
-          }
-          const sides: [number, number][] = [
-            [L, u],
-            [R, 1 - u],
-            [U, v],
-            [D, 1 - v],
-          ];
-          for (const [nt, dist] of sides) {
-            if (nt === t || nt === 0 || dist > 0.22) continue;
-            if (n1 < (1 - dist / 0.22) * 0.5) {
-              const keep: [number, number, number] = [col[0], col[1], col[2]];
+            // Ragged blend into a different land type next door (first side that qualifies: L, R, U, D).
+            let nt = -1;
+            let dist = 0;
+            if (L !== t && L !== 0 && u <= 0.22 && n1 < (1 - u / 0.22) * 0.5) [nt, dist] = [L, u];
+            else if (R !== t && R !== 0 && 1 - u <= 0.22 && n1 < (1 - (1 - u) / 0.22) * 0.5) [nt, dist] = [R, 1 - u];
+            else if (U !== t && U !== 0 && v <= 0.22 && n1 < (1 - v / 0.22) * 0.5) [nt, dist] = [U, v];
+            else if (D !== t && D !== 0 && 1 - v <= 0.22 && n1 < (1 - (1 - v) / 0.22) * 0.5) [nt, dist] = [D, 1 - v];
+            if (nt >= 0 && dist <= 0.22) {
+              const k0 = col[0];
+              const k1 = col[1];
+              const k2 = col[2];
               this.base(nt, fx, fy, n1, mott);
-              col[0] = (col[0] + keep[0] * 0.3) / 1.3;
-              col[1] = (col[1] + keep[1] * 0.3) / 1.3;
-              col[2] = (col[2] + keep[2] * 0.3) / 1.3;
-              break;
+              col[0] = (col[0] + k0 * 0.3) / 1.3;
+              col[1] = (col[1] + k1 * 0.3) / 1.3;
+              col[2] = (col[2] + k2 * 0.3) / 1.3;
+            }
+            col[0] *= shade;
+            col[1] *= shade;
+            col[2] *= shade;
+          } else {
+            // ---- sea: depth from the bathymetry, lighter coastal shelf, foam where it meets land
+            const deep = clamp01(d01 * 1.7);
+            const wave = Math.sin(fx * 7 + fy * 4.5 + mott * 5) * 0.03 + (n1 - 0.5) * 0.05;
+            const a = deep < 0.5 ? SEA_SHALLOW : SEA_MID;
+            const b = deep < 0.5 ? SEA_MID : SEA_DEEP;
+            const k = deep < 0.5 ? deep * 2 : (deep - 0.5) * 2;
+            col[0] = (a[0] + (b[0] - a[0]) * k) * (1 + wave);
+            col[1] = (a[1] + (b[1] - a[1]) * k) * (1 + wave);
+            col[2] = (a[2] + (b[2] - a[2]) * k) * (1 + wave);
+            let dL = 9;
+            if (L !== 0) dL = Math.min(dL, u);
+            if (R !== 0) dL = Math.min(dL, 1 - u);
+            if (U !== 0) dL = Math.min(dL, v);
+            if (D !== 0) dL = Math.min(dL, 1 - v);
+            if (L === 0 && U === 0 && UL !== 0) dL = Math.min(dL, Math.hypot(u, v));
+            if (R === 0 && U === 0 && UR !== 0) dL = Math.min(dL, Math.hypot(1 - u, v));
+            if (L === 0 && D === 0 && DL !== 0) dL = Math.min(dL, Math.hypot(u, 1 - v));
+            if (R === 0 && D === 0 && DR !== 0) dL = Math.min(dL, Math.hypot(1 - u, 1 - v));
+            if (dL < 9) {
+              const shelf = smooth(0.7, 0.0, dL) * 0.75;
+              col[0] += (SEA_COAST[0] - col[0]) * shelf;
+              col[1] += (SEA_COAST[1] - col[1]) * shelf;
+              col[2] += (SEA_COAST[2] - col[2]) * shelf;
+              const foam = Math.max(smooth(0.09, 0.0, dL) * 0.9, dL > 0.15 && dL < 0.2 ? 0.22 : 0);
+              col[0] += (FOAM[0] - col[0]) * foam;
+              col[1] += (FOAM[1] - col[1]) * foam;
+              col[2] += (FOAM[2] - col[2]) * foam;
             }
           }
-          // Hill-shading from the real elevation (light from the upper left of the screen = world -x).
-          const gx = (H[here + 1] ?? 0) - (H[here - 1] ?? 0);
-          const gy = (H[here + W] ?? 0) - (H[here - W] ?? 0);
-          const shade = 1 + Math.max(-0.22, Math.min(0.22, gx * 0.00022 + gy * 0.00007)) + Math.min(0.08, ((H[here] ?? 0) / 6000) * 0.1);
-          col[0] *= shade;
-          col[1] *= shade;
-          col[2] *= shade;
-        } else {
-          // ---- sea: depth from the bathymetry, lighter coastal shelf, foam where it meets land
-          const d01 = depth[here] ?? 0;
-          const deep = clamp01(d01 * 1.7);
-          const wave = Math.sin(fx * 7 + fy * 4.5 + mott * 5) * 0.03 + (n1 - 0.5) * 0.05;
-          const a = deep < 0.5 ? SEA_SHALLOW : SEA_MID;
-          const b = deep < 0.5 ? SEA_MID : SEA_DEEP;
-          const k = deep < 0.5 ? deep * 2 : (deep - 0.5) * 2;
-          col[0] = (a[0] + (b[0] - a[0]) * k) * (1 + wave);
-          col[1] = (a[1] + (b[1] - a[1]) * k) * (1 + wave);
-          col[2] = (a[2] + (b[2] - a[2]) * k) * (1 + wave);
-          let dL = 9;
-          if (L !== 0) dL = Math.min(dL, u);
-          if (R !== 0) dL = Math.min(dL, 1 - u);
-          if (U !== 0) dL = Math.min(dL, v);
-          if (D !== 0) dL = Math.min(dL, 1 - v);
-          if (L === 0 && U === 0 && UL !== 0) dL = Math.min(dL, Math.hypot(u, v));
-          if (R === 0 && U === 0 && UR !== 0) dL = Math.min(dL, Math.hypot(1 - u, v));
-          if (L === 0 && D === 0 && DL !== 0) dL = Math.min(dL, Math.hypot(u, 1 - v));
-          if (R === 0 && D === 0 && DR !== 0) dL = Math.min(dL, Math.hypot(1 - u, 1 - v));
-          if (dL < 9) {
-            const shelf = smooth(0.7, 0.0, dL) * 0.75;
-            col[0] += (SEA_COAST[0] - col[0]) * shelf;
-            col[1] += (SEA_COAST[1] - col[1]) * shelf;
-            col[2] += (SEA_COAST[2] - col[2]) * shelf;
-            const foam = Math.max(smooth(0.09, 0.0, dL) * 0.9, dL > 0.15 && dL < 0.2 ? 0.22 : 0);
-            col[0] += (FOAM[0] - col[0]) * foam;
-            col[1] += (FOAM[1] - col[1]) * foam;
-            col[2] += (FOAM[2] - col[2]) * foam;
-          }
+  
+          const o = (py * CHUNK_PX + px) * 4;
+          out[o] = col[0];
+          out[o + 1] = col[1];
+          out[o + 2] = col[2];
+          out[o + 3] = 255;
         }
-
-        const o = (py * CHUNK_PX + px) * 4;
-        out[o] = col[0];
-        out[o + 1] = col[1];
-        out[o + 2] = col[2];
-        out[o + 3] = 255;
       }
     }
     ctx.putImageData(img, 0, 0);

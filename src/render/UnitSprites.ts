@@ -90,15 +90,3 @@ export function unitSpriteBytes(): number {
 export function blitUnit(ctx: CanvasRenderingContext2D, s: UnitSprite, x: number, y: number, scale = 1): void {
   ctx.drawImage(s.canvas, x - s.ox * scale, y - s.oy * scale, s.w * scale, s.h * scale);
 }
-
-/** Stable small id for an object (used to key looks / profiles in sprite keys). */
-const ids = new WeakMap<object, number>();
-let nextId = 1;
-export function objectKey(o: object): number {
-  let id = ids.get(o);
-  if (id === undefined) {
-    id = nextId++;
-    ids.set(o, id);
-  }
-  return id;
-}

@@ -36,12 +36,12 @@ const sheet = (file: string, scale: number): TankSheet => ({
 });
 
 const SHEETS: Partial<Record<FactionId, TankSheet>> = {
-  // Side-on the hull spans ≈ 33 sheet px; drawn about as long as the vector tank (6.6 × 0.7 iso px), a touch bigger.
-  usa: sheet('abrams-usa.png', 0.16),
-  europe: sheet('leopard2-europe.png', 0.16),
-  russia: sheet('t90-russia.png', 0.16),
-  china: sheet('type99-china.png', 0.16),
-  islamic: sheet('tank-islamic.png', 0.16),
+  // Side-on the hull spans ≈ 33 sheet px; drawn ≈ 25% bigger than the vector tank (6.6 × 0.7 iso px).
+  usa: sheet('abrams-usa.png', 0.2),
+  europe: sheet('leopard2-europe.png', 0.2),
+  russia: sheet('t90-russia.png', 0.2),
+  china: sheet('type99-china.png', 0.2),
+  islamic: sheet('tank-islamic.png', 0.2),
 };
 
 let loaded: Promise<void> | null = null;
@@ -114,11 +114,11 @@ export function drawTankSheet(ctx: CanvasRenderingContext2D, v: Vehicle, x: numb
 
   const prevSmooth = ctx.imageSmoothingEnabled;
   ctx.imageSmoothingEnabled = true;
-  ctx.save();
+  const alpha = ctx.globalAlpha; // set and put back directly: cheaper than save/restore for every tank every frame
   ctx.globalAlpha = 0.35;
   blit(ROW.hullShadow, d);
   blit(ROW.turretShadow, td);
-  ctx.restore();
+  ctx.globalAlpha = alpha;
   blit(ROW.hull[track] ?? ROW.hull[0], d);
   blit(turretRow, td);
   ctx.imageSmoothingEnabled = prevSmooth;

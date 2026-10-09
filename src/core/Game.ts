@@ -60,6 +60,7 @@ import {
   OIL_POLICIES,
   OIL_ROW_MAX,
   OIL_SITES,
+  OIL_SITES_ABROAD,
   STARTING_CREDITS,
   STARTING_OIL,
   WORLD_BANK_LOCATION,
@@ -724,19 +725,11 @@ export class Game {
     });
   }
 
-  /** F key: every selected Squatters team plants its flag where it stands. */
-  private plantSelectedFlags(): void {
-    const teams = this.selection.selectedUnitList().filter((u): u is Infantry => u instanceof Infantry && u.isSquatters && u.owner === this.humanPlayer.id);
-    if (teams.length === 0) return;
-    let planted = 0;
-    let why = '';
-    for (const t of teams) {
-      const r = this.plantFlag(t);
-      if (r === null) planted++;
-      else why = r;
-    }
-    this.sidebar.notify(planted > 0 ? 'Flag planted — the Squatters have done their duty. This land is claimed: raise an Allied Building beside it.' : `Cannot plant the flag: ${why}.`, 4);
-    if (planted > 0) {
+  /** Double-click on one of your Squatters teams standing still: it plants its flag where it stands. */
+  private plantFlagByClick(team: Infantry): void {
+    const why = this.plantFlag(team);
+    this.sidebar.notify(why === null ? 'Flag planted — the Squatters have done their duty. This land is claimed: raise an Allied Building beside it.' : `Cannot plant the flag: ${why}.`, 4);
+    if (why === null) {
       this.bus.emit('selection:changed', { entityId: null });
       this.sidebarTimer = SIDEBAR_REFRESH;
     }
@@ -973,7 +966,7 @@ export class Game {
    * spot when it stands on the ground, otherwise it first sets down on the nearest solid ground below it.
    */
   private unloadSelectedTransport(): void {
-    const transports = this.selection.selectedUnitList().filter((u): u is Vehicle => u instanceof Vehicle && u.isTransport);
+    const transports = this.selection.selectedUnitList().filter((u): u is Vehicle => u instanceof Vehicle && u.isCarrier);
     const loaded = transports.filter((t) => t.cargo.length > 0);
     if (loaded.length === 0) {
       if (transports.length > 0) this.sidebar.notify('The transport is empty.');
@@ -988,7 +981,7 @@ export class Game {
 
   /** The first selected transport of mine (sidebar transport panel), or null. */
   private selectedTransport(): Vehicle | null {
-    return this.selection.selectedUnitList().find((u): u is Vehicle => u instanceof Vehicle && u.isTransport && u.owner === this.humanPlayer.id) ?? null;
+    return this.selection.selectedUnitList().find((u): u is Vehicle => u instanceof Vehicle && u.isCarrier && u.owner === this.humanPlayer.id) ?? null;
   }
 
   /** Sidebar Transport panel for the first selected transport of mine. */
@@ -1008,7 +1001,7 @@ export class Game {
 
   /** Can any of the selected units climb into transport `t` right now (RA2 Enter cursor)? */
   private canBoardSelected(t: Vehicle): boolean {
-    if (!t.isTransport || t.owner !== this.humanPlayer.id || this.selection.selectedUnits.has(t.id)) return false;
+    if (!t.isCarrier || t.owner !== this.humanPlayer.id || this.selection.selectedUnits.has(t.id)) return false;
     const usable = t.flight === 'parked' || t.flight === 'landed' || t.flight === 'airborne' || t.flight === 'approach' || (t.flight === 'unloading' && t.pickup);
     if (!usable) return false;
     return this.selection.selectedUnitList().some((u) => !u.aircraft && (u instanceof Vehicle ? t.fitsWith(0, 1) : t.fitsWith(1, 0)));
@@ -1020,7 +1013,7 @@ export class Game {
    * are sent (counting the ones already on their way); the others stay put.
    */
   orderBoard(t: Vehicle, riders: Unit[]): boolean {
-    if (!t.isTransport || !t.alive) return false;
+    if (!t.isCarrier || !t.alive) return false;
     if ((t.flight === 'airborne' || t.flight === 'approach') && !this.aircraft.setDownForPickup(t)) {
       if (t.owner === this.humanPlayer.id) this.sidebar.notify(`The ${t.name} cannot land here (open water) to take anyone aboard.`);
       return true;
@@ -1658,6 +1651,16 @@ export class Game {
       }
     }
     const unit = this.selection.pickUnit(world);
+    // Double-click on one of my Squatters teams standing still (the first click may have ordered it onto its own
+    // spot): it plants its flag there.
+    if (double && unit instanceof Infantry && unit.isSquatters && unit.owner === me) {
+      const dest = unit.destination;
+      if (!unit.moving || (dest && Math.hypot(dest.x - unit.px, dest.y - unit.py) < CELL_SIZE)) {
+        unit.stop();
+        this.plantFlagByClick(unit);
+        return;
+      }
+    }
     const selected = this.selection.selectedUnitList();
     // RA2 default: with units selected, a left click is also an order (board / attack / enter / move).
     // A double-click only means "select all of this type" on one of my units; anywhere else (two quick move
@@ -1669,7 +1672,7 @@ export class Game {
         this.orderMove(world);
         return;
       }
-      if (unit instanceof Vehicle && unit.isTransport && unit.owner === me && !this.selection.selectedUnits.has(unit.id)) {
+      if (unit instanceof Vehicle && unit.isCarrier && unit.owner === me && !this.selection.selectedUnits.has(unit.id)) {
         const riders = selected.filter((u) => !u.aircraft);
         if (riders.length > 0 && this.orderBoard(unit, riders)) return;
       }
@@ -1738,14 +1741,14 @@ export class Game {
     // Repair vehicles selected + right-click on one of my damaged ground vehicles: they drive up and mend it.
     if (unit instanceof Vehicle && unit.owner === me && (this.orderRepairClick(unit, selected) || this.orderMend(unit, selected))) return;
     // Soldiers / vehicles selected + right-click on one of my parked transports: they climb aboard.
-    if (unit instanceof Vehicle && unit.isTransport && unit.owner === me && !this.selection.selectedUnits.has(unit.id)) {
+    if (unit instanceof Vehicle && unit.isCarrier && unit.owner === me && !this.selection.selectedUnits.has(unit.id)) {
       const riders = selected.filter((u) => !u.aircraft);
       if (riders.length > 0 && this.orderBoard(unit, riders)) return;
     }
     const hit = unit ? null : this.selection.pick(world);
     if (hit && this.orderOnBuilding(hit)) return;
     // A loaded transport sent over open water has nowhere to set down: its passengers stay aboard.
-    const loaded = selected.find((u): u is Vehicle => u instanceof Vehicle && u.isTransport && u.cargo.length > 0);
+    const loaded = selected.find((u): u is Vehicle => u instanceof Vehicle && u.isCarrier && u.cargo.length > 0);
     if (loaded && !this.landingSpot(world.x, world.y, loaded)) this.sidebar.notify(`The ${loaded.name} cannot land there (open water) — the passengers stay aboard.`);
     this.orderMove(world);
   }
@@ -1920,16 +1923,6 @@ export class Game {
       case 'KeyC':
         this.scatterSelected();
         break;
-      case 'KeyF':
-        this.plantSelectedFlags();
-        break;
-      case 'KeyR':
-        // While positioning a structure: turn it 90° (footprint d × w, art mirrored), still square to the grid.
-        if (this.placing) {
-          this.placingRotated = !this.placingRotated;
-          this.sidebar.notify(this.placingRotated ? 'Turned 90°.' : 'Turned back.', 1.5);
-        } else this.rotateSelectedBuilding();
-        break;
       case 'Equal':
       case 'NumpadAdd':
         cam.zoomAt(ZOOM_STEP, cam.viewWidth / 2, cam.viewHeight / 2);
@@ -1976,7 +1969,7 @@ export class Game {
       if (need) {
         this.sidebar.notify(
           option.id === 'alliedBuilding'
-            ? 'Allied Building: first fly a Squatters team to unclaimed land and plant your flag there (F).'
+            ? 'Allied Building: first send a Squatters team to unclaimed land and plant your flag there (double-click it).'
             : `${option.name} requires a ${BUILD_OPTIONS.find((o) => o.id === need)?.name ?? need} first.`,
         );
         return;
@@ -2007,45 +2000,7 @@ export class Game {
     this.sidebarTimer = SIDEBAR_REFRESH;
   }
 
-  /**
-   * R with one of your buildings selected: turns it 90° on the ground (footprint d × w, art mirrored) if the
-   * turned footprint fits on free, buildable cells around the same centre — always square to the grid.
-   */
-  private rotateSelectedBuilding(): void {
-    const b = this.selection.selectedId === null ? undefined : this.entities.get(this.selection.selectedId);
-    if (!(b instanceof Building) || !b.alive || b.owner !== this.humanPlayer.id) return;
-    const t = b.spec.type;
-    if (t === 'capital' || t === 'oilDerrick' || t === 'bank') {
-      this.sidebar.notify('This structure cannot be turned.', 2);
-      return;
-    }
-    if (t === 'airfield' && this.entities.vehicles().some((v) => v.homeId === b.id && v.alive && v.fixed)) {
-      this.sidebar.notify('Move the aircraft off the airfield before turning it.', 3);
-      return;
-    }
-    const w = b.d;
-    const d = b.w;
-    const x = Math.round(b.x + b.w / 2 - w / 2);
-    const y = Math.round(b.y + b.d / 2 - d / 2);
-    // Free its own cells while checking the turned footprint.
-    this.map.occupy(b.x, b.y, b.w, b.d, null);
-    const result = this.placement.check({ owner: b.owner, x, y, w, d, unclaimedOnly: t === 'alliedBuilding' });
-    if (!result.ok) {
-      this.map.occupy(b.x, b.y, b.w, b.d, b.id);
-      this.sidebar.notify(`Cannot turn it here: ${BLOCK_REASONS[result.reason] ?? result.reason}.`, 3);
-      return;
-    }
-    b.rotated = !b.rotated;
-    b.moveTo(x, y);
-    this.map.occupy(b.x, b.y, b.w, b.d, b.id);
-    this.sidebarTimer = SIDEBAR_REFRESH;
-  }
-
-  /** The structure being positioned is turned 90° (R). */
-  private placingRotated = false;
-
   private stopPlacing(): void {
-    this.placingRotated = false;
     this.placing = null;
     this.ghost = null;
   }
@@ -2057,8 +2012,7 @@ export class Game {
       return;
     }
     const fp = this.placing.footprint;
-    const w = this.placingRotated ? fp.d : fp.w;
-    const d = this.placingRotated ? fp.w : fp.d;
+    const { w, d } = fp;
     const x = Math.floor(this.mouseWorld.x / CELL_SIZE - w / 2 + 0.5);
     const y = Math.floor(this.mouseWorld.y / CELL_SIZE - d / 2 + 0.5);
     const result = this.placement.check({ owner: this.humanPlayer.id, x, y, w, d, unclaimedOnly: this.placing.id === 'alliedBuilding' });
@@ -2069,7 +2023,7 @@ export class Game {
       y,
       w,
       d,
-      mirrored: this.placingRotated,
+      mirrored: false,
       ok: result.ok,
       reason: result.ok ? null : (BLOCK_REASONS[result.reason] ?? result.reason),
     };
@@ -2614,6 +2568,10 @@ export class Game {
   }
 
   private spawnVehicle(player: PlayerState, kind: VehicleKind, producer: Building): void {
+    if (kind === 'helicopter') {
+      this.spawnHelicopter(player, producer);
+      return;
+    }
     if (isAircraftKind(kind)) {
       this.spawnAircraft(player, kind, producer);
       return;
@@ -2642,6 +2600,32 @@ export class Game {
       break;
     }
     if (player.isHuman) this.sidebar.notify(`${unit.name} ready.`);
+  }
+
+  /** A helicopter rolls out of the War Factory and stands on the first free solid ground in front of it. */
+  private spawnHelicopter(player: PlayerState, producer: Building): void {
+    const door = this.doorPoint(producer);
+    const heli = new Vehicle(player.id, player.faction as FactionId, 'helicopter', door);
+    const movers = this.entities.fieldMovers();
+    let spot: WorldPoint | null = null;
+    for (let k = 0; k < 160 && !spot; k++) {
+      const off = spiralOffset(k, 9);
+      const p = { x: door.x + off.x, y: door.y + CELL_SIZE * 4 + Math.abs(off.y) };
+      const cell = this.map.cellAt(p.x, p.y);
+      if (!cell || !this.pathfinder.passable(cell.x, cell.y)) continue;
+      if (movers.some((m) => !m.flies && Math.hypot(m.px - p.x, m.py - p.y) < m.radius + heli.radius + 2)) continue;
+      spot = p;
+    }
+    if (!spot) return;
+    heli.px = spot.x;
+    heli.py = spot.y;
+    heli.x = spot.x / CELL_SIZE;
+    heli.y = spot.y / CELL_SIZE;
+    heli.flight = 'landed';
+    heli.altitude = 0;
+    heli.heading = Math.PI / 2;
+    this.entities.add(heli);
+    if (player.isHuman) this.sidebar.notify(`${heli.name} ready.`);
   }
 
   // ------------------------------------------------------------------ infantry
@@ -3374,7 +3358,13 @@ export class Game {
         ...steps.map(([a, b]) => [a, b, 0, OIL_FIELD_SPACING / 2] as const),
       ];
       // A nation tied to an oil region never leaves its own land for it: wider region, closer neighbours, but inside.
-      const sitePasses = [16, 24, 32].flatMap((r) => [[6, OIL_FIELD_SPACING, r], [1, OIL_FIELD_SPACING, r], [1, OIL_FIELD_SPACING / 2, r], [1, 0, r]] as const);
+      // (OIL_SITES_ABROAD: the region lies outside the homeland, so the field stands on neutral ground there.)
+      const abroad = OIL_SITES_ABROAD.has(f);
+      const sitePasses = (abroad ? [8, 12, 16] : [16, 24, 32]).flatMap((r): (readonly [number, number, number])[] =>
+        abroad
+          ? [[0, OIL_FIELD_SPACING, r], [0, OIL_FIELD_SPACING / 2, r], [0, 0, r]]
+          : [[6, OIL_FIELD_SPACING, r], [1, OIL_FIELD_SPACING, r], [1, OIL_FIELD_SPACING / 2, r], [1, 0, r]],
+      );
       const plan = near
         ? sitePasses.map(([minSafe, fieldsAway, nearRadius]) => ({ minAway: 0, avoidAway: 8, minSafe, fieldsAway, nearRadius }))
         : passes.map(([minAway, avoidAway, minSafe, fieldsAway]) => ({ minAway, avoidAway, minSafe, fieldsAway, nearRadius: 0 }));

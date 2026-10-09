@@ -48,11 +48,11 @@ export async function showUnitGallery(root: HTMLElement): Promise<void> {
     .ug-nation { margin: 28px 0 10px; display: flex; align-items: center; gap: 10px; font-size: 16px; text-transform: uppercase; letter-spacing: 1px; }
     .ug-swatch { width: 14px; height: 14px; border-radius: 3px; }
     .ug-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(${PIC_W}px, 1fr)); gap: 12px; }
-    .ug-card { margin: 0; background: #151b21; border: 1px solid #26313b; border-radius: 8px; overflow: hidden; }
-    .ug-card canvas { display: block; width: 100%; height: ${PIC_H}px; background: radial-gradient(#2a3440, #151b21); }
+    .ug-card { margin: 0; background: #fff; color: #1a2128; border: 1px solid #d5dbe1; border-radius: 8px; overflow: hidden; }
+    .ug-card canvas { display: block; width: 100%; height: ${PIC_H}px; background: #fff; }
     .ug-card div { padding: 8px 10px; display: flex; flex-direction: column; gap: 2px; }
     .ug-card b { font-weight: 600; }
-    .ug-card small { color: #8a96a1; }
+    .ug-card small { color: #5f6b76; }
   `;
   document.head.append(style);
   const page = document.createElement('div');
@@ -76,8 +76,8 @@ export async function showUnitGallery(root: HTMLElement): Promise<void> {
     const units: { unit: Unit; note: string }[] = [];
     for (const tier of Object.keys(f.infantry) as UnitTier[]) units.push({ unit: new Infantry(0, id, tier, at), note: tier });
     for (const kind of Object.keys(f.vehicles) as VehicleKind[]) {
-      const note = AVAILABLE_VEHICLES.includes(kind) || kind === 'tanker' ? kind : `${kind} (not buildable now)`;
-      units.push({ unit: new Vehicle(0, id, kind, at), note });
+      if (!AVAILABLE_VEHICLES.includes(kind) && kind !== 'tanker') continue; // hidden vehicles (light, ifv) are left out
+      units.push({ unit: new Vehicle(0, id, kind, at), note: kind });
     }
     for (const { unit, note } of units) {
       const card = document.createElement('figure');
@@ -123,7 +123,8 @@ function draw(card: Card, time: number): void {
     const zoom = air ? ZOOM.air : ZOOM.ground;
     ctx.scale(zoom, zoom);
     const y = air ? u.altitude / 2 : 0; // aircraft hover over their ground point: centre the whole picture
-    const sheet = (air && drawAircraftSheet(ctx, u, 0, y)) || (u.type === 'tank' && drawTankSheet(ctx, u, 0, y)) || (u.type === 'repair' && drawRepairSheet(ctx, u, 0, y));
+    // Sheet aircraft are drawn altitude + 1.5 px above their ground point: put the plane itself in the middle.
+    const sheet = (air && drawAircraftSheet(ctx, u, 0, u.altitude + 1.5)) || (u.type === 'tank' && drawTankSheet(ctx, u, 0, y)) || (u.type === 'repair' && drawRepairSheet(ctx, u, 0, y));
     if (!sheet) drawVehicle(ctx, { x: 0, y, heading: isoHeading(heading, air ? 0.8 : SQUASH), phase: 0, moving: false, altitude: air ? u.altitude : undefined }, u.type, u.faction as FactionId);
   } else if (u instanceof Infantry) {
     ctx.scale(ZOOM.soldier, ZOOM.soldier);

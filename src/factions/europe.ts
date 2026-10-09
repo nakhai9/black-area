@@ -34,7 +34,7 @@ export const EUROPE: FactionConfig = {
     },
     squatters: {
       name: 'Squatters',
-      description: "EU flag bearer and rifleman escort, moving as one: sent on foot or by transport to unclaimed land, they plant the national flag there (F key) — their mission done, they are gone.",
+      description: "EU flag bearer and rifleman escort, moving as one: sent on foot or by transport to unclaimed land, they plant the national flag there (double-click the team once it stands still) — their mission done, they are gone.",
       look: { uniform: '#5e6c78', trousers: '#4a5661', headgear: 'reverseCap', headColor: '#3f4a54', weapon: 'rifle', camo: true, sprite: 'euSquatters' },
     },
   },
@@ -43,11 +43,12 @@ export const EUROPE: FactionConfig = {
     tank: { name: "Leopard 2", description: "Leopard 2 main battle tank, precise and well protected." },
     ifv: { name: "Puma", description: "Puma armoured fighting vehicle, modern and fast." },
     jet: { name: "Rafale", description: "Dassault Rafale multirole fighter." },
+    helicopter: { name: "AH-64 Apache", description: "AH-64 Apache attack helicopter of the European aviation: slower than a fighter; fires missiles at ground units, aircraft and structures; carries up to 8 soldiers (no vehicles). Built at the War Factory, it takes off and sets down anywhere on solid ground." },
     transport: { name: "C-130", description: "C-130 transport aircraft: carries soldiers and vehicles; unarmed." },
     repair: {
-      name: "ARV",
+      name: "M88",
       description:
-        "ARV armoured recovery vehicle: slow and unarmed; click a damaged friendly ground vehicle to drive up and repair it, or select damaged vehicles and click it to send them in for repair (5% of its max health every 2 s).",
+        "M88 armoured recovery vehicle: slow and unarmed; click a damaged friendly ground vehicle to drive up and repair it, or select damaged vehicles and click it to send them in for repair (5% of its max health every 2 s).",
     },
     tanker: { name: "A330 MRTT", description: "A330 MRTT aerial tanker: flies escort behind its C-130 and keeps it fuelled; unarmed." },
   },

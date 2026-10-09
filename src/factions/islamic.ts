@@ -88,7 +88,7 @@ export const ISLAMIC: FactionConfig = {
     squatters: {
       name: "Squatters",
       description:
-        "Islamic flag bearer and rifleman escort, moving as one: sent on foot or by transport to unclaimed land, they plant the national flag there (F key) — their mission done, they are gone.",
+        "Islamic flag bearer and rifleman escort, moving as one: sent on foot or by transport to unclaimed land, they plant the national flag there (double-click the team once it stands still) — their mission done, they are gone.",
       look: {
         uniform: "#4f5a3a",
         trousers: "#3d4630",
@@ -119,20 +119,11 @@ export const ISLAMIC: FactionConfig = {
       description:
         "Su-35 multirole air superiority fighter of the Islamic air force.",
     },
-    transport: {
-      name: "Il-76",
-      description:
-        "Il-76 transport aircraft: carries soldiers and vehicles; unarmed.",
-    },
+    helicopter: { name: "Mi-28", description: "Mi-28 attack helicopter of the Islamic army aviation: slower than a fighter; fires missiles at ground units, aircraft and structures; carries up to 8 soldiers (no vehicles). Built at the War Factory, it takes off and sets down anywhere on solid ground." },
     repair: {
-      name: "Type 90 II",
+      name: "Type 99II",
       description:
-        "Type 90 II armoured recovery vehicle: slow and unarmed; click a damaged friendly ground vehicle to drive up and repair it, or select damaged vehicles and click it to send them in for repair (5% of its max health every 2 s).",
-    },
-    tanker: {
-      name: "Boeing 707",
-      description:
-        "Boeing 707 aerial tanker: flies escort behind its Il-76 and keeps it fuelled; unarmed.",
+        "Type 99II armoured recovery vehicle: slow and unarmed; click a damaged friendly ground vehicle to drive up and repair it, or select damaged vehicles and click it to send them in for repair (5% of its max health every 2 s).",
     },
   },
 };

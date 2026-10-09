@@ -99,10 +99,11 @@ export function drawRepairSheet(ctx: CanvasRenderingContext2D, v: Vehicle, x: nu
   const blit = (col: number, row: number): void => ctx.drawImage(img, col * CELL, row * CELL, CELL, CELL, x - half, y - half, size, size);
   const prevSmooth = ctx.imageSmoothingEnabled;
   ctx.imageSmoothingEnabled = true;
-  ctx.save();
+  // Shadow at reduced alpha: set and put back directly (cheaper than save/restore for every vehicle every frame).
+  const alpha = ctx.globalAlpha;
   ctx.globalAlpha = 0.35;
   blit(d % PER_ROW, ROW.shadow + Math.floor(d / PER_ROW));
-  ctx.restore();
+  ctx.globalAlpha = alpha;
   if (v.mending) {
     // 8 work headings: every 4th of the 32 sheet directions.
     const d8 = Math.round(d / 4) % 8;

@@ -1,5 +1,5 @@
 import { demoPrice } from '../core/Demo';
-import { AVAILABLE_VEHICLES, BUILD_LIMIT_VEHICLES, MAX_GROUND_VEHICLES, MAX_TRANSPORTS, TECH_VEHICLES, VEHICLE_BASE, isAircraftKind } from '../constants';
+import { AVAILABLE_VEHICLES, BUILD_LIMIT_VEHICLES, MAX_GROUND_VEHICLES, MAX_TRANSPORTS, TECH_VEHICLES, VEHICLE_BASE, needsAirfield } from '../constants';
 import type { Building } from '../entities/Building';
 import type { EntityManager } from '../entities/EntityManager';
 import { FACTIONS } from '../factions';
@@ -20,7 +20,7 @@ export interface VehicleOption {
   needsAirfield: boolean;
 }
 
-const KINDS: readonly VehicleKind[] = ['light', 'tank', 'ifv', 'jet', 'bomber', 'transport', 'repair'];
+const KINDS: readonly VehicleKind[] = ['light', 'tank', 'ifv', 'jet', 'bomber', 'transport', 'repair', 'helicopter'];
 
 function vehicleOptions(faction: FactionId): VehicleOption[] {
   const f = FACTIONS[faction];
@@ -32,8 +32,8 @@ function vehicleOptions(faction: FactionId): VehicleOption[] {
     description: f.vehicles[kind as keyof typeof f.vehicles]?.description ?? '',
     cost: demoPrice(Math.round((VEHICLE_BASE[kind].cost * f.stats.cost) / 10) * 10),
     trainSeconds: VEHICLE_BASE[kind].trainSeconds + f.stats.trainDelay,
-    requires: isAircraftKind(kind) ? 'airfield' : 'warFactory',
-    needsAirfield: isAircraftKind(kind),
+    requires: needsAirfield(kind) ? 'airfield' : 'warFactory',
+    needsAirfield: needsAirfield(kind),
   }));
 }
 
@@ -89,7 +89,7 @@ export class VehicleSystem implements GameSystem {
 
   /** Why `kind` cannot be ordered right now (ground vehicle without a War Factory / aircraft without an Airfield), or null. */
   private missingBuilding(player: PlayerState, kind: VehicleKind): 'noFactory' | 'noAirfield' | null {
-    if (isAircraftKind(kind)) {
+    if (needsAirfield(kind)) {
       if (!this.producerOf(player, 'airfield')) return 'noAirfield';
     } else if (!this.producerOf(player, 'warFactory')) return 'noFactory';
     return null;
@@ -97,7 +97,7 @@ export class VehicleSystem implements GameSystem {
 
   /** Where the finished machine appears: the War Factory for vehicles, an Airfield for aircraft. */
   private deliveryPoint(player: PlayerState, kind: VehicleKind): Building | null {
-    return this.producerOf(player, isAircraftKind(kind) ? 'airfield' : 'warFactory');
+    return this.producerOf(player, needsAirfield(kind) ? 'airfield' : 'warFactory');
   }
 
   /** Aircraft parking spots: PARKING_SLOTS per living airfield. */
@@ -112,12 +112,12 @@ export class VehicleSystem implements GameSystem {
    */
   parkingFree(player: PlayerState): number {
     // A transport on order needs two spots: one for itself and one for the tanker that comes with it.
-    const ordered = this.queue(player).items.reduce((n, k) => n + (k === 'transport' ? 2 : isAircraftKind(k) ? 1 : 0), 0);
+    const ordered = this.queue(player).items.reduce((n, k) => n + (k === 'transport' ? 2 : needsAirfield(k) ? 1 : 0), 0);
     return this.parkingCapacity(player) - this.aircraftOwned(player) - ordered;
   }
 
   private aircraftOwned(player: PlayerState): number {
-    return this.entities.vehicles().filter((v) => v.owner === player.id && v.alive && v.aircraft).length;
+    return this.entities.vehicles().filter((v) => v.owner === player.id && v.alive && needsAirfield(v.type)).length;
   }
 
   /** Second-tier vehicles need a High-Tech Center. */
@@ -134,8 +134,8 @@ export class VehicleSystem implements GameSystem {
     if (TECH_VEHICLES.includes(kind) && !this.hasTech(player)) return 'tech';
     // BuildLimit: only the orders waiting are limited, not the vehicles the nation owns.
     if (!AVAILABLE_VEHICLES.includes(kind) || q.items.length >= BUILD_LIMIT_VEHICLES) return 'full';
-    if (isAircraftKind(kind) && this.parkingFree(player) < (kind === 'transport' ? 2 : 1)) return 'noParking';
-    if (!isAircraftKind(kind) && this.groundCount(player) >= MAX_GROUND_VEHICLES) return 'cap';
+    if (needsAirfield(kind) && this.parkingFree(player) < (kind === 'transport' ? 2 : 1)) return 'noParking';
+    if (!needsAirfield(kind) && this.groundCount(player) >= MAX_GROUND_VEHICLES) return 'cap';
     if (kind === 'transport' && this.transportCount(player) >= MAX_TRANSPORTS) return 'transportCap';
     q.items.push(kind);
     if (q.state === 'idle') q.state = 'building';
@@ -149,10 +149,10 @@ export class VehicleSystem implements GameSystem {
     return n;
   }
 
-  /** Ground vehicles of the nation (alive anywhere, aboard transports too) plus those on order; aircraft excluded. */
+  /** Ground vehicles and helicopters of the nation (alive anywhere, aboard transports too) plus those on order; airfield aircraft excluded. */
   groundCount(player: PlayerState): number {
-    let n = this.queue(player).items.filter((k) => !isAircraftKind(k)).length;
-    for (const v of this.entities.vehicles()) if (v.owner === player.id && v.alive && !v.aircraft) n++;
+    let n = this.queue(player).items.filter((k) => !needsAirfield(k)).length;
+    for (const v of this.entities.vehicles()) if (v.owner === player.id && v.alive && !needsAirfield(v.type)) n++;
     return n;
   }
 

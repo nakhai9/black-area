@@ -176,7 +176,7 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 </table>
 <ul>
   <li>Giá thực = <code>round(giá × cost phe / 10) × 10</code> (trừ <code>fixedCost</code>).</li>
-  <li>Đặt: chỉ trên đất liền, vùng xây được, không chồng lấn, không trên cây (<code>PlacementSystem</code>, <code>TileMap.placementBlocker</code>). R xoay 90°.</li>
+  <li>Đặt: chỉ trên đất liền, vùng xây được, không chồng lấn, không trên cây (<code>PlacementSystem</code>, <code>TileMap.placementBlocker</code>).</li>
   <li>Hospital: tối đa <code>HOSPITAL_CAPACITY 20</code> người bị thương cùng phe, hồi <code>HOSPITAL_HEAL_PER_SECOND 10</code> HP/s.</li>
   <li>Airfield: <code>PARKING_SLOTS = 9</code> chỗ đỗ; số máy bay (có + đặt) ≤ 9 × số airfield. Máy bay đỗ sửa 2% HP mỗi 4 s. Mất airfield: máy bay tìm airfield khác của phe; không còn cái nào thì rơi.</li>
   <li>High-Tech Center mở <code>TECH_TIERS</code> (<code>special</code>, <code>demolition</code>) và <code>transport</code>.</li>
@@ -195,7 +195,7 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 <tr><td><code>airfield</code></td><td>Sản xuất máy bay (jet, bomber, transport) và là nơi đỗ: 9 chỗ, số máy bay ≤ 9 × số airfield. Sửa máy bay đỗ 2% HP mỗi 4 s, nạp bom (trả tiền). Có airfield thì radar sidebar mới hoạt động. Mất airfield: máy bay tìm airfield khác, không có thì rơi.</td></tr>
 <tr><td><code>techCenter</code> (High-Tech Center)</td><td>Khi còn đứng: mở lính <code>special</code>, <code>demolition</code> và máy bay <code>transport</code>. Mất nó thì đơn hàng các loại này dừng (không trừ tiền) cho tới khi có lại.</td></tr>
 <tr><td><code>happyCity</code></td><td>Khoản đầu tư kinh tế: mỗi thành phố nộp 500 TB thuế / 60 s (theo máu còn lại), mỗi thành phố một đồng hồ riêng. Không giới hạn số lượng; bị chiếm thì thuế về phe mới.</td></tr>
-<tr><td><code>flagpole</code></td><td>Cột cờ quốc gia, tính là công trình của phe (mở rộng vùng được xây). Đội Squatters cắm cờ (phím F) trên đất chưa ai sở hữu sẽ tạo cột cờ đánh dấu đất đó là của mình.</td></tr>
+<tr><td><code>flagpole</code></td><td>Cột cờ quốc gia, tính là công trình của phe (mở rộng vùng được xây). Đội Squatters cắm cờ (double-click vào đội khi đang đứng yên) trên đất chưa ai sở hữu sẽ tạo cột cờ đánh dấu đất đó là của mình.</td></tr>
 <tr><td><code>alliedBuilding</code> (Allied Building)</td><td>Trụ sở đồng minh, chỉ xây trên đất đã cắm cờ bằng Squatters; mỗi phe tối đa 3. Hiện chỉ là công trình (chưa có kinh tế đồng minh), hiện ở tab Allies.</td></tr>
 <tr><td><code>oilDerrick</code></td><td>Nguồn thu chính: bơm dầu vào kho (0.08 thùng/s, bơm 180 s nghỉ 60 s), dầu đem bán cho Center lấy TB hoặc đốt ra điện. Đặt sẵn, không xây được. Giếng <code>bankManaged</code> và giếng Islamic không phá / chiếm được; giếng Islamic cho phe khác thuê bằng engineer.</td></tr>
 <tr><td><code>WorldBank</code> (Global Financial Center, Zürich)</td><td>Trung lập, không phá / chiếm / vào được. Mua dầu, đặt giá dầu chung, cho vay khẩn cấp, ép bán dầu cho lưới điện thiếu, trả tiền thưởng tha quân rút lui.</td></tr>
@@ -208,7 +208,7 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 <tr><td><code>regular</code></td><td>200</td><td>5</td><td>125</td><td>1.4</td><td>Lính thường, rifle.</td></tr>
 <tr><td><code>special</code></td><td>500</td><td>10</td><td>200</td><td>1.7</td><td>Rifle. Cần Tech Center; bơi được. Elite ≤ <code>eliteCap = floor(regular × 2/3)</code>.</td></tr>
 <tr><td><code>engineer</code></td><td>400</td><td>6</td><td>100</td><td>1.3</td><td>Sửa / chiếm công trình; thuê giếng Islamic.</td></tr>
-<tr><td><code>squatters</code></td><td>1400</td><td>12</td><td>320</td><td>1.4</td><td>Người cầm cờ + hộ tống tính là 1. Phải được chở bằng transport tới đất chưa ai sở hữu (không phải Nam Cực), phím F cắm cờ → thành <code>Flagpole</code>, đội biến mất.</td></tr>
+<tr><td><code>squatters</code></td><td>1400</td><td>12</td><td>320</td><td>1.4</td><td>Người cầm cờ + hộ tống tính là 1. Đi bộ hoặc được chở tới đất chưa ai sở hữu (không phải Nam Cực), double-click vào đội khi đứng yên để cắm cờ → thành <code>Flagpole</code>, đội biến mất.</td></tr>
 <tr><td><code>demolition</code></td><td>900</td><td>10</td><td>110</td><td>1.6</td><td>"Crazy Soldier", chỉ Islamic, cần Tech Center. <b>Hiện không luyện được vì Islamic <code>peaceful</code>.</b></td></tr>
 </table>
 <p>Crazy Soldier (<code>DEMO_*</code>, <code>Game.processDemolition</code> / <code>detonate</code>): chạy tới mục tiêu, đặt bom trong <code>1.5</code> ô rồi đi tiếp; nạp lại <code>5</code> s; bom nổ sau <code>4</code> s. Công trình ≤ 16 ô bị phá, lớn hơn mất 40% máu tối đa; đơn vị chiến đấu địch trong <code>2.5</code> ô: ≤ 8 chết hết, &gt; 8 chết một nửa (gần nhất).</p>
@@ -219,7 +219,7 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 <tr><td><code>jet</code></td><td>1600</td><td>16</td><td>220</td><td>9</td><td>missile + 2 bom</td><td>Airfield</td><td></td></tr>
 <tr><td><code>bomber</code></td><td>2600</td><td>22</td><td>380</td><td>8.5</td><td>bomb</td><td>Airfield</td><td>chỉ USA B-52, Russia Tu-16</td></tr>
 <tr><td><code>transport</code></td><td>1400</td><td>14</td><td>260</td><td>5.5</td><td>không</td><td>Airfield, cần Tech Center</td><td></td></tr>
-<tr><td><code>repair</code></td><td>800</td><td>10</td><td>360</td><td>1.0</td><td>không</td><td>War Factory</td><td>Russia BREM-1, USA &amp; Europe ARV, China &amp; Islamic Type 90 II; sửa xe mặt đất phe mình</td></tr>
+<tr><td><code>repair</code></td><td>800</td><td>10</td><td>360</td><td>1.0</td><td>không</td><td>War Factory</td><td>Russia BREM-1, USA &amp; Europe M88, China &amp; Islamic Type 99II; sửa xe mặt đất phe mình</td></tr>
 <tr><td><code>tanker</code></td><td>0</td><td>0</td><td>160</td><td>6</td><td>không</td><td>đi kèm transport</td><td>không bán riêng</td></tr>
 </table>
 
@@ -231,12 +231,13 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 <tr><td>Lính thường (<code>regular</code>)</td><td><b>GI</b></td><td>Lính bộ binh đa năng của Mỹ — xương sống của quân Đồng minh.</td></tr>
 <tr><td>Đặc nhiệm (<code>special</code>)</td><td><b>Ranger</b></td><td>Bộ binh tinh nhuệ: nhanh, chính xác và rất nguy hiểm ở cự ly gần.</td></tr>
 <tr><td>Kỹ sư (<code>engineer</code>)</td><td><b>Engineer</b></td><td>Kỹ sư Lục quân Mỹ: sửa công trình và chiếm công trình địch.</td></tr>
-<tr><td>Squatters (<code>squatters</code>)</td><td><b>Squatters</b></td><td>Người cầm cờ Mỹ và lính hộ tống, đi cùng nhau như một đơn vị: đi bộ (hoặc được máy bay vận tải chở) tới đất chưa ai sở hữu, cắm quốc kỳ ở đó (phím F) — xong nhiệm vụ thì cả đội biến mất.</td></tr>
+<tr><td>Squatters (<code>squatters</code>)</td><td><b>Squatters</b></td><td>Người cầm cờ Mỹ và lính hộ tống, đi cùng nhau như một đơn vị: đi bộ (hoặc được máy bay vận tải chở) tới đất chưa ai sở hữu, cắm quốc kỳ ở đó (double-click vào đội khi đang đứng yên) — xong nhiệm vụ thì cả đội biến mất.</td></tr>
 <tr><td>Xe tăng (<code>tank</code>)</td><td><b>Abrams</b></td><td>Xe tăng chủ lực M1 Abrams: giáp dày, pháo mạnh.</td></tr>
-<tr><td>Tiêm kích (<code>jet</code>)</td><td><b>F-35</b></td><td>Tiêm kích đa năng tàng hình F-35 Lightning II.</td></tr>
+<tr><td>Tiêm kích (<code>jet</code>)</td><td><b>F-22</b></td><td>Tiêm kích chiếm ưu thế trên không tàng hình F-22 Raptor.</td></tr>
+<tr><td>Trực thăng tấn công (<code>helicopter</code>)</td><td><b>AH-64 Apache</b></td><td>Trực thăng tấn công AH-64 Apache: chậm hơn tiêm kích; bắn tên lửa vào quân mặt đất, máy bay và công trình; chở tối đa 8 lính (không chở xe). Sản xuất ở War Factory, không cần sân bay: cất cánh và hạ cánh ở bất kỳ đâu trên mặt đất.</td></tr>
 <tr><td>Máy bay ném bom (<code>bomber</code>)</td><td><b>B-52</b></td><td>Máy bay ném bom hạng nặng tầm xa B-52 Stratofortress, chỉ USA có: bom nặng san phẳng quân mặt đất và công trình; không bắn được máy bay.</td></tr>
 <tr><td>Máy bay vận tải (<code>transport</code>)</td><td><b>C-17</b></td><td>Máy bay vận tải hạng nặng: chở lính và xe; không vũ khí.</td></tr>
-<tr><td>Xe sửa chữa (<code>repair</code>)</td><td><b>ARV</b></td><td>Xe cứu kéo bọc thép ARV: chậm, không vũ khí; click vào xe mặt đất phe mình đang hỏng để chạy tới sửa (hoặc chọn xe hỏng rồi click vào nó) (5% máu tối đa mỗi 2 s).</td></tr>
+<tr><td>Xe sửa chữa (<code>repair</code>)</td><td><b>M88</b></td><td>Xe cứu kéo bọc thép M88: chậm, không vũ khí; click vào xe mặt đất phe mình đang hỏng để chạy tới sửa (hoặc chọn xe hỏng rồi click vào nó) (5% máu tối đa mỗi 2 s).</td></tr>
 <tr><td>Máy bay tiếp dầu (<code>tanker</code>)</td><td><b>KC-46</b></td><td>Máy bay tiếp dầu KC-46 Pegasus: bay hộ tống C-17 và tiếp nhiên liệu cho nó; không vũ khí.</td></tr>
 </table>
 <h4>Russia</h4>
@@ -245,9 +246,10 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 <tr><td>Lính thường (<code>regular</code>)</td><td><b>Red Army</b></td><td>Lính nghĩa vụ Nga đông đảo, chịu lạnh tốt.</td></tr>
 <tr><td>Đặc nhiệm (<code>special</code>)</td><td><b>Spetsnaz</b></td><td>Biệt kích đặc nhiệm chuyên phá hoại và đột kích.</td></tr>
 <tr><td>Kỹ sư (<code>engineer</code>)</td><td><b>Engineer</b></td><td>Công binh Nga: sửa công trình và chiếm công trình địch.</td></tr>
-<tr><td>Squatters (<code>squatters</code>)</td><td><b>Squatters</b></td><td>Người cầm cờ Nga và lính hộ tống, đi cùng nhau như một đơn vị: được máy bay vận tải chở tới đất chưa ai sở hữu, cắm quốc kỳ ở đó (phím F) — xong nhiệm vụ thì cả đội biến mất.</td></tr>
+<tr><td>Squatters (<code>squatters</code>)</td><td><b>Squatters</b></td><td>Người cầm cờ Nga và lính hộ tống, đi cùng nhau như một đơn vị: đi bộ (hoặc được máy bay vận tải chở) tới đất chưa ai sở hữu, cắm quốc kỳ ở đó (double-click vào đội khi đang đứng yên) — xong nhiệm vụ thì cả đội biến mất.</td></tr>
 <tr><td>Xe tăng (<code>tank</code>)</td><td><b>T-90</b></td><td>Xe tăng chủ lực T-90, bền và bắn xa.</td></tr>
 <tr><td>Tiêm kích (<code>jet</code>)</td><td><b>Su-57</b></td><td>Tiêm kích chiếm ưu thế trên không tàng hình Su-57.</td></tr>
+<tr><td>Trực thăng tấn công (<code>helicopter</code>)</td><td><b>Mi-28</b></td><td>Trực thăng tấn công Mi-28: chậm hơn tiêm kích; bắn tên lửa vào quân mặt đất, máy bay và công trình; chở tối đa 8 lính (không chở xe). Sản xuất ở War Factory, không cần sân bay: cất cánh và hạ cánh ở bất kỳ đâu trên mặt đất.</td></tr>
 <tr><td>Máy bay ném bom (<code>bomber</code>)</td><td><b>Tu-16</b></td><td>Máy bay ném bom chiến lược Tu-16, chỉ Russia có: bom nặng san phẳng quân mặt đất và công trình; không bắn được máy bay.</td></tr>
 <tr><td>Máy bay vận tải (<code>transport</code>)</td><td><b>Il-76</b></td><td>Máy bay vận tải quân sự Il-76: chở lính và xe; không vũ khí.</td></tr>
 <tr><td>Xe sửa chữa (<code>repair</code>)</td><td><b>BREM-1</b></td><td>Xe cứu kéo bọc thép BREM-1, chỉ Russia có: chậm, không vũ khí; click vào xe mặt đất phe mình đang hỏng để chạy tới sửa (hoặc chọn xe hỏng rồi click vào nó) (5% máu tối đa mỗi 2 s).</td></tr>
@@ -259,11 +261,11 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 <tr><td>Lính thường (<code>regular</code>)</td><td><b>PLA</b></td><td>Bộ binh chủ lực Trung Quốc có kỷ luật, rẻ và đông.</td></tr>
 <tr><td>Đặc nhiệm (<code>special</code>)</td><td><b>Tiger</b></td><td>Biệt kích thuỷ quân lục chiến tinh nhuệ, huấn luyện đổ bộ.</td></tr>
 <tr><td>Kỹ sư (<code>engineer</code>)</td><td><b>Engineer</b></td><td>Kỹ sư PLA: sửa công trình và chiếm công trình địch.</td></tr>
-<tr><td>Squatters (<code>squatters</code>)</td><td><b>Squatters</b></td><td>Người cầm cờ PLA và lính hộ tống, đi cùng nhau như một đơn vị: được máy bay vận tải chở tới đất chưa ai sở hữu, cắm quốc kỳ ở đó (phím F) — xong nhiệm vụ thì cả đội biến mất.</td></tr>
+<tr><td>Squatters (<code>squatters</code>)</td><td><b>Squatters</b></td><td>Người cầm cờ PLA và lính hộ tống, đi cùng nhau như một đơn vị: đi bộ (hoặc được máy bay vận tải chở) tới đất chưa ai sở hữu, cắm quốc kỳ ở đó (double-click vào đội khi đang đứng yên) — xong nhiệm vụ thì cả đội biến mất.</td></tr>
 <tr><td>Xe tăng (<code>tank</code>)</td><td><b>Type 99</b></td><td>Xe tăng chủ lực Type 99, sản xuất số lượng lớn.</td></tr>
 <tr><td>Tiêm kích (<code>jet</code>)</td><td><b>J-15</b></td><td>Tiêm kích đa năng J-15 trên tàu sân bay.</td></tr>
 <tr><td>Máy bay vận tải (<code>transport</code>)</td><td><b>Y-20</b></td><td>Máy bay vận tải hạng nặng Y-20: chở lính và xe; không vũ khí.</td></tr>
-<tr><td>Xe sửa chữa (<code>repair</code>)</td><td><b>Type 90 II</b></td><td>Xe cứu kéo bọc thép Type 90 II: chậm, không vũ khí; click vào xe mặt đất phe mình đang hỏng để chạy tới sửa (hoặc chọn xe hỏng rồi click vào nó) (5% máu tối đa mỗi 2 s).</td></tr>
+<tr><td>Xe sửa chữa (<code>repair</code>)</td><td><b>Type 99II</b></td><td>Xe cứu kéo bọc thép Type 99II: chậm, không vũ khí; click vào xe mặt đất phe mình đang hỏng để chạy tới sửa (hoặc chọn xe hỏng rồi click vào nó) (5% máu tối đa mỗi 2 s).</td></tr>
 <tr><td>Máy bay tiếp dầu (<code>tanker</code>)</td><td><b>YY-20</b></td><td>Máy bay tiếp dầu YY-20: bay hộ tống Y-20 và tiếp nhiên liệu cho nó; không vũ khí.</td></tr>
 </table>
 <h4>Europe</h4>
@@ -272,11 +274,12 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 <tr><td>Lính thường (<code>regular</code>)</td><td><b>Eurocorps</b></td><td>Bộ binh liên quân châu Âu, trang bị hiện đại.</td></tr>
 <tr><td>Đặc nhiệm (<code>special</code>)</td><td><b>EU Spec</b></td><td>Đặc nhiệm châu Âu — xạ thủ chính xác tầm xa.</td></tr>
 <tr><td>Kỹ sư (<code>engineer</code>)</td><td><b>Engineer</b></td><td>Kỹ sư EU: sửa công trình và chiếm công trình địch.</td></tr>
-<tr><td>Squatters (<code>squatters</code>)</td><td><b>Squatters</b></td><td>Người cầm cờ EU và lính hộ tống, đi cùng nhau như một đơn vị: được máy bay vận tải chở tới đất chưa ai sở hữu, cắm quốc kỳ ở đó (phím F) — xong nhiệm vụ thì cả đội biến mất.</td></tr>
+<tr><td>Squatters (<code>squatters</code>)</td><td><b>Squatters</b></td><td>Người cầm cờ EU và lính hộ tống, đi cùng nhau như một đơn vị: đi bộ (hoặc được máy bay vận tải chở) tới đất chưa ai sở hữu, cắm quốc kỳ ở đó (double-click vào đội khi đang đứng yên) — xong nhiệm vụ thì cả đội biến mất.</td></tr>
 <tr><td>Xe tăng (<code>tank</code>)</td><td><b>Leopard 2</b></td><td>Xe tăng chủ lực Leopard 2, chính xác và được bảo vệ tốt.</td></tr>
 <tr><td>Tiêm kích (<code>jet</code>)</td><td><b>Rafale</b></td><td>Tiêm kích đa năng Dassault Rafale.</td></tr>
+<tr><td>Trực thăng tấn công (<code>helicopter</code>)</td><td><b>AH-64 Apache</b></td><td>Trực thăng tấn công AH-64 Apache: chậm hơn tiêm kích; bắn tên lửa vào quân mặt đất, máy bay và công trình; chở tối đa 8 lính (không chở xe). Sản xuất ở War Factory, không cần sân bay: cất cánh và hạ cánh ở bất kỳ đâu trên mặt đất.</td></tr>
 <tr><td>Máy bay vận tải (<code>transport</code>)</td><td><b>C-130</b></td><td>Máy bay vận tải C-130: chở lính và xe; không vũ khí.</td></tr>
-<tr><td>Xe sửa chữa (<code>repair</code>)</td><td><b>ARV</b></td><td>Xe cứu kéo bọc thép ARV: chậm, không vũ khí; click vào xe mặt đất phe mình đang hỏng để chạy tới sửa (hoặc chọn xe hỏng rồi click vào nó) (5% máu tối đa mỗi 2 s).</td></tr>
+<tr><td>Xe sửa chữa (<code>repair</code>)</td><td><b>M88</b></td><td>Xe cứu kéo bọc thép M88: chậm, không vũ khí; click vào xe mặt đất phe mình đang hỏng để chạy tới sửa (hoặc chọn xe hỏng rồi click vào nó) (5% máu tối đa mỗi 2 s).</td></tr>
 <tr><td>Máy bay tiếp dầu (<code>tanker</code>)</td><td><b>A330 MRTT</b></td><td>Máy bay tiếp dầu A330 MRTT: bay hộ tống C-130 và tiếp nhiên liệu cho nó; không vũ khí.</td></tr>
 </table>
 <h4>Islamic</h4>
@@ -285,13 +288,12 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 <tr><td>Lính thường (<code>regular</code>)</td><td><b>Basij</b></td><td>Lính bộ binh tình nguyện của thế giới Hồi giáo, đông và quyết tâm.</td></tr>
 <tr><td>Đặc nhiệm (<code>special</code>)</td><td><b>Quds Force</b></td><td>Đặc nhiệm Hồi giáo tinh nhuệ.</td></tr>
 <tr><td>Kỹ sư (<code>engineer</code>)</td><td><b>Engineer</b></td><td>Công binh chiến đấu Hồi giáo: sửa công trình và chiếm công trình địch.</td></tr>
-<tr><td>Squatters (<code>squatters</code>)</td><td><b>Squatters</b></td><td>Người cầm cờ Islamic và lính hộ tống, đi cùng nhau như một đơn vị: được máy bay vận tải chở tới đất chưa ai sở hữu, cắm quốc kỳ ở đó (phím F) — xong nhiệm vụ thì cả đội biến mất.</td></tr>
+<tr><td>Squatters (<code>squatters</code>)</td><td><b>Squatters</b></td><td>Người cầm cờ Islamic và lính hộ tống, đi cùng nhau như một đơn vị: đi bộ (hoặc được máy bay vận tải chở) tới đất chưa ai sở hữu, cắm quốc kỳ ở đó (double-click vào đội khi đang đứng yên) — xong nhiệm vụ thì cả đội biến mất.</td></tr>
 <tr><td>Crazy Soldier (phá hoại) (<code>demolition</code>)</td><td><b>Crazy Soldier</b></td><td>Chuyên gia phá hoại, giống Crazy Ivan: chạy tới công trình hoặc đơn vị địch và đặt bom hẹn giờ. Công trình nhỏ bị phá huỷ, lớn mất 40% máu; nhóm ≤ 8 đơn vị chiến đấu chết hết, nhóm lớn hơn mất một nửa. Cần High-Tech Center.</td></tr>
 <tr><td>Xe tăng (<code>tank</code>)</td><td><b>Karrar</b></td><td>Xe tăng chủ lực Karrar, giáp nặng của thế giới Hồi giáo.</td></tr>
 <tr><td>Tiêm kích (<code>jet</code>)</td><td><b>Su-35</b></td><td>Tiêm kích đa năng chiếm ưu thế trên không Su-35 của không quân Hồi giáo.</td></tr>
-<tr><td>Máy bay vận tải (<code>transport</code>)</td><td><b>Il-76</b></td><td>Máy bay vận tải Il-76: chở lính và xe; không vũ khí.</td></tr>
-<tr><td>Xe sửa chữa (<code>repair</code>)</td><td><b>Type 90 II</b></td><td>Xe cứu kéo bọc thép Type 90 II: chậm, không vũ khí; click vào xe mặt đất phe mình đang hỏng để chạy tới sửa (hoặc chọn xe hỏng rồi click vào nó) (5% máu tối đa mỗi 2 s).</td></tr>
-<tr><td>Máy bay tiếp dầu (<code>tanker</code>)</td><td><b>Boeing 707</b></td><td>Máy bay tiếp dầu Boeing 707: bay hộ tống Il-76 và tiếp nhiên liệu cho nó; không vũ khí.</td></tr>
+<tr><td>Trực thăng tấn công (<code>helicopter</code>)</td><td><b>Mi-28</b></td><td>Trực thăng tấn công Mi-28: chậm hơn tiêm kích; bắn tên lửa vào quân mặt đất, máy bay và công trình; chở tối đa 8 lính (không chở xe). Sản xuất ở War Factory, không cần sân bay: cất cánh và hạ cánh ở bất kỳ đâu trên mặt đất.</td></tr>
+<tr><td>Xe sửa chữa (<code>repair</code>)</td><td><b>Type 99II</b></td><td>Xe cứu kéo bọc thép Type 99II: chậm, không vũ khí; click vào xe mặt đất phe mình đang hỏng để chạy tới sửa (hoặc chọn xe hỏng rồi click vào nó) (5% máu tối đa mỗi 2 s).</td></tr>
 </table>
 <h4>Giá · máu · thời gian luyện thực tế theo phe</h4>
 <p>Tính từ <code>INFANTRY_BASE</code> / <code>VEHICLE_BASE</code> × hệ số phe: giá = <code>round(giá × cost / 10) × 10</code>, máu = <code>round(maxHp × armor)</code>, thời gian = gốc + <code>trainDelay</code>. Islamic hiện <code>peaceful</code> nên chưa luyện/sản xuất được.</p>
@@ -310,7 +312,7 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 </table>
 <h3>Xe sửa chữa (BREM-1, <code>REPAIR_VEHICLE_*</code>)</h3>
 <ul>
-  <li>Chỉ phe có <code>vehicles.repair</code> trong <code>src/factions/*.ts</code> (Russia: BREM-1; USA và Europe: ARV; China và Islamic: Type 90 II — Islamic đang <code>peaceful</code> nên chưa sản xuất được) mới sản xuất được, ở War Factory. Không vũ khí: không tự nhắm, không bắn; AI không dùng nó để đánh.</li>
+  <li>Chỉ phe có <code>vehicles.repair</code> trong <code>src/factions/*.ts</code> (Russia: BREM-1; USA và Europe: M88; China và Islamic: Type 99II — Islamic đang <code>peaceful</code> nên chưa sản xuất được) mới sản xuất được, ở War Factory. Không vũ khí: không tự nhắm, không bắn; AI không dùng nó để đánh.</li>
   <li>Lệnh 1 (xe sửa → xe hỏng): chọn (kéo khung) xe sửa, rồi <b>chuột trái</b> (hoặc chuột phải) vào xe <b>mặt đất</b> phe mình bị hỏng, chưa được chọn (không sửa lính, máy bay, công trình). Xe sửa chạy tới cạnh mục tiêu (bám theo nếu mục tiêu chạy đi, tính lại đường mỗi <code>REPAIR_VEHICLE_REPATH 1</code> s).</li>
   <li>Lệnh 2 (xe hỏng → xe sửa): chọn các xe mặt đất, rồi chuột trái (hoặc phải) vào một xe sửa phe mình chưa được chọn: mọi xe <b>đang hỏng</b> trong nhóm chạy tới xe sửa đó (xe đầy máu đứng yên); xe sửa đứng tại chỗ và sửa cùng lúc mọi xe đã tới trong tầm. Nếu trong nhóm không có xe hỏng, cú click chỉ chọn xe sửa như bình thường.</li>
   <li>Ngoài hai trường hợp trên, chuột trái vẫn chọn unit như cũ. Có thông báo (toast) khi ra lệnh.</li>

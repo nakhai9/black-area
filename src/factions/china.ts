@@ -69,7 +69,7 @@ export const CHINA: FactionConfig = {
     squatters: {
       name: "Squatters",
       description:
-        "PLA flag bearer and rifleman escort, moving as one: sent on foot or by transport to unclaimed land, they plant the national flag there (F key) — their mission done, they are gone.",
+        "PLA flag bearer and rifleman escort, moving as one: sent on foot or by transport to unclaimed land, they plant the national flag there (double-click the team once it stands still) — their mission done, they are gone.",
       look: {
         uniform: "#5b6a3a",
         trousers: "#47532c",
@@ -98,9 +98,9 @@ export const CHINA: FactionConfig = {
         "Y-20 heavy transport aircraft: carries soldiers and vehicles; unarmed.",
     },
     repair: {
-      name: "Type 90 II",
+      name: "Type 99II",
       description:
-        "Type 90 II armoured recovery vehicle: slow and unarmed; click a damaged friendly ground vehicle to drive up and repair it, or select damaged vehicles and click it to send them in for repair (5% of its max health every 2 s).",
+        "Type 99II armoured recovery vehicle: slow and unarmed; click a damaged friendly ground vehicle to drive up and repair it, or select damaged vehicles and click it to send them in for repair (5% of its max health every 2 s).",
     },
     tanker: {
       name: "YY-20",
