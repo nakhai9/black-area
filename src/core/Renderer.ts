@@ -21,6 +21,10 @@ import { IsoPainter } from '../render/IsoPainter';
 import type { Sprite, SpriteCache } from '../render/SpriteCache';
 import type { FactionId, Rect } from '../types';
 import type { Camera } from './Camera';
+import { drawBombBlast, drawBombFall } from '../render/BombSheets';
+import { drawMissile, drawMissileBlast } from '../render/MissileSheet';
+import { drawShell, drawShellImpact } from '../render/ShellSheet';
+import { drawCharge, drawDemolitionBlast } from '../render/DemolitionArt';
 
 /** Structure being positioned by the player (cells), with its legality. */
 export interface PlacementGhost {
@@ -278,7 +282,7 @@ export class Renderer {
     }
     // Effects are stored in iso px already.
     const isoIn = (x: number, y: number): boolean => x >= left && x <= right && y >= top && y <= bottom + margin;
-    if (scene.effects) this.drawEffects(scene.effects.filter((e) => (e.kind === 'tracer' ? isoIn(e.x0, e.y0) || isoIn(e.x1, e.y1) : isoIn(e.x, e.y))));
+    if (scene.effects) this.drawEffects(scene.effects.filter((e) => (e.kind === 'tracer' || e.kind === 'bombFall' || e.kind === 'missile' || e.kind === 'shell' ? isoIn(e.x0, e.y0) || isoIn(e.x1, e.y1) : isoIn(e.x, e.y))));
 
     const focused = this.focusedIds;
     focused.clear();
@@ -773,6 +777,27 @@ export class Renderer {
         ctx.globalAlpha = 1;
       } else if (e.kind === 'soldierDeath') {
         drawSoldierDeath(ctx, e.look, e.x, e.y, e.heading, e.age, e.ttl);
+      } else if (e.kind === 'charge') {
+        drawCharge(ctx, e.x, e.y, e.ttl - e.age);
+      } else if (e.kind === 'demoBlast') {
+        if (!drawDemolitionBlast(ctx, e.x, e.y, t)) {
+          const r = 16 * (0.35 + t * 0.9);
+          ctx.globalAlpha = 1 - t;
+          ctx.drawImage(blastSprite(), e.x - r, e.y - r, r * 2, r * 2);
+          ctx.globalAlpha = 1;
+        }
+      } else if (e.kind === 'shell') {
+        drawShell(ctx, e.x0, e.y0, e.x1, e.y1, t, e.age);
+      } else if (e.kind === 'shellImpact') {
+        drawShellImpact(ctx, e.x, e.y, e.age, e.ttl, e.armour);
+      } else if (e.kind === 'missile') {
+        drawMissile(ctx, e.x0, e.y0, e.x1, e.y1, t, e.age);
+      } else if (e.kind === 'missileBlast') {
+        drawMissileBlast(ctx, e.x, e.y, e.age, e.ttl, e.air);
+      } else if (e.kind === 'bombFall') {
+        drawBombFall(ctx, e.faction, e.x0, e.y0, e.x1, e.y1, e.gx, e.gy, t);
+      } else if (e.kind === 'bombBlast') {
+        drawBombBlast(ctx, e.faction, e.x, e.y, e.age, e.ttl);
       } else if (e.kind === 'tankDeath') {
         drawTankDeath(ctx, e.faction, e.x, e.y, e.age, e.ttl);
       } else {

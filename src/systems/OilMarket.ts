@@ -11,7 +11,10 @@ import {
   OIL_FLOW_WEIGHT,
   OIL_MOOD_MAX,
   OIL_MOOD_PULL,
+  OIL_LEASE_CARTEL_SHARE,
   OIL_MOOD_STEP,
+  OIL_POLICIES,
+  OIL_POLICY_COOLDOWN,
   OIL_PRICE_EASE,
   OIL_PRICE_INTERVAL,
   OIL_PRICE_MAX,
@@ -26,13 +29,16 @@ import {
 } from '../constants';
 import { mulberry32 } from '../core/Random';
 import type { EntityManager } from '../entities/EntityManager';
-import type { FactionId, PlayerState } from '../types';
+import { FACTIONS } from '../factions';
+import type { FactionId, OilPolicy, PlayerState } from '../types';
 import { BUILD_OPTIONS, buildCost } from './ConstructionSystem';
 import type { GameSystem } from './GameSystem';
 
 export type SaleResult =
-  | { kind: 'sold'; barrels: number; price: number; revenue: number; repaid: number }
+  | { kind: 'sold'; barrels: number; price: number; revenue: number; repaid: number; royalty: number }
   | { kind: 'declined'; reason: string };
+
+export type PolicyResult = { kind: 'set'; policy: OilPolicy } | { kind: 'refused'; reason: string };
 
 export type LoanResult = { kind: 'granted'; amount: number; debt: number } | { kind: 'refused'; reason: string };
 
@@ -69,6 +75,9 @@ export class OilMarket implements GameSystem {
   private readonly offers = new Map<number, number>();
   /** Offers made in the current burst, per player (see OIL_SALE_BURST). */
   private readonly streak = new Map<number, number>();
+  /** The oil cartel's production policy (see OIL_POLICIES) and when it last changed (market time). */
+  policy: OilPolicy = 'hold';
+  private policyAt = -Infinity;
 
   constructor(
     private readonly players: readonly PlayerState[],
@@ -104,7 +113,38 @@ export class OilMarket implements GameSystem {
   balancePrice(): number {
     const wealth = Math.pow((OIL_WEALTH_REF + this.averageWealth()) / OIL_WEALTH_REF, OIL_WEALTH_WEIGHT);
     const flow = Math.pow((OIL_FLOW_REF + this.bought) / (OIL_FLOW_REF + this.sold), OIL_FLOW_WEIGHT);
-    return OIL_PRICE_START * wealth * flow;
+    return OIL_PRICE_START * wealth * flow * this.cartelPriceFactor();
+  }
+
+  /** Is `player`'s nation the oil cartel (and still in the war)? */
+  isCartel(player: PlayerState): boolean {
+    return FACTIONS[player.faction].oilCartel === true && !player.defeated;
+  }
+
+  /** The cartel's policy pushes the world price only while a cartel nation is still in the war. */
+  private cartelPriceFactor(): number {
+    return this.players.some((p) => this.isCartel(p)) ? OIL_POLICIES[this.policy].price : 1;
+  }
+
+  /** Derrick output multiplier for `player`: the cartel pumps by its policy, everybody else at 100%. */
+  outputFactor(player: PlayerState): number {
+    return this.isCartel(player) ? OIL_POLICIES[this.policy].output : 1;
+  }
+
+  /** Seconds until the cartel may change its policy again (0 = now). */
+  policyWait(): number {
+    return Math.max(0, Math.ceil(OIL_POLICY_COOLDOWN - (this.now - this.policyAt)));
+  }
+
+  /** The cartel nation sets its production policy (at most once every OIL_POLICY_COOLDOWN s). */
+  setPolicy(player: PlayerState, policy: OilPolicy): PolicyResult {
+    if (!this.isCartel(player)) return { kind: 'refused', reason: 'only the oil cartel sets production policy' };
+    if (policy === this.policy) return { kind: 'refused', reason: `the policy is already "${OIL_POLICIES[policy].label}"` };
+    const wait = this.policyWait();
+    if (wait > 0) return { kind: 'refused', reason: `the cartel can change policy again in ${wait} s` };
+    this.policy = policy;
+    this.policyAt = this.now;
+    return { kind: 'set', policy };
   }
 
   private reprice(): void {
@@ -147,10 +187,16 @@ export class OilMarket implements GameSystem {
     const appetite = 1 - (0.6 * this.price) / OIL_PRICE_MAX; // 1 at a price of 0 … 0.4 at the maximum
     const barrels = Math.min(stock, stock * WB_MAX_SHARE * appetite);
     const revenue = Math.round(barrels * this.price);
+    // The leased part of the stock sells in proportion; the oil's owner (the leasing nation) takes its share of that money.
+    const leasedShare = player.oil > 0 ? Math.min(1, (player.leasedOil ?? 0) / player.oil) : 0;
+    const lessor = this.players.find((p) => p !== player && !p.defeated && FACTIONS[p.faction].leasesOil === true);
+    const royalty = lessor ? Math.round(revenue * leasedShare * OIL_LEASE_CARTEL_SHARE) : 0;
     player.oil -= barrels;
+    player.leasedOil = Math.max(0, (player.leasedOil ?? 0) - barrels * leasedShare);
     this.sold += barrels;
-    const repaid = this.receive(player, revenue);
-    return { kind: 'sold', barrels, price: this.price, revenue, repaid };
+    if (lessor && royalty > 0) this.receive(lessor, royalty);
+    const repaid = this.receive(player, revenue - royalty);
+    return { kind: 'sold', barrels, price: this.price, revenue: revenue - royalty, repaid, royalty };
   }
 
   /**

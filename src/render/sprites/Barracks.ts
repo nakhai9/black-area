@@ -4,6 +4,7 @@ import { shade } from '../Color';
 import { drawFlagOnPole, drawNationalPole } from '../Flags';
 import { type IsoPainter, LIGHT, type Vec3 } from '../IsoPainter';
 import type { BuildingArt } from './BuildingArt';
+import { iwan } from './GrandMosque';
 
 const GLASS = '#3d4650';
 const LAWN = '#5f8f45';
@@ -290,11 +291,86 @@ function glassHq(p: IsoPainter, team: FactionColors): void {
   }
 }
 
+/** Merlons along the top of a wall box, `n` of them, on its long axis. */
+function merlons(p: IsoPainter, u: number, v: number, w: number, d: number, z: number, n: number, color: string): void {
+  const alongU = w >= d;
+  const len = alongU ? w : d;
+  const step = len / n;
+  for (let i = 0; i < n; i++) {
+    const s = i * step + step * 0.2;
+    if (alongU) p.box(u + s, v, step * 0.6, d, z, 3, color, { edge: null });
+    else p.box(u, v + s, w, step * 0.6, z, 3, color, { edge: null });
+  }
+}
+
+/** Round corner tower of mud brick with a crenellated top. */
+function fortTower(p: IsoPainter, u: number, v: number, z: number, brick: string): void {
+  p.cylinder(u, v, 0.26, z, 26, brick, 8);
+  p.cylinder(u, v, 0.3, z + 26, 3, shade(brick, 1.08));
+  for (let i = 0; i < 6; i++) {
+    const a = Math.PI * (0.05 + (i / 5) * 0.9);
+    p.box(u + Math.cos(a) * 0.24 - 0.04, v + Math.sin(a) * 0.24 - 0.04, 0.08, 0.08, z + 29, 3, shade(brick, 1.08), { edge: null });
+  }
+}
+
+/**
+ * Islamic — garrison in a mud-brick desert fortress (an Arg / caravanserai plan): crenellated
+ * walls with round corner towers, a drill yard, and the headquarters at the back behind a tiled iwan gateway under a
+ * small turquoise dome, a team-coloured banner over the arch.
+ */
+function islamicFort(p: IsoPainter, team: FactionColors): void {
+  const BRICK = '#c9a273';
+  const TOP = '#d8b98e';
+  const Z = 2;
+  p.box(0, 0, 3, 3, 0, Z, '#a8916c');
+  // Drill yard of packed earth with marching lanes.
+  p.topRect(0.45, 1.5, 2.55, 2.6, Z, '#cdb68e');
+  for (const v of [1.75, 2.05, 2.35]) p.topRect(0.6, v, 2.4, v + 0.05, Z + 0.1, '#e8dcc0');
+
+  // Back corner tower, then the rear and side walls.
+  fortTower(p, 0.3, 0.3, Z, BRICK);
+  p.box(0.3, 0.15, 2.4, 0.3, Z, 18, BRICK, { top: TOP });
+  merlons(p, 0.3, 0.15, 2.4, 0.3, Z + 18, 9, TOP);
+  p.box(0.15, 0.3, 0.3, 2.4, Z, 18, BRICK, { top: TOP });
+  merlons(p, 0.15, 0.3, 0.3, 2.4, Z + 18, 9, TOP);
+  p.faceRect('right', 0.15, 0.3, 0.3, 2.4, Z, 18, 0.1, 0.9, 0.55, 0.6, '#2fa6b8');
+
+  // Headquarters block with a tiled iwan gateway, small dome and the team banner.
+  p.box(0.55, 0.5, 1.9, 0.9, Z, 26, '#e4d2a8', { top: TOP });
+  p.windows('left', 0.55, 0.5, 1.9, 0.9, Z, 26, 6, 2, '#2b2219', 0.1, 0.55);
+  p.windows('right', 0.55, 0.5, 1.9, 0.9, Z, 26, 3, 2, '#2b2219', 0.15, 0.55);
+  p.faceRect('left', 0.55, 0.5, 1.9, 0.9, Z, 26, 0, 1, 0.88, 0.96, '#2fa6b8');
+  p.cylinder(1.5, 0.95, 0.32, Z + 26, 5, '#e4d2a8');
+  p.dome(1.5, 0.95, 0.36, Z + 31, 16, '#2fa6b8');
+  p.pole(1.5, 0.95, Z + 47, 5, '#e2b23a');
+  iwan(p, 'left', [1.1, 1.3, 0.8, 0.3, Z, 36]);
+  p.faceRect('left', 1.1, 1.3, 0.8, 0.3, Z, 36, 0.12, 0.88, 0.84, 0.92, team.primary);
+
+  // Front corner towers and the far (east) wall.
+  fortTower(p, 2.7, 0.3, Z, BRICK);
+  p.box(2.55, 0.3, 0.3, 2.4, Z, 18, BRICK, { top: TOP });
+  merlons(p, 2.55, 0.3, 0.3, 2.4, Z + 18, 9, TOP);
+  p.faceRect('right', 2.55, 0.3, 0.3, 2.4, Z, 18, 0.1, 0.9, 0.55, 0.6, '#2fa6b8');
+  fortTower(p, 0.3, 2.7, Z, BRICK);
+
+  // Low front wall with an open gate, so the yard and its soldiers stay visible.
+  p.box(0.3, 2.6, 0.75, 0.25, Z, 9, BRICK, { top: TOP });
+  merlons(p, 0.3, 2.6, 0.75, 0.25, Z + 9, 3, TOP);
+  p.box(1.95, 2.6, 0.75, 0.25, Z, 9, BRICK, { top: TOP });
+  merlons(p, 1.95, 2.6, 0.75, 0.25, Z + 9, 3, TOP);
+  for (const u of [1.05, 1.8]) {
+    p.box(u, 2.55, 0.15, 0.35, Z, 16, BRICK, { top: TOP });
+    p.dome(u + 0.075, 2.72, 0.09, Z + 16, 5, '#2fa6b8');
+  }
+  fortTower(p, 2.7, 2.7, Z, BRICK);
+}
+
 const DESIGNS: Record<FactionId, (p: IsoPainter, team: FactionColors) => void> = {
   usa: pentagon,
   russia: stalinist,
   china: bayi,
   europe: glassHq,
+  islamic: islamicFort,
 };
 
 /** Flag pole of each design, placed on open ground in front of the building. */
@@ -303,12 +379,13 @@ const FLAGS: Record<FactionId, FlagSpot> = {
   russia: { u: 0.4, v: 2.65, z: 2, h: 30 },
   china: { u: 1.5, v: 2.6, z: 2, h: 34 },
   europe: { u: 2.7, v: 2.7, z: 2, h: 30 },
+  islamic: { u: 1.5, v: 2.1, z: 2, h: 34 },
 };
 
 /**
  * Ministry of Defence (the infantry building), drawn in each nation's own architecture: the Pentagon (USA), a
- * Stalinist ministry with a red-star spire (Russia), the August 1st Building (China) and a glass alliance
- * headquarters (Europe). The national flag flies in front of each.
+ * Stalinist ministry with a red-star spire (Russia), the August 1st Building (China), a glass alliance
+ * headquarters (Europe) and a mud-brick desert fortress (Islamic). The national flag flies in front of each.
  */
 export function createBarracksArt(faction: FactionId): BuildingArt {
   const team = FACTIONS[faction].colors;

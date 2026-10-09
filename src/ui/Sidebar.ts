@@ -1,12 +1,12 @@
 import { type IconNode, Clock, Handshake, Info, Droplet, Factory, Hammer, Minus, PersonStanding, Radar, Shield, TrendingDown, TrendingUp, Trophy, Truck, Zap, createElement } from 'lucide';
-import { BUILD_LIMIT_VEHICLES, CURRENCY, MAX_ALLIES, OIL_GRID_MARKUP, POWER_PER_BARREL, TECH_TIERS, TECH_VEHICLES, isAircraftKind } from '../constants';
+import { BUILD_LIMIT_VEHICLES, CURRENCY, MAX_ALLIES, OIL_GRID_MARKUP, OIL_POLICIES, POWER_PER_BARREL, TECH_TIERS, TECH_VEHICLES, isAircraftKind } from '../constants';
 import { FACTIONS } from '../factions';
 import { getFlagTexture } from '../render/Flags';
 import { type BuildOption, type QueueSlot, buildCost, missingRequirement } from '../systems/ConstructionSystem';
 import { MIN_SALE_STOCK } from '../systems/OilMarket';
 import type { ArmyCount, TrainOption, TrainingQueue } from '../systems/TrainingSystem';
 import type { VehicleOption, VehicleQueue } from '../systems/VehicleSystem';
-import type { BuildingType, FactionId, PlayerState, WorldPoint } from '../types';
+import type { BuildingType, FactionId, OilPolicy, PlayerState, WorldPoint } from '../types';
 import type { CarrierState } from '../entities/Vehicle';
 
 /** The selected transport, for the Transport panel (RA2: passengers aboard + the Deploy / Unload button). */
@@ -80,6 +80,10 @@ export interface SidebarModel {
   /** Barrels above the 1.0 reserve that may be offered, and seconds until the sale pause (after 6 sales in a row) ends. */
   sellable: number;
   salesWait: number;
+  /** The player leads the oil cartel: its production policy, and seconds until it may change again. */
+  cartel: boolean;
+  oilPolicy: OilPolicy;
+  policyWait: number;
   /** Why the Global Financial Center would refuse a loan now (null = available). */
   loanBlocker: string | null;
   /** Most the nation may owe (from its oil and assets) and the size of the next loan. */
@@ -132,6 +136,8 @@ export interface SidebarHandlers {
   onSellOil: () => void;
   /** The Emergency loan button: borrow from the Global Financial Center (only at 0 TB). */
   onLoan: () => void;
+  /** A cartel policy button (oil-cartel nation only). */
+  onOilPolicy: (policy: OilPolicy) => void;
   /** The Unload button of the Transport panel (same as the U key). */
   onUnload: () => void;
   /** An alert in the alert section was clicked: look at where it happened. */
@@ -166,6 +172,9 @@ export class Sidebar {
   private readonly sellButton: HTMLButtonElement;
   private readonly debt: HTMLElement;
   private readonly loanButton: HTMLButtonElement;
+  private readonly cartelPanel: HTMLElement;
+  private readonly policyText: HTMLElement;
+  private readonly policyButtons: HTMLButtonElement[];
   private readonly derricks: HTMLElement;
   private readonly powerText: HTMLElement;
   private readonly powerPrice: HTMLElement;
@@ -245,6 +254,14 @@ export class Sidebar {
           <button class="sb-sell" type="button" title="Offer your oil to the Global Financial Center: it decides whether and how much to buy (at most 25% per sale) and pays the posted price into your budget">Sell oil</button>
           <button class="sb-sell sb-loan" type="button" title="Emergency loan from the Global Financial Center (only when your budget is 0 ${CURRENCY}). Oil sales pay the debt back automatically.">Emergency loan</button>
         </div>
+        <div class="sb-cartel" hidden>
+          <div class="sb-oil">CARTEL POLICY <span class="sb-policy"></span></div>
+          <div class="sb-actions">
+            <button class="sb-sell" type="button" data-policy="cut" title="Cut output: your derricks pump 50%, the world oil price climbs (+35% target). Rivals pay more for grid oil; you earn more per barrel.">Cut</button>
+            <button class="sb-sell" type="button" data-policy="hold" title="Hold: normal output, the market sets the price.">Hold</button>
+            <button class="sb-sell" type="button" data-policy="flood" title="Flood the market: your derricks pump 160%, the world price crashes (−30% target) — a price war on nations that live off oil.">Flood</button>
+          </div>
+        </div>
         <div class="sb-oil sb-power">POWER <span class="sb-power-value"></span></div>
       </section>
       <section class="sb-panel sb-transport" hidden>
@@ -322,6 +339,10 @@ export class Sidebar {
     this.debt = q('.sb-debt');
     this.loanButton = q<HTMLButtonElement>('.sb-loan');
     this.loanButton.addEventListener('click', () => this.handlers.onLoan());
+    this.cartelPanel = q('.sb-cartel');
+    this.policyText = q('.sb-policy');
+    this.policyButtons = [...root.querySelectorAll<HTMLButtonElement>('.sb-cartel [data-policy]')];
+    for (const b of this.policyButtons) b.addEventListener('click', () => this.handlers.onOilPolicy(b.dataset.policy as OilPolicy));
     this.derricks = q('.sb-derricks');
     this.powerText = q('.sb-power-value');
     this.message = q('.sb-msg');
@@ -446,6 +467,15 @@ export class Sidebar {
       model.loanBlocker ??
       `Borrow ${model.loanSize.toLocaleString('en-US')} ${CURRENCY} now. Credit line ${model.creditLine.toLocaleString('en-US')} ${CURRENCY}, based on your oil stock and assets. Oil sales pay the debt back automatically.`;
     this.derricks.textContent = `${model.pumping}/${model.derricks} pumping`;
+    this.cartelPanel.hidden = !model.cartel;
+    if (model.cartel) {
+      const p = OIL_POLICIES[model.oilPolicy];
+      this.policyText.textContent = `${p.label} · ${Math.round(p.output * 100)}%` + (model.policyWait > 0 ? ` · ${model.policyWait} s` : '');
+      for (const b of this.policyButtons) {
+        b.classList.toggle('lit', b.dataset.policy === model.oilPolicy);
+        b.disabled = player.defeated || model.policyWait > 0 || b.dataset.policy === model.oilPolicy;
+      }
+    }
     this.renderTransport(model.transport);
 
     // POWER: what the nuclear plants can generate / what the structures need (e/s); red while short.

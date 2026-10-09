@@ -12,8 +12,20 @@ import {
   RESALE_SHARE,
   CAMERA_EDGE_SCROLL,
   CAMERA_PAN_SPEED,
+  BOMB_FALL_SECONDS,
+  OIL_LEASE_CARTEL_SHARE,
+  OIL_LEASE_SECONDS,
+  FORMATION_COLS,
+  FORMATION_RANKS,
+  DEMO_FUSE_SECONDS,
+  DEMO_GROUP_RADIUS_CELLS,
+  DEMO_GROUP_SIZE,
+  DEMO_LARGE_DAMAGE,
+  DEMO_PLANT_CELLS,
+  DEMO_RELOAD_SECONDS,
+  DEMO_SMALL_CELLS,
+  BOMBS_PER_DROP,
   CAPITAL_LOCATIONS,
-  CHHG_LOCATION,
   CRUSH_RADIUS,
   BUILD_LIMIT_SOLDIERS,
   MAX_SOLDIERS,
@@ -40,6 +52,10 @@ import {
   FOOTPRINT_SMALL,
   NEUTRAL_OWNER,
   OIL_DERRICK_COUNT,
+  OIL_FIELD_SPACING,
+  OIL_POLICIES,
+  OIL_ROW_MAX,
+  OIL_SITES,
   STARTING_CREDITS,
   STARTING_OIL,
   WORLD_BANK_LOCATION,
@@ -54,7 +70,6 @@ import { worldToIso } from './IsoView';
 import { Building } from '../entities/Building';
 import { PLACEMENT_MARGIN } from '../map/TileMap';
 import { Capital } from '../entities/Capital';
-import { Chhg } from '../entities/Chhg';
 import { EntityManager } from '../entities/EntityManager';
 import { SoundSystem } from '../audio/SoundSystem';
 import type { Entity } from '../entities/Entity';
@@ -103,7 +118,7 @@ import { SAFE_ZONE_SIZE, type SafeZone, SafeZoneSystem } from '../systems/SafeZo
 import { SelectionSystem } from '../systems/SelectionSystem';
 import { TrainingSystem } from '../systems/TrainingSystem';
 import { VehicleSystem } from '../systems/VehicleSystem';
-import type { BuildingType, FactionId, GameEvents, PlayerState, UnitTier, VehicleKind, WeaponSpec, WorldPoint } from '../types';
+import type { BuildingType, FactionId, GameEvents, OilPolicy, PlayerState, UnitTier, VehicleKind, WeaponSpec, WorldPoint } from '../types';
 import { Minimap } from '../ui/Minimap';
 import { sweepUnitSprites, unitSpriteBytes } from '../render/UnitSprites';
 import { type TransportInfo, type RankRow, type AllyInfo, Sidebar } from '../ui/Sidebar';
@@ -115,6 +130,12 @@ import { GameLoop } from './GameLoop';
 import { InputHandler } from './InputHandler';
 import { clamp } from './MathUtils';
 import { type PlacementGhost, Renderer } from './Renderer';
+import { BOMB_BLAST_TTL, hasBombSheet } from '../render/BombSheets';
+import { MISSILE_BLAST_SECONDS, MISSILE_FLIGHT_SECONDS, hasMissileSheet } from '../render/MissileSheet';
+import { SHELL_FLIGHT_SECONDS, SHELL_IMPACT_SECONDS, hasShellSheet } from '../render/ShellSheet';
+import type { Effect } from './Effects';
+import { SAVE_FORMAT, SAVE_VERSION, SaveCodec, type SaveFile } from './SaveCodec';
+import { peekNextEntityId, setNextEntityId } from '../entities/Entity';
 
 export interface GameDom {
   canvas: HTMLCanvasElement;
@@ -209,10 +230,14 @@ export class Game {
   readonly oilMarket: OilMarket;
   private readonly news: NewsToast;
   private readonly endScreen = new EndScreen();
-  private readonly pauseMenu = new PauseMenu(() => this.togglePause(), {
-    get: () => this.sound.musicLevel,
-    set: (v) => this.sound.setMusicVolume(v),
-  });
+  private readonly pauseMenu = new PauseMenu(
+    () => this.togglePause(),
+    {
+      get: () => this.sound.musicLevel,
+      set: (v) => this.sound.setMusicVolume(v),
+    },
+    { onSave: () => this.downloadSave() },
+  );
   /** The war is decided (victory or game over): the simulation stops. */
   private ended = false;
   private paused = false;
@@ -274,6 +299,7 @@ export class Game {
       isHuman: faction === playerFaction,
       credits: STARTING_CREDITS,
       oil: STARTING_OIL,
+      leasedOil: 0,
       debt: 0,
       creditFrozen: false,
       defeated: false,
@@ -294,8 +320,6 @@ export class Game {
     }
     // The Global Financial Center is neutral: shared by every nation, never destroyed or occupied.
     this.landmarks.push(this.entities.add(new WorldBank(geoToWorld(WORLD_BANK_LOCATION))));
-    // CHHG at the South Pole: neutral, indestructible, uncapturable.
-    this.landmarks.push(this.entities.add(new Chhg(geoToWorld(CHHG_LOCATION))));
 
     // World grid + terrain art from Earth data.
     const biomes = computeBiomes(GRID_WIDTH, GRID_HEIGHT, MAP_SEED);
@@ -311,7 +335,7 @@ export class Game {
     this.selection = new SelectionSystem(this.entities, this.sprites, this.bus);
     // While any of my units is selected, a left drag gives an order instead of sweeping up others; deselect first (right click).
     this.input.boxSelectEnabled = () => this.selection.selectedUnits.size === 0;
-    this.economy = new EconomySystem(this.players, this.entities);
+    this.economy = new EconomySystem(this.players, this.entities, (p) => this.oilMarket.outputFactor(p));
     this.oilMarket = new OilMarket(this.players, this.entities);
     this.news = new NewsToast();
     this.placement = new PlacementSystem(this.map, this.entities);
@@ -403,6 +427,7 @@ export class Game {
       },
       onSellOil: () => this.sellOil(),
       onLoan: () => this.takeLoan(),
+      onOilPolicy: (policy) => this.setOilPolicy(policy),
       onUnload: () => this.unloadSelectedTransport(),
       onVehicle: (option) => this.onVehicleClick(option.kind),
       onVehicleCancel: (option) => this.onVehicleCancel(option.kind),
@@ -445,6 +470,109 @@ export class Game {
 
   start(): void {
     this.loop.start();
+  }
+
+  /** Parts of the game whose state goes into a save, by a stable name. */
+  private saveParts(): Record<string, object> {
+    const parts: Record<string, object> = {
+      oilMarket: this.oilMarket,
+      construction: this.construction,
+      training: this.training,
+      production: this.production,
+      combat: this.combat,
+      aircraft: this.aircraft,
+      safeZones: this.safeZones,
+      ai: this.ai,
+      economy: this.economy,
+    };
+    this.systems.forEach((s, i) => {
+      if (!Object.values(parts).includes(s)) parts[`system${i}`] = s;
+    });
+    return parts;
+  }
+
+  /** Game fields never written back from a save (screen / input state). */
+  private static readonly UNSAVED = ['systems', 'paused', 'ended', 'dom', 'lastCursor', 'mouseWorld', 'ghost', 'placing', 'waypoints', 'moveMarker', 'pathPeekId', 'lastBuildingClick'];
+
+  /**
+   * Everything needed to continue this game later, as plain JSON-ready data: players, every entity, the state of
+   * every system and of the game itself, and the camera. The world (terrain, territories, trees) is not saved —
+   * it is rebuilt from MAP_SEED when the game is created again.
+   */
+  exportSave(): SaveFile {
+    const codec = new SaveCodec(this.players);
+    const game: Record<string, unknown> = {};
+    const skipped: string[] = [];
+    for (const [k, v] of Object.entries(codec.snapshotSafe(this, Game.UNSAVED, skipped))) game[k] = v;
+    const systems: Record<string, Record<string, unknown>> = {};
+    for (const [name, part] of Object.entries(this.saveParts())) systems[name] = codec.snapshotSafe(part, [], skipped);
+    if (skipped.length > 0) console.warn('Save: fields left out', skipped);
+    return {
+      format: SAVE_FORMAT,
+      version: SAVE_VERSION,
+      savedAt: new Date().toISOString(),
+      faction: this.humanPlayer.faction as FactionId,
+      nextEntityId: peekNextEntityId(),
+      players: this.players.map((p) => codec.encodePlayer(p)),
+      entities: [...this.entities.all()].map((e) => codec.encodeEntity(e)),
+      systems,
+      game,
+      camera: { x: this.camera.x, y: this.camera.y, zoom: this.camera.zoom },
+    };
+  }
+
+  /** Replaces the freshly generated game with a saved one (same nation, same world). */
+  importSave(save: SaveFile): void {
+    if (save.format !== SAVE_FORMAT) throw new Error('This file is not a Black Area save.');
+    if (save.version !== SAVE_VERSION) throw new Error(`This save was made by another version of the game (save v${save.version}, game v${SAVE_VERSION}).`);
+    const codec = new SaveCodec(this.players);
+    // Clear the new game's starting world: its structures leave the map, every entity goes.
+    for (const b of this.entities.buildings()) this.map.occupy(b.x, b.y, b.w, b.d, null);
+    for (const e of [...this.entities.all()]) this.entities.remove(e.id);
+    // Entities: shells first (so references between them resolve), then their fields.
+    const shells = save.entities.map((s) => [codec.createShell(s), s] as const);
+    for (const [e, s] of shells) codec.fillEntity(e, s);
+    for (const [e] of shells) this.entities.add(e);
+    for (const b of this.entities.buildings()) if (b.alive) this.map.occupy(b.x, b.y, b.w, b.d, b.id);
+    setNextEntityId(Math.max(save.nextEntityId, ...save.entities.map((s) => (s.data.id as number) + 1)));
+    Unit.insideVersion++;
+    for (const p of save.players) codec.restorePlayer(p);
+    const parts = this.saveParts();
+    for (const [name, data] of Object.entries(save.systems)) {
+      const part = parts[name];
+      if (part) codec.restore(part, data);
+    }
+    codec.restore(this, save.game);
+    // Visual effects are not saved, except ticking charges, which draw their own.
+    this.effects.list.length = 0;
+    for (const c of this.charges) this.effects.add(c.fx);
+    this.selection.selectUnits([]);
+    this.camera.x = save.camera.x;
+    this.camera.y = save.camera.y;
+    this.camera.setZoom(save.camera.zoom);
+    this.sidebarTimer = SIDEBAR_REFRESH;
+    this.sidebar.notify('Game loaded.', 3);
+  }
+
+  /** Pause menu → Save: downloads the save as a JSON file. */
+  private downloadSave(): void {
+    try {
+      const save = this.exportSave();
+      const blob = new Blob([JSON.stringify(save)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const stamp = save.savedAt.slice(0, 16).replace(/[:T]/g, '-');
+      a.href = url;
+      a.download = `black-area-${save.faction}-${stamp}.json`;
+      document.body.append(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      this.sidebar.notify('Game saved to a file.', 3);
+    } catch (err) {
+      console.error(err);
+      this.sidebar.notify(`Could not save: ${err instanceof Error ? err.message : String(err)}`, 6);
+    }
   }
 
   stop(): void {
@@ -700,6 +828,7 @@ export class Game {
     units.forEach((u, k) => {
       u.parade = null;
       u.task = null;
+      if (u instanceof Infantry) u.charge = null;
       u.attackTarget = null;
       u.retreating = false;
       const off = spiralOffset(k, u.aircraft ? 10 : spacing);
@@ -1021,6 +1150,7 @@ export class Game {
     this.repathStuckUnits(dt);
     this.giveWay(dt);
     this.processTasks();
+    this.processDemolition(dt);
     this.processRepairs(dt);
     this.healGarrisons(dt);
     this.regenVeterans(dt);
@@ -1225,6 +1355,9 @@ export class Game {
           priceChangeIn: Math.ceil(this.oilMarket.secondsToChange),
           sellable: this.oilMarket.sellable(this.humanPlayer),
           salesWait: this.oilMarket.waitSeconds(this.humanPlayer),
+          cartel: this.oilMarket.isCartel(this.humanPlayer),
+          oilPolicy: this.oilMarket.policy,
+          policyWait: this.oilMarket.policyWait(),
           loanBlocker: this.oilMarket.loanBlocker(this.humanPlayer),
           creditLine: this.oilMarket.creditLine(this.humanPlayer),
           loanSize: this.oilMarket.loanSize(this.humanPlayer),
@@ -1494,6 +1627,80 @@ export class Game {
     });
   }
 
+  /**
+   * X: the selected ground units form up in parade order around where they stand — 3 × 5 blocks (3 ranks of 5)
+   * squared to the screen, soldiers' blocks in front and vehicles' behind, every unit then turning to face the same
+   * way (towards the viewer). Each takes a free spot of its own; aircraft are left alone.
+   */
+  private formUpSelected(): void {
+    const units = this.selection.selectedUnitList().filter((u) => !u.fixed && !u.aircraft && u.alive);
+    if (units.length === 0) return;
+    const cx = units.reduce((s, u) => s + u.px, 0) / units.length;
+    const cy = units.reduce((s, u) => s + u.py, 0) / units.length;
+    // Screen axes in world space: "across" runs left → right on screen, "back" runs from the front rank away from the viewer.
+    const across = { x: Math.SQRT1_2, y: -Math.SQRT1_2 };
+    const back = { x: -Math.SQRT1_2, y: -Math.SQRT1_2 };
+    const FACE = Math.atan2(-back.y, -back.x); // everyone looks towards the viewer
+    const COLS = FORMATION_COLS;
+    const RANKS = FORMATION_RANKS;
+    const soldiers = units.filter((u) => u instanceof Infantry);
+    const vehicles = units.filter((u) => !(u instanceof Infantry));
+    const soldierGap = UNIT_SPACING * 1.8;
+    const vehicleGap = Math.max(...vehicles.map((v) => v.radius), 1) * 2.8;
+    const ranksOf = (n: number): number => Math.ceil(n / COLS) + Math.max(0, Math.ceil(n / (COLS * RANKS)) - 1); // + one empty rank between blocks
+    const soldierDepth = soldiers.length ? (ranksOf(soldiers.length) - 1) * soldierGap : 0;
+    const vehicleDepth = vehicles.length ? (ranksOf(vehicles.length) - 1) * vehicleGap : 0;
+    const total = soldierDepth + vehicleDepth + (soldiers.length && vehicles.length ? vehicleGap * 1.5 : 0);
+    // Front rank sits half the depth towards the viewer from the group's centre.
+    const front = { x: cx - (back.x * total) / 2, y: cy - (back.y * total) / 2 };
+    const slotsFor = (group: Unit[], gap: number, start: number): { u: Unit; at: WorldPoint }[] => {
+      // Units nearest the front fill the front ranks, left to right as they stand on screen.
+      const along = (u: Unit): number => (u.px - cx) * across.x + (u.py - cy) * across.y;
+      const depthOf = (u: Unit): number => (u.px - cx) * back.x + (u.py - cy) * back.y;
+      const sorted = [...group].sort((a, b) => depthOf(a) - depthOf(b));
+      const out: { u: Unit; at: WorldPoint }[] = [];
+      for (let k = 0; k < sorted.length; k += COLS) {
+        const rankIndex = k / COLS;
+        const blockGap = Math.floor(rankIndex / RANKS); // an empty rank between 3 × 5 blocks
+        const d = start + (rankIndex + blockGap) * gap;
+        const rank = sorted.slice(k, k + COLS).sort((a, b) => along(a) - along(b));
+        rank.forEach((u, c) => {
+          const a = (c - (COLS - 1) / 2) * gap; // full-width ranks keep the columns lined up
+          out.push({ u, at: { x: front.x + across.x * a + back.x * d, y: front.y + across.y * a + back.y * d } });
+        });
+      }
+      return out;
+    };
+    const slots = [
+      ...slotsFor(soldiers, soldierGap, 0),
+      ...slotsFor(vehicles, vehicleGap, soldiers.length ? soldierDepth + vehicleGap * 1.5 : 0),
+    ];
+    const claimed: WorldPoint[] = [];
+    for (const { u, at } of slots) {
+      u.parade = null;
+      u.task = null;
+      u.attackTarget = null;
+      u.attackMove = null;
+      u.chasing = false;
+      if (u instanceof Infantry) u.charge = null;
+      const spot = this.freeStandSpot(at, u, units, claimed);
+      if (!spot) continue;
+      claimed.push(spot);
+      const cell = this.map.cellAt(spot.x, spot.y);
+      if (!cell) continue;
+      const path = this.pathfinder.find({ x: u.px, y: u.py }, cell, u.swims);
+      const last = path[path.length - 1];
+      if (last) {
+        last.x = spot.x;
+        last.y = spot.y;
+      } else path.push(spot);
+      u.orderFlash = { kind: 'move', at: this.time, target: null };
+      u.follow(path);
+      u.faceOnArrival = FACE;
+    }
+    this.sidebar.notify(`Form up: ${units.length} unit${units.length === 1 ? '' : 's'} in ${COLS}-wide ranks, ${RANKS} deep.`, 2);
+  }
+
   private handleKey(code: string): void {
     // While the pause menu is open only Esc (resume) works.
     if (this.paused && code !== 'Escape') return;
@@ -1533,6 +1740,9 @@ export class Game {
         }
         break;
       case 'KeyX':
+        this.formUpSelected();
+        break;
+      case 'KeyC':
         this.scatterSelected();
         break;
       case 'KeyF':
@@ -1630,7 +1840,7 @@ export class Game {
     const b = this.selection.selectedId === null ? undefined : this.entities.get(this.selection.selectedId);
     if (!(b instanceof Building) || !b.alive || b.owner !== this.humanPlayer.id) return;
     const t = b.spec.type;
-    if (t === 'capital' || t === 'oilDerrick' || t === 'bank' || t === 'chhg') {
+    if (t === 'capital' || t === 'oilDerrick' || t === 'bank') {
       this.sidebar.notify('This structure cannot be turned.', 2);
       return;
     }
@@ -1779,7 +1989,39 @@ export class Game {
     const my = s.py + ((ty - s.py) / dist) * reach;
     const muzzle = this.fx(mx, my, this.aimHeight(s, s instanceof Vehicle ? 1 : 0.8));
     const hit = this.fx(tx, ty, tlift);
-    const ttl = { rifle: 0.09, smg: 0.06, sniper: 0.14, mg: 0.06, autocannon: 0.08, cannon: 0.22, missile: 0.35, bomb: 0.6 }[w.kind];
+    const ttl = { rifle: 0.09, smg: 0.06, sniper: 0.14, mg: 0.06, autocannon: 0.08, cannon: 0.22, missile: 0.35, bomb: BOMB_FALL_SECONDS }[w.kind];
+    if (w.kind === 'bomb' || (s instanceof Vehicle && s.type === 'bomber')) {
+      if (s instanceof Vehicle && s.type === 'bomber' && hasBombSheet(s.faction)) {
+        // Bomber with a bomb sheet: the stick of bombs falls from the bay and blows up on the ground.
+        const faction = s.faction as FactionId;
+        const bay = this.fx(s.px, s.py, this.aimHeight(s, 0.5));
+        const ground = this.fx(s.px, s.py, 0);
+        const fall = BOMB_FALL_SECONDS;
+        for (let i = 0; i < BOMBS_PER_DROP; i++) {
+          const ox = (i - (BOMBS_PER_DROP - 1) / 2) * 3;
+          const delay = i * 0.15;
+          this.effects.add({ kind: 'bombFall', x0: bay.x + ox, y0: bay.y, x1: hit.x + ox, y1: hit.y, gx: ground.x + ox, gy: ground.y, age: -delay, ttl: fall, faction });
+          this.effects.add({ kind: 'bombBlast', x: hit.x + ox, y: hit.y, age: -(delay + fall), ttl: BOMB_BLAST_TTL, faction });
+        }
+        this.sound.play(w.kind, { x: mx, y: my });
+        return;
+      }
+    }
+    if (w.kind === 'cannon' && s instanceof Vehicle && s.type === 'tank' && hasShellSheet()) {
+      // Tank shell from the shared sheet: muzzle flash, tracer round, then sparks on armour or a blast and scorch mark.
+      this.effects.add({ kind: 'shell', x0: muzzle.x, y0: muzzle.y, x1: hit.x, y1: hit.y, age: 0, ttl: SHELL_FLIGHT_SECONDS });
+      this.effects.add({ kind: 'shellImpact', x: hit.x, y: hit.y, age: -SHELL_FLIGHT_SECONDS, ttl: SHELL_IMPACT_SECONDS, armour: t instanceof Vehicle });
+      this.sound.play(w.kind, { x: mx, y: my });
+      return;
+    }
+    if (w.kind === 'missile' && s instanceof Vehicle && s.flies && hasMissileSheet()) {
+      // Aircraft missile from the shared sheet: smoke trail in flight, then a burst on aircraft or a blast on the ground.
+      const air = t instanceof Unit && t.flies;
+      this.effects.add({ kind: 'missile', x0: muzzle.x, y0: muzzle.y, x1: hit.x, y1: hit.y, age: 0, ttl: MISSILE_FLIGHT_SECONDS });
+      this.effects.add({ kind: 'missileBlast', x: hit.x, y: hit.y, age: -MISSILE_FLIGHT_SECONDS, ttl: MISSILE_BLAST_SECONDS, air });
+      this.sound.play(w.kind, { x: mx, y: my });
+      return;
+    }
     const color = heavy ? '#ffb347' : w.kind === 'sniper' ? '#ffffff' : '#ffe9a0';
     this.effects.add({ kind: 'tracer', x0: muzzle.x, y0: muzzle.y, x1: hit.x, y1: hit.y, age: 0, ttl, color, width: heavy ? 1.1 : 0.45, shell: heavy });
     this.effects.add({ kind: 'flash', x: muzzle.x, y: muzzle.y, age: 0, ttl: 0.07, size: heavy ? 3.6 : 1.8 });
@@ -1810,6 +2052,7 @@ export class Game {
     this.sidebar.notify(
       result.kind === 'sold'
         ? `Global Financial Center bought ${result.barrels.toFixed(1)} barrels at ${result.price} ${CURRENCY} → +${result.revenue} ${CURRENCY}` +
+          (result.royalty > 0 ? ` (−${result.royalty} ${CURRENCY} lease share to the oil cartel)` : '') +
           (result.repaid > 0 ? ` (${result.repaid} ${CURRENCY} paid back on your debt)` : '')
         : `Global Financial Center declined: ${result.reason}.`,
       5,
@@ -1858,6 +2101,18 @@ export class Game {
   private togglePause(): void {
     this.paused = !this.paused;
     this.pauseMenu.setOpen(this.paused);
+  }
+
+  /** Cartel policy buttons (oil-cartel nation only): cut / hold / flood production. */
+  private setOilPolicy(policy: OilPolicy): void {
+    const result = this.oilMarket.setPolicy(this.humanPlayer, policy);
+    this.sidebar.notify(
+      result.kind === 'set'
+        ? `Oil cartel policy: ${OIL_POLICIES[result.policy].label}. Your derricks pump ${Math.round(OIL_POLICIES[result.policy].output * 100)}%; the world price heads ${result.policy === 'cut' ? 'up' : result.policy === 'flood' ? 'down' : 'back to the market level'}.`
+        : `Policy unchanged: ${result.reason}.`,
+      5,
+    );
+    this.sidebarTimer = SIDEBAR_REFRESH;
   }
 
   /** Emergency loan button: only on the player's request, only at 0 TB. */
@@ -2350,8 +2605,19 @@ export class Game {
     let ordered = 0;
     for (const u of this.selection.selectedUnitList()) {
       if (!(u instanceof Infantry)) continue; // only people enter, repair or capture
-      let type: 'enter' | 'repair' | 'capture' | null = null;
-      if (b.owner === me.id) {
+      if (u.isDemolition && b.owner !== me.id && isHostile(u, b)) {
+        // Crazy Soldier: run up and plant a charge on it.
+        u.charge = { targetId: b.id };
+        u.task = null;
+        u.attackTarget = null;
+        this.walkToDoor(u, b);
+        ordered++;
+        continue;
+      }
+      let type: 'enter' | 'repair' | 'capture' | 'lease' | null = null;
+      if (u.isEngineer && b instanceof OilDerrick && b.owner !== me.id && b.leasable) {
+        type = 'lease';
+      } else if (b.owner === me.id) {
         if (b.canEnter(u)) type = 'enter';
         else if (u.isEngineer && b.hp < b.maxHp && !b.indestructible) type = 'repair';
       } else if (u.isEngineer && b.capturable && b.faction !== 'neutral') {
@@ -2371,8 +2637,20 @@ export class Game {
 
   /** Every selected armed unit that can hurt `target` is ordered to attack it. */
   private orderAttack(target: Entity): boolean {
+    // Crazy Soldiers run at a ground target to plant a charge on it.
+    const sappers = this.selection.selectedUnitList().filter(
+      (u): u is Infantry => u instanceof Infantry && u.isDemolition && isHostile(u, target) && !(target instanceof Unit && target.flies),
+    );
+    for (const u of sappers) {
+      u.charge = { targetId: target.id };
+      u.task = null;
+      u.attackTarget = null;
+      u.parade = null;
+      u.orderFlash = { kind: 'attack', at: this.time, target };
+      this.runAt(u, target);
+    }
     const attackers = this.selection.selectedUnitList().filter((u) => canTarget(u, target));
-    if (attackers.length === 0) return false;
+    if (attackers.length === 0) return sappers.length > 0;
     for (const u of attackers) {
       u.attackTarget = target.id;
       u.attackMove = null;
@@ -2383,6 +2661,114 @@ export class Game {
     const at = target instanceof Building ? target.centerWorld() : { x: (target as Unit).px, y: (target as Unit).py };
     this.moveMarker = { x: at.x, y: at.y, at: this.time };
     return true;
+  }
+
+  /** Charges ticking on their targets (Crazy Soldier), with the effect that draws each one. */
+  private readonly charges: { targetId: number; owner: number; planterId: number; x: number; y: number; fuse: number; fx: Extract<Effect, { kind: 'charge' }> }[] = [];
+
+  /** Sends a Crazy Soldier running at `target` (a structure's door, or the unit itself). */
+  private runAt(u: Infantry, target: Entity): void {
+    if (target instanceof Building) {
+      this.walkToDoor(u, target);
+      return;
+    }
+    if (!(target instanceof Unit)) return;
+    const cell = this.map.cellAt(target.px, target.py);
+    if (!cell) return;
+    const path = this.pathfinder.find({ x: u.px, y: u.py }, cell, u.swims);
+    const last = path[path.length - 1];
+    if (last) {
+      last.x = target.px;
+      last.y = target.py;
+    }
+    u.follow(path);
+  }
+
+  /** Where a charge on `target` sits (world px), or null when the target is gone. */
+  private chargeSpot(target: Entity | undefined): WorldPoint | null {
+    if (!target || !target.alive) return null;
+    if (target instanceof Building) return target.centerWorld();
+    if (target instanceof Unit) return { x: target.px, y: target.py };
+    return null;
+  }
+
+  /**
+   * Crazy Soldiers run at their target and plant a charge once within DEMO_PLANT_CELLS; charges follow a moving
+   * target and blow after DEMO_FUSE_SECONDS (see the DEMO_* constants for the damage).
+   */
+  private processDemolition(dt: number): void {
+    for (const u of this.entities.fieldUnits()) {
+      if (!(u instanceof Infantry) || !u.charge) continue;
+      const target = this.entities.get(u.charge.targetId);
+      if (!target || !target.alive || !isHostile(u, target)) {
+        u.charge = null;
+        continue;
+      }
+      if (distanceTo(u.px, u.py, target) <= DEMO_PLANT_CELLS * CELL_SIZE) {
+        if (this.time < u.chargeReadyAt) continue; // still fixing the next charge
+        const at = this.chargeSpot(target);
+        if (!at) continue;
+        const p = this.fx(at.x, at.y, target instanceof Unit ? this.aimHeight(target, 0.4) : 4);
+        const fx: Extract<Effect, { kind: 'charge' }> = { kind: 'charge', x: p.x, y: p.y, age: 0, ttl: DEMO_FUSE_SECONDS };
+        this.effects.add(fx);
+        this.charges.push({ targetId: target.id, owner: u.owner, planterId: u.id, x: at.x, y: at.y, fuse: DEMO_FUSE_SECONDS, fx });
+        u.charge = null;
+        u.chargeReadyAt = this.time + DEMO_RELOAD_SECONDS;
+        u.stop();
+        continue;
+      }
+      // Chasing a moving unit: re-aim now and then; otherwise keep walking.
+      if (!u.moving || (target instanceof Unit && Math.floor(this.time * 2) !== Math.floor((this.time - dt) * 2))) this.runAt(u, target);
+    }
+
+    for (let i = this.charges.length - 1; i >= 0; i--) {
+      const c = this.charges[i]!;
+      const target = this.entities.get(c.targetId);
+      const at = this.chargeSpot(target);
+      if (at) {
+        c.x = at.x;
+        c.y = at.y;
+        const p = this.fx(c.x, c.y, target instanceof Unit ? this.aimHeight(target, 0.4) : 4);
+        c.fx.x = p.x;
+        c.fx.y = p.y;
+      }
+      c.fuse -= dt;
+      if (c.fuse > 0) continue;
+      this.charges.splice(i, 1);
+      this.detonate(c, target);
+    }
+  }
+
+  /** A charge goes off: the structure under it is destroyed (small) or loses DEMO_LARGE_DAMAGE (large); nearby enemy combat units die. */
+  private detonate(c: { owner: number; planterId: number; x: number; y: number }, target: Entity | undefined): void {
+    const hit = (o: Entity, amount: number): void => {
+      if (!o.alive) return;
+      o.damage(amount);
+      o.lastAttackerId = c.planterId;
+      o.lastAttackedAt = this.time;
+    };
+    if (target instanceof Building && target.alive && !target.indestructible) {
+      hit(target, target.w * target.d <= DEMO_SMALL_CELLS ? target.hp : target.maxHp * DEMO_LARGE_DAMAGE);
+    }
+    const group = [...this.entities.fieldUnits(), ...this.entities.vehicles()]
+      .filter((o, k, all) => all.indexOf(o) === k)
+      .filter(
+        (o) =>
+          o.alive &&
+          !o.flies &&
+          o.weapon !== null &&
+          o.owner !== c.owner &&
+          o.owner !== NEUTRAL_OWNER &&
+          Math.hypot(o.px - c.x, o.py - c.y) <= DEMO_GROUP_RADIUS_CELLS * CELL_SIZE,
+      )
+      .sort((a, b) => Math.hypot(a.px - c.x, a.py - c.y) - Math.hypot(b.px - c.x, b.py - c.y));
+    const dead = group.length <= DEMO_GROUP_SIZE ? group.length : Math.ceil(group.length / 2);
+    for (const o of group.slice(0, dead)) hit(o, o.hp);
+    // A charge on an unarmed unit (engineer, transport on the ground…) still kills it.
+    if (target instanceof Unit && target.alive && !group.some((o) => o === target)) hit(target, target.hp);
+    const p = this.fx(c.x, c.y, 0);
+    this.effects.add({ kind: 'demoBlast', x: p.x, y: p.y, age: 0, ttl: 0.8 });
+    this.sound.play('explosion', { x: c.x, y: c.y });
   }
 
   /** Advances enter / repair / capture orders for soldiers standing at their target. */
@@ -2420,6 +2806,18 @@ export class Game {
           u.stop();
           this.selection.selectedUnits.delete(u.id);
         }
+      } else if (task.type === 'lease') {
+        // Lease: the engineer signs for the derrick and stays at the door; the derrick pumps for his nation.
+        u.task = null;
+        if (b instanceof OilDerrick && b.leasable) {
+          b.lease(u.owner);
+          u.stop();
+          if (u.owner === this.humanPlayer.id) {
+            this.sidebar.notify(`Oil derrick leased for ${OIL_LEASE_SECONDS / 60} min: it pumps for you; ${Math.round(OIL_LEASE_CARTEL_SHARE * 100)}% of the money from its oil goes to ${FACTIONS[b.faction as FactionId].shortName}.`, 6);
+          } else if (b.owner === this.humanPlayer.id) {
+            this.sidebar.notify(`${FACTIONS[this.players.find((p) => p.id === u.owner)?.faction ?? 'usa'].shortName} leased one of your derricks for ${OIL_LEASE_SECONDS / 60} min.`, 5);
+          }
+        } else if (u.owner === this.humanPlayer.id) this.sidebar.notify('That derrick is already leased.', 3);
       } else {
         // Capture: the engineer is consumed and the building changes sides.
         if (b.capture(u.owner, u.faction as FactionId)) {
@@ -2718,6 +3116,7 @@ export class Game {
     units.forEach((u, k) => {
       u.parade = null; // leaves the parade ground
       u.task = null;
+      if (u instanceof Infantry) u.charge = null;
       u.attackTarget = null;
       u.attackMove = null;
       u.chasing = false;
@@ -2775,8 +3174,27 @@ export class Game {
       // capital and from every foreign capital; if the homeland has no room, settle for the farthest spot that fits.
       let row: ReturnType<typeof findOilRow> = null;
       const foreignCapitals = this.landmarks.filter((l) => l.spec.type === 'capital' && l.owner !== player.id).map((l) => ({ x: l.x, y: l.y }));
-      // [distance from our own capital, distance from every foreign capital] in cells, relaxed step by step.
-      for (const [minAway, avoidAway] of [[38, 40], [30, 32], [22, 24], [14, 18], [6, 12], [0, 8]] as const) {
+      // [distance from our own capital, distance from every foreign capital] in cells, relaxed step by step —
+      // first with every derrick well inside our own land (never on or near a foreign border), then anywhere.
+      const steps = [[38, 40], [30, 32], [22, 24], [14, 18], [6, 12], [0, 8]] as const;
+      // Never next to another nation's oil field: OIL_FIELD_SPACING cells from every foreign derrick (half that as a last resort).
+      const fields = this.derricks.map((dr) => ({ x: dr.x, y: dr.y }));
+      // A nation tied to a real oil region (OIL_SITES) builds there, however near or far its capital is.
+      const site = OIL_SITES[f];
+      const near = site ? (this.map.cellAt(geoToWorld(site).x, geoToWorld(site).y) ?? undefined) : undefined;
+      const passes = [
+        ...steps.map(([a, b]) => [a, b, 6, OIL_FIELD_SPACING] as const),
+        ...steps.map(([a, b]) => [a, b, 1, OIL_FIELD_SPACING] as const),
+        ...steps.map(([a, b]) => [a, b, 1, OIL_FIELD_SPACING / 2] as const),
+        // Only if the homeland has no room at all may the field leave it.
+        ...steps.map(([a, b]) => [a, b, 0, OIL_FIELD_SPACING / 2] as const),
+      ];
+      // A nation tied to an oil region never leaves its own land for it: wider region, closer neighbours, but inside.
+      const sitePasses = [16, 24, 32].flatMap((r) => [[6, OIL_FIELD_SPACING, r], [1, OIL_FIELD_SPACING, r], [1, OIL_FIELD_SPACING / 2, r], [1, 0, r]] as const);
+      const plan = near
+        ? sitePasses.map(([minSafe, fieldsAway, nearRadius]) => ({ minAway: 0, avoidAway: 8, minSafe, fieldsAway, nearRadius }))
+        : passes.map(([minAway, avoidAway, minSafe, fieldsAway]) => ({ minAway, avoidAway, minSafe, fieldsAway, nearRadius: 0 }));
+      for (const { minAway, avoidAway, minSafe, fieldsAway, nearRadius } of plan) {
         row = findOilRow(this.map, safety, { x: capital.x, y: capital.y }, OIL_DERRICK_COUNT[f], {
           w: FOOTPRINT_SMALL.w,
           d: FOOTPRINT_SMALL.d,
@@ -2785,6 +3203,12 @@ export class Game {
           minAway,
           avoid: foreignCapitals,
           avoidAway,
+          perRow: OIL_ROW_MAX,
+          minSafe,
+          fields,
+          fieldsAway,
+          near,
+          nearRadius,
         });
         if (row) break;
       }

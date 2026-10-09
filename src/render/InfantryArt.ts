@@ -106,15 +106,21 @@ const SHEETS: Record<SoldierSheetId, SoldierSheet> = {
   cnSpecial: sheet8('cn-special-8dir.png', 'gi', true),
   euRegular: sheet8('eu-regular-8dir.png', 'gi'),
   euSpecial: sheet8('eu-special-8dir.png', 'gi', true),
+  islamicRegular: sheet8('islamic-regular-8dir.png', 'ruRegular'),
+  islamicSpecial: sheet8('islamic-special-8dir.png', 'ruSpecial', true),
   euSquatters: squad8('eu-squatters-8dir.png', 'euSpecial'),
   ruSquatters: squad8('ru-squatters-8dir.png', 'ruSpecial'),
   usSquatters: squad8('us-squatters-8dir.png', 'usSpecial'),
   cnSquatters: squad8('cn-squatters-8dir.png', 'cnSpecial'),
+  islamicSquatters: squad8('islamic-squatters-8dir.png', 'islamicSpecial'),
   // Engineers (tools/engineer-render): hard hat, safety vest, wrench; no swim rows.
   usEngineer: { ...sheet8('us-engineer-8dir.png', 'gi'), walkOnly: true },
   ruEngineer: { ...sheet8('ru-engineer-8dir.png', 'gi'), walkOnly: true },
   cnEngineer: { ...sheet8('cn-engineer-8dir.png', 'gi'), walkOnly: true },
   euEngineer: { ...sheet8('eu-engineer-8dir.png', 'gi'), walkOnly: true },
+  islamicEngineer: { ...sheet8('islamic-engineer-8dir.png', 'gi'), walkOnly: true },
+  // Crazy Soldier: rows 11–12 hold his charge and its blast (render/DemolitionArt).
+  islamicDemolition: sheet8('islamic-demolition-8dir.png', 'islamicRegular'),
   gi: sheet('gi.png', 64, 64, 61, 4, 51, [-3, -40]),
   ranger: sheet('ranger.png', 96, 128, 124, 6, 112, [-6, -82]),
   spetsnaz: sheet('spetsnaz.png', 64, 64, 61, 8, 52, [-3, -40]),
@@ -335,16 +341,16 @@ export function soldierPortrait(faction: FactionId, tier: UnitTier): HTMLCanvasE
     const scale = 18;
     ctx.setTransform(scale, 0, 0, scale, 64, 88);
     const pose = { x: 0, y: 0, facing: 1 as const, walkPhase: 0, moving: false, heading: Math.PI / 4 };
-    if (tier === 'squatters' && drawsSquad(f.infantry[tier].look)) {
+    if (tier === 'squatters' && drawsSquad((f.infantry[tier] ?? f.infantry.regular).look)) {
       ctx.setTransform(scale * 0.6, 0, 0, scale * 0.6, 64, 90);
-      drawSoldier(ctx, pose, f.infantry[tier].look, f.colors.primary, true);
+      drawSoldier(ctx, pose, (f.infantry[tier] ?? f.infantry.regular).look, f.colors.primary, true);
     } else if (tier === 'squatters') {
       // Escort behind (left), flag bearer in front with the national flag.
-      const look = f.infantry[tier].look;
+      const look = (f.infantry[tier] ?? f.infantry.regular).look;
       drawSoldier(ctx, { ...pose, x: -1.4, y: -0.4 }, look, f.colors.primary, true);
       drawSoldier(ctx, { ...pose, x: 1.2, y: 0.2 }, look, f.colors.primary, true);
       drawCarriedFlag(ctx, faction, 2.1, -2.4, 3.2, 0.4);
-    } else drawSoldier(ctx, pose, f.infantry[tier].look, f.colors.primary, tier === 'special');
+    } else drawSoldier(ctx, pose, (f.infantry[tier] ?? f.infantry.regular).look, f.colors.primary, tier === 'special');
     portraits.set(key, canvas);
     c = canvas;
   }

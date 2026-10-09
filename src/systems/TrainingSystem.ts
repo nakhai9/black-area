@@ -18,10 +18,14 @@ export interface TrainOption {
 /** Faction-specific infantry options (cost scaled by the faction's cost multiplier). */
 function trainOptions(faction: FactionId): TrainOption[] {
   const f = FACTIONS[faction];
-  return (['regular', 'special', 'engineer', 'squatters'] as const).map((tier) => ({
+  if (f.peaceful) return [];
+  return (['regular', 'special', 'engineer', 'demolition', 'squatters'] as const).flatMap((tier) => {
+    const profile = f.infantry[tier];
+    return profile ? [{ tier, profile }] : [];
+  }).map(({ tier, profile }) => ({
     tier,
-    name: f.infantry[tier].name,
-    description: f.infantry[tier].description,
+    name: profile.name,
+    description: profile.description,
     cost: demoPrice(Math.round((INFANTRY_BASE[tier].cost * f.stats.cost) / 10) * 10),
     trainSeconds: INFANTRY_BASE[tier].trainSeconds + f.stats.trainDelay,
   }));
@@ -113,6 +117,7 @@ export class TrainingSystem implements GameSystem {
   enqueue(player: PlayerState, tier: UnitTier): EnqueueResult {
     const q = this.queue(player);
     if (player.capitalLost) return 'noCapital';
+    if (FACTIONS[player.faction].peaceful) return 'full';
     if (!this.barracksOf(player)) return 'noBarracks';
     if (TECH_TIERS.includes(tier) && !this.hasTech(player)) return 'tech';
     if (q.items.length >= BUILD_LIMIT_SOLDIERS) return 'full';

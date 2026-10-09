@@ -45,6 +45,16 @@ export const TERRITORIES: readonly Territory[] = [
       [118, 24], [110, 18], [106, 21], [98, 24], [92, 27], [85, 28], [79, 32],
     ]),
   },
+  {
+    faction: 'islamic',
+    name: 'Middle East',
+    // The Islamic world's homeland: the Arabian Peninsula, Iraq, Syria, Jordan and Iran (Turkey and Egypt stay out).
+    polygon: poly([
+      [36, 37], [42, 37.3], [44, 39.5], [48, 38.5], [54, 37.5], [61, 36.6], [61, 31], [63, 29.5],
+      [61.5, 25], [57, 25.5], [59.8, 22.5], [57, 18.8], [52, 16], [43, 12.5], [42.5, 15.5], [39, 21],
+      [35, 28], [34.5, 31], [35, 33], [35.8, 35.5],
+    ]),
+  },
 ];
 
 /** Ray-casting point-in-polygon test in lon/lat space. */

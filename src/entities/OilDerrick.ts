@@ -1,10 +1,12 @@
 import {
   FOOTPRINT_SMALL,
   OIL_DERRICK_OUTPUT,
+  OIL_LEASE_SECONDS,
   OIL_MINE_SECONDS,
   OIL_REST_SECONDS,
 } from '../constants';
 import type { FactionId, WorldPoint } from '../types';
+import { FACTIONS } from '../factions';
 import { Building } from './Building';
 
 const CYCLE = OIL_MINE_SECONDS + OIL_REST_SECONDS;
@@ -24,6 +26,9 @@ export class OilDerrick extends Building {
   private mining = true;
   /** Seconds left in the current phase. */
   private remaining = OIL_MINE_SECONDS;
+  /** Leased to another nation (player id) for `leaseLeft` more seconds: it pumps into that nation's stock. */
+  lessee: number | null = null;
+  leaseLeft = 0;
 
   constructor(owner: number, faction: FactionId, center: WorldPoint, rowIndex: number, bankManaged = false) {
     super(owner, faction, center, {
@@ -35,8 +40,9 @@ export class OilDerrick extends Building {
       powerDrain: 0,
       incomePerSecond: OIL_DERRICK_OUTPUT,
       spriteKey: `oil:${faction}`,
-      indestructible: bankManaged,
-      uncapturable: bankManaged,
+      // A leasing nation's derricks (FactionConfig.leasesOil) are protected for now, like the Center's.
+      indestructible: bankManaged || FACTIONS[faction].leasesOil === true,
+      uncapturable: bankManaged || FACTIONS[faction].leasesOil === true,
     });
     this.bankManaged = bankManaged;
     this.description = bankManaged
@@ -46,6 +52,22 @@ export class OilDerrick extends Building {
     const t = (rowIndex * 40) % CYCLE;
     this.mining = t < OIL_MINE_SECONDS;
     this.remaining = this.mining ? OIL_MINE_SECONDS - t : CYCLE - t;
+  }
+
+  /** Can it be leased now (a leasing nation's derrick, not already leased)? */
+  get leasable(): boolean {
+    return this.alive && this.lessee === null && this.faction !== 'neutral' && FACTIONS[this.faction].leasesOil === true;
+  }
+
+  /** Starts a lease to `player` for OIL_LEASE_SECONDS. */
+  lease(player: number): void {
+    this.lessee = player;
+    this.leaseLeft = OIL_LEASE_SECONDS;
+  }
+
+  /** Who receives its oil right now: the lessee during a lease, otherwise the owner. */
+  get oilOwner(): number {
+    return this.lessee ?? this.owner;
   }
 
   get pumping(): boolean {
@@ -66,6 +88,13 @@ export class OilDerrick extends Building {
   }
 
   override update(dt: number): void {
+    if (this.lessee !== null) {
+      this.leaseLeft -= dt;
+      if (this.leaseLeft <= 0) {
+        this.lessee = null;
+        this.leaseLeft = 0;
+      }
+    }
     this.remaining -= dt;
     while (this.remaining <= 0) {
       this.mining = !this.mining;

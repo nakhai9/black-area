@@ -60,6 +60,26 @@ const painters: Record<Allegiance, (ctx: CanvasRenderingContext2D, w: number, h:
       ctx.fill();
     }
   },
+  /** Green field with a white crescent and star. */
+  islamic(ctx, w, h) {
+    ctx.fillStyle = '#1f7a3a';
+    ctx.fillRect(0, 0, w, h);
+    const cx = w * 0.46;
+    const cy = h / 2;
+    const r = h * 0.3;
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#1f7a3a';
+    ctx.beginPath();
+    ctx.arc(cx + r * 0.32, cy - r * 0.08, r * 0.82, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    starPath(ctx, cx + r * 0.75, cy - r * 0.05, h * 0.1);
+    ctx.fill();
+  },
   china(ctx, w, h) {
     ctx.fillStyle = '#de2910';
     ctx.fillRect(0, 0, w, h);
@@ -229,6 +249,12 @@ export function drawNationalPole(p: IsoPainter, nation: Allegiance, u: number, v
       }
       const [x, y] = shaft('#c3cbd2', 1);
       ball(x, y, 1.1, '#e6eaee');
+      break;
+    }
+    case 'islamic': {
+      p.cylinder(u, v, 0.11, z, 2, '#1d6f86');
+      const [x, y] = shaft('#e8e2d0', 1.2);
+      ball(x, y, 1.3, '#e2b23a');
       break;
     }
     default: {

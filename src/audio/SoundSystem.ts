@@ -13,6 +13,7 @@ const BATTLE_CRY: Readonly<Record<FactionId, { lang: string; lines: readonly str
   russia: { lang: 'ru-RU', lines: ['Ура!', 'В атаку!', 'Вперёд!'] },
   china: { lang: 'zh-CN', lines: ['冲啊！', '杀！', '前进！'] },
   europe: { lang: 'fr-FR', lines: ["À l'attaque !", 'En avant !', 'Allons-y !'] },
+  islamic: { lang: 'ar-SA', lines: ['الله أكبر!', 'إلى الأمام!', 'هجوم!'] },
 };
 const CRY_COOLDOWN = 7;
 const MIN_GAP: Readonly<Record<string, number>> = { rifle: 0.05, smg: 0.045, sniper: 0.1, mg: 0.05, cannon: 0.12, autocannon: 0.06, missile: 0.15, explosion: 0.1, board: 0.12 };

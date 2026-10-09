@@ -41,6 +41,7 @@ const SHEETS: Partial<Record<FactionId, TankSheet>> = {
   europe: sheet('leopard2-europe.png', 0.16),
   russia: sheet('t90-russia.png', 0.16),
   china: sheet('type99-china.png', 0.16),
+  islamic: sheet('tank-islamic.png', 0.16),
 };
 
 let loaded: Promise<void> | null = null;

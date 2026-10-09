@@ -18,6 +18,9 @@ export class Infantry extends Unit {
   readonly value: number;
   /** Squatters: has been flown in by a transport (it may only claim land it was airlifted to). */
   airlifted = false;
+  /** Crazy Soldier: the enemy structure or unit he is running at to plant a charge on, and when he may plant again (game time). */
+  charge: { targetId: number } | null = null;
+  chargeReadyAt = 0;
 
   constructor(
     owner: number,
@@ -28,7 +31,7 @@ export class Infantry extends Unit {
     const f = FACTIONS[faction];
     const base = INFANTRY_BASE[tier];
     super(owner, faction, at, Math.round(base.maxHp * f.stats.armor));
-    this.profile = f.infantry[tier];
+    this.profile = f.infantry[tier] ?? f.infantry.regular;
     this.speed = base.speed * f.stats.unitSpeed * CELL_SIZE;
     this.value = Math.round((base.cost * f.stats.cost) / 10) * 10;
     const w = this.profile.look.weapon;
@@ -45,6 +48,10 @@ export class Infantry extends Unit {
 
   get isSquatters(): boolean {
     return this.tier === 'squatters';
+  }
+
+  get isDemolition(): boolean {
+    return this.tier === 'demolition';
   }
 
   get isEngineer(): boolean {

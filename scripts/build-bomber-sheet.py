@@ -1,5 +1,5 @@
 """Builds the bomber sheets (16 headings x 9 rows, 96 px cells) from the source sheets in scripts/assets:
-tu26-source.png → tu26-russia.png, b52-source.png → b52-usa.png.
+tu26-source.png → tu26-russia.png, b52-source.png → b52-usa.png, su35-source.png → jet-islamic.png (the Islamic world's jet).
 
 Each source sheet is 16 x 11 cells: row 4 is a clean 16-heading turn (clockwise from N, like the game's sheets),
 rows 6 and 8 are burning/crashing poses. Output rows follow AircraftSheets.ts:
@@ -32,3 +32,4 @@ def build(source: str, target: str) -> None:
 
 build('tu26-source.png', 'tu26-russia.png')
 build('b52-source.png', 'b52-usa.png')
+build('su35-source.png', 'jet-islamic.png')

@@ -262,8 +262,9 @@ export class AISystem implements GameSystem {
 
   /** Making money comes first: sells oil whenever the Center pays a fair price, or at any price when broke. */
   private sellOil(p: PlayerState, st: AIState): void {
-    if (this.time < st.nextSell || p.oil < 2) return;
     const market = this.host.oilMarket;
+    this.steerOilPrice(p, market);
+    if (this.time < st.nextSell || p.oil < 2) return;
     if (market.waitSeconds(p) > 0) return;
     // Sells at a fair price, at any price when short of cash, and at any price while it owes the Center
     // (every sale pays the debt down first).
@@ -271,6 +272,14 @@ export class AISystem implements GameSystem {
       market.sell(p);
       st.nextSell = this.time + 5;
     }
+  }
+
+  /** An AI oil cartel steers the world price like OPEC: cuts output when oil is cheap, floods the market when it is dear. */
+  private steerOilPrice(p: PlayerState, market: OilMarket): void {
+    if (!market.isCartel(p) || market.policyWait() > 0) return;
+    const price = market.price;
+    const want = price < 450 ? 'cut' : price > 1050 ? 'flood' : price >= 650 && price <= 900 ? 'hold' : market.policy;
+    if (want !== market.policy) market.setPolicy(p, want);
   }
 
   /** Happy Cities the nation owns (alive). */

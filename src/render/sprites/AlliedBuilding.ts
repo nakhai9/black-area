@@ -4,6 +4,7 @@ import { shade } from '../Color';
 import { drawFlagOnPole, drawNationalPole } from '../Flags';
 import type { IsoPainter } from '../IsoPainter';
 import type { BuildingArt } from './BuildingArt';
+import { drawMosque } from './GrandMosque';
 
 const PAD = '#b3b1a7';
 const LAWN = '#6d9f4a';
@@ -28,7 +29,8 @@ function plot(p: IsoPainter): void {
  *  - USA: a white neoclassical hall with a columned portico and a low dome;
  *  - Russia: a Stalinist tower in red-brown stone with a spire and red star;
  *  - China: a hall on a white terrace under a red-gold sweeping roof, red columns in front;
- *  - Europe: a glass office block with a blue band and a ring of gold stars.
+ *  - Europe: a glass office block with a blue band and a ring of gold stars;
+ *  - Islamic: a grand mosque with a turquoise dome and two minarets.
  */
 const STYLES: Record<FactionId, { height: number; draw: (p: IsoPainter, team: string) => void }> = {
   usa: {
@@ -95,6 +97,10 @@ const STYLES: Record<FactionId, { height: number; draw: (p: IsoPainter, team: st
         p.topRect(2.0 + Math.cos(a) * 0.6 - 0.05, 1.7 + Math.sin(a) * 0.6 - 0.05, 2.0 + Math.cos(a) * 0.6 + 0.05, 1.7 + Math.sin(a) * 0.6 + 0.05, 70, '#ffd646');
       }
     },
+  },
+  islamic: {
+    height: 96,
+    draw: (p, team) => drawMosque(p, 0, 0.3, 1, 2, team),
   },
 };
 

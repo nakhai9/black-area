@@ -11,6 +11,7 @@ import {
 import { FACTIONS } from '../factions';
 import { getFlagTexture } from '../render/Flags';
 import type { FactionId, FactionStats } from '../types';
+import { pickSaveFile } from './PauseMenu';
 
 const STORAGE_KEY = 'black-area:faction';
 const SHOWN_STATS: readonly [keyof FactionStats, string][] = [
@@ -70,6 +71,7 @@ export class FactionPicker {
         <footer class="fp-footer">
           <span class="fp-hint"><kbd>1</kbd>–<kbd>4</kbd> select</span>
           ${DEMO_MODE ? '<button class="fp-demo" type="button" title="Test game: play alone, the other nations do nothing; everything built, finances off">Test</button>' : ''}
+          <button class="fp-load" type="button" title="Continue a game saved to a .json file (pause menu → Save game)">Load game</button>
           <button class="fp-deploy" type="button">Deploy</button>
         </footer>
       </div>`;
@@ -110,6 +112,7 @@ export class FactionPicker {
       };
       window.addEventListener('keydown', onKey);
       deploy?.addEventListener('click', () => confirm(this.selected));
+      this.root.querySelector('.fp-load')?.addEventListener('click', () => pickSaveFile());
       this.root.querySelector('.fp-demo')?.addEventListener('click', () => confirm(this.selected, true));
       for (const [id, card] of this.cards) {
         card.addEventListener('click', () => this.highlight(id));

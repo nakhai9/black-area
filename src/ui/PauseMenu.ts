@@ -4,13 +4,44 @@ export interface MusicVolumeControl {
   set: (volume: number) => void;
 }
 
+/** Save / load actions of the pause menu. */
+export interface SaveActions {
+  onSave: () => void;
+}
+
+/** Key in sessionStorage holding a save picked to be loaded (the page reloads and boots straight into it). */
+export const PENDING_SAVE_KEY = 'black-area.pendingSave';
+
+/** Opens a file picker for a saved game; on a pick, queues it and reloads the page into it. */
+export function pickSaveFile(onError: (message: string) => void = (m) => window.alert(m)): void {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json,application/json';
+  input.addEventListener('change', () => {
+    const file = input.files?.[0];
+    if (!file) return;
+    void file.text().then((text) => {
+      try {
+        const save = JSON.parse(text) as { format?: string };
+        if (save.format !== 'black-area-save') throw new Error('This file is not a Black Area save.');
+        sessionStorage.setItem(PENDING_SAVE_KEY, text);
+      } catch (err) {
+        onError(err instanceof Error ? err.message : String(err));
+        return;
+      }
+      window.location.assign(window.location.pathname);
+    });
+  });
+  input.click();
+}
+
 /** Esc pause modal: music volume slider, "Continue" resumes the game, "Quit game" goes back to the faction picker. */
 export class PauseMenu {
   private readonly root: HTMLDivElement;
   /** Re-reads the music volume into the slider (the sound system may not exist yet at construction). */
   private readonly syncVolume: () => void;
 
-  constructor(onContinue: () => void, music: MusicVolumeControl, parent: HTMLElement = document.body) {
+  constructor(onContinue: () => void, music: MusicVolumeControl, saves: SaveActions, parent: HTMLElement = document.body) {
     this.root = document.createElement('div');
     this.root.className = 'end-screen pause-screen';
     this.root.setAttribute('role', 'dialog');
@@ -52,9 +83,14 @@ export class PauseMenu {
     quit.textContent = 'Quit game';
     // Reload without query params (e.g. ?faction=…) so the faction picker opens again.
     quit.addEventListener('click', () => window.location.assign(window.location.pathname));
+    const save = document.createElement('button');
+    save.type = 'button';
+    save.textContent = 'Save game';
+    save.title = 'Download this game as a .json file, to continue it later with Load game.';
+    save.addEventListener('click', () => saves.onSave());
     const actions = document.createElement('div');
     actions.className = 'pause-actions';
-    actions.append(resume, quit);
+    actions.append(resume, save, quit);
     card.append(title, text, volume, actions);
     this.root.append(card);
     parent.append(this.root);

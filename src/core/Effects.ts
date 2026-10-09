@@ -8,6 +8,21 @@ export type Effect =
   | { kind: 'smoke'; x: number; y: number; age: number; ttl: number; radius: number }
   /** A main battle tank blowing up and burning out, from its faction's tank sheet. */
   | { kind: 'tankDeath'; x: number; y: number; age: number; ttl: number; faction: FactionId }
+  /** A bomb from a nation's bomb sheet: falling from (x0, y0) to (x1, y1), its shadow from (gx, gy) to the impact. */
+  | { kind: 'bombFall'; x0: number; y0: number; x1: number; y1: number; gx: number; gy: number; age: number; ttl: number; faction: FactionId }
+  /** A Crazy Soldier's planted charge (position follows its target while it ticks) and its blast. */
+  | { kind: 'charge'; x: number; y: number; age: number; ttl: number }
+  | { kind: 'demoBlast'; x: number; y: number; age: number; ttl: number }
+  /** A tank shell from the shared shell sheet, flying (x0, y0) → (x1, y1). */
+  | { kind: 'shell'; x0: number; y0: number; x1: number; y1: number; age: number; ttl: number }
+  /** Its impact: sparks off a vehicle's armour, or an explosion and scorch mark. */
+  | { kind: 'shellImpact'; x: number; y: number; age: number; ttl: number; armour: boolean }
+  /** An aircraft's missile from the shared missile sheet, flying (x0, y0) → (x1, y1). */
+  | { kind: 'missile'; x0: number; y0: number; x1: number; y1: number; age: number; ttl: number }
+  /** Its impact: a small burst on an aircraft (`air`), the large explosion on the ground. */
+  | { kind: 'missileBlast'; x: number; y: number; age: number; ttl: number; air: boolean }
+  /** The bomb sheet's explosion and burning crater. */
+  | { kind: 'bombBlast'; x: number; y: number; age: number; ttl: number; faction: FactionId }
   /** A killed soldier falling and lying a moment, from their sheet's dying frames. */
   | { kind: 'soldierDeath'; x: number; y: number; age: number; ttl: number; look: InfantryLook; heading: number };
 

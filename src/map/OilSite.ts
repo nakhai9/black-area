@@ -62,6 +62,16 @@ export interface OilRowOptions {
   /** Other capitals (foreign ones) and how far from each of them (cells) the oil field must stay. */
   avoid?: readonly GridPoint[];
   avoidAway?: number;
+  /** Derricks per row: a bigger field is laid out in several rows stacked one behind the other. */
+  perRow?: number;
+  /** Every derrick must stand at least this many cells inside the nation's own land (0 = anywhere). */
+  minSafe?: number;
+  /** Other nations' derricks already placed: no derrick of this field may stand within `fieldsAway` cells of one. */
+  fields?: readonly GridPoint[];
+  fieldsAway?: number;
+  /** Real oil region: when set, the field's centre must lie within `nearRadius` cells of it (and the search is centred on it). */
+  near?: GridPoint;
+  nearRadius?: number;
 }
 
 /**
@@ -76,34 +86,42 @@ export function findOilRow(
   safety: Uint8Array,
   capital: GridPoint,
   count: number,
-  { w, d, gap, radius, minAway = 0, avoid = [], avoidAway = 0 }: OilRowOptions,
+  { w, d, gap, radius, minAway = 0, avoid = [], avoidAway = 0, perRow = count, minSafe = 0, fields = [], fieldsAway = 0, near, nearRadius = 0 }: OilRowOptions,
 ): GridPoint[] | null {
   const pitch = w + gap;
+  /** Cell of derrick i of a field whose first derrick is at (x, y). */
+  const at = (x: number, y: number, i: number): [number, number] => [x + (i % perRow) * pitch, y + Math.floor(i / perRow) * (d + gap)];
   let best: GridPoint[] | null = null;
   let bestScore = -Infinity;
-  for (let y = capital.y - radius; y <= capital.y + radius; y += 2) {
-    for (let x = capital.x - radius; x <= capital.x + radius; x += 2) {
+  const centre = near ?? capital;
+  const span = near ? nearRadius + 20 : radius;
+  for (let y = centre.y - span; y <= centre.y + span; y += 2) {
+    for (let x = centre.x - span; x <= centre.x + span; x += 2) {
       let minSafety = MAX_SAFETY;
       let ok = true;
       for (let i = 0; i < count && ok; i++) {
-        const fx = x + i * pitch;
-        if (!map.isAreaBuildable(fx, y, w, d, false, true)) {
+        const [fx, fy] = at(x, y, i);
+        if (!map.isAreaBuildable(fx, fy, w, d, false, true) || fields.some((f) => Math.hypot(fx - f.x, fy - f.y) < fieldsAway)) {
           ok = false;
           break;
         }
         const cx = Math.min(map.width - 1, fx + (w >> 1));
-        const cy = Math.min(map.height - 1, y + (d >> 1));
+        const cy = Math.min(map.height - 1, fy + (d >> 1));
         minSafety = Math.min(minSafety, safety[cy * map.width + cx] ?? 0);
       }
-      if (!ok) continue;
-      const mid = x + ((count - 1) * pitch + w) / 2;
+      if (!ok || minSafety < minSafe) continue;
+      const mid = x + ((Math.min(count, perRow) - 1) * pitch + w) / 2;
       const away = Math.hypot(mid - capital.x, y - capital.y);
       if (away < minAway) continue;
+      if (near && Math.hypot(mid - near.x, y - near.y) > nearRadius) continue;
       if (avoid.some((o) => Math.hypot(mid - o.x, y - o.y) < avoidAway)) continue;
       const score = minSafety + Math.min(away, 50) * 0.15;
       if (score > bestScore) {
         bestScore = score;
-        best = Array.from({ length: count }, (_, i) => ({ x: x + i * pitch, y }));
+        best = Array.from({ length: count }, (_, i) => {
+          const [fx, fy] = at(x, y, i);
+          return { x: fx, y: fy };
+        });
       }
     }
   }

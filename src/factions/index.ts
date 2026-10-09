@@ -1,6 +1,7 @@
 import type { Allegiance, FactionColors, FactionConfig, FactionId } from '../types';
 import { CHINA } from './china';
 import { EUROPE } from './europe';
+import { ISLAMIC } from './islamic';
 import { RUSSIA } from './russia';
 import { USA } from './usa';
 
@@ -9,6 +10,7 @@ export const FACTIONS: Readonly<Record<FactionId, FactionConfig>> = {
   china: CHINA,
   russia: RUSSIA,
   europe: EUROPE,
+  islamic: ISLAMIC,
 };
 
 /** Colours for neutral, shared landmarks (Global Financial Center). */

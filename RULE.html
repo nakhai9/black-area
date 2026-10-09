@@ -45,7 +45,7 @@ npm run dev          # Vite dev server
 npm run typecheck    # tsc --noEmit
 npm run build        # typecheck + vite build
 npm run build:earth  # tạo lại public/data/earth.png từ dữ liệu Trái Đất (scripts/build-earth.mjs)</pre>
-<p>URL <code>?faction=usa|russia|china|europe</code> bỏ qua màn chọn phe (dùng khi test).</p>
+<p>URL <code>?faction=usa|russia|china|europe|islamic</code> bỏ qua màn chọn phe (dùng khi test).</p>
 
 <h2 id="arch">2. Kiến trúc thư mục</h2>
 <table>
@@ -53,13 +53,13 @@ npm run build:earth  # tạo lại public/data/earth.png từ dữ liệu Trái 
 <tr><td><code>src/main.ts</code></td><td>Boot: chọn phe (<code>ui/FactionPicker</code>), tải Earth texture, tạo <code>Game</code>.</td></tr>
 <tr><td><code>src/core/Game.ts</code></td><td>Composition root (~1700 dòng): tạo thế giới, nối system/UI, xử lý input (<code>handleInput</code>, <code>handleKey</code>), ra lệnh (<code>orderMove</code>, <code>orderAttack</code>, <code>orderBoard</code>…), luật thắng thua. Vòng mô phỏng: <code>tick(dt)</code>; vẽ: <code>frame(dt)</code>.</td></tr>
 <tr><td><code>src/core/</code></td><td><code>Renderer</code> (vẽ mọi thứ), <code>Camera</code>, <code>InputHandler</code> (queue sự kiện), <code>GameLoop</code> (TICK_RATE 30), <code>EventBus</code>, <code>Effects</code>, <code>IsoView</code>.</td></tr>
-<tr><td><code>src/entities/</code></td><td><code>Entity</code> → <code>Building</code> (Capital, Barracks, WarFactory, Hospital, Airfield, TechCenter, OilDerrick, WorldBank, Chhg) và <code>Unit</code> → <code>Infantry</code>, <code>Vehicle</code>. <code>EntityManager</code> giữ danh sách.</td></tr>
+<tr><td><code>src/entities/</code></td><td><code>Entity</code> → <code>Building</code> (Capital, Barracks, WarFactory, Hospital, Airfield, TechCenter, OilDerrick, WorldBank) và <code>Unit</code> → <code>Infantry</code>, <code>Vehicle</code>. <code>EntityManager</code> giữ danh sách.</td></tr>
 <tr><td><code>src/systems/</code></td><td>Mỗi system implement <code>GameSystem.update(dt)</code>: Combat, AI, Construction, Placement, Training (lính), Vehicle (xe), Aircraft, Economy, OilMarket, Power, Selection.</td></tr>
 <tr><td><code>src/map/</code></td><td>Trái Đất thật: <code>EarthData</code>, <code>TileMap</code> (ô logic, nước, cây), <code>Pathfinder</code>, <code>Biomes</code>, <code>Territories</code>, <code>OilSite</code>, <code>TerrainRenderer</code>.</td></tr>
 <tr><td><code>src/render/</code></td><td>Art vẽ thủ tục: <code>InfantryArt</code>, <code>VehicleArt</code>, <code>sprites/*</code> (công trình), <code>SpriteCache</code>, <code>IsoPainter</code>, <code>Flags</code>.</td></tr>
 <tr><td><code>src/ui/</code></td><td><code>Sidebar</code> (3 trang: Command / Production / Rank — xếp hạng kinh tế &amp; quân sự), <code>Minimap</code> (radar), <code>StatusBar</code>, <code>FactionPicker</code>.</td></tr>
 <tr><td><code>src/audio/</code></td><td><code>SoundSystem</code>, <code>MusicSystem</code>.</td></tr>
-<tr><td><code>src/factions/</code></td><td>Cấu hình 4 phe + <code>teamColors(allegiance)</code>.</td></tr>
+<tr><td><code>src/factions/</code></td><td>Cấu hình 5 phe + <code>teamColors(allegiance)</code>.</td></tr>
 </table>
 <h3>Thứ tự một tick (<code>Game.tick</code>)</h3>
 <pre>evaluateNations (mỗi 1s) → cập nhật inWater/terrainFactor → entities.update
@@ -70,7 +70,7 @@ npm run build:earth  # tạo lại public/data/earth.png từ dữ liệu Trái 
 <ul>
   <li>Bản đồ là Trái Đất thật (equirectangular 4096×2048 texel, <code>WORLD_SCALE</code> 2.25 world px/texel).</li>
   <li>Lưới logic: ô <code>CELL_SIZE</code> = 7 world px. Hiển thị isometric kiểu Red Alert 2 (camera cố định, không xoay).</li>
-  <li>Thủ đô đặt ở toạ độ thật: Washington, Moscow, Beijing, Paris. Global Financial Center (trung lập) ở Zürich; CHHG trung lập ở Nam Cực.</li>
+  <li>Thủ đô đặt ở toạ độ thật: Washington, Moscow, Beijing, Paris. Global Financial Center (trung lập) ở Zürich.</li>
   <li>Rừng làm chậm mọi đơn vị mặt đất (×0.78). Nước: chỉ lính đặc nhiệm bơi được (×0.6 tốc độ); xe không xuống nước.</li>
   <li>Zoom chiến thuật 3–7; toàn cảnh xem trên radar sidebar.</li>
 </ul>
@@ -78,7 +78,7 @@ npm run build:earth  # tạo lại public/data/earth.png từ dữ liệu Trái 
 <h2 id="eco">4. Kinh tế (dầu thay cho quặng)</h2>
 <ul>
   <li>Tiền tệ: <b>TB</b>. Mọi phe bắt đầu với 0 TB và 20 thùng dầu.</li>
-  <li>Giếng dầu (OilDerrick) đặt sẵn thành 1 hàng ở nơi an toàn, xa mọi thủ đô: 4 giếng/phe, Europe 5. Mỗi giếng bơm 0.1 thùng mỗi 10s (0.01 thùng/s); chu kỳ bơm 180s, nghỉ 60s.</li>
+  <li>Giếng dầu (OilDerrick) đặt sẵn thành 1 hàng ở nơi an toàn, xa mọi thủ đô: 2 giếng/phe, riêng Islamic 8 (tối đa 4 giếng một hàng, Islamic 2 hàng); mọi giếng phải nằm sâu ≥ 6 ô trong lãnh thổ phe mình (xa biên giới, xa biển), và cách mọi giếng của phe khác ≥ 40 ô (OIL_FIELD_SPACING; bất đắc dĩ mới hạ còn 20); chỉ khi không đủ chỗ mới nới ra. Mỗi giếng bơm 0.1 thùng mỗi 10s (0.01 thùng/s); chu kỳ bơm 180s, nghỉ 60s.</li>
   <li>Bán dầu cho Global Financial Center: giá chung theo cung–cầu (không ngẫu nhiên), khởi điểm 600, trong 100–1200, cập nhật mỗi 10s. Mỗi lần Bank mua tối đa 25% lượng chào bán; giữa 2 lần bán phải chờ 3s. Hết tiền có thể vay khẩn cấp — xem mục 7b.</li>
   <li>Công trình được trả tiền dần trong lúc xây: mỗi 4s tiến 20%.</li>
 </ul>
@@ -145,7 +145,7 @@ npm run build:earth  # tạo lại public/data/earth.png từ dữ liệu Trái 
   <li><b>Unit không bao giờ tự tấn công công trình</b> — phải có lệnh focus (click vào công trình địch).</li>
   <li>Xe mặt đất cán chết lính địch trong bán kính 2.4 px.</li>
   <li>Máy bay mất sân bay sẽ tìm sân khác hoặc rơi.</li>
-  <li>Công trình <code>indestructible</code> (Global Financial Center, CHHG) không thể bị phá.</li>
+  <li>Công trình <code>indestructible</code> (Global Financial Center) không thể bị phá.</li>
 </ul>
 
 <h2 id="detail">7b. Nguyên tắc chi tiết từng đối tượng</h2>
@@ -163,7 +163,6 @@ npm run build:earth  # tạo lại public/data/earth.png từ dữ liệu Trái 
 <tr><td><b>Happy City</b> (<code>entities/HappyCity.ts</code>, art <code>render/sprites/HappyCity.ts</code>)</td><td>Phe</td><td>4000</td><td>0</td><td>Phá / chiếm được</td><td>8×8 ô, không cần công trình nào trước, xây bao nhiêu cũng được, giá 10000 TB cho mọi phe (<code>fixedCost</code>). Đường vành đai + ngã tư, cây xanh, công viên, nhà cao tầng, xe chạy, người đi bộ. Kiến trúc theo phe: USA nhà chọc trời + tháp kiểu Empire State; Russia tháp "Bảy chị em" + sao đỏ + mái vòm củ hành; China tháp truyền hình kiểu Minh Châu + mái chùa đỏ; Europe phố cổ mái dốc + nhà thờ tháp đồng hồ. <b>Thuế</b> (<code>systems/TaxSystem.ts</code>): mỗi thành phố nộp 500 TB mỗi 60s theo đồng hồ riêng tính từ lúc đặt, nên nhiều thành phố nộp lệch giờ nhau; tiền đi qua <code>OilMarket.receive()</code> (trừ nợ trước). Phe bị loại không thu thuế. Thành phố bị chiếm → thuế về phe mới. AI <b>có</b> xây Happy City: coi đây là khoản đầu tư chính, xây nhiều nhất trong khả năng (tối đa 10 × khẩu vị theo tính cách), chỉ xây bằng tiền mặt — không bao giờ vay để xây — và chỉ khi quân số còn trên ngưỡng.</td></tr>
 <tr><td><b>Oil Derrick</b></td><td>Phe</td><td>1000</td><td>0</td><td>Thường: phá / chiếm được. <b>Giếng do Global Financial Center quản lý</b>: không phá, không chiếm được</td><td>Đặt sẵn thành 1 hàng, không xây được. Bơm 0.1 thùng mỗi 10s trong 180s, nghỉ 60s; các giếng trong hàng lệch pha 40s để thu nhập đều. Mỗi hàng có 1 giếng do Bank quản lý — dầu vẫn về phe chủ. Phím <code>O</code> duyệt giếng.</td></tr>
 <tr><td><b>Global Financial Center</b> (Zürich)</td><td>Trung lập</td><td>3000</td><td>0</td><td><b>Không</b> phá, không gây sát thương, không chiếm, không vào</td><td>Chợ dầu chung (<code>systems/OilMarket.ts</code>) — xem bên dưới.</td></tr>
-<tr><td><b>CHHG</b> (Nam Cực)</td><td>Trung lập</td><td>5000</td><td>0</td><td><b>Không</b> phá, không chiếm, không vào</td><td>Landmark trang trí. Engineer click vào → thông báo "Neutral buildings cannot be captured or destroyed."</td></tr>
 </table>
 
 <h3>Ngân hàng thế giới — cách bán dầu (code: <code>systems/OilMarket.ts</code>)</h3>
@@ -220,6 +219,8 @@ npm run build:earth  # tạo lại public/data/earth.png từ dữ liệu Trái 
 <tr><td><b>regular</b></td><td>rifle (cả 4 phe)</td><td>Không giới hạn số sở hữu; chỉ giới hạn 15 đơn chờ chung cho lính.</td></tr>
 <tr><td><b>special</b></td><td>USA smg, Russia smg, China smg, Europe sniper</td><td>Cần High-Tech Center. Số special (sống + đang đặt) ≤ floor(regular × 2/3). Bơi được (60% tốc độ).</td></tr>
 <tr><td><b>engineer</b></td><td>không (cờ lê)</td><td>Click nhà mình bị hỏng → kỹ sư đi vào nhà, sửa tới 100% (mỗi kỹ sư 6% máu tối đa/s; nhiều kỹ sư cộng dồn; nhà vẫn mất máu khi bị bắn) rồi tự đi ra, không thông báo. Nhà bị phá hủy trong lúc sửa → kỹ sư chết cùng nhà (tính là bị tiêu diệt bởi bên phá nhà). Bán nhà (Ctrl+click) lúc đang sửa → kỹ sư ra an toàn. Không sửa nhà indestructible. Click nhà địch chiếm được → đi tới cửa, <b>engineer mất</b>, nhà đổi phe và đổi màu. Không chiếm được nhà trung lập.</td></tr>
+<tr><td><b>Thuê dầu</b> (engineer phe khác → giếng dầu Islamic)</td><td>—</td><td>Chuột phải giếng dầu Islamic bằng engineer → kỹ sư tới cửa, thuê giếng 3 phút (<code>OIL_LEASE_SECONDS</code>), không mất kỹ sư. Trong lúc thuê giếng bơm vào kho dầu phe thuê (đếm riêng <code>leasedOil</code>); khi bán, phần tiền từ dầu thuê chia 30% cho Islamic, 70% cho phe thuê (<code>OIL_LEASE_CARTEL_SHARE</code>). Hết hạn giếng về Islamic. Giếng Islamic tạm thời không phá / không chiếm được (<code>leasesOil</code>).</td></tr>
+<tr><td><b>demolition</b> (Crazy Soldier, chỉ Islamic)</td><td>không vũ khí, đặt bom hẹn giờ</td><td>Cần High-Tech Center, 900 TB, 10s. Chuột phải lên công trình/đơn vị mặt đất của địch → chạy tới, đặt bom trong 1.5 ô rồi đi tiếp (không tự sát, giống Crazy Ivan RA2); 5s sau mới đặt quả tiếp. Bom bám theo mục tiêu, nổ sau 4s: công trình ≤ 16 ô (4×4) bị phá hủy, lớn hơn mất 40% máu tối đa; đơn vị chiến đấu địch trong 2.5 ô: ≤ 8 chết hết, > 8 chết một nửa (gần nhất). Hằng số <code>DEMO_*</code> trong <code>constants.ts</code>; code <code>Game.processDemolition / detonate</code>.</td></tr>
 </table>
 <ul>
   <li>Tầm bắn lính = min(tầm vũ khí × hệ số range phe, 3 ô). Sát thương × hệ số firepower phe.</li>
@@ -249,7 +250,8 @@ npm run build:earth  # tạo lại public/data/earth.png từ dữ liệu Trái 
 <tr><td>Chuột phải vào công trình</td><td>Vào / sửa / chiếm / tấn công (focus) tuỳ quân đang chọn</td></tr>
 <tr><td>Chuột phải vào máy bay vận tải của mình</td><td>Quân đang chọn lên máy bay (đang bay thì nó hạ cánh trước)</td></tr>
 <tr><td><code>Ctrl</code> + <code>Shift</code> + chuột phải</td><td>Attack-move: đi tới đó, gặp địch trên đường thì dừng lại bắn (quân không vũ khí chỉ đi tới)</td></tr>
-<tr><td><code>X</code></td><td>Tản ra (scatter): quân đang chọn chạy ra xa giữa nhóm ~3 ô (máy bay ~6 ô)</td></tr>
+<tr><td><code>X</code></td><td>Xếp đội hình duyệt binh: đơn vị mặt đất đang chọn xếp thành hàng ngay ngắn quanh chỗ đang đứng — khối ma trận 3 hàng × 5 (thêm quân thì khối mới phía sau, cách 1 hàng trống), lính khối trước, xe khối sau, tới nơi tất cả quay cùng một hướng (về phía người xem); máy bay không bị ảnh hưởng</td></tr>
+<tr><td><code>C</code></td><td>Tản ra (scatter): quân đang chọn chạy ra xa giữa nhóm ~3 ô (máy bay ~6 ô)</td></tr>
 <tr><td>Chuột giữa kéo / WASD / mũi tên / mép màn hình</td><td>Cuộn camera</td></tr>
 <tr><td>Lăn chuột, <code>+</code> <code>-</code></td><td>Zoom</td></tr>
 <tr><td><code>1</code>–<code>9</code></td><td>Nhảy tới landmark</td></tr>
@@ -260,6 +262,7 @@ npm run build:earth  # tạo lại public/data/earth.png từ dữ liệu Trái 
 <tr><td><code>M</code></td><td>Tắt/bật âm</td></tr>
 <tr><td><code>Tab</code></td><td>Ẩn/hiện sidebar</td></tr>
 <tr><td><code>Esc</code></td><td>Huỷ đặt công trình; nếu không đang đặt: tạm dừng game (menu Tiếp tục / Thoát game về màn chọn phe)</td></tr>
+<tr><td>Esc → <b>Save game</b>; màn chọn phe → <b>Load game</b></td><td>Lưu toàn bộ ván ra file <code>.json</code> (người chơi, mọi công trình/lính/xe/máy bay, hàng chờ, chợ dầu, AI, bom đang rơi, bom hẹn giờ, camera) và mở lại để chơi tiếp. Bản đồ không lưu — dựng lại từ <code>MAP_SEED</code>. Code: <code>core/SaveCodec.ts</code>, <code>Game.exportSave / importSave</code>. Thêm class entity mới → đăng ký trong <code>ENTITY_CLASSES</code>; đổi cấu trúc dữ liệu → tăng <code>SAVE_VERSION</code>.</td></tr>
 </table>
 
 <h2 id="limits-perf">8b. Giới hạn &amp; giữ nhịp game</h2>

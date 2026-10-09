@@ -13,7 +13,6 @@ const PIC_H = 220;
 function displayName(type: string, owner: string): string {
   if (type === 'capital') return FACTIONS[owner as keyof typeof FACTIONS]?.capital.name ?? 'Capital';
   if (type === 'bank') return 'Global Financial Center';
-  if (type === 'chhg') return 'CHHG';
   if (type === 'oil') return 'Oil Derrick';
   return BUILD_OPTIONS.find((o) => o.id === type)?.name ?? type;
 }

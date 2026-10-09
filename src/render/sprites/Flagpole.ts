@@ -119,6 +119,17 @@ const PLAZAS: Record<FactionId, Plaza> = {
       }
     },
   },
+  // Islamic: sand-stone plinth wrapped in a band of turquoise tile, with a small fountain bowl in front.
+  islamic: {
+    top: 6,
+    podium: (p) => {
+      step(p, 0, 0, 2, '#cdb98e');
+      p.topRect(0.04, 0.04, 0.96, 0.96, 2, '#e4d2a8');
+      step(p, 0.22, 2, 2, '#2fa6b8');
+      step(p, 0.3, 4, 2, '#e4d2a8');
+      p.cylinder(0.78, 0.78, 0.1, 2, 1.2, '#1d6f86');
+    },
+  },
 };
 
 /**

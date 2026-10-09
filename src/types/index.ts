@@ -3,7 +3,10 @@
  * layer (core, map, entities, systems, ui) can depend on it safely.
  */
 
-export type FactionId = 'usa' | 'china' | 'russia' | 'europe';
+export type FactionId = 'usa' | 'china' | 'russia' | 'europe' | 'islamic';
+
+/** The oil cartel's production policy (OPEC-style): cut output to lift the world price, hold, or flood the market. */
+export type OilPolicy = 'cut' | 'hold' | 'flood';
 
 /** Who an entity belongs to: a faction, or nobody (shared world landmarks). */
 export type Allegiance = FactionId | 'neutral';
@@ -104,10 +107,11 @@ export interface VehicleProfile {
 
 /** Every nation fields a regular line infantry and a special-forces unit. */
 /** `squatters`: a flag bearer and his rifleman escort, trained, selected and moved as one unit (see Infantry). */
-export type UnitTier = 'regular' | 'special' | 'engineer' | 'squatters';
+/** `demolition`: a national special (only nations that list it in `infantry` train it) — plants timed charges. */
+export type UnitTier = 'regular' | 'special' | 'engineer' | 'squatters' | 'demolition';
 
 /** Soldier sprite sheets in public/sprites (see render/InfantryArt). */
-export type SoldierSheetId = 'gi' | 'ranger' | 'spetsnaz' | 'conscript' | 'usRegular' | 'usSpecial' | 'ruRegular' | 'ruSpecial' | 'cnRegular' | 'cnSpecial' | 'euRegular' | 'euSpecial' | 'usEngineer' | 'ruEngineer' | 'cnEngineer' | 'euEngineer' | 'euSquatters' | 'ruSquatters' | 'usSquatters' | 'cnSquatters';
+export type SoldierSheetId = 'gi' | 'ranger' | 'spetsnaz' | 'conscript' | 'usRegular' | 'usSpecial' | 'ruRegular' | 'ruSpecial' | 'cnRegular' | 'cnSpecial' | 'euRegular' | 'euSpecial' | 'usEngineer' | 'ruEngineer' | 'cnEngineer' | 'euEngineer' | 'euSquatters' | 'ruSquatters' | 'usSquatters' | 'cnSquatters' | 'islamicRegular' | 'islamicSpecial' | 'islamicSquatters' | 'islamicEngineer' | 'islamicDemolition';
 
 /** Procedural look of a soldier (team colour is added as a vest stripe). */
 export interface InfantryLook {
@@ -139,9 +143,15 @@ export interface FactionConfig {
   stats: FactionStats;
   capital: CapitalSpec;
   /** Ground forces trained at the Barracks. */
-  infantry: Readonly<Record<UnitTier, InfantryProfile>>;
+  infantry: Readonly<Record<Exclude<UnitTier, 'demolition'>, InfantryProfile>> & { readonly demolition?: InfantryProfile };
   /** Vehicles (War Factory) and aircraft (Airfield). */
   vehicles: Readonly<Record<Exclude<VehicleKind, 'bomber'>, VehicleProfile>> & { readonly bomber?: VehicleProfile };
+  /** Leads the world oil cartel (like OPEC in real life): sets a production policy that moves the global oil price. */
+  oilCartel?: boolean;
+  /** Temporarily kept out of the fighting: trains no soldiers and builds no vehicles or aircraft (economy and oil only). */
+  peaceful?: boolean;
+  /** Its derricks can be leased by other nations' engineers (see OIL_LEASE_*), and cannot be destroyed or captured for now. */
+  leasesOil?: boolean;
 }
 
 // ---------------------------------------------------------------- Players & buildings
@@ -155,6 +165,8 @@ export interface PlayerState {
   credits: number;
   /** Oil in stock (barrels): pumped by the derricks, sold to the Global Financial Center for TB. */
   oil: number;
+  /** Part of `oil` pumped from leased derricks: when sold, the cartel takes its share (OIL_LEASE_CARTEL_SHARE). */
+  leasedOil: number;
   /** TB owed to the Global Financial Center (emergency loans); income pays it back automatically. */
   debt: number;
   /** Credit frozen by the Global Financial Center after reaching its credit line; lifted once DEBT ≤ DEBT_RESUME_SHARE of the line. */
@@ -186,7 +198,6 @@ export type BuildingType =
   | 'warFactory'
   | 'refinery'
   | 'bank'
-  | 'chhg'
   | 'hospital'
   | 'warFactory'
   | 'airfield'

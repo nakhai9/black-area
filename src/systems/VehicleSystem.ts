@@ -24,6 +24,7 @@ const KINDS: readonly VehicleKind[] = ['light', 'tank', 'ifv', 'jet', 'bomber', 
 
 function vehicleOptions(faction: FactionId): VehicleOption[] {
   const f = FACTIONS[faction];
+  if (f.peaceful) return [];
   // National specials (the bomber) are offered only to the nations that list them.
   return KINDS.filter((kind) => AVAILABLE_VEHICLES.includes(kind) && f.vehicles[kind as keyof typeof f.vehicles]).map((kind) => ({
     kind,
@@ -126,6 +127,7 @@ export class VehicleSystem implements GameSystem {
 
   enqueue(player: PlayerState, kind: VehicleKind): VehicleEnqueueResult {
     if (player.capitalLost) return 'noCapital';
+    if (FACTIONS[player.faction].peaceful) return 'full';
     const q = this.queue(player);
     const missing = this.missingBuilding(player, kind);
     if (missing) return missing;

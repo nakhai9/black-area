@@ -8,7 +8,7 @@ const BLOCKED_GIVE_UP = 4;
 
 /** A standing order with a building as its target. */
 export interface UnitTask {
-  type: 'enter' | 'repair' | 'capture';
+  type: 'enter' | 'repair' | 'capture' | 'lease';
   buildingId: number;
 }
 
@@ -39,6 +39,8 @@ export abstract class Unit extends Entity {
   facing: 1 | -1 = 1;
   /** Direction of travel in radians (0 = +x, towards the right of the screen). */
   heading = 0.6;
+  /** Heading to turn to once the current path ends (formations); cleared by any new order. */
+  faceOnArrival: number | null = null;
   /** Advances while moving; drives leg swing / track animation. */
   walkPhase = 0;
   /** Set by the game each tick: standing in water. */
@@ -180,6 +182,7 @@ export abstract class Unit extends Entity {
   /** Replaces the current orders with a new path (world px waypoints). */
   follow(path: readonly WorldPoint[]): void {
     this.path = [...path];
+    this.faceOnArrival = null;
     this.destination = path.length > 0 ? (path[path.length - 1] ?? null) : null;
     this.stuckFor = 0;
     this.needsRepath = false;
@@ -232,6 +235,10 @@ export abstract class Unit extends Entity {
       }
     }
     if (this.path.length === 0 && moving) this.destination = null;
+    if (this.path.length === 0 && this.faceOnArrival !== null) {
+      this.turnTowards(this.faceOnArrival, dt);
+      if (Math.abs(Math.sin(this.heading - this.faceOnArrival)) < 1e-3 && Math.cos(this.heading - this.faceOnArrival) > 0) this.faceOnArrival = null;
+    }
     this.walkPhase += (total - budget) * STEP_PHASE_PER_PX;
     this.x = this.px / CELL_SIZE;
     this.y = this.py / CELL_SIZE;

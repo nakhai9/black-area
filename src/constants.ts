@@ -3,6 +3,7 @@ import type {
   FactionId,
   GeoPoint,
   NamedSite,
+  OilPolicy,
   UnitTier,
   VehicleKind,
   WeaponKind,
@@ -125,7 +126,7 @@ export const AIRFIELD_COST = 2000;
 /** High-Tech Center (a high-rise): base price; it unlocks the second-tier soldiers and vehicles. */
 export const TECH_CENTER_COST = 8000;
 /** Second-tier units that need a High-Tech Center: special-forces soldiers and the armoured fighting vehicle. */
-export const TECH_TIERS: readonly UnitTier[] = ["special"];
+export const TECH_TIERS: readonly UnitTier[] = ["special", "demolition"];
 export const TECH_VEHICLES: readonly VehicleKind[] = ["ifv", "transport"];
 /**
  * Happy City: no limit on how many a nation builds; fixed price (no faction cost multiplier). Every city pays
@@ -145,6 +146,8 @@ export const INFANTRY_BASE = {
   engineer: { cost: 400, trainSeconds: 6, maxHp: 100, speed: 1.3 },
   /** Two men counted as one: the flag bearer and his escort (hp covers both). */
   squatters: { cost: 1400, trainSeconds: 12, maxHp: 320, speed: 1.4 },
+  /** Crazy Soldier (Islamic only): unarmed, plants timed charges (see DEMO_*). */
+  demolition: { cost: 900, trainSeconds: 10, maxHp: 110, speed: 1.6 },
 } as const;
 /**
  * BuildLimit: how many orders a nation may have waiting at once (the one being made included). Any type may be
@@ -164,6 +167,24 @@ export const MAX_TRANSPORTS = 3;
  */
 export const eliteCap = (regulars: number): number =>
   Math.floor((regulars * 2) / 3);
+/**
+ * Crazy Soldier (like RA2's Crazy Ivan): ordered onto an enemy structure or unit, he runs up to it, plants a charge
+ * (DEMO_PLANT_CELLS away at most) and walks on; DEMO_FUSE_SECONDS later it blows. He may plant again after
+ * DEMO_RELOAD_SECONDS. The blast:
+ *  - a structure of at most DEMO_SMALL_CELLS cells (footprint) is destroyed; a larger one loses DEMO_LARGE_DAMAGE of its max health;
+ *  - the enemy combat units (armed, on the ground) within DEMO_GROUP_RADIUS_CELLS of the charge: DEMO_GROUP_SIZE or
+ *    fewer all die, more than that half of them (the nearest).
+ */
+export const DEMO_FUSE_SECONDS = 4;
+export const DEMO_PLANT_CELLS = 1.5;
+export const DEMO_RELOAD_SECONDS = 5;
+export const DEMO_SMALL_CELLS = 16;
+export const DEMO_LARGE_DAMAGE = 0.4;
+export const DEMO_GROUP_RADIUS_CELLS = 2.5;
+export const DEMO_GROUP_SIZE = 8;
+/** X key formation: blocks of FORMATION_RANKS ranks × FORMATION_COLS units, one empty rank between blocks. */
+export const FORMATION_COLS = 5;
+export const FORMATION_RANKS = 3;
 /** Special-forces soldiers swim; they move at this fraction of their speed in water. */
 export const SWIM_SPEED_FACTOR = 0.6;
 /** Leg-swing phase (radians) per world px walked: higher = shorter, quicker steps. */
@@ -306,6 +327,8 @@ export const VEHICLE_BASE = {
 /** Bomber payload: bombs carried per sortie (reloaded on its airfield) and bombs released per drop. */
 export const BOMBER_BOMBS = 6;
 export const BOMBS_PER_DROP = 2;
+/** Seconds from release until a bomb hits the ground and explodes: its damage lands only then. */
+export const BOMB_FALL_SECONDS = 0.9;
 /** Fighters carry this many bombs, one per drop: the only way they can hit a structure (JET_BOMB_VS_STRUCTURE of
  * its max health each). While any are left they are also dropped on ground units (JET_BOMB_VS_VEHICLE of a
  * vehicle's max health, a soldier killed); aircraft, and ground units once the bombs are gone, get the guns. */
@@ -399,12 +422,13 @@ export const STARTING_CREDITS = 0;
 /** Owner id of neutral entities (not a player). */
 export const NEUTRAL_OWNER = 0;
 
-/** Faction order used for player ids, sidebar listing and hotkeys 1..4. */
+/** Faction order used for player ids, sidebar listing and hotkeys 1..5. */
 export const FACTION_ORDER: readonly FactionId[] = [
   "usa",
   "russia",
   "china",
   "europe",
+  "islamic",
 ];
 
 // ---------------------------------------------------------------- Landmarks (real coordinates)
@@ -413,10 +437,9 @@ export const CAPITAL_LOCATIONS: Readonly<Record<FactionId, NamedSite>> = {
   russia: { lon: 37.62, lat: 55.75, name: "Moscow" },
   china: { lon: 116.4, lat: 39.9, name: "Beijing" },
   europe: { lon: 2.35, lat: 48.86, name: "Paris" },
+  islamic: { lon: 46.68, lat: 24.71, name: "Riyadh" },
 };
 export const WORLD_BANK_LOCATION: GeoPoint = { lon: 8.54, lat: 47.37 }; // Zürich
-/** Neutral CHHG complex on the Antarctic ice (inland, Queen Maud Land). */
-export const CHHG_LOCATION: GeoPoint = { lon: 20, lat: -78 };
 
 // ---------------------------------------------------------------- Oil (replaces RA2 ore)
 /** Barrels of oil pumped per second by each derrick while it is pumping (oil is sold to the Global Financial Center for TB). */
@@ -471,13 +494,47 @@ export const OIL_SALE_BURST = 6;
 export const OIL_SALE_COOLDOWN = 3;
 /** Barrels that always stay in the nation's stock: a sale never dips below this reserve. */
 export const OIL_RESERVE = 1.0;
-/** Oil derricks per nation, built in one straight row on the safest ground: 4, or 5 for Europe (it also runs the Global Financial Center). */
+/** Oil derricks per nation, built in one straight row on the safest ground: 2 each, but 8 for the Islamic world (the Middle East oil fields). */
 export const OIL_DERRICK_COUNT: Readonly<Record<FactionId, number>> = {
-  usa: 4,
-  russia: 4,
-  china: 4,
-  europe: 5,
+  usa: 2,
+  russia: 2,
+  china: 2,
+  europe: 2,
+  islamic: 8,
 };
+/**
+ * Real oil regions some nations must put their field in (centre within 16 cells, widened to 24 / 32 only if needed,
+ * always inside their own land): the Islamic world's goes to the Persian Gulf fields (eastern Saudi Arabia, Kuwait,
+ * southern Iraq), never to Africa.
+ */
+export const OIL_SITES: Readonly<Partial<Record<FactionId, NamedSite>>> = {
+  islamic: { lon: 48.5, lat: 27, name: "Persian Gulf oil fields" },
+};
+/**
+ * Oil cartel (FactionConfig.oilCartel, like OPEC): its production policy scales the cartel's own derrick output and
+ * the world price the market heads for, as in real life — a cut pumps less but lifts the price for everybody, a flood
+ * pumps more and crashes it (a price war hurting rivals who live off oil). The posted price still eases towards the
+ * target, so a policy takes a few revisions to bite. It can be changed once every OIL_POLICY_COOLDOWN seconds.
+ */
+export const OIL_POLICIES: Readonly<
+  Record<OilPolicy, { label: string; output: number; price: number }>
+> = {
+  cut: { label: "Cut output", output: 0.5, price: 1.35 },
+  hold: { label: "Hold", output: 1, price: 1 },
+  flood: { label: "Flood market", output: 1.6, price: 0.7 },
+};
+export const OIL_POLICY_COOLDOWN = 90;
+/**
+ * Oil leases (FactionConfig.leasesOil): another nation sends an engineer into one of the cartel's derricks and leases
+ * it for OIL_LEASE_SECONDS. Meanwhile the derrick pumps into the lessee's stock; when that oil is sold, the cartel
+ * gets OIL_LEASE_CARTEL_SHARE of the money (the lessee the rest). Then the derrick goes back to the cartel.
+ */
+export const OIL_LEASE_SECONDS = 180;
+export const OIL_LEASE_CARTEL_SHARE = 0.3;
+/** Most derricks in one row; a bigger field (the Islamic world's) gets several rows. */
+export const OIL_ROW_MAX = 4;
+/** No derrick may stand within this many cells of another nation's derrick (oil fields never share ground). */
+export const OIL_FIELD_SPACING = 40;
 /** Oil cycle: pump for 3 minutes, then rest 1 minute while the field recovers. */
 export const OIL_MINE_SECONDS = 180;
 export const OIL_REST_SECONDS = 60;

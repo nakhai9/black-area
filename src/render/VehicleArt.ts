@@ -28,6 +28,7 @@ const BODY: Record<FactionId, string> = {
   russia: '#2e3d36', // dark green
   china: '#5b6a3a', // moss green
   europe: '#6a7884', // blue-grey
+  islamic: '#b8a27a', // desert sand
 };
 
 type Ctx = CanvasRenderingContext2D;
@@ -296,6 +297,15 @@ const JETS: Record<FactionId, JetDesign> = {
     nozzles: [0.3, -0.3],
     canopy: [2.9, 0.95],
     marks: [[-3.2, 2.6, 0.6, 0.6], [-3.6, 1.2, 0.5, 0.5]],
+  },
+  // Su-35 fallback (drawn only until jet-islamic.png loads): swept wing, wide-spaced twin engines and twin fins.
+  islamic: {
+    wing: [[1.0, 1.2], [-1.8, 4.0], [-2.5, 4.0], [-2.0, 1.3], [-3.4, 1.25], [-4.4, 2.6], [-4.9, 2.5], [-4.5, 0.3]],
+    hull: [[5.2, 0], [3.8, 0.38], [2.4, 0.55], [1.0, 1.3], [-4.0, 1.25], [-4.5, 0.3], [-5.0, 0.15]],
+    fins: [{ y: 1.0, cant: 0.1, h: 2.0, x0: -2.6, x1: -4.3 }],
+    nozzles: [0.85, -0.85],
+    canopy: [2.9, 0.95],
+    marks: [[-2.1, 3.0, 0.6, 0.6], [-4.2, 1.7, 0.5, 0.4]],
   },
 };
 

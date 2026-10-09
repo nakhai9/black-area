@@ -4,6 +4,12 @@ export type EntityKind = 'building' | 'unit';
 
 let nextEntityId = 1;
 
+/** Id the next entity will get, and setting it back (loading a saved game). */
+export const peekNextEntityId = (): number => nextEntityId;
+export const setNextEntityId = (id: number): void => {
+  nextEntityId = id;
+};
+
 /** Base class for everything that lives on the battlefield. */
 export abstract class Entity {
   readonly id = nextEntityId++;

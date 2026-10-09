@@ -3,6 +3,7 @@ import type { FactionId } from '../../types';
 import { shade } from '../Color';
 import type { IsoPainter } from '../IsoPainter';
 import type { BuildingArt } from './BuildingArt';
+import { drawMosque } from './GrandMosque';
 
 const N = 8;
 const ASPHALT = '#4a4d52';
@@ -187,6 +188,14 @@ const STYLES: Readonly<Record<FactionId, CityStyle>> = {
       p.pyramid(2.6, 2.4, 0.8, 0.8, 82, 34, '#4d5b66');
       p.pole(3.0, 2.8, 116, 14, team);
     },
+  },
+  // Islamic: a Middle Eastern city — sand-coloured blocks round a mosque with a turquoise dome and minarets.
+  islamic: {
+    facades: ['#e4d2a8', '#d8c095', '#eadfc4', '#c9ad80'],
+    roof: '#b89e74',
+    towers: 'panel',
+    lit: [0.9, 0.9, 2.4, 2.4, 30],
+    landmark: (p) => drawMosque(p, 0.6, 0.6, 0.85, 2),
   },
 };
 

@@ -1,5 +1,5 @@
 import { movesRight } from '../core/IsoView';
-import { JET_BOMB_VS_STRUCTURE, JET_BOMB_VS_VEHICLE, ACQUIRE_PERIOD, BOMB_GROUP_RADIUS_CELLS, BOMB_GROUP_SIZE, BOMB_TOUGH_DAMAGE, BOMB_TOUGH_STRUCTURES, BOMBS_PER_DROP, CELL_SIZE, CHASE_GIVE_UP_SECONDS, CHASE_LIMIT_CELLS, CHASE_PERIOD, FIGHT_MEMORY_SECONDS, GUARD_VISION_FACTOR, NEUTRAL_OWNER, RETALIATE_RANGE_FACTOR } from '../constants';
+import { BOMB_FALL_SECONDS, JET_BOMB_VS_STRUCTURE, JET_BOMB_VS_VEHICLE, ACQUIRE_PERIOD, BOMB_GROUP_RADIUS_CELLS, BOMB_GROUP_SIZE, BOMB_TOUGH_DAMAGE, BOMB_TOUGH_STRUCTURES, BOMBS_PER_DROP, CELL_SIZE, CHASE_GIVE_UP_SECONDS, CHASE_LIMIT_CELLS, CHASE_PERIOD, FIGHT_MEMORY_SECONDS, GUARD_VISION_FACTOR, NEUTRAL_OWNER, RETALIATE_RANGE_FACTOR } from '../constants';
 import { Building } from '../entities/Building';
 import type { Entity } from '../entities/Entity';
 import type { EntityManager } from '../entities/EntityManager';
@@ -63,6 +63,8 @@ export class CombatSystem implements GameSystem {
   private readonly chaseAt = new Map<number, number>();
   private readonly grid = new Map<number, Unit[]>();
   private readonly pool: Unit[][] = [];
+  /** Bomb hits still falling: each lands (deals its damage) at `at` — a bomber's stick, or one fighter bomb. Plain data (saved games). */
+  private readonly falling: { at: number; kind: 'stick' | 'jet'; shooter: Vehicle; target: Entity; impact: WorldPoint }[] = [];
 
   constructor(
     private readonly entities: EntityManager,
@@ -72,6 +74,13 @@ export class CombatSystem implements GameSystem {
 
   update(dt: number): void {
     this.time += dt;
+    if (this.falling.length > 0) {
+      const due = this.falling.filter((f) => f.at <= this.time);
+      if (due.length > 0) {
+        this.falling.splice(0, this.falling.length, ...this.falling.filter((f) => f.at > this.time));
+        for (const f of due) this.land(f);
+      }
+    }
     const movers = this.entities.fieldMovers();
     // Spatial hash reused every tick: emptied bucket arrays go back to a pool instead of becoming garbage.
     const grid = this.grid;
@@ -274,7 +283,28 @@ export class CombatSystem implements GameSystem {
    */
   private dropBombs(s: Vehicle, t: Entity, impact: WorldPoint): void {
     s.bombs = Math.max(0, s.bombs - BOMBS_PER_DROP); // the last bomb is dropped alone
+    // Nothing is hit until the bombs reach the ground and explode.
+    this.falling.push({ at: this.time + BOMB_FALL_SECONDS, kind: 'stick', shooter: s, target: t, impact });
+  }
+
+  /** A falling bomb reaches the ground. */
+  private land(f: { kind: 'stick' | 'jet'; shooter: Vehicle; target: Entity; impact: WorldPoint }): void {
+    const { shooter: s, target: t } = f;
+    if (!s || !t) return; // (a saved game whose bomber or target no longer exists)
+    if (f.kind === 'stick') {
+      this.bombsLand(s, t, f.impact);
+      return;
+    }
+    if (!t.alive) return;
+    t.damage(t instanceof Building ? t.maxHp * JET_BOMB_VS_STRUCTURE : t instanceof Vehicle ? t.maxHp * JET_BOMB_VS_VEHICLE : t.hp);
+    t.lastAttackerId = s.id;
+    t.lastAttackedAt = this.time;
+  }
+
+  /** The bomber's stick explodes: a structure is flattened (tough ones lose half), or the troops round the impact die. */
+  private bombsLand(s: Vehicle, t: Entity, impact: WorldPoint): void {
     const hit = (o: Entity, amount: number): void => {
+      if (!o.alive) return;
       o.damage(amount);
       o.lastAttackerId = s.id;
       o.lastAttackedAt = this.time;
@@ -307,9 +337,8 @@ export class CombatSystem implements GameSystem {
       // Fighter on a ground target with a bomb left: a tenth of a structure, 60% of a vehicle, a soldier dead.
       // (Aircraft, and ground units once the bombs are gone, get the guns below.)
       s.bombs--;
-      t.damage(t instanceof Building ? t.maxHp * JET_BOMB_VS_STRUCTURE : t instanceof Vehicle ? t.maxHp * JET_BOMB_VS_VEHICLE : t.hp);
-      t.lastAttackerId = s.id;
-      t.lastAttackedAt = this.time;
+      // The damage lands when the bomb explodes, BOMB_FALL_SECONDS after release.
+      this.falling.push({ at: this.time + BOMB_FALL_SECONDS, kind: 'jet', shooter: s, target: t, impact });
       s.engaged = true;
       this.hooks.onFire(s, t, { ...w, kind: 'bomb' }, impact);
       return;
