@@ -2,10 +2,8 @@ import {
   CAPITAL_LOCATIONS,
   DEMO_MODE,
   FACTION_ORDER,
-  OIL_DERRICK_COUNT,
-  OIL_DERRICK_OUTPUT,
   OIL_MINE_SECONDS,
-  OIL_REST_SECONDS
+  OIL_REST_SECONDS,
 } from "../constants";
 import { FACTIONS } from "../factions";
 import { getFlagTexture } from "../render/Flags";
@@ -168,7 +166,7 @@ export class FactionPicker {
     ).join("");
     const oil = [
       "Straight row, safest inland ground",
-      `Pump ${OIL_MINE_SECONDS} s · rest ${OIL_REST_SECONDS} s`,
+      `Pump 111 ${OIL_MINE_SECONDS} s · rest ${OIL_REST_SECONDS} s`,
     ]
       .map((t) => `<li>${t}</li>`)
       .join("");
@@ -177,10 +175,9 @@ export class FactionPicker {
       <img class="fp-flag" src="${getFlagTexture(id).toDataURL()}" alt="">
       <h2>${f.name}</h2>
       <div class="fp-capital">${f.capital.name} · ${CAPITAL_LOCATIONS[id].name}</div>
-      <p class="fp-doctrine">${f.doctrine}</p>
+
       <ul class="sb-stats fp-stats">${stats}</ul>
-      <div class="fp-oil-title">Oil derricks · ${OIL_DERRICK_COUNT[id]} × ${parseFloat(OIL_DERRICK_OUTPUT.toFixed(3))} barrels/s</div>
-      <ul class="fp-oil">${oil}</ul>`;
+`;
     return card;
   }
 }
