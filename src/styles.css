@@ -464,6 +464,7 @@ kbd {
   cursor: pointer;
   margin-left: auto;
 }
+.fp-desktop,
 .fp-guide,
 .fp-load {
   padding: 10px 18px;
@@ -479,11 +480,14 @@ kbd {
   margin-left: auto;
 }
 .fp-load + .fp-deploy,
+.fp-desktop + .fp-guide,
+.fp-demo + .fp-desktop,
 .fp-guide + .fp-load,
 .fp-demo + .fp-guide,
 .fp-demo + .fp-load {
   margin-left: 8px;
 }
+.fp-desktop:hover,
 .fp-guide:hover,
 .fp-load:hover,
 .fp-demo:hover {

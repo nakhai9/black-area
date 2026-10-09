@@ -73,6 +73,7 @@ export class FactionPicker {
         <footer class="fp-footer">
           <span class="fp-hint"><kbd>1</kbd>–<kbd>${FACTION_ORDER.length}</kbd> select</span>
           ${DEMO_MODE ? '<button class="fp-demo" type="button" title="Test game: play alone, the other nations do nothing; everything built, finances off">Test</button>' : ""}
+          <button class="fp-desktop" type="button" title="Download the desktop version">Download Desktop</button>
           <button class="fp-guide" type="button" title="Open the game rules (RULE.html) in a new tab">Guide</button>
           <button class="fp-load" type="button" title="Continue a game saved to a .json file (pause menu → Save game)">Load game</button>
           <button class="fp-deploy" type="button">Deploy</button>
@@ -127,6 +128,11 @@ export class FactionPicker {
       this.root
         .querySelector(".fp-load")
         ?.addEventListener("click", () => pickSaveFile());
+      this.root
+        .querySelector(".fp-desktop")
+        ?.addEventListener("click", () =>
+          window.alert("The desktop version is under development. Coming soon!"),
+        );
       this.root
         .querySelector(".fp-guide")
         ?.addEventListener("click", () =>
