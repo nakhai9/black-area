@@ -1,4 +1,10 @@
-# Black Area
+<p align="center">
+  <a href="https://black-area.vercel.app"><img src="public/logo.png" alt="Black Area" width="220"></a>
+</p>
+
+<h1 align="center">Black Area</h1>
+
+<p align="center"><b><a href="https://black-area.vercel.app">▶ CHƠI NGAY: black-area.vercel.app</a></b></p>
 
 > **Thế giới chỉ có một. Dầu thì không đủ cho tất cả.**
 
@@ -9,6 +15,14 @@ Từ Washington đến Moscow, từ Bắc Kinh đến Paris và Riyadh, các qu�
 ---
 
 ### Chọn phe của bạn
+
+<p align="center">
+  <img src="public/emblems/usa.png" alt="USA" height="72">
+  <img src="public/emblems/russia.png" alt="Russia" height="72">
+  <img src="public/emblems/china.png" alt="China" height="72">
+  <img src="public/emblems/europe.png" alt="Europe" height="72">
+  <img src="public/emblems/islamic.png" alt="Islamic Union" height="72">
+</p>
 
 - **USA** – Nhanh, xa, chính xác. Những pháo đài bay B-52 sẵn sàng xoá sổ mọi căn cứ.
 - **Russia** – Hoả lực áp đảo. Tu-16 rền vang trên bầu trời phương Đông.
@@ -28,4 +42,6 @@ Xe tăng lăn bánh khỏi xưởng chiến tranh. Tiêm kích xé gió trên đ
 
 Mất thủ đô, mất quân đội, và quốc gia của bạn biến mất khỏi bản đồ.
 
-**Black Area. Cuộc chiến giành lấy Trái Đất bắt đầu.**
+<p align="center"><b>Black Area. Cuộc chiến giành lấy Trái Đất bắt đầu.</b></p>
+
+<p align="center"><a href="https://black-area.vercel.app"><b>▶ black-area.vercel.app</b></a></p>
