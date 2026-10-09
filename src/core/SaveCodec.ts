@@ -65,13 +65,48 @@ const TEMPLATES: Readonly<Record<string, (d: Record<string, unknown>, at: WorldP
 /** Written into every save; a save of another format, or of a newer version than this game, is refused. */
 export const SAVE_FORMAT = 'black-area-save';
 export const SAVE_VERSION = 1;
+/**
+ * Format upgrades: MIGRATIONS[n] turns a version-n save into a version-(n + 1) save, in place. Only needed for a change
+ * the default-merging cannot absorb on its own — a field renamed or moved, a value whose meaning changed. Adding
+ * things never needs one. When adding a migration, raise SAVE_VERSION to n + 1.
+ */
+export const MIGRATIONS: Readonly<Record<number, (save: SaveFile) => void>> = {};
+
+/** Upgrades an older save to the current SAVE_VERSION (in place); throws for a save from a newer game. */
+export function migrateSave(save: SaveFile): SaveFile {
+  if (save.format !== SAVE_FORMAT) throw new Error('This file is not a Black Area save.');
+  if (!(save.version <= SAVE_VERSION)) throw new Error(`This save was made by a newer version of the game (save v${save.version}, game v${SAVE_VERSION}).`);
+  for (let v = save.version; v < SAVE_VERSION; v++) {
+    MIGRATIONS[v]?.(save);
+    save.version = v + 1;
+  }
+  save.players ??= [];
+  save.entities ??= [];
+  save.systems ??= {};
+  save.game ??= {};
+  return save;
+}
+
 /** System fields that are catalogues built from the game's own rules (what can be bought): never taken from a save. */
 export const RULE_FIELDS: readonly string[] = ['options'];
 
 /** A whole saved game (JSON). */
+/**
+ * Black Area save file (JSON). The format is built to stay loadable by every later version of the game:
+ *  - `format` / `version`: SAVE_FORMAT and the save-format version (SAVE_VERSION). A save from an older format version
+ *    is upgraded step by step by MIGRATIONS on load; one from a newer version is refused.
+ *  - `gameVersion`: GAME_VERSION that wrote it (information only).
+ *  - `players`, `entities` (class name + own fields), `systems` (each system's own fields), `game`, `camera`.
+ * Loading never trusts the save to be complete: every entity, system, player and nested plain object starts from the
+ * current game's defaults and the saved values are laid over them (mergeDefaults). So anything added to the game
+ * later — new fields, new units, structures, rules — simply takes its default in an old save, and anything removed
+ * (a kind of unit, an order for something no longer sold) is dropped. See RULE.html "Định dạng file save".
+ */
 export interface SaveFile {
   format: string;
   version: number;
+  /** Game version that wrote the file (GAME_VERSION); for information. */
+  gameVersion?: string;
   savedAt: string;
   /** The human player's nation: the new game is created for it, then filled from the save. */
   faction: FactionId;
@@ -254,7 +289,7 @@ export class SaveCodec {
       if (k === 'id') continue;
       const value = this.decode(x);
       const cur = target[k];
-      target[k] = isPlain(cur) && isPlain(value) ? { ...cur, ...value } : value;
+      target[k] = mergeDefaults(cur, value);
     }
   }
 
@@ -267,21 +302,24 @@ export class SaveCodec {
       const value = this.decode(x);
       const cur = target[k];
       if (cur instanceof Map && value instanceof Map) {
+        // Entries (e.g. an AI nation's state) start from the fresh game's entry for the same key, or any entry.
+        const sample = cur.values().next().value as unknown;
+        const fresh = new Map(cur);
         cur.clear();
-        for (const [a, b] of value) cur.set(a, b);
+        for (const [a, b] of value) cur.set(a, mergeDefaults(fresh.get(a) ?? sample, b));
       } else if (cur instanceof Set && value instanceof Set) {
         cur.clear();
         for (const a of value) cur.add(a);
       } else if (Array.isArray(cur) && Array.isArray(value)) {
         cur.splice(0, cur.length, ...value);
-      } else target[k] = value;
+      } else target[k] = mergeDefaults(cur, value);
     }
   }
 
   /** Player fields written onto the existing player objects. */
   restorePlayer(saved: Record<string, unknown>): void {
     const p = this.playersById.get(saved.id as number);
-    if (p) Object.assign(p, this.decode(saved));
+    if (p) for (const [k, v] of Object.entries(this.decode(saved) as Record<string, unknown>)) (p as unknown as Record<string, unknown>)[k] = mergeDefaults((p as unknown as Record<string, unknown>)[k], v);
   }
 }
 
@@ -289,4 +327,20 @@ function isPlain(v: unknown): v is Record<string, unknown> {
   if (v === null || typeof v !== 'object' || Array.isArray(v)) return false;
   const proto = Object.getPrototypeOf(v);
   return proto === Object.prototype || proto === null;
+}
+
+/**
+ * The saved value laid over the current default: plain objects are merged key by key (deeply), so properties the
+ * save does not know keep their defaults; anything else (numbers, lists, entities, collections) is the saved value.
+ * A saved null / missing value for something that is a collection by default keeps the default collection.
+ */
+export function mergeDefaults(base: unknown, saved: unknown): unknown {
+  if (saved === undefined) return base;
+  if ((base instanceof Map || base instanceof Set) && !(saved instanceof Map || saved instanceof Set)) return base;
+  if (isPlain(base) && isPlain(saved)) {
+    const out: Record<string, unknown> = { ...base };
+    for (const [k, v] of Object.entries(saved)) out[k] = mergeDefaults(base[k], v);
+    return out;
+  }
+  return saved;
 }

@@ -26,7 +26,7 @@
 <body>
 <main>
 <img class="logo" src="/logo.png" alt="Black Area" />
-<h1>Black Area — RULE <small>v1.4.0</small></h1>
+<h1>Black Area — RULE <small>v1.5.0</small></h1>
 <p class="lead">Tài liệu luật chơi + kiến trúc code dành cho AI/dev sửa game. Mọi con số gameplay chính xác nằm trong <code>src/constants.ts</code> và <code>src/factions/*.ts</code>. Nếu tài liệu này khác code thì <b>code đúng</b>. <b>Khi đổi luật/số trong code, phải cập nhật file này.</b></p>
 <nav><a href="#s1">Quy tắc làm việc cho AI</a><a href="#s2">Chạy dự án</a><a href="#s3">Kiến trúc thư mục</a><a href="#s4">Thế giới</a><a href="#s5">Kinh tế (dầu)</a><a href="#s6">Công trình (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Quân đội</a><a href="#s8">Chiến đấu</a><a href="#s9">Điều khiển (Game.handleKey, handleInput)</a><a href="#s10">Giới hạn &amp; hiệu năng</a><a href="#s11">Thắng / thua &amp; AI</a><a href="#s12">Công thức sửa thường gặp</a></nav>
 <h2 id="s1">0. Quy tắc làm việc cho AI</h2>
@@ -405,6 +405,13 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 <tr><td>Esc</td><td>Huỷ đặt nhà → huỷ waypoint → tạm dừng</td></tr>
 </table>
 <h3>Lưu / tải</h3>
+<h3>Định dạng file save (bền vững qua mọi phiên bản)</h3>
+<ul>
+  <li>File JSON: <code>format</code> (<code>"black-area-save"</code>), <code>version</code> (phiên bản <b>định dạng</b> = <code>SAVE_VERSION</code>), <code>gameVersion</code> (bản game đã ghi, chỉ để tham khảo), <code>savedAt</code>, <code>faction</code>, <code>nextEntityId</code>, <code>players[]</code>, <code>entities[]</code> (<code>{cls, data}</code>), <code>systems{}</code>, <code>game{}</code>, <code>camera</code>. Tham chiếu: <code>{$e:id}</code> entity, <code>{$p:id}</code> người chơi, <code>{$o:id}</code> món trong cửa hàng, <code>{$m}</code> Map, <code>{$s}</code> Set, <code>{$rng}</code>, <code>{$n}</code> số đặc biệt.</li>
+  <li><b>Tải không bao giờ tin file đầy đủ:</b> mọi entity, system, người chơi và object con đều bắt đầu từ giá trị mặc định của bản game hiện tại, rồi mới đè giá trị đã lưu lên (<code>mergeDefaults</code>, đệ quy). Map trạng thái (vd. trạng thái AI từng nước) lấy mặc định từ entry cùng khoá của game mới. Vì vậy thêm lính / công trình / phương tiện / luật / field mới <b>không cần sửa gì</b> cho save cũ — field mới tự nhận mặc định.</li>
+  <li>Thứ đã bị gỡ khỏi game (loại entity, loại xe, món trong cửa hàng) bị bỏ qua và hoàn tiền đơn hàng; danh mục cửa hàng luôn lấy theo code (<code>RULE_FIELDS</code>). Field lạ trong save không gây lỗi.</li>
+  <li><b>Quy tắc khi sửa code:</b> (1) field mới phải có giá trị mặc định ngay khi khai báo / trong constructor; (2) constructor entity khác <code>(owner, faction, centre)</code> thì thêm vào <code>TEMPLATES</code>; (3) chỉ khi <b>đổi tên / dời chỗ / đổi ý nghĩa</b> một field đã lưu mới cần migration: thêm <code>MIGRATIONS[n]</code> (save bản n → n+1) trong <code>core/SaveCodec.ts</code> và tăng <code>SAVE_VERSION</code>. Save của định dạng mới hơn game thì bị từ chối.</li>
+</ul>
 <ul>
   <li>Menu tạm dừng (Esc): Continue, Quit game, <b>Save game</b>, chỉnh âm lượng nhạc. Không có Load ở đây.</li>
   <li><b>Load game</b> nằm ở màn chọn phe. Sau khi chọn file, modal <b>LOAD GAME</b> hiện trước khi dựng bản đồ, nút <b>Start</b> / <b>Main menu</b>.</li>
@@ -427,7 +434,7 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 <tr><td>Đổi giá/máu/tốc độ/tầm</td><td><code>src/constants.ts</code></td></tr>
 <tr><td>Thêm/bật lại loại xe (<code>ifv</code>, <code>light</code> đang ẩn)</td><td><code>VehicleKind</code> (types) → <code>VEHICLE_BASE</code>, <code>VEHICLE_WEAPON</code>, <code>AVAILABLE_VEHICLES</code> (+ <code>TECH_VEHICLES</code> nếu cần) → tên ở <code>factions/*.ts</code> → art <code>render/VehicleArt.ts</code> hoặc sprite sheet</td></tr>
 <tr><td>Thêm công trình</td><td><code>BuildingType</code> → class trong <code>entities/</code> → sprite <code>render/sprites/</code> + <code>sprites/index.ts</code> → <code>BUILD_OPTIONS</code> → <code>BUILDING_VALUE</code> → <code>BUILD_PLAN</code> AI → đăng ký <code>ENTITY_CLASSES</code></td></tr>
-<tr><td>Thêm class entity (để lưu được)</td><td>Đăng ký trong <code>ENTITY_CLASSES</code> (<code>core/SaveCodec.ts</code>); nếu constructor khác <code>(owner, faction, centre)</code> thì thêm vào <code>TEMPLATES</code>; đổi cấu trúc dữ liệu lưu → tăng <code>SAVE_VERSION</code></td></tr>
+<tr><td>Thêm class entity (để lưu được)</td><td>Đăng ký trong <code>ENTITY_CLASSES</code> (<code>core/SaveCodec.ts</code>); state của system lưu dạng object thường (vd. <code>AIState</code>) phải tự bù field mới khi tải save cũ (xem <code>AISystem.fillMissing</code>); nếu constructor khác <code>(owner, faction, centre)</code> thì thêm vào <code>TEMPLATES</code>; đổi cấu trúc dữ liệu lưu → tăng <code>SAVE_VERSION</code></td></tr>
 <tr><td>Thêm phe</td><td><code>FactionId</code> → file mới trong <code>factions/</code> → <code>FACTIONS</code>, <code>FACTION_ORDER</code>, <code>CAPITAL_LOCATIONS</code>, <code>OIL_DERRICK_COUNT</code> (+ <code>OIL_SITES</code> nếu có), <code>TERRITORIES</code> (<code>map/Territories.ts</code>), sprite thủ đô</td></tr>
 <tr><td>Phím tắt</td><td><code>Game.handleKey</code> + bảng mục 8</td></tr>
 <tr><td>Hành vi AI</td><td><code>AISystem.ts</code> (hằng số đầu file)</td></tr>

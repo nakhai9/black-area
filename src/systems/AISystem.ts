@@ -246,11 +246,25 @@ export class AISystem implements GameSystem {
     return st;
   }
 
+  /**
+   * A save made by an older version has no value for state added since (e.g. `convoys`): it gets its default here, so
+   * an old game loads and plays on.
+   */
+  private fillMissing(st: AIState): void {
+    if (!(st.convoys instanceof Map)) st.convoys = new Map();
+    if (!(st.guard instanceof Set)) st.guard = new Set();
+    if (!(st.retreated instanceof Map)) st.retreated = new Map();
+    st.claimSite ??= null;
+    st.overseas ??= false;
+  }
+
   update(dt: number): void {
     this.time += dt;
     for (const p of this.players) {
       const st = this.state.get(p.id);
-      if (!st || this.time < st.nextThink) continue;
+      if (!st) continue;
+      this.fillMissing(st);
+      if (this.time < st.nextThink) continue;
       st.nextThink = this.time + THINK_PERIOD;
       this.think(p, st);
     }

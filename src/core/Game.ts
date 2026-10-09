@@ -70,6 +70,7 @@ import {
   isAircraftKind,
   POWER_PER_BARREL,
   MAX_ALLIES,
+  GAME_VERSION,
 } from '../constants';
 import { worldToIso } from './IsoView';
 import { Building } from '../entities/Building';
@@ -142,7 +143,7 @@ import { BOMB_BLAST_TTL, hasBombSheet } from '../render/BombSheets';
 import { MISSILE_BLAST_SECONDS, MISSILE_FLIGHT_SECONDS, hasMissileSheet } from '../render/MissileSheet';
 import { SHELL_FLIGHT_SECONDS, SHELL_IMPACT_SECONDS, hasShellSheet } from '../render/ShellSheet';
 import type { Effect } from './Effects';
-import { SAVE_FORMAT, SAVE_VERSION, SaveCodec, type SaveFile } from './SaveCodec';
+import { SAVE_FORMAT, SAVE_VERSION, SaveCodec, type SaveFile, migrateSave } from './SaveCodec';
 import { peekNextEntityId, setNextEntityId } from '../entities/Entity';
 
 export interface GameDom {
@@ -545,6 +546,7 @@ export class Game {
     return {
       format: SAVE_FORMAT,
       version: SAVE_VERSION,
+      gameVersion: GAME_VERSION,
       savedAt: new Date().toISOString(),
       faction: this.humanPlayer.faction as FactionId,
       nextEntityId: peekNextEntityId(),
@@ -558,8 +560,7 @@ export class Game {
 
   /** Replaces the freshly generated game with a saved one (same nation, same world). */
   importSave(save: SaveFile): void {
-    if (save.format !== SAVE_FORMAT) throw new Error('This file is not a Black Area save.');
-    if (!(save.version <= SAVE_VERSION)) throw new Error(`This save was made by a newer version of the game (save v${save.version}, game v${SAVE_VERSION}).`);
+    migrateSave(save); // checks the format and upgrades an older save to the current one
     const codec = new SaveCodec(this.players);
     // Clear the new game's starting world: its structures leave the map, every entity goes.
     for (const b of this.entities.buildings()) this.map.occupy(b.x, b.y, b.w, b.d, null);
