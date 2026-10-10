@@ -15,6 +15,7 @@ import { Vehicle } from '../entities/Vehicle';
 import { WarFactory } from '../entities/WarFactory';
 import { WorldBank } from '../entities/WorldBank';
 import { CELL_SIZE, VEHICLE_BASE } from '../constants';
+import { geoToWorld } from '../map/Geo';
 import { FACTIONS } from '../factions';
 import { BUILD_OPTIONS } from '../systems/ConstructionSystem';
 import type { FactionId, PlayerState, UnitTier, VehicleKind, WorldPoint } from '../types';
@@ -66,13 +67,105 @@ const TEMPLATES: Readonly<Record<string, (d: Record<string, unknown>, at: WorldP
 
 /** Written into every save; a save of another format, or of a newer version than this game, is refused. */
 export const SAVE_FORMAT = 'black-area-save';
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2;
 /**
  * Format upgrades: MIGRATIONS[n] turns a version-n save into a version-(n + 1) save, in place. Only needed for a change
  * the default-merging cannot absorb on its own — a field renamed or moved, a value whose meaning changed. Adding
  * things never needs one. When adding a migration, raise SAVE_VERSION to n + 1.
  */
-export const MIGRATIONS: Readonly<Record<number, (save: SaveFile) => void>> = {};
+export const MIGRATIONS: Readonly<Record<number, (save: SaveFile) => void>> = {
+  1: (save) => {
+    if (isLegacyMap(save.gameVersion)) migrateLegacyMap(save);
+  },
+};
+
+/** Size (world px) of the map up to 1.8.x: plain equirectangular Earth, 4096 × 2048 texels at 2.25 px each. */
+const LEGACY_W = 4096 * 2.25;
+const LEGACY_H = 2048 * 2.25;
+
+/** Saves written before 1.9.0 use the old map projection / size. */
+function isLegacyMap(version: string | undefined): boolean {
+  if (!version) return true;
+  const [a = 0, b = 0] = version.split('.').map(Number);
+  return a < 1 || (a === 1 && b < 9);
+}
+
+/** Old world px → new world px, through the real longitude / latitude (so everything stays in the same country). */
+function legacyPx(x: number, y: number): WorldPoint {
+  return geoToWorld({ lon: (x / LEGACY_W) * 360 - 180, lat: 90 - (y / LEGACY_H) * 180 });
+}
+
+function legacyCell(x: number, y: number): { x: number; y: number } {
+  const p = legacyPx((x + 0.5) * CELL_SIZE, (y + 0.5) * CELL_SIZE);
+  return { x: Math.floor(p.x / CELL_SIZE), y: Math.floor(p.y / CELL_SIZE) };
+}
+
+const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
+
+/** A plain `{ x, y }` in world px, moved in place. */
+function movePt(o: unknown): void {
+  if (!o || typeof o !== 'object') return;
+  const p = o as Record<string, unknown>;
+  if (!isNum(p.x) || !isNum(p.y)) return;
+  const n = legacyPx(p.x, p.y);
+  p.x = n.x;
+  p.y = n.y;
+}
+
+function moveCell(o: unknown): void {
+  if (!o || typeof o !== 'object') return;
+  const p = o as Record<string, unknown>;
+  if (!isNum(p.x) || !isNum(p.y)) return;
+  const n = legacyCell(p.x, p.y);
+  p.x = n.x;
+  p.y = n.y;
+}
+
+/** Values of a saved `{ $m: [[k, v]...] }` map. */
+function mapValues(m: unknown): unknown[] {
+  const list = (m as { $m?: [unknown, unknown][] } | undefined)?.$m;
+  return Array.isArray(list) ? list.map(([, v]) => v) : [];
+}
+
+/**
+ * The map got a new projection (squeezed oceans) and scale in 1.9+: every position in an older save is carried over
+ * through its longitude / latitude, so capitals, structures and units stay where they were on Earth.
+ */
+function migrateLegacyMap(save: SaveFile): void {
+  for (const { data: d } of save.entities) {
+    if (d.kind === 'building') moveCell(d);
+    else if (isNum(d.px) && isNum(d.py)) {
+      const n = legacyPx(d.px, d.py);
+      d.px = n.x;
+      d.py = n.y;
+      d.x = n.x / CELL_SIZE;
+      d.y = n.y / CELL_SIZE;
+    }
+    if (isNum(d.lastX) && isNum(d.lastY)) {
+      const n = legacyPx(d.lastX, d.lastY);
+      d.lastX = n.x;
+      d.lastY = n.y;
+    }
+    for (const k of ['destination', 'attackMove', 'dropSpot', 'chaseFrom']) movePt(d[k]);
+    for (const k of ['path', 'mission']) if (Array.isArray(d[k])) (d[k] as unknown[]).forEach(movePt);
+  }
+  const sys = save.systems;
+  for (const v of mapValues(sys.aircraft?.last)) movePt(v);
+  for (const st of mapValues(sys.ai?.state)) {
+    const s = st as Record<string, unknown>;
+    moveCell(s.claimSite);
+    for (const v of mapValues(s.convoys)) movePt(v);
+  }
+  if (Array.isArray(sys.safeZones?.zones)) (sys.safeZones.zones as unknown[]).forEach(moveCell);
+  // Spatial lookups are rebuilt every tick; their keys are old cells.
+  delete sys.combat?.grid;
+  delete save.game.sepGrid;
+  delete save.game.charges;
+  for (const v of mapValues(save.game.lastDry)) movePt(v);
+  const cam = legacyPx(save.camera.x, save.camera.y);
+  save.camera.x = cam.x;
+  save.camera.y = cam.y;
+}
 
 /** Upgrades an older save to the current SAVE_VERSION (in place); throws for a save from a newer game. */
 export function migrateSave(save: SaveFile): SaveFile {
