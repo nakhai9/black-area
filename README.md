@@ -4,7 +4,7 @@
 
 <h1 align="center">Black Area</h1>
 
-<p align="center"><sub>Phiên bản 1.7.3</sub></p>
+<p align="center"><sub>Phiên bản 1.8.2</sub></p>
 
 <p align="center"><b><a href="https://black-area.vercel.app">▶ CHƠI NGAY: black-area.vercel.app</a></b></p>
 

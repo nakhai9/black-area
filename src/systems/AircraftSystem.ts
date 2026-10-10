@@ -211,6 +211,10 @@ export class AircraftSystem implements GameSystem {
       return;
     }
     v.flight = 'taxi';
+    v.takeoffReverse = false;
+    // First come, first served: its place in the runway queue is taken the moment it starts to taxi, so aircraft
+    // lift off in the order they were sent, not in the order they happen to reach the runway.
+    this.joinQueue(v, home);
   }
 
   /** Bombs are loaded on the apron one at a time, each paid for (BOMB_COST); without the money it waits. */
@@ -244,14 +248,22 @@ export class AircraftSystem implements GameSystem {
     if (!home) return this.abort(v);
     this.stashOrders(v);
     const g = this.geometry(home);
+    // The runway can be used from either end: when the end it is heading for is jammed (another aircraft already
+    // waiting there, or one landing towards it), it goes round to the other end instead, and they give way in turn.
+    let start = v.takeoffReverse ? g.runwayEnd : g.runwayStart;
+    let atThreshold = Math.hypot(v.px - start.x, v.py - start.y) < 12;
+    if (!atThreshold && this.endJammed(v, home, v.takeoffReverse) && !this.endJammed(v, home, !v.takeoffReverse)) {
+      v.takeoffReverse = !v.takeoffReverse;
+      start = v.takeoffReverse ? g.runwayEnd : g.runwayStart;
+      atThreshold = Math.hypot(v.px - start.x, v.py - start.y) < 12;
+    }
     // One aircraft on the runway at a time, in queue order: wait short of it until cleared.
-    const atThreshold = Math.hypot(v.px - g.runwayStart.x, v.py - g.runwayStart.y) < 12;
     if (atThreshold && !this.cleared(v, home)) return;
-    if (this.moveTo(v, g.runwayStart, TAXI_SPEED, dt)) {
+    if (this.moveTo(v, start, TAXI_SPEED, dt)) {
       this.leaveQueue(v);
       v.flight = 'takeoff';
       v.phaseTime = 0;
-      v.heading = g.heading;
+      v.heading = this.takeoffHeading(v, home);
     }
   }
 
@@ -262,7 +274,7 @@ export class AircraftSystem implements GameSystem {
     const t = clamp01(v.phaseTime / TAKEOFF_SECONDS);
     // Rolling start: slow at first, full speed by the time the wheels leave the ground.
     const speed = lerp(3, v.speed, t ** 1.4);
-    const heading = home ? this.geometry(home).heading : v.heading;
+    const heading = home ? this.takeoffHeading(v, home) : v.heading;
     v.heading = heading;
     v.facing = Math.cos(heading) < 0 ? -1 : 1;
     this.place(v, v.px + Math.cos(heading) * speed * dt, v.py + Math.sin(heading) * speed * dt);
@@ -446,11 +458,14 @@ export class AircraftSystem implements GameSystem {
 
   /**
    * A new order (move / attack) arrived while landing or taxiing to its spot: it does not wait to park but climbs
-   * straight back up from where it is and carries the order out. A bomber with no bomb aboard still has to park.
+   * straight back up from where it is and carries the order out. A bomber with no bomb aboard, or any aircraft while
+   * its nation is short of power, still has to park.
    */
   private goAround(v: Vehicle): boolean {
     if (v.mission === null && v.attackTarget === null && v.attackMove === null) return false;
     if (v.type === 'bomber' && v.bombs < 1) return false;
+    // Without power the airfield launches nothing: it lands and parks, the order waits until the power is back.
+    if (!this.hooks.powered(v.owner)) return false;
     v.flight = 'liftoff';
     v.phaseTime = CLIMB_SECONDS * clamp01(v.altitude / CRUISE_ALTITUDE);
     return true;
@@ -667,16 +682,13 @@ export class AircraftSystem implements GameSystem {
     // is always out ahead of the transport's nose.
     if (v.isTransport && v.tankerId !== null && this.longSortie(v)) {
       const tk = this.entities.get(v.tankerId) as Vehicle | undefined;
-      if (tk && tk.alive && (tk.flight === 'parked' || tk.flight === 'taxi' || tk.flight === 'takeoff' || tk.altitude < CRUISE_ALTITUDE * 0.5)) return false;
+      if (tk && tk.alive && (tk.flight === 'parked' || tk.flight === 'taxi' || tk.flight === 'takeoff' || tk.altitude < CRUISE_ALTITUDE * 0.5)) {
+        // Waiting for its tanker must not block the runway: the tanker itself may be queued behind it.
+        this.leaveQueue(v);
+        return false;
+      }
     }
-    let q = this.runwayQueues.get(home.id);
-    if (!q) this.runwayQueues.set(home.id, (q = []));
-    // Drop aircraft that died, re-homed or stopped waiting for this runway.
-    for (let i = q.length - 1; i >= 0; i--) {
-      const o = this.entities.get(q[i]!) as Vehicle | undefined;
-      if (!o || !o.alive || o.homeId !== home.id || (o.flight !== 'taxi' && o.flight !== 'approach')) q.splice(i, 1);
-    }
-    if (!q.includes(v.id)) q.push(v.id);
+    const q = this.joinQueue(v, home);
     if (this.runwayBusy(v, home)) return false;
     const powered = this.hooks.powered(v.owner);
     for (const id of q) {
@@ -685,6 +697,40 @@ export class AircraftSystem implements GameSystem {
       return o === v;
     }
     return false;
+  }
+
+  /** Take-off direction: along the runway, or against it when rolling from the far end. */
+  private takeoffHeading(v: Vehicle, home: Building): number {
+    const h = this.geometry(home).heading;
+    return v.takeoffReverse ? h + Math.PI : h;
+  }
+
+  /**
+   * Is that end of the runway (far end when `reverse`) jammed for `v`: another aircraft of the airfield already
+   * waiting at it to take off, or one on the runway landing towards it?
+   */
+  private endJammed(v: Vehicle, home: Building, reverse: boolean): boolean {
+    const g = this.geometry(home);
+    const end = reverse ? g.runwayEnd : g.runwayStart;
+    return this.entities.vehicles().some((o) => {
+      if (o === v || !o.aircraft || !o.alive || o.homeId !== home.id) return false;
+      if (o.flight === 'taxi' && o.takeoffReverse === reverse && Math.hypot(o.px - end.x, o.py - end.y) < 12) return true;
+      // A landing roll ends at the far end from where it touched down.
+      return o.flight === 'landing' && o.landReverse !== reverse;
+    });
+  }
+
+  /** Puts the aircraft at the back of its airfield's runway queue (if not already in it) and returns the queue. */
+  private joinQueue(v: Vehicle, home: Building): number[] {
+    let q = this.runwayQueues.get(home.id);
+    if (!q) this.runwayQueues.set(home.id, (q = []));
+    // Drop aircraft that died, re-homed or stopped waiting for this runway.
+    for (let i = q.length - 1; i >= 0; i--) {
+      const o = this.entities.get(q[i]!) as Vehicle | undefined;
+      if (!o || !o.alive || o.homeId !== home.id || (o.flight !== 'taxi' && o.flight !== 'approach')) q.splice(i, 1);
+    }
+    if (!q.includes(v.id)) q.push(v.id);
+    return q;
   }
 
   private leaveQueue(v: Vehicle): void {

@@ -27,6 +27,8 @@ export interface CombatHooks {
 
 /** Two entities are enemies when they belong to different nations (neutral ones are never targets). */
 export function isHostile(a: Entity, b: Entity): boolean {
+  // An engineer on his way to lease a derrick is a customer, not a target, for the derrick's owner.
+  if (b instanceof Unit && b.task?.type === 'lease' && b.task.lessor === a.owner) return false;
   return a.owner !== b.owner && a.owner !== NEUTRAL_OWNER && b.owner !== NEUTRAL_OWNER && !b.indestructible && b.alive;
 }
 

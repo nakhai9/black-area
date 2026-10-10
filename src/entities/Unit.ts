@@ -10,6 +10,8 @@ const BLOCKED_GIVE_UP = 4;
 export interface UnitTask {
   type: 'enter' | 'repair' | 'capture' | 'lease';
   buildingId: number;
+  /** Lease: the nation that owns the derrick. Its forces leave this engineer alone while he walks up to sign. */
+  lessor?: number;
 }
 
 /**

@@ -26,7 +26,7 @@
 <body>
 <main>
 <img class="logo" src="/logo.png" alt="Black Area" />
-<h1>Black Area — RULE <small>v1.7.3</small></h1>
+<h1>Black Area — RULE <small>v1.8.2</small></h1>
 <p class="lead">Tài liệu luật chơi + kiến trúc code dành cho AI/dev sửa game. Mọi con số gameplay chính xác nằm trong <code>src/constants.ts</code> và <code>src/factions/*.ts</code>. Nếu tài liệu này khác code thì <b>code đúng</b>. <b>Khi đổi luật/số trong code, phải cập nhật file này.</b></p>
 <nav><a href="#s1">Quy tắc làm việc cho AI</a><a href="#s2">Chạy dự án</a><a href="#s3">Kiến trúc thư mục</a><a href="#s4">Thế giới</a><a href="#s5">Kinh tế (dầu)</a><a href="#s6">Công trình (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Quân đội</a><a href="#s8">Chiến đấu</a><a href="#s9">Điều khiển (Game.handleKey, handleInput)</a><a href="#s10">Giới hạn &amp; hiệu năng</a><a href="#s11">Thắng / thua &amp; AI</a><a href="#s12">Công thức sửa thường gặp</a></nav>
 <h2 id="s1">0. Quy tắc làm việc cho AI</h2>
@@ -87,11 +87,12 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 <tr><td>Russia</td><td><code>#d22b2b</code></td><td>0.95</td><td>1.1</td><td>1.2</td><td>1.3</td><td>0.95</td><td>1.0</td><td>0</td><td>16500</td><td>Có bomber Tu-16</td></tr>
 <tr><td>China</td><td><code>#e8b10a</code></td><td>0.85</td><td>1.3</td><td>1.0</td><td>0.95</td><td>1.2</td><td>0.85</td><td>0</td><td>18000</td><td></td></tr>
 <tr><td>Europe</td><td><code>#8a5cf6</code></td><td>1.05</td><td>1.0</td><td>1.05</td><td>1.1</td><td>1.05</td><td>1.25</td><td>2</td><td>15600</td><td></td></tr>
-<tr><td>Islamic</td><td><code>#1f9d4a</code></td><td>1.0</td><td>1.05</td><td>1.0</td><td>1.0</td><td>1.0</td><td>0.95</td><td>1</td><td>16000</td><td><code>oilCartel</code>, <code>peaceful</code>, <code>leasesOil</code></td></tr>
+<tr><td>Islamic</td><td><code>#1f9d4a</code></td><td>1.0</td><td>1.05</td><td>1.0</td><td>1.0</td><td>1.0</td><td>0.95</td><td>1</td><td>16000</td><td><code>oilCartel</code>, <code>leasesOil</code></td></tr>
 </table>
 <ul>
   <li>Giá thực = <code>round(giá gốc × cost / 10) × 10</code>; thời gian luyện + <code>trainDelay</code>; HP unit = <code>maxHp × armor</code>.</li>
-  <li><code>peaceful</code> (Islamic hiện tại): <b>không luyện lính, không sản xuất xe/máy bay</b> (<code>TrainingSystem</code>/<code>VehicleSystem</code> trả về danh sách rỗng).</li>
+  <li><code>peaceful</code> (hiện không phe nào dùng; Islamic đã được tham chiến): <b>không luyện lính, không sản xuất xe/máy bay</b> (<code>TrainingSystem</code>/<code>VehicleSystem</code> trả về danh sách rỗng).</li>
+  <li>Islamic cho thuê tối đa <code>OIL_LEASE_MAX = 4</code> giếng cùng lúc (tính cả kỹ sư đang trên đường tới thuê). Quân Islamic không bắn kỹ sư đang đi tới thuê giếng của mình. Mọi luật khác về giếng Islamic giữ nguyên (không phá, không chiếm, thuê 180 s, 30% tiền dầu về Islamic).</li>
 </ul>
 <h2 id="s5">4. Kinh tế (dầu)</h2>
 <ul>
@@ -179,7 +180,7 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 <ul>
   <li>Giá thực = <code>round(giá × cost phe / 10) × 10</code> (trừ <code>fixedCost</code>).</li>
   <li>Đặt: chỉ trên đất liền, vùng xây được, không chồng lấn, không trên cây (<code>PlacementSystem</code>, <code>TileMap.placementBlocker</code>).</li>
-  <li>Hospital: tối đa <code>HOSPITAL_CAPACITY 20</code> người bị thương cùng phe, hồi <code>HOSPITAL_HEAL_PER_SECOND 10</code> HP/s.</li>
+  <li>Hospital: tối đa <code>HOSPITAL_CAPACITY 20</code> người bị thương cùng phe, hồi <code>HOSPITAL_HEAL_PER_SECOND 10</code> HP/s. Bệnh viện mất máu + kỹ sư bị thương được lệnh vào: kỹ sư sửa bệnh viện trước, sửa xong ở lại làm bệnh nhân để được chữa.</li>
   <li>Airfield: <code>PARKING_SLOTS = 9</code> chỗ đỗ; số máy bay (có + đặt) ≤ 9 × số airfield. Máy bay đỗ sửa 2% HP mỗi 4 s. Mất airfield: máy bay tìm airfield khác của phe; không còn cái nào thì rơi.</li>
   <li>High-Tech Center mở <code>TECH_TIERS</code> (<code>special</code>, <code>demolition</code>) và <code>transport</code>.</li>
   <li>Happy City: không giới hạn số lượng.</li>
@@ -203,7 +204,7 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 <tr><td><code>oilDerrick</code></td><td>Nguồn thu chính: bơm dầu vào kho (0.08 thùng/s, bơm 180 s nghỉ 60 s), dầu đem bán cho Center lấy TB hoặc đốt ra điện. Đặt sẵn, không xây được. Giếng <code>bankManaged</code> và giếng Islamic không phá / chiếm được; giếng Islamic cho phe khác thuê bằng engineer.</td></tr>
 <tr><td><code>WorldBank</code> (Global Financial Center, Zürich)</td><td>Trung lập, không phá / chiếm / vào được. Mua dầu, đặt giá dầu chung, cho vay khẩn cấp, ép bán dầu cho lưới điện thiếu, trả tiền thưởng tha quân rút lui.</td></tr>
 </table>
-<p>Mọi công trình của phe đều mở rộng vùng được xây quanh nó (<code>BUILD_RADIUS = 3</code> ô, <code>PlacementSystem</code>). Mọi công trình (trừ loại không phá được) có thể bị phá; engineer địch chiếm được nếu không có <code>uncapturable</code>.</p>
+<p>Mọi công trình của phe đều mở rộng vùng được xây quanh nó (<code>BUILD_RADIUS = 3</code> ô, <code>PlacementSystem</code>). Mọi công trình (trừ loại không phá được) có thể bị phá; engineer địch chiếm được nếu không có <code>uncapturable</code>. Chọn lính có nhiệm vụ với công trình thì công trình đó hiện khung khóa mục tiêu theo màu nhiệm vụ: chiếm vàng, sửa xanh lá, thuê giếng xanh dương, vào trong trắng, đặt mìn (Crazy Soldier) đỏ. Khi một công trình M×N bị chiếm, mọi cờ (<code>flagpole</code>, của bất kỳ phe nào) nằm trong vùng (M+2)×(N+2) quanh nền (nền nới thêm 1 ô mỗi phía) bị phá hủy (<code>razeFlagsAround</code>).</p>
 <p><b>Bắt buộc, mọi phe:</b> công trình mới phải cách rìa mọi giếng dầu (của bất kỳ ai) ít nhất <code>OIL_DERRICK_CLEARANCE = 4</code> ô trống (<code>PlacementSystem</code>, lý do <code>nearOil</code>).</p>
 <h2 id="s7">6. Quân đội</h2>
 <h3>Bộ binh (<code>INFANTRY_BASE</code>, sản xuất ở barracks)</h3>
@@ -213,7 +214,7 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 <tr><td><code>special</code></td><td>500</td><td>10</td><td>200</td><td>1.7</td><td>Rifle. Cần Tech Center; bơi được. Elite ≤ <code>eliteCap = floor(regular × 2/3)</code>.</td></tr>
 <tr><td><code>engineer</code></td><td>400</td><td>6</td><td>100</td><td>1.3</td><td>Sửa / chiếm công trình; thuê giếng Islamic.</td></tr>
 <tr><td><code>squatters</code></td><td>1400</td><td>12</td><td>320</td><td>1.4</td><td>Người cầm cờ + hộ tống tính là 1. Đi bộ hoặc được chở tới đất chưa ai sở hữu (không phải Nam Cực), chọn đội rồi nhấn <b>F</b> hoặc double-click chuột trái vào đội: cờ cắm vào ô đơn vị trống gần đội nhất (trong 8 ô; không đá, cây, nước, băng, công trình hay quân khác), trên bất kỳ vùng đất nào (của mình, của địch hay vô chủ), đội biến mất. Đội đang được chọn và đứng yên hiện dòng "Double-click / F: plant flag" trên đầu. Allied Building vẫn chỉ xây được trên đất vô chủ → thành <code>Flagpole</code>, đội biến mất.</td></tr>
-<tr><td><code>demolition</code></td><td>900</td><td>10</td><td>110</td><td>1.6</td><td>"Crazy Soldier", chỉ Islamic, cần Tech Center. <b>Hiện không luyện được vì Islamic <code>peaceful</code>.</b></td></tr>
+<tr><td><code>demolition</code></td><td>900</td><td>10</td><td>110</td><td>1.6</td><td>"Crazy Soldier", chỉ Islamic, cần Tech Center.</td></tr>
 </table>
 <p>Crazy Soldier (<code>DEMO_*</code>, <code>Game.processDemolition</code> / <code>detonate</code>): chạy tới mục tiêu, đặt bom trong <code>1.5</code> ô rồi đi tiếp; nạp lại <code>5</code> s; bom nổ sau <code>4</code> s. Công trình ≤ 16 ô bị phá, lớn hơn mất 40% máu tối đa; đơn vị chiến đấu địch trong <code>2.5</code> ô: ≤ 8 chết hết, &gt; 8 chết một nửa (gần nhất).</p>
 <h3>Xe &amp; máy bay (<code>VEHICLE_BASE</code>)</h3>
@@ -228,7 +229,7 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 </table>
 
 <h3>Lính &amp; phương tiện theo phe (<code>src/factions/*.ts</code>)</h3>
-<p>Tên hiển thị trong game; phần thông tin dịch sang tiếng Việt từ mô tả trong code (trong game vẫn là tiếng Anh). Chỉ liệt kê loại đang dùng (<code>light</code>, <code>ifv</code> đang ẩn). Islamic hiện <code>peaceful</code>: có tên nhưng chưa luyện/sản xuất được.</p>
+<p>Tên hiển thị trong game; phần thông tin dịch sang tiếng Việt từ mô tả trong code (trong game vẫn là tiếng Anh). Chỉ liệt kê loại đang dùng (<code>light</code>, <code>ifv</code> đang ẩn).</p>
 <h4>USA</h4>
 <table>
 <tr><th>Loại</th><th>Tên</th><th>Thông tin</th></tr>
@@ -296,7 +297,7 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 <tr><td>Xe sửa chữa (<code>repair</code>)</td><td><b>Type 99II</b></td><td>Xe cứu kéo bọc thép Type 99II: chậm, không vũ khí; click vào xe mặt đất phe mình đang hỏng để chạy tới sửa (hoặc chọn xe hỏng rồi click vào nó) (5% máu tối đa mỗi 2 s).</td></tr>
 </table>
 <h4>Giá · máu · thời gian luyện thực tế theo phe</h4>
-<p>Tính từ <code>INFANTRY_BASE</code> / <code>VEHICLE_BASE</code> × hệ số phe: giá = <code>round(giá × cost / 10) × 10</code>, máu = <code>round(maxHp × armor)</code>, thời gian = gốc + <code>trainDelay</code>. Islamic hiện <code>peaceful</code> nên chưa luyện/sản xuất được.</p>
+<p>Tính từ <code>INFANTRY_BASE</code> / <code>VEHICLE_BASE</code> × hệ số phe: giá = <code>round(giá × cost / 10) × 10</code>, máu = <code>round(maxHp × armor)</code>, thời gian = gốc + <code>trainDelay</code>.</p>
 <table>
 <tr><th>Loại</th><th>USA</th><th>Russia</th><th>China</th><th>Europe</th><th>Islamic</th></tr>
 <tr><td><code>regular</code></td><td>260 TB · 113 HP · 7s</td><td>200 TB · 138 HP · 5s</td><td>170 TB · 163 HP · 5s</td><td>250 TB · 125 HP · 7s</td><td>190 TB · 131 HP · 6s</td></tr>
@@ -312,7 +313,7 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 </table>
 <h3>Xe sửa chữa (BREM-1, <code>REPAIR_VEHICLE_*</code>)</h3>
 <ul>
-  <li>Chỉ phe có <code>vehicles.repair</code> trong <code>src/factions/*.ts</code> (Russia: BREM-1; USA và Europe: M88; China và Islamic: Type 99II — Islamic đang <code>peaceful</code> nên chưa sản xuất được) mới sản xuất được, ở War Factory. Không vũ khí: không tự nhắm, không bắn; AI không dùng nó để đánh.</li>
+  <li>Chỉ phe có <code>vehicles.repair</code> trong <code>src/factions/*.ts</code> (Russia: BREM-1; USA và Europe: M88; China và Islamic: Type 99II) mới sản xuất được, ở War Factory. Không vũ khí: không tự nhắm, không bắn; AI không dùng nó để đánh.</li>
   <li>Lệnh 1 (xe sửa → xe hỏng): chọn (kéo khung) xe sửa, rồi <b>chuột trái</b> (hoặc chuột phải) vào xe <b>mặt đất</b> phe mình bị hỏng, chưa được chọn (không sửa lính, máy bay, công trình). Xe sửa chạy tới cạnh mục tiêu (bám theo nếu mục tiêu chạy đi, tính lại đường mỗi <code>REPAIR_VEHICLE_REPATH 1</code> s).</li>
   <li>Lệnh 2 (xe hỏng → xe sửa): chọn các xe mặt đất, rồi chuột trái (hoặc phải) vào một xe sửa phe mình chưa được chọn: mọi xe <b>đang hỏng</b> trong nhóm chạy tới xe sửa đó (xe đầy máu đứng yên); xe sửa đứng tại chỗ và sửa cùng lúc mọi xe đã tới trong tầm. Nếu trong nhóm không có xe hỏng, cú click chỉ chọn xe sửa như bình thường.</li>
   <li>Ngoài hai trường hợp trên, chuột trái vẫn chọn unit như cũ. Có thông báo (toast) khi ra lệnh.</li>
@@ -325,7 +326,6 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
   <li>Giá gốc <code>700</code> TB, <code>9</code> s, <code>240</code> máu, tốc độ <code>2.1</code> (nhanh hơn lính 1.3–1.7 và xe tăng 1.4); không vũ khí, chỉ đi trên đất (không qua biển), sản xuất ở War Factory. Sprite: <code>public/sprites/kamaz-truck.png</code> (KamAZ), <code>public/sprites/lvsr-usa.png</code> (LVSR), <code>public/sprites/iveco-europe.png</code> (IVECO), cùng bố cục; vẽ to hơn xe tăng chủ lực một chút (scale 0.23 so với 0.2) để tăng nằm trên sàn trông vừa, vẽ bằng <code>render/TruckSheets.ts</code>.</li>
   <li>Chở <b>tối đa 8 lính</b> (xe có thùng che bạt) <b>hoặc 1 xe tăng</b> (xe bỏ thùng, tăng nằm trên sàn sau), không chở lẫn, không chở xe khác hay máy bay/trực thăng (<code>TRUCK_SOLDIERS</code>, <code>TRUCK_TANKS</code>).</li>
   <li>Lên xe: chọn lính / xe tăng rồi click vào xe tải (xe tải dừng chờ). Xuống xe: chọn xe tải, nhấn <b>U</b> hoặc double-click chuột trái vào chính xe đang chọn (áp dụng cho mọi xe/máy bay chở quân) — xe đứng yên, từng người (hoặc chiếc tăng) xuống ô trống bên cạnh. Xe tải bị phá thì mọi thứ trên xe mất theo.</li>
-  <li>Islamic hiện là phe <code>peaceful</code> (không sản xuất xe) nên chưa mua được xe tải dù đã có trong danh sách phe.</li>
 </ul>
 <h3>Hành quân bộ binh (mệt mỏi)</h3>
 <ul>
@@ -348,6 +348,8 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
   <li>Đơn chờ (BuildLimit): <code>BUILD_LIMIT_SOLDIERS 15</code>, <code>BUILD_LIMIT_VEHICLES 10</code>.</li>
   <li>Trần quân: <code>MAX_SOLDIERS 25</code> lính (sống + đặt), <code>MAX_GROUND_VEHICLES 30</code> xe mặt đất, <code>MAX_TRANSPORTS 3</code> máy bay vận tải. Máy bay còn bị giới hạn bởi chỗ đỗ.</li>
   <li>Hạ cánh: chọn máy bay rồi click vào sân bay của mình (còn chỗ đỗ) → bay vào từ <b>đầu đường băng gần hơn</b> (cả hai đầu đều được, <code>AircraftSystem.land</code>); chỉ một máy bay dùng đường băng mỗi lúc, chiếc khác chờ trên điểm tiếp cận. Máy bay tự về cũng chọn đầu gần hơn.</li>
+  <li>Cất cánh: xếp hàng theo thứ tự được ra lệnh (ai lăn bánh trước bay trước). Đầu đường băng đang kẹt (đã có máy bay chờ ở đó, hoặc máy bay đang hạ cánh lăn về phía đó) thì lăn sang đầu kia và cất cánh ngược chiều; vẫn chỉ một máy bay dùng đường băng mỗi lúc. Máy bay vận tải chờ máy bay tiếp dầu thì rời hàng, không chắn đường băng.</li>
+  <li>Thiếu điện: sân bay <b>không cho cất cánh</b> (kể cả máy bay đang hạ cánh nhận lệnh mới cũng phải đáp xuống, đỗ rồi chờ có điện), nhưng <b>vẫn cho hạ cánh</b>.</li>
   <li>Click (đi / tấn công-di chuyển) trên sân bay N×M của mình hoặc trong vùng (N+2)×(M+2) quanh nó (<code>AIRFIELD_CLICK_MARGIN = 2</code> ô mỗi phía): máy bay đang đỗ không cất cánh, máy bay đang bay thì hạ cánh xuống sân bay đó. Chỉ click cách sân bay từ 3 ô trở ra mới làm máy bay cất cánh bay tới.</li>
   <li>Âm thanh (<code>audio/SoundSystem.ts</code>): tiếng súng, pháo, nổ; tiếng bước chân, động cơ + xích xe, động cơ máy bay khi di chuyển gần camera. Mặc định tổng hợp bằng Web Audio; mỗi mẫu phương tiện có tiếng động cơ riêng theo tên (Abrams: tuabin khí; T-90/Leopard 2/Type 99/Karrar: diesel; BREM-1/M88/Type 99II: diesel xe cứu kéo; tiêm kích; B-52/Tu-16; máy bay vận tải/tiếp dầu), chỉ phát khi phương tiện trong khung hình, giữa màn hình to nhất, ra mép thì nhỏ dần. File ghi âm thật (xem <code>public/sounds/README.md</code>): tất cả nằm chung trong <code>public/sounds/</code>, không thư mục con — rifle, smg, mg, sniper, autocannon, tank-cannon, missile, explosion, bomb, foot, board, và tiếng xe <code>engine-&lt;tên-mẫu&gt;</code> hoặc <code>engine-&lt;loại&gt;</code> (vd. <code>engine-abrams.mp3</code>, <code>engine-tank.mp3</code>); định dạng mp3|ogg|wav. Đã có: rifle, tank-cannon, bomb (dùng thay explosion), engine-tank. File dài được cắt thành đoạn ngắn bắt đầu tại một phát bắn (<code>SAMPLE_CLIP</code>); có file ghi âm súng thì không ghép loạt tổng hợp nữa. Súng nhỏ phát thành loạt (rifle 3, smg 4, mg 5, autocannon 3 viên), pháo tăng 1 tiếng mỗi phát. Khi có tiếng súng/nổ nhạc nền giảm còn 35% (<code>SFX_DUCK</code>) trong 0.8 s. Điểm nổ đạn: lính ≤ 5% thân lính, xe tăng ≤ 20% thân xe tăng (<code>BULLET_SIZES</code>).</li>
 </ul>

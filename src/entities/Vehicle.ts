@@ -77,6 +77,8 @@ export class Vehicle extends Unit {
   slot = -1;
   /** Comes in to land from the runway's far end (flying against the take-off direction). */
   landReverse = false;
+  /** Takes off from the runway's far end (against the usual direction) because the near end is jammed. */
+  takeoffReverse = false;
   /** Seconds into the current take-off / landing roll (or the unloading stop). */
   phaseTime = 0;
   /** Seconds the aircraft has had nothing to do while airborne. */

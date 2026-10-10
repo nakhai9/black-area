@@ -74,6 +74,8 @@ export interface RenderScene {
   readonly hoveredUnitId?: number | null;
   /** Enemies that are being attacked (or are about to be, under the cursor): drawn with red focus marks. */
   readonly focus?: readonly FocusTarget[];
+  /** Structures my selected soldiers were sent to (capture, repair, lease, enter, plant a charge): locked like a target. */
+  readonly taskLocks?: readonly { entity: Building; color: string }[];
   /** Last move order (world px) and when it was given, for the RA2-style marker. */
   readonly moveMarker?: { x: number; y: number; at: number } | null;
   /** A right-clicked moving unit whose line to its destination is shown even when it is not selected. */
@@ -290,6 +292,7 @@ export class Renderer {
     this.upright();
     for (const f of focus) if (f.entity.kind !== 'building' && !f.airLock) this.drawFocusMarks(f.entity, f.strong);
     for (const f of focus) if (f.airLock) this.drawAirLock(f.entity);
+    for (const l of scene.taskLocks ?? []) this.drawAirLock(l.entity, l.color);
     for (const u of units) if (selUnits.has(u.id) || u.hp < u.maxHp) this.drawUnitHealth(u);
     // The fuel gauge shows only while the transport is out on a sortie; parked or taxiing at home it is idle (hidden).
     for (const u of units) if (u instanceof Vehicle && u.maxBombs > 0) this.drawBombs(u);
@@ -1143,7 +1146,7 @@ export class Renderer {
   }
 
   /** Aircraft target lock (targeting-pod look): crosshair lines across the view and a box round the target, earth orange. */
-  private drawAirLock(e: Unit | Building): void {
+  private drawAirLock(e: Unit | Building, color = LOCK_COLOR): void {
     const { ctx } = this;
     const k = 1 / this.camera.zoom;
     // Structure: the box hugs the iso grid cells it stands on (a diamond); a unit gets a plain rectangle.
@@ -1174,7 +1177,7 @@ export class Renderer {
       ctx.closePath();
     };
     ctx.save();
-    ctx.strokeStyle = LOCK_COLOR;
+    ctx.strokeStyle = color;
     // Crosshair lines across the view, cut away inside the outline.
     ctx.save();
     ctx.beginPath();

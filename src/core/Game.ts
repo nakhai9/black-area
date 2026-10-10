@@ -15,6 +15,7 @@ import {
   CAMERA_PAN_SPEED,
   BOMB_FALL_SECONDS,
   OIL_LEASE_CARTEL_SHARE,
+  OIL_LEASE_MAX,
   OIL_LEASE_SECONDS,
   FORMATION_COLS,
   FORMATION_RANKS,
@@ -1604,6 +1605,23 @@ export class Game {
     return [...out.values()];
   }
 
+  /**
+   * Structures the selected soldiers were sent to, drawn with the lock box while they are selected: capture yellow,
+   * repair green, lease blue, enter white, a Crazy Soldier's charge red.
+   */
+  private taskLocks(): { entity: Building; color: string }[] {
+    const colors = { capture: '#ffd23f', repair: '#3fdc4a', lease: '#4ac8ff', enter: '#f2f5f8' } as const;
+    const out = new Map<number, { entity: Building; color: string }>();
+    for (const u of this.selection.selectedUnitList()) {
+      if (!(u instanceof Infantry)) continue;
+      const id = u.task?.buildingId ?? u.charge?.targetId;
+      const b = id === undefined ? undefined : this.entities.get(id);
+      if (!(b instanceof Building) || !b.alive || out.has(b.id)) continue;
+      out.set(b.id, { entity: b, color: u.task ? colors[u.task.type] : '#ff3b30' });
+    }
+    return [...out.values()];
+  }
+
   /** Per-frame: input, camera, rendering, UI. */
   private frame(dt: number): void {
     this.time += dt;
@@ -1652,6 +1670,7 @@ export class Game {
       waypointPlan: this.waypointPlan(),
       flagHints: this.flagHints(),
       focus: focus.map((f) => ({ entity: f.entity, strong: f.strong, engaged: f.engaged, airLock: f.airLock })),
+      taskLocks: this.placing ? [] : this.taskLocks(),
       effects: this.effects.list,
     });
     // The radar does not need 60 updates a second: 12 are plenty and save a full redraw every other frame.
@@ -3193,15 +3212,21 @@ export class Game {
       }
       let type: 'enter' | 'repair' | 'capture' | 'lease' | null = null;
       if (u.isEngineer && b instanceof OilDerrick && b.owner !== me.id && b.leasable) {
+        if (this.leasesTaken(b.owner) >= OIL_LEASE_MAX) {
+          this.sidebar.notify(`${FACTIONS[b.faction as FactionId].shortName} leases at most ${OIL_LEASE_MAX} derricks at a time.`, 3);
+          continue;
+        }
         type = 'lease';
       } else if (b.owner === me.id) {
-        if (b.canEnter(u)) type = 'enter';
-        else if (u.isEngineer && b.hp < b.maxHp && !b.indestructible) type = 'repair';
+        // A damaged structure is repaired first, even a hospital the (wounded) engineer could check into: it is
+        // treated there once the repair is done (see processRepairs).
+        if (u.isEngineer && b.hp < b.maxHp && !b.indestructible) type = 'repair';
+        else if (b.canEnter(u)) type = 'enter';
       } else if (u.isEngineer && b.capturable && b.faction !== 'neutral') {
         type = 'capture';
       }
       if (!type || !this.walkToDoor(u, b)) continue;
-      u.task = { type, buildingId: b.id };
+      u.task = type === 'lease' ? { type, buildingId: b.id, lessor: b.owner } : { type, buildingId: b.id };
       ordered++;
     }
     if (ordered === 0 && b.faction === 'neutral' && this.selection.selectedUnitList().some((u) => u instanceof Infantry && u.isEngineer)) {
@@ -3386,7 +3411,9 @@ export class Game {
       } else if (task.type === 'lease') {
         // Lease: the engineer signs for the derrick and stays at the door; the derrick pumps for his nation.
         u.task = null;
-        if (b instanceof OilDerrick && b.leasable) {
+        if (b instanceof OilDerrick && b.leasable && this.leasesTaken(b.owner) >= OIL_LEASE_MAX) {
+          if (u.owner === this.humanPlayer.id) this.sidebar.notify(`${FACTIONS[b.faction as FactionId].shortName} leases at most ${OIL_LEASE_MAX} derricks at a time.`, 3);
+        } else if (b instanceof OilDerrick && b.leasable) {
           b.lease(u.owner);
           u.stop();
           if (u.owner === this.humanPlayer.id) {
@@ -3401,9 +3428,38 @@ export class Game {
           this.entities.remove(u.id);
           this.selection.selectedUnits.delete(u.id);
           if (u.owner === this.humanPlayer.id) this.sidebar.notify(`${b.spec.name} captured!`);
+          this.razeFlagsAround(b);
         } else u.task = null;
       }
     }
+  }
+
+  /**
+   * A structure changed hands: every flag standing on its footprint grown by one cell each side (an (M+2) × (N+2)
+   * area for an M × N structure) is torn down, whoever planted it.
+   */
+  private razeFlagsAround(b: Building): void {
+    for (const f of this.entities.buildings()) {
+      if (f === b || !f.alive || f.spec.type !== 'flagpole') continue;
+      if (f.x + f.w > b.x - 1 && f.x < b.x + b.w + 1 && f.y + f.d > b.y - 1 && f.y < b.y + b.d + 1) f.hp = 0;
+    }
+  }
+
+  /**
+   * Derricks of `owner` leased now plus those engineers are walking to lease (the walker itself is not counted
+   * once it arrives: its task is cleared before the check).
+   */
+  private leasesTaken(owner: number): number {
+    let n = 0;
+    const pending = new Set<number>();
+    for (const b of this.derricks) if (b.alive && b.owner === owner && b.lessee !== null) n++;
+    for (const u of this.entities.fieldUnits()) {
+      if (u.task?.type === 'lease' && u.task.lessor === owner && !pending.has(u.task.buildingId)) {
+        const d = this.entities.get(u.task.buildingId);
+        if (d instanceof OilDerrick && d.lessee === null) pending.add(u.task.buildingId);
+      }
+    }
+    return n + pending.size;
   }
 
   /** Engineers inside a building repair it to 100%, then walk out of it. */
@@ -3412,7 +3468,14 @@ export class Game {
       if (b.crew.length === 0 || !b.alive) continue;
       b.hp = Math.min(b.maxHp, b.hp + b.maxHp * ENGINEER_REPAIR_SHARE * b.crew.length * dt);
       if (b.hp < b.maxHp) continue;
-      this.placeOutside(b, b.crew.splice(0));
+      // Repaired hospital: wounded engineers stay on as patients; the rest walk out.
+      const crew = b.crew.splice(0);
+      const out: Infantry[] = [];
+      for (const c of crew) {
+        if (b.canEnter(c)) b.garrison.push(c);
+        else out.push(c);
+      }
+      this.placeOutside(b, out);
     }
   }
 

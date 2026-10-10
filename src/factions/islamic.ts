@@ -9,8 +9,6 @@ export const ISLAMIC: FactionConfig = {
   doctrine:
     "Oil and endurance: leads the oil cartel — cutting or flooding production moves the world oil price — and the richest oil fields pay for cheap, hardy forces.",
   oilCartel: true,
-  // For now the Islamic world does not fight: it only produces oil and moves the world oil price.
-  peaceful: true,
   // Other nations may lease its derricks (engineer → derrick) for 3 minutes, 30% of the oil money comes back.
   leasesOil: true,
   colors: { primary: "#1f9d4a", light: "#8fe3a8", dark: "#0b4d22" },
