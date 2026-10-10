@@ -80,6 +80,11 @@ const BATTLE_CRY: Readonly<Record<FactionId, { lang: string; lines: readonly str
   islamic: { lang: 'ar-SA', lines: ['الله أكبر!', 'إلى الأمام!', 'هجوم!'] },
 };
 const CRY_COOLDOWN = 7;
+/** Seconds between two "under attack" alarms / two mayday calls (several alerts at once sound only once). */
+const ALARM_COOLDOWN = 4;
+const MAYDAY_COOLDOWN = 3;
+/** Small-arms fire is boosted so a firefight is clearly heard over the music and engines. */
+const GUN_BOOST = 1.35;
 const MIN_GAP: Readonly<Record<string, number>> = { rifle: 0.05, smg: 0.045, sniper: 0.1, mg: 0.05, cannon: 0.12, autocannon: 0.06, missile: 0.15, explosion: 0.1, board: 0.12 };
 
 /**
@@ -134,6 +139,8 @@ export class SoundSystem {
   /** Recordings of single vehicle models (public/sounds/vehicles/<name>.*): loading, found, or not there. */
   private readonly vehicleSamples = new Map<string, AudioBuffer | 'loading' | 'none'>();
   private nextStep = 0;
+  private lastAlarm = -99;
+  private lastMayday = -99;
 
   /** `listener` defaults to "hear everything" (menus); the game sets the camera with setListener. */
   constructor(private listener: () => Listener = () => ({ centre: { x: 0, y: 0 }, range: Infinity })) {
@@ -204,8 +211,8 @@ export class SoundSystem {
     if (!ctx || !this.master || !this.noise || this.muted || ctx.state !== 'running') return;
     const l = this.listener();
     const dist = Math.hypot(at.x - l.centre.x, at.y - l.centre.y);
-    const vol = Math.max(0, 1 - dist / (l.range * 1.4));
-    if (vol < 0.04 || this.active > 14) return;
+    let vol = Math.max(0, 1 - dist / (l.range * 1.4));
+    if (vol < 0.04 || this.active > 24) return;
     const now = ctx.currentTime;
     const last = this.lastPlayed.get(kind) ?? -1;
     if (now - last < (MIN_GAP[kind] ?? 0.05)) return;
@@ -213,6 +220,7 @@ export class SoundSystem {
 
     if (this.sample(kind, vol)) return;
     const jitter = 0.9 + Math.random() * 0.2;
+    if (kind === 'rifle' || kind === 'smg' || kind === 'mg' || kind === 'autocannon' || kind === 'sniper') vol = Math.min(1.2, vol * GUN_BOOST);
     switch (kind) {
       // A gunshot: the supersonic crack, the body of the muzzle blast, then its echo rolling off the terrain.
       case 'rifle':
@@ -298,6 +306,51 @@ export class SoundSystem {
         this.burst(vol * 0.5, 0.05, 'bandpass', 1400 + Math.random() * 600, 1.2);
       }
     }
+  }
+
+  /** "Under attack" klaxon: three two-tone beeps, heard wherever the camera is (rate-limited). */
+  alarm(): void {
+    const ctx = this.ctx;
+    if (!ctx || !this.master || this.muted || ctx.state !== 'running') return;
+    const now = ctx.currentTime;
+    if (now - this.lastAlarm < ALARM_COOLDOWN) return;
+    this.lastAlarm = now;
+    for (let i = 0; i < 3; i++) {
+      const t = now + i * 0.32;
+      for (const [freq, at] of [
+        [880, 0],
+        [660, 0.14],
+      ] as const) {
+        const osc = ctx.createOscillator();
+        osc.type = 'square';
+        osc.frequency.value = freq;
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.0005, t + at);
+        g.gain.exponentialRampToValueAtTime(0.16, t + at + 0.01);
+        g.gain.setValueAtTime(0.16, t + at + 0.11);
+        g.gain.exponentialRampToValueAtTime(0.0005, t + at + 0.13);
+        osc.connect(g).connect(this.master);
+        osc.start(t + at);
+        osc.stop(t + at + 0.14);
+      }
+    }
+  }
+
+  /** A pilot's distress call when one of the player's aircraft goes down: "Mayday, mayday, mayday!" */
+  mayday(): void {
+    if (this.muted || typeof speechSynthesis === 'undefined' || !this.ctx) return;
+    const now = performance.now() / 1000;
+    if (now - this.lastMayday < MAYDAY_COOLDOWN) return;
+    this.lastMayday = now;
+    if (speechSynthesis.speaking) speechSynthesis.cancel(); // more urgent than a battle cry
+    const u = new SpeechSynthesisUtterance('Mayday, Mayday, Mayday!');
+    u.lang = 'en-US';
+    const voice = this.voices.find((v) => v.lang.toLowerCase().startsWith('en'));
+    if (voice) u.voice = voice;
+    u.rate = 1.15;
+    u.pitch = 0.85;
+    u.volume = 1;
+    speechSynthesis.speak(u);
   }
 
   /** The nation shouts its battle cry in its own language (rate-limited per nation). */

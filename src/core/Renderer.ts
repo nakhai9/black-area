@@ -828,7 +828,8 @@ export class Renderer {
       const t = e.age / e.ttl;
       if (e.kind === 'tracer') {
         const head = e.shell ? Math.min(1, t * 1.15) : 1;
-        const tail = e.shell ? Math.max(0, head - 0.25) : Math.max(0, t - 0.2);
+        // Small arms: a thin dashed line the whole way from muzzle to the target's centre.
+        const tail = e.shell ? Math.max(0, head - 0.25) : e.dashed ? 0 : Math.max(0, t - 0.2);
         const x0 = e.x0 + (e.x1 - e.x0) * tail;
         const y0 = e.y0 + (e.y1 - e.y0) * tail;
         const x1 = e.x0 + (e.x1 - e.x0) * head;
@@ -836,10 +837,12 @@ export class Renderer {
         ctx.strokeStyle = e.color;
         ctx.globalAlpha = 1 - t * 0.5;
         ctx.lineWidth = e.width;
+        if (e.dashed) ctx.setLineDash([1.4, 1.1]);
         ctx.beginPath();
         ctx.moveTo(x0, y0);
         ctx.lineTo(x1, y1);
         ctx.stroke();
+        if (e.dashed) ctx.setLineDash([]);
         if (e.shell) {
           ctx.fillStyle = '#fff3c0';
           ctx.beginPath();
@@ -1141,36 +1144,54 @@ export class Renderer {
   private drawAirLock(e: Unit | Building): void {
     const { ctx } = this;
     const k = 1 / this.camera.zoom;
-    let box: Rect;
-    if (e.kind === 'building') box = this.footprintRect(e);
-    else {
+    // Structure: the box hugs the iso grid cells it stands on (a diamond); a unit gets a plain rectangle.
+    let outline: { x: number; y: number }[];
+    if (e.kind === 'building') {
+      const f = e.footprintWorld();
+      outline = [worldToIso(f.x, f.y), worldToIso(f.x + f.w, f.y), worldToIso(f.x + f.w, f.y + f.h), worldToIso(f.x, f.y + f.h)];
+    } else {
       const P = worldToIso(e.px, e.py);
       const lift = e.flies && 'altitude' in e ? Number((e as { altitude: number }).altitude) : 0;
       const half = Math.max(3, e.radius * 2);
       const top = P.y - lift - Math.max(e.bodyHeight, 2) - 1.6;
       const bottom = P.y - lift + 1.6;
-      box = { x: P.x - half * 1.6, y: top, w: half * 3.2, h: bottom - top };
+      const x0 = P.x - half * 1.6;
+      const x1 = P.x + half * 1.6;
+      outline = [{ x: x0, y: top }, { x: x1, y: top }, { x: x1, y: bottom }, { x: x0, y: bottom }];
     }
-    const cx = box.x + box.w / 2;
-    const cy = box.y + box.h / 2;
+    const xs = outline.map((p) => p.x);
+    const ys = outline.map((p) => p.y);
+    const cx = (Math.min(...xs) + Math.max(...xs)) / 2;
+    const cy = (Math.min(...ys) + Math.max(...ys)) / 2;
     const v = this.camera.viewRect();
     const p0 = worldToIso(v.x, v.y);
     const span = Math.max(v.w, v.h) * 4 + 4000;
+    const shape = (): void => {
+      ctx.moveTo(outline[0].x, outline[0].y);
+      for (let i = 1; i < outline.length; i++) ctx.lineTo(outline[i].x, outline[i].y);
+      ctx.closePath();
+    };
     ctx.save();
     ctx.strokeStyle = LOCK_COLOR;
+    // Crosshair lines across the view, cut away inside the outline.
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(p0.x - span * 2, p0.y - span * 2, span * 4, span * 4);
+    shape();
+    ctx.clip('evenodd');
     ctx.lineWidth = 1.5 * k;
     ctx.beginPath();
     ctx.moveTo(p0.x - span, cy);
-    ctx.lineTo(box.x, cy);
-    ctx.moveTo(box.x + box.w, cy);
     ctx.lineTo(p0.x + span, cy);
     ctx.moveTo(cx, p0.y - span);
-    ctx.lineTo(cx, box.y);
-    ctx.moveTo(cx, box.y + box.h);
     ctx.lineTo(cx, p0.y + span);
     ctx.stroke();
+    ctx.restore();
     ctx.lineWidth = 2 * k;
-    ctx.strokeRect(box.x, box.y, box.w, box.h);
+    ctx.lineJoin = 'miter';
+    ctx.beginPath();
+    shape();
+    ctx.stroke();
     ctx.restore();
   }
 

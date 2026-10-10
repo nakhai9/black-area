@@ -412,6 +412,7 @@ export class AircraftSystem implements GameSystem {
     const home = this.home(v);
     if (!home) return this.abort(v);
     this.stashOrders(v);
+    if (this.goAround(v)) return;
     const heading = this.approachFor(v, home).heading;
     v.phaseTime += dt;
     const t = clamp01(v.phaseTime / LANDING_SECONDS);
@@ -430,6 +431,7 @@ export class AircraftSystem implements GameSystem {
     const home = this.home(v);
     if (!home) return this.abort(v);
     this.stashOrders(v);
+    if (this.goAround(v)) return;
     const g = this.geometry(home);
     const spot = g.slots[v.slot] ?? g.slots[0];
     if (spot && this.moveTo(v, spot, TAXI_SPEED, dt)) {
@@ -441,6 +443,18 @@ export class AircraftSystem implements GameSystem {
   }
 
   // ------------------------------------------------------------------ helpers
+
+  /**
+   * A new order (move / attack) arrived while landing or taxiing to its spot: it does not wait to park but climbs
+   * straight back up from where it is and carries the order out. A bomber with no bomb aboard still has to park.
+   */
+  private goAround(v: Vehicle): boolean {
+    if (v.mission === null && v.attackTarget === null && v.attackMove === null) return false;
+    if (v.type === 'bomber' && v.bombs < 1) return false;
+    v.flight = 'liftoff';
+    v.phaseTime = CLIMB_SECONDS * clamp01(v.altitude / CRUISE_ALTITUDE);
+    return true;
+  }
 
   /** Parked aircraft under fire: takes off at once towards a point beyond the runway, then circles there a while. */
   private scrambleOff(v: Vehicle): void {
@@ -877,7 +891,8 @@ export class AircraftSystem implements GameSystem {
       v.returningHome = false;
       v.follow(v.mission);
       v.mission = null;
-    } else v.returningHome = true;
+    } else if (v.attackTarget !== null || v.attackMove !== null) v.returningHome = false;
+    else v.returningHome = true;
   }
 
   /** The destination is the transport's own airfield: it comes home to park instead of setting down beside it. */

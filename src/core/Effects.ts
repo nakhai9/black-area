@@ -2,7 +2,7 @@ import type { FactionId, InfantryLook } from '../types';
 
 /** Short-lived visual effects drawn on top of units. Positions are world px. */
 export type Effect =
-  | { kind: 'tracer'; x0: number; y0: number; x1: number; y1: number; age: number; ttl: number; color: string; width: number; shell: boolean }
+  | { kind: 'tracer'; x0: number; y0: number; x1: number; y1: number; age: number; ttl: number; color: string; width: number; shell: boolean; dashed?: boolean }
   | { kind: 'flash'; x: number; y: number; age: number; ttl: number; size: number }
   | { kind: 'blast'; x: number; y: number; age: number; ttl: number; radius: number }
   | { kind: 'smoke'; x: number; y: number; age: number; ttl: number; radius: number }

@@ -1583,6 +1583,8 @@ export class Game {
     const mark = (e: Entity | undefined, strong: boolean, hover: boolean, by?: Unit): void => {
       if (!e || !e.alive || !(e instanceof Unit || e instanceof Building)) return;
       if (e instanceof Unit && !e.visible) return;
+      // An aircraft's lock is only shown while it is selected (it still attacks its target either way).
+      if (by?.aircraft && !strong) return;
       const prev = out.get(e.id);
       // An aircraft locks onto air units and structures.
       const lock = !!by?.aircraft && (e instanceof Building || e.flies);
@@ -2288,10 +2290,11 @@ export class Game {
     const my = c.y + ((t.py - c.y) / dist) * reach;
     const muzzle = this.fx(mx, my, 2);
     const hit = this.fx(t.px, t.py, this.aimHeight(t, 0.6));
-    this.effects.add({ kind: 'tracer', x0: muzzle.x, y0: muzzle.y, x1: hit.x, y1: hit.y, age: 0, ttl: 0.06, color: '#ffe9a0', width: 0.45, shell: false });
+    this.effects.add({ kind: 'tracer', x0: muzzle.x, y0: muzzle.y, x1: hit.x, y1: hit.y, age: 0, ttl: 0.06, color: '#ffe9a0', width: 0.35, shell: false, dashed: true });
     this.effects.add({ kind: 'flash', x: muzzle.x, y: muzzle.y, age: 0, ttl: 0.07, size: 2.2 });
     this.effects.add({ kind: 'blast', x: hit.x, y: hit.y, age: -0.06, ttl: 0.18, radius: 1.6 });
     this.sound.play('mg', { x: mx, y: my });
+    this.alertUnderAttack(t, b);
   }
 
   private onFire(s: Unit, t: Entity, w: WeaponSpec, _impact: WorldPoint): void {
@@ -2308,7 +2311,7 @@ export class Game {
       tlift = this.aimHeight(t, 0.6);
     } else if (t instanceof Building) {
       const c = t.centerWorld();
-      tx = c.x + (((t.id * 7) % 9) - 4);
+      tx = heavy ? c.x + (((t.id * 7) % 9) - 4) : c.x; // small arms aim at the centre
       ty = c.y;
       tlift = 6;
     }
@@ -2318,7 +2321,7 @@ export class Game {
     const my = s.py + ((ty - s.py) / dist) * reach;
     const muzzle = this.fx(mx, my, this.aimHeight(s, s instanceof Vehicle ? 1 : 0.8));
     const hit = this.fx(tx, ty, tlift);
-    const ttl = { rifle: 0.09, smg: 0.06, sniper: 0.14, mg: 0.06, autocannon: 0.08, cannon: 0.22, missile: 0.35, bomb: BOMB_FALL_SECONDS }[w.kind];
+    const ttl = { rifle: 0.14, smg: 0.12, sniper: 0.18, mg: 0.12, autocannon: 0.12, cannon: 0.22, missile: 0.35, bomb: BOMB_FALL_SECONDS }[w.kind];
     if (w.kind === 'bomb' || (s instanceof Vehicle && s.type === 'bomber')) {
       if (s instanceof Vehicle && s.type === 'bomber' && hasBombSheet(s.faction)) {
         // Bomber with a bomb sheet: the stick of bombs falls from the bay and blows up on the ground.
@@ -2352,7 +2355,7 @@ export class Game {
       return;
     }
     const color = heavy ? '#ffb347' : w.kind === 'sniper' ? '#ffffff' : '#ffe9a0';
-    this.effects.add({ kind: 'tracer', x0: muzzle.x, y0: muzzle.y, x1: hit.x, y1: hit.y, age: 0, ttl, color, width: heavy ? 1.1 : 0.45, shell: heavy });
+    this.effects.add({ kind: 'tracer', x0: muzzle.x, y0: muzzle.y, x1: hit.x, y1: hit.y, age: 0, ttl, color, width: heavy ? 1.1 : 0.35, shell: heavy, dashed: !heavy });
     this.effects.add({ kind: 'flash', x: muzzle.x, y: muzzle.y, age: 0, ttl: 0.07, size: heavy ? 3.6 : 1.8 });
     this.effects.add({ kind: 'blast', x: hit.x, y: hit.y, age: -ttl, ttl: heavy ? 0.35 : 0.18, radius: w.kind === 'bomb' ? 14 : heavy ? 6 : 1.6 });
     this.sound.play(w.kind, { x: mx, y: my });
@@ -2401,7 +2404,7 @@ export class Game {
   /** Throttled "under attack" alerts for everything the player owns. */
   private readonly alertAt = new Map<string, number>();
   private janitorTimer = 0;
-  private alertUnderAttack(t: Entity, attacker: Unit): void {
+  private alertUnderAttack(t: Entity, attacker: Entity): void {
     if (t.owner !== this.humanPlayer.id || attacker.owner === t.owner) return;
     const isBuilding = t instanceof Building;
     const key = isBuilding ? `b:${t.spec.type}` : `u:${t instanceof Vehicle ? t.type : 'soldier'}`;
@@ -2410,6 +2413,7 @@ export class Game {
     const name = isBuilding ? t.spec.name : t instanceof Vehicle || t instanceof Infantry ? t.name : 'Unit';
     const at = isBuilding ? t.centerWorld() : { x: (t as Unit).px, y: (t as Unit).py };
     this.sidebar.alert(`${name} is under attack!`, at);
+    this.sound.alarm();
   }
 
   /** Sell button: the Global Financial Center looks at the offer and decides whether, and how much, to buy. */
@@ -2560,6 +2564,8 @@ export class Game {
       }
       this.entities.remove(e.id);
       const vehicle = e instanceof Vehicle;
+      // One of my aircraft shot down / crashed: the pilot's distress call.
+      if (vehicle && e.aircraft && e.owner === this.humanPlayer.id) this.sound.mayday();
       if (e instanceof Infantry && !e.inWater && hasSoldierDeath(e.profile.look)) {
         this.effects.add({ kind: 'soldierDeath', ...this.fx(e.px, e.py), age: 0, ttl: SOLDIER_DEATH_SECONDS, look: e.profile.look, heading: e.heading });
         return;
