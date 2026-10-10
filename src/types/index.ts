@@ -100,7 +100,7 @@ export interface WeaponSpec {
 /** Light car, main battle tank, armoured vehicle (IFV) and fighter aircraft. */
 /** `bomber` is a national special: only nations that list it in their `vehicles` can build it (Russia's Tu-16, the USA's B-52). */
 /** `repair` is a national special too: an unarmed armoured recovery vehicle that mends friendly ground vehicles (Russia's BREM-1). */
-export type VehicleKind = 'light' | 'tank' | 'ifv' | 'jet' | 'transport' | 'tanker' | 'bomber' | 'repair' | 'truck';
+export type VehicleKind = 'light' | 'tank' | 'ifv' | 'jet' | 'transport' | 'tanker' | 'bomber' | 'repair' | 'truck' | 'heli';
 
 export interface VehicleProfile {
   name: string;
@@ -149,8 +149,10 @@ export interface FactionConfig {
   /** Ground forces trained at the Barracks. */
   infantry: Readonly<Record<Exclude<UnitTier, 'demolition'>, InfantryProfile>> & { readonly demolition?: InfantryProfile };
   /** Vehicles (War Factory) and aircraft (Airfield). */
-  vehicles: Readonly<Record<Exclude<VehicleKind, 'bomber' | 'repair' | 'truck' | 'transport' | 'tanker'>, VehicleProfile>> & {
+  vehicles: Readonly<Record<Exclude<VehicleKind, 'bomber' | 'repair' | 'truck' | 'transport' | 'tanker' | 'heli'>, VehicleProfile>> & {
     readonly bomber?: VehicleProfile;
+    /** Attack helicopter (built at the Airfield). */
+    readonly heli?: VehicleProfile;
     readonly repair?: VehicleProfile;
     /** Army truck (KamAZ): only nations that field one. */
     readonly truck?: VehicleProfile;

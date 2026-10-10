@@ -53,6 +53,7 @@ const ENGINE_BY_KIND: Readonly<Record<VehicleKind, EngineProfile>> = {
   ifv: 'dieselTank',
   repair: 'recovery',
   jet: 'fighter',
+  heli: 'bomber',
   bomber: 'bomber',
   transport: 'airlifter',
   tanker: 'airlifter',
@@ -121,7 +122,16 @@ const BURST: Readonly<Record<string, { rounds: number; gap: number }>> = {
 /** While weapons / explosions are heard the music drops to this share, then comes back after SFX_DUCK_HOLD s. */
 const SFX_DUCK = 0.35;
 const SFX_DUCK_HOLD = 0.8;
-const SAMPLE_EXTS = ['mp3', 'ogg', 'wav'] as const;
+/**
+ * The recordings public/sounds/ actually ships (file names with extension). Only these are fetched, so a missing
+ * recording costs no 404 request; add a file's name here when you drop one into public/sounds/.
+ */
+const SHIPPED_SOUNDS: ReadonlySet<string> = new Set(['rifle.mp3', 'tank-cannon.mp3', 'bomb.mp3', 'engine-tank.mp3']);
+/** The shipped file for a sound name (no extension), or null when there is none. */
+const shipped = (path: string): string | null => {
+  for (const ext of ['mp3', 'ogg', 'wav']) if (SHIPPED_SOUNDS.has(`${path}.${ext}`)) return `${path}.${ext}`;
+  return null;
+};
 /** Peak gain of the vehicle engine sounds; the music is also ducked (MUSIC_DUCK) while they play. */
 const VEHICLE_BED_GAIN = 0.75;
 /** Share the music is turned down by while vehicles are heard. */
@@ -503,15 +513,14 @@ export class SoundSystem {
     if (!ctx) return;
     await Promise.all(
       Object.entries(SAMPLE_PATHS).map(async ([kind, path]) => {
-        for (const ext of SAMPLE_EXTS) {
-          try {
-            const res = await fetch(`${import.meta.env.BASE_URL}sounds/${path}.${ext}`);
-            if (!res.ok || (res.headers.get('content-type') ?? '').includes('text/html')) continue;
-            this.samples.set(kind, await ctx.decodeAudioData(await res.arrayBuffer()));
-            return;
-          } catch {
-            /* not there or not audio: try the next format */
-          }
+        const file = shipped(path);
+        if (!file) return;
+        try {
+          const res = await fetch(`${import.meta.env.BASE_URL}sounds/${file}`);
+          if (!res.ok || (res.headers.get('content-type') ?? '').includes('text/html')) return;
+          this.samples.set(kind, await ctx.decodeAudioData(await res.arrayBuffer()));
+        } catch {
+          /* not audio: keep the synthesised sound */
         }
       }),
     );
@@ -529,16 +538,18 @@ export class SoundSystem {
     if (!ctx || this.vehicleSamples.has(name)) return;
     this.vehicleSamples.set(name, 'loading');
     void (async () => {
-      for (const file of [slug(name), kind]) for (const ext of SAMPLE_EXTS) {
+      for (const model of [slug(name), kind]) {
+        const file = shipped(`engine-${model}`);
+        if (!file) continue;
         try {
-          const res = await fetch(`${import.meta.env.BASE_URL}sounds/engine-${file}.${ext}`);
+          const res = await fetch(`${import.meta.env.BASE_URL}sounds/${file}`);
           if (!res.ok || (res.headers.get('content-type') ?? '').includes('text/html')) continue;
           this.vehicleSamples.set(name, await ctx.decodeAudioData(await res.arrayBuffer()));
           this.beds.get(name)?.disconnect(); // rebuilt with the recording next frame
           this.beds.delete(name);
           return;
         } catch {
-          /* not there or not audio: try the next format */
+          /* not audio: try the shared recording */
         }
       }
       this.vehicleSamples.set(name, 'none');

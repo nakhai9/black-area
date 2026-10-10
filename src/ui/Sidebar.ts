@@ -392,7 +392,7 @@ export class Sidebar {
     this.transportSoldiers = q('.sb-transport-soldiers');
     this.transportVehicles = q('.sb-transport-vehicles');
     this.transportState = q('.sb-transport-state');
-    this.unloadButton = q<HTMLButtonElement>('.sb-unload');
+    this.unloadButton = q<HTMLButtonElement>('.sb-unload:not(.sb-turbo)');
     this.unloadButton.addEventListener('click', () => this.handlers.onUnload());
     this.aircraftPanel = q('.sb-aircraft');
     this.aircraftName = q('.sb-aircraft-name');

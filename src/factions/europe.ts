@@ -42,6 +42,7 @@ export const EUROPE: FactionConfig = {
     light: { name: "VBL Scout", description: "Light armoured European reconnaissance vehicle." },
     tank: { name: "Leopard 2", description: "Leopard 2 main battle tank, precise and well protected." },
     ifv: { name: "Puma", description: "Puma armoured fighting vehicle, modern and fast." },
+    heli: { name: "AH-64 Apache", description: "AH-64 Apache attack helicopter: anti-tank missiles, hits ground and air targets. Carries up to 8 soldiers (no vehicles) and sets down anywhere on open ground." },
     jet: { name: "Rafale", description: "Dassault Rafale multirole fighter." },
     transport: { name: "C-130", description: "C-130 transport aircraft: carries soldiers and vehicles; unarmed." },
     truck: {

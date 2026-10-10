@@ -29,6 +29,8 @@ const REPAIR_INTERVAL = 4;
 const REPAIR_FRACTION = 0.02;
 /** Seconds without orders before an airborne aircraft heads home. */
 const RETURN_AFTER = 1;
+/** A helicopter with nothing to do sets down where it is after this many seconds. */
+const HELI_SETTLE_SECONDS = 1.5;
 
 const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
 const clamp01 = (t: number): number => Math.max(0, Math.min(1, t));
@@ -154,6 +156,11 @@ export class AircraftSystem implements GameSystem {
       else if (v.maydaySent && v.flight === 'parked' && v.hp > v.maxHp * MAYDAY_HP) v.maydaySent = false; // repaired
       // Shot at while standing on its airfield: it scrambles into the air to save itself.
       if (prev && v.hp < prev.hp && v.flight === 'parked' && !v.ejecting) this.scrambleOff(v);
+      // A helicopter shot at on the ground lifts off to fight back.
+      if (prev && v.hp < prev.hp && v.isHeli && v.flight === 'landed') {
+        v.flight = 'liftoff';
+        v.phaseTime = 0;
+      }
       if (v.isTransport) this.fuel(v, prev, dt);
       if (v.isTanker) this.escort(v, dt);
       const base = this.home(v);
@@ -234,7 +241,7 @@ export class AircraftSystem implements GameSystem {
       }
     }
     // Its airfield is gone: fly to another airfield of the nation; with none left it is destroyed where it stands.
-    if (!this.home(v)) {
+    if (!this.home(v) && !v.isHeli) {
       if (!this.adoptHome(v)) {
         this.startCrash(v);
         return;
@@ -262,6 +269,13 @@ export class AircraftSystem implements GameSystem {
     if (!wantsOut) return;
     this.stashOrders(v);
     if (unarmed) return;
+    if (v.isHeli) {
+      // Straight up off its spot: no runway needed, and the spot is free again.
+      v.slot = -1;
+      v.flight = 'liftoff';
+      v.phaseTime = 0;
+      return;
+    }
     const home = this.home(v);
     if (!home) {
       // Its airfield is gone: take off from where it stands and head for another one (or crash).
@@ -355,6 +369,10 @@ export class AircraftSystem implements GameSystem {
       const target = this.entities.get(v.transferTo);
       v.transferTo = null;
       if (target && 'spec' in target && this.land(v, target as Building)) return;
+    }
+    if (v.isHeli) {
+      this.heliAirborne(v, dt);
+      return;
     }
     // Lost its airfield: any other airfield of the nation will do; with none left the aircraft falls.
     if (!this.home(v) && !this.adoptHome(v)) {
@@ -1033,6 +1051,11 @@ export class AircraftSystem implements GameSystem {
         if (this.eject(v, dt)) v.phaseTime = DESCEND_SECONDS + UNLOAD_PAUSE - AFTER_UNLOAD;
         else if (v.cargo.length > 0) v.phaseTime = DESCEND_SECONDS + UNLOAD_PAUSE; // no room here: the rest stay aboard
       }
+    } else if (v.isHeli) {
+      // A helicopter stays down where it let its passengers out, waiting for its next order.
+      v.altitude = 0;
+      v.flight = 'landed';
+      v.dropSpot = null;
     } else if (t < DESCEND_SECONDS + UNLOAD_PAUSE + CLIMB_SECONDS) {
       v.altitude = CRUISE_ALTITUDE * clamp01((t - DESCEND_SECONDS - UNLOAD_PAUSE) / CLIMB_SECONDS);
     } else {
@@ -1042,6 +1065,23 @@ export class AircraftSystem implements GameSystem {
       v.returningHome = true;
       v.idleFor = RETURN_AFTER;
     }
+  }
+
+  /**
+   * A helicopter in the air: fights and follows orders like any aircraft, and once it has nothing left to do it sets
+   * down right where it is (open ground, never the sea), needing no airfield.
+   */
+  private heliAirborne(v: Vehicle, dt: number): void {
+    v.returningHome = false;
+    if (this.guard(v)) return;
+    if (v.moving || v.attackTarget !== null || v.attackMove !== null || v.combatTarget !== null) {
+      v.idleFor = 0;
+      return;
+    }
+    v.idleFor += dt;
+    if (v.idleFor < HELI_SETTLE_SECONDS) return;
+    // Over the sea (no ground near): it hovers until it is sent somewhere else.
+    if (!this.setDown(v, true)) v.idleFor = 0;
   }
 
   /** Standing on solid ground away from an airfield: takes passengers, then flies off when given a destination. */
@@ -1066,6 +1106,8 @@ export class AircraftSystem implements GameSystem {
       v.phaseTime = 0;
       return;
     }
+    // A helicopter waits where it landed until it gets an order.
+    if (v.isHeli) return;
     // Empty and nobody on the way: after a while it flies home on its own.
     const boarding = this.entities.fieldMovers().some((u) => u.boardTarget === v.id);
     if (v.cargo.length === 0 && !boarding) {
@@ -1141,7 +1183,7 @@ export class AircraftSystem implements GameSystem {
       v.returningHome = false;
       v.follow(v.mission);
       v.mission = null;
-    } else if (v.attackTarget !== null || v.attackMove !== null) v.returningHome = false;
+    } else if (v.attackTarget !== null || v.attackMove !== null || v.isHeli) v.returningHome = false;
     else v.returningHome = true;
   }
 

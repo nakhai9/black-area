@@ -20,6 +20,7 @@ import { drawFlagOnPole, drawNationalPole } from '../render/Flags';
 import { drawRepairDeath, drawRepairSheet } from '../render/RepairSheets';
 import { drawTruckDeath, drawTruckSheet } from '../render/TruckSheets';
 import { drawTankDeath, drawTankSheet } from '../render/TankSheets';
+import { drawCraftDeath } from '../render/CraftSheets';
 import { FACTIONS, teamColors } from '../factions';
 import type { TerrainRenderer } from '../map/TerrainRenderer';
 import { createCanvas, get2d } from '../render/Canvas';
@@ -920,7 +921,9 @@ export class Renderer {
       } else if (e.kind === 'bombBlast') {
         drawBombBlast(ctx, e.faction, e.x, e.y, e.age, e.ttl);
       } else if (e.kind === 'tankDeath') {
-        drawTankDeath(ctx, e.faction, e.x, e.y, e.age, e.ttl);
+        drawTankDeath(ctx, e.faction, e.heading, e.x, e.y, e.age, e.ttl);
+      } else if (e.kind === 'craftDeath') {
+        drawCraftDeath(ctx, e.model, e.type, e.heading, e.air, e.x, e.y, e.age, e.ttl);
       } else if (e.kind === 'truckDeath') {
         drawTruckDeath(ctx, e.faction, e.heading, e.flatbed, e.x, e.y, e.age, e.ttl);
       } else if (e.kind === 'repairDeath') {

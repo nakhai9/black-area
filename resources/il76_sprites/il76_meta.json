@@ -1,0 +1,51 @@
+{
+ "aircraft": "il76",
+ "size": 512,
+ "facings": 32,
+ "layout": "8 cot x 4 hang moi frame; facing=hang*8+cot; frame xep doc",
+ "states": {
+  "parked": {
+   "frames": 1,
+   "gear": true,
+   "pitch": 0,
+   "shadow_altitude_m": 0,
+   "prop": "stop"
+  },
+  "takeoff": {
+   "frames": 1,
+   "gear": true,
+   "pitch": 11,
+   "shadow_altitude_m": 2.5,
+   "prop": null
+  },
+  "flying": {
+   "frames": 1,
+   "gear": false,
+   "pitch": 0,
+   "shadow_altitude_m": 6,
+   "prop": null
+  },
+  "falling": {
+   "frames": 4,
+   "gear": false,
+   "pitch": -36,
+   "shadow_altitude_m": 5,
+   "prop": "stop"
+  },
+  "wreck": {
+   "frames": 4,
+   "gear": false,
+   "pitch": -3,
+   "shadow_altitude_m": 0,
+   "prop": "stop"
+  },
+  "explode_air": {
+   "frames": 20,
+   "layout": "5 cot x 4 hang"
+  },
+  "explode_ground": {
+   "frames": 20,
+   "layout": "5 cot x 4 hang"
+  }
+ }
+}

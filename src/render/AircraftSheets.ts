@@ -1,9 +1,10 @@
 import { ISO_X, ISO_Y } from '../constants';
 import type { Vehicle } from '../entities/Vehicle';
 import type { FactionId, VehicleKind } from '../types';
+import { drawCraftPortrait, drawCraftSheet, loadCraftSprites } from './CraftSheets';
 
 /**
- * Pre-drawn aircraft sheets (RA2 style), built with scripts/build-aircraft-sheet.mjs at 128 px cells and shipped
+ * Pre-drawn fighter and bomber sheets (RA2 style; transports, tankers and helicopters: see CraftSheets), built with scripts/build-aircraft-sheet.mjs at 128 px cells and shipped
  * at 75% (96 px cells) to save download and memory.
  * Columns: 16 screen headings, clockwise from N (nose up the screen). Rows below.
  */
@@ -28,10 +29,6 @@ const sheet = (file: string, cell: number, length: number): AircraftSheet => ({
 });
 
 const SHEETS: Partial<Record<`${FactionId}:${VehicleKind}`, AircraftSheet>> = {
-  'usa:transport': sheet('transport-usa.png', 96, 13),
-  'russia:transport': sheet('transport-russia.png', 96, 13),
-  'china:transport': sheet('transport-china.png', 96, 13),
-  'europe:transport': sheet('transport-europe.png', 96, 13),
   'usa:jet': sheet('jet-usa.png', 96, 10),
   'russia:jet': sheet('jet-russia.png', 96, 10),
   'china:jet': sheet('jet-china.png', 96, 10),
@@ -41,11 +38,6 @@ const SHEETS: Partial<Record<`${FactionId}:${VehicleKind}`, AircraftSheet>> = {
   'russia:bomber': sheet('tu26-russia.png', 96, 14),
   'usa:bomber': sheet('b52-usa.png', 96, 16),
 };
-// Tankers: the faction's transport airframe drawn smaller (a short, fat refueler); they share the transport image.
-for (const f of ['usa', 'russia', 'china', 'europe', 'islamic'] as const) {
-  const t = SHEETS[`${f}:transport`];
-  if (t) SHEETS[`${f}:tanker`] = { ...t, scale: t.scale * (9.5 / 13) };
-}
 
 /** Turn rate (rad/s) above which an airborne aircraft is drawn banked. */
 const BANK_TURN_RATE = 0.35;
@@ -56,8 +48,9 @@ let loaded: Promise<void> | null = null;
 
 /** Starts (once) and returns the aircraft sheet downloads. */
 export function loadAircraftSprites(): Promise<void> {
-  loaded ??= Promise.all(
-    [...new Set(Object.values(SHEETS))].filter((s, i, all) => all.findIndex((o) => o.image === s.image) === i).map(
+  loaded ??= Promise.all([
+    loadCraftSprites(),
+    ...[...new Set(Object.values(SHEETS))].filter((s, i, all) => all.findIndex((o) => o.image === s.image) === i).map(
       (s) =>
         new Promise<void>((resolve, reject) => {
           s.image.onload = () => resolve();
@@ -65,7 +58,7 @@ export function loadAircraftSprites(): Promise<void> {
           s.image.src = s.url;
         }),
     ),
-  ).then(() => undefined);
+  ]).then(() => undefined);
   return loaded;
 }
 
@@ -122,6 +115,7 @@ function pickRow(v: Vehicle): number {
  * body `altitude` px above it. Returns false when there is no sheet for it (the caller draws the vector art).
  */
 export function drawAircraftSheet(ctx: CanvasRenderingContext2D, v: Vehicle, x: number, y: number): boolean {
+  if (drawCraftSheet(ctx, v, x, y)) return true;
   const sh = SHEETS[`${v.faction as FactionId}:${v.type}`];
   if (!sh) return false;
   const img = sh.image;
@@ -151,6 +145,7 @@ export function drawAircraftSheet(ctx: CanvasRenderingContext2D, v: Vehicle, x: 
  * Returns false when there is no loaded sheet for it.
  */
 export function drawAircraftPortrait(ctx: CanvasRenderingContext2D, faction: FactionId, kind: VehicleKind, w: number, h: number, heading: number): boolean {
+  if (drawCraftPortrait(ctx, faction, kind, w, h, heading)) return true;
   const sh = SHEETS[`${faction}:${kind}`];
   if (!sh) return false;
   const img = sh.image;

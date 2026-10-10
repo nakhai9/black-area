@@ -1,60 +1,52 @@
 import { ISO_X, ISO_Y } from '../constants';
 import type { Vehicle } from '../entities/Vehicle';
 import type { FactionId } from '../types';
+import { drawCraftBlast } from './CraftSheets';
 
 /**
- * Pre-drawn main battle tank sheets (RA2 style): 16 × 16 cells of 64 px, tank centre in the middle of each cell.
- * 32 screen headings, clockwise from N: headings 0–15 sit in a row pair's first row, 16–31 in its second.
- * Row pairs: hull track frames A/B/C, turret, turret firing, hull shadow, turret shadow; then a wreck row and an explosion row (16 frames each).
+ * Main battle tank sheets (tools/build_vehicle_sheets.py, from resources/<model>_move.png): 32 columns of 64 px —
+ * screen headings clockwise from N — by 8 rows of track frames. Hull, turret and shadow are one picture.
  */
 const CELL = 64;
 const DIRS = 32;
-const PER_ROW = 16;
-const ROW = { hull: [0, 2, 4], turret: 6, fire: 8, hullShadow: 10, turretShadow: 12, wreck: 14, explosion: 15 } as const;
-/** Turret traverse speed (rad/s). */
-const TURRET_TURN = 3.2;
-/** Death: 8 frames of the tank blowing apart, then 8 of the burning wreck (looped), fading out at the end. */
-const BLOW_FRAMES = 8;
-const BLOW_FRAME_SECONDS = 0.1;
-const BURN_FRAME_SECONDS = 0.14;
+const FRAMES = 8;
+/** Seconds per track frame while driving. */
+const TRACK_FRAME_SECONDS = 0.07;
+/** Iso px per sheet px: the hull (≈ 40 sheet px side-on) is drawn ≈ 7 iso px long. */
+const SCALE = 0.175;
+/** Death: the blast plays over the wreck, which then burns dark and fades out. */
 const FADE_SECONDS = 0.8;
 export const TANK_DEATH_SECONDS = 4.5;
-/** How long the muzzle-flash turret is shown after a shot (s). */
-const FIRE_SECONDS = 0.18;
 
-interface TankSheet {
-  readonly url: string;
-  readonly image: HTMLImageElement;
-  /** Iso px per sheet px. */
-  readonly scale: number;
-}
-
-const sheet = (file: string, scale: number): TankSheet => ({
-  url: `${import.meta.env.BASE_URL}sprites/${file}`,
-  image: new Image(),
-  scale,
-});
-
-const SHEETS: Partial<Record<FactionId, TankSheet>> = {
-  // Side-on the hull spans ≈ 33 sheet px; drawn ≈ 25% bigger than the vector tank (6.6 × 0.7 iso px).
-  usa: sheet('abrams-usa.png', 0.2),
-  europe: sheet('leopard2-europe.png', 0.2),
-  russia: sheet('t90-russia.png', 0.2),
-  china: sheet('type99-china.png', 0.2),
-  islamic: sheet('tank-islamic.png', 0.2),
+const sheet = (file: string): HTMLImageElement => {
+  const img = new Image();
+  img.dataset.src = `${import.meta.env.BASE_URL}sprites/${file}`;
+  return img;
 };
+const M1A2 = sheet('tank-m1a2.png');
+const T90M = sheet('tank-t90m.png');
+
+const SHEETS: Partial<Record<FactionId, HTMLImageElement>> = {
+  usa: M1A2,
+  europe: sheet('tank-leopard2.png'),
+  russia: T90M,
+  islamic: T90M,
+  china: sheet('tank-type99.png'),
+};
+/** Which aircraft explosion each nation's tanks blow up with. */
+const BLAST: Record<FactionId, string> = { usa: 'apache', europe: 'apache', russia: 'ka52', islamic: 'ka52', china: 'z19e' };
 
 let loaded: Promise<void> | null = null;
 
 /** Starts (once) and returns the tank sheet downloads. */
 export function loadTankSprites(): Promise<void> {
   loaded ??= Promise.all(
-    Object.values(SHEETS).map(
-      (s) =>
+    [...new Set(Object.values(SHEETS))].map(
+      (img) =>
         new Promise<void>((resolve, reject) => {
-          s.image.onload = () => resolve();
-          s.image.onerror = () => reject(new Error(`Could not load tank sprites '${s.url}'.`));
-          s.image.src = s.url;
+          img.onload = () => resolve();
+          img.onerror = () => reject(new Error(`Could not load tank sprites '${img.dataset.src}'.`));
+          img.src = img.dataset.src ?? '';
         }),
     ),
   ).then(() => undefined);
@@ -66,23 +58,9 @@ export function hasTankSheet(faction: FactionId): boolean {
   return SHEETS[faction] !== undefined;
 }
 
-/** Turret world heading per tank, eased towards its target (or the hull's heading when idle). */
-const turrets = new WeakMap<Vehicle, { heading: number; at: number }>();
-
-function turretHeading(v: Vehicle): number {
-  const now = performance.now() / 1000;
-  const want = v.combatTarget !== null ? v.aimHeading : v.heading;
-  const t = turrets.get(v);
-  if (!t) {
-    turrets.set(v, { heading: want, at: now });
-    return want;
-  }
-  const dt = Math.min(0.1, now - t.at);
-  t.at = now;
-  const diff = Math.atan2(Math.sin(want - t.heading), Math.cos(want - t.heading));
-  const step = TURRET_TURN * dt;
-  t.heading = Math.abs(diff) <= step ? want : t.heading + Math.sign(diff) * step;
-  return t.heading;
+function ready(faction: FactionId): HTMLImageElement | null {
+  const img = SHEETS[faction];
+  return img && img.complete && img.naturalWidth > 0 ? img : null;
 }
 
 /** Sheet direction (0–31) for a world heading: its direction on screen, clockwise from straight up. */
@@ -93,73 +71,47 @@ function direction(heading: number): number {
   return ((Math.round((a / (Math.PI * 2)) * DIRS) % DIRS) + DIRS) % DIRS;
 }
 
+function blit(ctx: CanvasRenderingContext2D, img: HTMLImageElement, dir: number, frame: number, x: number, y: number, size: number): void {
+  const prevSmooth = ctx.imageSmoothingEnabled;
+  ctx.imageSmoothingEnabled = true;
+  ctx.drawImage(img, dir * CELL, frame * CELL, CELL, CELL, x - size / 2, y - size / 2, size, size);
+  ctx.imageSmoothingEnabled = prevSmooth;
+}
+
 /**
  * Draws a main battle tank from its faction's sheet with its ground point at (x, y) in iso px.
  * Returns false when there is no loaded sheet for it (the caller draws the vector art).
  */
 export function drawTankSheet(ctx: CanvasRenderingContext2D, v: Vehicle, x: number, y: number): boolean {
-  const sh = SHEETS[v.faction as FactionId];
-  if (!sh || v.type !== 'tank') return false;
-  const img = sh.image;
-  if (!img.complete || img.naturalWidth === 0) return false;
-  const d = direction(v.heading);
-  const td = direction(turretHeading(v));
-  const track = v.moving ? (Math.floor(((v.walkPhase % 0.6) + 0.6) % 0.6 / 0.2) % 3) : 0;
-  const sinceShot = v.weapon ? v.weapon.cooldown - v.cooldown : Infinity;
-  const turretRow = sinceShot >= 0 && sinceShot < FIRE_SECONDS ? ROW.fire : ROW.turret;
-  const size = CELL * sh.scale;
-  const half = size / 2;
-  const blit = (row: number, dir: number): void =>
-    ctx.drawImage(img, (dir % PER_ROW) * CELL, (row + Math.floor(dir / PER_ROW)) * CELL, CELL, CELL, x - half, y - half, size, size);
-
-  const prevSmooth = ctx.imageSmoothingEnabled;
-  ctx.imageSmoothingEnabled = true;
-  const alpha = ctx.globalAlpha; // set and put back directly: cheaper than save/restore for every tank every frame
-  ctx.globalAlpha = 0.35;
-  blit(ROW.hullShadow, d);
-  blit(ROW.turretShadow, td);
-  ctx.globalAlpha = alpha;
-  blit(ROW.hull[track] ?? ROW.hull[0], d);
-  blit(turretRow, td);
-  ctx.imageSmoothingEnabled = prevSmooth;
+  if (v.type !== 'tank') return false;
+  const img = ready(v.faction as FactionId);
+  if (!img) return false;
+  const frame = v.moving ? Math.floor(performance.now() / 1000 / TRACK_FRAME_SECONDS) % FRAMES : 0;
+  blit(ctx, img, direction(v.heading), frame, x, y, CELL * SCALE);
   return true;
 }
 
 /** Sidebar cameo from the faction's tank sheet (`heading` world radians). Returns false when there is none. */
 export function drawTankPortrait(ctx: CanvasRenderingContext2D, faction: FactionId, w: number, h: number, heading: number): boolean {
-  const sh = SHEETS[faction];
-  if (!sh) return false;
-  const img = sh.image;
-  if (!img.complete || img.naturalWidth === 0) return false;
-  const d = direction(heading);
-  const sx = (d % PER_ROW) * CELL;
-  const pair = Math.floor(d / PER_ROW);
-  const size = Math.min(w, h) * 1.6;
+  const img = ready(faction);
+  if (!img) return false;
+  const size = Math.min(w, h) * 1.25;
   ctx.save();
-  ctx.imageSmoothingEnabled = true;
-  for (const row of [ROW.hull[0], ROW.turret]) ctx.drawImage(img, sx, (row + pair) * CELL, CELL, CELL, (w - size) / 2, (h - size) / 2, size, size);
+  blit(ctx, img, direction(heading), 0, w / 2, h / 2, size);
   ctx.restore();
   return true;
 }
 
-/** Draws a tank's death (`age` s into a `ttl` s effect) at iso ground point (x, y): blast, then a burning wreck. */
-export function drawTankDeath(ctx: CanvasRenderingContext2D, faction: FactionId, x: number, y: number, age: number, ttl: number): void {
-  const sh = SHEETS[faction];
-  if (!sh) return;
-  const img = sh.image;
-  if (!img.complete || img.naturalWidth === 0) return;
-  const blowEnd = BLOW_FRAMES * BLOW_FRAME_SECONDS;
-  const wreckCol = age < blowEnd ? Math.floor(age / BLOW_FRAME_SECONDS) : BLOW_FRAMES + (Math.floor((age - blowEnd) / BURN_FRAME_SECONDS) % 8);
-  // The fireball plays once over the blast; its trailing dust frames once over the first burning frames.
-  const fxCol = age < blowEnd + 8 * BURN_FRAME_SECONDS ? wreckCol : -1;
-  const size = CELL * sh.scale;
-  const half = size / 2;
-  const prevSmooth = ctx.imageSmoothingEnabled;
+/** Draws a tank's death (`age` s into a `ttl` s effect, world `heading`) at iso ground point (x, y): blast, then a burnt-out wreck. */
+export function drawTankDeath(ctx: CanvasRenderingContext2D, faction: FactionId, heading: number, x: number, y: number, age: number, ttl: number): void {
+  const img = ready(faction);
+  if (!img) return;
   const prevAlpha = ctx.globalAlpha;
-  ctx.imageSmoothingEnabled = true;
+  const prevFilter = ctx.filter;
   ctx.globalAlpha = Math.max(0, Math.min(1, (ttl - age) / FADE_SECONDS));
-  ctx.drawImage(img, wreckCol * CELL, ROW.wreck * CELL, CELL, CELL, x - half, y - half, size, size);
-  if (fxCol >= 0) ctx.drawImage(img, fxCol * CELL, ROW.explosion * CELL, CELL, CELL, x - half, y - half, size, size);
+  ctx.filter = 'brightness(0.32) saturate(0.4)';
+  blit(ctx, img, direction(heading), 0, x, y, CELL * SCALE);
+  ctx.filter = prevFilter;
   ctx.globalAlpha = prevAlpha;
-  ctx.imageSmoothingEnabled = prevSmooth;
+  drawCraftBlast(ctx, `heli:${BLAST[faction]}`, false, x, y, age, CELL * SCALE * 1.6);
 }

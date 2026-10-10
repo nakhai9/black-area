@@ -6,7 +6,8 @@ const MAX_TICKS_PER_FRAME = 5;
 /**
  * Fixed-timestep simulation with variable-rate rendering.
  * `tick` runs at TICK_RATE Hz (deterministic game logic);
- * `frame` runs once per animation frame (camera, input, drawing).
+ * `frame` runs once per animation frame (camera, input, drawing), with `alpha`: how far (0..1) the clock is
+ * between the last tick and the next, so moving things can be drawn in between (smooth on any refresh rate).
  */
 export class GameLoop {
   private last = 0;
@@ -16,7 +17,7 @@ export class GameLoop {
 
   constructor(
     private readonly tick: (dt: number) => void,
-    private readonly frame: (dt: number) => void,
+    private readonly frame: (dt: number, alpha: number) => void,
     private readonly step = 1 / TICK_RATE,
   ) {}
 
@@ -47,7 +48,7 @@ export class GameLoop {
     }
     if (ticks === MAX_TICKS_PER_FRAME) this.accumulator = 0; // drop backlog instead of spiralling
 
-    this.frame(dt);
+    this.frame(dt, Math.min(1, this.accumulator / this.step));
     this.rafId = requestAnimationFrame(this.loop);
   };
 }

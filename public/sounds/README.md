@@ -1,6 +1,6 @@
 # Âm thanh của game
 
-Mọi file âm thanh nằm chung trong thư mục này (`public/sounds/`), không có thư mục con, để dễ tái sử dụng. Định dạng: `.mp3`, `.ogg` hoặc `.wav`. File nào có thì game dùng file đó, file nào thiếu thì game tự tổng hợp âm thanh như cũ. Tiếng súng, tiếng nổ và tiếng xe được phát đè lên nhạc nền (nhạc tự nhỏ lại khi có tiếng).
+Mọi file âm thanh nằm chung trong thư mục này (`public/sounds/`), không có thư mục con, để dễ tái sử dụng. Định dạng: `.mp3`, `.ogg` hoặc `.wav`. File nào có thì game dùng file đó, file nào thiếu thì game tự tổng hợp âm thanh như cũ. **Khi thêm file mới, ghi thêm tên file (kèm đuôi) vào `SHIPPED_SOUNDS` trong `src/audio/SoundSystem.ts`** — game chỉ tải những file có trong danh sách này (để không sinh lỗi 404 cho file chưa có). Tiếng súng, tiếng nổ và tiếng xe được phát đè lên nhạc nền (nhạc tự nhỏ lại khi có tiếng).
 
 Hiện có: `rifle.mp3`, `tank-cannon.mp3`, `bomb.mp3` (dùng cho cả `explosion` khi chưa có file riêng), `engine-tank.mp3`.
 

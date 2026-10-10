@@ -105,6 +105,7 @@ import { vehiclePortrait } from '../render/VehicleArt';
 import { REPAIR_DEATH_SECONDS, hasRepairSheet } from '../render/RepairSheets';
 import { TRUCK_DEATH_SECONDS, hasTruckSheet } from '../render/TruckSheets';
 import { TANK_DEATH_SECONDS, hasTankSheet } from '../render/TankSheets';
+import { CRAFT_DEATH_SECONDS, craftKey } from '../render/CraftSheets';
 import { SpriteCache } from '../render/SpriteCache';
 import { BUILDING_ART } from '../render/sprites';
 import { AIRFIELD_SLOTS, RUNWAY_D, AIRFIELD_SIZE } from '../render/sprites/Airfield';
@@ -511,7 +512,7 @@ export class Game {
 
     this.loop = new GameLoop(
       (dt) => this.tick(dt),
-      (dt) => this.frame(dt),
+      (dt, alpha) => this.frame(dt, alpha),
     );
   }
 
@@ -1533,6 +1534,15 @@ export class Game {
       this.sound.motion({ foot: 0, engines: new Map() });
       return;
     }
+    // Where every unit stood before this tick: frames between two ticks draw it part-way (see drawInterpolated).
+    for (const u of this.entities.fieldMovers()) {
+      const p = this.prevPos.get(u);
+      if (p) {
+        p.x = u.px;
+        p.y = u.py;
+        p.alt = u instanceof Vehicle ? u.altitude : 0;
+      } else this.prevPos.set(u, { x: u.px, y: u.py, alt: u instanceof Vehicle ? u.altitude : 0 });
+    }
     this.endCheck += dt;
     if (this.endCheck >= 1) {
       this.endCheck = 0;
@@ -1719,7 +1729,43 @@ export class Game {
   }
 
   /** Per-frame: input, camera, rendering, UI. */
-  private frame(dt: number): void {
+  /** Positions of the units at the start of the last tick (for drawing them between ticks). */
+  private readonly prevPos = new WeakMap<Unit, { x: number; y: number; alt: number }>();
+
+  /**
+   * The simulation steps at TICK_RATE (30 Hz) but the screen refreshes at 60 Hz or more: drawn straight from the
+   * simulation, units would move on every other frame only and judder. While `draw` runs every unit stands
+   * `alpha` of the way from its previous tick position to its current one, then is put back.
+   */
+  private drawInterpolated(units: readonly Unit[], alpha: number, draw: () => void): void {
+    if (this.paused || this.ended || alpha >= 1) {
+      draw();
+      return;
+    }
+    const saved: [Unit, number, number, number][] = [];
+    for (const u of units) {
+      const p = this.prevPos.get(u);
+      const alt = u instanceof Vehicle ? u.altitude : 0;
+      if (!p || (p.x === u.px && p.y === u.py && p.alt === alt)) continue;
+      // A jump of more than a few cells in one tick is a teleport (unloading, spawning): no sliding across.
+      if (Math.abs(u.px - p.x) + Math.abs(u.py - p.y) > CELL_SIZE * 3) continue;
+      saved.push([u, u.px, u.py, alt]);
+      u.px = p.x + (u.px - p.x) * alpha;
+      u.py = p.y + (u.py - p.y) * alpha;
+      if (u instanceof Vehicle) u.altitude = p.alt + (alt - p.alt) * alpha;
+    }
+    try {
+      draw();
+    } finally {
+      for (const [u, x, y, alt] of saved) {
+        u.px = x;
+        u.py = y;
+        if (u instanceof Vehicle) u.altitude = alt;
+      }
+    }
+  }
+
+  private frame(dt: number, alpha = 1): void {
     this.time += dt;
     this.handleInput(dt);
 
@@ -1744,7 +1790,7 @@ export class Game {
     this.smokeFromDamagedBuildings(dt);
     const buildings = this.entities.buildings();
     const units = this.entities.fieldMovers();
-    this.renderer.render({
+    this.drawInterpolated(units, alpha, () => this.renderer.render({
       buildings,
       selectedId: this.selection.selectedId,
       hoveredId: this.selection.hoveredId,
@@ -1768,7 +1814,7 @@ export class Game {
       focus: focus.map((f) => ({ entity: f.entity, strong: f.strong, engaged: f.engaged, airLock: f.airLock })),
       taskLocks: this.placing ? [] : this.taskLocks(),
       effects: this.effects.list,
-    });
+    }));
     // The radar does not need 60 updates a second: 12 are plenty and save a full redraw every other frame.
     this.minimapTimer += dt;
     if (this.minimapTimer >= 1 / 12) {
@@ -2740,10 +2786,18 @@ export class Game {
         this.effects.add({ kind: 'soldierDeath', ...this.fx(e.px, e.py), age: 0, ttl: SOLDIER_DEATH_SECONDS, look: e.profile.look, heading: e.heading });
         return;
       }
-      if (vehicle) this.explode(e.px, e.py, e.flies ? 2 + e.altitude : 1, e.radius * 2 * EXPLOSION_PER_BODY);
+      const model = vehicle ? craftKey(e.faction as FactionId, e.type) : null;
+      if (vehicle && model) {
+        // Transports, tankers and helicopters blow up with their own model's explosion (and leave a wreck on the ground).
+        const air = e.altitude > 1;
+        this.effects.add({ kind: 'craftDeath', ...this.fx(e.px, e.py, air ? e.altitude : 0), age: 0, ttl: air ? 1.4 : CRAFT_DEATH_SECONDS, model, type: e.type, heading: e.heading, air });
+        this.sound.play('explosion', { x: e.px, y: e.py });
+        return;
+      }
+      if (vehicle && !(e.type === 'tank' && hasTankSheet(e.faction as FactionId))) this.explode(e.px, e.py, e.flies ? 2 + e.altitude : 1, e.radius * 2 * EXPLOSION_PER_BODY);
       else this.effects.add({ kind: 'smoke', ...this.fx(e.px, e.py, 1 + this.liftOf(e)), age: 0, ttl: 1.2, radius: 2.2 });
       if (vehicle && e.type === 'tank' && hasTankSheet(e.faction as FactionId)) {
-        this.effects.add({ kind: 'tankDeath', ...this.fx(e.px, e.py), age: 0, ttl: TANK_DEATH_SECONDS, faction: e.faction as FactionId });
+        this.effects.add({ kind: 'tankDeath', ...this.fx(e.px, e.py), age: 0, ttl: TANK_DEATH_SECONDS, faction: e.faction as FactionId, heading: e.heading });
         this.sound.play('explosion', { x: e.px, y: e.py });
       } else if (vehicle && e.isTruck && hasTruckSheet(e.faction as FactionId)) {
         this.effects.add({ kind: 'truckDeath', ...this.fx(e.px, e.py), age: 0, ttl: TRUCK_DEATH_SECONDS, faction: e.faction as FactionId, heading: e.heading, flatbed: wasCarryingTank });
@@ -2846,6 +2900,21 @@ export class Game {
 
   /** A new aircraft (fighter or transport) appears parked on a free spot of its airfield's apron. */
   private spawnAircraft(player: PlayerState, kind: VehicleKind, producer: Building, prefer = -1): Vehicle | null {
+    // A helicopter takes no parking spot: it sets down on open ground beside its airfield, like a vehicle rolling out.
+    if (kind === 'heli') {
+      const f = producer.footprintWorld();
+      const probe = new Vehicle(player.id, player.faction as FactionId, kind, { x: f.x + f.w + CELL_SIZE, y: f.y + f.h / 2 });
+      const spot = this.landingSpot(probe.px, probe.py, probe) ?? this.landingSpot(f.x - CELL_SIZE, f.y + f.h / 2, probe);
+      if (spot) {
+        const heli = this.entities.add(new Vehicle(player.id, player.faction as FactionId, kind, spot));
+        heli.flight = 'landed';
+        heli.altitude = 0;
+        heli.homeId = producer.id;
+        heli.heading = this.airfieldGeometry(producer).heading;
+        if (player.isHuman) this.sidebar.notify(`${heli.name} has landed beside the airfield.`);
+        return heli;
+      }
+    }
     // One aircraft per parking spot: use the producing airfield, or another one of the nation with room.
     // A transport takes a spot with a free one ahead of it for its tanker.
     let airfield = producer;

@@ -93,6 +93,7 @@ const VEHICLE_WEIGHT: Readonly<Partial<Record<VehicleKind, number>>> = {
   ifv: 0.12,
   light: 0.06,
   jet: 0.16,
+  heli: 0.1,
   bomber: 0.1,
   repair: 0.04,
 };
@@ -698,7 +699,7 @@ export class AISystem implements GameSystem {
         }
         // Ground fleet at its cap: airfield aircraft are not, so build one of those.
         if (kind && production.enqueue(p, kind) === 'cap') {
-          const air = (['jet', 'bomber'] as const).filter(able);
+          const air = (['jet', 'heli', 'bomber'] as const).filter(able);
           const pick = air[Math.floor(st.rng() * air.length)];
           if (pick) production.enqueue(p, pick);
         }
@@ -732,9 +733,9 @@ export class AISystem implements GameSystem {
       if (k === 'jet') w *= 1 + airShare * 2;
       if (k === 'bomber') w *= 1 + Math.min(1, structures / 40);
       if (k === 'tank') w *= 1 + Math.min(1, ground / 60) * 0.5;
-      if (st.overseas) w *= k === 'jet' || k === 'bomber' ? 2 : 0.5;
+      if (st.overseas) w *= k === 'jet' || k === 'heli' || k === 'bomber' ? 2 : 0.5;
       if (k === 'repair') {
-        const groundFleet = vehicleCount - (f.vehicles.get('jet') ?? 0) - (f.vehicles.get('bomber') ?? 0);
+        const groundFleet = vehicleCount - (f.vehicles.get('jet') ?? 0) - (f.vehicles.get('heli') ?? 0) - (f.vehicles.get('bomber') ?? 0);
         if (groundFleet < 4 || (f.vehicles.get('repair') ?? 0) >= Math.ceil(groundFleet / 5)) w = 0;
       }
       out.push([k, w]);

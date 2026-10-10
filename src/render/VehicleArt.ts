@@ -543,7 +543,7 @@ export function vehiclePortrait(faction: FactionId, kind: VehicleKind): HTMLCanv
       return canvas;
     }
     // A jet hovers 7 px above its ground point, so its ground point sits lower in the picture.
-    const air = kind === 'jet' || kind === 'transport';
+    const air = kind === 'jet' || kind === 'heli' || kind === 'transport';
     const scale = kind === 'transport' ? 7.5 : air ? 9 : 13;
     ctx.setTransform(scale, 0, 0, scale, 0, 0);
     drawVehicle(ctx, { x: 128 / 2 / scale, y: (air ? 108 : 62) / scale, heading: 0.45, phase: 0, moving: false, altitude: air ? 7 : undefined }, kind, faction);

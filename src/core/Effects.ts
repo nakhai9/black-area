@@ -1,5 +1,5 @@
 import type { BulletSize } from '../render/BulletSheet';
-import type { FactionId, InfantryLook } from '../types';
+import type { FactionId, InfantryLook, VehicleKind } from '../types';
 
 /** Short-lived visual effects drawn on top of units. Positions are world px. */
 export type Effect =
@@ -10,7 +10,9 @@ export type Effect =
   /** Something blowing up, from the explosion sheet: fireball `size` iso px wide, one of its variants. */
   | { kind: 'explosion'; x: number; y: number; age: number; ttl: number; size: number; variant: number }
   /** A main battle tank blowing up and burning out, from its faction's tank sheet. */
-  | { kind: 'tankDeath'; x: number; y: number; age: number; ttl: number; faction: FactionId }
+  | { kind: 'tankDeath'; x: number; y: number; age: number; ttl: number; faction: FactionId; heading: number }
+  /** A transport, tanker or helicopter blowing up (`air`: in the sky, else on the ground, leaving a wreck), from its model's sheets. */
+  | { kind: 'craftDeath'; x: number; y: number; age: number; ttl: number; model: string; type: VehicleKind; heading: number; air: boolean }
   | { kind: 'repairDeath'; x: number; y: number; age: number; ttl: number; faction: FactionId; heading: number }
   | { kind: 'truckDeath'; x: number; y: number; age: number; ttl: number; faction: FactionId; heading: number; flatbed: boolean }
   /** A bomb from a nation's bomb sheet: falling from (x0, y0) to (x1, y1), its shadow from (gx, gy) to the impact. */

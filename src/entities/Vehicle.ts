@@ -3,6 +3,7 @@ import {
   TRANSPORT_MIXED_SOLDIERS,
   TRANSPORT_SOLDIERS,
   TRANSPORT_VEHICLES,
+  HELI_SOLDIERS,
   VEHICLE_BASE,
   VEHICLE_WEAPON,
   WEAPONS,
@@ -37,6 +38,7 @@ const HANDLING: Readonly<Record<VehicleKind, { accel: number; turn: number; pivo
   tank: { accel: 0.9, turn: 2.4, pivot: true },
   ifv: { accel: 0.7, turn: 3.2, pivot: true },
   jet: { accel: 0.6, turn: 2.2, pivot: false },
+  heli: { accel: 0.7, turn: 2.8, pivot: false },
   transport: { accel: 0.9, turn: 1.6, pivot: false },
   tanker: { accel: 0.8, turn: 2.2, pivot: false },
   bomber: { accel: 1.0, turn: 1.4, pivot: false },
@@ -224,6 +226,11 @@ export class Vehicle extends Unit {
   }
 
   /** Army truck: unarmed ground carrier (soldiers, or one tank). */
+  /** Attack helicopter: lands and waits anywhere on open ground, like a vehicle parks; needs no airfield after it is built. */
+  get isHeli(): boolean {
+    return this.type === 'heli';
+  }
+
   get isTruck(): boolean {
     return this.type === 'truck';
   }
@@ -247,9 +254,9 @@ export class Vehicle extends Unit {
     return this.type === 'transport';
   }
 
-  /** Takes passengers: a transport aircraft, or an army truck on the ground. */
+  /** Takes passengers: a transport aircraft, a helicopter (soldiers only), or an army truck on the ground. */
   get isCarrier(): boolean {
-    return this.isTransport || this.isTruck;
+    return this.isTransport || this.isHeli || this.isTruck;
   }
 
   /** Standing where riders can climb in: a truck always (it stops for them), an aircraft only on the ground. */
@@ -261,6 +268,7 @@ export class Vehicle extends Unit {
   accepts(u: Unit): boolean {
     if (!(u instanceof Vehicle)) return true;
     if (u.aircraft) return false;
+    if (this.isHeli) return false;
     return !this.isTruck || u.type === 'tank';
   }
 
@@ -284,18 +292,21 @@ export class Vehicle extends Unit {
   /** The load limits of this carrier: the truck's (soldiers or one tank) or the transport aircraft's. */
   private loadFits(soldiers: number, vehicles: number): boolean {
     if (this.isTruck) return vehicles === 0 ? soldiers <= TRUCK_SOLDIERS : soldiers === 0 && vehicles <= TRUCK_TANKS;
+    if (this.isHeli) return vehicles === 0 && soldiers <= HELI_SOLDIERS;
     return transportFits(soldiers, vehicles);
   }
 
-  /** Soldier seats with the vehicles now aboard (12 alone, 8 beside one vehicle, none beside two or more). */
+  /** Soldier seats with the vehicles now aboard (12 alone, 8 beside one vehicle, none beside two or more; a helicopter: 8). */
   get soldierCapacity(): number {
     if (this.isTruck) return this.vehiclesAboard > 0 ? 0 : TRUCK_SOLDIERS;
+    if (this.isHeli) return HELI_SOLDIERS;
     const v = this.vehiclesAboard;
     return v === 0 ? TRANSPORT_SOLDIERS : v === 1 ? TRANSPORT_MIXED_SOLDIERS : 0;
   }
 
-  /** Vehicle places with the soldiers now aboard (3 when empty of soldiers, 1 beside up to 8 soldiers, else none). */
+  /** Vehicle places with the soldiers now aboard (3 when empty of soldiers, 1 beside up to 8 soldiers, else none; a helicopter: none). */
   get vehicleCapacity(): number {
+    if (this.isHeli) return 0;
     if (this.isTruck) return this.soldiersAboard > 0 ? 0 : TRUCK_TANKS;
     const s = this.soldiersAboard;
     return s === 0 ? TRANSPORT_VEHICLES : s <= TRANSPORT_MIXED_SOLDIERS ? 1 : 0;

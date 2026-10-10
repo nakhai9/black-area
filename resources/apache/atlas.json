@@ -1,0 +1,106 @@
+{
+ "model": "AH-64 Apache",
+ "cell": 320,
+ "facings": 32,
+ "facing0": "north/up-screen, clockwise, 11.25deg step",
+ "elevation_deg": 30,
+ "px_per_meter": 13.0,
+ "sheets": {
+  "parked_rotor_stopped": {
+   "file": "01_parked_rotor_stopped.png",
+   "cell": 320,
+   "cols": 8,
+   "rows": 4,
+   "frames": 1,
+   "facings": 32
+  },
+  "ground_rotor_spinning": {
+   "file": "02_ground_rotor_spinning.png",
+   "cell": 320,
+   "cols": 8,
+   "rows": 16,
+   "frames": 4,
+   "facings": 32
+  },
+  "takeoff_ascending": {
+   "file": "03_takeoff_ascending.png",
+   "cell": 320,
+   "cols": 8,
+   "rows": 12,
+   "frames": 3,
+   "facings": 32
+  },
+  "flying_rotor_spinning": {
+   "file": "04_flying_rotor_spinning.png",
+   "cell": 320,
+   "cols": 8,
+   "rows": 16,
+   "frames": 4,
+   "facings": 32
+  },
+  "crash_falling": {
+   "file": "05_crash_falling.png",
+   "cell": 320,
+   "cols": 8,
+   "rows": 8,
+   "frames": 2,
+   "facings": 32
+  },
+  "wreck_burning": {
+   "file": "06_wreck_burning.png",
+   "cell": 320,
+   "cols": 8,
+   "rows": 8,
+   "frames": 2,
+   "facings": 32
+  },
+  "explosion_air": {
+   "file": "07_explosion_air.png",
+   "cell": 320,
+   "cols": 8,
+   "rows": 2,
+   "frames": 16,
+   "facings": 1
+  },
+  "explosion_ground": {
+   "file": "08_explosion_ground.png",
+   "cell": 320,
+   "cols": 8,
+   "rows": 2,
+   "frames": 16,
+   "facings": 1
+  },
+  "L1_ground_body_no_rotor": {
+   "file": "L1_ground_body_no_rotor.png",
+   "cell": 320,
+   "cols": 8,
+   "rows": 4,
+   "frames": 1,
+   "facings": 32
+  },
+  "L2_ground_rotor_spin_only": {
+   "file": "L2_ground_rotor_spin_only.png",
+   "cell": 320,
+   "cols": 8,
+   "rows": 24,
+   "frames": 6,
+   "facings": 32
+  },
+  "L3_fly_body_no_rotor": {
+   "file": "L3_fly_body_no_rotor.png",
+   "cell": 320,
+   "cols": 8,
+   "rows": 4,
+   "frames": 1,
+   "facings": 32
+  },
+  "L4_fly_rotor_spin_only": {
+   "file": "L4_fly_rotor_spin_only.png",
+   "cell": 320,
+   "cols": 8,
+   "rows": 24,
+   "frames": 6,
+   "facings": 32
+  }
+ }
+}

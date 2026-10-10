@@ -112,6 +112,7 @@ export const ISLAMIC: FactionConfig = {
       name: "BMP-2",
       description: "BMP-2 armoured fighting vehicle for infantry support.",
     },
+    heli: { name: "Ka-52", description: "Ka-52 attack helicopter of the Islamic air force: guided missiles against ground and air targets. Carries up to 8 soldiers (no vehicles) and sets down anywhere on open ground." },
     jet: {
       name: "Su-35",
       description:

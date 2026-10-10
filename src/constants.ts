@@ -21,7 +21,7 @@ export const DEMO_MODE = false;
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "1.19.0";
+export const GAME_VERSION = "1.21.1";
 
 // ---------------------------------------------------------------- World (real Earth)
 /** Packed Earth texture built by `npm run build:earth` (see scripts/build-earth.mjs). */
@@ -338,6 +338,7 @@ export const VEHICLE_WEAPON: Readonly<
   tank: "cannon",
   ifv: "autocannon",
   jet: "missile",
+  heli: "missile",
   bomber: "bomb",
 };
 /** Soldiers only shoot at enemies within this many cells (vehicles keep their own, longer ranges). */
@@ -367,6 +368,8 @@ export const VEHICLE_BASE = {
   tank: { cost: 1200, trainSeconds: 14, maxHp: 420, speed: 1.4, radius: 4.2 },
   ifv: { cost: 900, trainSeconds: 11, maxHp: 300, speed: 1.8, radius: 4.0 },
   jet: { cost: 1600, trainSeconds: 16, maxHp: 220, speed: 9, radius: 3.2 },
+  /** Attack helicopter: slower than the fighter, built at the Airfield like it. */
+  heli: { cost: 1300, trainSeconds: 14, maxHp: 260, speed: 4.5, radius: 3.4 },
   /** Unarmed cargo aircraft: slower than the fighter. */
   transport: {
     cost: 1400,
@@ -456,6 +459,7 @@ export const TRANSPORT_LENGTH = 13;
 /** Aircraft are built at the Airfield and use its runway; everything else rolls out of the War Factory. */
 export const isAircraftKind = (kind: VehicleKind): boolean =>
   kind === "jet" ||
+  kind === "heli" ||
   kind === "transport" ||
   kind === "tanker" ||
   kind === "bomber";
@@ -487,6 +491,7 @@ export const TRUCK_TANKS = 1;
 export const AVAILABLE_VEHICLES: readonly VehicleKind[] = [
   "tank",
   "jet",
+  "heli",
   "bomber",
   "transport",
   "repair",
@@ -512,6 +517,8 @@ export const REPAIR_VEHICLE_REPATH = 1;
 export const TRANSPORT_SOLDIERS = 12;
 export const TRANSPORT_MIXED_SOLDIERS = 8;
 export const TRANSPORT_VEHICLES = 3;
+/** Attack helicopter load: up to 8 soldiers; it carries no vehicles. */
+export const HELI_SOLDIERS = 8;
 /**
  * Clear space (world px) vehicles keep between their hulls, on the ground and in the air, on top of their
  * collision radii. Soldiers are not held this far apart — crowds of infantry are meant to close up.
