@@ -1,3 +1,4 @@
+import { BULLET_FLIGHT_SECONDS, BULLET_IMPACT_SECONDS, hasBulletSheet, type BulletSize } from '../render/BulletSheet';
 import { setDemoActive } from './Demo';
 import {
   DEMO_CREDITS,
@@ -2290,9 +2291,12 @@ export class Game {
     const my = c.y + ((t.py - c.y) / dist) * reach;
     const muzzle = this.fx(mx, my, 2);
     const hit = this.fx(t.px, t.py, this.aimHeight(t, 0.6));
-    this.effects.add({ kind: 'tracer', x0: muzzle.x, y0: muzzle.y, x1: hit.x, y1: hit.y, age: 0, ttl: 0.06, color: '#ffe9a0', width: 0.35, shell: false, dashed: true });
     this.effects.add({ kind: 'flash', x: muzzle.x, y: muzzle.y, age: 0, ttl: 0.07, size: 2.2 });
-    this.effects.add({ kind: 'blast', x: hit.x, y: hit.y, age: -0.06, ttl: 0.18, radius: 1.6 });
+    if (hasBulletSheet()) this.addBullet(muzzle, hit, 'bunker');
+    else {
+      this.effects.add({ kind: 'tracer', x0: muzzle.x, y0: muzzle.y, x1: hit.x, y1: hit.y, age: 0, ttl: 0.06, color: '#ffe9a0', width: 0.45, shell: false });
+      this.effects.add({ kind: 'blast', x: hit.x, y: hit.y, age: -0.06, ttl: 0.18, radius: 1.6 });
+    }
     this.sound.play('mg', { x: mx, y: my });
     this.alertUnderAttack(t, b);
   }
@@ -2321,7 +2325,7 @@ export class Game {
     const my = s.py + ((ty - s.py) / dist) * reach;
     const muzzle = this.fx(mx, my, this.aimHeight(s, s instanceof Vehicle ? 1 : 0.8));
     const hit = this.fx(tx, ty, tlift);
-    const ttl = { rifle: 0.14, smg: 0.12, sniper: 0.18, mg: 0.12, autocannon: 0.12, cannon: 0.22, missile: 0.35, bomb: BOMB_FALL_SECONDS }[w.kind];
+    const ttl = { rifle: 0.09, smg: 0.06, sniper: 0.14, mg: 0.06, autocannon: 0.08, cannon: 0.22, missile: 0.35, bomb: BOMB_FALL_SECONDS }[w.kind];
     if (w.kind === 'bomb' || (s instanceof Vehicle && s.type === 'bomber')) {
       if (s instanceof Vehicle && s.type === 'bomber' && hasBombSheet(s.faction)) {
         // Bomber with a bomb sheet: the stick of bombs falls from the bay and blows up on the ground.
@@ -2339,6 +2343,22 @@ export class Game {
         return;
       }
     }
+    if (w.kind !== 'bomb' && hasBulletSheet()) {
+      // A real bullet from the shared sheet, sized to the gun: rifle < bunker MG < autocannon < aircraft < tank.
+      let size: BulletSize = 'rifle';
+      if (s instanceof Vehicle) {
+        if (s.flies) size = t instanceof Unit && t.flies ? 'aircraftAir' : 'aircraftGround';
+        else if (s.type === 'tank' || w.kind === 'cannon') size = 'tank';
+        else if (w.kind === 'autocannon' || w.kind === 'missile') size = 'autocannon';
+      }
+      this.effects.add({ kind: 'flash', x: muzzle.x, y: muzzle.y, age: 0, ttl: 0.07, size: size === 'tank' ? 3.6 : 1.8 });
+      this.addBullet(muzzle, hit, size);
+      this.sound.play(w.kind, { x: mx, y: my });
+      const last = this.lastShot.get(s.id) ?? -99;
+      this.lastShot.set(s.id, this.time);
+      if (this.time - last > 8 && s.faction !== 'neutral' && !(s instanceof Vehicle)) this.sound.battleCry(s.faction, { x: s.px, y: s.py });
+      return;
+    }
     if (w.kind === 'cannon' && s instanceof Vehicle && s.type === 'tank' && hasShellSheet()) {
       // Tank shell from the shared sheet: muzzle flash, tracer round, then sparks on armour or a blast and scorch mark.
       this.effects.add({ kind: 'shell', x0: muzzle.x, y0: muzzle.y, x1: hit.x, y1: hit.y, age: 0, ttl: SHELL_FLIGHT_SECONDS });
@@ -2355,13 +2375,19 @@ export class Game {
       return;
     }
     const color = heavy ? '#ffb347' : w.kind === 'sniper' ? '#ffffff' : '#ffe9a0';
-    this.effects.add({ kind: 'tracer', x0: muzzle.x, y0: muzzle.y, x1: hit.x, y1: hit.y, age: 0, ttl, color, width: heavy ? 1.1 : 0.35, shell: heavy, dashed: !heavy });
+    this.effects.add({ kind: 'tracer', x0: muzzle.x, y0: muzzle.y, x1: hit.x, y1: hit.y, age: 0, ttl, color, width: heavy ? 1.1 : 0.45, shell: heavy });
     this.effects.add({ kind: 'flash', x: muzzle.x, y: muzzle.y, age: 0, ttl: 0.07, size: heavy ? 3.6 : 1.8 });
     this.effects.add({ kind: 'blast', x: hit.x, y: hit.y, age: -ttl, ttl: heavy ? 0.35 : 0.18, radius: w.kind === 'bomb' ? 14 : heavy ? 6 : 1.6 });
     this.sound.play(w.kind, { x: mx, y: my });
     const prev = this.lastShot.get(s.id) ?? -99;
     this.lastShot.set(s.id, this.time);
     if (this.time - prev > 8 && s.faction !== 'neutral') this.sound.battleCry(s.faction, { x: s.px, y: s.py });
+  }
+
+  /** A bullet from `from` to `to` (iso px) and its impact when it gets there. */
+  private addBullet(from: { x: number; y: number }, to: { x: number; y: number }, size: BulletSize): void {
+    this.effects.add({ kind: 'bullet', x0: from.x, y0: from.y, x1: to.x, y1: to.y, age: 0, ttl: BULLET_FLIGHT_SECONDS, size });
+    this.effects.add({ kind: 'bulletHit', x: to.x, y: to.y, age: -BULLET_FLIGHT_SECONDS, ttl: BULLET_IMPACT_SECONDS, size });
   }
 
   /** Footsteps, engines and tracks of the units moving within earshot of the camera (louder with more of them). */

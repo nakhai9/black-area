@@ -27,6 +27,7 @@ import type { Camera } from './Camera';
 import { drawBombBlast, drawBombFall } from '../render/BombSheets';
 import { drawMissile, drawMissileBlast } from '../render/MissileSheet';
 import { drawShell, drawShellImpact } from '../render/ShellSheet';
+import { drawBullet, drawBulletImpact } from '../render/BulletSheet';
 import { drawCharge, drawDemolitionBlast } from '../render/DemolitionArt';
 
 /** Structure being positioned by the player (cells), with its legality. */
@@ -303,7 +304,7 @@ export class Renderer {
     }
     // Effects are stored in iso px already.
     const isoIn = (x: number, y: number): boolean => x >= left && x <= right && y >= top && y <= bottom + margin;
-    if (scene.effects) this.drawEffects(scene.effects.filter((e) => (e.kind === 'tracer' || e.kind === 'bombFall' || e.kind === 'missile' || e.kind === 'shell' ? isoIn(e.x0, e.y0) || isoIn(e.x1, e.y1) : isoIn(e.x, e.y))));
+    if (scene.effects) this.drawEffects(scene.effects.filter((e) => (e.kind === 'tracer' || e.kind === 'bombFall' || e.kind === 'missile' || e.kind === 'shell' || e.kind === 'bullet' ? isoIn(e.x0, e.y0) || isoIn(e.x1, e.y1) : isoIn(e.x, e.y))));
 
     const focused = this.focusedIds;
     focused.clear();
@@ -828,8 +829,7 @@ export class Renderer {
       const t = e.age / e.ttl;
       if (e.kind === 'tracer') {
         const head = e.shell ? Math.min(1, t * 1.15) : 1;
-        // Small arms: a thin dashed line the whole way from muzzle to the target's centre.
-        const tail = e.shell ? Math.max(0, head - 0.25) : e.dashed ? 0 : Math.max(0, t - 0.2);
+        const tail = e.shell ? Math.max(0, head - 0.25) : Math.max(0, t - 0.2);
         const x0 = e.x0 + (e.x1 - e.x0) * tail;
         const y0 = e.y0 + (e.y1 - e.y0) * tail;
         const x1 = e.x0 + (e.x1 - e.x0) * head;
@@ -837,12 +837,10 @@ export class Renderer {
         ctx.strokeStyle = e.color;
         ctx.globalAlpha = 1 - t * 0.5;
         ctx.lineWidth = e.width;
-        if (e.dashed) ctx.setLineDash([1.4, 1.1]);
         ctx.beginPath();
         ctx.moveTo(x0, y0);
         ctx.lineTo(x1, y1);
         ctx.stroke();
-        if (e.dashed) ctx.setLineDash([]);
         if (e.shell) {
           ctx.fillStyle = '#fff3c0';
           ctx.beginPath();
@@ -874,6 +872,10 @@ export class Renderer {
           ctx.drawImage(blastSprite(), e.x - r, e.y - r, r * 2, r * 2);
           ctx.globalAlpha = 1;
         }
+      } else if (e.kind === 'bullet') {
+        drawBullet(ctx, e.x0, e.y0, e.x1, e.y1, t, e.age, e.size);
+      } else if (e.kind === 'bulletHit') {
+        drawBulletImpact(ctx, e.x, e.y, e.age, e.ttl, e.size);
       } else if (e.kind === 'shell') {
         drawShell(ctx, e.x0, e.y0, e.x1, e.y1, t, e.age);
       } else if (e.kind === 'shellImpact') {

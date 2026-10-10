@@ -1,8 +1,9 @@
+import type { BulletSize } from '../render/BulletSheet';
 import type { FactionId, InfantryLook } from '../types';
 
 /** Short-lived visual effects drawn on top of units. Positions are world px. */
 export type Effect =
-  | { kind: 'tracer'; x0: number; y0: number; x1: number; y1: number; age: number; ttl: number; color: string; width: number; shell: boolean; dashed?: boolean }
+  | { kind: 'tracer'; x0: number; y0: number; x1: number; y1: number; age: number; ttl: number; color: string; width: number; shell: boolean }
   | { kind: 'flash'; x: number; y: number; age: number; ttl: number; size: number }
   | { kind: 'blast'; x: number; y: number; age: number; ttl: number; radius: number }
   | { kind: 'smoke'; x: number; y: number; age: number; ttl: number; radius: number }
@@ -15,6 +16,10 @@ export type Effect =
   /** A Crazy Soldier's planted charge (position follows its target while it ticks) and its blast. */
   | { kind: 'charge'; x: number; y: number; age: number; ttl: number }
   | { kind: 'demoBlast'; x: number; y: number; age: number; ttl: number }
+  /** A bullet from the shared bullet sheet, flying (x0, y0) → (x1, y1), sized by who fired it. */
+  | { kind: 'bullet'; x0: number; y0: number; x1: number; y1: number; age: number; ttl: number; size: BulletSize }
+  /** Its impact: flash, fireball and smoke. */
+  | { kind: 'bulletHit'; x: number; y: number; age: number; ttl: number; size: BulletSize }
   /** A tank shell from the shared shell sheet, flying (x0, y0) → (x1, y1). */
   | { kind: 'shell'; x0: number; y0: number; x1: number; y1: number; age: number; ttl: number }
   /** Its impact: sparks off a vehicle's armour, or an explosion and scorch mark. */
