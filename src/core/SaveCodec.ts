@@ -288,7 +288,7 @@ export class SaveCodec {
   fillEntity(e: Entity, saved: SavedEntity): void {
     const target = e as unknown as Record<string, unknown>;
     for (const [k, x] of Object.entries(saved.data)) {
-      if (k === 'id') continue;
+      if (k === 'id' || isGetterOnly(target, k)) continue;
       const value = this.decode(x);
       const cur = target[k];
       target[k] = mergeDefaults(cur, value);
@@ -323,6 +323,15 @@ export class SaveCodec {
     const p = this.playersById.get(saved.id as number);
     if (p) for (const [k, v] of Object.entries(this.decode(saved) as Record<string, unknown>)) (p as unknown as Record<string, unknown>)[k] = mergeDefaults((p as unknown as Record<string, unknown>)[k], v);
   }
+}
+
+/** A read-only accessor (e.g. a field that became a computed getter since the save was made): it cannot be assigned. */
+function isGetterOnly(obj: object, key: string): boolean {
+  for (let o: object | null = obj; o; o = Object.getPrototypeOf(o)) {
+    const d = Object.getOwnPropertyDescriptor(o, key);
+    if (d) return !!d.get && !d.set;
+  }
+  return false;
 }
 
 function isPlain(v: unknown): v is Record<string, unknown> {
