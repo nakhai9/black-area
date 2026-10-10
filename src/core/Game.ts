@@ -903,6 +903,7 @@ export class Game {
   orderAttackTarget(units: readonly Unit[], target: Entity): void {
     for (const u of units) {
       if (!canTarget(u, target)) continue;
+      if (u instanceof Vehicle) u.heliHome = null;
       u.parade = null;
       u.task = null;
       u.attackMove = null;
@@ -1002,6 +1003,7 @@ export class Game {
     units = this.keepAircraftAtAirfield(units, target);
     const spacing = Math.max(UNIT_SPACING * 1.15, Math.max(0, ...units.map((u) => u.radius)) * 2.1);
     units.forEach((u, k) => {
+      if (u instanceof Vehicle) u.heliHome = null;
       u.parade = null;
       u.task = null;
       if (u instanceof Infantry) u.charge = null;
@@ -3612,11 +3614,13 @@ export class Game {
         if (b instanceof OilDerrick && b.leasable && this.leasesTaken(b.owner) >= OIL_LEASE_MAX) {
           if (u.owner === this.humanPlayer.id) this.sidebar.notify(`${FACTIONS[b.faction as FactionId].shortName} leases at most ${OIL_LEASE_MAX} derricks at a time.`, 3);
         } else if (b instanceof OilDerrick && b.leasable) {
-          b.lease(u.owner);
+          const lessor = b.owner;
+          const cartel = FACTIONS[b.faction as FactionId].shortName;
+          b.lease(u.owner, u.faction as FactionId);
           u.stop();
           if (u.owner === this.humanPlayer.id) {
-            this.sidebar.notify(`Oil derrick leased for ${OIL_LEASE_SECONDS / 60} min: it pumps for you; ${Math.round(OIL_LEASE_CARTEL_SHARE * 100)}% of the money from its oil goes to ${FACTIONS[b.faction as FactionId].shortName}.`, 6);
-          } else if (b.owner === this.humanPlayer.id) {
+            this.sidebar.notify(`Oil derrick leased for ${OIL_LEASE_SECONDS / 60} min: it pumps for you; ${Math.round(OIL_LEASE_CARTEL_SHARE * 100)}% of the money from its oil goes to ${cartel}.`, 6);
+          } else if (lessor === this.humanPlayer.id) {
             this.sidebar.notify(`${FACTIONS[this.players.find((p) => p.id === u.owner)?.faction ?? 'usa'].shortName} leased one of your derricks for ${OIL_LEASE_SECONDS / 60} min.`, 5);
           }
         } else if (u.owner === this.humanPlayer.id) this.sidebar.notify('That derrick is already leased.', 3);
@@ -3650,7 +3654,7 @@ export class Game {
   private leasesTaken(owner: number): number {
     let n = 0;
     const pending = new Set<number>();
-    for (const b of this.derricks) if (b.alive && b.owner === owner && b.lessee !== null) n++;
+    for (const b of this.derricks) if (b.alive && b.trueOwner === owner && b.lessee !== null) n++;
     for (const u of this.entities.fieldUnits()) {
       if (u.task?.type === 'lease' && u.task.lessor === owner && !pending.has(u.task.buildingId)) {
         const d = this.entities.get(u.task.buildingId);
@@ -3935,6 +3939,7 @@ export class Game {
     if (!this.map.cellAt(world.x, world.y) || units.length === 0) return;
     // A new move order ends a repair job (mending, or driving to a repair vehicle).
     for (const u of units) if (u instanceof Vehicle) {
+      u.heliHome = null; // a new order: no going back to where it was scrambled from
       u.repairTargetId = null;
       u.seekRepairId = null;
     }

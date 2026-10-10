@@ -53,6 +53,12 @@ export class Building extends Entity {
    */
   capture(owner: number, faction: FactionId): boolean {
     if (!this.capturable || !this.alive) return false;
+    this.changeHands(owner, faction);
+    return true;
+  }
+
+  /** Hands it to `owner` / `faction`, whatever its protection (a lease, a lease ending), team colours included. */
+  protected changeHands(owner: number, faction: FactionId): void {
     this.owner = owner;
     this.faction = faction;
     // Team-coloured structures switch to the new owner's colours.
@@ -61,7 +67,6 @@ export class Building extends Entity {
     // Landmarks keep their design and only hoist the new owner's flag.
     const f = /^(capital|alliedBuilding):(\w+)$/.exec(this.spec.spriteKey);
     if (f) this.spriteKeyOverride = f[2] === faction ? null : `${f[1]}:${f[2]}@${faction}`;
-    return true;
   }
 
   /** Sprite registry key (follows the owner for team-coloured structures). */

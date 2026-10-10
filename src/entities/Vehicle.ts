@@ -99,6 +99,8 @@ export class Vehicle extends Unit {
   climb = 0;
   /** Airfield this aircraft belongs to, and its parking spot there. */
   homeId: number | null = null;
+  /** Helicopter scrambled off the ground under fire: where it stood, to land there again once the fight is over. */
+  heliHome: WorldPoint | null = null;
   slot = -1;
   /** Comes in to land from the runway's far end (flying against the take-off direction). */
   landReverse = false;

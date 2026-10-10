@@ -158,6 +158,7 @@ export class AircraftSystem implements GameSystem {
       if (prev && v.hp < prev.hp && v.flight === 'parked' && !v.ejecting) this.scrambleOff(v);
       // A helicopter shot at on the ground lifts off to fight back.
       if (prev && v.hp < prev.hp && v.isHeli && v.flight === 'landed') {
+        v.heliHome = { x: v.px, y: v.py };
         v.flight = 'liftoff';
         v.phaseTime = 0;
       }
@@ -1080,6 +1081,16 @@ export class AircraftSystem implements GameSystem {
     }
     v.idleFor += dt;
     if (v.idleFor < HELI_SETTLE_SECONDS) return;
+    // Scrambled under fire: the fight is over, so it flies back to the spot it lifted off from and lands there.
+    if (v.heliHome) {
+      const home = v.heliHome;
+      v.heliHome = null;
+      if (Math.hypot(home.x - v.px, home.y - v.py) > CELL_SIZE) {
+        v.follow([home]);
+        v.idleFor = 0;
+        return;
+      }
+    }
     // Over the sea (no ground near): it hovers until it is sent somewhere else.
     if (!this.setDown(v, true)) v.idleFor = 0;
   }

@@ -40,6 +40,8 @@ export function canTarget(shooter: Unit, target: Entity): boolean {
   const w = shooter.weapon;
   if (!w || !isHostile(shooter, target)) return false;
   if (shooter.unarmedTransport) return false; // transports never attack anything
+  // Attack helicopters hunt ground vehicles only: no structures, soldiers or aircraft.
+  if (shooter instanceof Vehicle && shooter.isHeli) return target instanceof Vehicle && !target.aircraft;
   if (target instanceof Unit && target.flies) return shooter.aircraft && w.hitsAir;
   return true;
 }

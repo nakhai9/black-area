@@ -94,7 +94,7 @@ export const CHINA: FactionConfig = {
       description: "Type 99 main battle tank, produced in large numbers.",
     },
     ifv: { name: "ZBD-04", description: "ZBD-04 armoured fighting vehicle." },
-    heli: { name: "Z-19E", description: "Z-19E light attack helicopter: guided missiles against ground and air targets. Carries up to 8 soldiers (no vehicles) and sets down anywhere on open ground." },
+    heli: { name: "Z-19E", description: "Z-19E light attack helicopter: guided missiles against ground vehicles only. Carries up to 8 soldiers (no vehicles) and sets down anywhere on open ground." },
     jet: { name: "J-15", description: "J-15 carrier-based multirole fighter." },
     transport: {
       name: "Y-20",

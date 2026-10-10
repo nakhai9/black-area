@@ -27,9 +27,14 @@ export class OilDerrick extends Building {
   private mining = true;
   /** Seconds left in the current phase. */
   private remaining = OIL_MINE_SECONDS;
-  /** Leased to another nation (player id) for `leaseLeft` more seconds: it pumps into that nation's stock. */
+  /**
+   * Leased to another nation (player id) for `leaseLeft` more seconds: for that time the derrick is the lessee's
+   * (its colours, its oil); `lessor` (the leasing nation) gets it back when the lease ends.
+   */
   lessee: number | null = null;
   leaseLeft = 0;
+  lessor: number | null = null;
+  private lessorFaction: FactionId | null = null;
 
   constructor(owner: number, faction: FactionId, center: WorldPoint, rowIndex: number, bankManaged = false) {
     super(owner, faction, center, {
@@ -60,10 +65,18 @@ export class OilDerrick extends Building {
     return this.alive && this.lessee === null && this.faction !== 'neutral' && FACTIONS[this.faction].leasesOil === true;
   }
 
-  /** Starts a lease to `player` for OIL_LEASE_SECONDS. */
-  lease(player: number): void {
+  /** Starts a lease to `player` (of `faction`) for OIL_LEASE_SECONDS: the derrick becomes theirs until it ends. */
+  lease(player: number, faction: FactionId): void {
+    this.lessor = this.owner;
+    this.lessorFaction = this.faction as FactionId;
     this.lessee = player;
     this.leaseLeft = OIL_LEASE_SECONDS;
+    this.changeHands(player, faction);
+  }
+
+  /** The nation that owns it for good (the leasing nation while it is leased out). */
+  get trueOwner(): number {
+    return this.lessor ?? this.owner;
   }
 
   /** Who receives its oil right now: the lessee during a lease, otherwise the owner. */
@@ -96,6 +109,10 @@ export class OilDerrick extends Building {
       if (this.leaseLeft <= 0) {
         this.lessee = null;
         this.leaseLeft = 0;
+        // The lease is over: the derrick goes back to the leasing nation.
+        if (this.lessor !== null && this.lessorFaction !== null) this.changeHands(this.lessor, this.lessorFaction);
+        this.lessor = null;
+        this.lessorFaction = null;
       }
     }
     this.remaining -= dt;

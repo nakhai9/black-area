@@ -26,7 +26,7 @@
 <body>
 <main>
 <img class="logo" src="/logo.png" alt="Black Area" />
-<h1>Black Area — RULE <small>v1.21.1</small></h1>
+<h1>Black Area — RULE <small>v1.22.0</small></h1>
 <p class="lead">Tài liệu luật chơi + kiến trúc code dành cho AI/dev sửa game. Mọi con số gameplay chính xác nằm trong <code>src/constants.ts</code> và <code>src/factions/*.ts</code>. Nếu tài liệu này khác code thì <b>code đúng</b>. <b>Khi đổi luật/số trong code, phải cập nhật file này.</b></p>
 <nav><a href="#s1">Quy tắc làm việc cho AI</a><a href="#s2">Chạy dự án</a><a href="#s3">Kiến trúc thư mục</a><a href="#s4">Thế giới</a><a href="#s5">Kinh tế (dầu)</a><a href="#s6">Công trình (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Quân đội</a><a href="#s8">Chiến đấu</a><a href="#s9">Điều khiển (Game.handleKey, handleInput)</a><a href="#s10">Giới hạn &amp; hiệu năng</a><a href="#s11">Thắng / thua &amp; AI</a><a href="#s12">Công thức sửa thường gặp</a></nav>
 <h2 id="s1">0. Quy tắc làm việc cho AI</h2>
@@ -138,10 +138,16 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 <p>Đổi chính sách tối đa 1 lần / <code>OIL_POLICY_COOLDOWN = 90</code> s. Chỉ có hiệu lực khi phe cartel chưa bị loại.</p>
 <h3>Thuê giếng (<code>leasesOil</code>)</h3>
 <ul>
-  <li>Engineer phe khác chuột phải vào giếng Islamic → thuê <code>OIL_LEASE_SECONDS = 180</code> s. Giếng bơm vào kho phe thuê (đếm riêng <code>leasedOil</code>).</li>
+  <li>Engineer phe khác chuột phải vào giếng Islamic → thuê <code>OIL_LEASE_SECONDS = 180</code> s. Trong thời gian thuê, <b>giếng thành của phe thuê</b> (đổi màu, đổi chủ, dầu vào kho phe thuê, đếm riêng <code>leasedOil</code>); vẫn không phá / chiếm được. Kỹ sư vào giếng của phe địch khác (không phải Islamic) thì <b>chiếm luôn</b>: giếng thành của mình. Áp dụng cho cả người chơi và AI.</li>
   <li>Khi bán, phần tiền từ dầu thuê chia <code>OIL_LEASE_CARTEL_SHARE = 30%</code> cho phe cho thuê. Hết hạn giếng trở về Islamic.</li>
   <li>Islamic không bắn kỹ sư đang đi thuê giếng của mình; <b>các phe khác vẫn tấn công</b> kỹ sư đó nếu gặp trên đường.</li>
   <li>Phe do AI điều khiển (không phải Islamic) cũng tự đi thuê (<code>AISystem.leaseOil</code>): chỉ khi thuê có lời — dầu 180 s × giá hiện tại × 70% ≥ <code>LEASE_MIN_RETURN 2</code> × giá một engineer; tối đa <code>AI_LEASES 2</code> giếng mỗi phe (vẫn trong giới hạn <code>OIL_LEASE_MAX 4</code> của Islamic); chỉ giếng trong <code>LEASE_RANGE_CELLS 120</code> ô quanh engineer, gần nhất trước; không thuê khi thủ đô đang bị tấn công. Dùng engineer rảnh (sau khi đã lo sửa công trình); không có thì luyện một engineer.</li>
+</ul>
+<h3>Trực thăng (<code>heli</code>)</h3>
+<ul>
+  <li>Apache (Mỹ, Âu), Ka-52 (Nga, Hồi), Z-19E (Trung). Chỉ bắn <b>xe / phương tiện mặt đất</b>: không bắn công trình, lính, máy bay.</li>
+  <li>Đậu ở bất kỳ đâu trên đất liền như xe; chở tối đa <code>HELI_SOLDIERS = 8</code> lính, không chở xe.</li>
+  <li>Đang đậu mà bị bắn: bay lên đánh trả, đánh xong bay về đúng chỗ cũ và đáp lại (lệnh mới thì bỏ việc quay về). Áp dụng cho cả người chơi và AI.</li>
 </ul>
 <h3>Vay khẩn cấp (Global Financial Center)</h3>
 <ul>

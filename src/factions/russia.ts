@@ -93,7 +93,7 @@ export const RUSSIA: FactionConfig = {
       name: "BMP-3",
       description: "BMP-3 armoured fighting vehicle with a heavy autocannon.",
     },
-    heli: { name: "Ka-52", description: "Ka-52 Alligator attack helicopter: coaxial rotors and guided missiles. Carries up to 8 soldiers (no vehicles) and sets down anywhere on open ground." },
+    heli: { name: "Ka-52", description: "Ka-52 Alligator attack helicopter: coaxial rotors and guided missiles against ground vehicles only. Carries up to 8 soldiers (no vehicles) and sets down anywhere on open ground." },
     jet: {
       name: "Su-57",
       description: "Su-57 stealth air superiority fighter.",
