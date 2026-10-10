@@ -11,7 +11,7 @@ import type {
 } from "./types";
 
 /** DEMO: skip the faction screen and start a solo test game as Russia (no AI opponents). Set to false for production. */
-export const DEMO_MODE = true;
+export const DEMO_MODE = false;
 
 /**
  * Version of the game, x.y.z (semantic versioning):
@@ -41,11 +41,22 @@ export const ATLANTIC_SQUEEZE = { west: -34, east: -17, keep: 0.4 } as const;
  * Island and Antarctica keep their shape. Everything west of the band moves east; the strip left at the map's west
  * edge is open sea.
  */
-export const PACIFIC_SQUEEZE = { west: -152, east: -125, keep: 0.35, south: -45, north: 40, ramp: 7 } as const;
+export const PACIFIC_SQUEEZE = {
+  west: -152,
+  east: -125,
+  keep: 0.35,
+  south: -45,
+  north: 40,
+  ramp: 7,
+} as const;
 /** Degrees of longitude left after the squeeze (360 minus what the Atlantic band gave up). */
-export const EARTH_LON_SPAN = 360 - (ATLANTIC_SQUEEZE.east - ATLANTIC_SQUEEZE.west) * (1 - ATLANTIC_SQUEEZE.keep);
+export const EARTH_LON_SPAN =
+  360 -
+  (ATLANTIC_SQUEEZE.east - ATLANTIC_SQUEEZE.west) * (1 - ATLANTIC_SQUEEZE.keep);
 /** Width of the loaded (squeezed) Earth texture. */
-export const EARTH_TEX_WIDTH = Math.round((EARTH_SOURCE_WIDTH * EARTH_LON_SPAN) / 360);
+export const EARTH_TEX_WIDTH = Math.round(
+  (EARTH_SOURCE_WIDTH * EARTH_LON_SPAN) / 360,
+);
 /**
  * World px per Earth texel. 5.5 per side (≈2.4× the old 2.25) so island nations — Japan, Indonesia, Taiwan,
  * Hainan, Madagascar — have room for at least four structures while buildings keep their size.
