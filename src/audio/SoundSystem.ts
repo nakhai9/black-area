@@ -104,6 +104,13 @@ const SAMPLE_PATHS: Readonly<Record<string, string>> = {
   board: 'board',
   foot: 'foot',
 };
+/**
+ * Long recordings (a whole firefight, several cannon shots) are cut into clips: each play starts at one of the
+ * recording's shots (found when it loads) and lasts this many seconds, fading out. Kinds not listed play whole.
+ */
+const SAMPLE_CLIP: Readonly<Record<string, number>> = { rifle: 0.7, smg: 0.6, mg: 0.8, autocannon: 0.8, sniper: 1.2, cannon: 2.2, missile: 1.5, bomb: 3.5, explosion: 3.5 };
+/** No explosion recording: the bomb one is reused for vehicles and structures blowing up. */
+const SAMPLE_FALLBACK: Readonly<Record<string, string>> = { explosion: 'bomb' };
 /** Small arms fire in bursts: each shot is heard as this many rounds in quick succession ("rat-a-tat"). */
 const BURST: Readonly<Record<string, { rounds: number; gap: number }>> = {
   rifle: { rounds: 3, gap: 0.085 },
@@ -121,6 +128,32 @@ const VEHICLE_BED_GAIN = 0.75;
 const MUSIC_DUCK = 0.55;
 /** Seconds between the footstep sounds of a marching group. */
 const STEP_GAP = 0.32;
+
+/**
+ * Where the shots / blasts start in a recording (s): moments the 10 ms loudness jumps above half the peak after a
+ * quieter stretch, at least 80 ms apart. Clips are only taken from the first part so they never run off the end.
+ */
+function findOnsets(buf: AudioBuffer): number[] {
+  const data = buf.getChannelData(0);
+  const win = Math.max(1, Math.floor(buf.sampleRate * 0.01));
+  const env: number[] = [];
+  for (let i = 0; i < data.length; i += win) {
+    let m = 0;
+    for (let j = i; j < Math.min(data.length, i + win); j++) m = Math.max(m, Math.abs(data[j] ?? 0));
+    env.push(m);
+  }
+  const peak = Math.max(...env, 1e-6);
+  const out: number[] = [];
+  let last = -1;
+  for (let k = 1; k < env.length; k++) {
+    const t = k * 0.01;
+    if ((env[k] ?? 0) >= peak * 0.5 && (env[k - 1] ?? 0) < (env[k] ?? 0) * 0.8 && t - last >= 0.08 && t < buf.duration - 0.5) {
+      out.push(Math.max(0, t - 0.01));
+      last = t;
+    }
+  }
+  return out.length ? out : [0];
+}
 
 const MUSIC_VOLUME_KEY = 'black-area.musicVolume';
 
@@ -156,6 +189,8 @@ export class SoundSystem {
   private voices: SpeechSynthesisVoice[] = [];
   /** Decoded recordings from public/sounds/ (see SAMPLE_PATHS). */
   private readonly samples = new Map<string, AudioBuffer>();
+  /** Start times (s) of the loud shots in each recording, so a clip always begins on a shot. */
+  private readonly onsets = new WeakMap<AudioBuffer, number[]>();
   /** Looping engine sound per vehicle model (by name): its gain follows the motion levels. */
   private readonly beds = new Map<string, GainNode>();
   /** Recordings of single vehicle models (public/sounds/engine-<name>.*): loading, found, or not there. */
@@ -245,7 +280,8 @@ export class SoundSystem {
     this.sfxUntil = now + SFX_DUCK_HOLD;
     this.music?.setDuck(SFX_DUCK);
     const burst = BURST[kind];
-    if (burst) {
+    // A recording of real gunfire already rattles on its own: one clip of it per shot.
+    if (burst && !this.recording(kind)) {
       // Rat-a-tat: the rounds of a burst, each a little quieter and pitched differently.
       for (let i = 0; i < burst.rounds; i++) {
         const v = vol * (1 - i * 0.08);
@@ -422,20 +458,40 @@ export class SoundSystem {
   /** Plays the recording for `kind` if one was loaded; false when there is none. */
   private sample(kind: string, vol: number): boolean {
     const ctx = this.ctx;
-    const buf = this.samples.get(kind);
-    if (!ctx || !this.master || !buf) return false;
+    const rec = this.recording(kind);
+    if (!ctx || !this.master || !rec) return false;
     const src = ctx.createBufferSource();
-    src.buffer = buf;
+    src.buffer = rec.buf;
     src.playbackRate.value = 0.94 + Math.random() * 0.12;
     const g = ctx.createGain();
     g.gain.value = vol;
     src.connect(g).connect(this.master);
-    src.start();
+    const clip = SAMPLE_CLIP[kind];
+    if (clip && rec.buf.duration > clip * 1.3) {
+      const start = rec.onsets[Math.floor(Math.random() * rec.onsets.length)] ?? 0;
+      const t = ctx.currentTime;
+      g.gain.setValueAtTime(vol, t + clip * 0.7);
+      g.gain.linearRampToValueAtTime(0, t + clip);
+      src.start(t, start);
+      src.stop(t + clip + 0.02);
+    } else src.start();
     this.active++;
     src.onended = () => {
       this.active--;
     };
     return true;
+  }
+
+  /** The recording for `kind` (or the one it borrows, see SAMPLE_FALLBACK) and the shots found in it. */
+  private recording(kind: string): { buf: AudioBuffer; onsets: number[] } | undefined {
+    const buf = this.samples.get(kind) ?? this.samples.get(SAMPLE_FALLBACK[kind] ?? '');
+    if (!buf) return undefined;
+    let onsets = this.onsets.get(buf);
+    if (!onsets) {
+      onsets = findOnsets(buf);
+      this.onsets.set(buf, onsets);
+    }
+    return { buf, onsets };
   }
 
   /** Loads whatever recordings exist in public/sounds/ (missing ones are simply skipped). */

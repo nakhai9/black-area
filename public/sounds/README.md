@@ -2,11 +2,15 @@
 
 Mọi file âm thanh nằm chung trong thư mục này (`public/sounds/`), không có thư mục con, để dễ tái sử dụng. Định dạng: `.mp3`, `.ogg` hoặc `.wav`. File nào có thì game dùng file đó, file nào thiếu thì game tự tổng hợp âm thanh như cũ. Tiếng súng, tiếng nổ và tiếng xe được phát đè lên nhạc nền (nhạc tự nhỏ lại khi có tiếng).
 
-## Tiếng súng (mỗi file chỉ chứa một phát bắn, game tự ghép thành loạt)
+Hiện có: `rifle.mp3`, `tank-cannon.mp3`, `bomb.mp3` (dùng cho cả `explosion` khi chưa có file riêng), `engine-tank.mp3`.
+
+File dài (cả một tràng súng, nhiều phát pháo) không cần cắt: game tự tìm các phát bắn trong file và mỗi lần chỉ phát một đoạn ngắn bắt đầu từ một phát (`SAMPLE_CLIP` trong `src/audio/SoundSystem.ts`).
+
+## Tiếng súng
 
 | File | Dùng cho |
 |---|---|
-| `rifle.mp3` | Súng trường của lính (loạt 3 viên) |
+| `rifle.mp3` | Súng trường của lính |
 | `smg.mp3` | Tiểu liên (loạt 4 viên) |
 | `mg.mp3` | Súng máy, bunker (loạt 5 viên) |
 | `sniper.mp3` | Súng bắn tỉa |
