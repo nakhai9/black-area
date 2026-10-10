@@ -26,7 +26,7 @@
 <body>
 <main>
 <img class="logo" src="/logo.png" alt="Black Area" />
-<h1>Black Area — RULE <small>v1.5.1</small></h1>
+<h1>Black Area — RULE <small>v1.6.2</small></h1>
 <p class="lead">Tài liệu luật chơi + kiến trúc code dành cho AI/dev sửa game. Mọi con số gameplay chính xác nằm trong <code>src/constants.ts</code> và <code>src/factions/*.ts</code>. Nếu tài liệu này khác code thì <b>code đúng</b>. <b>Khi đổi luật/số trong code, phải cập nhật file này.</b></p>
 <nav><a href="#s1">Quy tắc làm việc cho AI</a><a href="#s2">Chạy dự án</a><a href="#s3">Kiến trúc thư mục</a><a href="#s4">Thế giới</a><a href="#s5">Kinh tế (dầu)</a><a href="#s6">Công trình (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Quân đội</a><a href="#s8">Chiến đấu</a><a href="#s9">Điều khiển (Game.handleKey, handleInput)</a><a href="#s10">Giới hạn &amp; hiệu năng</a><a href="#s11">Thắng / thua &amp; AI</a><a href="#s12">Công thức sửa thường gặp</a></nav>
 <h2 id="s1">0. Quy tắc làm việc cho AI</h2>
@@ -59,7 +59,7 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 <tr><td><code>src/main.ts</code></td><td>Boot: chọn phe (<code>ui/FactionPicker</code>) hoặc Load game (<code>ui/LoadConfirm</code>), tải Earth texture, tạo <code>Game</code>.</td></tr>
 <tr><td><code>src/core/Game.ts</code></td><td>Composition root (~3260 dòng): dựng thế giới (<code>placeOilRows</code>…), nối system/UI, input (<code>handleInput</code>, <code>handleKey</code>), ra lệnh, phá hoại (<code>processDemolition</code>/<code>detonate</code>), cờ (<code>plantFlag</code>), lưu/tải (<code>exportSave</code>/<code>importSave</code>), thắng/thua (<code>evaluateNations</code>).</td></tr>
 <tr><td><code>src/core/</code></td><td><code>Renderer</code>, <code>Camera</code>, <code>InputHandler</code>, <code>GameLoop</code>, <code>EventBus</code>, <code>Effects</code>, <code>IsoView</code>, <code>SaveCodec</code>, <code>Demo</code>, <code>Random</code>, <code>MathUtils</code>.</td></tr>
-<tr><td><code>src/entities/</code></td><td><code>Entity</code> → <code>Building</code> (<code>Capital</code>, <code>Barracks</code>, <code>WarFactory</code>, <code>Hospital</code>, <code>Airfield</code>, <code>TechCenter</code>, <code>OilDerrick</code>, <code>WorldBank</code>, <code>HappyCity</code>, <code>PowerPlant</code>, <code>Flagpole</code>, <code>AlliedBuilding</code>) và <code>Unit</code> → <code>Infantry</code>, <code>Vehicle</code>. <code>EntityManager</code>.</td></tr>
+<tr><td><code>src/entities/</code></td><td><code>Entity</code> → <code>Building</code> (<code>Capital</code>, <code>Barracks</code>, <code>WarFactory</code>, <code>Hospital</code>, <code>Airfield</code>, <code>TechCenter</code>, <code>OilDerrick</code>, <code>WorldBank</code>, <code>HappyCity</code>, <code>PowerPlant</code>, <code>Flagpole</code>, <code>AlliedBuilding</code>, <code>Bunker</code>) và <code>Unit</code> → <code>Infantry</code>, <code>Vehicle</code>. <code>EntityManager</code>.</td></tr>
 <tr><td><code>src/systems/</code></td><td>Mỗi system implement <code>GameSystem.update(dt)</code>: <code>Combat</code>, <code>AI</code>, <code>Construction</code>, <code>Placement</code>, <code>Training</code>, <code>Vehicle</code>, <code>Aircraft</code>, <code>Economy</code>, <code>OilMarket</code>, <code>Power</code>, <code>Tax</code>, <code>SafeZone</code>, <code>Selection</code>.</td></tr>
 <tr><td><code>src/map/</code></td><td>Trái Đất thật: <code>TileMap</code>, <code>Pathfinder</code>, <code>Biomes</code>, <code>Territories</code>, <code>OilSite</code>, <code>TerrainRenderer</code>, <code>TileTerrain</code>, <code>Trees</code>, <code>WorldGenerator</code>.</td></tr>
 <tr><td><code>src/render/</code></td><td>Art: sprite sheet (<code>TankSheets</code>, <code>AircraftSheets</code>, <code>BombSheets</code>, <code>MissileSheet</code>, <code>ShellSheet</code>, <code>UnitSprites</code> cho lính), vẽ thủ tục (<code>InfantryArt</code>, <code>VehicleArt</code>, <code>DemolitionArt</code>, <code>sprites/*</code> công trình), <code>SpriteCache</code>, <code>IsoPainter</code>, <code>Flags</code>. Ảnh PNG ở <code>public/sprites/</code>.</td></tr>
@@ -167,6 +167,7 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 <tr><td><code>barracks</code></td><td>Ministry of Defence</td><td>800</td><td>powerPlant</td><td>4×4</td><td>1000</td><td>−1</td></tr>
 <tr><td><code>warFactory</code></td><td>War Factory</td><td>2000</td><td>barracks</td><td>5×4</td><td>1800</td><td>−3</td></tr>
 <tr><td><code>hospital</code></td><td>Hospital</td><td>1200</td><td>barracks</td><td>5×4</td><td>1200</td><td>−2</td></tr>
+<tr><td><code>bunker</code></td><td>Bunker</td><td>800</td><td>barracks</td><td>2×2</td><td>1000</td><td>−1</td></tr>
 <tr><td><code>airfield</code></td><td>Airfield</td><td>2000</td><td>warFactory</td><td>12×8</td><td>1500</td><td>−4</td></tr>
 <tr><td><code>techCenter</code></td><td>High-Tech Center</td><td>8000</td><td>warFactory</td><td>4×4</td><td>2500</td><td>−6</td></tr>
 <tr><td><code>happyCity</code></td><td>Happy City</td><td>10000 (<code>fixedCost</code>, không nhân hệ số)</td><td>airfield + hospital</td><td>8×8</td><td>4000</td><td>−8</td></tr>
@@ -193,6 +194,7 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 <tr><td><code>barracks</code> (Ministry of Defence)</td><td>Luyện bộ binh: regular, engineer, squatters (special, demolition cần thêm High-Tech Center). Lính mới đứng hàng duyệt binh trước nhà (≤ 2 ô). Mở khoá War Factory và Hospital.</td></tr>
 <tr><td><code>warFactory</code></td><td>Sản xuất xe mặt đất (hiện chỉ <code>tank</code>). Mở khoá Airfield và High-Tech Center.</td></tr>
 <tr><td><code>hospital</code></td><td>Nhận tối đa 20 người <b>bị thương</b> cùng phe, hồi 10 HP/s, đủ máu thì tự đi ra (double-click để cho ra hết). Cùng Airfield mở khoá Happy City.</td></tr>
+<tr><td><code>bunker</code> (Bunker)</td><td>Lô cốt súng máy <b>tự bắn</b>, không cần lính đồn trú: mỗi 0,25 s bắn kẻ địch (lính hoặc xe mặt đất) gần nhất trong tầm 40 px tính từ mép lô cốt, 8 sát thương (×0,35 với xe); không bắn được máy bay. AI xây tối đa 2 cái quanh căn cứ khi đã xong kế hoạch xây.</td></tr>
 <tr><td><code>airfield</code></td><td>Sản xuất máy bay (jet, bomber, transport) và là nơi đỗ: 9 chỗ, số máy bay ≤ 9 × số airfield. Sửa máy bay đỗ 2% HP mỗi 4 s, nạp bom (trả tiền). Có airfield thì radar sidebar mới hoạt động. Mất airfield: máy bay tìm airfield khác, không có thì rơi.</td></tr>
 <tr><td><code>techCenter</code> (High-Tech Center)</td><td>Khi còn đứng: mở lính <code>special</code>, <code>demolition</code> và máy bay <code>transport</code>. Mất nó thì đơn hàng các loại này dừng (không trừ tiền) cho tới khi có lại.</td></tr>
 <tr><td><code>happyCity</code></td><td>Khoản đầu tư kinh tế: mỗi thành phố nộp 500 TB thuế / 60 s (theo máu còn lại), mỗi thành phố một đồng hồ riêng. Không giới hạn số lượng; bị chiếm thì thuế về phe mới.</td></tr>
@@ -219,7 +221,7 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 <tr><th>Loại</th><th>Giá</th><th>Train (s)</th><th>HP</th><th>Tốc độ (ô/s)</th><th>Vũ khí</th><th>Nơi SX</th><th>Ghi chú</th></tr>
 <tr><td><code>tank</code></td><td>1200</td><td>14</td><td>420</td><td>1.4</td><td>cannon</td><td>War Factory</td><td></td></tr>
 <tr><td><code>jet</code></td><td>1600</td><td>16</td><td>220</td><td>9</td><td>missile + 2 bom</td><td>Airfield</td><td></td></tr>
-<tr><td><code>bomber</code></td><td>2600</td><td>22</td><td>380</td><td>8.5</td><td>bomb</td><td>Airfield</td><td>chỉ USA B-52, Russia Tu-16</td></tr>
+<tr><td><code>bomber</code></td><td>2600</td><td>22</td><td>380</td><td>10.9</td><td>bomb</td><td>Airfield</td><td>chỉ USA B-52, Russia Tu-16</td></tr>
 <tr><td><code>transport</code></td><td>1400</td><td>14</td><td>260</td><td>5.5</td><td>không</td><td>Airfield, cần Tech Center</td><td></td></tr>
 <tr><td><code>repair</code></td><td>800</td><td>10</td><td>360</td><td>1.0</td><td>không</td><td>War Factory</td><td>Russia BREM-1, USA &amp; Europe M88, China &amp; Islamic Type 99II; sửa xe mặt đất phe mình</td></tr>
 <tr><td><code>tanker</code></td><td>0</td><td>0</td><td>160</td><td>6</td><td>không</td><td>đi kèm transport</td><td>không bán riêng</td></tr>
@@ -327,7 +329,9 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 </ul>
 <h3>Hành quân bộ binh (mệt mỏi)</h3>
 <ul>
-  <li>Mọi lính trừ đặc nhiệm (<code>special</code>): đi bộ được <code>INFANTRY_MARCH_CELLS = 20</code> ô đơn vị thì dừng tại chỗ nghỉ <code>INFANTRY_REST_SECONDS = 35</code> s (hiện "Resting Ns" trên đầu), giữ nguyên lệnh rồi đi tiếp — kể cả khi đang đi đánh. Đứng yên <code>INFANTRY_RECOVER_SECONDS = 10</code> s cũng tính là đã nghỉ. Ngồi xe tải / máy bay vận tải không mệt.</li>
+  <li>Mọi lính trừ đặc nhiệm (<code>special</code>): đi bộ được <code>INFANTRY_MARCH_CELLS = 35</code> ô đơn vị thì dừng tại chỗ nghỉ <code>INFANTRY_REST_SECONDS = 35</code> s (hiện "Resting Ns" trên đầu), giữ nguyên lệnh rồi đi tiếp — kể cả khi đang đi đánh. Đứng yên <code>INFANTRY_RECOVER_SECONDS = 10</code> s cũng tính là đã nghỉ. Ngồi xe tải / máy bay vận tải không mệt.</li>
+  <li>Máy bay mang bom (B-52, Tu-16, tiêm kích) bay chậm hơn khi còn bom: đầy bom chậm <code>BOMB_LOAD_SLOWDOWN = 20%</code>, ném dần thì nhanh dần, hết bom bay đủ tốc độ.</li>
+  <li>Nhiều Barracks / War Factory / Airfield: double-click vào công trình nào thì lính / xe / máy bay mới ra ở công trình đó.</li>
   <li>AI: giữ 1 xe tải cho mỗi 8 lính (tối đa 4); khi mục tiêu xa hơn 30 ô, lính gần xe tải rảnh (trong 25 ô) lên xe, xe chở tới cách mục tiêu 8 ô rồi thả xuống (<code>AISystem.motorize</code> / <code>driveConvoys</code>); khác lục địa thì dùng máy bay vận tải như cũ.</li>
 </ul>
 <h3>Di chuyển và tìm đường (<code>map/PathService.ts</code>)</h3>

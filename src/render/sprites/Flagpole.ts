@@ -38,11 +38,11 @@ const PLAZAS: Record<FactionId, Plaza> = {
   usa: {
     top: 6.8,
     podium: (p) => {
-      step(p, 0, 0, 2, '#b9b6ae');
-      p.topRect(0.04, 0.04, 0.96, 0.96, 2, '#6d9f4a');
-      step(p, 0.18, 2, 1.6, '#c9c5bb');
-      step(p, 0.28, 3.6, 1.6, '#d6d2c8');
-      step(p, 0.36, 5.2, 1.6, '#e2ded5');
+      step(p, 0, 0, 2, '#9c9a90');
+      p.topRect(0.04, 0.04, 0.96, 0.96, 2, '#5d7a35');
+      step(p, 0.18, 2, 1.6, '#b2aea2');
+      step(p, 0.28, 3.6, 1.6, '#bfbbae');
+      step(p, 0.36, 5.2, 1.6, '#cbc6b8');
       p.faceRect('left', 0.18, 0.18, 0.64, 0.64, 2, 1.6, 0.35, 0.65, 0.15, 0.85, '#8a6a3a');
       lamp(p, 0.12, 0.88, 2, '#fff2c0');
       lamp(p, 0.88, 0.12, 2, '#fff2c0');
@@ -79,15 +79,15 @@ const PLAZAS: Record<FactionId, Plaza> = {
     top: 6.4,
     podium: (p) => {
       step(p, 0, 0, 2, '#cfcabd');
-      step(p, 0.08, 2, 2.4, '#ebe7dc');
+      step(p, 0.08, 2, 2.4, '#d2ccbd');
       // Balustrade along the two front edges: a rail on little posts.
       for (let t = 0.1; t <= 0.91; t += 0.135) {
-        p.box(t - 0.02, 0.88, 0.04, 0.04, 4.4, 2.2, '#f7f4ec');
-        p.box(0.88, t - 0.02, 0.04, 0.04, 4.4, 2.2, '#f7f4ec');
+        p.box(t - 0.02, 0.88, 0.04, 0.04, 4.4, 2.2, '#ded8ca');
+        p.box(0.88, t - 0.02, 0.04, 0.04, 4.4, 2.2, '#ded8ca');
       }
-      p.box(0.08, 0.88, 0.84, 0.04, 6.6, 0.6, '#f7f4ec');
-      p.box(0.88, 0.08, 0.04, 0.84, 6.6, 0.6, '#f7f4ec');
-      step(p, 0.3, 4.4, 2, '#f4f1e8');
+      p.box(0.08, 0.88, 0.84, 0.04, 6.6, 0.6, '#ded8ca');
+      p.box(0.88, 0.08, 0.04, 0.84, 6.6, 0.6, '#ded8ca');
+      step(p, 0.3, 4.4, 2, '#dcd6c8');
       for (const [u, v] of [[0.2, 0.85], [0.85, 0.2]] as const) {
         p.pole(u, v, 4.4, 8, '#5a2a1a');
         const [x, y] = p.project(u, v, 10.5);
@@ -104,8 +104,8 @@ const PLAZAS: Record<FactionId, Plaza> = {
     podium: (p) => {
       step(p, 0, 0, 2, '#aeb4ba');
       p.topRect(0.04, 0.04, 0.96, 0.96, 2, '#c9ced3');
-      p.cylinder(0.5, 0.5, 0.4, 2, 2, '#2f4fa8');
-      p.cylinder(0.5, 0.5, 0.3, 4, 1.5, shade('#2f4fa8', 1.2));
+      p.cylinder(0.5, 0.5, 0.4, 2, 2, '#3c4f78');
+      p.cylinder(0.5, 0.5, 0.3, 4, 1.5, shade('#3c4f78', 1.2));
     },
     animate: (p, time) => {
       for (let i = 0; i < 12; i++) {
@@ -124,9 +124,9 @@ const PLAZAS: Record<FactionId, Plaza> = {
     top: 6,
     podium: (p) => {
       step(p, 0, 0, 2, '#cdb98e');
-      p.topRect(0.04, 0.04, 0.96, 0.96, 2, '#e4d2a8');
-      step(p, 0.22, 2, 2, '#2fa6b8');
-      step(p, 0.3, 4, 2, '#e4d2a8');
+      p.topRect(0.04, 0.04, 0.96, 0.96, 2, '#cdb994');
+      step(p, 0.22, 2, 2, '#3a8a94');
+      step(p, 0.3, 4, 2, '#cdb994');
       p.cylinder(0.78, 0.78, 0.1, 2, 1.2, '#1d6f86');
     },
   },

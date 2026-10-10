@@ -197,6 +197,8 @@ export interface PlayerState {
   powerSupply: number;
   /** Not enough power: supply below drain, or a blackout. No construction (but plants), vehicles or take-offs. */
   powerShort: boolean;
+  /** Building id chosen by double-click per producer type (barracks / warFactory / airfield): new units come out there. */
+  primaryBuilding?: Partial<Record<string, number>>;
 }
 
 export type BuildingType =
@@ -214,7 +216,8 @@ export type BuildingType =
   | 'happyCity'
   | 'flagpole'
   | 'alliedBuilding'
-  | 'oilDerrick';
+  | 'oilDerrick'
+  | 'bunker';
 
 /** Who may be stationed inside a building, and how many. */
 export interface GarrisonSpec {

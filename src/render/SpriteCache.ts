@@ -2,12 +2,16 @@ import { HALF_TH, HALF_TW, SPRITE_SCALE } from '../constants';
 import type { Rect } from '../types';
 import { createCanvas } from './Canvas';
 import { IsoPainter } from './IsoPainter';
+import { applyRa2Finish, castShadow } from './Ra2Finish';
 import { flagVariantArt, type BuildingArt } from './sprites';
 
 /** Sprites are rasterised at 2× for crisp results when zoomed in / on HiDPI. */
 const RASTER_SCALE = 2;
 const MARGIN = 20;
 const HIT_ALPHA = 40;
+/** Cast shadow: screen px to the right / down per px of height above the ground. */
+const SHADOW_RUN_X = 0.55;
+const SHADOW_RUN_Y = 0.22;
 
 export interface Sprite {
   readonly canvas: HTMLCanvasElement;
@@ -91,9 +95,11 @@ export class SpriteCache {
     const w = art.footprint.w * artScale;
     const d = art.footprint.d * artScale;
     const artHeight = art.height * artScale;
-    const width = (w + d) * HALF_TW + MARGIN * 2;
-    const height = (w + d) * HALF_TH + artHeight + MARGIN * 2;
-    const anchorX = d * HALF_TW + MARGIN;
+    // Room for the cast shadow, which falls to the lower right (both sides, so the mirrored sprite fits too).
+    const marginX = MARGIN + Math.ceil(artHeight * SHADOW_RUN_X);
+    const width = (w + d) * HALF_TW + marginX * 2;
+    const height = (w + d) * HALF_TH + artHeight + MARGIN * 2 + Math.ceil(artHeight * SHADOW_RUN_Y);
+    const anchorX = d * HALF_TW + marginX;
     const anchorY = artHeight + MARGIN;
     const groundCenterX = anchorX + ((w - d) / 2) * HALF_TW;
     const centerX = mirrored ? width - groundCenterX : groundCenterX;
@@ -110,6 +116,8 @@ export class SpriteCache {
     art.drawStatic(new IsoPainter(ctx, anchorX / artScale, anchorY / artScale));
     ctx.restore();
 
+    // Red Alert 2 look: grainy, slightly muted pre-rendered surfaces with a dark rim.
+    applyRa2Finish(ctx, canvas.width, canvas.height);
     const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
     const alpha = new Uint8Array(canvas.width * canvas.height);
     let minX = canvas.width;
@@ -128,6 +136,8 @@ export class SpriteCache {
         if (y > maxY) maxY = y;
       }
     }
+    // The shadow goes in after the hit mask and bounds: it is never part of the building.
+    castShadow(canvas, ctx, centerY, RASTER_SCALE, SHADOW_RUN_X, SHADOW_RUN_Y);
     const bounds: Rect = {
       x: minX / RASTER_SCALE,
       y: minY / RASTER_SCALE,

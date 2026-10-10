@@ -3,8 +3,9 @@ import type { FactionColors } from '../../types';
 import { shade } from '../Color';
 import type { IsoPainter } from '../IsoPainter';
 import type { BuildingArt } from './BuildingArt';
+import { RA2, crate } from './Ra2Kit';
 
-const CONCRETE = '#9d9a90';
+const CONCRETE = RA2.concrete;
 const RUST = '#8b5a2b';
 const DARK = '#3a3631';
 
@@ -65,10 +66,20 @@ export function createOilDerrickArt(team: FactionColors): BuildingArt {
   drawStatic(p) {
     p.box(0, 0, 2, 2, 0, 3, CONCRETE);
     p.topRect(0.08, 0.08, 1.92, 1.92, 3, 'rgba(60,50,30,0.18)');
+    // Oil spill round the wellhead and a steel grating deck under the pumpjack.
+    p.topRect(1.65, 0.8, 2.0, 1.25, 3.05, 'rgba(20,16,10,0.45)');
+    p.topRect(0.7, 0.68, 1.45, 1.32, 3.05, RA2.steelDark);
+    for (let k = 0; k < 6; k++) p.topRect(0.7 + k * 0.125, 0.68, 0.72 + k * 0.125, 1.32, 3.1, '#3a3e44');
 
     // Storage tank (back-left) and motor/gearbox (rear).
-    p.cylinder(0.42, 0.42, 0.2, 3, 16, '#c9c3b5', 6);
-    p.cylinder(1.58, 0.42, 0.2, 3, 16, '#c9c3b5', 6); // mirrored tank
+    for (const u of [0.42, 1.58]) {
+      p.cylinder(u, 0.42, 0.2, 3, 16, '#a8a294', 6);
+      p.cylinder(u, 0.42, 0.205, 7, 1, shade(team.primary, 0.8));
+      p.cylinder(u, 0.42, 0.205, 15, 1.2, '#5a5850');
+    }
+    p.box(0.42, 0.4, 1.16, 0.05, 9, 1, '#5a5d60'); // pipe between the tanks
+    crate(p, 0.12, 1.5, 0.2, 3);
+    crate(p, 0.35, 1.62, 0.16, 3);
     p.box(0.22, 0.72, 0.3, 0.56, 3, 9, '#6b6f73');
     p.box(0.5, 0.8, 0.26, 0.4, 3, 13, '#7f6a4f');
     p.box(0.3, 0.9, 1.55, 0.2, 3, 3, '#5d5a52');
@@ -76,6 +87,10 @@ export function createOilDerrickArt(team: FactionColors): BuildingArt {
     // Team-colour hazard stripe along the front of the pad.
     p.faceRect('left', 0, 0, 2, 2, 0, 3, 0, 1, 0.15, 0.85, shade(team.primary, 0.8));
     p.faceRect('right', 0, 0, 2, 2, 0, 3, 0, 1, 0.15, 0.85, team.primary);
+    for (let k = 0; k < 10; k += 2) {
+      p.faceRect('left', 0, 0, 2, 2, 0, 3, k / 10, (k + 1) / 10, 0.15, 0.85, RA2.hazard);
+      p.faceRect('right', 0, 0, 2, 2, 0, 3, (k + 1) / 10, (k + 2) / 10, 0.15, 0.85, shade(RA2.hazard, 0.85));
+    }
 
     samsonPost(p, 0.78, shade(STEEL, 0.85));
     samsonPost(p, 1.22, STEEL);

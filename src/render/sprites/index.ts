@@ -1,6 +1,7 @@
 import { createAirfieldArt } from './Airfield';
 import { createAlliedBuildingArt } from './AlliedBuilding';
 import { createBarracksArt } from './Barracks';
+import { createBunkerArt } from './Bunker';
 import { createFlagpoleArt } from './Flagpole';
 import { createHappyCityArt } from './HappyCity';
 import { createHospitalArt } from './Hospital';
@@ -84,6 +85,12 @@ export const BUILDING_ART: Readonly<Record<string, BuildingArt>> = {
   'alliedBuilding:china': createAlliedBuildingArt('china'),
   'alliedBuilding:europe': createAlliedBuildingArt('europe'),
   'alliedBuilding:islamic': createAlliedBuildingArt('islamic'),
+  // Bunkers: western concrete pillbox (USA, Europe), eastern dome on a mound (Russia, China, Islamic).
+  'bunker:usa': createBunkerArt('usa'),
+  'bunker:russia': createBunkerArt('russia'),
+  'bunker:china': createBunkerArt('china'),
+  'bunker:europe': createBunkerArt('europe'),
+  'bunker:islamic': createBunkerArt('islamic'),
 };
 
 /** Structures whose art flies a flag of its own: a captured one is redrawn with the new owner's flag. */

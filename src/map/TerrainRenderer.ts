@@ -12,30 +12,30 @@ import { TileTerrain } from './TileTerrain';
 import type { TreeLayer } from './Trees';
 
 /**
- * Red Alert 2 world-map palette: olive lowlands, khaki plateaus, red-brown
- * rock ridges, lavender snow, sandy-orange beaches and a dark violet sea.
+ * Red Alert 2 palette: deep green lowlands, ochre plateaus, brown-orange rock ridges, grey-white snow, sand
+ * beaches with a dark wet band, and a dark navy sea.
  */
 const ELEVATION_RAMP: readonly [number, string][] = [
-  [0, '#a7a259'],
-  [300, '#9e9b50'],
-  [800, '#a8935a'],
-  [1400, '#9c714a'],
-  [2400, '#83584a'],
-  [3600, '#8e8890'],
-  [5000, '#dad6e8'],
+  [0, '#6a9a3e'],
+  [300, '#729c40'],
+  [800, '#93964e'],
+  [1400, '#9a7d52'],
+  [2400, '#86664a'],
+  [3600, '#8e8a86'],
+  [5000, '#e4e6e8'],
 ];
 const RAMP_STEP = 25;
-const OLIVE_ALT = hexToRgb('#8f9548');
-const FOREST = hexToRgb('#6b7834');
-const DESERT = hexToRgb('#c9ad6c');
-const TUNDRA = hexToRgb('#a29d7c');
-const ICE = hexToRgb('#dcd8ea');
-const SAND = hexToRgb('#dcb27a');
-const SAND_EDGE = hexToRgb('#e2a565');
-const ROCKY_SHORE = hexToRgb('#c3a0a6');
-const OCEAN_SHALLOW = hexToRgb('#3b355f');
-const OCEAN_DEEP = hexToRgb('#28223d');
-const SHORE_GLOW = hexToRgb('#6d63a6');
+const OLIVE_ALT = hexToRgb('#5c8f36');
+const FOREST = hexToRgb('#45702e');
+const DESERT = hexToRgb('#d9b062');
+const TUNDRA = hexToRgb('#8a8a70');
+const ICE = hexToRgb('#eceef0');
+const SAND = hexToRgb('#dcc184');
+const SAND_EDGE = hexToRgb('#9a8c5e');
+const ROCKY_SHORE = hexToRgb('#8f7558');
+const OCEAN_SHALLOW = hexToRgb('#3b6f9a');
+const OCEAN_DEEP = hexToRgb('#1b3a68');
+const SHORE_GLOW = hexToRgb('#3d6670');
 
 /** Light from the north-east (x east, y south, z up). */
 const LIGHT = (() => {
@@ -122,7 +122,7 @@ export class TerrainRenderer {
   }
 
   drawWaterShimmer(ctx: CanvasRenderingContext2D, view: Rect, time: number): void {
-    ctx.fillStyle = '#a9a3e0';
+    ctx.fillStyle = '#b4cad8';
     for (const s of this.waterSpots) {
       if (s.x < view.x - 10 || s.x > view.x + view.w + 10 || s.y < view.y - 10 || s.y > view.y + view.h + 10) continue;
       const k = Math.sin(time * 1.6 + s.phase);

@@ -1,6 +1,7 @@
 import { movesRight } from '../core/IsoView';
-import { BOMB_FALL_SECONDS, JET_BOMB_VS_STRUCTURE, JET_BOMB_VS_VEHICLE, ACQUIRE_PERIOD, BOMB_GROUP_RADIUS_CELLS, BOMB_GROUP_SIZE, BOMB_TOUGH_DAMAGE, BOMB_TOUGH_STRUCTURES, BOMBS_PER_DROP, CELL_SIZE, CHASE_GIVE_UP_SECONDS, CHASE_LIMIT_CELLS, CHASE_PERIOD, FIGHT_MEMORY_SECONDS, GUARD_VISION_FACTOR, NEUTRAL_OWNER, RETALIATE_RANGE_FACTOR, WEAPONS } from '../constants';
+import { BOMB_FALL_SECONDS, BUNKER_COOLDOWN, BUNKER_DAMAGE, BUNKER_RANGE, BUNKER_VS_VEHICLE, JET_BOMB_VS_STRUCTURE, JET_BOMB_VS_VEHICLE, ACQUIRE_PERIOD, BOMB_GROUP_RADIUS_CELLS, BOMB_GROUP_SIZE, BOMB_TOUGH_DAMAGE, BOMB_TOUGH_STRUCTURES, BOMBS_PER_DROP, CELL_SIZE, CHASE_GIVE_UP_SECONDS, CHASE_LIMIT_CELLS, CHASE_PERIOD, FIGHT_MEMORY_SECONDS, GUARD_VISION_FACTOR, NEUTRAL_OWNER, RETALIATE_RANGE_FACTOR, WEAPONS } from '../constants';
 import { Building } from '../entities/Building';
+import { Bunker } from '../entities/Bunker';
 import type { Entity } from '../entities/Entity';
 import type { EntityManager } from '../entities/EntityManager';
 import { Unit } from '../entities/Unit';
@@ -12,6 +13,8 @@ import type { GameSystem } from './GameSystem';
 export interface CombatHooks {
   /** A shot was fired: draw tracers and play the sound. `impact` is where it lands (world px). */
   onFire(shooter: Unit, target: Entity, weapon: WeaponSpec, impact: WorldPoint): void;
+  /** A bunker's machine gun fired at `target`: tracer and muzzle flash. */
+  onBunkerFire(bunker: Bunker, target: Unit): void;
   /** An entity ran out of health: remove it and show the explosion. */
   onDeath(entity: Entity, killer: Entity | undefined): void;
   /** `nation` let the retreating `fugitive` go instead of chasing it (once per nation per retreat). */
@@ -116,7 +119,49 @@ export class CombatSystem implements GameSystem {
       s.cooldown = Math.max(0, s.cooldown - dt);
       if (s.weapon && s.canFight) this.think(s, grid);
     }
+    this.bunkers(dt, grid, key);
     this.reap();
+  }
+
+  // ------------------------------------------------------------------ bunkers
+
+  /** Self-firing bunkers: each shoots the nearest enemy soldier or ground vehicle in range (never aircraft). */
+  private bunkers(dt: number, grid: Map<number, Unit[]>, key: (cx: number, cy: number) => number): void {
+    for (const b of this.entities.buildings()) {
+      if (!(b instanceof Bunker) || !b.alive || b.owner === NEUTRAL_OWNER) continue;
+      b.cooldown = Math.max(0, b.cooldown - dt);
+      b.firing = Math.max(0, b.firing - dt);
+      if (b.cooldown > 0) continue;
+      const c = b.centerWorld();
+      if (this.hooks.safeAt(c.x, c.y)) continue;
+      const f = b.footprintWorld();
+      let best: Unit | undefined;
+      let bestD = Infinity;
+      const r = Math.ceil((BUNKER_RANGE + f.w) / HASH);
+      const hx = Math.floor(c.x / HASH);
+      const hy = Math.floor(c.y / HASH);
+      for (let gy = hy - r; gy <= hy + r; gy++) {
+        for (let gx = hx - r; gx <= hx + r; gx++) {
+          for (const o of grid.get(key(gx, gy)) ?? []) {
+            if (o.flies || !isHostile(b, o) || this.sheltered(o)) continue;
+            // Range is measured from the bunker's edge.
+            const d = Math.hypot(Math.max(f.x - o.px, 0, o.px - (f.x + f.w)), Math.max(f.y - o.py, 0, o.py - (f.y + f.h)));
+            if (d <= BUNKER_RANGE && d < bestD) {
+              bestD = d;
+              best = o;
+            }
+          }
+        }
+      }
+      if (!best) continue;
+      b.cooldown = BUNKER_COOLDOWN;
+      b.firing = 0.3;
+      best.damage(BUNKER_DAMAGE * (best instanceof Vehicle ? BUNKER_VS_VEHICLE : 1));
+      best.lastAttackerId = b.id;
+      best.lastAttackedAt = this.time;
+      best.fightingWith.set(b.owner, this.time);
+      this.hooks.onBunkerFire(b, best);
+    }
   }
 
   // ------------------------------------------------------------------ per-unit logic

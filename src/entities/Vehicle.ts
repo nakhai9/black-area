@@ -28,7 +28,7 @@ export type Flight = 'parked' | 'taxi' | 'takeoff' | 'airborne' | 'approach' | '
 export type CarrierState = 'idle' | 'loading' | 'carrying' | 'unloading';
 
 /** Cruise height of an aircraft above the ground (world px, drawn offset). */
-import { BOMBER_BOMBS, CRUISE_ALTITUDE, JET_BOMBS, TRUCK_SOLDIERS, TRUCK_TANKS } from '../constants';
+import { BOMBER_BOMBS, BOMB_LOAD_SLOWDOWN, CRUISE_ALTITUDE, JET_BOMBS, TRUCK_SOLDIERS, TRUCK_TANKS } from '../constants';
 export { CRUISE_ALTITUDE };
 
 /** Handling per vehicle kind: seconds to full speed, turn rate (rad/s), whether it must face where it drives. */
@@ -54,7 +54,13 @@ function transportFits(soldiers: number, vehicles: number): boolean {
 /** A land vehicle (light car, tank, armoured vehicle) or an aircraft (fighter, transport). */
 export class Vehicle extends Unit {
   readonly profile: VehicleProfile;
-  readonly speed: number;
+  /** Top speed empty (world px/s). */
+  readonly baseSpeed: number;
+  /** Top speed now: an aircraft carrying bombs flies slower, by its share of a full load (see BOMB_LOAD_SLOWDOWN). */
+  get speed(): number {
+    const max = this.maxBombs;
+    return max > 0 && this.bombs > 0 ? this.baseSpeed * (1 - BOMB_LOAD_SLOWDOWN * (this.bombs / max)) : this.baseSpeed;
+  }
   readonly radius: number;
   readonly bodyHeight: number;
   /** Price paid for it (faction cost applied): the yardstick for veteran ranks. */
@@ -134,7 +140,7 @@ export class Vehicle extends Unit {
     const base = VEHICLE_BASE[type];
     super(owner, faction, at, Math.round(base.maxHp * f.stats.armor));
     this.profile = f.vehicles[type] ?? { name: type, description: '' };
-    this.speed = base.speed * f.stats.unitSpeed * CELL_SIZE;
+    this.baseSpeed = base.speed * f.stats.unitSpeed * CELL_SIZE;
     this.radius = base.radius;
     this.value = Math.round((base.cost * f.stats.cost) / 10) * 10;
     this.bodyHeight = isAircraftKind(type) ? 7 : 1.8;

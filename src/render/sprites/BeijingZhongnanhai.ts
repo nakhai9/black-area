@@ -5,21 +5,22 @@ import { drawFlagOnPole, drawNationalPole } from '../Flags';
 import type { IsoPainter } from '../IsoPainter';
 import type { Allegiance } from '../../types';
 import type { BuildingArt } from './BuildingArt';
+import { facade } from './Ra2Kit';
 
-const RED = '#a92a1f';
-const COLUMN = '#c23a2c';
+const RED = '#8c2e22';
+const COLUMN = '#a23a2a';
 const LATTICE = '#4a150f';
-const GOLD_ROOF = '#e2a81e';
-const GREEN_ROOF = '#3f7d5a';
+const GOLD_ROOF = '#c4952e';
+const GREEN_ROOF = '#4a6a52';
 const GREY_ROOF = '#5d6468';
-const MARBLE = '#ebe7dc';
-const PAVING = '#a8a196';
-const ROAD = '#5b5d60';
-const TEAL = '#2b8580';
-const WATER = '#3f8fae';
-const LAWN = '#5d8f45';
+const MARBLE = '#cdc8bb';
+const PAVING = '#99948a';
+const ROAD = '#4b4d50';
+const TEAL = '#3a6e68';
+const WATER = '#466b78';
+const LAWN = '#5a7634';
 const DOOR = '#3b130e';
-const GLASS = '#4d5e6e';
+const GLASS = '#2c3a4e';
 
 const FLAG_POLE: readonly [number, number, number] = [2.0, 4.15, 44];
 const LANTERN_U = [1.25, 2.75] as const;
@@ -31,7 +32,7 @@ const ART_D = 6.4;
 /** Weeping willow on the lake shore. */
 function willow(p: IsoPainter, u: number, v: number): void {
   p.cylinder(u, v, 0.04, 3, 6, '#6b513a');
-  p.dome(u, v, 0.2, 8, 9, '#6f9e45');
+  p.dome(u, v, 0.2, 8, 9, '#5f7d3c');
 }
 
 /** Red-columned pavilion body with teal painted beams under the eaves. */
@@ -55,8 +56,8 @@ function compound(p: IsoPainter): void {
   p.box(1.55, 1.05, 0.65, 0.12, 3, 1.5, MARBLE); // bridge to the shore
   // Qinzheng Hall: the modern office block of the State Council.
   p.box(2.45, 0.35, 1.25, 0.9, 3, 14, '#c9c4b8');
-  p.windows('left', 2.45, 0.35, 1.25, 0.9, 3, 14, 7, 2, GLASS);
-  p.windows('right', 2.45, 0.35, 1.25, 0.9, 3, 14, 5, 2, GLASS);
+  facade(p, 'left', 2.45, 0.35, 1.25, 0.9, 3, 14, { cols: 9, floors: 3, glass: GLASS, frame: '#d8d2c4', fill: 0.5, bandColor: '#aaa498', seed: 31 });
+  facade(p, 'right', 2.45, 0.35, 1.25, 0.9, 3, 14, { cols: 6, floors: 3, glass: GLASS, frame: '#d8d2c4', fill: 0.5, bandColor: '#aaa498', seed: 32 });
   p.hipRoof(2.45, 0.35, 1.25, 0.9, 17, 5, 0.08, GREY_ROOF, 1);
   // Traditional courtyard halls with green tiles.
   hall(p, 2.55, 1.6, 1.1, 0.5, 3, 8, 6);
@@ -78,9 +79,16 @@ function avenue(p: IsoPainter): void {
     for (let u = 0.2; u < 3.8; u += 0.5) p.topRect(u, v - 0.02, u + 0.28, v + 0.02, 3, '#e8e4d8');
   }
   p.topRect(0.05, 6.0, 3.95, 6.35, 3, shade(PAVING, 1.05));
+  // Curbs and street lamps.
+  p.box(0.05, 4.43, 3.9, 0.04, 3, 0.8, '#bcb6a8');
+  p.box(0.05, 5.98, 3.9, 0.04, 3, 0.8, '#bcb6a8');
+  for (let u = 0.6; u < 4; u += 0.85) {
+    p.pole(u, 4.3, 3, 10, '#3a3c3e');
+    p.box(u - 0.03, 4.27, 0.06, 0.06, 13, 1.5, '#e8dfb8');
+  }
   for (let u = 0.3; u < 4; u += 0.85) {
     p.cylinder(u, 6.18, 0.035, 3, 5, '#6b513a');
-    p.dome(u, 6.18, 0.15, 8, 7, '#4f7f3b');
+    p.dome(u, 6.18, 0.15, 8, 7, '#47652f');
   }
 }
 

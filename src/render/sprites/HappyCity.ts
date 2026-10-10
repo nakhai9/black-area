@@ -4,13 +4,13 @@ import { shade } from '../Color';
 import type { IsoPainter } from '../IsoPainter';
 import type { BuildingArt } from './BuildingArt';
 import { drawMosque } from './GrandMosque';
+import { facade, parapet, RA2, rnd as hash, roofClutter } from './Ra2Kit';
 
 const N = 8;
-const ASPHALT = '#4a4d52';
-const SIDEWALK = '#b9b6ac';
-const LAWN = '#6d9f4a';
-const LANE = '#f2e6a0';
-const PANE = '#a9d6ef';
+const ASPHALT = RA2.asphalt;
+const SIDEWALK = RA2.paving;
+const LAWN = RA2.grass;
+const LANE = '#cfc49a';
 const LIT = 'rgba(255,238,160,0.95)';
 /** Road centre lines (tiles): a ring road inside the edge and a cross through the middle. */
 const ROADS = [0.55, 4, 7.45] as const;
@@ -40,14 +40,27 @@ interface CityStyle {
 
 const tower = (p: IsoPainter, u: number, v: number, w: number, d: number, h: number, color: string, floors: number, z = 2): void => {
   p.box(u, v, w, d, z, h, color);
-  const cols = Math.max(2, Math.round(w * 4));
-  p.windows('left', u, v, w, d, z, h, cols, floors, PANE, 0.08, 0.4);
-  p.windows('right', u, v, w, d, z, h, Math.max(2, Math.round(d * 4)), floors, shade(PANE, 1.1), 0.08, 0.4);
+  const seed = Math.round((u * 31 + v * 17 + z) * 10);
+  const band = shade(color, 0.78);
+  facade(p, 'left', u, v, w, d, z, h, { cols: Math.max(3, Math.round(w * 6)), floors, bandColor: band, frame: shade(color, 1.12), seed, lit: 0.1 });
+  facade(p, 'right', u, v, w, d, z, h, { cols: Math.max(3, Math.round(d * 6)), floors, bandColor: band, frame: shade(color, 1.12), seed: seed + 1, lit: 0.14 });
+  // Dark street-level storefront band.
+  if (z <= 2) {
+    p.faceRect('left', u, v, w, d, z, h, 0, 1, 0, Math.min(0.12, 6 / h), shade(color, 0.55));
+    p.faceRect('right', u, v, w, d, z, h, 0, 1, 0, Math.min(0.12, 6 / h), shade(color, 0.6));
+  }
+};
+
+/** Flat roof finish: tar deck, parapet and rooftop plant. */
+const flatRoof = (p: IsoPainter, u: number, v: number, w: number, d: number, top: number, color: string, seed: number): void => {
+  p.topRect(u + 0.04, v + 0.04, u + w - 0.04, v + d - 0.04, top, RA2.roof);
+  parapet(p, u, v, w, d, top, shade(color, 0.92), 0.06, 2);
+  roofClutter(p, u + 0.05, v + 0.05, w - 0.1, d - 0.1, top, seed);
 };
 
 const tree = (p: IsoPainter, u: number, v: number, s = 1): void => {
-  p.cylinder(u, v, 0.05 * s, 2, 4 * s, '#6b4a2b');
-  p.dome(u, v, 0.22 * s, 5 * s, 8 * s, '#3f7a34');
+  p.cylinder(u, v, 0.05 * s, 2, 4 * s, '#4f3a26');
+  p.dome(u, v, 0.22 * s, 5 * s, 8 * s, '#3e5a2a');
 };
 
 /** Onion dome on a drum: the drum, the striped or plain bulb and a small gold cross. */
@@ -93,7 +106,7 @@ const townhouse = (p: IsoPainter, u: number, v: number, w: number, d: number, h:
 const STYLES: Readonly<Record<FactionId, CityStyle>> = {
   // USA: Manhattan — glass skyscrapers and an Empire State style tower with a spire.
   usa: {
-    facades: ['#6f8fae', '#8aa3b8', '#5c7893', '#a8b6c2'],
+    facades: ['#5d6a7c', '#8a7c66', '#7a4a3a', '#9c9a90', '#4c5868'],
     roof: '#4b5560',
     towers: 'glass',
     lit: [1.2, 1.2, 2.2, 2.2, 40],
@@ -108,7 +121,7 @@ const STYLES: Readonly<Record<FactionId, CityStyle>> = {
   // Russia: Moscow — a Stalinist "Seven Sisters" skyscraper with its red star behind St Basil's Cathedral and its
   // colourful onion domes, pastel classical townhouses with green roofs and Orthodox churches between them.
   russia: {
-    facades: ['#e9c46a', '#e8b4a0', '#a8c8a0', '#f0dfb0', '#c9d6e3'],
+    facades: ['#b9a26a', '#b08a7a', '#8c9a80', '#c2b48e', '#9aa4ac'],
     roof: '#4f7a5a',
     towers: 'russian',
     lit: [0.95, 0.95, 1.6, 1.4, 34],
@@ -150,8 +163,8 @@ const STYLES: Readonly<Record<FactionId, CityStyle>> = {
   },
   // China: an Oriental Pearl style TV tower and towers crowned with pagoda roofs.
   china: {
-    facades: ['#b8b2a6', '#9fb3c2', '#c7bfae', '#8ea4b5'],
-    roof: '#8a2a1f',
+    facades: ['#a29c90', '#7e8c98', '#aca594', '#6f7f8c'],
+    roof: '#6e3a2c',
     towers: 'pagoda',
     lit: [1.2, 1.2, 2.2, 2.2, 40],
     landmark: (p, team) => {
@@ -166,8 +179,8 @@ const STYLES: Readonly<Record<FactionId, CityStyle>> = {
   },
   // Europe: an old town of gabled houses round a cathedral with a clock tower.
   europe: {
-    facades: ['#e3d3b4', '#d9b99a', '#e8e0c8', '#c9a98a'],
-    roof: '#9a4a32',
+    facades: ['#b8ae96', '#a8927a', '#c0b69e', '#9c8670'],
+    roof: '#4d5560',
     towers: 'gable',
     lit: [1.2, 1.2, 2.2, 2.2, 40],
     landmark: (p, team) => {
@@ -191,7 +204,7 @@ const STYLES: Readonly<Record<FactionId, CityStyle>> = {
   },
   // Islamic: a Middle Eastern city — sand-coloured blocks round a mosque with a turquoise dome and minarets.
   islamic: {
-    facades: ['#e4d2a8', '#d8c095', '#eadfc4', '#c9ad80'],
+    facades: ['#c2a77c', '#b4996e', '#cdb894', '#a88e66'],
     roof: '#b89e74',
     towers: 'panel',
     lit: [0.9, 0.9, 2.4, 2.4, 30],
@@ -243,7 +256,8 @@ export function createHappyCityArt(faction: FactionId): BuildingArt {
         pieces.push({
           key: lot.u + lot.v + lot.w + lot.d,
           draw: (p) => {
-            p.topRect(lot.u, lot.v, lot.u + lot.w, lot.v + lot.d, 2, '#5f9a44');
+            p.topRect(lot.u, lot.v, lot.u + lot.w, lot.v + lot.d, 2, RA2.grass);
+            p.topRect(lot.u + lot.w * 0.45, lot.v, lot.u + lot.w * 0.55, lot.v + lot.d, 2, RA2.paving);
             tree(p, lot.u + 0.3, lot.v + 0.3);
             tree(p, lot.u + lot.w - 0.3, lot.v + 0.35, 0.9);
             tree(p, lot.u + 0.4, lot.v + lot.d - 0.3, 1.1);
@@ -269,13 +283,34 @@ export function createHappyCityArt(faction: FactionId): BuildingArt {
         draw: (p) => {
           tower(p, lot.u, lot.v, lot.w, lot.d, tall, color, floors);
           const top = 2 + tall;
-          if (style.towers === 'gable') p.gableRoofV(lot.u, lot.v, lot.w, lot.d, top, 9, color, style.roof);
-          else if (style.towers === 'pagoda') p.hipRoof(lot.u + 0.15, lot.v + 0.15, lot.w - 0.3, lot.d - 0.3, top, 7, 0.12, style.roof, 2);
-          else if (style.towers === 'panel') {
-            p.box(lot.u + 0.2, lot.v + 0.2, lot.w - 0.4, lot.d - 0.4, top, 4, style.roof);
+          const sd = Math.round(lot.u * 13 + lot.v * 7);
+          if (style.towers === 'gable') {
+            // European stone block: cornice and a slate mansard with dormers.
+            p.box(lot.u - 0.03, lot.v - 0.03, lot.w + 0.06, lot.d + 0.06, top, 1.5, shade(color, 1.1));
+            p.hipRoof(lot.u + 0.02, lot.v + 0.02, lot.w - 0.04, lot.d - 0.04, top + 1.5, 9, 0, style.roof);
+            for (let k = 0; k < 3; k++) p.box(lot.u + 0.15 + k * (lot.w - 0.4) / 2, lot.v + lot.d - 0.22, 0.1, 0.1, top + 2, 4, shade(color, 1.05));
+          } else if (style.towers === 'pagoda') {
+            flatRoof(p, lot.u, lot.v, lot.w, lot.d, top, color, sd);
+            p.box(lot.u + 0.25, lot.v + 0.25, lot.w - 0.5, lot.d - 0.5, top, 5, shade(color, 0.9));
+            p.hipRoof(lot.u + 0.22, lot.v + 0.22, lot.w - 0.44, lot.d - 0.44, top + 5, 6, 0.12, style.roof, 2);
+          } else if (style.towers === 'panel') {
+            // Sandstone block: crenellated parapet, roof kiosk with a small dome.
+            flatRoof(p, lot.u, lot.v, lot.w, lot.d, top, color, sd);
+            if (hash(sd, 3) < 0.5) {
+              p.box(lot.u + lot.w / 2 - 0.15, lot.v + lot.d / 2 - 0.15, 0.3, 0.3, top, 4, shade(color, 1.05));
+              p.dome(lot.u + lot.w / 2, lot.v + lot.d / 2, 0.15, top + 4, 5, '#4f8a86');
+            }
           } else {
-            p.box(lot.u + 0.25, lot.v + 0.25, lot.w - 0.5, lot.d - 0.5, top, 5, shade(color, 0.85));
-            p.faceRect('left', lot.u, lot.v, lot.w, lot.d, 2, tall, 0, 1, 0.97, 1, team);
+            // Manhattan: setback upper storey and plant, a thin team stripe at the cornice.
+            const sw = lot.w * 0.68;
+            const sdp = lot.d * 0.68;
+            const su = lot.u + (lot.w - sw) / 2;
+            const sv = lot.v + (lot.d - sdp) / 2;
+            p.topRect(lot.u, lot.v, lot.u + lot.w, lot.v + lot.d, top, RA2.roof);
+            parapet(p, lot.u, lot.v, lot.w, lot.d, top, shade(color, 1.08), 0.05, 2);
+            tower(p, su, sv, sw, sdp, 12, shade(color, 1.05), 2, top);
+            flatRoof(p, su, sv, sw, sdp, top + 12, color, sd);
+            p.faceRect('left', lot.u, lot.v, lot.w, lot.d, 2, tall, 0, 1, 0.975, 1, shade(team, 0.8));
           }
         },
       });

@@ -122,6 +122,7 @@ const MILITARY_RANK_INTERVAL = 240;
 import type { GameSystem } from '../systems/GameSystem';
 import { BUILD_RADIUS, OIL_DERRICK_CLEARANCE, type PlacementRequest, type PlacementResult, PlacementSystem, isClaimable } from '../systems/PlacementSystem';
 import { Flagpole } from '../entities/Flagpole';
+import { Bunker } from '../entities/Bunker';
 import { PowerSystem } from '../systems/PowerSystem';
 import { SAFE_ZONE_SIZE, type SafeZone, SafeZoneSystem } from '../systems/SafeZoneSystem';
 import { SelectionSystem } from '../systems/SelectionSystem';
@@ -406,6 +407,7 @@ export class Game {
     );
     this.combat = new CombatSystem(this.entities, this.pathfinder, {
       onFire: (s, t, w, impact) => this.onFire(s, t, w, impact),
+      onBunkerFire: (b, t) => this.onBunkerFire(b, t),
       onDeath: (e, killer) => this.onDeath(e, killer),
       onSpare: (nation, fugitive) => this.payMercyBonus(nation, fugitive),
       safeAt: (x, y) => this.safeZones.isSafe(x, y),
@@ -1574,22 +1576,24 @@ export class Game {
    * to attack (strong when a *selected* unit is on it), plus the enemy under the cursor when the
    * selected army could attack it.
    */
-  private attackFocus(): { entity: Unit | Building; strong: boolean; hover: boolean }[] {
+  private attackFocus(): { entity: Unit | Building; strong: boolean; hover: boolean; engaged: boolean; airLock: boolean }[] {
     const me = this.humanPlayer.id;
     const selected = this.selection.selectedUnits;
-    const out = new Map<number, { entity: Unit | Building; strong: boolean; hover: boolean }>();
-    const mark = (e: Entity | undefined, strong: boolean, hover: boolean): void => {
+    const out = new Map<number, { entity: Unit | Building; strong: boolean; hover: boolean; engaged: boolean; airLock: boolean }>();
+    const mark = (e: Entity | undefined, strong: boolean, hover: boolean, by?: Unit): void => {
       if (!e || !e.alive || !(e instanceof Unit || e instanceof Building)) return;
       if (e instanceof Unit && !e.visible) return;
       const prev = out.get(e.id);
-      out.set(e.id, { entity: e, strong: strong || !!prev?.strong, hover: hover || !!prev?.hover });
+      // An aircraft locks onto air units and structures.
+      const lock = !!by?.aircraft && (e instanceof Building || e.flies);
+      out.set(e.id, { entity: e, strong: strong || !!prev?.strong, hover: hover || !!prev?.hover, engaged: !!by || !!prev?.engaged, airLock: lock || !!prev?.airLock });
     };
     for (const u of this.entities.fieldMovers()) {
       if (u.owner !== me || !u.alive) continue;
       const id = u.attackTarget ?? u.combatTarget;
       if (id === null) continue;
       const target = this.entities.get(id);
-      if (target && isHostile(u, target)) mark(target, selected.has(u.id), false);
+      if (target && isHostile(u, target)) mark(target, selected.has(u.id), false, u);
     }
     const hoverId = this.selection.hoveredUnitId ?? this.selection.hoveredId;
     const hovered = hoverId === null ? undefined : this.entities.get(hoverId);
@@ -1644,7 +1648,7 @@ export class Game {
       pathPeekId: this.pathPeekId,
       waypointPlan: this.waypointPlan(),
       flagHints: this.flagHints(),
-      focus: focus.map((f) => ({ entity: f.entity, strong: f.strong })),
+      focus: focus.map((f) => ({ entity: f.entity, strong: f.strong, engaged: f.engaged, airLock: f.airLock })),
       effects: this.effects.list,
     });
     // The radar does not need 60 updates a second: 12 are plenty and save a full redraw every other frame.
@@ -1874,6 +1878,12 @@ export class Game {
       if (dbl && hit.owner === me && hit.garrison.length > 0) {
         this.ejectUnits(hit, [...hit.garrison]);
         return;
+      }
+      // Double-click on one of my Barracks / War Factories / Airfields: new units come out of that one.
+      const t = hit.spec.type;
+      if (dbl && hit.owner === me && (t === 'barracks' || t === 'warFactory' || t === 'airfield')) {
+        (this.humanPlayer.primaryBuilding ??= {})[t] = hit.id;
+        this.sidebar.notify(`${hit.spec.name}: new units will come out here.`);
       }
       this.selection.selectedUnits.clear();
       this.selection.select(hit.id);
@@ -2267,6 +2277,21 @@ export class Game {
   private fx(x: number, y: number, lift = 0): WorldPoint {
     const p = worldToIso(x, y);
     return { x: p.x, y: p.y - lift };
+  }
+
+  /** A bunker's machine gun: muzzle flash at the slit facing the target, a tracer and a small hit spark. */
+  private onBunkerFire(b: Bunker, t: Unit): void {
+    const c = b.centerWorld();
+    const dist = Math.hypot(t.px - c.x, t.py - c.y) || 1;
+    const reach = (b.w * CELL_SIZE) / 2;
+    const mx = c.x + ((t.px - c.x) / dist) * reach;
+    const my = c.y + ((t.py - c.y) / dist) * reach;
+    const muzzle = this.fx(mx, my, 2);
+    const hit = this.fx(t.px, t.py, this.aimHeight(t, 0.6));
+    this.effects.add({ kind: 'tracer', x0: muzzle.x, y0: muzzle.y, x1: hit.x, y1: hit.y, age: 0, ttl: 0.06, color: '#ffe9a0', width: 0.45, shell: false });
+    this.effects.add({ kind: 'flash', x: muzzle.x, y: muzzle.y, age: 0, ttl: 0.07, size: 2.2 });
+    this.effects.add({ kind: 'blast', x: hit.x, y: hit.y, age: -0.06, ttl: 0.18, radius: 1.6 });
+    this.sound.play('mg', { x: mx, y: my });
   }
 
   private onFire(s: Unit, t: Entity, w: WeaponSpec, _impact: WorldPoint): void {

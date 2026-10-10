@@ -4,12 +4,13 @@ import { drawFlagOnPole, drawNationalPole } from '../Flags';
 import type { Face, IsoPainter } from '../IsoPainter';
 import type { Allegiance } from '../../types';
 import type { BuildingArt } from './BuildingArt';
+import { parapet, RA2, rnd, roofClutter } from './Ra2Kit';
 
-const PLAZA = '#b9bcc0';
-const GLASS = '#79a6c8';
-const FRAME = '#e3e6ea';
-const CORE = '#d5d9de';
-const LAWN = '#6aa04c';
+const PLAZA = '#a3a39c';
+const GLASS = '#4a6680';
+const FRAME = '#c4c6c2';
+const CORE = '#b2b4b0';
+const LAWN = '#5a7634';
 
 const WING_H = 36;
 const CORE_H = 46;
@@ -28,9 +29,9 @@ function esplanade(p: IsoPainter): void {
 
   for (const u of [0.7, 3.3]) {
     p.cylinder(u, 4.5, 0.045, 3, 5, '#6b5b47');
-    p.dome(u, 4.5, 0.15, 7, 6, '#588f43');
+    p.dome(u, 4.5, 0.15, 7, 6, '#47652f');
     p.cylinder(u, 5.9, 0.045, 3, 5, '#6b5b47');
-    p.dome(u, 5.9, 0.15, 7, 6, '#588f43');
+    p.dome(u, 5.9, 0.15, 7, 6, '#47652f');
   }
 
   // Light glass canopy over the walk out of the doors — kept short so it does not roof the whole square.
@@ -45,7 +46,7 @@ function esplanade(p: IsoPainter): void {
   for (let i = 0; i < 12; i++) {
     const a = (i / 12) * Math.PI * 2 - Math.PI / 2;
     const [sx, sy] = p.project(2.0 + Math.cos(a) * 0.62, 5.59 + Math.sin(a) * 0.62, 3.2);
-    p.ctx.fillStyle = '#ffcc00';
+    p.ctx.fillStyle = '#c9a53a';
     p.ctx.beginPath();
     starPath(p.ctx, sx, sy, 4);
     p.ctx.fill();
@@ -61,8 +62,19 @@ function curtainWall(p: IsoPainter, u: number, v: number, w: number, d: number, 
       const t0 = (f + 0.3) / floors;
       const t1 = (f + 0.85) / floors;
       p.faceRect(face, u, v, w, d, z, h, 0.03, 0.97, t0, t1, shade(GLASS, face === 'left' ? 0.78 : 0.95));
+      p.faceRect(face, u, v, w, d, z, h, 0.03, 0.97, t1 - (t1 - t0) * 0.3, t1, shade(GLASS, face === 'left' ? 0.98 : 1.18));
+    }
+    // Vertical steel mullions and the odd lit pane.
+    const cols = Math.round((face === 'left' ? w : d) * 14);
+    for (let c = 1; c < cols; c++) p.faceRect(face, u, v, w, d, z, h, c / cols - 0.006, c / cols + 0.006, 0, 1, shade(FRAME, 0.82));
+    for (let f = 0; f < floors; f++) for (let c = 0; c < cols; c++) {
+      if (rnd(Math.round(u * 10 + v * 7), f, c + (face === 'left' ? 0 : 50)) < 0.08) {
+        p.faceRect(face, u, v, w, d, z, h, c / cols + 0.01, (c + 1) / cols - 0.01, (f + 0.3) / floors, (f + 0.85) / floors, RA2.glassLit);
+      }
     }
   }
+  parapet(p, u, v, w, d, z + h, FRAME, 0.05, 2);
+  roofClutter(p, u, v, w, d, z + h, Math.round(u * 13 + v * 5));
 }
 
 /**

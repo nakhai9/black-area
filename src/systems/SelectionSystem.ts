@@ -29,6 +29,9 @@ const SQUATTERS_PICK_HEIGHT = 6.2;
 const VEHICLE_RADIUS = 3;
 const VEHICLE_PICK_X = 0.75;
 const VEHICLE_PICK_Y = 0.5;
+/** Aircraft hit area: an ellipse over the airframe (× radius, iso px). */
+const AIRCRAFT_PICK_X = 1.5;
+const AIRCRAFT_PICK_Y = 0.9;
 
 export class SelectionSystem {
   selectedId: number | null = null;
@@ -73,9 +76,10 @@ export class SelectionSystem {
       const dx = Math.abs(m.x - iso.x);
       let hit: boolean;
       if (u.aircraft) {
-        // Clicking the plane (even parked on the airfield) selects it.
-        const reach = Math.max(UNIT_PICK_RADIUS, u.radius * 2.8);
-        hit = Math.hypot(m.x - iso.x, m.y - (iso.y - bodyLift(u))) < reach;
+        // Only a click on the airframe itself selects the plane (even parked on the airfield), not the space around it.
+        const rx = Math.max(UNIT_PICK_RADIUS, u.radius * AIRCRAFT_PICK_X);
+        const ry = Math.max(UNIT_PICK_RADIUS * 0.6, u.radius * AIRCRAFT_PICK_Y);
+        hit = (dx / rx) ** 2 + ((m.y - (iso.y - bodyLift(u))) / ry) ** 2 <= 1;
       } else if (u.radius >= VEHICLE_RADIUS) {
         // Ground vehicle: its hull, an ellipse a little wider than tall around the body centre.
         const rx = u.radius * VEHICLE_PICK_X;

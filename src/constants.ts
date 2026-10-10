@@ -21,7 +21,7 @@ export const DEMO_MODE = false;
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "1.5.1";
+export const GAME_VERSION = "1.6.2";
 
 // ---------------------------------------------------------------- World (real Earth)
 /** Packed Earth texture built by `npm run build:earth` (see scripts/build-earth.mjs). */
@@ -81,6 +81,8 @@ export const FOOTPRINT_LARGE = { w: 5, d: 4 } as const;
 export const FOOTPRINT_SMALL = { w: 4, d: 4 } as const;
 /** Flagpole: exactly one cell. */
 export const FOOTPRINT_FLAGPOLE = { w: 1, d: 1 } as const;
+/** Bunker: a small 2×2 pillbox. */
+export const FOOTPRINT_BUNKER = { w: 2, d: 2 } as const;
 /**
  * Capitals sit on a 5 × 8 plot: the palace itself on roughly 5 × 5, and the nation's ceremonial approach
  * (the Mall, Red Square, the outer courtyard, the esplanade) on the 5 × 3 in front of it. The art is
@@ -133,6 +135,19 @@ export const FLAGPOLE_COST = 100;
 export const ALLIED_BUILDING_COST = 6000;
 export const MAX_ALLIES = 3;
 export const HOSPITAL_COST = 1200;
+/**
+ * Bunker (2×2): a self-firing machine-gun pillbox, no garrison needed. Every BUNKER_COOLDOWN seconds it fires at the
+ * nearest enemy soldier or ground vehicle within BUNKER_RANGE world px (never at aircraft) for BUNKER_DAMAGE, scaled
+ * by BUNKER_VS_VEHICLE against vehicles (≈32 dps on a soldier, ≈11 dps on armour). The AI raises up to AI_BUNKERS.
+ */
+export const BUNKER_COST = 800;
+export const BUNKER_HP = 1000;
+export const BUNKER_POWER_DRAIN = 1;
+export const BUNKER_RANGE = 40;
+export const BUNKER_DAMAGE = 8;
+export const BUNKER_COOLDOWN = 0.25;
+export const BUNKER_VS_VEHICLE = 0.35;
+export const AI_BUNKERS = 2;
 export const AIRFIELD_COST = 2000;
 /** High-Tech Center (a high-rise): base price; it unlocks the second-tier soldiers and vehicles. */
 export const TECH_CENTER_COST = 8000;
@@ -331,7 +346,13 @@ export const VEHICLE_BASE = {
     radius: 3.6,
   },
   /** National heavy bomber (Russia's Tu-16, the USA's B-52; no other nation has one): tough, flattens ground targets and structures; cannot hit aircraft. */
-  bomber: { cost: 2600, trainSeconds: 22, maxHp: 380, speed: 8.5, radius: 3.8 },
+  bomber: {
+    cost: 2600,
+    trainSeconds: 22,
+    maxHp: 380,
+    speed: 10.9,
+    radius: 3.8,
+  },
   /** National armoured recovery vehicle (Russia's BREM-1): slow and unarmed, it mends friendly ground vehicles (see REPAIR_VEHICLE_*). */
   repair: { cost: 800, trainSeconds: 10, maxHp: 360, speed: 1.0, radius: 4.2 },
   /** National army truck (KamAZ: Russia, China, the Islamic world; LVSR: USA; IVECO: Europe), a little bigger than a tank: unarmed, faster than soldiers and tanks, carries
@@ -390,12 +411,15 @@ export const isAircraftKind = (kind: VehicleKind): boolean =>
 export const needsAirfield = (kind: VehicleKind): boolean =>
   isAircraftKind(kind);
 
+/** A full bomb load costs an aircraft this share of its top speed (less as the bombs are dropped). */
+export const BOMB_LOAD_SLOWDOWN = 0.2;
+
 /**
  * Marching on foot tires soldiers out (every soldier except special forces): after INFANTRY_MARCH_CELLS unit cells of
  * walking a soldier halts where he is for INFANTRY_REST_SECONDS, then marches on — to the end of any order, fights
  * included. Riding a truck or a transport aircraft costs no strength. Standing INFANTRY_RECOVER_SECONDS rests him too.
  */
-export const INFANTRY_MARCH_CELLS = 20;
+export const INFANTRY_MARCH_CELLS = 35;
 export const INFANTRY_REST_SECONDS = 35;
 export const INFANTRY_RECOVER_SECONDS = 10;
 
@@ -611,6 +635,7 @@ export const OIL_GRID_MARKUP = 1.25;
 export const BUILDING_VALUE: Readonly<Partial<Record<BuildingType, number>>> = {
   barracks: BARRACKS_COST,
   hospital: HOSPITAL_COST,
+  bunker: BUNKER_COST,
   warFactory: WAR_FACTORY_COST,
   airfield: AIRFIELD_COST,
   techCenter: TECH_CENTER_COST,

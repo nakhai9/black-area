@@ -3,14 +3,15 @@ import { drawFlagOnPole, drawNationalPole } from '../Flags';
 import type { IsoPainter } from '../IsoPainter';
 import type { Allegiance } from '../../types';
 import type { BuildingArt } from './BuildingArt';
+import { parapet } from './Ra2Kit';
 
-const SAND = '#e4d2a8';
-const STONE = '#cdb98e';
-const TILE = '#2fa6b8';
-const TILE_DARK = '#1d6f86';
-const GOLD = '#e2b23a';
-const POOL = '#4f9fc4';
-const TILE_DEEP = '#1f4f9c';
+const SAND = '#cbb58a';
+const STONE = '#ad9b78';
+const TILE = '#3f8590';
+const TILE_DARK = '#2a5866';
+const GOLD = '#c49a3e';
+const POOL = '#4a6e7c';
+const TILE_DEEP = '#2c4870';
 /** Screen px per tile along a building face (HALF_TW). */
 const SCREEN_PX = 32;
 
@@ -117,6 +118,14 @@ export function arcade(p: IsoPainter, face: 'left' | 'right', b: Box, n: number,
 function tiledBox(p: IsoPainter, b: Box): void {
   const [u, v, w, d, z, h] = b;
   p.box(u, v, w, d, z, h, SAND);
+  // Weathered plinth and stone courses.
+  p.faceRect('left', u, v, w, d, z, h, 0, 1, 0, 0.08, shade(SAND, 0.75));
+  p.faceRect('right', u, v, w, d, z, h, 0, 1, 0, 0.08, shade(SAND, 0.75));
+  for (let k = 1; k < 4; k++) {
+    p.faceRect('left', u, v, w, d, z, h, 0, 1, k / 4.4, k / 4.4 + 0.012, shade(SAND, 0.88));
+    p.faceRect('right', u, v, w, d, z, h, 0, 1, k / 4.4, k / 4.4 + 0.012, shade(SAND, 0.88));
+  }
+  parapet(p, u, v, w, d, z + h, shade(SAND, 0.95), 0.05, 1.8);
   p.faceRect('left', u, v, w, d, z, h, 0, 1, 0.9, 0.97, TILE);
   p.faceRect('right', u, v, w, d, z, h, 0, 1, 0.9, 0.97, shade(TILE, 0.85));
 }
@@ -229,7 +238,7 @@ export function createGrandMosqueArt(flag: Allegiance = 'islamic'): BuildingArt 
       // Garden trees in the corners of the court.
       for (const [u, v] of [[0.85, 3.0], [3.15, 3.0], [0.85, 5.6], [3.15, 5.6]] as const) {
         p.cylinder(u, v, 0.04, Z, 6, '#6b5b47');
-        p.dome(u, v, 0.18, Z + 6, 8, '#4f8a3c');
+        p.dome(u, v, 0.18, Z + 6, 8, '#4f6a32');
       }
 
       // East arcade (its outer face shows) and the east iwan block.

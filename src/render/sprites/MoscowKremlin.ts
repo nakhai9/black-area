@@ -4,16 +4,18 @@ import { drawFlagOnPole, drawNationalPole } from '../Flags';
 import type { IsoPainter } from '../IsoPainter';
 import type { Allegiance } from '../../types';
 import type { BuildingArt } from './BuildingArt';
+import { shade } from '../Color';
+import { facade } from './Ra2Kit';
 
-const BRICK = '#a5372c';
-const BRICK_CAP = '#b9483a';
-const COBBLE = '#857d70';
-const CREAM = '#e7d8b2';
-const GREEN = '#3d6b50';
-const SPIRE = '#2f5640';
-const GOLD = '#e0b03a';
-const WHITE = '#eee8dc';
-const GLASS = '#6a7d8e';
+const BRICK = '#8a3a2c';
+const BRICK_CAP = '#9a4636';
+const COBBLE = '#6f6a60';
+const CREAM = '#c9b98e';
+const GREEN = '#43604c';
+const SPIRE = '#34503e';
+const GOLD = '#c99a3a';
+const WHITE = '#d4cec0';
+const GLASS = '#2c3a4e';
 const DOOR = '#2a0f0b';
 
 const WALL_Z = 3;
@@ -67,6 +69,11 @@ function redSquare(p: IsoPainter): void {
 /** Kremlin wall segment with swallow-tail merlons. */
 function wall(p: IsoPainter, u: number, v: number, w: number, d: number): void {
   p.box(u, v, w, d, WALL_Z, WALL_H, BRICK);
+  // Weathered brick courses and a darker plinth.
+  for (const face of ['left', 'right'] as const) {
+    p.faceRect(face, u, v, w, d, WALL_Z, WALL_H, 0, 1, 0, 0.15, shade(BRICK, 0.78));
+    for (let k = 1; k < 5; k++) p.faceRect(face, u, v, w, d, WALL_Z, WALL_H, 0, 1, k / 5, k / 5 + 0.02, shade(BRICK, 0.88));
+  }
   const alongU = w >= d;
   const len = alongU ? w : d;
   const n = Math.max(1, Math.floor(len / 0.2));
@@ -161,8 +168,9 @@ export function createMoscowKremlinArt(flag: Allegiance = 'russia'): BuildingArt
 
       // Grand Kremlin Palace across the back, centred.
       p.box(0.8, 0.55, 2.4, 0.8, 3, 22, CREAM);
-      p.windows('left', 0.8, 0.55, 2.4, 0.8, 3, 22, 9, 3, GLASS);
-      p.windows('right', 0.8, 0.55, 2.4, 0.8, 3, 22, 3, 3, GLASS);
+      facade(p, 'left', 0.8, 0.55, 2.4, 0.8, 3, 22, { cols: 15, floors: 3, glass: GLASS, frame: '#e2d8bc', fill: 0.45, band: 0.3, bandColor: shade(CREAM, 0.88), seed: 21 });
+      facade(p, 'right', 0.8, 0.55, 2.4, 0.8, 3, 22, { cols: 5, floors: 3, glass: GLASS, frame: '#e2d8bc', fill: 0.45, band: 0.3, bandColor: shade(CREAM, 0.88), seed: 22 });
+      p.box(0.77, 0.52, 2.46, 0.86, 24, 1.2, shade(CREAM, 1.05));
       p.hipRoof(0.8, 0.55, 2.4, 0.8, 25, 9, 0.04, GREEN);
       p.cylinder(2.0, 0.95, 0.13, 30, 6, CREAM);
       p.dome(2.0, 0.95, 0.13, 36, 8, GREEN);
@@ -172,8 +180,9 @@ export function createMoscowKremlinArt(flag: Allegiance = 'russia'): BuildingArt
       chapel(p, 0.95, 3.0);
 
       p.box(1.5, 1.7, 1.0, 1.0, 3, 20, WHITE);
-      p.windows('left', 1.5, 1.7, 1.0, 1.0, 3, 20, 3, 2, GLASS, 0.15, 0.55);
-      p.windows('right', 1.5, 1.7, 1.0, 1.0, 3, 20, 3, 2, GLASS, 0.15, 0.55);
+      facade(p, 'left', 1.5, 1.7, 1.0, 1.0, 3, 20, { cols: 4, floors: 2, glass: '#2a2420', fill: 0.4, band: 0.35, bandColor: shade(WHITE, 0.9), seed: 23 });
+      facade(p, 'right', 1.5, 1.7, 1.0, 1.0, 3, 20, { cols: 4, floors: 2, glass: '#2a2420', fill: 0.4, band: 0.35, bandColor: shade(WHITE, 0.9), seed: 24 });
+      p.box(1.48, 1.68, 1.04, 1.04, 22, 1.2, shade(WHITE, 1.04));
       cupola(p, 1.65, 1.85, 0.11, 23, 22);
       cupola(p, 2.35, 1.85, 0.11, 23, 22);
       cupola(p, 2.0, 2.2, 0.16, 23, 30);

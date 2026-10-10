@@ -5,10 +5,11 @@ import { drawFlagOnPole, drawNationalPole } from '../Flags';
 import { type IsoPainter, LIGHT, type Vec3 } from '../IsoPainter';
 import type { BuildingArt } from './BuildingArt';
 import { iwan } from './GrandMosque';
+import { RA2, crate, facade, parapet, roofClutter, sandbags } from './Ra2Kit';
 
-const GLASS = '#3d4650';
-const LAWN = '#5f8f45';
-const ASPHALT = '#7b7d80';
+const GLASS = RA2.glass;
+const LAWN = RA2.grass;
+const ASPHALT = RA2.asphalt;
 
 /** Where the national flag pole stands, per design (art units, z = foot of the pole, h = pole height). */
 interface FlagSpot {
@@ -61,7 +62,7 @@ function ring(cu: number, cv: number, r: number, sides: number, turn = 0): [numb
 /** Small tree. */
 function tree(p: IsoPainter, u: number, v: number): void {
   p.cylinder(u, v, 0.035, 2, 4, '#6b513a');
-  p.dome(u, v, 0.13, 6, 6, '#4f7f3b');
+  p.dome(u, v, 0.13, 6, 6, '#4a6630');
 }
 
 /**
@@ -71,9 +72,9 @@ function tree(p: IsoPainter, u: number, v: number): void {
  * a helipad and parking lots sit in the corners. A corner points to the back so a whole façade faces the camera.
  */
 function pentagon(p: IsoPainter, team: FactionColors): void {
-  const LIME = '#e0d9c6';
-  const SLATE = '#6c747b';
-  const WELL = '#c8c2b2';
+  const LIME = '#c9c0a8';
+  const SLATE = RA2.roof;
+  const WELL = '#a9a392';
   const CU = 1.5;
   const CV = 1.5;
   const TURN = -Math.PI / 4;
@@ -176,6 +177,14 @@ function pentagon(p: IsoPainter, team: FactionColors): void {
   p.pyramid(CU - 0.04, CV - 0.04, 0.2, 0.2, Z + 3.5, 3, team.primary);
   ctx.restore();
 
+  // Rooftop plant and comms masts on the outer ring.
+  for (const a of at(1.09)) p.box(a[0] - 0.07, a[1] - 0.07, 0.14, 0.14, TOP, 3, '#a9adb2');
+  p.pole(CU - 0.9, CV - 0.2, TOP, 16, '#8a8f96');
+  p.pole(CU - 0.2, CV - 0.9, TOP, 12, '#8a8f96');
+  // Guard posts with sandbags at the front lots.
+  sandbags(p, 0.75, 2.75, 1.0, 2.75, 2);
+  sandbags(p, 2.75, 0.75, 2.75, 1.0, 2);
+
   // Mall entrance: columned portico in the middle of the front façade.
   const f0 = outer[2];
   const f1 = outer[3];
@@ -196,17 +205,25 @@ function stalinist(p: IsoPainter, team: FactionColors): void {
   p.box(0, 0, 3, 3, 0, 2, '#a59f92');
   p.topRect(0.15, 2.45, 2.85, 2.9, 2, '#bdb6a6');
   // Long wings.
-  p.box(0.2, 0.3, 2.6, 1.15, 2, 20, CREAM, { top: '#8e8a80' });
-  p.windows('left', 0.2, 0.3, 2.6, 1.15, 2, 20, 12, 3, GLASS, 0.08, 0.45);
-  p.windows('right', 0.2, 0.3, 2.6, 1.15, 2, 20, 5, 3, GLASS, 0.08, 0.45);
+  p.box(0.2, 0.3, 2.6, 1.15, 2, 20, CREAM, { top: RA2.roof });
+  p.faceRect('left', 0.2, 0.3, 2.6, 1.15, 2, 20, 0, 1, 0, 0.18, '#8f846c');
+  p.faceRect('right', 0.2, 0.3, 2.6, 1.15, 2, 20, 0, 1, 0, 0.18, '#8f846c');
+  facade(p, 'left', 0.2, 0.3, 2.6, 1.15, 5.6, 16.4, { cols: 18, floors: 4, frame: TRIM, bandColor: '#b9ab88', lit: 0.1, seed: 11 });
+  facade(p, 'right', 0.2, 0.3, 2.6, 1.15, 5.6, 16.4, { cols: 8, floors: 4, frame: TRIM, bandColor: '#a99c7c', lit: 0.1, seed: 12 });
   p.box(0.18, 0.28, 2.64, 1.19, 22, 2, TRIM);
+  parapet(p, 0.18, 0.28, 2.64, 1.19, 24, '#b9ab88');
+  roofClutter(p, 0.25, 0.35, 0.7, 0.7, 24, 21);
+  roofClutter(p, 2.05, 0.35, 0.7, 0.7, 24, 22);
   // Central block with a portico of columns.
-  p.box(1.0, 1.0, 1.0, 1.1, 2, 26, CREAM, { top: '#8e8a80' });
+  p.box(1.0, 1.0, 1.0, 1.1, 2, 26, CREAM, { top: RA2.roof });
+  facade(p, 'right', 1.0, 1.0, 1.0, 1.1, 4, 22, { cols: 4, floors: 5, frame: TRIM, bandColor: '#a99c7c', seed: 13 });
   p.colonnade('left', 1.08, 1.75, 0.84, 0.4, 2, 18, 6, TRIM, '#6d6555');
   p.box(1.05, 1.73, 0.9, 0.44, 20, 3, TRIM);
   p.box(0.98, 0.98, 1.04, 1.14, 28, 2, TRIM);
   // Stepped tower, spire and the red star.
   p.box(1.22, 1.15, 0.56, 0.56, 30, 10, CREAM);
+  facade(p, 'left', 1.22, 1.15, 0.56, 0.56, 30, 10, { cols: 3, floors: 1, frame: TRIM, seed: 14 });
+  facade(p, 'right', 1.22, 1.15, 0.56, 0.56, 30, 10, { cols: 3, floors: 1, frame: TRIM, seed: 15 });
   p.box(1.3, 1.23, 0.4, 0.4, 40, 7, TRIM);
   p.pyramid(1.3, 1.23, 0.4, 0.4, 47, 16, '#b8a46a');
   const [sx, sy] = p.project(1.5, 1.43, 66);
@@ -219,6 +236,9 @@ function stalinist(p: IsoPainter, team: FactionColors): void {
   }
   p.ctx.closePath();
   p.ctx.fill();
+  sandbags(p, 0.3, 2.55, 0.9, 2.55, 2);
+  sandbags(p, 2.1, 2.55, 2.7, 2.55, 2);
+  crate(p, 2.45, 2.2, 0.16, 2);
   // Team band over the entrance.
   p.faceRect('left', 1.05, 1.73, 0.9, 0.44, 20, 3, 0, 1, 0, 1, shade(team.primary, LIGHT.left + 0.1));
 }
@@ -230,12 +250,16 @@ function bayi(p: IsoPainter, team: FactionColors): void {
   p.box(0, 0, 3, 3, 0, 2, '#b3aa98');
   p.topRect(0.2, 2.2, 2.8, 2.9, 2, '#c7bfae');
   // Low wings.
-  p.box(0.15, 0.35, 2.7, 1.3, 2, 14, STONE, { top: '#9a9182' });
-  p.windows('left', 0.15, 0.35, 2.7, 1.3, 2, 14, 14, 2, GLASS, 0.08, 0.4);
-  p.windows('right', 0.15, 0.35, 2.7, 1.3, 2, 14, 6, 2, GLASS, 0.08, 0.4);
+  p.box(0.15, 0.35, 2.7, 1.3, 2, 14, STONE, { top: RA2.roof });
+  facade(p, 'left', 0.15, 0.35, 2.7, 1.3, 2, 14, { cols: 20, floors: 3, frame: '#e6dcc6', bandColor: '#b5a88e', seed: 31 });
+  facade(p, 'right', 0.15, 0.35, 2.7, 1.3, 2, 14, { cols: 9, floors: 3, frame: '#e6dcc6', bandColor: '#a5987e', seed: 32 });
+  parapet(p, 0.15, 0.35, 2.7, 1.3, 16, '#c4b89e', 0.06, 2);
+  roofClutter(p, 0.2, 0.4, 0.55, 1.2, 16, 33);
+  roofClutter(p, 2.25, 0.4, 0.55, 1.2, 16, 34);
   // Central tower in three steps with vertical window strips.
-  p.box(0.8, 0.5, 1.4, 1.35, 2, 30, STONE, { top: '#9a9182' });
+  p.box(0.8, 0.5, 1.4, 1.35, 2, 30, STONE, { top: RA2.roof });
   for (let s = 0.1; s < 0.95; s += 0.12) p.faceRect('left', 0.8, 0.5, 1.4, 1.35, 2, 30, s, s + 0.05, 0.08, 0.92, GLASS);
+  facade(p, 'right', 0.8, 0.5, 1.4, 1.35, 2, 30, { cols: 7, floors: 6, frame: '#e6dcc6', bandColor: '#a5987e', seed: 35 });
   p.box(0.95, 0.65, 1.1, 1.05, 32, 8, STONE, { top: DARK });
   p.box(1.1, 0.8, 0.8, 0.75, 40, 6, STONE, { top: DARK });
   // Golden emblem with the red star over the entrance.
@@ -260,16 +284,20 @@ function bayi(p: IsoPainter, team: FactionColors): void {
   for (const u of [0.95, 1.95]) p.faceRect('left', 0.8, 0.5, 1.4, 1.35, 2, 30, (u - 0.8) / 1.4, (u - 0.8) / 1.4 + 0.05, 0.1, 0.55, team.primary);
   tree(p, 0.35, 2.55);
   tree(p, 2.65, 2.55);
+  p.pole(1.7, 1.0, 46, 14, '#8a8f96');
+  sandbags(p, 0.6, 2.85, 1.0, 2.85, 2);
+  sandbags(p, 2.0, 2.85, 2.4, 2.85, 2);
 }
 
 /** Europe — glass headquarters with interlaced wings (alliance HQ style) around a green plaza. */
 function glassHq(p: IsoPainter, team: FactionColors): void {
-  const BLUE = '#6f93b3';
-  const STEEL = '#c9ced3';
+  const BLUE = '#5f7488';
+  const STEEL = '#a6abb0';
   p.box(0, 0, 3, 3, 0, 2, '#a9aeb2');
   p.topRect(0.2, 0.2, 2.8, 2.8, 2, LAWN);
   // Spine.
   p.box(0.25, 0.3, 0.55, 2.2, 2, 16, BLUE, { top: STEEL });
+  roofClutter(p, 0.25, 0.3, 0.55, 2.2, 18, 41);
   // Interlaced wings ("fingers") reaching out of the spine, alternating heights.
   const wings: readonly [number, number][] = [
     [0.4, 18],
@@ -278,8 +306,10 @@ function glassHq(p: IsoPainter, team: FactionColors): void {
   ];
   for (const [v, h] of wings) {
     p.box(0.8, v, 1.85, 0.4, 2, h, BLUE, { top: STEEL });
-    p.windows('left', 0.8, v, 1.85, 0.4, 2, h, 9, 3, shade(BLUE, 0.7), 0.06, 0.35);
-    p.windows('right', 0.8, v, 1.85, 0.4, 2, h, 2, 3, shade(BLUE, 0.75), 0.06, 0.35);
+    facade(p, 'left', 0.8, v, 1.85, 0.4, 2, h, { cols: 14, floors: 4, frame: '#c9ccd0', fill: 0.8, band: 0.22, lit: 0.18, seed: 42 + h });
+    facade(p, 'right', 0.8, v, 1.85, 0.4, 2, h, { cols: 3, floors: 4, frame: '#c9ccd0', fill: 0.8, band: 0.22, seed: 43 + h });
+    parapet(p, 0.8, v, 1.85, 0.4, 2 + h, STEEL, 0.04, 1.5);
+    p.box(1.2, v + 0.1, 0.25, 0.2, 2 + h, 3, '#a9adb2');
     // Curved tip of each wing.
     p.cylinder(2.65, v + 0.2, 0.2, 2, h, BLUE);
   }
@@ -319,13 +349,16 @@ function fortTower(p: IsoPainter, u: number, v: number, z: number, brick: string
  * small turquoise dome, a team-coloured banner over the arch.
  */
 function islamicFort(p: IsoPainter, team: FactionColors): void {
-  const BRICK = '#c9a273';
-  const TOP = '#d8b98e';
+  const BRICK = '#b59670';
+  const TOP = '#c7ab84';
   const Z = 2;
   p.box(0, 0, 3, 3, 0, Z, '#a8916c');
   // Drill yard of packed earth with marching lanes.
   p.topRect(0.45, 1.5, 2.55, 2.6, Z, '#cdb68e');
   for (const v of [1.75, 2.05, 2.35]) p.topRect(0.6, v, 2.4, v + 0.05, Z + 0.1, '#e8dcc0');
+  sandbags(p, 0.55, 1.55, 0.55, 2.0, Z, '#b49a6a');
+  crate(p, 2.2, 1.55, 0.16, Z);
+  crate(p, 2.3, 1.75, 0.13, Z);
 
   // Back corner tower, then the rear and side walls.
   fortTower(p, 0.3, 0.3, Z, BRICK);
@@ -336,7 +369,7 @@ function islamicFort(p: IsoPainter, team: FactionColors): void {
   p.faceRect('right', 0.15, 0.3, 0.3, 2.4, Z, 18, 0.1, 0.9, 0.55, 0.6, '#2fa6b8');
 
   // Headquarters block with a tiled iwan gateway, small dome and the team banner.
-  p.box(0.55, 0.5, 1.9, 0.9, Z, 26, '#e4d2a8', { top: TOP });
+  p.box(0.55, 0.5, 1.9, 0.9, Z, 26, '#cdb994', { top: TOP });
   p.windows('left', 0.55, 0.5, 1.9, 0.9, Z, 26, 6, 2, '#2b2219', 0.1, 0.55);
   p.windows('right', 0.55, 0.5, 1.9, 0.9, Z, 26, 3, 2, '#2b2219', 0.15, 0.55);
   p.faceRect('left', 0.55, 0.5, 1.9, 0.9, Z, 26, 0, 1, 0.88, 0.96, '#2fa6b8');

@@ -86,6 +86,9 @@ export class VehicleSystem implements GameSystem {
 
   /** First living building of `type` owned by the player. */
   producerOf(player: PlayerState, type: BuildingType): Building | null {
+    const id = player.primaryBuilding?.[type];
+    const primary = id === undefined ? undefined : this.entities.buildings().find((b) => b.id === id && b.owner === player.id && b.alive && b.spec.type === type);
+    if (primary) return primary;
     return this.entities.buildings().find((b) => b.owner === player.id && b.alive && b.spec.type === type) ?? null;
   }
 

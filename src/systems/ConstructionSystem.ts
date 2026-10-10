@@ -4,6 +4,8 @@ import {
   ALLIED_BUILDING_COST,
   TECH_CENTER_COST,
   BARRACKS_COST,
+  BUNKER_COST,
+  FOOTPRINT_BUNKER,
   BUILD_STEP_FRACTION,
   BUILD_STEP_SECONDS,
   CELL_SIZE,
@@ -23,6 +25,7 @@ import { AlliedBuilding } from '../entities/AlliedBuilding';
 import { FACTIONS } from '../factions';
 import { HappyCity } from '../entities/HappyCity';
 import { Hospital } from '../entities/Hospital';
+import { Bunker } from '../entities/Bunker';
 import { PowerPlant } from '../entities/PowerPlant';
 import { TechCenter } from '../entities/TechCenter';
 import { WarFactory } from '../entities/WarFactory';
@@ -34,7 +37,7 @@ import type { GameSystem } from './GameSystem';
 
 /** A structure that can be produced from the sidebar's Build tab. */
 export interface BuildOption {
-  id: 'powerPlant' | 'barracks' | 'warFactory' | 'hospital' | 'airfield' | 'techCenter' | 'happyCity' | 'flagpole' | 'alliedBuilding';
+  id: 'powerPlant' | 'barracks' | 'warFactory' | 'hospital' | 'airfield' | 'techCenter' | 'happyCity' | 'flagpole' | 'alliedBuilding' | 'bunker';
   name: string;
   /** Tech tree: these buildings must already stand (power plant → barracks → war factory/hospital → airfield → happy city). */
   requires?: BuildingType | readonly BuildingType[];
@@ -88,6 +91,16 @@ export const BUILD_OPTIONS: readonly BuildOption[] = [
     footprint: FOOTPRINT_LARGE,
     spriteKey: (f) => `hospital:${f}`,
     create: (owner, faction, x, y) => new Hospital(owner, faction, center(x, y, FOOTPRINT_LARGE)),
+  },
+  {
+    // Self-firing machine-gun pillbox: shoots enemy soldiers and ground vehicles in range on its own.
+    id: 'bunker',
+    name: 'Bunker',
+    requires: 'barracks',
+    cost: BUNKER_COST,
+    footprint: FOOTPRINT_BUNKER,
+    spriteKey: (f) => `bunker:${f}`,
+    create: (owner, faction, x, y) => new Bunker(owner, faction, center(x, y, FOOTPRINT_BUNKER)),
   },
   {
     id: 'airfield',

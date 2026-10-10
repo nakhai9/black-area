@@ -56,7 +56,7 @@ export class Building extends Entity {
     this.owner = owner;
     this.faction = faction;
     // Team-coloured structures switch to the new owner's colours.
-    const m = /^(oil|barracks|hospital|airfield|warFactory|techCenter|happyCity|powerPlant|flagpole):/.exec(this.spec.spriteKey);
+    const m = /^(oil|barracks|hospital|airfield|warFactory|techCenter|happyCity|powerPlant|flagpole|bunker):/.exec(this.spec.spriteKey);
     if (m) this.spriteKeyOverride = `${m[1]}:${faction}`;
     // Landmarks keep their design and only hoist the new owner's flag.
     const f = /^(capital|alliedBuilding):(\w+)$/.exec(this.spec.spriteKey);

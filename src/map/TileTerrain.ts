@@ -24,24 +24,29 @@ type RGB = readonly [number, number, number];
 const rgb = (hex: string): RGB => [parseInt(hex.slice(1, 3), 16), parseInt(hex.slice(3, 5), 16), parseInt(hex.slice(5, 7), 16)];
 
 // Terrain codes follow TERRAIN_TYPES: 0 water, 1 sand, 2 grass, 3 forest, 4 desert, 5 rock, 6 snow.
-const GRASS_A = rgb('#7aa447');
-const GRASS_B = rgb('#8cb552');
-const FOREST_A = rgb('#4f7a38');
-const FOREST_B = rgb('#5d8a40');
-const SAND = rgb('#e3cf94');
-const BEACH = rgb('#ecdca0');
-const DESERT_A = rgb('#d8b36e');
-const DESERT_B = rgb('#e2c07c');
-const ROCK_A = rgb('#8a8174');
-const ROCK_B = rgb('#9b9284');
-const SNOW_A = rgb('#eef4fa');
-const SNOW_B = rgb('#dbe6f1');
-const SEA_SHALLOW = rgb('#4b9bd0');
-const SEA_MID = rgb('#2f6fb0');
-const SEA_DEEP = rgb('#1b3f86');
-const SEA_COAST = rgb('#7cc4e6');
-const FOAM = rgb('#eaf6fc');
-const CLIFF = rgb('#51493f');
+// Red Alert 2 palette: deep mottled grass with bare-earth patches, orange-yellow desert sand, brown-orange rock,
+// grey-white snow, and a dark navy sea whose shore is a black-green wet band.
+const GRASS_A = rgb('#5c8f36');
+const GRASS_B = rgb('#77a842');
+const DIRT = rgb('#a09058');
+const FOREST_A = rgb('#45702e');
+const FOREST_B = rgb('#568338');
+const SAND = rgb('#dcc184');
+const BEACH = rgb('#dcc68a');
+const WET_SAND = rgb('#9a8c5e');
+const DESERT_A = rgb('#d9b062');
+const DESERT_B = rgb('#e6c47c');
+const DESERT_DARK = rgb('#bf9450');
+const ROCK_A = rgb('#8f7558');
+const ROCK_B = rgb('#a68a68');
+const SNOW_A = rgb('#eceef0');
+const SNOW_B = rgb('#c9cdd2');
+const SEA_SHALLOW = rgb('#3b6f9a');
+const SEA_MID = rgb('#2a5582');
+const SEA_DEEP = rgb('#1b3a68');
+const SEA_COAST = rgb('#3d6670');
+const FOAM = rgb('#c8dade');
+const CLIFF = rgb('#4f4232');
 
 const clamp01 = (t: number): number => (t < 0 ? 0 : t > 1 ? 1 : t);
 const smooth = (a: number, b: number, x: number): number => {
@@ -179,24 +184,40 @@ export class TileTerrain {
     c[0] = a[0] + (b[0] - a[0]) * m;
     c[1] = a[1] + (b[1] - a[1]) * m;
     c[2] = a[2] + (b[2] - a[2]) * m;
-    let k = 1 + (n1 - 0.5) * 0.09;
+    // RA2 texture: coarse pixel grain plus a finer mottle (several noise scales), never a flat fill.
+    const fine = this.noise.noise(fx * 1.7, fy * 1.7);
+    let k = 1 + (n1 - 0.5) * 0.12 + (fine - 0.5) * 0.1;
+    const blend = (q: RGB, w: number): void => {
+      c[0] += (q[0] - c[0]) * w;
+      c[1] += (q[1] - c[1]) * w;
+      c[2] += (q[2] - c[2]) * w;
+    };
     if (t === 2) {
-      // Tufts of grass: scattered lighter and darker flecks.
-      if (n1 > 0.9) k += 0.1;
-      else if (n1 < 0.08) k -= 0.12;
+      // Bare-earth patches worn into the grass, and tufts (light / dark flecks).
+      const patch = this.noise.noise(fx * 0.55 + 31, fy * 0.55 + 17);
+      if (patch > 0.68) blend(DIRT, smooth(0.68, 0.8, patch) * 0.75);
+      if (n1 > 0.88) k += 0.16;
+      else if (n1 < 0.1) k -= 0.18;
     } else if (t === 3) {
       // Undergrowth: dark dapples.
-      if (n1 > 0.78) k -= 0.2;
-      else if (n1 < 0.1) k += 0.08;
+      if (n1 > 0.72) k -= 0.26;
+      else if (n1 < 0.1) k += 0.1;
     } else if (t === 4) {
-      // Dune ripples.
-      k += Math.sin(fx * 5 + fy * 2.4 + mott * 6) * 0.035;
+      // Dune ripples and darker ochre drifts with pebbles.
+      k += Math.sin(fx * 5 + fy * 2.4 + mott * 6) * 0.05;
+      const drift = this.noise.noise(fx * 0.7 + 7, fy * 0.7 + 3);
+      if (drift > 0.62) blend(DESERT_DARK, smooth(0.62, 0.78, drift) * 0.55);
+      if (n1 > 0.93) k -= 0.22;
     } else if (t === 5) {
-      // Cracks in the rock.
+      // Strata and cracks in the rock.
+      k += Math.sin((fx + fy) * 6 + fine * 4) * 0.07;
       const crack = Math.abs(this.noise.noise(fx * 2.4, fy * 2.4) - 0.5);
-      if (crack < 0.018) k -= 0.28;
+      if (crack < 0.025) k -= 0.35;
+    } else if (t === 6) {
+      // Grey speckles of rock and scrub in the snow.
+      if (n1 > 0.94) k -= 0.3;
     } else if (t === 1) {
-      if (n1 > 0.92) k -= 0.1;
+      if (n1 > 0.9) k -= 0.14;
     }
     c[0] *= k;
     c[1] *= k;
@@ -289,6 +310,11 @@ export class TileTerrain {
                 col[0] += (BEACH[0] - col[0]) * k;
                 col[1] += (BEACH[1] - col[1]) * k;
                 col[2] += (BEACH[2] - col[2]) * k;
+                // RA2 shore: the sand darkens to a wet band right at the waterline.
+                const wet = smooth(0.1, 0.0, dW + (n1 - 0.5) * 0.05) * 0.6;
+                col[0] += (WET_SAND[0] - col[0]) * wet;
+                col[1] += (WET_SAND[1] - col[1]) * wet;
+                col[2] += (WET_SAND[2] - col[2]) * wet;
               }
             }
             // Ragged blend into a different land type next door (first side that qualifies: L, R, U, D).
@@ -330,11 +356,11 @@ export class TileTerrain {
             if (L === 0 && D === 0 && DL !== 0) dL = Math.min(dL, Math.hypot(u, 1 - v));
             if (R === 0 && D === 0 && DR !== 0) dL = Math.min(dL, Math.hypot(1 - u, 1 - v));
             if (dL < 9) {
-              const shelf = smooth(0.7, 0.0, dL) * 0.75;
+              const shelf = smooth(0.55, 0.0, dL) * 0.85;
               col[0] += (SEA_COAST[0] - col[0]) * shelf;
               col[1] += (SEA_COAST[1] - col[1]) * shelf;
               col[2] += (SEA_COAST[2] - col[2]) * shelf;
-              const foam = Math.max(smooth(0.09, 0.0, dL) * 0.9, dL > 0.15 && dL < 0.2 ? 0.22 : 0);
+              const foam = Math.max(smooth(0.06, 0.0, dL) * 0.5, dL > 0.13 && dL < 0.17 ? 0.18 : 0);
               col[0] += (FOAM[0] - col[0]) * foam;
               col[1] += (FOAM[1] - col[1]) * foam;
               col[2] += (FOAM[2] - col[2]) * foam;

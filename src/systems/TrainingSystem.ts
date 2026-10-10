@@ -88,6 +88,9 @@ export class TrainingSystem implements GameSystem {
 
   /** First living Barracks of the player (soldiers exit there). */
   barracksOf(player: PlayerState): Building | null {
+    const id = player.primaryBuilding?.barracks;
+    const primary = id === undefined ? undefined : this.entities.buildings().find((b) => b.id === id && b.owner === player.id && b.alive);
+    if (primary) return primary;
     return this.entities.buildings().find((b) => b.owner === player.id && b.alive && b.spec.type === 'barracks') ?? null;
   }
 

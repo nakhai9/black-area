@@ -47,6 +47,10 @@ export interface PlacementGhost {
 export interface FocusTarget {
   readonly entity: Unit | Building;
   readonly strong: boolean;
+  /** One of my combat units is actually attacking it (not only the cursor aiming at it). */
+  readonly engaged?: boolean;
+  /** One of my aircraft has locked onto it (air unit or structure): drawn with the targeting-pod reticle. */
+  readonly airLock?: boolean;
 }
 
 export interface RenderScene {
@@ -96,6 +100,8 @@ const FLAGLESS_ART: ReadonlySet<string> = new Set(['oil', 'airfield', 'techCente
 const FLAG_POLE_HEIGHT = 30;
 /** How long an RA2 order line stays on screen after the order (s). */
 const ORDER_LINE_SECONDS = 1;
+/** Aircraft target lock colour (earth orange). */
+const LOCK_COLOR = '#c4622d';
 /** How long the RA2 move marker (green arrows) stays on screen (s). */
 const MOVE_MARKER_SECONDS = 0.9;
 /** Draw scale of tanks, armoured cars and other ground vehicles. */
@@ -251,9 +257,11 @@ export class Renderer {
     if (scene.moveMarker) this.drawMoveMarker(scene.moveMarker, scene.time);
     if (scene.waypointPlan) this.drawWaypointPlan(scene.waypointPlan);
     const focus = scene.focus ?? [];
-    for (const f of focus) if (f.entity.kind !== 'building') this.drawFocusRing(f.entity, f.strong, scene.time);
+    for (const f of focus) if (f.entity.kind !== 'building' && !f.airLock) this.drawFocusRing(f.entity, f.strong, scene.time);
 
     this.upright();
+    // Structures under attack by my units: a red border round their cells, under the art.
+    for (const f of focus) if (f.entity.kind === 'building' && f.engaged) this.drawTargetBorder(f.entity);
     const drawables = this.drawables;
     drawables.length = 0;
     for (const b of sorted) drawables.push(b);
@@ -279,7 +287,8 @@ export class Renderer {
     for (const u of units) if (u.flies) this.drawUnit(u);
     if (scene.ghost) this.drawGhost(scene.ghost);
     this.upright();
-    for (const f of focus) if (f.entity.kind !== 'building') this.drawFocusMarks(f.entity, f.strong);
+    for (const f of focus) if (f.entity.kind !== 'building' && !f.airLock) this.drawFocusMarks(f.entity, f.strong);
+    for (const f of focus) if (f.airLock) this.drawAirLock(f.entity);
     for (const u of units) if (selUnits.has(u.id) || u.hp < u.maxHp) this.drawUnitHealth(u);
     // The fuel gauge shows only while the transport is out on a sortie; parked or taxiing at home it is idle (hidden).
     for (const u of units) if (u instanceof Vehicle && u.maxBombs > 0) this.drawBombs(u);
@@ -301,7 +310,7 @@ export class Renderer {
     for (const f of focus) focused.add(f.entity.id);
     for (const b of sorted) {
       if (b === selected) this.drawSelectionOverlay(b);
-      else if (focused.has(b.id)) this.drawSelectionOverlay(b, '#3fdc4a', 2.5);
+      else if (focused.has(b.id)) this.drawSelectionOverlay(b);
       else if (b.id === scene.hoveredId) this.drawLabel(b, 0.8);
     }
 
@@ -1093,26 +1102,83 @@ export class Renderer {
     return { x: c.x + (s.bounds.x - s.centerX) * k, y: c.y + (s.bounds.y - s.centerY) * k, w: s.bounds.w * k, h: s.bounds.h * k };
   }
 
-  /** RA2-style white corner brackets + pip health bar + name label. */
-  private drawSelectionOverlay(b: Building, bracket = '#ffffff', width = 1.5): void {
+  /** Brackets hug the footprint's grid diamond (sides and bottom); the top follows the art, never below the diamond. */
+  private footprintRect(b: Building): Rect {
+    const f = b.footprintWorld();
+    const pts = [worldToIso(f.x, f.y), worldToIso(f.x + f.w, f.y), worldToIso(f.x + f.w, f.y + f.h), worldToIso(f.x, f.y + f.h)];
+    const xs = pts.map((p) => p.x);
+    const ys = pts.map((p) => p.y);
+    const x = Math.min(...xs);
+    const bottom = Math.max(...ys);
+    const top = Math.min(Math.min(...ys), this.spriteRect(b).y);
+    return { x, y: top, w: Math.max(...xs) - x, h: bottom - top };
+  }
+
+  /**
+   * Attack target: a 2px dark red border just outside the grid cells the structure stands on. Drawn before the
+   * art and pushed out by half its width, so it never covers the building.
+   */
+  private drawTargetBorder(b: Building): void {
     const { ctx } = this;
-    const r = this.spriteRect(b);
     const k = 1 / this.camera.zoom;
-    const len = 10 * k;
-    ctx.strokeStyle = bracket;
-    ctx.lineWidth = width * k;
+    const f = b.footprintWorld();
+    const [t, r, bt, l] = [worldToIso(f.x, f.y), worldToIso(f.x + f.w, f.y), worldToIso(f.x + f.w, f.y + f.h), worldToIso(f.x, f.y + f.h)];
+    // Iso edges run 2:1, so a 1px normal offset moves the side corners √5 px and the top/bottom ones √5/2 px.
+    const o = k * Math.sqrt(5);
     ctx.beginPath();
-    for (const [cx, cy, sx, sy] of [
-      [r.x, r.y, 1, 1],
-      [r.x + r.w, r.y, -1, 1],
-      [r.x, r.y + r.h, 1, -1],
-      [r.x + r.w, r.y + r.h, -1, -1],
-    ] as const) {
-      ctx.moveTo(cx + sx * len, cy);
-      ctx.lineTo(cx, cy);
-      ctx.lineTo(cx, cy + sy * len);
-    }
+    ctx.moveTo(t.x, t.y - o / 2);
+    ctx.lineTo(r.x + o, r.y);
+    ctx.lineTo(bt.x, bt.y + o / 2);
+    ctx.lineTo(l.x - o, l.y);
+    ctx.closePath();
+    ctx.strokeStyle = '#a10d0d';
+    ctx.lineWidth = 2 * k;
+    ctx.lineJoin = 'miter';
     ctx.stroke();
+  }
+
+  /** Aircraft target lock (targeting-pod look): crosshair lines across the view and a box round the target, earth orange. */
+  private drawAirLock(e: Unit | Building): void {
+    const { ctx } = this;
+    const k = 1 / this.camera.zoom;
+    let box: Rect;
+    if (e.kind === 'building') box = this.footprintRect(e);
+    else {
+      const P = worldToIso(e.px, e.py);
+      const lift = e.flies && 'altitude' in e ? Number((e as { altitude: number }).altitude) : 0;
+      const half = Math.max(3, e.radius * 2);
+      const top = P.y - lift - Math.max(e.bodyHeight, 2) - 1.6;
+      const bottom = P.y - lift + 1.6;
+      box = { x: P.x - half * 1.6, y: top, w: half * 3.2, h: bottom - top };
+    }
+    const cx = box.x + box.w / 2;
+    const cy = box.y + box.h / 2;
+    const v = this.camera.viewRect();
+    const p0 = worldToIso(v.x, v.y);
+    const span = Math.max(v.w, v.h) * 4 + 4000;
+    ctx.save();
+    ctx.strokeStyle = LOCK_COLOR;
+    ctx.lineWidth = 1.5 * k;
+    ctx.beginPath();
+    ctx.moveTo(p0.x - span, cy);
+    ctx.lineTo(box.x, cy);
+    ctx.moveTo(box.x + box.w, cy);
+    ctx.lineTo(p0.x + span, cy);
+    ctx.moveTo(cx, p0.y - span);
+    ctx.lineTo(cx, box.y);
+    ctx.moveTo(cx, box.y + box.h);
+    ctx.lineTo(cx, p0.y + span);
+    ctx.stroke();
+    ctx.lineWidth = 2 * k;
+    ctx.strokeRect(box.x, box.y, box.w, box.h);
+    ctx.restore();
+  }
+
+  /** Pip health bar + name label (no corner brackets). */
+  private drawSelectionOverlay(b: Building, _bracket = '#ffffff', _width = 1.5): void {
+    const { ctx } = this;
+    const r = this.footprintRect(b);
+    const k = 1 / this.camera.zoom;
 
     const pipW = 3 * k;
     const gap = 1 * k;

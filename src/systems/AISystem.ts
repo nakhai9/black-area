@@ -1,4 +1,4 @@
-import { CELL_SIZE, INFANTRY_MARCH_CELLS, MAX_ALLIES, NEUTRAL_OWNER, TECH_VEHICLES, TRUCK_SOLDIERS } from '../constants';
+import { AI_BUNKERS, CELL_SIZE, INFANTRY_MARCH_CELLS, MAX_ALLIES, NEUTRAL_OWNER, TECH_VEHICLES, TRUCK_SOLDIERS } from '../constants';
 import type { Building } from '../entities/Building';
 import type { Entity } from '../entities/Entity';
 import type { EntityManager } from '../entities/EntityManager';
@@ -381,6 +381,11 @@ export class AISystem implements GameSystem {
     let next = BUILD_PLAN.map((id) => BUILD_OPTIONS.find((o) => o.id === id)).find(
       (o) => o && !owned.has(o.id as BuildingType) && missingRequirement(o, owned) === null,
     );
+    // Base core done: a couple of machine-gun bunkers round the base.
+    if (!next && owned.has('barracks')) {
+      const bunkers = this.host.entities.buildings().filter((b) => b.owner === p.id && b.alive && b.spec.type === 'bunker').length;
+      if (bunkers < AI_BUNKERS) next = BUILD_OPTIONS.find((o) => o.id === 'bunker');
+    }
     // A claim flag stands on new land without its ally yet: raise the Allied Building next to it.
     if (!next && threat === 0 && this.openClaims(p).length > 0 && this.host.alliesOf(p) < MAX_ALLIES) next = BUILD_OPTIONS.find((o) => o.id === 'alliedBuilding');
     // Base complete (or waiting): grow the economy with Happy Cities when nobody is attacking.
