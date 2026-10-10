@@ -3340,9 +3340,9 @@ export class Game {
       )
       .sort((a, b) => Math.hypot(a.px - c.x, a.py - c.y) - Math.hypot(b.px - c.x, b.py - c.y));
     const dead = group.length <= DEMO_GROUP_SIZE ? group.length : Math.ceil(group.length / 2);
-    for (const o of group.slice(0, dead)) hit(o, o.hp);
+    for (const o of group.slice(0, dead)) hit(o, Infinity);
     // A charge on an unarmed unit (engineer, transport on the ground…) still kills it.
-    if (target instanceof Unit && target.alive && !group.some((o) => o === target)) hit(target, target.hp);
+    if (target instanceof Unit && target.alive && !group.some((o) => o === target)) hit(target, Infinity);
     const p = this.fx(c.x, c.y, 0);
     this.effects.add({ kind: 'demoBlast', x: p.x, y: p.y, age: 0, ttl: 0.8 });
     this.sound.play('explosion', { x: c.x, y: c.y });

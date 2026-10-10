@@ -21,7 +21,7 @@ export const DEMO_MODE = false;
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "1.6.8";
+export const GAME_VERSION = "1.7.2";
 
 // ---------------------------------------------------------------- World (real Earth)
 /** Packed Earth texture built by `npm run build:earth` (see scripts/build-earth.mjs). */
@@ -468,6 +468,14 @@ export const VEHICLE_GAP = 2;
 export const CRUSH_RADIUS = 2.4;
 /** Veteran / Elite / Elite+ at 3× / 6× / 9× the unit's own price in destroyed enemy value. */
 export const RANK_KILL_MULTIPLES = [3, 6, 9] as const;
+/**
+ * What each rank (none / Veteran / Elite / Elite+) is worth in battle, for every soldier and vehicle (engineers
+ * included; Squatters never earn ranks): damage dealt, seconds between shots, damage taken, and speed.
+ */
+export const RANK_FIREPOWER = [1, 1.15, 1.3, 1.5] as const;
+export const RANK_RELOAD = [1, 0.9, 0.8, 0.7] as const;
+export const RANK_ARMOR = [1, 0.9, 0.8, 0.65] as const;
+export const RANK_SPEED = [1, 1.05, 1.1, 1.15] as const;
 /**
  * Veterans patch themselves up in the field from this rank on (2 chevrons = Elite). The pace is deliberately
  * slow — a share of the unit's own max HP per second — and it only starts after VETERAN_REGEN_CALM seconds

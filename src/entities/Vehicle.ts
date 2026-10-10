@@ -143,7 +143,8 @@ export class Vehicle extends Unit {
     this.baseSpeed = base.speed * f.stats.unitSpeed * CELL_SIZE;
     this.radius = base.radius;
     this.value = Math.round((base.cost * f.stats.cost) / 10) * 10;
-    this.bodyHeight = isAircraftKind(type) ? 7 : 1.8;
+    // Aircraft art is flat seen from above: its bars and marks sit just over the fuselage, not high above it.
+    this.bodyHeight = isAircraftKind(type) ? 2.2 : 1.8;
     const weapon = VEHICLE_WEAPON[type];
     if (weapon) {
       const spec = WEAPONS[weapon];

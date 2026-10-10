@@ -1,5 +1,5 @@
 import { movesRight } from '../core/IsoView';
-import { BOMB_FALL_SECONDS, BUNKER_COOLDOWN, BUNKER_DAMAGE, BUNKER_RANGE, BUNKER_VS_VEHICLE, JET_BOMB_VS_STRUCTURE, JET_BOMB_VS_VEHICLE, ACQUIRE_PERIOD, BOMB_GROUP_RADIUS_CELLS, BOMB_GROUP_SIZE, BOMB_TOUGH_DAMAGE, BOMB_TOUGH_STRUCTURES, BOMBS_PER_DROP, CELL_SIZE, CHASE_GIVE_UP_SECONDS, CHASE_LIMIT_CELLS, CHASE_PERIOD, FIGHT_MEMORY_SECONDS, GUARD_VISION_FACTOR, NEUTRAL_OWNER, RETALIATE_RANGE_FACTOR, WEAPONS } from '../constants';
+import { BOMB_FALL_SECONDS, BUNKER_COOLDOWN, BUNKER_DAMAGE, BUNKER_RANGE, BUNKER_VS_VEHICLE, JET_BOMB_VS_STRUCTURE, JET_BOMB_VS_VEHICLE, ACQUIRE_PERIOD, RANK_FIREPOWER, RANK_RELOAD, BOMB_GROUP_RADIUS_CELLS, BOMB_GROUP_SIZE, BOMB_TOUGH_DAMAGE, BOMB_TOUGH_STRUCTURES, BOMBS_PER_DROP, CELL_SIZE, CHASE_GIVE_UP_SECONDS, CHASE_LIMIT_CELLS, CHASE_PERIOD, FIGHT_MEMORY_SECONDS, GUARD_VISION_FACTOR, NEUTRAL_OWNER, RETALIATE_RANGE_FACTOR, WEAPONS } from '../constants';
 import { Building } from '../entities/Building';
 import { Bunker } from '../entities/Bunker';
 import type { Entity } from '../entities/Entity';
@@ -375,7 +375,7 @@ export class CombatSystem implements GameSystem {
       return;
     }
     if (!t.alive) return;
-    t.damage(t instanceof Building ? t.maxHp * JET_BOMB_VS_STRUCTURE : t instanceof Vehicle ? t.maxHp * JET_BOMB_VS_VEHICLE : t.hp);
+    t.damage(t instanceof Building ? t.maxHp * JET_BOMB_VS_STRUCTURE : t instanceof Vehicle ? t.maxHp * JET_BOMB_VS_VEHICLE : Infinity); // a soldier: dead, veteran or not
     t.lastAttackerId = s.id;
     t.lastAttackedAt = this.time;
   }
@@ -398,11 +398,11 @@ export class CombatSystem implements GameSystem {
       .filter((o) => o.alive && !o.flies && isHostile(s, o) && !this.sheltered(o) && Math.hypot(o.px - at.x, o.py - at.y) <= BOMB_GROUP_RADIUS_CELLS * CELL_SIZE)
       .sort((a, b) => Math.hypot(a.px - at.x, a.py - at.y) - Math.hypot(b.px - at.x, b.py - at.y));
     const dead = group.length < BOMB_GROUP_SIZE ? group.length : Math.round(group.length / 3);
-    for (const o of group.slice(0, dead)) hit(o, o.hp);
+    for (const o of group.slice(0, dead)) hit(o, Infinity);
   }
 
   private fire(s: Unit, t: Entity, w: WeaponSpec): void {
-    s.cooldown = w.cooldown;
+    s.cooldown = w.cooldown * RANK_RELOAD[s.rank];
     s.fightingWith.set(t.owner, this.time);
     if (t instanceof Unit) t.fightingWith.set(s.owner, this.time);
     const impact = this.impactPoint(t);
@@ -422,7 +422,7 @@ export class CombatSystem implements GameSystem {
       this.hooks.onFire(s, t, { ...w, kind: 'bomb' }, impact);
       return;
     }
-    const dmg = w.damage * (t instanceof Building ? w.vsBuilding : 1);
+    const dmg = w.damage * RANK_FIREPOWER[s.rank] * (t instanceof Building ? w.vsBuilding : 1);
     t.damage(dmg);
     t.lastAttackerId = s.id;
     t.lastAttackedAt = this.time;

@@ -68,7 +68,7 @@ const ENGINE_RECIPES: Readonly<Record<EngineProfile, { rumble: number; pulse: nu
   bomber: { rumble: 480, pulse: 3, depth: 0.22, whine: 1800, whineGain: 0.12, clank: 0, clankGain: 0, gain: 0.95 },
   airlifter: { rumble: 750, pulse: 1.5, depth: 0.1, whine: 3000, whineGain: 0.18, clank: 0, clankGain: 0, gain: 0.85 },
 };
-/** File name of a vehicle's own recording: "Leopard 2" → "leopard-2" (public/sounds/vehicles/leopard-2.mp3). */
+/** File name of a vehicle's own recording: "Leopard 2" → "leopard-2" (public/sounds/engine-leopard-2.mp3). */
 const slug = (name: string): string => name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
 /** Battle cry per nation, spoken in that nation's own language. */
@@ -91,7 +91,29 @@ const MIN_GAP: Readonly<Record<string, number>> = { rifle: 0.05, smg: 0.045, sni
  * Optional recordings: drop real sounds into public/sounds/ under these names (mp3, ogg or wav) and they replace the
  * synthesised ones. Anything missing keeps the synthesised sound.
  */
-const SAMPLE_KINDS: readonly string[] = ['rifle', 'smg', 'mg', 'autocannon', 'sniper', 'cannon', 'bomb', 'missile', 'explosion', 'board', 'foot'];
+const SAMPLE_PATHS: Readonly<Record<string, string>> = {
+  rifle: 'rifle',
+  smg: 'smg',
+  mg: 'mg',
+  autocannon: 'autocannon',
+  sniper: 'sniper',
+  cannon: 'tank-cannon',
+  missile: 'missile',
+  bomb: 'bomb',
+  explosion: 'explosion',
+  board: 'board',
+  foot: 'foot',
+};
+/** Small arms fire in bursts: each shot is heard as this many rounds in quick succession ("rat-a-tat"). */
+const BURST: Readonly<Record<string, { rounds: number; gap: number }>> = {
+  rifle: { rounds: 3, gap: 0.085 },
+  smg: { rounds: 4, gap: 0.065 },
+  mg: { rounds: 5, gap: 0.07 },
+  autocannon: { rounds: 3, gap: 0.12 },
+};
+/** While weapons / explosions are heard the music drops to this share, then comes back after SFX_DUCK_HOLD s. */
+const SFX_DUCK = 0.35;
+const SFX_DUCK_HOLD = 0.8;
 const SAMPLE_EXTS = ['mp3', 'ogg', 'wav'] as const;
 /** Peak gain of the vehicle engine sounds; the music is also ducked (MUSIC_DUCK) while they play. */
 const VEHICLE_BED_GAIN = 0.75;
@@ -118,7 +140,7 @@ type Kind = WeaponKind | 'explosion' | 'board';
 /**
  * Sound effects and background music (Web Audio): gunfire per weapon type, cannon booms, jet missiles,
  * explosions and the sounds of moving units, attenuated by distance from the camera. Synthesised by default;
- * real recordings dropped into public/sounds/ (see SAMPLE_KINDS) are used instead. Battle cries use the
+ * real recordings dropped into public/sounds/ (see SAMPLE_PATHS and public/sounds/README.md) are used instead. Battle cries use the
  * browser's speech synthesis in each nation's language. Everything is rate-limited so large battles stay clear.
  */
 export class SoundSystem {
@@ -132,14 +154,16 @@ export class SoundSystem {
   private readonly lastCry = new Map<FactionId, number>();
   private active = 0;
   private voices: SpeechSynthesisVoice[] = [];
-  /** Decoded recordings from public/sounds/ (see SAMPLE_KINDS). */
+  /** Decoded recordings from public/sounds/ (see SAMPLE_PATHS). */
   private readonly samples = new Map<string, AudioBuffer>();
   /** Looping engine sound per vehicle model (by name): its gain follows the motion levels. */
   private readonly beds = new Map<string, GainNode>();
-  /** Recordings of single vehicle models (public/sounds/vehicles/<name>.*): loading, found, or not there. */
+  /** Recordings of single vehicle models (public/sounds/engine-<name>.*): loading, found, or not there. */
   private readonly vehicleSamples = new Map<string, AudioBuffer | 'loading' | 'none'>();
   private nextStep = 0;
   private lastAlarm = -99;
+  /** Audio time until which a weapon / explosion keeps the music ducked. */
+  private sfxUntil = 0;
   private lastMayday = -99;
 
   /** `listener` defaults to "hear everything" (menus); the game sets the camera with setListener. */
@@ -218,6 +242,24 @@ export class SoundSystem {
     if (now - last < (MIN_GAP[kind] ?? 0.05)) return;
     this.lastPlayed.set(kind, now);
 
+    this.sfxUntil = now + SFX_DUCK_HOLD;
+    this.music?.setDuck(SFX_DUCK);
+    const burst = BURST[kind];
+    if (burst) {
+      // Rat-a-tat: the rounds of a burst, each a little quieter and pitched differently.
+      for (let i = 0; i < burst.rounds; i++) {
+        const v = vol * (1 - i * 0.08);
+        if (i === 0) this.shot(kind, v);
+        else setTimeout(() => this.shot(kind, v), i * burst.gap * 1000);
+      }
+      return;
+    }
+    this.shot(kind, vol);
+  }
+
+  /** One round / blast of `kind` at volume `vol` (recording if there is one, else synthesised). */
+  private shot(kind: Kind, vol: number): void {
+    if (this.muted || !this.ctx) return;
     if (this.sample(kind, vol)) return;
     const jitter = 0.9 + Math.random() * 0.2;
     if (kind === 'rifle' || kind === 'smg' || kind === 'mg' || kind === 'autocannon' || kind === 'sniper') vol = Math.min(1.2, vol * GUN_BOOST);
@@ -295,7 +337,9 @@ export class SoundSystem {
     // Models no longer moving on screen fade out.
     for (const name of this.beds.keys()) if (!levels.engines.has(name)) this.bed(name, 'tank', 0);
     const engines = Math.min(1, loudest * 1.5);
-    this.music?.setDuck(1 - MUSIC_DUCK * engines);
+    // Weapons and explosions sit on top of the music too: it stays ducked for a moment after each.
+    const sfx = ctx.currentTime < this.sfxUntil ? SFX_DUCK : 1;
+    this.music?.setDuck(Math.min(sfx, 1 - MUSIC_DUCK * engines));
     const now = ctx.currentTime;
     if (on && levels.foot > 0 && now >= this.nextStep) {
       this.nextStep = now + STEP_GAP * (0.85 + Math.random() * 0.3);
@@ -399,10 +443,10 @@ export class SoundSystem {
     const ctx = this.ctx;
     if (!ctx) return;
     await Promise.all(
-      SAMPLE_KINDS.map(async (kind) => {
+      Object.entries(SAMPLE_PATHS).map(async ([kind, path]) => {
         for (const ext of SAMPLE_EXTS) {
           try {
-            const res = await fetch(`${import.meta.env.BASE_URL}sounds/${kind}.${ext}`);
+            const res = await fetch(`${import.meta.env.BASE_URL}sounds/${path}.${ext}`);
             if (!res.ok || (res.headers.get('content-type') ?? '').includes('text/html')) continue;
             this.samples.set(kind, await ctx.decodeAudioData(await res.arrayBuffer()));
             return;
@@ -416,15 +460,19 @@ export class SoundSystem {
 
   // ------------------------------------------------------------------ synthesis
 
-  /** Loads (once, in the background) the recording of one vehicle model if the game ships one. */
-  private loadVehicleSample(name: string): void {
+  /**
+   * Loads (once, in the background) the engine recording of one vehicle model: its own file
+   * (sounds/engine-<model>.*, e.g. engine-leopard-2.mp3) if the game ships one, else the shared one for its kind
+   * (sounds/engine-<kind>.*, e.g. engine-tank.mp3).
+   */
+  private loadVehicleSample(name: string, kind: VehicleKind): void {
     const ctx = this.ctx;
     if (!ctx || this.vehicleSamples.has(name)) return;
     this.vehicleSamples.set(name, 'loading');
     void (async () => {
-      for (const ext of SAMPLE_EXTS) {
+      for (const file of [slug(name), kind]) for (const ext of SAMPLE_EXTS) {
         try {
-          const res = await fetch(`${import.meta.env.BASE_URL}sounds/vehicles/${slug(name)}.${ext}`);
+          const res = await fetch(`${import.meta.env.BASE_URL}sounds/engine-${file}.${ext}`);
           if (!res.ok || (res.headers.get('content-type') ?? '').includes('text/html')) continue;
           this.vehicleSamples.set(name, await ctx.decodeAudioData(await res.arrayBuffer()));
           this.beds.get(name)?.disconnect(); // rebuilt with the recording next frame
@@ -448,7 +496,7 @@ export class SoundSystem {
     let g = this.beds.get(name);
     if (!g) {
       if (gain <= 0) return;
-      this.loadVehicleSample(name);
+      this.loadVehicleSample(name, kind);
       const profile = ENGINE_BY_NAME[name] ?? ENGINE_BY_KIND[kind];
       const r = ENGINE_RECIPES[profile];
       g = ctx.createGain();

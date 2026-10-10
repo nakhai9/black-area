@@ -1,4 +1,4 @@
-import { CELL_SIZE, RANK_KILL_MULTIPLES, STEP_PHASE_PER_PX } from '../constants';
+import { CELL_SIZE, RANK_ARMOR, RANK_KILL_MULTIPLES, RANK_SPEED, STEP_PHASE_PER_PX } from '../constants';
 import { movesRight } from '../core/IsoView';
 import type { Allegiance, WeaponSpec, WorldPoint } from '../types';
 import { Entity } from './Entity';
@@ -102,9 +102,20 @@ export abstract class Unit extends Entity {
 
   /** Veteran ranks: 0 none, then 1–3 chevrons at 3× / 6× / 9× its own price in kills. */
   get rank(): 0 | 1 | 2 | 3 {
+    if (!this.earnsRank) return 0;
     const ratio = this.killValue / Math.max(1, this.value);
     return ratio >= RANK_KILL_MULTIPLES[2] ? 3 : ratio >= RANK_KILL_MULTIPLES[1] ? 2 : ratio >= RANK_KILL_MULTIPLES[0] ? 1 : 0;
   }
+  /** Can this unit be promoted at all? (Squatters cannot.) */
+  protected get earnsRank(): boolean {
+    return true;
+  }
+
+  /** Veterans shrug off part of every hit (RANK_ARMOR). */
+  override damage(amount: number): void {
+    super.damage(amount * RANK_ARMOR[this.rank]);
+  }
+
   /** Explicit attack order (entity id), cleared when the target dies. */
   attackTarget: number | null = null;
   /** Attack-move destination: fights anything met on the way, then carries on. */
@@ -184,8 +195,9 @@ export abstract class Unit extends Entity {
   }
 
   /** Multiplier on `speed` right now (e.g. swimming is slower). */
+  /** Multiplier on `speed` right now: veterans move faster (RANK_SPEED); subclasses add their own (swimming…). */
   protected speedFactor(): number {
-    return 1;
+    return RANK_SPEED[this.rank];
   }
 
   /**

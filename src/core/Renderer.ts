@@ -571,14 +571,14 @@ export class Renderer {
       if ('centerWorld' in t) {
         const c = (t as Building).centerWorld();
         end = iso ? worldToIso(c.x, c.y) : c;
-      } else end = iso ? this.unitTop(t as Unit) : { x: (t as Unit).px, y: (t as Unit).py };
+      } else end = iso ? this.unitCentre(t as Unit) : { x: (t as Unit).px, y: (t as Unit).py };
     } else {
       const path = u.waypoints();
       const last = path[path.length - 1];
       end = last && iso ? worldToIso(last.x, last.y) : last;
     }
     if (!end) return;
-    const start = iso ? this.unitTop(u) : { x: u.px, y: u.py };
+    const start = iso ? this.unitCentre(u) : { x: u.px, y: u.py };
     const { ctx } = this;
     const k = 1 / this.camera.zoom;
     const color = f.kind === 'attack' ? '#ff2a1a' : '#2bff3a';
@@ -622,11 +622,11 @@ export class Renderer {
     ctx.restore();
   }
 
-  /** Top of a unit's picture in iso px (above the hull / the aircraft at its altitude). */
-  private unitTop(u: Unit): { x: number; y: number } {
+  /** Middle of a unit's picture in iso px (the hull / the aircraft at its altitude): where order lines start and end. */
+  private unitCentre(u: Unit): { x: number; y: number } {
     const P = worldToIso(u.px, u.py);
     const lift = u.flies && 'altitude' in u ? Number((u as { altitude: number }).altitude) : 0;
-    return { x: P.x, y: P.y - lift - Math.max(u.bodyHeight, 2) - 1.2 };
+    return { x: P.x, y: P.y - lift - u.bodyHeight * 0.5 };
   }
 
   /** RA2-style target focus, part 1: a pulsing red ring under the enemy (ground transform). */

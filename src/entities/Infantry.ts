@@ -69,6 +69,10 @@ export class Infantry extends Unit {
   }
 
   protected override speedFactor(): number {
-    return this.inWater ? SWIM_SPEED_FACTOR : 1;
+    return super.speedFactor() * (this.inWater ? SWIM_SPEED_FACTOR : 1);
+  }
+
+  protected override get earnsRank(): boolean {
+    return this.tier !== 'squatters';
   }
 }
