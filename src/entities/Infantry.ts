@@ -1,4 +1,4 @@
-import { CELL_SIZE, INFANTRY_BASE, INFANTRY_MARCH_CELLS, INFANTRY_MAX_RANGE_CELLS, INFANTRY_RECOVER_SECONDS, INFANTRY_REST_SECONDS, SWIM_SPEED_FACTOR, WEAPONS } from '../constants';
+import { CELL_SIZE, GROUND_SPEED_SCALE, INFANTRY_BASE, INFANTRY_MARCH_CELLS, INFANTRY_MAX_RANGE_CELLS, INFANTRY_RECOVER_SECONDS, INFANTRY_REST_SECONDS, SWIM_SPEED_FACTOR, WEAPONS } from '../constants';
 import { FACTIONS } from '../factions';
 import type { FactionId, InfantryProfile, UnitTier, WorldPoint } from '../types';
 import { Unit } from './Unit';
@@ -32,8 +32,8 @@ export class Infantry extends Unit {
     const base = INFANTRY_BASE[tier];
     super(owner, faction, at, Math.round(base.maxHp * f.stats.armor));
     this.profile = f.infantry[tier] ?? f.infantry.regular;
-    this.speed = base.speed * f.stats.unitSpeed * CELL_SIZE;
-    this.value = Math.round((base.cost * f.stats.cost) / 10) * 10;
+    this.speed = base.speed * f.stats.unitSpeed * (f.stats.infantrySpeed ?? 1) * CELL_SIZE * GROUND_SPEED_SCALE;
+    this.value = Math.round((base.cost * f.stats.cost * (f.stats.infantryCost ?? 1)) / 10) * 10;
     // Everyone but special forces tires on a long march (see INFANTRY_MARCH_CELLS).
     if (tier !== 'special') {
       this.marchLimit = INFANTRY_MARCH_CELLS * CELL_SIZE;

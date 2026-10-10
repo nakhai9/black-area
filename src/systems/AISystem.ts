@@ -62,6 +62,9 @@ export interface AIHost {
 /** Order in which an AI nation builds its base. */
 const BUILD_PLAN: readonly BuildOption['id'][] = ['powerPlant', 'barracks', 'warFactory', 'hospital', 'airfield', 'techCenter'];
 const THINK_PERIOD = 1.5;
+/** Production buildings the AI raises next to each Allied Building, and how near (cells) counts as "next to". */
+const FORWARD_TYPES = ['barracks', 'warFactory'] as const;
+const FORWARD_RANGE = 14;
 /**
  * Economic policy. A Happy City is the best investment a nation can make — it pays HAPPY_CITY_TAX into the
  * budget every HAPPY_CITY_TAX_PERIOD seconds for as long as it stands — so the AI builds as many as it can
@@ -363,7 +366,9 @@ export class AISystem implements GameSystem {
   private build(p: PlayerState, st: AIState, capital: Building, owned: Set<BuildingType>, threat: number): void {
     const slot = this.host.construction.slot(p);
     if (slot.state === 'ready' && slot.option) {
-      const site = slot.option.id === 'alliedBuilding' ? this.findAlliedSite(p, slot.option) : this.findSite(p, st, capital, slot.option);
+      const forward = this.forwardAnchor(p, slot.option.id);
+      const site =
+        slot.option.id === 'alliedBuilding' ? this.findAlliedSite(p, slot.option) : this.findSite(p, st, forward ?? capital, slot.option);
       if (site) this.host.placeReady(p, site.x, site.y);
       else this.host.construction.cancel(p); // nowhere to put it: refund and try the next plan step
       return;
@@ -388,12 +393,31 @@ export class AISystem implements GameSystem {
     }
     // A claim flag stands on new land without its ally yet: raise the Allied Building next to it.
     if (!next && threat === 0 && this.openClaims(p).length > 0 && this.host.alliesOf(p) < MAX_ALLIES) next = BUILD_OPTIONS.find((o) => o.id === 'alliedBuilding');
+    // Forward base: a Barracks and a War Factory next to each Allied Building, so troops come out on the new land.
+    if (!next && threat === 0) {
+      for (const id of FORWARD_TYPES) {
+        if (!owned.has(id) || !this.forwardAnchor(p, id)) continue;
+        next = BUILD_OPTIONS.find((o) => o.id === id);
+        break;
+      }
+    }
     // Base complete (or waiting): grow the economy with Happy Cities when nobody is attacking.
     if (!next && threat === 0 && this.savingForCity(p, owned, st)) next = BUILD_OPTIONS.find((o) => o.id === 'happyCity');
     if (next && p.credits >= buildCost(next, p.faction) * (next.id === 'happyCity' ? 1 : next.id === 'alliedBuilding' ? 0.6 : 0.3)) this.host.construction.start(p, next);
   }
 
   // ------------------------------------------------------------------ allies (new land)
+
+  /** An own Allied Building with no `type` (Barracks / War Factory) of the nation standing near it yet. */
+  private forwardAnchor(p: PlayerState, type: BuildOption['id']): Building | null {
+    if (!(FORWARD_TYPES as readonly string[]).includes(type)) return null;
+    const mine = this.host.entities.buildings().filter((b) => b.owner === p.id && b.alive);
+    return (
+      mine.find(
+        (a) => a.spec.type === 'alliedBuilding' && !mine.some((b) => b.spec.type === type && Math.hypot(b.x - a.x, b.y - a.y) <= FORWARD_RANGE),
+      ) ?? null
+    );
+  }
 
   /** The nation's flags planted on unclaimed land. */
   private claimFlags(p: PlayerState): Building[] {

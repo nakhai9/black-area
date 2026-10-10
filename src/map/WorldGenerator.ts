@@ -1,6 +1,7 @@
 import { CELL_SIZE, DEPTH_M_PER_UNIT, ELEVATION_M_PER_UNIT, WORLD_SCALE } from '../constants';
 import { type BiomeFields, sampleField } from './Biomes';
 import type { EarthData } from './EarthData';
+import { fracToLon } from './Geo';
 import { TERRITORIES, containsGeo } from './Territories';
 import type { TileMap } from './TileMap';
 import type { TerrainType } from '../types';
@@ -71,7 +72,7 @@ export function buildWorld(earth: EarthData, biomes: BiomeFields, map: TileMap):
     const lat = 90 - ((y + 0.5) / H) * 180;
     for (let x = 0; x < W; x++) {
       if (map.isWater(x, y)) continue;
-      const lon = ((x + 0.5) / W) * 360 - 180;
+      const lon = fracToLon((x + 0.5) / W, lat);
       const idx = TERRITORIES.findIndex((t) => containsGeo(t.polygon, lon, lat));
       if (idx >= 0) map.territory[map.index(x, y)] = idx + 1;
     }

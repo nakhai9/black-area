@@ -63,6 +63,9 @@ export interface FactionStats {
   /** Extra seconds added to every soldier / vehicle training time (rich nations train slower). */
   trainDelay: number;
   cost: number;
+  /** Extra multipliers for soldiers only, on top of cost / unitSpeed (default 1). */
+  infantryCost?: number;
+  infantrySpeed?: number;
 }
 
 export interface CapitalSpec {

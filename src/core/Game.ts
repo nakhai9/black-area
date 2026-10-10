@@ -133,7 +133,7 @@ import { VehicleSystem } from '../systems/VehicleSystem';
 import type { BuildingType, FactionId, GameEvents, OilPolicy, PlayerState, UnitTier, VehicleKind, WeaponSpec, WorldPoint } from '../types';
 import { Minimap } from '../ui/Minimap';
 import { sweepUnitSprites, unitSpriteBytes } from '../render/UnitSprites';
-import { type TransportInfo, type RankRow, type AllyInfo, Sidebar } from '../ui/Sidebar';
+import { type AircraftInfo, type TransportInfo, type RankRow, type AllyInfo, Sidebar } from '../ui/Sidebar';
 import { StatusBar } from '../ui/StatusBar';
 import { Camera } from './Camera';
 import { EffectsLayer } from './Effects';
@@ -392,8 +392,12 @@ export class Game {
       landingSpot: (x, y, self) => this.landingSpot(x, y, self),
       unloadOne: (t) => this.unloadOne(t),
       selected: (v) => this.selection.selectedUnits.has(v.id),
+      computer: (owner) => owner !== this.humanPlayer.id,
       powered: (owner) => !this.players.find((p) => p.id === owner)?.powerShort,
       newTanker: (t) => this.newTanker(t),
+      mayday: (v) => {
+        if (v.owner === this.humanPlayer.id) this.sound.mayday();
+      },
       pay: (owner, amount) => {
         const p = this.players.find((pl) => pl.id === owner);
         if (!p || p.capitalLost || p.credits < amount) return false;
@@ -469,6 +473,7 @@ export class Game {
       onLoan: () => this.takeLoan(),
       onOilPolicy: (policy) => this.setOilPolicy(policy),
       onUnload: () => this.unloadSelectedTransport(),
+      onTurbo: () => this.turboSelected(),
       onVehicle: (option) => this.onVehicleClick(option.kind),
       onVehicleCancel: (option) => this.onVehicleCancel(option.kind),
       vehiclePreview: (option) => vehiclePortrait(human.faction, option.kind),
@@ -750,7 +755,7 @@ export class Game {
       .some((m) => m !== team && m.alive && !m.flies && m.insideId === null && m.px > x0 && m.px < x0 + CELL_SIZE && m.py > y0 && m.py < y0 + CELL_SIZE);
   }
 
-  /** My selected Squatters teams standing still: they show "Double-click / F: plant flag" above their heads. */
+  /** My selected Squatters teams standing still: they show "F: plant flag" above their heads. */
   private flagHints(): ReadonlySet<number> {
     const ids = new Set<number>();
     for (const id of this.selection.selectedUnits) {
@@ -955,6 +960,7 @@ export class Game {
       u.parade = null;
       u.task = null;
       if (u instanceof Infantry) u.charge = null;
+      if (u instanceof Vehicle) u.guardId = null;
       u.attackTarget = null;
       u.retreating = false;
       const off = spiralOffset(k, u.aircraft ? 10 : spacing);
@@ -1148,6 +1154,37 @@ export class Game {
   }
 
   /** Sidebar Transport panel for the first selected transport of mine. */
+  /** My selected aircraft (not tankers: they only follow their transport). */
+  private selectedAircraft(): Vehicle[] {
+    return this.selection
+      .selectedUnitList()
+      .filter((u): u is Vehicle => u instanceof Vehicle && u.aircraft && !u.isTanker && u.owner === this.humanPlayer.id && u.alive);
+  }
+
+  private aircraftInfo(): AircraftInfo | null {
+    // The Turbo button shows only once the aircraft is up in the air.
+    const planes = this.selectedAircraft().filter((p) => p.flight === 'airborne' || p.flight === 'approach');
+    const first = planes[0];
+    if (!first) return null;
+    return {
+      name: first.name,
+      count: planes.length,
+      ready: planes.some((p) => p.turboReady),
+      active: Math.max(0, ...planes.map((p) => p.turboLeft)),
+      charge: Math.max(...planes.map((p) => (p.turboLeft > 0 ? 0 : p.turboCharge))),
+    };
+  }
+
+  /** T / Turbo button: every selected aircraft in flight with a charged turbo fires it. */
+  private turboSelected(): void {
+    const planes = this.selectedAircraft();
+    if (planes.length === 0) return;
+    const fired = planes.filter((p) => this.aircraft.turbo(p)).length;
+    if (fired > 0) this.sidebar.notify(fired === 1 ? 'Turbo!' : `Turbo: ${fired} aircraft.`, 1.5);
+    else if (planes.some((p) => p.turboReady)) this.sidebar.notify('Turbo works only in the air.', 2);
+    else this.sidebar.notify('Turbo is recharging.', 2);
+  }
+
   private transportInfo(): TransportInfo | null {
     const t = this.selectedTransport();
     if (!t) return null;
@@ -1609,15 +1646,30 @@ export class Game {
    * Structures the selected soldiers were sent to, drawn with the lock box while they are selected: capture yellow,
    * repair green, lease blue, enter white, a Crazy Soldier's charge red.
    */
-  private taskLocks(): { entity: Building; color: string }[] {
+  private taskLocks(): { entity: Building | Unit; color: string }[] {
     const colors = { capture: '#ffd23f', repair: '#3fdc4a', lease: '#4ac8ff', enter: '#f2f5f8' } as const;
-    const out = new Map<number, { entity: Building; color: string }>();
+    const out = new Map<number, { entity: Building | Unit; color: string }>();
     for (const u of this.selection.selectedUnitList()) {
       if (!(u instanceof Infantry)) continue;
       const id = u.task?.buildingId ?? u.charge?.targetId;
       const b = id === undefined ? undefined : this.entities.get(id);
       if (!(b instanceof Building) || !b.alive || out.has(b.id)) continue;
       out.set(b.id, { entity: b, color: u.task ? colors[u.task.type] : '#ff3b30' });
+    }
+    // Selected aircraft flying to an airfield (transfer or coming in to land): that airfield is locked green.
+    for (const u of this.selection.selectedUnitList()) {
+      if (!(u instanceof Vehicle) || !u.aircraft) continue;
+      const id = u.transferTo ?? (u.returningHome || u.flight === 'approach' ? u.homeId : null);
+      const b = id === null || id === undefined ? undefined : this.entities.get(id);
+      if (!(b instanceof Building) || !b.alive || out.has(b.id)) continue;
+      out.set(b.id, { entity: b, color: '#5cff6a' });
+    }
+    // Selected fighters on escort duty: the aircraft they guard is locked blue.
+    for (const u of this.selection.selectedUnitList()) {
+      if (!(u instanceof Vehicle) || u.guardId === null) continue;
+      const w = this.entities.get(u.guardId);
+      if (!(w instanceof Vehicle) || !w.alive || out.has(w.id)) continue;
+      out.set(w.id, { entity: w, color: '#4ac8ff' });
     }
     return [...out.values()];
   }
@@ -1735,6 +1787,7 @@ export class Game {
           parkingFree: this.production.parkingFree(this.humanPlayer),
           ranking: this.sidebar.wantsRanking(elapsed) ? this.ranking() : null,
           transport: this.transportInfo(),
+          aircraft: this.aircraftInfo(),
           allies: this.alliesInfo(),
         },
         elapsed,
@@ -1773,6 +1826,9 @@ export class Game {
             } else if (ev.ctrl && ev.shift) this.rightClick(world, true);
             else if (!this.peekPath(world)) this.selection.clearAll();
           } else if (ev.ctrl && !ev.shift) {
+            // Fighters selected + Ctrl+click on one of my transports / tankers / bombers: they fly guard on it.
+            const ward = this.selection.pickUnit(world);
+            if (ward instanceof Vehicle && ward.owner === this.humanPlayer.id && this.orderGuard(ward, this.selection.selectedUnitList())) break;
             // Ctrl+click on one of my structures: sell it to the Global Financial Center.
             const b = this.selection.pick(world);
             if (b && b.owner === this.humanPlayer.id) this.sellBuilding(b);
@@ -1842,12 +1898,6 @@ export class Game {
     // (same as the U key for that vehicle).
     if (double && !shift && unit instanceof Vehicle && unit.isCarrier && unit.owner === me && unit.cargo.length > 0 && this.selection.selectedUnits.has(unit.id)) {
       this.unloadCarriers([unit]);
-      return;
-    }
-    // Double-click on one of my Squatters teams: it plants its flag (same as selecting it and pressing F).
-    if (double && !shift && unit instanceof Infantry && unit.isSquatters && unit.owner === me) {
-      this.selection.selectUnits([unit.id]);
-      this.plantSelectedFlags();
       return;
     }
     if (this.waypoints) {
@@ -1953,6 +2003,27 @@ export class Game {
     const loaded = selected.find((u): u is Vehicle => u instanceof Vehicle && u.isCarrier && u.cargo.length > 0);
     if (loaded && !this.landingSpot(world.x, world.y, loaded)) this.sidebar.notify(`The ${loaded.name} cannot land there (open water) — the passengers stay aboard.`);
     this.orderMove(world);
+  }
+
+  /**
+   * Fighters escort one of my transports / tankers / bombers: they keep GUARD_TRAIL_CELLS behind it and fight any
+   * enemy that comes near (AircraftSystem). A new move / attack order ends the escort.
+   */
+  private orderGuard(ward: Vehicle, selected: readonly Unit[]): boolean {
+    if (!ward.alive || !ward.aircraft || !(ward.isTransport || ward.isTanker || ward.type === 'bomber')) return false;
+    if (this.selection.selectedUnits.has(ward.id)) return false;
+    const fighters = selected.filter((u): u is Vehicle => u instanceof Vehicle && u.aircraft && u.type === 'jet' && u.alive);
+    if (fighters.length === 0) return false;
+    for (const f of fighters) {
+      f.guardId = ward.id;
+      f.attackTarget = null;
+      f.attackMove = null;
+      f.returningHome = false;
+      f.follow([{ x: ward.px, y: ward.py }]);
+      f.orderFlash = { kind: 'move', at: this.time, target: null };
+    }
+    this.sidebar.notify(`${fighters.length === 1 ? 'Fighter' : `${fighters.length} fighters`} escorting the ${ward.name}.`);
+    return true;
   }
 
   /** Ctrl+Shift+right-click: armed units attack-move to the spot, the unarmed ones simply go there. */
@@ -2109,6 +2180,9 @@ export class Game {
         break;
       case 'KeyU':
         this.unloadSelectedTransport();
+        break;
+      case 'KeyT':
+        this.turboSelected();
         break;
       case 'KeyZ':
         // Z: start plotting a route for the selection; Z again sends it off along the points.
@@ -2610,7 +2684,9 @@ export class Game {
       this.entities.remove(e.id);
       const vehicle = e instanceof Vehicle;
       // One of my aircraft shot down / crashed: the pilot's distress call.
-      if (vehicle && e.aircraft && e.owner === this.humanPlayer.id) this.sound.mayday();
+      if (vehicle && e.aircraft && !e.maydaySent && e.owner === this.humanPlayer.id) this.sound.mayday();
+      // A transport shot down in the air takes its tanker down with it.
+      if (vehicle && e.isTransport) this.aircraft.transportDown(e);
       if (e instanceof Infantry && !e.inWater && hasSoldierDeath(e.profile.look)) {
         this.effects.add({ kind: 'soldierDeath', ...this.fx(e.px, e.py), age: 0, ttl: SOLDIER_DEATH_SECONDS, look: e.profile.look, heading: e.heading });
         return;
@@ -3259,6 +3335,7 @@ export class Game {
     const attackers = this.selection.selectedUnitList().filter((u) => canTarget(u, target));
     if (attackers.length === 0) return sappers.length > 0;
     for (const u of attackers) {
+      if (u instanceof Vehicle) u.guardId = null;
       u.attackTarget = target.id;
       u.attackMove = null;
       u.task = null;
@@ -3786,6 +3863,7 @@ export class Game {
       u.parade = null; // leaves the parade ground
       u.task = null;
       if (u instanceof Infantry) u.charge = null;
+      if (u instanceof Vehicle) u.guardId = null;
       u.attackTarget = null;
       u.attackMove = null;
       u.chasing = false;
@@ -3817,8 +3895,10 @@ export class Game {
         return;
       }
       if (!cell) return;
-      // Its route comes from the group's shared flow field a few frames later; until then it stands (and turns).
-      u.stop();
+      // Its route comes from the group's shared flow field a few frames later. A unit already walking keeps going
+      // until then (no stop-and-go on every new click); only routes from older orders are cancelled.
+      if (u.moving) u.pathTicket++;
+      else u.stop();
       (u.swims ? swimmers : walkers).push({ unit: u, goal, cell, ticket: u.pathTicket, facing });
     });
     for (const members of [walkers, swimmers]) {

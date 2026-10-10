@@ -26,7 +26,7 @@ function trainOptions(faction: FactionId): TrainOption[] {
     tier,
     name: profile.name,
     description: profile.description,
-    cost: demoPrice(Math.round((INFANTRY_BASE[tier].cost * f.stats.cost) / 10) * 10),
+    cost: demoPrice(Math.round((INFANTRY_BASE[tier].cost * f.stats.cost * (f.stats.infantryCost ?? 1)) / 10) * 10),
     trainSeconds: INFANTRY_BASE[tier].trainSeconds + f.stats.trainDelay,
   }));
 }

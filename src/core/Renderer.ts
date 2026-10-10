@@ -75,14 +75,14 @@ export interface RenderScene {
   /** Enemies that are being attacked (or are about to be, under the cursor): drawn with red focus marks. */
   readonly focus?: readonly FocusTarget[];
   /** Structures my selected soldiers were sent to (capture, repair, lease, enter, plant a charge): locked like a target. */
-  readonly taskLocks?: readonly { entity: Building; color: string }[];
+  readonly taskLocks?: readonly { entity: Building | Unit; color: string }[];
   /** Last move order (world px) and when it was given, for the RA2-style marker. */
   readonly moveMarker?: { x: number; y: number; at: number } | null;
   /** A right-clicked moving unit whose line to its destination is shown even when it is not selected. */
   readonly pathPeekId?: number | null;
   /** Waypoint mode: the route being plotted (first point = the selection, then the clicked points). */
   readonly waypointPlan?: readonly { x: number; y: number }[] | null;
-  /** Selected Squatters teams standing still: a "Double-click / F: plant flag" hint above their heads. */
+  /** Selected Squatters teams standing still: a "F: plant flag" hint above their heads. */
   readonly flagHints?: ReadonlySet<number>;
 }
 
@@ -91,12 +91,14 @@ const HEALTH_PIPS = 24;
 
 /** Where a bomber's bomb bars sit (iso px): a row centred just above the airframe. */
 function bombRow(v: Vehicle): { x0: number; y: number; bar: number; gap: number; h: number } {
-  const P = worldToIso(v.px, v.py);
+  // Rides behind the tail (opposite the heading), so it never covers the airframe.
+  const back = v.radius * 2 + 1;
+  const P = worldToIso(v.px - Math.cos(v.heading) * back, v.py - Math.sin(v.heading) * back);
   const bar = 0.35;
   const gap = 0.25;
   const h = 0.9;
   const w = v.maxBombs * bar + (v.maxBombs - 1) * gap;
-  return { x0: P.x - w / 2, y: P.y - v.altitude - v.bodyHeight - 0.4 - h, bar, gap, h };
+  return { x0: P.x - w / 2, y: P.y - v.altitude - h / 2, bar, gap, h };
 }
 /** Structures whose art has no flag of its own (sprite key kinds): the renderer gives them a flag pole. */
 const FLAGLESS_ART: ReadonlySet<string> = new Set(['oil', 'airfield', 'techCenter', 'powerPlant', 'happyCity']);
@@ -293,10 +295,11 @@ export class Renderer {
     for (const f of focus) if (f.entity.kind !== 'building' && !f.airLock) this.drawFocusMarks(f.entity, f.strong);
     for (const f of focus) if (f.airLock) this.drawAirLock(f.entity);
     for (const l of scene.taskLocks ?? []) this.drawAirLock(l.entity, l.color);
+    if (selected) this.drawFootprintEdge(selected, scene.time);
     for (const u of units) if (selUnits.has(u.id) || u.hp < u.maxHp) this.drawUnitHealth(u);
     // The fuel gauge shows only while the transport is out on a sortie; parked or taxiing at home it is idle (hidden).
     for (const u of units) if (u instanceof Vehicle && u.maxBombs > 0) this.drawBombs(u);
-    for (const u of units) if (u instanceof Vehicle && u.isTransport && u.flight !== 'parked' && u.flight !== 'taxi' && u.flight !== 'taxiHome') this.drawFuel(u);
+    for (const u of units) if (u instanceof Vehicle && (u.isTransport || u.isTanker) && u.flight !== 'parked' && u.flight !== 'taxi' && u.flight !== 'taxiHome') this.drawFuel(u);
     for (const f of focus) if (f.entity.kind !== 'building' && !selUnits.has(f.entity.id) && f.entity.hp >= f.entity.maxHp) this.drawUnitHealth(f.entity);
     const hints = scene.flagHints;
     if (hints?.size) for (const u of units) if (hints.has(u.id)) this.drawFlagHint(u);
@@ -694,9 +697,9 @@ export class Renderer {
   }
 
   /** Veteran chevrons (Lucide ChevronDown ×1, ×2, ×3) hovering above the unit; on a bomber, left of its bomb row. */
-  /** "Double-click / F: plant flag" in a small dark tag above a Squatters team (upright transform). */
+  /** "F: plant flag" in a small dark tag above a Squatters team (upright transform). */
   private drawFlagHint(u: Unit): void {
-    this.drawTag(u, 'Double-click / F: plant flag', '#ffd84a');
+    this.drawTag(u, 'F: plant flag', '#ffd84a');
   }
 
   /** A short line of text in a small dark tag above a soldier's head (upright transform). */
@@ -1077,7 +1080,8 @@ export class Renderer {
   private drawFootprint(b: Building, time: number): void {
     const { ctx } = this;
     const f = b.footprintWorld();
-    const color = teamColors(b.faction).primary;
+    // Selected structure: bright green footprint so it is clear which one is clicked.
+    const color = '#5cff6a';
     const k = 3 / this.camera.zoom;
     ctx.fillStyle = withAlpha(color, 0.18);
     ctx.fillRect(f.x, f.y, f.w, f.h);
@@ -1096,9 +1100,28 @@ export class Renderer {
     ctx.setLineDash([4 * k, 3 * k]);
     ctx.lineDashOffset = -time * 12 * k;
     ctx.strokeStyle = color;
-    ctx.lineWidth = 1.5 * k;
+    ctx.lineWidth = 1.5 * k + 2 / this.camera.zoom;
     ctx.strokeRect(f.x, f.y, f.w, f.h);
     ctx.setLineDash([]);
+  }
+
+  /** Selected structure's footprint border redrawn over the sprites (upright space) so all four edges stay visible. */
+  private drawFootprintEdge(b: Building, time: number): void {
+    const { ctx } = this;
+    const f = b.footprintWorld();
+    const k = 1 / this.camera.zoom;
+    const pts = [worldToIso(f.x, f.y), worldToIso(f.x + f.w, f.y), worldToIso(f.x + f.w, f.y + f.h), worldToIso(f.x, f.y + f.h)];
+    ctx.save();
+    ctx.setLineDash([6 * k, 4 * k]);
+    ctx.lineDashOffset = -time * 18 * k;
+    ctx.strokeStyle = '#5cff6a';
+    ctx.lineWidth = 3 * k;
+    ctx.beginPath();
+    ctx.moveTo(pts[0].x, pts[0].y);
+    for (let i = 1; i < 4; i++) ctx.lineTo(pts[i].x, pts[i].y);
+    ctx.closePath();
+    ctx.stroke();
+    ctx.restore();
   }
 
   /** Iso-space rect of the sprite's opaque pixels (for brackets, labels and the rise clip). */
@@ -1185,6 +1208,7 @@ export class Renderer {
     shape();
     ctx.clip('evenodd');
     ctx.lineWidth = 1.5 * k;
+    ctx.setLineDash([6 * k, 5 * k]);
     ctx.beginPath();
     ctx.moveTo(p0.x - span, cy);
     ctx.lineTo(p0.x + span, cy);

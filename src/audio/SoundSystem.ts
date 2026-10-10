@@ -423,14 +423,17 @@ export class SoundSystem {
     if (now - this.lastMayday < MAYDAY_COOLDOWN) return;
     this.lastMayday = now;
     if (speechSynthesis.speaking) speechSynthesis.cancel(); // more urgent than a battle cry
-    const u = new SpeechSynthesisUtterance('Mayday, Mayday, Mayday!');
-    u.lang = 'en-US';
+    // Three separate calls (MAYDAY — MAYDAY — MAYDAY), each its own utterance so the voice never runs them together.
     const voice = this.voices.find((v) => v.lang.toLowerCase().startsWith('en'));
-    if (voice) u.voice = voice;
-    u.rate = 1.15;
-    u.pitch = 0.85;
-    u.volume = 1;
-    speechSynthesis.speak(u);
+    for (let i = 0; i < 3; i++) {
+      const u = new SpeechSynthesisUtterance('Mayday!');
+      u.lang = 'en-US';
+      if (voice) u.voice = voice;
+      u.rate = 1.05;
+      u.pitch = 0.85;
+      u.volume = 1;
+      speechSynthesis.speak(u);
+    }
   }
 
   /** The nation shouts its battle cry in its own language (rate-limited per nation). */

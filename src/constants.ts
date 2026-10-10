@@ -11,7 +11,7 @@ import type {
 } from "./types";
 
 /** DEMO: skip the faction screen and start a solo test game as Russia (no AI opponents). Set to false for production. */
-export const DEMO_MODE = false;
+export const DEMO_MODE = true;
 
 /**
  * Version of the game, x.y.z (semantic versioning):
@@ -21,19 +21,36 @@ export const DEMO_MODE = false;
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "1.8.4";
+export const GAME_VERSION = "1.13.1";
 
 // ---------------------------------------------------------------- World (real Earth)
 /** Packed Earth texture built by `npm run build:earth` (see scripts/build-earth.mjs). */
 export const EARTH_TEXTURE_URL = `${import.meta.env.BASE_URL}data/earth.png`;
 /** Earth data resolution (equirectangular, 1 texel ≈ 9.8 km at the equator). */
-const EARTH_TEX_WIDTH = 4096;
+const EARTH_SOURCE_WIDTH = 4096;
 const EARTH_TEX_HEIGHT = 2048;
 /**
- * World px per Earth texel. 2.25 per side = 5.06× the land area of a 1:1 world,
- * so there is five times more room to build while buildings keep their size.
+ * Narrower Atlantic: the open-ocean band between the Americas and Europe / Africa (lon west..east) is squeezed to
+ * `keep` of its width when the Earth texture is loaded, so the continents sit closer. Brazil's tip (-34.8°) and
+ * Senegal (-17.5°) stay outside the band, so their coasts keep their shape; Iceland / Greenland's east get narrower.
  */
-export const WORLD_SCALE = 2.25;
+export const ATLANTIC_SQUEEZE = { west: -34, east: -17, keep: 0.4 } as const;
+/**
+ * Narrower eastern Pacific: between Hawaii and the Americas (lon west..east) the open ocean keeps `keep` of its width,
+ * but only between latitudes south..north (full squeeze inside, easing out over `ramp` degrees) so Alaska, Vancouver
+ * Island and Antarctica keep their shape. Everything west of the band moves east; the strip left at the map's west
+ * edge is open sea.
+ */
+export const PACIFIC_SQUEEZE = { west: -152, east: -125, keep: 0.35, south: -45, north: 40, ramp: 7 } as const;
+/** Degrees of longitude left after the squeeze (360 minus what the Atlantic band gave up). */
+export const EARTH_LON_SPAN = 360 - (ATLANTIC_SQUEEZE.east - ATLANTIC_SQUEEZE.west) * (1 - ATLANTIC_SQUEEZE.keep);
+/** Width of the loaded (squeezed) Earth texture. */
+export const EARTH_TEX_WIDTH = Math.round((EARTH_SOURCE_WIDTH * EARTH_LON_SPAN) / 360);
+/**
+ * World px per Earth texel. 5.5 per side (≈2.4× the old 2.25) so island nations — Japan, Indonesia, Taiwan,
+ * Hainan, Madagascar — have room for at least four structures while buildings keep their size.
+ */
+export const WORLD_SCALE = 5.5;
 export const WORLD_WIDTH = EARTH_TEX_WIDTH * WORLD_SCALE;
 export const WORLD_HEIGHT = EARTH_TEX_HEIGHT * WORLD_SCALE;
 /** Elevation / depth encoding of the Earth texture channels. */
@@ -362,6 +379,28 @@ export const VEHICLE_BASE = {
   tanker: { cost: 0, trainSeconds: 0, maxHp: 160, speed: 6, radius: 3.2 },
 } as const;
 
+/**
+ * Soldiers and ground vehicles move this much faster than their base speed (a little quicker on the bigger map,
+ * still slow enough to follow on screen).
+ */
+export const GROUND_SPEED_SCALE = 1.3;
+/** The slowest aircraft (a transport of the slowest nation, unitSpeed 0.85) flies from the far west to the far east in this many seconds. */
+export const AIR_CROSSING_SECONDS = 600;
+/**
+ * Top long-haul boost of an aircraft (Vehicle.cruiseBoost): far from its destination it flies this many times its
+ * base speed, so the slowest one crosses the map in about AIR_CROSSING_SECONDS; near the destination (and on the
+ * runway, circling, in a fight) it flies at its base speed so it can be followed on screen.
+ */
+export const AIR_SPEED_SCALE =
+  GRID_WIDTH / (AIR_CROSSING_SECONDS * VEHICLE_BASE.transport.speed * 0.85);
+export const AIR_BOOST_NEAR_CELLS = 40;
+/** Turbo (T / Turbo button): an aircraft in flight flies TURBO_MULT× faster for TURBO_SECONDS, then the turbo
+ * recharges for TURBO_RECHARGE_SECONDS before it can be used again. */
+export const TURBO_MULT = 2;
+export const TURBO_SECONDS = 15;
+export const TURBO_RECHARGE_SECONDS = 40;
+export const AIR_BOOST_FAR_CELLS = 400;
+
 /** Transport fuel: a full tank lasts this many cells of flight (enough for a round trip to the tanker-escort distance); the escorting tanker refills it. */
 /** Bomber payload: bombs carried per sortie (reloaded on its airfield) and bombs released per drop. */
 export const BOMBER_BOMBS = 6;
@@ -389,7 +428,10 @@ export const BOMB_TOUGH_DAMAGE = 0.5;
  * vehicles all of them die, from BOMB_GROUP_SIZE up a third of them (the ones nearest the impact). */
 export const BOMB_GROUP_RADIUS_CELLS = 2.5;
 export const BOMB_GROUP_SIZE = 10;
-export const TRANSPORT_FUEL_CELLS = 800;
+/** A full transport tank flies the map's height (north pole to south pole) before it must refuel. */
+export const TRANSPORT_FUEL_CELLS = GRID_HEIGHT;
+/** A full tanker carries this many full transport tanks to hand over: a quarter of the pole-to-pole distance. */
+export const TANKER_LOAD_TANKS = 0.25;
 /** A tanker within this many cells of its transport refuels it, at this many full tanks per second. */
 export const REFUEL_RANGE_CELLS = 4;
 export const REFUEL_RATE = 0.08;
@@ -397,8 +439,6 @@ export const REFUEL_RATE = 0.08;
 export const TANKER_LEAD_CELLS = 2.2;
 /** Length of a transport aircraft (world px, as drawn). */
 export const TRANSPORT_LENGTH = 13;
-/** Short hops need no tanker: it only flies with the transport on sorties reaching farther than this from home (px). */
-export const TANKER_ESCORT_DISTANCE = 50 * TRANSPORT_LENGTH;
 
 /** Aircraft are built at the Airfield and use its runway; everything else rolls out of the War Factory. */
 export const isAircraftKind = (kind: VehicleKind): boolean =>
@@ -419,7 +459,7 @@ export const BOMB_LOAD_SLOWDOWN = 0.2;
  * walking a soldier halts where he is for INFANTRY_REST_SECONDS, then marches on — to the end of any order, fights
  * included. Riding a truck or a transport aircraft costs no strength. Standing INFANTRY_RECOVER_SECONDS rests him too.
  */
-export const INFANTRY_MARCH_CELLS = 35;
+export const INFANTRY_MARCH_CELLS = Math.round(35 * GROUND_SPEED_SCALE); // same march time as before the speed-up
 export const INFANTRY_REST_SECONDS = 35;
 export const INFANTRY_RECOVER_SECONDS = 10;
 
@@ -585,16 +625,24 @@ export const OIL_DERRICK_COUNT: Readonly<Record<FactionId, number>> = {
 };
 /**
  * Real oil regions some nations must put their field in (centre within 16 cells, widened to 24 / 32 only if needed,
- * inside their own land unless listed in OIL_SITES_ABROAD): for now the Islamic world's goes to northern Egypt
- * (the Western Desert fields), outside its homeland.
+ * inside their own land unless listed in OIL_SITES_ABROAD): the Islamic world's goes to Abu Dhabi
+ * (UAE, inside its homeland); Russia's to West Siberia (Samotlor, near Nizhnevartovsk);
+ * China's to Xinjiang (Karamay, Junggar Basin); the USA's to Texas (Permian Basin, near Midland);
+ * Europe's inland in the Nordic countries (central Sweden: the widest stretch of land with no sea or lake near).
  */
 export const OIL_SITES: Readonly<Partial<Record<FactionId, NamedSite>>> = {
-  islamic: { lon: 29.5, lat: 30.2, name: "Northern Egypt oil fields" },
+  islamic: { lon: 54.0, lat: 23.3, name: "Abu Dhabi oil fields" },
+  russia: { lon: 76.6, lat: 61.1, name: "West Siberia oil fields (Samotlor)" },
+  china: { lon: 84.9, lat: 45.6, name: "Xinjiang oil fields (Karamay)" },
+  usa: { lon: -102.1, lat: 31.9, name: "Texas oil fields (Permian Basin)" },
+  europe: {
+    lon: 15.0,
+    lat: 61.2,
+    name: "Central Sweden oil field (inland Nordic)",
+  },
 };
 /** Nations whose OIL_SITES field may stand outside their own land (on neutral ground). */
-export const OIL_SITES_ABROAD: ReadonlySet<FactionId> = new Set<FactionId>([
-  "islamic",
-]);
+export const OIL_SITES_ABROAD: ReadonlySet<FactionId> = new Set<FactionId>([]);
 /**
  * Oil cartel (FactionConfig.oilCartel, like OPEC): its production policy scales the cartel's own derrick output and
  * the world price the market heads for, as in real life — a cut pumps less but lifts the price for everybody, a flood

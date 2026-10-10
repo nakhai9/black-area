@@ -21,6 +21,18 @@ export interface TransportInfo {
   state: CarrierState;
 }
 
+/** The selected own aircraft, for the Aircraft panel (Turbo button). */
+export interface AircraftInfo {
+  name: string;
+  count: number;
+  /** Some selected aircraft can fire its turbo now. */
+  ready: boolean;
+  /** Seconds of turbo left on the one burning longest (0 = none burning). */
+  active: number;
+  /** Recharge of the best one still recharging (0..1); 1 when ready. */
+  charge: number;
+}
+
 const CARRIER_STATE_LABEL: Readonly<Record<CarrierState, string>> = {
   idle: 'Empty',
   loading: 'Loading…',
@@ -115,6 +127,7 @@ export interface SidebarModel {
   ranking: readonly RankRow[] | null;
   /** The selected transport of the player, or null (hides the Transport panel). */
   transport: TransportInfo | null;
+  aircraft: AircraftInfo | null;
   /** The player's allies and open claims (the Allies tab shows up once there is at least one ally). */
   allies: readonly AllyInfo[];
 }
@@ -144,6 +157,8 @@ export interface SidebarHandlers {
   onOilPolicy: (policy: OilPolicy) => void;
   /** The Unload button of the Transport panel (same as the U key). */
   onUnload: () => void;
+  /** The Turbo button of the Aircraft panel (same as the T key). */
+  onTurbo: () => void;
   /** An alert in the alert section was clicked: look at where it happened. */
   onAlert: (at: WorldPoint) => void;
 }
@@ -197,6 +212,9 @@ export class Sidebar {
   private readonly transportVehicles: HTMLElement;
   private readonly transportState: HTMLElement;
   private readonly unloadButton: HTMLButtonElement;
+  private readonly aircraftPanel: HTMLElement;
+  private readonly aircraftName: HTMLElement;
+  private readonly turboButton: HTMLButtonElement;
   private readonly alerts: AlertEntry[] = [];
   private readonly faction: FactionId;
   private readonly mainTabs = new Map<ViewId, HTMLButtonElement>();
@@ -272,6 +290,11 @@ export class Sidebar {
         </div>
         <div class="sb-oil sb-power">POWER <span class="sb-power-value"></span></div>
       </section>
+      <section class="sb-panel sb-aircraft" hidden>
+        <h3>Aircraft</h3>
+        <div class="sb-muted sb-aircraft-name"></div>
+        <button class="sb-unload sb-turbo" type="button" title="Turbo (T): the selected aircraft fly much faster for a while, then the turbo has to recharge before it can be used again.">Turbo (T)</button>
+      </section>
       <section class="sb-panel sb-transport" hidden>
         <h3>Transport</h3>
         <div class="sb-muted sb-transport-name"></div>
@@ -294,6 +317,7 @@ export class Sidebar {
           <li>Armed units: <kbd>Left-click</kbd> an enemy to attack — they never shoot buildings on their own, <kbd>Left-click</kbd> the building to focus it · enemy engineers capture buildings · <kbd>M</kbd> sound on/off</li>
           <li>Elite (type II) soldiers: at most 2 for every 3 regulars · orders: up to 15 soldiers and 10 vehicles waiting at once — a new one the moment one is done, whatever your army size · special forces swim · tanks run soldiers over · only aircraft shoot aircraft</li>
           <li>Transport: select soldiers/vehicles, <kbd>Left-click</kbd> your transport to board (one in the air lands first) · select the transport, <kbd>Left-click</kbd> ground — it flies there, lands and unloads · <kbd>U</kbd>/<b>Unload</b> — let them out here, one by one</li>
+          <li>Aircraft: <kbd>T</kbd>/<b>Turbo</b> — the selected aircraft in the air fly 2× faster for 15 s, then the turbo recharges (40 s)</li>
           <li>Squatters (flag bearer + escort, one unit): walk it (or fly it by transport) to unclaimed land (not your rivals' home lands, never Antarctica), select it and press <kbd>F</kbd> (or double-click it) — the flag goes up on the nearest open cell, on any land (the Squatters are gone once it stands) · then build an <b>Allied Building</b> beside it (max 3 allies)</li>
           <li>When <b>READY</b>: click cameo, then click the map to place · <kbd>R</kbd> turn it 90° (only before it is placed) · <kbd>Esc</kbd>/<kbd>Right-click</kbd> stop placing</li>
           <li><kbd>WASD</kbd>/<kbd>Arrows</kbd>/screen edge — scroll · <kbd>Wheel</kbd> zoom · <kbd>Middle-drag</kbd> pan</li>
@@ -366,6 +390,10 @@ export class Sidebar {
     this.transportState = q('.sb-transport-state');
     this.unloadButton = q<HTMLButtonElement>('.sb-unload');
     this.unloadButton.addEventListener('click', () => this.handlers.onUnload());
+    this.aircraftPanel = q('.sb-aircraft');
+    this.aircraftName = q('.sb-aircraft-name');
+    this.turboButton = q<HTMLButtonElement>('.sb-turbo');
+    this.turboButton.addEventListener('click', () => this.handlers.onTurbo());
     // No browser context menu anywhere on the sidebar (radar, cameos, panels): right-click is a game command.
     root.addEventListener('contextmenu', (e) => e.preventDefault());
     this.buildMainTabs(q('.sb-main-tabs'));
@@ -448,6 +476,20 @@ export class Sidebar {
     this.messageTimer = seconds;
   }
 
+  /** Aircraft panel: the Turbo button, lit when ready, otherwise counting down its burn / recharge. */
+  private renderAircraft(a: AircraftInfo | null): void {
+    this.aircraftPanel.hidden = a === null;
+    if (!a) return;
+    this.aircraftName.textContent = a.count > 1 ? `${a.count} aircraft` : a.name;
+    this.turboButton.disabled = !a.ready;
+    this.turboButton.classList.toggle('lit', a.ready);
+    this.turboButton.textContent = a.ready
+      ? 'Turbo (T)'
+      : a.active > 0
+        ? `Turbo on · ${Math.ceil(a.active)}s`
+        : `Recharging · ${Math.floor(a.charge * 100)}%`;
+  }
+
   /** Transport panel: seats taken / free and the Unload button, lit while there are passengers to let out. */
   private renderTransport(t: TransportInfo | null): void {
     this.transportPanel.hidden = t === null;
@@ -493,6 +535,7 @@ export class Sidebar {
       }
     }
     this.renderTransport(model.transport);
+    this.renderAircraft(model.aircraft);
 
     // POWER: what the nuclear plants can generate / what the structures need (J/s); red while short.
     this.powerText.textContent = `${compactEnergy(player.powerSupply)}/s / ${compactEnergy(player.powerConsumed)}/s`;

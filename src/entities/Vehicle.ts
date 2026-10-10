@@ -28,7 +28,7 @@ export type Flight = 'parked' | 'taxi' | 'takeoff' | 'airborne' | 'approach' | '
 export type CarrierState = 'idle' | 'loading' | 'carrying' | 'unloading';
 
 /** Cruise height of an aircraft above the ground (world px, drawn offset). */
-import { BOMBER_BOMBS, BOMB_LOAD_SLOWDOWN, CRUISE_ALTITUDE, JET_BOMBS, TRUCK_SOLDIERS, TRUCK_TANKS } from '../constants';
+import { TURBO_MULT, AIR_BOOST_FAR_CELLS, AIR_BOOST_NEAR_CELLS, AIR_SPEED_SCALE, GROUND_SPEED_SCALE, BOMBER_BOMBS, BOMB_LOAD_SLOWDOWN, CRUISE_ALTITUDE, JET_BOMBS, TRUCK_SOLDIERS, TRUCK_TANKS } from '../constants';
 export { CRUISE_ALTITUDE };
 
 /** Handling per vehicle kind: seconds to full speed, turn rate (rad/s), whether it must face where it drives. */
@@ -58,8 +58,31 @@ export class Vehicle extends Unit {
   readonly baseSpeed: number;
   /** Top speed now: an aircraft carrying bombs flies slower, by its share of a full load (see BOMB_LOAD_SLOWDOWN). */
   get speed(): number {
+    return this.fieldSpeed * this.cruiseBoost() * (this.turboLeft > 0 && this.flight === 'airborne' ? TURBO_MULT : 1);
+  }
+  /** Turbo: seconds of it left (0 = off), and how far it has recharged since it was last used (0..1, 1 = ready). */
+  turboLeft = 0;
+  turboCharge = 1;
+  get turboReady(): boolean {
+    return this.aircraft && this.turboLeft <= 0 && this.turboCharge >= 1;
+  }
+  /** Top speed without the long-haul boost: on the runway, circling, falling, and close to where it is going. */
+  get fieldSpeed(): number {
     const max = this.maxBombs;
     return max > 0 && this.bombs > 0 ? this.baseSpeed * (1 - BOMB_LOAD_SLOWDOWN * (this.bombs / max)) : this.baseSpeed;
+  }
+  /**
+   * Long-haul boost of an aircraft in the air: normal speed within AIR_BOOST_NEAR_CELLS of its destination, rising to
+   * AIR_SPEED_SCALE from AIR_BOOST_FAR_CELLS out — it crosses oceans fast but slows down where the action is.
+   */
+  /** Lowest boost allowed right now (an escort keeps pace with the aircraft it guards); 1 otherwise. */
+  boostFloor = 1;
+  private cruiseBoost(): number {
+    if (!this.aircraft || this.flight !== 'airborne') return 1;
+    if (!this.destination) return this.boostFloor;
+    const d = Math.hypot(this.destination.x - this.px, this.destination.y - this.py) / CELL_SIZE;
+    const t = Math.min(1, Math.max(0, (d - AIR_BOOST_NEAR_CELLS) / (AIR_BOOST_FAR_CELLS - AIR_BOOST_NEAR_CELLS)));
+    return Math.max(this.boostFloor, 1 + (AIR_SPEED_SCALE - 1) * t * t);
   }
   readonly radius: number;
   readonly bodyHeight: number;
@@ -111,10 +134,14 @@ export class Vehicle extends Unit {
   ejecting = false;
   /** Seconds until the next passenger steps out while ejecting. */
   ejectClock = 0;
-  /** Transport only: fuel left (0..1); it falls out of the sky at 0. */
+  /** Transport: fuel left (0..1), it falls out of the sky at 0. Tanker: load left to hand over (0..1). */
   fuel = 1;
   /** Transport only: id of its escorting tanker. */
   tankerId: number | null = null;
+  /** Aircraft: the pilot has already called mayday (going down, or badly hit in the air). */
+  maydaySent = false;
+  /** Fighter only: own transport / tanker / bomber it flies guard on (GUARD_TRAIL_CELLS behind it), or null. */
+  guardId: number | null = null;
   /** Tanker only: id of the transport it escorts and refuels. */
   escortOf: number | null = null;
   /** Repair vehicle only: id of the friendly ground vehicle it was ordered to mend, or null. */
@@ -144,7 +171,8 @@ export class Vehicle extends Unit {
     const base = VEHICLE_BASE[type];
     super(owner, faction, at, Math.round(base.maxHp * f.stats.armor));
     this.profile = f.vehicles[type] ?? { name: type, description: '' };
-    this.baseSpeed = base.speed * f.stats.unitSpeed * CELL_SIZE;
+    // Aircraft get their long-haul boost in flight (cruiseBoost); ground vehicles move GROUND_SPEED_SCALE faster.
+    this.baseSpeed = base.speed * f.stats.unitSpeed * CELL_SIZE * (isAircraftKind(type) ? 1 : GROUND_SPEED_SCALE);
     this.radius = base.radius;
     this.value = Math.round((base.cost * f.stats.cost) / 10) * 10;
     // Aircraft art is flat seen from above: its bars and marks sit just over the fuselage, not high above it.

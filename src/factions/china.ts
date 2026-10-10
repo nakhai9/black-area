@@ -1,6 +1,6 @@
 import type { FactionConfig } from "../types";
 
-/** China — heavy armour and mass production; slower but cheap and tough. */
+/** China — heavy armour and mass production; cheap and tough, with cheap, fast and nimble infantry (it has no heavy bomber). */
 export const CHINA: FactionConfig = {
   id: "china",
   name: "China",
@@ -17,6 +17,9 @@ export const CHINA: FactionConfig = {
     buildSpeed: 1.2,
     cost: 0.85,
     trainDelay: 0,
+    // No heavy bomber (Tu-16 / B-52): China's edge is its foot soldiers — cheap, quick and nimble.
+    infantryCost: 0.7,
+    infantrySpeed: 1.35,
   },
   capital: {
     name: "Zhongnanhai",

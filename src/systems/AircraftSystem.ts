@@ -1,4 +1,4 @@
-import { BOMB_COST, BOMB_LOAD_SECONDS, JET_BOMB_COST, CELL_SIZE, REFUEL_RANGE_CELLS, REFUEL_RATE, TANKER_ESCORT_DISTANCE, TANKER_LEAD_CELLS, TRANSPORT_FUEL_CELLS } from '../constants';
+import { BOMB_COST, BOMB_LOAD_SECONDS, JET_BOMB_COST, CELL_SIZE, REFUEL_RANGE_CELLS, REFUEL_RATE, TANKER_LEAD_CELLS, TANKER_LOAD_TANKS, TURBO_RECHARGE_SECONDS, TURBO_SECONDS, TRANSPORT_FUEL_CELLS } from '../constants';
 import type { Building } from '../entities/Building';
 import type { EntityManager } from '../entities/EntityManager';
 import { CRUISE_ALTITUDE, type Vehicle } from '../entities/Vehicle';
@@ -47,12 +47,16 @@ export interface AircraftHooks {
   unloadOne(transport: Vehicle): boolean;
   /** Is the aircraft currently selected by the player? */
   selected(v: Vehicle): boolean;
+  /** Is this owner a computer nation (it fires its aircraft's turbo by itself)? */
+  computer(owner: number): boolean;
   /** Does the owner have enough power? The airfield cannot launch aircraft without it. */
   powered(owner: number): boolean;
   /** A transport parked at home without a tanker gets a new one on a free spot; false when there is no room. */
   newTanker(transport: Vehicle): boolean;
   /** Charges `owner` `amount` (a bomb reload); false, and nothing is charged, when it cannot pay. */
   pay(owner: number, amount: number): boolean;
+  /** The aircraft is about to go down (crashing, or badly hit in the air): the pilot's distress call. */
+  mayday(v: Vehicle): void;
 }
 
 /** Result of an unload order (U key / Unload button). */
@@ -75,6 +79,19 @@ const AVOID_RANGE = 3 * CELL_SIZE;
 const AVOID_CLIMB = 0.6;
 /** Seconds a parked aircraft that came under fire circles away from its airfield before it comes back. */
 const SCRAMBLE_SECONDS = 20;
+/** A computer nation fires a turbo only for a flight longer than this many cells (see aiWantsTurbo), unless fleeing. */
+const AI_TURBO_CELLS = 60;
+/** "Being shot at": the aircraft lost health within this many seconds. */
+const AI_TURBO_HIT_SECONDS = 2;
+/** An aircraft in the air at or below this share of its health calls mayday (before it is shot down). */
+const MAYDAY_HP = 0.3;
+/** An escorting fighter flies this many cells behind the aircraft it guards. */
+const GUARD_TRAIL_CELLS = 4;
+/** It breaks off a fight that pulls it farther than this many cells from its ward, and flies back to it. */
+const GUARD_LEASH_CELLS = 14;
+/** Holding pattern over the approach point: ring radius of the first in line, and the extra per place behind it. */
+const HOLD_RADIUS = 2.5 * CELL_SIZE;
+const HOLD_STEP = 1.5 * CELL_SIZE;
 
 export class AircraftSystem implements GameSystem {
   /** Centre and current angle of the waiting circle of each idle selected fighter. */
@@ -90,7 +107,36 @@ export class AircraftSystem implements GameSystem {
     private readonly hooks: AircraftHooks,
   ) {}
 
+  /** Seconds since the system started (for "hit a moment ago"). */
+  private clock = 0;
+  /** When each aircraft last lost health (clock). */
+  private readonly hitAt = new Map<number, number>();
+
+  /**
+   * A computer nation's pilot decides on the turbo (charged, in the air):
+   *  - badly hit and still being shot at: flee at full speed (any heading);
+   *  - otherwise only when the whole burn is worth it — what is left of the flight is longer than the turbo covers —
+   *    and the trip matters: a strike (attack / attack-move order), a transport with troops aboard heading out, a
+   *    fighter catching up with the aircraft it escorts, or a damaged aircraft heading home to be repaired.
+   *  An empty transport, a ferry flight or an undamaged aircraft going home keep the charge for later.
+   */
+  private aiWantsTurbo(v: Vehicle): boolean {
+    const hit = this.clock - (this.hitAt.get(v.id) ?? -99) < AI_TURBO_HIT_SECONDS;
+    if (hit && v.hp < v.maxHp * 0.5 && v.moving) return true;
+    const goal = v.destination;
+    if (!goal) return false;
+    const left = Math.hypot(goal.x - v.px, goal.y - v.py);
+    // The burn covers about speed × TURBO_SECONDS: only worth it if the flight is longer than that (and at least AI_TURBO_CELLS).
+    if (left < Math.max(AI_TURBO_CELLS * CELL_SIZE, v.speed * TURBO_SECONDS)) return false;
+    if (v.attackTarget !== null || v.attackMove !== null) return true;
+    if (v.isTransport) return v.cargo.length > 0 && !v.returningHome;
+    if (v.guardId !== null) return true;
+    if (v.returningHome) return v.hp < v.maxHp * 0.6;
+    return false;
+  }
+
   update(dt: number): void {
+    this.clock += dt;
     for (const v of this.entities.vehicles()) {
       if (!v.aircraft || !v.alive) {
         this.last.delete(v.id);
@@ -98,6 +144,14 @@ export class AircraftSystem implements GameSystem {
       }
       const prev = this.last.get(v.id);
       this.last.set(v.id, { hp: v.hp, x: v.px, y: v.py });
+      // Turbo burns for TURBO_SECONDS, then recharges over TURBO_RECHARGE_SECONDS.
+      if (v.turboLeft > 0) v.turboLeft = Math.max(0, v.turboLeft - dt);
+      else if (v.turboCharge < 1) v.turboCharge = Math.min(1, v.turboCharge + dt / TURBO_RECHARGE_SECONDS);
+      if (prev && v.hp < prev.hp) this.hitAt.set(v.id, this.clock);
+      if (v.turboReady && !v.isTanker && v.flight === 'airborne' && this.hooks.computer(v.owner) && this.aiWantsTurbo(v)) this.turbo(v);
+      // Badly hit in the air: the pilot calls mayday before the aircraft falls.
+      if (!v.maydaySent && v.altitude > 0 && v.hp <= v.maxHp * MAYDAY_HP) this.callMayday(v);
+      else if (v.maydaySent && v.flight === 'parked' && v.hp > v.maxHp * MAYDAY_HP) v.maydaySent = false; // repaired
       // Shot at while standing on its airfield: it scrambles into the air to save itself.
       if (prev && v.hp < prev.hp && v.flight === 'parked' && !v.ejecting) this.scrambleOff(v);
       if (v.isTransport) this.fuel(v, prev, dt);
@@ -121,7 +175,7 @@ export class AircraftSystem implements GameSystem {
           this.airborne(v, dt);
           break;
         case 'approach':
-          this.approach(v);
+          this.approach(v, dt);
           break;
         case 'landing':
           this.landing(v, dt);
@@ -280,7 +334,7 @@ export class AircraftSystem implements GameSystem {
     v.phaseTime += dt;
     const t = clamp01(v.phaseTime / TAKEOFF_SECONDS);
     // Rolling start: slow at first, full speed by the time the wheels leave the ground.
-    const speed = lerp(3, v.speed, t ** 1.4);
+    const speed = lerp(3, v.fieldSpeed, t ** 1.4);
     const heading = home ? this.takeoffHeading(v, home) : v.heading;
     v.heading = heading;
     v.facing = Math.cos(heading) < 0 ? -1 : 1;
@@ -310,6 +364,7 @@ export class AircraftSystem implements GameSystem {
       this.startCrash(v);
       return;
     }
+    if (this.guard(v)) return;
     // A transport that has reached its destination sets down there on solid ground (never on the sea): a loaded
     // one unloads and lifts off again, an empty one waits on the spot to take passengers aboard.
     if (v.isTransport && !v.moving && v.mission === null && !v.returningHome && !this.nearOwnAirfield(v)) {
@@ -341,7 +396,7 @@ export class AircraftSystem implements GameSystem {
     }
     if (v.idleFor < RETURN_AFTER) return;
     // A selected fighter with nothing to do circles where it is, waiting for its next order; once deselected it heads home.
-    if (!v.isTransport && !v.returningHome && this.hooks.selected(v)) {
+    if (!v.isTransport && !v.isTanker && !v.returningHome && this.hooks.selected(v)) {
       this.orbit(v, dt);
       return;
     }
@@ -421,7 +476,7 @@ export class AircraftSystem implements GameSystem {
     return { point: { x: g.runwayEnd.x - Math.cos(back) * lead, y: g.runwayEnd.y - Math.sin(back) * lead }, heading: back };
   }
 
-  private approach(v: Vehicle): void {
+  private approach(v: Vehicle, dt: number): void {
     const home = this.home(v);
     if (!home) return this.abort(v);
     const a = this.approachFor(v, home);
@@ -429,13 +484,26 @@ export class AircraftSystem implements GameSystem {
     // A new order replaces the approach path: abort the landing.
     if (v.moving && last && Math.hypot(last.x - a.point.x, last.y - a.point.y) > 1) {
       this.leaveQueue(v);
+      this.holds.delete(v.id);
       v.flight = 'airborne';
       v.idleFor = 0;
       return;
     }
     if (!v.moving) {
-      // Not cleared yet (runway in use or others ahead in the queue): hold over the approach point.
-      if (!this.cleared(v, home)) return;
+      // Not cleared yet (runway in use or others ahead in the queue): circle the approach point on its own ring
+      // (wider the further back in line), so waiting aircraft never pile up on one spot.
+      if (!this.cleared(v, home)) {
+        const q = this.runwayQueues.get(home.id) ?? [];
+        this.hold(v, a.point, HOLD_RADIUS + Math.max(0, q.indexOf(v.id)) * HOLD_STEP, dt);
+        return;
+      }
+      // Cleared while out on the holding ring: fly back to the approach point first, then land.
+      if (Math.hypot(v.px - a.point.x, v.py - a.point.y) > 2) {
+        this.holds.delete(v.id);
+        v.follow([a.point]);
+        return;
+      }
+      this.holds.delete(v.id);
       this.leaveQueue(v);
       this.place(v, a.point.x, a.point.y);
       v.flight = 'landing';
@@ -452,7 +520,7 @@ export class AircraftSystem implements GameSystem {
     const heading = this.approachFor(v, home).heading;
     v.phaseTime += dt;
     const t = clamp01(v.phaseTime / LANDING_SECONDS);
-    const speed = lerp(v.speed * 0.8, 5, t);
+    const speed = lerp(v.fieldSpeed * 0.8, 5, t);
     v.heading = heading;
     this.place(v, v.px + Math.cos(heading) * speed * dt, v.py + Math.sin(heading) * speed * dt);
     v.altitude = CRUISE_ALTITUDE * (1 - clamp01(t / 0.5));
@@ -517,8 +585,18 @@ export class AircraftSystem implements GameSystem {
     const tanker = v.tankerId === null ? undefined : this.entities.get(v.tankerId);
     const tankerNear = tanker && tanker.alive && Math.hypot((tanker as Vehicle).px - v.px, (tanker as Vehicle).py - v.py) <= REFUEL_RANGE_CELLS * CELL_SIZE;
     // Parked on its airfield the tank is filled right up; in the field only the tanker tops it up.
-    if (v.flight === 'parked') v.fuel = 1;
-    else if (tankerNear) v.fuel += REFUEL_RATE * dt;
+    // On the ground (its apron, or set down in the field): its tank and its tanker's load are filled right up.
+    const grounded = v.flight === 'parked' || ((v.flight === 'landed' || v.flight === 'unloading') && v.altitude <= 0);
+    if (grounded) {
+      v.fuel = 1;
+      if (tanker && tanker.alive) (tanker as Vehicle).fuel = 1;
+    } else if (tankerNear && (tanker as Vehicle).fuel > 0 && v.fuel < 1) {
+      // The tanker's own load runs down by what it hands over: full, it holds a quarter of a pole-to-pole flight.
+      const tk = tanker as Vehicle;
+      const give = Math.min(REFUEL_RATE * dt, 1 - v.fuel, tk.fuel * this.tankerCapacity());
+      v.fuel += give;
+      tk.fuel = Math.max(0, tk.fuel - give / this.tankerCapacity());
+    }
     v.fuel = Math.max(0, Math.min(1, v.fuel));
     if (v.fuel <= 0 && (v.flight === 'airborne' || v.flight === 'approach')) this.startCrash(v);
   }
@@ -531,14 +609,22 @@ export class AircraftSystem implements GameSystem {
     // Nobody gives a tanker orders (the AI's attack groups included): it only ever follows its transport.
     v.attackTarget = null;
     v.attackMove = null;
+    // Load to hand over (v.fuel): topped up on the apron. Its own flying never runs dry; with the load spent it
+    // still stays with the transport, it just has nothing left to give.
+    if (v.flight === 'parked') v.fuel = 1;
     const t = v.escortOf === null ? undefined : (this.entities.get(v.escortOf) as Vehicle | undefined);
+    // Its transport is falling out of the sky: the tanker goes down with it.
+    if (t && t.alive && t.flight === 'crashing' && v.altitude > 0 && v.flight !== 'crashing') {
+      this.startCrash(v);
+      return;
+    }
     if (!t || !t.alive) {
       v.escortOf = null; // transport lost: the tanker just goes home and stays there
       return;
     }
     const out = t.flight === 'taxi' || t.flight === 'takeoff' || t.flight === 'airborne' || t.flight === 'unloading' || t.flight === 'landed' || t.flight === 'liftoff';
-    // Only a long sortie needs the tanker; on a short hop near home it stays parked (or flies back to park).
-    const away = out && this.longSortie(t);
+    // Every sortie: the tanker goes out with the transport (and flies back to park when it heads home).
+    const away = out;
     if (v.flight === 'parked') {
       if (away && !v.moving) v.follow([{ x: t.px, y: t.py }]); // off after it
       return;
@@ -568,14 +654,9 @@ export class AircraftSystem implements GameSystem {
     this.orbits.delete(v.id);
   }
 
-  /** Is the transport (or where it has been sent) farther than TANKER_ESCORT_DISTANCE from its airfield? */
-  private longSortie(t: Vehicle): boolean {
-    const home = this.home(t);
-    if (!home) return true;
-    const c = home.centerWorld();
-    const far = (p: WorldPoint | undefined): boolean => p !== undefined && Math.hypot(p.x - c.x, p.y - c.y) > TANKER_ESCORT_DISTANCE;
-    const path = t.mission ?? t.waypoints();
-    return far({ x: t.px, y: t.py }) || far(path[path.length - 1]) || far(t.dropSpot ?? undefined);
+  /** A full tanker's load, in full transport tanks: a quarter of the pole-to-pole distance (TANKER_LOAD_TANKS). */
+  private tankerCapacity(): number {
+    return TANKER_LOAD_TANKS;
   }
 
   /**
@@ -606,6 +687,35 @@ export class AircraftSystem implements GameSystem {
     if (t && t.alive && (t.flight === 'unloading' || t.flight === 'landed' || t.flight === 'liftoff')) v.altitude = Math.min(v.altitude, t.altitude);
   }
 
+  /** Escorting fighters whose ward has been in the air since the escort began (its touchdown then ends the escort). */
+  private readonly guardLaunched = new Set<number>();
+
+  /** Holding ring of each aircraft waiting for the runway: centre, radius and current angle. */
+  private readonly holds = new Map<number, { cx: number; cy: number; r: number; angle: number }>();
+
+  /** Circles `center` at radius `r` (counter-clockwise), easing onto the ring from wherever the aircraft is. */
+  private hold(v: Vehicle, center: WorldPoint, r: number, dt: number): void {
+    let h = this.holds.get(v.id);
+    if (!h || h.cx !== center.x || h.cy !== center.y) {
+      h = { cx: center.x, cy: center.y, r, angle: Math.atan2(v.py - center.y, v.px - center.x) };
+      this.holds.set(v.id, h);
+    }
+    h.r += (r - h.r) * Math.min(1, dt);
+    h.angle += ((v.fieldSpeed * 0.6) / h.r) * dt;
+    const tx = h.cx + Math.cos(h.angle) * h.r;
+    const ty = h.cy + Math.sin(h.angle) * h.r;
+    const dx = tx - v.px;
+    const dy = ty - v.py;
+    const d = Math.hypot(dx, dy);
+    const step = Math.min(d, v.fieldSpeed * 1.5 * dt);
+    if (d > 0.01) {
+      this.place(v, v.px + (dx / d) * step, v.py + (dy / d) * step);
+      v.heading = Math.atan2(dy, dx);
+      v.facing = Math.cos(v.heading) < 0 ? -1 : 1;
+    }
+    v.walkPhase += step;
+  }
+
   /** Flies a circle around the point where the fighter ran out of orders (clockwise, at cruise speed). */
   private orbit(v: Vehicle, dt: number): void {
     let o = this.orbits.get(v.id);
@@ -615,7 +725,7 @@ export class AircraftSystem implements GameSystem {
       o = { cx: v.px + Math.cos(side) * ORBIT_RADIUS, cy: v.py + Math.sin(side) * ORBIT_RADIUS, angle: side + Math.PI };
       this.orbits.set(v.id, o);
     }
-    o.angle += ((v.speed * 0.7) / ORBIT_RADIUS) * dt;
+    o.angle += ((v.fieldSpeed * 0.7) / ORBIT_RADIUS) * dt;
     const x = o.cx + Math.cos(o.angle) * ORBIT_RADIUS;
     const y = o.cy + Math.sin(o.angle) * ORBIT_RADIUS;
     v.heading = Math.atan2(y - v.py, x - v.px);
@@ -701,10 +811,10 @@ export class AircraftSystem implements GameSystem {
    * free and nobody eligible may be ahead of it. Without power take-offs are held, but landings still go first.
    */
   private cleared(v: Vehicle, home: Building): boolean {
-    // A transport never leads: the trip is measured before it rolls (longSortie), and on a long one it waits at the
+    // A transport never leads: on every sortie it waits at the
     // threshold until its tanker's wheels are off the ground (whichever airfield the tanker stands on), so the tanker
     // is always out ahead of the transport's nose.
-    if (v.isTransport && v.tankerId !== null && this.longSortie(v)) {
+    if (v.isTransport && v.tankerId !== null) {
       const tk = this.entities.get(v.tankerId) as Vehicle | undefined;
       if (tk && tk.alive && (tk.flight === 'parked' || tk.flight === 'taxi' || tk.flight === 'takeoff' || tk.altitude < CRUISE_ALTITUDE * 0.5)) {
         // Waiting for its tanker must not block the runway: the tanker itself may be queued behind it.
@@ -770,6 +880,58 @@ export class AircraftSystem implements GameSystem {
   }
 
   /** Makes the nearest living airfield of the owner the aircraft's new home. False when the nation has none. */
+  /**
+   * Escort duty: keeps GUARD_TRAIL_CELLS behind its ward (behind the tail) and lets the combat system fight any enemy
+   * that comes near, within a leash of the ward. Ends when the ward is gone or parked at home. True while on duty.
+   */
+  private guard(v: Vehicle): boolean {
+    if (v.guardId === null) {
+      this.guardLaunched.delete(v.id);
+      v.boostFloor = 1;
+      return false;
+    }
+    const w = this.entities.get(v.guardId) as Vehicle | undefined;
+    if (!w || !w.alive || w.owner !== v.owner) {
+      v.guardId = null;
+      return false;
+    }
+    // The ward is down on the ground (its apron or the field): mission done, the fighter flies home.
+    const grounded = w.altitude <= 0 && w.flight !== 'airborne' && w.flight !== 'approach';
+    if (!grounded) this.guardLaunched.add(v.id);
+    else if (this.guardLaunched.has(v.id)) {
+      this.guardLaunched.delete(v.id);
+      v.guardId = null;
+      v.combatTarget = null;
+      v.stop();
+      v.returningHome = true;
+      v.idleFor = Number.POSITIVE_INFINITY;
+      return true;
+    }
+    this.orbits.delete(v.id);
+    v.idleFor = 0;
+    v.returningHome = false;
+    // Keeps pace with the ward's long-haul boost (a little faster, to catch up).
+    v.boostFloor = (w.speed / Math.max(0.01, w.fieldSpeed)) * 1.15;
+    const away = Math.hypot(v.px - w.px, v.py - w.py);
+    if (v.combatTarget !== null || v.attackTarget !== null) {
+      if (away <= GUARD_LEASH_CELLS * CELL_SIZE) {
+        v.boostFloor = 1; // a dogfight is flown at normal speed
+        return true; // fighting near the ward
+      }
+      v.combatTarget = null;
+      v.attackTarget = null;
+    }
+    const trail = GUARD_TRAIL_CELLS * CELL_SIZE;
+    const spot = { x: w.px - Math.cos(w.heading) * trail, y: w.py - Math.sin(w.heading) * trail };
+    if (Math.hypot(v.px - spot.x, v.py - spot.y) > 1) v.follow([spot]);
+    else {
+      v.stop();
+      v.heading = w.heading;
+      v.facing = Math.cos(w.heading) < 0 ? -1 : 1;
+    }
+    return true;
+  }
+
   /** Is the aircraft flying to its own airfield's approach point? */
   private headingForApproach(v: Vehicle): boolean {
     const home = this.home(v);
@@ -824,7 +986,28 @@ export class AircraftSystem implements GameSystem {
   }
 
   /** No airfield to return to: the aircraft loses control and drops out of the sky. */
+  private callMayday(v: Vehicle): void {
+    v.maydaySent = true;
+    this.hooks.mayday(v);
+  }
+
+  /** Turbo: an aircraft in flight with a charged turbo fires it. False when it cannot (on the ground, recharging). */
+  turbo(v: Vehicle): boolean {
+    if (!v.alive || !v.turboReady || (v.flight !== 'airborne' && v.flight !== 'approach')) return false;
+    v.turboLeft = TURBO_SECONDS;
+    v.turboCharge = 0;
+    return true;
+  }
+
+  /** A transport was shot down in the air: its tanker, flying with it, falls too. */
+  transportDown(t: Vehicle): void {
+    if (t.altitude <= 0 || t.tankerId === null) return;
+    const tk = this.entities.get(t.tankerId) as Vehicle | undefined;
+    if (tk && tk.alive && tk.altitude > 0 && tk.flight !== 'crashing') this.startCrash(tk);
+  }
+
   private startCrash(v: Vehicle): void {
+    if (!v.maydaySent) this.callMayday(v);
     v.flight = 'crashing';
     v.phaseTime = 0;
     v.mission = null;
@@ -980,7 +1163,7 @@ export class AircraftSystem implements GameSystem {
     v.phaseTime += dt;
     v.heading += 3.2 * dt;
     v.facing = Math.cos(v.heading) < 0 ? -1 : 1;
-    const forward = v.speed * 0.35;
+    const forward = v.fieldSpeed * 0.35;
     this.place(v, v.px + Math.cos(v.heading) * forward * dt, v.py + Math.sin(v.heading) * forward * dt);
     v.altitude = Math.max(0, v.altitude - (5 + v.phaseTime * 14) * dt);
     v.walkPhase += forward * dt;

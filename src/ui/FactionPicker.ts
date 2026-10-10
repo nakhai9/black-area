@@ -169,7 +169,7 @@ export class FactionPicker {
     card.style.setProperty("--team", f.colors.primary);
     const stats = SHOWN_STATS.map(
       ([k, label]) =>
-        `<li><span>${label}</span><div class="sb-bar"><i style="width:${(f.stats[k] / STAT_MAX) * 100}%"></i></div></li>`,
+        `<li><span>${label}</span><div class="sb-bar"><i style="width:${((f.stats[k] ?? 1) / STAT_MAX) * 100}%"></i></div></li>`,
     ).join("");
     card.innerHTML = `
       <kbd class="fp-key">${hotkey}</kbd>

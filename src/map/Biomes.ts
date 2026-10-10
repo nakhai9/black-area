@@ -1,5 +1,6 @@
 import { smoothstep } from '../core/MathUtils';
 import { ValueNoise } from '../core/Random';
+import { fracToLon, lonToFrac } from './Geo';
 
 /** Climate region, an ellipse in degrees with a soft, noise-perturbed edge. */
 interface Region {
@@ -60,19 +61,20 @@ export function computeBiomes(width: number, height: number, seed: number): Biom
   const n = width * height;
   const fields = { desert: new Float32Array(n), forest: new Float32Array(n), ice: new Float32Array(n) };
   const noise = new ValueNoise(seed + 5);
-  const toX = (lon: number): number => ((lon + 180) / 360) * width;
+  const toX = (lon: number, lat: number): number => lonToFrac(lon, lat) * width;
   const toY = (lat: number): number => ((90 - lat) / 180) * height;
 
   for (const r of REGIONS) {
     const field = fields[r.kind];
-    const x0 = Math.max(0, Math.floor(toX(r.lon - r.rLon * 1.3)));
-    const x1 = Math.min(width - 1, Math.ceil(toX(r.lon + r.rLon * 1.3)));
+    const lats = [r.lat - r.rLat * 1.3, r.lat, r.lat + r.rLat * 1.3];
+    const x0 = Math.max(0, Math.floor(Math.min(...lats.map((la) => toX(r.lon - r.rLon * 1.3, la)))));
+    const x1 = Math.min(width - 1, Math.ceil(Math.max(...lats.map((la) => toX(r.lon + r.rLon * 1.3, la)))));
     const y0 = Math.max(0, Math.floor(toY(r.lat + r.rLat * 1.3)));
     const y1 = Math.min(height - 1, Math.ceil(toY(r.lat - r.rLat * 1.3)));
     for (let y = y0; y <= y1; y++) {
       const lat = 90 - ((y + 0.5) / height) * 180;
       for (let x = x0; x <= x1; x++) {
-        const lon = ((x + 0.5) / width) * 360 - 180;
+        const lon = fracToLon((x + 0.5) / width, lat);
         const d =
           Math.hypot((lon - r.lon) / r.rLon, (lat - r.lat) / r.rLat) + (noise.fbm(x / 22, y / 22, 3) - 0.5) * 0.55;
         const w = (1 - smoothstep(0.65, 1.05, d)) * r.strength;
