@@ -56,6 +56,8 @@ import {
   GRID_WIDTH,
   MAP_SEED,
   FOOTPRINT_SMALL,
+  FOOTPRINT_BUNKER,
+  BUNKER_BUILD_RADIUS,
   NEUTRAL_OWNER,
   OIL_DERRICK_COUNT,
   OIL_FIELD_SPACING,
@@ -122,7 +124,13 @@ const ALLY_ALERT_SECONDS = 5;
 /** The military ranking is re-counted this often (s): soldiers die and vehicles are lost in between. */
 const MILITARY_RANK_INTERVAL = 240;
 import type { GameSystem } from '../systems/GameSystem';
-import { BUILD_RADIUS, OIL_DERRICK_CLEARANCE, type PlacementRequest, type PlacementResult, PlacementSystem, isClaimable } from '../systems/PlacementSystem';
+import { BUILD_RADIUS, buildRadius, cellGap, OIL_DERRICK_CLEARANCE, type PlacementRequest, type PlacementResult, PlacementSystem, isClaimable } from '../systems/PlacementSystem';
+import { bunkerMuzzle, bunkerPreview } from '../render/BunkerSheet';
+import { EXPLOSION_SECONDS } from '../render/ExplosionSheet';
+
+/** Explosion size: iso px of fireball per cell of a structure's side (√area), and per world px of a vehicle's body. */
+const EXPLOSION_PER_CELL = 1.15;
+const EXPLOSION_PER_BODY = 1.4;
 import { Flagpole } from '../entities/Flagpole';
 import { Bunker } from '../entities/Bunker';
 import { PowerSystem } from '../systems/PowerSystem';
@@ -457,7 +465,7 @@ export class Game {
     this.sidebar = new Sidebar(dom.sidebar, human, BUILD_OPTIONS, this.training.optionsFor(human), this.production.optionsFor(human), {
       onBuild: (option) => this.onBuildClick(option),
       onCancel: () => this.onBuildCancel(),
-      preview: (option) => this.sprites.get(option.spriteKey(human.faction)).canvas,
+      preview: (option) => (option.id === 'bunker' ? bunkerPreview(human.faction) : null) ?? this.sprites.get(option.spriteKey(human.faction)).canvas,
       onTrain: (option) => this.onTrainClick(option.tier),
       onTrainCancel: (option) => this.onTrainCancel(option.tier),
       trainPreview: (option) => soldierPortrait(human.faction, option.tier),
@@ -567,6 +575,33 @@ export class Game {
     };
   }
 
+  /**
+   * Saves from before 1.15.0 hold 2×2 bunkers: each becomes a 1×1 bunker on one of its four cells — the first (top-left
+   * first) within BUNKER_BUILD_RADIUS of another structure of its nation, else the one nearest such a structure.
+   */
+  private shrinkOldBunkers(): void {
+    const { w: fw, d: fd } = FOOTPRINT_BUNKER;
+    for (const b of this.entities.buildings()) {
+      if (!(b instanceof Bunker) || (b.w === fw && b.d === fd)) continue;
+      const own = this.entities.buildings().filter((o) => o !== b && o.alive && o.owner === b.owner);
+      let best = { x: b.x, y: b.y };
+      let bestGap = Infinity;
+      for (let dy = 0; dy < b.d && bestGap > BUNKER_BUILD_RADIUS; dy++) {
+        for (let dx = 0; dx < b.w && bestGap > BUNKER_BUILD_RADIUS; dx++) {
+          const cell = { x: b.x + dx, y: b.y + dy, w: fw, d: fd };
+          const gap = Math.min(Infinity, ...own.map((o) => cellGap(cell, o)));
+          if (gap < bestGap) {
+            bestGap = gap;
+            best = cell;
+          }
+        }
+      }
+      (b as { spec: Building['spec'] }).spec = { ...b.spec, footprint: FOOTPRINT_BUNKER };
+      b.rotated = false;
+      b.moveTo(best.x, best.y);
+    }
+  }
+
   /** Replaces the freshly generated game with a saved one (same nation, same world). */
   importSave(save: SaveFile): void {
     migrateSave(save); // checks the format and upgrades an older save to the current one
@@ -582,6 +617,7 @@ export class Game {
     });
     for (const [e, s] of shells) codec.fillEntity(e, s);
     for (const [e] of shells) this.entities.add(e);
+    this.shrinkOldBunkers();
     for (const b of this.entities.buildings()) if (b.alive) this.map.occupy(b.x, b.y, b.w, b.d, b.id);
     setNextEntityId(Math.max(save.nextEntityId, ...save.entities.map((s) => (s.data.id as number) + 1)));
     Unit.insideVersion++;
@@ -723,7 +759,7 @@ export class Game {
     const option = slot.option;
     if (!option || slot.state !== 'ready') return false;
     const { w, d } = option.footprint;
-    if (!this.placement.check({ owner: player.id, x, y, w, d, unclaimedOnly: option.id === 'alliedBuilding' }).ok) return false;
+    if (!this.placement.check({ owner: player.id, x, y, w, d, unclaimedOnly: option.id === 'alliedBuilding', radius: buildRadius(option.id) }).ok) return false;
     if (!this.construction.takeReady(player)) return false;
     const b = this.entities.add(option.create(player.id, player.faction, x, y));
     b.placedAt = this.time;
@@ -847,6 +883,14 @@ export class Game {
 
   orderEnter(u: Infantry, b: Building): void {
     if (this.walkToDoor(u, b)) u.task = { type: 'enter', buildingId: b.id };
+  }
+
+  /** An engineer walks to one of the oil cartel's derricks to lease it (same rules as the player's lease order). */
+  orderLease(u: Infantry, b: OilDerrick): boolean {
+    if (!u.isEngineer || b.owner === u.owner || !b.leasable || this.leasesTaken(b.owner) >= OIL_LEASE_MAX) return false;
+    if (!this.walkToDoor(u, b)) return false;
+    u.task = { type: 'lease', buildingId: b.id, lessor: b.owner };
+    return true;
   }
 
   /** An engineer walks into a damaged own building and restores it to full health (and is consumed). */
@@ -2296,7 +2340,7 @@ export class Game {
     const d = this.placingRotated ? fp.w : fp.d;
     const x = Math.floor(this.mouseWorld.x / CELL_SIZE - w / 2 + 0.5);
     const y = Math.floor(this.mouseWorld.y / CELL_SIZE - d / 2 + 0.5);
-    const result = this.placement.check({ owner: this.humanPlayer.id, x, y, w, d, unclaimedOnly: this.placing.id === 'alliedBuilding' });
+    const result = this.placement.check({ owner: this.humanPlayer.id, x, y, w, d, unclaimedOnly: this.placing.id === 'alliedBuilding', radius: buildRadius(this.placing.id) });
     this.ghost = {
       spriteKey: this.placing.spriteKey(this.humanPlayer.faction),
       faction: this.humanPlayer.faction,
@@ -2375,14 +2419,12 @@ export class Game {
     return { x: p.x, y: p.y - lift };
   }
 
-  /** A bunker's machine gun: muzzle flash at the slit facing the target, a tracer and a small hit spark. */
+  /** A bunker's machine gun: muzzle flash at the barrel drawn on its sheet, a bullet from the bullet sheet and a hit spark. */
   private onBunkerFire(b: Bunker, t: Unit): void {
     const c = b.centerWorld();
-    const dist = Math.hypot(t.px - c.x, t.py - c.y) || 1;
-    const reach = (b.w * CELL_SIZE) / 2;
-    const mx = c.x + ((t.px - c.x) / dist) * reach;
-    const my = c.y + ((t.py - c.y) / dist) * reach;
-    const muzzle = this.fx(mx, my, 2);
+    const base = worldToIso(c.x, c.y);
+    const off = bunkerMuzzle(b.faction, b.aimHeading);
+    const muzzle = { x: base.x + off.x, y: base.y + off.y };
     const hit = this.fx(t.px, t.py, this.aimHeight(t, 0.6));
     this.effects.add({ kind: 'flash', x: muzzle.x, y: muzzle.y, age: 0, ttl: 0.07, size: 2.2 });
     if (hasBulletSheet()) this.addBullet(muzzle, hit, 'bunker');
@@ -2390,6 +2432,8 @@ export class Game {
       this.effects.add({ kind: 'tracer', x0: muzzle.x, y0: muzzle.y, x1: hit.x, y1: hit.y, age: 0, ttl: 0.06, color: '#ffe9a0', width: 0.45, shell: false });
       this.effects.add({ kind: 'blast', x: hit.x, y: hit.y, age: -0.06, ttl: 0.18, radius: 1.6 });
     }
+    const mx = c.x;
+    const my = c.y;
     this.sound.play('mg', { x: mx, y: my });
     this.alertUnderAttack(t, b);
   }
@@ -2667,6 +2711,11 @@ export class Game {
     }
   }
 
+  /** Explosion + smoke from the explosion sheet at world (x, y), `lift` px up, its fireball `size` iso px wide. */
+  private explode(x: number, y: number, lift: number, size: number, delay = 0): void {
+    this.effects.add({ kind: 'explosion', ...this.fx(x, y, lift), age: -delay, ttl: EXPLOSION_SECONDS, size: Math.max(4, size), variant: Math.floor(Math.random() * 16) });
+  }
+
   /** Something ran out of health: remove it with an explosion. */
   private onDeath(e: Entity, killer?: Entity): void {
     this.awardKill(e, killer);
@@ -2691,7 +2740,8 @@ export class Game {
         this.effects.add({ kind: 'soldierDeath', ...this.fx(e.px, e.py), age: 0, ttl: SOLDIER_DEATH_SECONDS, look: e.profile.look, heading: e.heading });
         return;
       }
-      this.effects.add({ kind: 'smoke', ...this.fx(e.px, e.py, 1 + this.liftOf(e)), age: 0, ttl: 1.2, radius: vehicle ? 5 : 2.2 });
+      if (vehicle) this.explode(e.px, e.py, e.flies ? 2 + e.altitude : 1, e.radius * 2 * EXPLOSION_PER_BODY);
+      else this.effects.add({ kind: 'smoke', ...this.fx(e.px, e.py, 1 + this.liftOf(e)), age: 0, ttl: 1.2, radius: 2.2 });
       if (vehicle && e.type === 'tank' && hasTankSheet(e.faction as FactionId)) {
         this.effects.add({ kind: 'tankDeath', ...this.fx(e.px, e.py), age: 0, ttl: TANK_DEATH_SECONDS, faction: e.faction as FactionId });
         this.sound.play('explosion', { x: e.px, y: e.py });
@@ -2701,7 +2751,6 @@ export class Game {
         this.effects.add({ kind: 'repairDeath', ...this.fx(e.px, e.py), age: 0, ttl: REPAIR_DEATH_SECONDS, faction: e.faction as FactionId, heading: e.heading });
         this.sound.play('explosion', { x: e.px, y: e.py });
       } else if (vehicle) {
-        this.effects.add({ kind: 'blast', ...this.fx(e.px, e.py, e.flies ? 2 + e.altitude : 2), age: 0, ttl: 0.5, radius: e.flies ? 14 : 10 });
         this.sound.play('explosion', { x: e.px, y: e.py });
       }
       return;
@@ -2711,16 +2760,14 @@ export class Game {
     if (e.spec.type === 'capital') this.defeatNation(e);
     if (e.owner === this.humanPlayer.id) this.sidebar.alert(`${e.spec.name} was destroyed!`, e.centerWorld());
     this.removeBuilding(e);
+    // One explosion sized to the footprint's area; bigger structures also go up at a few spots round it.
     const f = e.footprintWorld();
-    for (let k = 0; k < 7; k++) {
-      this.effects.add({
-        kind: 'blast',
-        ...this.fx(f.x + f.w * (0.15 + 0.7 * ((k * 37) % 10) / 10), f.y + f.h * (0.2 + 0.6 * ((k * 53) % 10) / 10), 4),
-        age: -k * 0.12,
-        ttl: 0.7,
-        radius: 11 + (k % 3) * 4,
-      });
-      this.effects.add({ kind: 'smoke', ...this.fx(f.x + f.w / 2 + (k - 3) * 2.5, f.y + f.h / 2, 6), age: -k * 0.1, ttl: 3, radius: 7 });
+    const cells = e.w * e.d;
+    this.explode(f.x + f.w / 2, f.y + f.h / 2, 0, Math.sqrt(cells) * CELL_SIZE * EXPLOSION_PER_CELL);
+    const extra = cells >= 16 ? 4 : cells >= 4 ? 2 : 0;
+    for (let k = 0; k < extra; k++) {
+      const a = (k / extra) * Math.PI * 2 + 0.6;
+      this.explode(f.x + f.w * (0.5 + 0.3 * Math.cos(a)), f.y + f.h * (0.5 + 0.3 * Math.sin(a)), 0, Math.sqrt(cells) * CELL_SIZE * 0.55, 0.15 + k * 0.18);
     }
     this.sound.play('explosion', e.centerWorld());
     if (e.owner === this.humanPlayer.id) this.sidebar.notify(`Your ${e.spec.name} was destroyed!`, 5);

@@ -72,9 +72,12 @@ export interface RankRow {
 }
 
 /** Construction tabs (RA2 sidebar), shown as Lucide icons. */
+/** Protective structures: bought from the Defense tab, not the Build tab (main structures). */
+const DEFENSE_IDS: ReadonlySet<string> = new Set(['bunker']);
+
 const BUILD_TABS: readonly { id: TabId; label: string; icon: IconNode; enabled: boolean }[] = [
   { id: 'build', label: 'Build', icon: Hammer, enabled: true },
-  { id: 'defense', label: 'Defense', icon: Shield, enabled: false },
+  { id: 'defense', label: 'Defense', icon: Shield, enabled: true },
   { id: 'infantry', label: 'Infantry', icon: PersonStanding, enabled: true },
   { id: 'vehicles', label: 'Vehicles', icon: Truck, enabled: true },
 ];
@@ -350,6 +353,7 @@ export class Sidebar {
       <nav class="sb-tabs" aria-label="Construction"></nav>
       <section class="sb-panel sb-build">
         <div class="sb-cameos" data-panel="build"></div>
+        <div class="sb-cameos" data-panel="defense" hidden></div>
         <div class="sb-cameos" data-panel="infantry" hidden></div>
         <div class="sb-cameos" data-panel="vehicles" hidden></div>
         <div class="sb-msg" role="status" aria-live="polite"></div>
@@ -418,11 +422,13 @@ export class Sidebar {
     const buildPanel = q('[data-panel=build]');
     const infantryPanel = q('[data-panel=infantry]');
     this.panels.set('build', buildPanel);
+    const defensePanel = q('[data-panel=defense]');
+    this.panels.set('defense', defensePanel);
     this.panels.set('infantry', infantryPanel);
     const vehiclePanel = q('[data-panel=vehicles]');
     this.panels.set('vehicles', vehiclePanel);
     this.buildVehicleCameos(vehiclePanel);
-    this.buildCameos(buildPanel);
+    this.buildCameos(buildPanel, defensePanel);
     this.buildUnitCameos(infantryPanel);
     const collapse = q('.sb-collapse');
     collapse.append(createElement(LogOut, { width: 16, height: 16, 'stroke-width': 2, 'aria-hidden': 'true' }));
@@ -551,7 +557,9 @@ export class Sidebar {
 
     // Blink the Build tab (and the sidebar opener) while a finished structure waits.
     const awaiting = queue.state === 'ready' && !model.placing;
-    this.tabButtons.get('build')?.classList.toggle('sb-attention', awaiting);
+    const readyDefense = queue.option !== null && DEFENSE_IDS.has(queue.option.id);
+    this.tabButtons.get('build')?.classList.toggle('sb-attention', awaiting && !readyDefense);
+    this.tabButtons.get('defense')?.classList.toggle('sb-attention', awaiting && readyDefense);
     // Infantry tab: locked without a Barracks, blinks when it first becomes available.
     const infantryTab = this.tabButtons.get('infantry');
     if (infantryTab) {
@@ -965,7 +973,7 @@ export class Sidebar {
     }
   }
 
-  private buildCameos(container: HTMLElement): void {
+  private buildCameos(container: HTMLElement, defense: HTMLElement): void {
     for (const option of this.options) {
       const el = document.createElement('button');
       el.type = 'button';
@@ -984,7 +992,7 @@ export class Sidebar {
         e.preventDefault();
         this.handlers.onCancel(option);
       });
-      container.append(el);
+      (DEFENSE_IDS.has(option.id) ? defense : container).append(el);
       const wipe = el.querySelector<HTMLElement>('.sb-cameo-wipe');
       const state = el.querySelector<HTMLElement>('.sb-cameo-state');
       if (wipe && state) this.cameos.set(option.id, { el, wipe, state });

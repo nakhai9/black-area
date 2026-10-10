@@ -1,0 +1,32 @@
+{
+  "cell": [
+    512,
+    512
+  ],
+  "anchor_ground_centre": [
+    256,
+    345
+  ],
+  "columns_damage_states": [
+    "intact",
+    "light_damage",
+    "damaged",
+    "heavy_damage",
+    "destroyed"
+  ],
+  "rows_facing_deg": [
+    0,
+    45,
+    90,
+    135,
+    180,
+    225,
+    270,
+    315
+  ],
+  "projection": "2:1 dimetric, elevation 30deg",
+  "files": {
+    "allied": "bunker_allied_sheet.png",
+    "axis": "bunker_axis_sheet.png"
+  }
+}

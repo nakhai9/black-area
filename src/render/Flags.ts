@@ -1,4 +1,5 @@
-import type { Allegiance } from '../types';
+import type { Allegiance, FactionId } from '../types';
+import { emblemImage } from './Emblems';
 import { createCanvas, starPath } from './Canvas';
 import type { IsoPainter } from './IsoPainter';
 
@@ -126,14 +127,18 @@ function drawWavingFlag(
   time: number,
   phase = 0,
 ): void {
-  const tex = getFlagTexture(faction);
-  const sw = TEX_W / SLICES;
+  wave(ctx, getFlagTexture(faction), x, y, w, h, time, phase);
+}
+
+/** Draws `tex` as a cloth waving to the right of (x, y), w × h px. */
+function wave(ctx: CanvasRenderingContext2D, tex: CanvasImageSource & { width: number; height: number }, x: number, y: number, w: number, h: number, time: number, phase: number): void {
+  const sw = tex.width / SLICES;
   const dw = w / SLICES;
   for (let i = 0; i < SLICES; i++) {
     const k = i / SLICES;
     const wave = Math.sin(time * 5 + i * 0.55 + phase);
     const dy = wave * 2.2 * k;
-    ctx.drawImage(tex, i * sw, 0, sw + 0.5, TEX_H, x + i * dw, y + dy, dw + 0.6, h);
+    ctx.drawImage(tex, i * sw, 0, sw + 0.5, tex.height, x + i * dw, y + dy, dw + 0.6, h);
     ctx.fillStyle = `rgba(0,0,0,${(0.12 * (1 - wave) * k).toFixed(3)})`;
     ctx.fillRect(x + i * dw, y + dy, dw + 0.6, h);
   }
@@ -151,6 +156,34 @@ export function drawCarriedFlag(ctx: CanvasRenderingContext2D, faction: Allegian
   ctx.lineTo(x, y - h);
   ctx.stroke();
   drawWavingFlag(ctx, faction, x + 0.05, y - h, h * 0.55, h * 0.36, time, 0);
+}
+
+const emblemFlags = new Map<FactionId, HTMLCanvasElement>();
+
+/** Ally flag: black field with the nation's emblem (public/emblems/<id>.png) in the middle; plain black until it loads. */
+function emblemFlagTexture(faction: FactionId): HTMLCanvasElement {
+  const done = emblemFlags.get(faction);
+  if (done) return done;
+  const img = emblemImage(faction);
+  const W = TEX_W * 2;
+  const H = TEX_H * 2;
+  const { canvas: c, ctx } = createCanvas(W, H);
+  ctx.fillStyle = '#0b0b0d';
+  ctx.fillRect(0, 0, W, H);
+  if (img) {
+    const k = (H * 0.78) / Math.max(img.naturalWidth, img.naturalHeight);
+    const iw = img.naturalWidth * k;
+    const ih = img.naturalHeight * k;
+    ctx.drawImage(img, (W - iw) / 2, (H - ih) / 2, iw, ih);
+    emblemFlags.set(faction, c); // cached once the emblem is in
+  }
+  return c;
+}
+
+/** Ally flag (black, nation's emblem in the middle) waving from the top of a pole in a building's local space. */
+export function drawEmblemFlagOnPole(p: IsoPainter, faction: FactionId, u: number, v: number, zTop: number, time: number, phase = 0, w = 22, h = 13): void {
+  const [x, y] = p.project(u, v, zTop);
+  wave(p.ctx, emblemFlagTexture(faction), x + 0.6, y, w, h, time, phase);
 }
 
 /** Convenience: waving flag attached to the top of a pole in a building's local space. */

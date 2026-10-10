@@ -1,9 +1,14 @@
 import type { EntityManager } from '../entities/EntityManager';
-import { CELL_SIZE, GRID_HEIGHT } from '../constants';
+import { BUNKER_BUILD_RADIUS, CELL_SIZE, GRID_HEIGHT } from '../constants';
 import type { PlacementBlocker, TileMap } from '../map/TileMap';
 
 /** Max gap (in cells) between a new building and the nearest friendly building. */
 export const BUILD_RADIUS = 3;
+
+/** How far (cells) from an own structure's edge a structure of this kind may be placed. */
+export function buildRadius(type: string): number {
+  return type === 'bunker' ? BUNKER_BUILD_RADIUS : BUILD_RADIUS;
+}
 
 export type PlacementResult = { ok: true } | { ok: false; reason: PlacementBlocker | 'units' | 'tooFar' | 'claimed' | 'nearOil' };
 
@@ -33,10 +38,12 @@ export interface PlacementRequest {
   naval?: boolean;
   /** Allied Building: every cell must be unclaimed land (see isClaimable). */
   unclaimedOnly?: boolean;
+  /** Cells it may stand from an own structure's edge (default BUILD_RADIUS). */
+  radius?: number;
 }
 
 /** Cells between two rectangles along the worst axis (0 = touching or overlapping). */
-function cellGap(
+export function cellGap(
   a: { x: number; y: number; w: number; d: number },
   b: { x: number; y: number; w: number; d: number },
 ): number {
@@ -50,7 +57,7 @@ function cellGap(
  * 1. every cell must be legal terrain and free — no trees, no water (naval: water only),
  *    no ice, never on top of an existing building;
  *    no soldier or vehicle (parked aircraft included) may stand on any of its cells;
- * 2. the footprint must lie within BUILD_RADIUS cells of one of the builder's own buildings;
+ * 2. the footprint must lie within BUILD_RADIUS cells (a bunker: BUNKER_BUILD_RADIUS) of one of the builder's own buildings;
  * 3. an Allied Building stands on unclaimed land only (land claimed by a Squatters team, see isClaimable);
  * 4. at least OIL_DERRICK_CLEARANCE free cells between it and the edge of every oil derrick (anyone's).
  */
@@ -73,7 +80,7 @@ export class PlacementSystem {
   nearOwnBase(req: PlacementRequest): boolean {
     return this.entities
       .buildings()
-      .some((b) => b.owner === req.owner && b.alive && cellGap(req, b) <= BUILD_RADIUS);
+      .some((b) => b.owner === req.owner && b.alive && cellGap(req, b) <= (req.radius ?? BUILD_RADIUS));
   }
 
   /** Is any living oil derrick closer than OIL_DERRICK_CLEARANCE cells to the footprint? */

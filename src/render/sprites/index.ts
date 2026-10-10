@@ -85,12 +85,12 @@ export const BUILDING_ART: Readonly<Record<string, BuildingArt>> = {
   'alliedBuilding:china': createAlliedBuildingArt('china'),
   'alliedBuilding:europe': createAlliedBuildingArt('europe'),
   'alliedBuilding:islamic': createAlliedBuildingArt('islamic'),
-  // Bunkers: western concrete pillbox (USA, Europe), eastern dome on a mound (Russia, China, Islamic).
-  'bunker:usa': createBunkerArt('usa'),
-  'bunker:russia': createBunkerArt('russia'),
-  'bunker:china': createBunkerArt('china'),
-  'bunker:europe': createBunkerArt('europe'),
-  'bunker:islamic': createBunkerArt('islamic'),
+  // Bunkers: drawn from render/BunkerSheet (west: USA, Europe; east: Russia, China, Islamic).
+  'bunker:usa': createBunkerArt(),
+  'bunker:russia': createBunkerArt(),
+  'bunker:china': createBunkerArt(),
+  'bunker:europe': createBunkerArt(),
+  'bunker:islamic': createBunkerArt(),
 };
 
 /** Structures whose art flies a flag of its own: a captured one is redrawn with the new owner's flag. */

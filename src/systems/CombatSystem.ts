@@ -158,6 +158,7 @@ export class CombatSystem implements GameSystem {
       if (!best) continue;
       b.cooldown = BUNKER_COOLDOWN;
       b.firing = 0.3;
+      b.aimHeading = Math.atan2(best.py - c.y, best.px - c.x);
       best.damage(BUNKER_DAMAGE * (best instanceof Vehicle ? BUNKER_VS_VEHICLE : 1));
       best.lastAttackerId = b.id;
       best.lastAttackedAt = this.time;

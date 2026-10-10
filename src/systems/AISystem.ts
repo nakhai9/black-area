@@ -1,4 +1,6 @@
-import { AI_BUNKERS, CELL_SIZE, INFANTRY_MARCH_CELLS, MAX_ALLIES, NEUTRAL_OWNER, TECH_VEHICLES, TRUCK_SOLDIERS } from '../constants';
+import { AI_BUNKERS, CELL_SIZE, INFANTRY_BASE, INFANTRY_MARCH_CELLS, MAX_ALLIES, NEUTRAL_OWNER, OIL_DERRICK_OUTPUT, OIL_LEASE_CARTEL_SHARE, OIL_LEASE_SECONDS, TECH_VEHICLES, TRUCK_SOLDIERS } from '../constants';
+import { FACTIONS } from '../factions';
+import { OilDerrick } from '../entities/OilDerrick';
 import type { Building } from '../entities/Building';
 import type { Entity } from '../entities/Entity';
 import type { EntityManager } from '../entities/EntityManager';
@@ -13,7 +15,7 @@ import { mulberry32 } from '../core/Random';
 import type { BuildingType, GridPoint, PlayerState, UnitTier, VehicleKind, WorldPoint } from '../types';
 import { BUILD_OPTIONS, type BuildOption, type ConstructionSystem, buildCost, missingRequirement } from './ConstructionSystem';
 import type { GameSystem } from './GameSystem';
-import { type PlacementSystem, isClaimable } from './PlacementSystem';
+import { type PlacementSystem, buildRadius, isClaimable } from './PlacementSystem';
 import type { SafeZone, SafeZoneSystem } from './SafeZoneSystem';
 import type { TrainingSystem } from './TrainingSystem';
 import type { VehicleSystem } from './VehicleSystem';
@@ -33,6 +35,8 @@ export interface AIHost {
   ownedTypesOf(player: PlayerState): Set<BuildingType>;
   /** Sends a person into a building (wounded → hospital). */
   orderEnter(u: Infantry, b: Building): void;
+  /** Sends an engineer to lease one of the oil cartel's derricks (false if it cannot: limit reached, no path...). */
+  orderLease(u: Infantry, b: OilDerrick): boolean;
   /** Sends an engineer to repair an own damaged building. */
   orderRepair(u: Infantry, b: Building): void;
   /** Sends repair vehicles (ARV) among `units` to mend a damaged friendly ground vehicle. */
@@ -165,6 +169,16 @@ const GUARD_SHARE = 1 / 3;
 const STRIKE_GROUP = 3;
 /** Enemies this close (world px) to the capital call out the home guard. */
 const DEFENCE_RADIUS = 38 * CELL_SIZE;
+/** Derrick under attack: the attacker is looked for within DERRICK_THREAT_CELLS of it, and up to DERRICK_DEFENDERS
+ * units within DERRICK_HELP_CELLS go to fight it. */
+const DERRICK_THREAT_CELLS = 14;
+const DERRICK_HELP_CELLS = 70;
+const DERRICK_DEFENDERS = 6;
+/** Oil leases: at most AI_LEASES per nation; only derricks within LEASE_RANGE_CELLS of the engineer; one lease must
+ * bring in LEASE_MIN_RETURN x the engineer's price. */
+const AI_LEASES = 2;
+const LEASE_RANGE_CELLS = 120;
+const LEASE_MIN_RETURN = 2;
 /** Fights are judged within this distance (world px) of an engaged attacker. */
 const BATTLE_RADIUS = 12 * CELL_SIZE;
 /** Attackers fall back home when the enemy force around them is this many times stronger. */
@@ -208,6 +222,8 @@ interface AIState {
   claimSite: GridPoint | null;
   /** Truck id → where it carries its soldiers (they would have to rest on the march on foot). */
   convoys: Map<number, WorldPoint>;
+  /** Own derrick id -> its health at the last think (a drop means it is under attack). */
+  derrickHp: Map<number, number>;
 }
 
 /**
@@ -244,6 +260,7 @@ export class AISystem implements GameSystem {
       overseas: false,
       claimSite: null,
       convoys: new Map(),
+      derrickHp: new Map(),
     };
     this.state.set(p.id, st);
     return st;
@@ -257,6 +274,7 @@ export class AISystem implements GameSystem {
     if (!(st.convoys instanceof Map)) st.convoys = new Map();
     if (!(st.guard instanceof Set)) st.guard = new Set();
     if (!(st.retreated instanceof Map)) st.retreated = new Map();
+    if (!(st.derrickHp instanceof Map)) st.derrickHp = new Map();
     st.claimSite ??= null;
     st.overseas ??= false;
   }
@@ -298,6 +316,7 @@ export class AISystem implements GameSystem {
     this.mendFleet(p);
     this.claimLand(p, st, capital, owned, threat);
     if (st.overseas) this.loadTransports(p, st, capital);
+    this.leaseOil(p, owned, threat);
     this.healWounded(p);
     this.driveConvoys(st);
     this.evacuate(p, capital);
@@ -590,7 +609,7 @@ export class AISystem implements GameSystem {
       for (let dx = -26; dx <= 26; dx++) {
         const x = capital.x + dx;
         const y = capital.y + dy;
-        if (!this.host.placement.check({ owner: p.id, x, y, w, d }).ok) continue;
+        if (!this.host.placement.check({ owner: p.id, x, y, w, d, radius: buildRadius(option.id) }).ok) continue;
         // Keep one free cell all around so AI buildings never crowd into each other.
         if (!this.host.map.isAreaBuildable(x - 1, y - 1, w + 2, d + 2, false, true)) continue;
         found.push({ x, y, dist: Math.hypot(dx, dy) });
@@ -844,7 +863,8 @@ export class AISystem implements GameSystem {
     if (army.length === 0) return;
     const home = capital.centerWorld();
     const guard = this.pickGuard(st, army, home);
-    const strike = army.filter((u) => !st.guard.has(u.id));
+    const defenders = this.defendDerricks(p, st, army, all);
+    const strike = army.filter((u) => !st.guard.has(u.id) && !defenders.has(u.id));
 
     this.defend(p, guard, home, all);
     this.retreatFromLostFights(p, st, strike, army, home, all);
@@ -874,6 +894,87 @@ export class AISystem implements GameSystem {
     }
     st.guard = new Set(guard.map((u) => u.id));
     return guard;
+  }
+
+  /**
+   * Oil comes first: a derrick of the nation that lost health since the last think is under attack. The nearest
+   * enemy near it is taken on by up to DERRICK_DEFENDERS of the nearest units that can hit it (within
+   * DERRICK_HELP_CELLS); those units sit out the offensive this think. Returns their ids.
+   */
+  private defendDerricks(p: PlayerState, st: AIState, army: readonly Unit[], all: readonly Unit[]): Set<number> {
+    const busy = new Set<number>();
+    const seen = new Set<number>();
+    for (const b of this.host.entities.buildings()) {
+      if (!(b instanceof OilDerrick) || b.owner !== p.id || !b.alive || b.indestructible) continue;
+      seen.add(b.id);
+      const prev = st.derrickHp.get(b.id);
+      st.derrickHp.set(b.id, b.hp);
+      if (prev === undefined || b.hp >= prev) continue;
+      const c = b.centerWorld();
+      let enemy: Unit | null = null;
+      let nearest = DERRICK_THREAT_CELLS * CELL_SIZE;
+      for (const e of all) {
+        if (!e.alive || e.owner === p.id || e.owner === NEUTRAL_OWNER) continue;
+        const d = Math.hypot(e.px - c.x, e.py - c.y);
+        if (d < nearest) {
+          enemy = e;
+          nearest = d;
+        }
+      }
+      if (!enemy) continue;
+      const target = enemy;
+      const dist = (u: Unit): number => Math.hypot(u.px - c.x, u.py - c.y);
+      const responders = army
+        .filter((u) => !busy.has(u.id) && canTarget(u, target) && dist(u) < DERRICK_HELP_CELLS * CELL_SIZE)
+        .sort((a, b2) => dist(a) - dist(b2))
+        .slice(0, DERRICK_DEFENDERS);
+      for (const u of responders) busy.add(u.id);
+      this.host.orderAttackTarget(responders.filter((u) => u.attackTarget !== target.id), target);
+    }
+    for (const id of [...st.derrickHp.keys()]) if (!seen.has(id)) st.derrickHp.delete(id);
+    return busy;
+  }
+
+  /**
+   * Oil leases: a nation that is not the cartel sends its free engineers (those repairBase left idle) to lease the
+   * cartel's derricks, the nearest first, while that pays: the oil one lease brings in (OIL_LEASE_SECONDS of output at
+   * today's price, minus the cartel's share) must be worth LEASE_MIN_RETURN x an engineer. At most AI_LEASES per
+   * nation at a time (the cartel's own OIL_LEASE_MAX still applies), never while the home front is under attack.
+   * With no free engineer it trains one for the job.
+   */
+  private leaseOil(p: PlayerState, owned: Set<BuildingType>, threat: number): void {
+    const faction = FACTIONS[p.faction];
+    if (faction.leasesOil === true || threat > 0) return;
+    const engineerCost = INFANTRY_BASE.engineer.cost * faction.stats.cost * (faction.stats.infantryCost ?? 1);
+    const gain = OIL_LEASE_SECONDS * OIL_DERRICK_OUTPUT * this.host.oilMarket.price * (1 - OIL_LEASE_CARTEL_SHARE);
+    if (gain < engineerCost * LEASE_MIN_RETURN) return;
+    const derricks = this.host.entities.buildings().filter((b): b is OilDerrick => b instanceof OilDerrick);
+    const claimed = new Set<number>();
+    let mine = derricks.filter((d) => d.alive && d.lessee === p.id).length;
+    for (const u of this.host.entities.fieldUnits()) {
+      if (u.task?.type !== 'lease') continue;
+      claimed.add(u.task.buildingId);
+      if (u.owner === p.id) mine++;
+    }
+    if (mine >= AI_LEASES) return;
+    const open = derricks.filter((d) => d.leasable && d.owner !== p.id && !claimed.has(d.id));
+    if (open.length === 0) return;
+    const free = this.host.entities
+      .fieldUnits()
+      .filter((u) => u.owner === p.id && u.alive && u.isEngineer && u.task === null && u.insideId === null && !u.moving);
+    for (const u of free) {
+      if (mine >= AI_LEASES) break;
+      const dist = (d: OilDerrick): number => Math.hypot(d.centerWorld().x - u.px, d.centerWorld().y - u.py);
+      const near = open.filter((d) => !claimed.has(d.id) && dist(d) < LEASE_RANGE_CELLS * CELL_SIZE).sort((a, b) => dist(a) - dist(b));
+      for (const d of near) {
+        if (!this.host.orderLease(u, d)) continue;
+        claimed.add(d.id);
+        mine++;
+        break;
+      }
+    }
+    if (mine >= AI_LEASES || free.length > 0 || !owned.has('barracks') || p.credits < engineerCost + 600) return;
+    if (!this.host.training.queue(p).items.includes('engineer')) this.host.training.enqueue(p, 'engineer');
   }
 
   /** The guard fights enemies near the capital and otherwise walks back to it. */

@@ -26,7 +26,7 @@
 <body>
 <main>
 <img class="logo" src="/logo.png" alt="Black Area" />
-<h1>Black Area — RULE <small>v1.13.2</small></h1>
+<h1>Black Area — RULE <small>v1.19.0</small></h1>
 <p class="lead">Tài liệu luật chơi + kiến trúc code dành cho AI/dev sửa game. Mọi con số gameplay chính xác nằm trong <code>src/constants.ts</code> và <code>src/factions/*.ts</code>. Nếu tài liệu này khác code thì <b>code đúng</b>. <b>Khi đổi luật/số trong code, phải cập nhật file này.</b></p>
 <nav><a href="#s1">Quy tắc làm việc cho AI</a><a href="#s2">Chạy dự án</a><a href="#s3">Kiến trúc thư mục</a><a href="#s4">Thế giới</a><a href="#s5">Kinh tế (dầu)</a><a href="#s6">Công trình (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Quân đội</a><a href="#s8">Chiến đấu</a><a href="#s9">Điều khiển (Game.handleKey, handleInput)</a><a href="#s10">Giới hạn &amp; hiệu năng</a><a href="#s11">Thắng / thua &amp; AI</a><a href="#s12">Công thức sửa thường gặp</a></nav>
 <h2 id="s1">0. Quy tắc làm việc cho AI</h2>
@@ -140,6 +140,8 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 <ul>
   <li>Engineer phe khác chuột phải vào giếng Islamic → thuê <code>OIL_LEASE_SECONDS = 180</code> s. Giếng bơm vào kho phe thuê (đếm riêng <code>leasedOil</code>).</li>
   <li>Khi bán, phần tiền từ dầu thuê chia <code>OIL_LEASE_CARTEL_SHARE = 30%</code> cho phe cho thuê. Hết hạn giếng trở về Islamic.</li>
+  <li>Islamic không bắn kỹ sư đang đi thuê giếng của mình; <b>các phe khác vẫn tấn công</b> kỹ sư đó nếu gặp trên đường.</li>
+  <li>Phe do AI điều khiển (không phải Islamic) cũng tự đi thuê (<code>AISystem.leaseOil</code>): chỉ khi thuê có lời — dầu 180 s × giá hiện tại × 70% ≥ <code>LEASE_MIN_RETURN 2</code> × giá một engineer; tối đa <code>AI_LEASES 2</code> giếng mỗi phe (vẫn trong giới hạn <code>OIL_LEASE_MAX 4</code> của Islamic); chỉ giếng trong <code>LEASE_RANGE_CELLS 120</code> ô quanh engineer, gần nhất trước; không thuê khi thủ đô đang bị tấn công. Dùng engineer rảnh (sau khi đã lo sửa công trình); không có thì luyện một engineer.</li>
 </ul>
 <h3>Vay khẩn cấp (Global Financial Center)</h3>
 <ul>
@@ -168,7 +170,7 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 <tr><td><code>barracks</code></td><td>Ministry of Defence</td><td>800</td><td>powerPlant</td><td>4×4</td><td>1000</td><td>−1</td></tr>
 <tr><td><code>warFactory</code></td><td>War Factory</td><td>2000</td><td>barracks</td><td>5×4</td><td>1800</td><td>−3</td></tr>
 <tr><td><code>hospital</code></td><td>Hospital</td><td>1200</td><td>barracks</td><td>5×4</td><td>1200</td><td>−2</td></tr>
-<tr><td><code>bunker</code></td><td>Bunker</td><td>800</td><td>barracks</td><td>2×2</td><td>1000</td><td>−1</td></tr>
+<tr><td><code>bunker</code></td><td>Bunker</td><td>800</td><td>barracks</td><td>1×1</td><td>1000</td><td>−1</td></tr>
 <tr><td><code>airfield</code></td><td>Airfield</td><td>2000</td><td>warFactory</td><td>12×8</td><td>1500</td><td>−4</td></tr>
 <tr><td><code>techCenter</code></td><td>High-Tech Center</td><td>8000</td><td>warFactory</td><td>4×4</td><td>2500</td><td>−6</td></tr>
 <tr><td><code>happyCity</code></td><td>Happy City</td><td>10000 (<code>fixedCost</code>, không nhân hệ số)</td><td>airfield + hospital</td><td>8×8</td><td>4000</td><td>−8</td></tr>
@@ -195,13 +197,13 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 <tr><td><code>barracks</code> (Ministry of Defence)</td><td>Luyện bộ binh: regular, engineer, squatters (special, demolition cần thêm High-Tech Center). Lính mới đứng hàng duyệt binh trước nhà (≤ 2 ô). Mở khoá War Factory và Hospital.</td></tr>
 <tr><td><code>warFactory</code></td><td>Sản xuất xe mặt đất (hiện chỉ <code>tank</code>). Mở khoá Airfield và High-Tech Center.</td></tr>
 <tr><td><code>hospital</code></td><td>Nhận tối đa 20 người <b>bị thương</b> cùng phe, hồi 10 HP/s, đủ máu thì tự đi ra (double-click để cho ra hết). Cùng Airfield mở khoá Happy City.</td></tr>
-<tr><td><code>bunker</code> (Bunker)</td><td>Lô cốt súng máy <b>tự bắn</b>, không cần lính đồn trú: mỗi 0,25 s bắn kẻ địch (lính hoặc xe mặt đất) gần nhất trong tầm 40 px tính từ mép lô cốt, 8 sát thương (×0,35 với xe); không bắn được máy bay. AI xây tối đa 2 cái quanh căn cứ khi đã xong kế hoạch xây.</td></tr>
+<tr><td><code>bunker</code> (Bunker)</td><td>Công trình phòng thủ: mua ở tab <b>Defense</b> (không nằm trong tab Build cùng các công trình chính). Ô 1×1, đặt cách mép một công trình của phe tối đa <code>BUNKER_BUILD_RADIUS 7</code> ô (công trình khác: 3 ô). File save cũ có bunker 2×2: khi tải, mỗi bunker thu về 1×1 trên một trong bốn ô cũ — ô đầu tiên (trái-trên trước) cách mép một công trình khác của phe ≤ 7 ô; không ô nào đạt thì lấy ô gần công trình của phe nhất (<code>Game.shrinkOldBunkers</code>). Hình vẽ sẵn (<code>public/sprites/bunker-west.png</code> cho USA / Europe, <code>bunker-east.png</code> cho Russia / China / Islamic; dựng bằng <code>tools/bunker_sheet.py</code>): 8 hướng nòng súng xoay theo mục tiêu vừa bắn, 4 mức hư hại theo máu (&gt;75%, &gt;50%, &gt;25%, còn lại). Khi bắn: chớp lửa ở đầu nòng đúng hướng đang vẽ (Mỹ / Âu: đầu nòng tháp pháo; Nga / Trung / Hồi: khe bắn), viên đạn dùng ảnh <code>bullet.png</code> (cỡ <code>bunker</code>), tiếng súng máy <code>mg</code>. Lô cốt súng máy <b>tự bắn</b>, không cần lính đồn trú: mỗi 0,25 s bắn kẻ địch (lính hoặc xe mặt đất) gần nhất trong tầm 40 px tính từ mép lô cốt, 8 sát thương (×0,35 với xe); không bắn được máy bay. AI xây tối đa 2 cái quanh căn cứ khi đã xong kế hoạch xây.</td></tr>
 <tr><td><code>airfield</code></td><td>Sản xuất máy bay (jet, bomber, transport) và là nơi đỗ: 9 chỗ, số máy bay ≤ 9 × số airfield. Sửa máy bay đỗ 2% HP mỗi 4 s, nạp bom (trả tiền). Có airfield thì radar sidebar mới hoạt động. Mất airfield: máy bay tìm airfield khác, không có thì rơi.</td></tr>
 <tr><td><code>techCenter</code> (High-Tech Center)</td><td>Khi còn đứng: mở lính <code>special</code>, <code>demolition</code> và máy bay <code>transport</code>. Mất nó thì đơn hàng các loại này dừng (không trừ tiền) cho tới khi có lại.</td></tr>
 <tr><td><code>happyCity</code></td><td>Khoản đầu tư kinh tế: mỗi thành phố nộp 500 TB thuế / 60 s (theo máu còn lại), mỗi thành phố một đồng hồ riêng. Không giới hạn số lượng; bị chiếm thì thuế về phe mới.</td></tr>
 <tr><td><code>flagpole</code></td><td>Cột cờ quốc gia, tính là công trình của phe (mở rộng vùng được xây). Đội Squatters cắm cờ (chọn đội rồi nhấn <b>F</b> hoặc double-click: cờ cắm vào ô trống gần nhất, đất nào cũng được) trên đất chưa ai sở hữu sẽ tạo cột cờ đánh dấu đất đó là của mình.</td></tr>
-<tr><td><code>alliedBuilding</code> (Allied Building)</td><td>Trụ sở đồng minh, chỉ xây trên đất đã cắm cờ bằng Squatters; mỗi phe tối đa 3. Hiện chỉ là công trình (chưa có kinh tế đồng minh), hiện ở tab Allies.</td></tr>
-<tr><td><code>oilDerrick</code></td><td>Nguồn thu chính: bơm dầu vào kho (0.08 thùng/s, bơm 180 s nghỉ 60 s), dầu đem bán cho Center lấy TB hoặc đốt ra điện. Đặt sẵn, không xây được. Giếng <code>bankManaged</code> và giếng Islamic không phá / chiếm được; giếng Islamic cho phe khác thuê bằng engineer.</td></tr>
+<tr><td><code>alliedBuilding</code> (Allied Building)</td><td>Hai cột cờ ở hai góc trước: một cờ quốc gia của chủ sở hữu, một <b>cờ đồng minh</b> nền đen có logo phe (<code>public/emblems/<tr><td><code>alliedBuilding</code> (Allied Building)</td><td>lt;phe<tr><td><code>alliedBuilding</code> (Allied Building)</td><td>gt;.png</code>) ở chính giữa. Trụ sở đồng minh, chỉ xây trên đất đã cắm cờ bằng Squatters; mỗi phe tối đa 3. Hiện chỉ là công trình (chưa có kinh tế đồng minh), hiện ở tab Allies.</td></tr>
+<tr><td><code>oilDerrick</code></td><td>Nguồn thu chính: bơm dầu vào kho (0.08 thùng/s, bơm 180 s nghỉ 60 s), dầu đem bán cho Center lấy TB hoặc đốt ra điện. Đặt sẵn, không xây được. Giếng mất máu tự hồi <code>OIL_DERRICK_REGEN 1%</code> máu tối đa mỗi giây (luật tạm thời). Giếng <code>bankManaged</code> và giếng Islamic không phá / chiếm được; giếng Islamic cho phe khác thuê bằng engineer.</td></tr>
 <tr><td><code>WorldBank</code> (Global Financial Center, Zürich)</td><td>Trung lập, không phá / chiếm / vào được. Mua dầu, đặt giá dầu chung, cho vay khẩn cấp, ép bán dầu cho lưới điện thiếu, trả tiền thưởng tha quân rút lui.</td></tr>
 </table>
 <p>Mọi công trình của phe đều mở rộng vùng được xây quanh nó (<code>BUILD_RADIUS = 3</code> ô, <code>PlacementSystem</code>). Mọi công trình (trừ loại không phá được) có thể bị phá; engineer địch chiếm được nếu không có <code>uncapturable</code>. Chọn lính có nhiệm vụ với công trình thì công trình đó hiện khung khóa mục tiêu theo màu nhiệm vụ: chiếm vàng, sửa xanh lá, thuê giếng xanh dương, vào trong trắng, đặt mìn (Crazy Soldier) đỏ. Khi một công trình M×N bị chiếm, mọi cờ (<code>flagpole</code>, của bất kỳ phe nào) nằm trong vùng (M+2)×(N+2) quanh nền (nền nới thêm 1 ô mỗi phía) bị phá hủy (<code>razeFlagsAround</code>).</p>
@@ -348,7 +350,7 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
   <li>Đơn chờ (BuildLimit): <code>BUILD_LIMIT_SOLDIERS 15</code>, <code>BUILD_LIMIT_VEHICLES 10</code>.</li>
   <li>Trần quân: <code>MAX_SOLDIERS 25</code> lính (sống + đặt), <code>MAX_GROUND_VEHICLES 30</code> xe mặt đất, <code>MAX_TRANSPORTS 3</code> máy bay vận tải. Máy bay còn bị giới hạn bởi chỗ đỗ.</li>
   <li>Hạ cánh: chọn máy bay rồi click vào sân bay của mình (còn chỗ đỗ) → bay vào từ <b>đầu đường băng gần hơn</b> (cả hai đầu đều được, <code>AircraftSystem.land</code>); chỉ một máy bay dùng đường băng mỗi lúc, chiếc khác chờ trên điểm tiếp cận. Máy bay tự về cũng chọn đầu gần hơn.</li>
-  <li>Khóa mục tiêu (lệnh tấn công rõ ràng) thì chỉ đánh đúng mục tiêu đó: khóa sân bay → chỉ sân bay mất máu, máy bay đỗ trên đó không bị trúng; khóa máy bay / xe / lính đang ở trên sân bay → chỉ mục tiêu đó (và bom chùm của máy bay ném bom vào đơn vị mặt đất quanh nó), sân bay không mất máu. Mục tiêu khóa là máy bay vận tải thì không tự chuyển sang bắn máy bay tiếp dầu. Sân bay bị phá: máy bay đỗ trên đó không cháy theo, chuyển sang sân bay khác của phe; không còn sân bay thì nằm yên trên mặt đất chờ (lệnh được giữ lại) đến khi có sân bay mới.</li>
+  <li>Khóa mục tiêu (lệnh tấn công rõ ràng) thì chỉ đánh đúng mục tiêu đó: khóa sân bay → chỉ sân bay mất máu, máy bay đỗ trên đó không bị trúng; khóa máy bay / xe / lính đang ở trên sân bay → chỉ mục tiêu đó (và bom chùm của máy bay ném bom vào đơn vị mặt đất quanh nó), sân bay không mất máu. Mục tiêu khóa là máy bay vận tải thì không tự chuyển sang bắn máy bay tiếp dầu. Sân bay bị phá: máy bay đỗ trên đó chuyển sang sân bay khác của phe; <b>phe không còn sân bay nào thì máy bay đỗ trên sân bay bị phá hủy</b> (máy bay đang bay thì rơi như cũ).</li>
   <li>Chuyển sân bay: chọn máy bay (đang bay hoặc đang đỗ ở sân bay khác) rồi click một sân bay khác của phe còn chỗ đỗ → máy bay bay tới đó, hạ cánh và đổi sân bay nhà sang sân bay mới (máy bay đang đỗ thì cất cánh trước, theo luật cất cánh). Sân bay hết chỗ: báo "No free parking spot". Máy bay tiếp dầu đi theo máy bay vận tải nên không chuyển riêng.</li>
   <li>Cất cánh: xếp hàng theo thứ tự được ra lệnh (ai lăn bánh trước bay trước). Đầu đường băng đang kẹt (đã có máy bay chờ ở đó, hoặc máy bay đang hạ cánh lăn về phía đó) thì lăn sang đầu kia và cất cánh ngược chiều; vẫn chỉ một máy bay dùng đường băng mỗi lúc. Máy bay vận tải chờ máy bay tiếp dầu thì rời hàng, không chắn đường băng.</li>
   <li>Thiếu điện: sân bay <b>không cho cất cánh</b> (kể cả máy bay đang hạ cánh nhận lệnh mới cũng phải đáp xuống, đỗ rồi chờ có điện), nhưng <b>vẫn cho hạ cánh</b>.</li>
@@ -364,6 +366,7 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 <ul>
   <li>Chọn máy bay của mình đang bay → tab Command hiện mục <b>Aircraft</b> có nút <b>Turbo (T)</b> (máy bay còn đỗ / lăn bánh / cất hạ cánh thì không hiện) (máy bay vận tải có thêm mục Transport với nút <b>Unload (U)</b>). Nhấn T / Turbo: các máy bay đang bay (không tính tanker) bay nhanh gấp <code>TURBO_MULT 2</code> lần trong <code>TURBO_SECONDS 15</code> s; sau đó phải nạp lại <code>TURBO_RECHARGE_SECONDS 40</code> s mới bật tiếp được (nút mờ, hiện "Turbo on · Ns" / "Recharging · N%"). Turbo chỉ bật được khi máy bay đang trên không.</li>
   <li>Áp dụng cho mọi phe: máy (AI) tự tính khi nào dùng turbo (<code>aiWantsTurbo</code>). Bật ngay: máy bay dưới 50% máu và vừa trúng đạn trong 2 s → chạy thoát. Ngoài ra chỉ bật khi quãng bay còn lại dài hơn quãng turbo đi được (tốc độ × 15 s, tối thiểu <code>AI_TURBO_CELLS 60</code> ô) và chuyến bay đáng giá: đi đánh (lệnh tấn công / tấn công-di chuyển), máy bay vận tải chở quân đi ra, tiêm kích đuổi theo máy bay mình hộ tống, máy bay dưới 60% máu bay về sửa. Máy bay vận tải rỗng, bay chuyển chỗ, hay về nhà còn khỏe thì giữ turbo. Tanker không dùng turbo.</li>
+  <li>Mỗi máy bay có turbo riêng (thời gian bật và nạp lại tính riêng từng chiếc). Người chơi bật turbo cho máy bay của mình.</li>
 </ul>
 <h3>Máy bay vận tải &amp; tanker</h3>
 <ul>
@@ -398,6 +401,15 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
   <li>Bomber: <code>BOMBER_BOMBS 6</code> bom/chuyến, thả <code>BOMBS_PER_DROP 2</code>/lần. Một lần thả phá huỷ công trình, trừ <code>happyCity</code> và <code>airfield</code> chỉ mất 50%. Thả vào quân: trong 2.5 ô, &lt; 10 đơn vị chết hết, ≥ 10 chết 1/3 (gần nhất). Nạp bom ở airfield: <code>BOMB_COST 800</code>/quả, mỗi <code>3</code> s.</li>
   <li>Jet: <code>JET_BOMBS 2</code> bom, 1 quả/lần — cách duy nhất để jet đánh công trình (10% máu tối đa); vào xe 60% máu tối đa, lính chết. Hết bom thì dùng súng (không đánh được công trình). Nạp <code>JET_BOMB_COST 400</code>/quả.</li>
   <li>Công trình indestructible (Global Financial Center, giếng <code>bankManaged</code>, giếng Islamic) không thể bị phá.</li>
+</ul>
+<h3>Logo phe trên thanh máu</h3>
+<ul>
+  <li>Mọi phe: mọi lính và mọi phương tiện (cả không chiến đấu: vận tải, tanker, xe tải, xe sửa…) khi được chọn hoặc focus hiện logo phe nhỏ (~9 px màn hình, <code>public/emblems/&lt;phe&gt;.png</code>) sát bên trái thanh máu (<code>Renderer.drawUnitHealth</code>).</li>
+</ul>
+<h3>Hiệu ứng nổ (<code>render/ExplosionSheet.ts</code>)</h3>
+<ul>
+  <li>Công trình, xe mặt đất và máy bay bị phá hủy đều nổ bằng ảnh <code>public/sprites/explosion.png</code> (12 khung × 16 biến thể, chọn ngẫu nhiên; dựng bằng <code>tools/explosion_sheet.py</code>): chớp sáng → quả cầu lửa → khói đen bốc lên rồi tan, <code>EXPLOSION_SECONDS 1.8</code> s.</li>
+  <li>Kích thước theo diện tích: công trình W×D → cầu lửa rộng √(W×D) × 1 ô × <code>1.15</code>; công trình ≥ 4 ô nổ thêm 2 điểm nhỏ quanh nền, ≥ 16 ô thêm 4 điểm. Xe / máy bay → rộng 2 × bán kính thân × <code>1.4</code> (máy bay nổ ở độ cao đang bay). Xe tăng, xe tải, xe sửa vẫn giữ thêm hình xác cháy riêng.</li>
 </ul>
 <h3>Safe zone (<code>SafeZoneSystem</code>)</h3>
 <ul>
@@ -448,7 +460,7 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 <h2 id="s11">10. Thắng / thua &amp; AI</h2>
 <ul>
   <li>Phe bị loại khi không còn thủ đô <b>và</b> không còn lính/xe có vũ khí. Người chơi thua khi bị loại; thắng khi mọi phe khác bị loại.</li>
-  <li>AI (<code>systems/AISystem.ts</code>): nghĩ mỗi <code>1.5</code> s; <code>BUILD_PLAN</code>: powerPlant → barracks → warFactory → hospital → airfield → techCenter; sau đó Happy City (tối đa <code>MAX_CITIES 10</code>), cắm cờ/Allied Building khi đủ điều kiện (<code>CLAIM_*</code>); phòng thủ trong 38 ô quanh thủ đô; engineer sửa mọi công trình mất máu (dưới 98%, sau 3 s không bị bắn); xe sửa (ARV) tự tới sửa xe mặt đất hư nặng nhất gần đó (trong 60 ô); lính mất máu (dưới 85%) chạy tới bệnh viện gần nhất còn giường; mở đất từ <code>CLAIM_FROM 120</code> s, chọn đất vô chủ gần đối thủ nhất (cách công trình địch ≥ 18 ô) — cùng lục địa thì Squatters đi bộ tới, khác lục địa (không bơi qua được) thì bay bằng máy bay vận tải; đợt tấn công đầu sau <code>210</code> s rồi mỗi <code>110</code> s.</li>
+  <li>AI (<code>systems/AISystem.ts</code>): nghĩ mỗi <code>1.5</code> s; <code>BUILD_PLAN</code>: powerPlant → barracks → warFactory → hospital → airfield → techCenter; sau đó Happy City (tối đa <code>MAX_CITIES 10</code>), cắm cờ/Allied Building khi đủ điều kiện (<code>CLAIM_*</code>); phòng thủ trong 38 ô quanh thủ đô; giếng dầu của mình mất máu → tối đa <code>DERRICK_DEFENDERS 6</code> quân gần nhất (trong <code>DERRICK_HELP_CELLS 70</code> ô, đánh được mục tiêu) tấn công kẻ địch gần giếng nhất (trong <code>DERRICK_THREAT_CELLS 14</code> ô); engineer sửa mọi công trình mất máu (dưới 98%, sau 3 s không bị bắn); xe sửa (ARV) tự tới sửa xe mặt đất hư nặng nhất gần đó (trong 60 ô); lính mất máu (dưới 85%) chạy tới bệnh viện gần nhất còn giường; mở đất từ <code>CLAIM_FROM 120</code> s, chọn đất vô chủ gần đối thủ nhất (cách công trình địch ≥ 18 ô) — cùng lục địa thì Squatters đi bộ tới, khác lục địa (không bơi qua được) thì bay bằng máy bay vận tải; đợt tấn công đầu sau <code>210</code> s rồi mỗi <code>110</code> s.</li>
 </ul>
 <h2 id="s12">11. Công thức sửa thường gặp</h2>
 <table>

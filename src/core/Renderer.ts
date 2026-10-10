@@ -1,3 +1,7 @@
+import { drawBunkerGhost, drawBunkerSheet } from '../render/BunkerSheet';
+import { Bunker } from '../entities/Bunker';
+import { drawExplosion } from '../render/ExplosionSheet';
+import { emblemImage } from '../render/Emblems';
 import { demoActive } from './Demo';
 import { ChevronDown } from 'lucide';
 import { BUILD_RISE_SECONDS, CELL_SIZE, CRUISE_ALTITUDE, ISO_X, ISO_Y } from '../constants';
@@ -296,11 +300,11 @@ export class Renderer {
     for (const f of focus) if (f.airLock) this.drawAirLock(f.entity);
     for (const l of scene.taskLocks ?? []) this.drawAirLock(l.entity, l.color);
     if (selected) this.drawFootprintEdge(selected, scene.time);
-    for (const u of units) if (selUnits.has(u.id) || u.hp < u.maxHp) this.drawUnitHealth(u);
+    for (const u of units) if (selUnits.has(u.id) || u.hp < u.maxHp) this.drawUnitHealth(u, selUnits.has(u.id) || focus.some((f) => f.entity === u));
     // The fuel gauge shows only while the transport is out on a sortie; parked or taxiing at home it is idle (hidden).
     for (const u of units) if (u instanceof Vehicle && u.maxBombs > 0) this.drawBombs(u);
     for (const u of units) if (u instanceof Vehicle && (u.isTransport || u.isTanker) && u.flight !== 'parked' && u.flight !== 'taxi' && u.flight !== 'taxiHome') this.drawFuel(u);
-    for (const f of focus) if (f.entity.kind !== 'building' && !selUnits.has(f.entity.id) && f.entity.hp >= f.entity.maxHp) this.drawUnitHealth(f.entity);
+    for (const f of focus) if (f.entity.kind !== 'building' && !selUnits.has(f.entity.id) && f.entity.hp >= f.entity.maxHp) this.drawUnitHealth(f.entity, true);
     const hints = scene.flagHints;
     if (hints?.size) for (const u of units) if (hints.has(u.id)) this.drawFlagHint(u);
     for (const u of units) if (u.restLeft > 0 && !hints?.has(u.id)) this.drawTag(u, `Resting ${Math.ceil(u.restLeft)}s`, '#9fd3ff');
@@ -380,10 +384,14 @@ export class Renderer {
       ctx.rect(r.x - 2, r.y + r.h * (1 - rise), r.w + 4, r.h * rise + 2);
       ctx.clip();
     }
-    ctx.save();
-    ctx.translate(c.x, c.y);
-    ctx.drawImage(s.canvas, -s.centerX * k, -s.centerY * k, s.width * k, s.height * k);
-    ctx.restore();
+    // USA / Europe bunkers come from a pre-drawn sheet (gun facing + damage stage).
+    const sheet = b instanceof Bunker && drawBunkerSheet(ctx, b, c.x, c.y);
+    if (!sheet) {
+      ctx.save();
+      ctx.translate(c.x, c.y);
+      ctx.drawImage(s.canvas, -s.centerX * k, -s.centerY * k, s.width * k, s.height * k);
+      ctx.restore();
+    }
     if (rise < 1) {
       ctx.restore();
       this.ground();
@@ -392,7 +400,7 @@ export class Renderer {
       return;
     }
 
-    if (s.art.drawAnimated) {
+    if (s.art.drawAnimated && !sheet) {
       // Same local art space as the static sprite.
       ctx.save();
       ctx.translate(c.x, c.y);
@@ -783,7 +791,8 @@ export class Renderer {
     ctx.restore();
   }
 
-  private drawUnitHealth(u: Unit): void {
+  /** Health bar over a unit; every selected / focused soldier or vehicle also shows its nation's emblem, small, left of it. */
+  private drawUnitHealth(u: Unit, focused = false): void {
     const { ctx } = this;
     const k = 1 / this.camera.zoom;
     const P = worldToIso(u.px, u.py);
@@ -797,6 +806,15 @@ export class Renderer {
     ctx.fillRect(x - k, y - k, w + 2 * k, 0.4 + 2 * k);
     ctx.fillStyle = ratio > 0.5 ? '#3fdc4a' : ratio > 0.25 ? '#f0d23a' : '#e8452f';
     ctx.fillRect(x, y, w * ratio, 0.4);
+    if (focused && u.faction !== 'neutral') {
+      const img = emblemImage(u.faction as FactionId);
+      if (img) {
+        const s = Math.max(1.6, 9 * k); // small: about 9 screen px, never below 1.6 iso px
+        const iw = (s * img.naturalWidth) / Math.max(img.naturalWidth, img.naturalHeight);
+        const ih = (s * img.naturalHeight) / Math.max(img.naturalWidth, img.naturalHeight);
+        ctx.drawImage(img, x - k - 1.5 * k - iw, y + 0.2 - ih / 2, iw, ih);
+      }
+    }
   }
 
   /** Transport fuel gauge: a black bar just above the health bar, shrinking as the tank empties. */
@@ -867,6 +885,13 @@ export class Renderer {
         ctx.globalAlpha = 1 - t;
         ctx.drawImage(blastSprite(), e.x - r, e.y - r, r * 2, r * 2);
         ctx.globalAlpha = 1;
+      } else if (e.kind === 'explosion') {
+        if (!drawExplosion(ctx, e.x, e.y, e.age, e.size, e.variant) && e.age < 0.6) {
+          const r = (e.size / 2) * (0.35 + (e.age / 0.6) * 0.9);
+          ctx.globalAlpha = 1 - e.age / 0.6;
+          ctx.drawImage(blastSprite(), e.x - r, e.y - r, r * 2, r * 2);
+          ctx.globalAlpha = 1;
+        }
       } else if (e.kind === 'soldierDeath') {
         drawSoldierDeath(ctx, e.look, e.x, e.y, e.heading, e.age, e.ttl);
       } else if (e.kind === 'charge') {
@@ -1057,7 +1082,9 @@ export class Renderer {
     const scale = this.sprites.fitScale(g.spriteKey);
     const c = worldToIso(fx + fw / 2, fy + fh / 2);
     ctx.globalAlpha = g.ok ? 0.75 : 0.45;
-    ctx.drawImage(s.canvas, c.x - s.centerX * scale, c.y - s.centerY * scale, s.width * scale, s.height * scale);
+    if (!(g.spriteKey.startsWith('bunker:') && drawBunkerGhost(ctx, g.faction as FactionId, c.x, c.y))) {
+      ctx.drawImage(s.canvas, c.x - s.centerX * scale, c.y - s.centerY * scale, s.width * scale, s.height * scale);
+    }
     ctx.globalAlpha = 1;
 
     if (g.reason) {

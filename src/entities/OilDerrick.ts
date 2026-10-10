@@ -4,6 +4,7 @@ import {
   OIL_LEASE_SECONDS,
   OIL_MINE_SECONDS,
   OIL_REST_SECONDS,
+  OIL_DERRICK_REGEN,
 } from '../constants';
 import type { FactionId, WorldPoint } from '../types';
 import { FACTIONS } from '../factions';
@@ -88,6 +89,8 @@ export class OilDerrick extends Building {
   }
 
   override update(dt: number): void {
+    // Temporary rule: a damaged derrick restores its health by itself.
+    if (this.alive && this.hp < this.maxHp) this.hp = Math.min(this.maxHp, this.hp + this.maxHp * OIL_DERRICK_REGEN * dt);
     if (this.lessee !== null) {
       this.leaseLeft -= dt;
       if (this.leaseLeft <= 0) {

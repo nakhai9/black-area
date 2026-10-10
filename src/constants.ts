@@ -21,7 +21,7 @@ export const DEMO_MODE = false;
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "1.13.2";
+export const GAME_VERSION = "1.19.0";
 
 // ---------------------------------------------------------------- World (real Earth)
 /** Packed Earth texture built by `npm run build:earth` (see scripts/build-earth.mjs). */
@@ -109,8 +109,8 @@ export const FOOTPRINT_LARGE = { w: 5, d: 4 } as const;
 export const FOOTPRINT_SMALL = { w: 4, d: 4 } as const;
 /** Flagpole: exactly one cell. */
 export const FOOTPRINT_FLAGPOLE = { w: 1, d: 1 } as const;
-/** Bunker: a small 2×2 pillbox. */
-export const FOOTPRINT_BUNKER = { w: 2, d: 2 } as const;
+/** Bunker: a small pillbox filling one cell. */
+export const FOOTPRINT_BUNKER = { w: 1, d: 1 } as const;
 /**
  * Capitals sit on a 5 × 8 plot: the palace itself on roughly 5 × 5, and the nation's ceremonial approach
  * (the Mall, Red Square, the outer courtyard, the esplanade) on the 5 × 3 in front of it. The art is
@@ -169,6 +169,8 @@ export const HOSPITAL_COST = 1200;
  * by BUNKER_VS_VEHICLE against vehicles (≈32 dps on a soldier, ≈11 dps on armour). The AI raises up to AI_BUNKERS.
  */
 export const BUNKER_COST = 800;
+/** A bunker may stand up to this many cells from the edge of one of the nation's own structures (others: BUILD_RADIUS). */
+export const BUNKER_BUILD_RADIUS = 7;
 export const BUNKER_HP = 1000;
 export const BUNKER_POWER_DRAIN = 1;
 export const BUNKER_RANGE = 40;
@@ -677,6 +679,8 @@ export const OIL_LEASE_SECONDS = 180;
 export const OIL_LEASE_CARTEL_SHARE = 0.3;
 /** At most this many of the cartel's derricks may be leased at once (engineers already on their way count too). */
 export const OIL_LEASE_MAX = 4;
+/** Oil derricks heal by themselves: this share of their max health per second while alive (temporary rule). */
+export const OIL_DERRICK_REGEN = 0.01;
 /** Most derricks in one row; a bigger field (the Islamic world's) gets several rows. */
 export const OIL_ROW_MAX = 4;
 /** No derrick may stand within this many cells of another nation's derrick (oil fields never share ground). */

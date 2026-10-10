@@ -1,7 +1,7 @@
 import { FACTIONS } from '../../factions';
 import type { FactionId } from '../../types';
 import { shade } from '../Color';
-import { drawFlagOnPole, drawNationalPole } from '../Flags';
+import { drawEmblemFlagOnPole, drawFlagOnPole, drawNationalPole } from '../Flags';
 import type { IsoPainter } from '../IsoPainter';
 import type { BuildingArt } from './BuildingArt';
 import { drawMosque } from './GrandMosque';
@@ -11,7 +11,7 @@ const PAD = RA2.paving;
 const LAWN = RA2.grass;
 const PATH = '#b9b4a6';
 
-/** Flags at the two front corners of the plot. */
+/** Flags at the two front corners of the plot: the owner's national flag, then the ally flag (black, emblem). */
 const FLAGS: readonly [number, number][] = [
   [0.35, 3.65],
   [3.65, 0.35],
@@ -120,7 +120,7 @@ const STYLES: Record<FactionId, { height: number; draw: (p: IsoPainter, team: st
   },
 };
 
-/** Allied Building (4×4 tiles) in the leading nation's architecture, with the owner's flag (`flag`) at two corners. */
+/** Allied Building (4×4 tiles) in the leading nation's architecture, with the owner's national flag (`flag`) and its ally flag (black, the nation's emblem) at two corners. */
 export function createAlliedBuildingArt(faction: FactionId, flag: FactionId = faction): BuildingArt {
   const team = FACTIONS[faction].colors.primary;
   const style = STYLES[faction];
@@ -135,7 +135,9 @@ export function createAlliedBuildingArt(faction: FactionId, flag: FactionId = fa
     },
 
     drawAnimated(p, time) {
-      FLAGS.forEach(([u, v], i) => drawFlagOnPole(p, flag, u, v, 32, time, i * 1.1, 15, 9));
+      FLAGS.forEach(([u, v], i) =>
+        i === 0 ? drawFlagOnPole(p, flag, u, v, 32, time, 0, 15, 9) : drawEmblemFlagOnPole(p, flag, u, v, 32, time, 1.1, 15, 9),
+      );
     },
   };
 }

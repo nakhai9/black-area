@@ -233,13 +233,10 @@ export class AircraftSystem implements GameSystem {
         this.hooks.newTanker(v);
       }
     }
-    // Its airfield is gone: fly to another airfield of the nation; with none left it stays grounded where it stands
-    // (orders wait) until the nation has an airfield again.
+    // Its airfield is gone: fly to another airfield of the nation; with none left it is destroyed where it stands.
     if (!this.home(v)) {
       if (!this.adoptHome(v)) {
-        this.stashOrders(v);
-        v.attackTarget = null;
-        v.attackMove = null;
+        this.startCrash(v);
         return;
       }
       this.abort(v);
