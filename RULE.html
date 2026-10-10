@@ -26,7 +26,7 @@
 <body>
 <main>
 <img class="logo" src="/logo.png" alt="Black Area" />
-<h1>Black Area — RULE <small>v1.8.2</small></h1>
+<h1>Black Area — RULE <small>v1.8.4</small></h1>
 <p class="lead">Tài liệu luật chơi + kiến trúc code dành cho AI/dev sửa game. Mọi con số gameplay chính xác nằm trong <code>src/constants.ts</code> và <code>src/factions/*.ts</code>. Nếu tài liệu này khác code thì <b>code đúng</b>. <b>Khi đổi luật/số trong code, phải cập nhật file này.</b></p>
 <nav><a href="#s1">Quy tắc làm việc cho AI</a><a href="#s2">Chạy dự án</a><a href="#s3">Kiến trúc thư mục</a><a href="#s4">Thế giới</a><a href="#s5">Kinh tế (dầu)</a><a href="#s6">Công trình (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Quân đội</a><a href="#s8">Chiến đấu</a><a href="#s9">Điều khiển (Game.handleKey, handleInput)</a><a href="#s10">Giới hạn &amp; hiệu năng</a><a href="#s11">Thắng / thua &amp; AI</a><a href="#s12">Công thức sửa thường gặp</a></nav>
 <h2 id="s1">0. Quy tắc làm việc cho AI</h2>
@@ -348,6 +348,8 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
   <li>Đơn chờ (BuildLimit): <code>BUILD_LIMIT_SOLDIERS 15</code>, <code>BUILD_LIMIT_VEHICLES 10</code>.</li>
   <li>Trần quân: <code>MAX_SOLDIERS 25</code> lính (sống + đặt), <code>MAX_GROUND_VEHICLES 30</code> xe mặt đất, <code>MAX_TRANSPORTS 3</code> máy bay vận tải. Máy bay còn bị giới hạn bởi chỗ đỗ.</li>
   <li>Hạ cánh: chọn máy bay rồi click vào sân bay của mình (còn chỗ đỗ) → bay vào từ <b>đầu đường băng gần hơn</b> (cả hai đầu đều được, <code>AircraftSystem.land</code>); chỉ một máy bay dùng đường băng mỗi lúc, chiếc khác chờ trên điểm tiếp cận. Máy bay tự về cũng chọn đầu gần hơn.</li>
+  <li>Khóa mục tiêu (lệnh tấn công rõ ràng) thì chỉ đánh đúng mục tiêu đó: khóa sân bay → chỉ sân bay mất máu, máy bay đỗ trên đó không bị trúng; khóa máy bay / xe / lính đang ở trên sân bay → chỉ mục tiêu đó (và bom chùm của máy bay ném bom vào đơn vị mặt đất quanh nó), sân bay không mất máu. Mục tiêu khóa là máy bay vận tải thì không tự chuyển sang bắn máy bay tiếp dầu. Sân bay bị phá: máy bay đỗ trên đó không cháy theo, chuyển sang sân bay khác của phe; không còn sân bay thì nằm yên trên mặt đất chờ (lệnh được giữ lại) đến khi có sân bay mới.</li>
+  <li>Chuyển sân bay: chọn máy bay (đang bay hoặc đang đỗ ở sân bay khác) rồi click một sân bay khác của phe còn chỗ đỗ → máy bay bay tới đó, hạ cánh và đổi sân bay nhà sang sân bay mới (máy bay đang đỗ thì cất cánh trước, theo luật cất cánh). Sân bay hết chỗ: báo "No free parking spot". Máy bay tiếp dầu đi theo máy bay vận tải nên không chuyển riêng.</li>
   <li>Cất cánh: xếp hàng theo thứ tự được ra lệnh (ai lăn bánh trước bay trước). Đầu đường băng đang kẹt (đã có máy bay chờ ở đó, hoặc máy bay đang hạ cánh lăn về phía đó) thì lăn sang đầu kia và cất cánh ngược chiều; vẫn chỉ một máy bay dùng đường băng mỗi lúc. Máy bay vận tải chờ máy bay tiếp dầu thì rời hàng, không chắn đường băng.</li>
   <li>Thiếu điện: sân bay <b>không cho cất cánh</b> (kể cả máy bay đang hạ cánh nhận lệnh mới cũng phải đáp xuống, đỗ rồi chờ có điện), nhưng <b>vẫn cho hạ cánh</b>.</li>
   <li>Click (đi / tấn công-di chuyển) trên sân bay N×M của mình hoặc trong vùng (N+2)×(M+2) quanh nó (<code>AIRFIELD_CLICK_MARGIN = 2</code> ô mỗi phía): máy bay đang đỗ không cất cánh, máy bay đang bay thì hạ cánh xuống sân bay đó. Chỉ click cách sân bay từ 3 ô trở ra mới làm máy bay cất cánh bay tới.</li>

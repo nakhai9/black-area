@@ -3196,8 +3196,13 @@ export class Game {
     let ordered = 0;
     // Aircraft selected + click on an own airfield: they come in to land there (from the nearer runway end).
     if (b.owner === me.id && b.spec.type === 'airfield') {
-      for (const u of this.selection.selectedUnitList()) if (u instanceof Vehicle && this.aircraft.land(u, b)) ordered++;
+      const planes = this.selection.selectedUnitList().filter((u): u is Vehicle => u instanceof Vehicle && u.aircraft);
+      for (const u of planes) if (this.aircraft.land(u, b)) ordered++;
       if (ordered > 0) return true;
+      if (planes.length > 0) {
+        this.sidebar.notify('No free parking spot on that airfield.', 3);
+        return true;
+      }
     }
     for (const u of this.selection.selectedUnitList()) {
       if (!(u instanceof Infantry)) continue; // only people enter, repair or capture
@@ -3600,11 +3605,8 @@ export class Game {
     if (this.selection.selectedId === e.id) this.selection.select(null);
     this.ejectUnits(e, [...e.garrison]);
     this.placeOutside(e, e.crew.splice(0));
-    if (e.spec.type === 'airfield') {
-      // Aircraft parked on it burn with it unless the nation has another airfield to move them to.
-      const other = this.entities.buildings().some((b) => b.id !== e.id && b.owner === e.owner && b.alive && b.spec.type === 'airfield');
-      if (!other) for (const v of this.entities.vehicles()) if (v.homeId === e.id && v.fixed) v.hp = 0;
-    }
+    // An airfield attacked and destroyed takes only itself down: the aircraft parked on it are not hit. They move to
+    // another airfield of the nation, or wait grounded where they stand until there is one (see AircraftSystem).
     this.map.occupy(e.x, e.y, e.w, e.d, null);
     this.entities.remove(e.id);
     const i = this.derricks.indexOf(e as OilDerrick);

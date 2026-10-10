@@ -179,8 +179,15 @@ export class AircraftSystem implements GameSystem {
         this.hooks.newTanker(v);
       }
     }
-    // Its airfield is gone: fly to another airfield of the nation, or crash if there is none.
+    // Its airfield is gone: fly to another airfield of the nation; with none left it stays grounded where it stands
+    // (orders wait) until the nation has an airfield again.
     if (!this.home(v)) {
+      if (!this.adoptHome(v)) {
+        this.stashOrders(v);
+        v.attackTarget = null;
+        v.attackMove = null;
+        return;
+      }
       this.abort(v);
       return;
     }
@@ -291,6 +298,13 @@ export class AircraftSystem implements GameSystem {
 
   private airborne(v: Vehicle, dt: number): void {
     this.avoid(v, dt);
+    // Transfer to another airfield (ordered while parked): now in the air, it heads in to land there. If the
+    // airfield is gone or full by now, it simply carries on (and returns home as usual).
+    if (v.transferTo !== null) {
+      const target = this.entities.get(v.transferTo);
+      v.transferTo = null;
+      if (target && 'spec' in target && this.land(v, target as Building)) return;
+    }
     // Lost its airfield: any other airfield of the nation will do; with none left the aircraft falls.
     if (!this.home(v) && !this.adoptHome(v)) {
       this.startCrash(v);
@@ -363,9 +377,19 @@ export class AircraftSystem implements GameSystem {
    */
   land(v: Vehicle, airfield: Building): boolean {
     if (!v.aircraft || !v.alive || v.isTanker || airfield.owner !== v.owner || !airfield.alive || airfield.spec.type !== 'airfield') return false;
-    if (v.flight !== 'airborne' && v.flight !== 'approach') return false;
     const slot = this.freeSlot(v.homeId === airfield.id ? v : null, airfield);
     if (slot < 0) return false;
+    // Parked at another airfield: it takes off towards the new one and comes in to land there once airborne.
+    if (v.flight === 'parked' && v.homeId !== airfield.id) {
+      v.transferTo = airfield.id;
+      v.attackTarget = null;
+      v.attackMove = null;
+      v.mission = null;
+      v.follow([this.approachFor(v, airfield).point]);
+      return true;
+    }
+    if (v.flight !== 'airborne' && v.flight !== 'approach') return false;
+    v.transferTo = null;
     this.leaveQueue(v);
     v.homeId = airfield.id;
     v.slot = slot;

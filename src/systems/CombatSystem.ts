@@ -220,9 +220,10 @@ export class CombatSystem implements GameSystem {
       s.nextThink = this.time + ACQUIRE_PERIOD + (s.id % 4) * 0.04;
       if (better) target = better;
     }
-    // A transport's escorting tanker is shot down first, while it is close enough to be hit.
+    // A transport's escorting tanker is shot down first, while it is close enough to be hit (not when the transport
+    // itself is the locked target of an explicit order: a locked target is the only one attacked).
     const tankerId = (target as { tankerId?: number | null } | undefined)?.tankerId;
-    if (target && tankerId != null) {
+    if (target && tankerId != null && s.attackTarget === null) {
       const tanker = this.entities.get(tankerId);
       if (tanker && tanker.alive && isHostile(s, tanker) && this.canHit(s, w, tanker) && !this.sheltered(tanker) && distanceTo(s.px, s.py, tanker) <= w.range * GUARD_VISION_FACTOR)
         target = tanker;

@@ -79,6 +79,8 @@ export class Vehicle extends Unit {
   landReverse = false;
   /** Takes off from the runway's far end (against the usual direction) because the near end is jammed. */
   takeoffReverse = false;
+  /** Parked aircraft sent to another airfield of its nation: it takes off, then lands there (airfield id). */
+  transferTo: number | null = null;
   /** Seconds into the current take-off / landing roll (or the unloading stop). */
   phaseTime = 0;
   /** Seconds the aircraft has had nothing to do while airborne. */
