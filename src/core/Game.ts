@@ -71,6 +71,7 @@ import {
   CONTESTED_NATIONS,
   type ContestedNationId,
   NATION_PRESENCE_FEE,
+  ANTARCTIC_OIL_SITES,
   WORLD_HEIGHT,
   WORLD_WIDTH,
   ZOOM_STEP,
@@ -372,6 +373,7 @@ export class Game {
     const trees = new TreeLayer(this.map, biomes, MAP_SEED);
     this.placeOnGrid(this.entities.buildings(), trees);
     this.placeOilRows(trees);
+    this.placeAntarcticOil(trees);
     this.terrain = new TerrainRenderer(earth, this.map, biomes, trees, MAP_SEED);
 
     // Rendering, systems & input.
@@ -910,8 +912,8 @@ export class Game {
     return true;
   }
 
-  /** An engineer walks to a contested nation's capital and takes it over (false if it cannot get there). */
-  orderCapture(u: Infantry, b: NationCapital): boolean {
+  /** An engineer walks to a contested capital / Antarctic derrick and takes it over (false if it cannot get there). */
+  orderCapture(u: Infantry, b: Building): boolean {
     if (!u.isEngineer || b.owner === u.owner || !this.walkToDoor(u, b)) return false;
     u.task = { type: 'capture', buildingId: b.id };
     return true;
@@ -3457,14 +3459,14 @@ export class Game {
         // treated there once the repair is done (see processRepairs).
         if (u.isEngineer && b.hp < b.maxHp && !b.indestructible) type = 'repair';
         else if (b.canEnter(u)) type = 'enter';
-      } else if (u.isEngineer && b.capturable && (b.faction !== 'neutral' || b instanceof NationCapital)) {
+      } else if (u.isEngineer && b.capturable && (b.faction !== 'neutral' || b instanceof NationCapital || (b instanceof OilDerrick && b.antarctic))) {
         type = 'capture';
       }
       if (!type || !this.walkToDoor(u, b)) continue;
       u.task = type === 'lease' ? { type, buildingId: b.id, lessor: b.owner } : { type, buildingId: b.id };
       ordered++;
     }
-    if (ordered === 0 && b.faction === 'neutral' && !(b instanceof NationCapital) && this.selection.selectedUnitList().some((u) => u instanceof Infantry && u.isEngineer)) {
+    if (ordered === 0 && b.faction === 'neutral' && !(b instanceof NationCapital) && !(b instanceof OilDerrick && b.antarctic) && this.selection.selectedUnitList().some((u) => u instanceof Infantry && u.isEngineer)) {
       this.sidebar.notify('Neutral buildings cannot be captured or destroyed.');
     }
     // Enemy building and nobody could capture it: armed units attack it instead.
@@ -4154,6 +4156,20 @@ export class Game {
         this.derricks.push(derrick);
       });
     }
+  }
+
+  /** Antarctic oil: unowned, indestructible derricks spread over Antarctica (see ANTARCTIC_OIL_SITES). */
+  private placeAntarcticOil(trees: TreeLayer): void {
+    ANTARCTIC_OIL_SITES.forEach((site, i) => {
+      const derrick = new OilDerrick(NEUTRAL_OWNER, 'neutral', geoToWorld(site), i, false, true);
+      // Ice is no building ground: take the nearest buildable spot if there is one, else stand on the ice anyway.
+      const at = this.map.findBuildableSite(derrick.x, derrick.y, derrick.w, derrick.d, { ignoreTrees: true, maxRadius: 6 });
+      if (at) derrick.moveTo(at.x, at.y);
+      this.entities.add(derrick);
+      trees.clearArea(derrick.x, derrick.y, derrick.w, derrick.d);
+      this.map.occupy(derrick.x, derrick.y, derrick.w, derrick.d, derrick.id);
+      this.derricks.push(derrick);
+    });
   }
 
   /** Jumps to the next of the player's oil derricks. */

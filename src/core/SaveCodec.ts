@@ -62,7 +62,7 @@ const TEMPLATES: Readonly<Record<string, (d: Record<string, unknown>, at: WorldP
   NationCapital: (d, at) => new NationCapital(d.nation as ContestedNationId, at),
   // A leased-out derrick is built as its leasing nation's (its protection follows that nation); the saved fields then hand it to the lessee.
   OilDerrick: (d, at) =>
-    new OilDerrick((d.lessor ?? d.owner) as number, (d.lessorFaction ?? d.faction) as FactionId, at, (d.rowIndex as number) ?? 0, d.bankManaged === true),
+    new OilDerrick((d.lessor ?? d.owner) as number, (d.lessorFaction ?? d.faction) as FactionId, at, (d.rowIndex as number) ?? 0, d.bankManaged === true, d.antarctic === true),
   Infantry: (d, at) => new Infantry(d.owner as number, d.faction as FactionId, d.tier as UnitTier, at),
   Vehicle: (d, at) => {
     if (!(String(d.type) in VEHICLE_BASE)) throw new Error(`vehicle kind '${String(d.type)}' was removed`);

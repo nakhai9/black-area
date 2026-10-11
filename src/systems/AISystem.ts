@@ -1,4 +1,4 @@
-import { AI_BUNKERS, CELL_SIZE, INFANTRY_BASE, INFANTRY_MARCH_CELLS, MAX_ALLIES, NATION_GARRISON, NATION_GARRISON_CELLS, NEUTRAL_OWNER, OIL_DERRICK_OUTPUT, OIL_LEASE_CARTEL_SHARE, OIL_LEASE_SECONDS, TECH_VEHICLES, TRUCK_SOLDIERS } from '../constants';
+import { AI_BUNKERS, BUNKER_RANGE, CELL_SIZE, INFANTRY_BASE, INFANTRY_MARCH_CELLS, MAX_ALLIES, NATION_GARRISON, NATION_GARRISON_CELLS, NEUTRAL_OWNER, OIL_DERRICK_OUTPUT, OIL_LEASE_CARTEL_SHARE, OIL_LEASE_SECONDS, TECH_VEHICLES, TRUCK_SOLDIERS } from '../constants';
 import { FACTIONS } from '../factions';
 import { OilDerrick } from '../entities/OilDerrick';
 import { NationCapital } from '../entities/NationCapital';
@@ -63,7 +63,7 @@ export interface AIHost {
   /** Allies the nation leads (Allied Buildings standing + one under construction). */
   alliesOf(player: PlayerState): number;
   /** Sends an engineer to take over a contested nation's capital (false if it cannot get there). */
-  orderCapture(u: Infantry, b: NationCapital): boolean;
+  orderCapture(u: Infantry, b: Building): boolean;
 }
 
 /** Order in which an AI nation builds its base. */
@@ -138,6 +138,10 @@ const ALLIED_SEARCH = 9;
 const ECONOMY_TYPES: ReadonlySet<BuildingType> = new Set(['oilDerrick', 'happyCity', 'powerPlant']);
 /** From this game time on the nation goes after the contested nations' capitals (one at a time). */
 const NATION_FROM = 90;
+/** Prizes anyone's engineer may take and the AI goes after / garrisons: contested capitals and Antarctic derricks. */
+const isPrize = (b: Building): boolean => b instanceof NationCapital || (b instanceof OilDerrick && b.antarctic);
+/** Transports look this many cells around their goal for the landing spot least exposed to enemy fire. */
+const SAFE_DROP_CELLS = 24;
 
 /**
  * Each AI nation gets a character so no two games play the same:
@@ -562,7 +566,7 @@ export class AISystem implements GameSystem {
       if (t.flight !== 'parked' || t.incoming > 0) continue;
       st.claimSite ??= this.pickClaimSite(p, st, capital);
       if (!st.claimSite) continue;
-      this.host.orderAttackMove([t], { x: (st.claimSite.x + 0.5) * CELL_SIZE, y: (st.claimSite.y + 0.5) * CELL_SIZE });
+      this.host.orderAttackMove([t], this.safeDrop(p, { x: (st.claimSite.x + 0.5) * CELL_SIZE, y: (st.claimSite.y + 0.5) * CELL_SIZE }));
     }
     const wanted = this.host.alliesOf(p) + this.openClaims(p).length < MAX_ALLIES;
     if (!wanted || teams.length > 0 || aboard.length > 0 || threat > 0 || this.time < CLAIM_FROM) return;
@@ -1035,12 +1039,12 @@ export class AISystem implements GameSystem {
   }
 
   /**
-   * Contested nations (CONTESTED_NATIONS): the nation goes after the nearest capital it does not hold, one at a time,
+   * Contested prizes (CONTESTED_NATIONS capitals, ANTARCTIC_OIL_SITES derricks): the nation goes after the nearest one it does not hold, one at a time,
    * with a dedicated engineer - on foot when it is on the same landmass, otherwise flown in by transport. With no
    * free engineer it trains one. Never while the home front is under attack.
    */
   private contestNations(p: PlayerState, st: AIState, capital: Building, owned: Set<BuildingType>, threat: number): void {
-    const caps = this.host.entities.buildings().filter((b): b is NationCapital => b instanceof NationCapital && b.alive);
+    const caps = this.host.entities.buildings().filter((b) => isPrize(b) && b.alive);
     const pf = this.host.pathfinder;
     const cellOf = (b: Building): GridPoint | null => pf.nearestPassable(b.x + Math.floor(b.w / 2), b.y + b.d, 10);
     let target = caps.find((c) => c.id === st.nationTarget && c.owner !== p.id) ?? null;
@@ -1089,7 +1093,7 @@ export class AISystem implements GameSystem {
     if (lift) {
       if (lift.flight === 'parked' && lift.incoming === 0) {
         const c = target.centerWorld();
-        this.host.orderAttackMove([lift], { x: c.x, y: c.y + CELL_SIZE * 9 });
+        this.host.orderAttackMove([lift], this.safeDrop(p, { x: c.x, y: c.y + CELL_SIZE * 9 }));
       }
       return;
     }
@@ -1109,7 +1113,7 @@ export class AISystem implements GameSystem {
   }
 
   /**
-   * Garrisons: every contested capital this nation holds (and the one it is taking) gets up to NATION_GARRISON ground
+   * Garrisons: every contested capital / Antarctic derrick this nation holds (and the one it is taking) gets up to NATION_GARRISON ground
    * units that can reach it. They walk there, fight any enemy that comes near it, and otherwise stay put. A held
    * capital across the sea that is short of men gets a loaded transport from home. Returns the units stationed.
    */
@@ -1117,7 +1121,7 @@ export class AISystem implements GameSystem {
     const busy = new Set<number>();
     const caps = this.host.entities
       .buildings()
-      .filter((b): b is NationCapital => b instanceof NationCapital && b.alive && (b.owner === p.id || b.id === st.nationTarget));
+      .filter((b) => isPrize(b) && b.alive && (b.owner === p.id || b.id === st.nationTarget));
     for (const id of [...st.nationGuard.keys()]) if (!caps.some((c) => c.id === id)) st.nationGuard.delete(id);
     if (caps.length === 0) return busy;
     const pf = this.host.pathfinder;
@@ -1160,11 +1164,57 @@ export class AISystem implements GameSystem {
         const homeCell = pf.nearestPassable(Math.floor(home.x / CELL_SIZE), Math.floor(home.y / CELL_SIZE) + 1, 10);
         if (homeCell && !pf.sameLandmass(homeCell.x, homeCell.y, cell.x, cell.y)) {
           const t2 = this.homeTransports(p).find((v) => v.cargo.length >= TRANSPORT_LOAD / 2 && v.incoming === 0 && !this.carriesSquatters(v) && !v.cargo.some((x) => x.id === st.nationEngineer));
-          if (t2) this.host.orderAttackMove([t2], { x: centre.x, y: centre.y + CELL_SIZE * 9 });
+          if (t2) this.host.orderAttackMove([t2], this.safeDrop(p, { x: centre.x, y: centre.y + CELL_SIZE * 9 }));
         }
       }
     }
     return busy;
+  }
+
+  /**
+   * Where a transport should set down near `goal`: of the dry cells on the goal's landmass within SAFE_DROP_CELLS,
+   * the one least exposed to other nations - weighed by the armed enemy units and bunkers that could reach it -
+   * with a small preference for staying close to the goal. Returns the goal itself when nothing better is found.
+   */
+  private safeDrop(p: PlayerState, goal: WorldPoint): WorldPoint {
+    const pf = this.host.pathfinder;
+    const gx = Math.floor(goal.x / CELL_SIZE);
+    const gy = Math.floor(goal.y / CELL_SIZE);
+    const anchor = pf.nearestPassable(gx, gy, 10);
+    if (!anchor) return goal;
+    const threats: { x: number; y: number; w: number; r: number }[] = [];
+    for (const e of this.host.entities.fieldMovers()) {
+      if (!e.alive || e.owner === p.id || e.owner === NEUTRAL_OWNER || e.weapon === null) continue;
+      threats.push({ x: e.px, y: e.py, w: this.strength(e), r: Math.max(e.weapon.range, CELL_SIZE * 6) + CELL_SIZE * 6 });
+    }
+    for (const b of this.host.entities.buildings()) {
+      if (!b.alive || b.owner === p.id || b.owner === NEUTRAL_OWNER || b.spec.type !== 'bunker') continue;
+      const c = b.centerWorld();
+      threats.push({ x: c.x, y: c.y, w: 3, r: BUNKER_RANGE + CELL_SIZE * 4 });
+    }
+    const danger = (x: number, y: number): number => {
+      let d = 0;
+      for (const t of threats) if (Math.hypot(t.x - x, t.y - y) < t.r) d += t.w;
+      return d;
+    };
+    let best = goal;
+    let bestScore = danger(goal.x, goal.y) * 10;
+    if (bestScore === 0) return goal;
+    for (let dy = -SAFE_DROP_CELLS; dy <= SAFE_DROP_CELLS; dy += 3) {
+      for (let dx = -SAFE_DROP_CELLS; dx <= SAFE_DROP_CELLS; dx += 3) {
+        const x = gx + dx;
+        const y = gy + dy;
+        if (!pf.passable(x, y, false) || !pf.sameLandmass(x, y, anchor.x, anchor.y)) continue;
+        const wx = (x + 0.5) * CELL_SIZE;
+        const wy = (y + 0.5) * CELL_SIZE;
+        const score = danger(wx, wy) * 10 + Math.hypot(dx, dy) / SAFE_DROP_CELLS;
+        if (score < bestScore) {
+          bestScore = score;
+          best = { x: wx, y: wy };
+        }
+      }
+    }
+    return best;
   }
 
   /** Waiting in (or walking to) one of the nation's own safe zones to be flown home. */
@@ -1402,7 +1452,7 @@ export class AISystem implements GameSystem {
     st.waveSize = Math.min(st.waveSize + 3, 30);
     // Fighters and swimmers go straight at the target; transports land next to it and unload.
     this.host.orderAttackMove(crossers, { x: goal.x, y: goal.y + CELL_SIZE * 3 });
-    if (loaded.length > 0) this.host.orderAttackMove(loaded, { x: goal.x, y: goal.y + CELL_SIZE * 9 });
+    if (loaded.length > 0) this.host.orderAttackMove(loaded, this.safeDrop(p, { x: goal.x, y: goal.y + CELL_SIZE * 9 }));
   }
 
   /** How eagerly this government attacks `b` (lower = sooner); Infinity: not a target yet (or ever). */

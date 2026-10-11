@@ -6,7 +6,7 @@ import {
   OIL_REST_SECONDS,
   OIL_DERRICK_REGEN,
 } from '../constants';
-import type { FactionId, WorldPoint } from '../types';
+import type { Allegiance, FactionId, WorldPoint } from '../types';
 import { FACTIONS } from '../factions';
 import { Building } from './Building';
 
@@ -36,7 +36,11 @@ export class OilDerrick extends Building {
   lessor: number | null = null;
   private lessorFaction: FactionId | null = null;
 
-  constructor(owner: number, faction: FactionId, center: WorldPoint, rowIndex: number, bankManaged = false) {
+  /** Antarctic derrick: unowned at start, never destroyed, taken over by any nation's engineer. */
+  readonly antarctic: boolean;
+
+  constructor(owner: number, faction: Allegiance, center: WorldPoint, rowIndex: number, bankManaged = false, antarctic = false) {
+    const leases = faction !== 'neutral' && FACTIONS[faction].leasesOil === true;
     super(owner, faction, center, {
       type: 'oilDerrick',
       name: 'Oil Derrick',
@@ -47,11 +51,14 @@ export class OilDerrick extends Building {
       incomePerSecond: OIL_DERRICK_OUTPUT,
       spriteKey: `oil:${faction}`,
       // A leasing nation's derricks (FactionConfig.leasesOil) are protected for now, like the Center's.
-      indestructible: bankManaged || FACTIONS[faction].leasesOil === true,
-      uncapturable: bankManaged || FACTIONS[faction].leasesOil === true,
+      indestructible: bankManaged || leases || antarctic,
+      uncapturable: !antarctic && (bankManaged || leases),
     });
     this.bankManaged = bankManaged;
-    this.description = bankManaged
+    this.antarctic = antarctic;
+    this.description = antarctic
+      ? 'Antarctic oil field: belongs to whoever took it last. It cannot be destroyed; any nation\'s engineer can take it over.'
+      : bankManaged
       ? `Managed by the Global Financial Center: its TB still goes to its nation, and it cannot be destroyed or captured.`
       : `Pumps oil for the nation to sell to the Global Financial Center. Pumps ${OIL_MINE_SECONDS} s, then rests ${OIL_REST_SECONDS} s while the field recovers.`;
     // Stagger neighbours (0 s, 40 s, 80 s … into the 240 s cycle) so they never all rest together.

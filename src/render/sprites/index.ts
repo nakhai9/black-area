@@ -41,6 +41,8 @@ export const BUILDING_ART: Readonly<Record<string, BuildingArt>> = {
   'oil:china': createOilDerrickArt(FACTIONS.china.colors),
   'oil:europe': createOilDerrickArt(FACTIONS.europe.colors),
   'oil:islamic': createOilDerrickArt(FACTIONS.islamic.colors),
+  // Unowned Antarctic derricks.
+  'oil:neutral': createOilDerrickArt({ primary: '#9aa3ab', light: '#c9d0d6', dark: '#5d646b' }),
   // Barracks in each nation's team colour.
   'barracks:usa': createBarracksArt('usa'),
   'barracks:russia': createBarracksArt('russia'),
