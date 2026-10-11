@@ -370,7 +370,7 @@ export class AISystem implements GameSystem {
     if (market.waitSeconds(p) > 0) return;
     // Sells at a fair price, at any price when short of cash, and at any price while it owes the Center
     // (every sale pays the debt down first).
-    if (p.credits < 3000 || p.debt > 0 || market.price >= 550) {
+    if (p.credits < 3000 || p.debt > 0 || market.price >= 330) {
       market.sell(p);
       st.nextSell = this.time + 5;
     }
@@ -380,7 +380,7 @@ export class AISystem implements GameSystem {
   private steerOilPrice(p: PlayerState, market: OilMarket): void {
     if (!market.isCartel(p) || market.policyWait() > 0) return;
     const price = market.price;
-    const want = price < 450 ? 'cut' : price > 1050 ? 'flood' : price >= 650 && price <= 900 ? 'hold' : market.policy;
+    const want = price < 270 ? 'cut' : price > 630 ? 'flood' : price >= 390 && price <= 540 ? 'hold' : market.policy;
     if (want !== market.policy) market.setPolicy(p, want);
   }
 

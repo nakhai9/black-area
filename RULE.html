@@ -26,7 +26,7 @@
 <body>
 <main>
 <img class="logo" src="/logo.png" alt="Black Area" />
-<h1>Black Area — RULE <small>v1.31.0</small></h1>
+<h1>Black Area — RULE <small>v1.32.0</small></h1>
 <p class="lead">Tài liệu luật chơi + kiến trúc code dành cho AI/dev sửa game. Mọi con số gameplay chính xác nằm trong <code>src/constants.ts</code> và <code>src/factions/*.ts</code>. Nếu tài liệu này khác code thì <b>code đúng</b>. <b>Khi đổi luật/số trong code, phải cập nhật file này.</b></p>
 <nav><a href="#s1">Quy tắc làm việc cho AI</a><a href="#s2">Chạy dự án</a><a href="#s3">Kiến trúc thư mục</a><a href="#s4">Thế giới</a><a href="#s5">Kinh tế (dầu)</a><a href="#s6">Công trình (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Quân đội</a><a href="#s8">Chiến đấu</a><a href="#s9">Điều khiển (Game.handleKey, handleInput)</a><a href="#s10">Giới hạn &amp; hiệu năng</a><a href="#s11">Thắng / thua &amp; AI</a><a href="#s12">Công thức sửa thường gặp</a></nav>
 <h2 id="s1">0. Quy tắc làm việc cho AI</h2>
@@ -78,7 +78,7 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
   <li><b>Ô đơn vị</b>: ô 1×1 của lưới, đơn vị đo chung cho cả hệ thống (đường đi, đặt công trình, footprint, cờ, khoảng cách tính bằng ô); kích thước <code>CELL_SIZE = 7</code> world px. Ở chế độ DEMO toàn bộ lưới ô đơn vị (cả đất liền lẫn biển) được vẽ lên bản đồ. Hiển thị isometric kiểu RA2, camera không xoay.</li>
   <li>Zoom chiến thuật <code>ZOOM_MIN 3</code> – <code>ZOOM_MAX 9</code> (bước <code>1.12</code>, <code>FOCUS_ZOOM 8</code>); toàn cảnh xem trên radar sidebar.</li>
   <li>Thủ đô ở toạ độ thật (<code>CAPITAL_LOCATIONS</code>): Washington D.C., Moscow, Beijing, Paris, <b>Riyadh</b> (Islamic). Global Financial Center (trung lập, <code>WorldBank</code>) ở Zürich.</li>
-  <li><b>Quốc gia tranh chấp</b> (<code>CONTESTED_NATIONS</code>, entity <code>NationCapital</code>, type <code>nationCapital</code>): Bắc Triều Tiên (Pyongyang), Hàn Quốc (Seoul), Nhật Bản (Tokyo), Úc (Canberra), Brazil (Brasília). Thủ đô độc lập, ban đầu trung lập; không thể bị phá huỷ, chỉ bị <b>kỹ sư</b> chiếm (từ trung lập hoặc từ phe đang giữ). Phe giữ được nhận <code>NATION_PRESENCE_FEE 2000</code> TB mỗi <code>NATION_PRESENCE_PERIOD 60</code>s (phí hiện diện quân sự, qua <code>TaxSystem</code>, trả nợ trước) và được xây công trình của mình cạnh thủ đô đó (như Allied Building). Không tính là thủ đô riêng của phe khi xét thua. AI (từ 90s, khi nhà yên) gửi 1 kỹ sư đi chiếm thủ đô gần nhất chưa giữ (qua biển: chở bằng máy bay vận tải), và giữ <code>NATION_GARRISON 6</code> lính/xe đồn trú tại mỗi thủ đô đang giữ (trong <code>NATION_GARRISON_CELLS 10</code> ô).</li>
+  <li><b>Quốc gia tranh chấp</b> (<code>CONTESTED_NATIONS</code>, entity <code>NationCapital</code>, type <code>nationCapital</code>): Bắc Triều Tiên (Pyongyang), Hàn Quốc (Seoul), Nhật Bản (Tokyo), Úc (Canberra), Brazil (Brasília). Thủ đô độc lập, ban đầu trung lập; không thể bị phá huỷ, chỉ bị <b>kỹ sư</b> chiếm (từ trung lập hoặc từ phe đang giữ). Phe giữ được nhận <code>NATION_PRESENCE_FEE 1200</code> TB mỗi <code>NATION_PRESENCE_PERIOD 60</code>s (phí hiện diện quân sự, qua <code>TaxSystem</code>, trả nợ trước) và được xây công trình của mình cạnh thủ đô đó (như Allied Building). Không tính là thủ đô riêng của phe khi xét thua. AI (từ 90s, khi nhà yên) gửi 1 kỹ sư đi chiếm thủ đô gần nhất chưa giữ (qua biển: chở bằng máy bay vận tải), và giữ <code>NATION_GARRISON 6</code> lính/xe đồn trú tại mỗi thủ đô đang giữ (trong <code>NATION_GARRISON_CELLS 10</code> ô).</li>
   <li><b>Dầu Nam Cực</b> (<code>ANTARCTIC_OIL_SITES</code>, <code>OilDerrick.antarctic</code>): 5 giếng dầu vô chủ trải đều Nam Cực. Bơm theo luật dầu như cũ cho phe đang giữ; không thể bị phá huỷ; kỹ sư của bất kỳ phe nào cũng chiếm được (từ vô chủ hoặc từ phe khác). AI coi như mục tiêu tranh chấp: gửi kỹ sư bằng máy bay vận tải đi chiếm và để lính đồn trú bảo vệ (như thủ đô tranh chấp).</li>
   <li>Máy bay vận tải AI (<code>AISystem.safeDrop</code>): khi chở quân / kỹ sư đi xa, chọn điểm hạ cánh trong <code>SAFE_DROP_CELLS 24</code> ô quanh mục tiêu ít bị lính / xe / bunker phe khác bắn tới nhất.</li>
   <li>Radar (minimap): công trình trung lập / chưa thuộc về ai vẽ hình <b>tam giác</b>; công trình của các phe vẽ chấm tròn.</li>
@@ -117,8 +117,8 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 </ul>
 <h3>Giá dầu (<code>systems/OilMarket.ts</code>)</h3>
 <ul>
-  <li>Giá chung, khởi điểm <code>OIL_PRICE_START 1500</code>, kẹp <code>OIL_PRICE_MIN 600</code> – <code>OIL_PRICE_MAX 3500</code> TB/thùng; xét lại mỗi <code>OIL_PRICE_INTERVAL 10</code> s, mỗi lần đi <code>OIL_PRICE_EASE 35%</code> khoảng cách tới giá mục tiêu.</li>
-  <li><code>balancePrice = 1500 × wealth × flow × cartelFactor</code>:</li>
+  <li>Giá chung, khởi điểm <code>OIL_PRICE_START 900</code>, kẹp <code>OIL_PRICE_MIN 360</code> – <code>OIL_PRICE_MAX 2100</code> TB/thùng; xét lại mỗi <code>OIL_PRICE_INTERVAL 10</code> s, mỗi lần đi <code>OIL_PRICE_EASE 35%</code> khoảng cách tới giá mục tiêu.</li>
+  <li><code>balancePrice = 900 × wealth × flow × cartelFactor</code>:</li>
   <li><code>flow = ((OIL_FLOW_REF 3 + bought) / (3 + sold)) ^ 0.5</code> — <code>sold</code> = thùng các phe bán cho Center, <code>bought</code> = thùng Center buộc phải bán cho lưới điện; cả hai phai dần theo <code>OIL_FLOW_MEMORY 90</code> s. Bán nhiều → rẻ; lưới điện mua nhiều → đắt.</li>
   <li><code>wealth = ((15000 + tài sản ròng TB/phe) / 15000) ^ 0.3</code> (<code>OIL_WEALTH_*</code>; tài sản = tiền + collateral − nợ, chỉ phe chưa bị loại).</li>
   <li><code>cartelFactor</code> = <code>OIL_POLICIES[policy].price</code> khi còn phe cartel.</li>
@@ -128,7 +128,7 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 <h3>Bán dầu</h3>
 <ul>
   <li>Bán = chào toàn bộ kho trừ <code>OIL_RESERVE = 1.0</code> thùng luôn giữ lại; cần ≥ <code>0.5</code> thùng để chào.</li>
-  <li>Lượng Center mua = <code>kho × WB_MAX_SHARE (25%) × (1 − 0.6 × giá / 1500)</code>.</li>
+  <li>Lượng Center mua = <code>kho × WB_MAX_SHARE (25%) × (1 − 0.6 × giá / OIL_PRICE_MAX)</code>.</li>
   <li>Tiền = <code>round(thùng × giá)</code> qua <code>OilMarket.receive()</code>: trừ nợ trước, phần còn lại vào ngân khố.</li>
   <li>Nhịp: <code>OIL_SALE_BURST = 6</code> lần liền, sau đó chờ <code>OIL_SALE_COOLDOWN = 3</code> s.</li>
 </ul>
@@ -163,7 +163,7 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 </ul>
 <h3>Nguồn thu khác</h3>
 <ul>
-  <li>Happy City: <code>HAPPY_CITY_TAX 1000</code> TB mỗi <code>HAPPY_CITY_TAX_PERIOD 50</code> s, mỗi thành phố đồng hồ riêng (<code>TaxSystem</code>). Càng nhiều thành phố thuế càng cao: mỗi thành phố khác của phe cộng thêm <code>HAPPY_CITY_TAX_BONUS 0.15</code> × thuế gốc cho từng thành phố (5 thành phố: mỗi cái ×1.6).</li>
+  <li>Happy City: <code>HAPPY_CITY_TAX 600</code> TB mỗi <code>HAPPY_CITY_TAX_PERIOD 50</code> s, mỗi thành phố đồng hồ riêng (<code>TaxSystem</code>). Càng nhiều thành phố thuế càng cao: mỗi thành phố khác của phe cộng thêm <code>HAPPY_CITY_TAX_BONUS 0.15</code> × thuế gốc cho từng thành phố (5 thành phố: mỗi cái ×1.6).</li>
   <li>Mercy bonus: <code>MERCY_BONUS 100</code> TB khi để một nhóm địch đang rút lui đi mà không đuổi (1 lần / nhóm / phe).</li>
 </ul>
 <h3>Điện (<code>PowerSystem</code>)</h3>
@@ -210,7 +210,7 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 <tr><td><code>bunker</code> (Bunker)</td><td>Công trình phòng thủ: mua ở tab <b>Defense</b> (không nằm trong tab Build cùng các công trình chính). Ô 1×1, đặt cách mép một công trình của phe tối đa <code>BUNKER_BUILD_RADIUS 7</code> ô (công trình khác: 3 ô). File save cũ có bunker 2×2: khi tải, mỗi bunker thu về 1×1 trên một trong bốn ô cũ — ô đầu tiên (trái-trên trước) cách mép một công trình khác của phe ≤ 7 ô; không ô nào đạt thì lấy ô gần công trình của phe nhất (<code>Game.shrinkOldBunkers</code>). Hình vẽ sẵn (<code>public/sprites/bunker-west.png</code> cho USA / Europe, <code>bunker-east.png</code> cho Russia / China / Islamic; dựng bằng <code>tools/bunker_sheet.py</code>): 8 hướng nòng súng xoay theo mục tiêu vừa bắn, 4 mức hư hại theo máu (&gt;75%, &gt;50%, &gt;25%, còn lại). Khi bắn: chớp lửa ở đầu nòng đúng hướng đang vẽ (Mỹ / Âu: đầu nòng tháp pháo; Nga / Trung / Hồi: khe bắn), viên đạn dùng ảnh <code>bullet.png</code> (cỡ <code>bunker</code>), tiếng súng máy <code>mg</code>. Lô cốt súng máy <b>tự bắn</b>, không cần lính đồn trú: mỗi 0,25 s bắn kẻ địch (lính hoặc xe mặt đất) gần nhất trong tầm 40 px tính từ mép lô cốt, 8 sát thương (×0,35 với xe); không bắn được máy bay. AI xây tối đa 2 cái quanh căn cứ khi đã xong kế hoạch xây.</td></tr>
 <tr><td><code>airfield</code></td><td>Sản xuất máy bay (jet, bomber, transport) và là nơi đỗ: 9 chỗ, số máy bay ≤ 9 × số airfield. Sửa máy bay đỗ 2% HP mỗi 4 s, nạp bom (trả tiền). Có airfield thì radar sidebar mới hoạt động. Mất airfield: máy bay tìm airfield khác, không có thì rơi.</td></tr>
 <tr><td><code>techCenter</code> (High-Tech Center)</td><td>Khi còn đứng: mở lính <code>special</code>, <code>demolition</code> và máy bay <code>transport</code>. Mất nó thì đơn hàng các loại này dừng (không trừ tiền) cho tới khi có lại.</td></tr>
-<tr><td><code>happyCity</code></td><td>Khoản đầu tư kinh tế: mỗi thành phố nộp 1000 TB thuế / 50 s (theo máu còn lại), mỗi thành phố một đồng hồ riêng. Không giới hạn số lượng; bị chiếm thì thuế về phe mới.</td></tr>
+<tr><td><code>happyCity</code></td><td>Khoản đầu tư kinh tế: mỗi thành phố nộp 600 TB thuế / 50 s (theo máu còn lại), mỗi thành phố một đồng hồ riêng. Không giới hạn số lượng; bị chiếm thì thuế về phe mới.</td></tr>
 <tr><td><code>flagpole</code></td><td>Cột cờ quốc gia, tính là công trình của phe (mở rộng vùng được xây). Đội Squatters cắm cờ (chọn đội rồi nhấn <b>F</b> hoặc double-click: cờ cắm vào ô trống gần nhất, đất nào cũng được) trên đất chưa ai sở hữu sẽ tạo cột cờ đánh dấu đất đó là của mình.</td></tr>
 <tr><td><code>alliedBuilding</code> (Allied Building)</td><td>Hai cột cờ ở hai góc trước: một cờ quốc gia của chủ sở hữu, một <b>cờ đồng minh</b> nền đen có logo phe (<code>public/emblems/<tr><td><code>alliedBuilding</code> (Allied Building)</td><td>lt;phe<tr><td><code>alliedBuilding</code> (Allied Building)</td><td>gt;.png</code>) ở chính giữa. Trụ sở đồng minh, chỉ xây trên đất đã cắm cờ bằng Squatters; mỗi phe tối đa 3. Hiện chỉ là công trình (chưa có kinh tế đồng minh), hiện ở tab Allies.</td></tr>
 <tr><td><code>oilDerrick</code></td><td>Nguồn thu chính: bơm dầu vào kho (0.08 thùng/s, bơm 180 s nghỉ 60 s), dầu đem bán cho Center lấy TB hoặc đốt ra điện. Đặt sẵn, không xây được. Giếng mất máu tự hồi <code>OIL_DERRICK_REGEN 1%</code> máu tối đa mỗi giây (luật tạm thời). Giếng <code>bankManaged</code> và giếng Islamic không phá / chiếm được; giếng Islamic cho phe khác thuê bằng engineer.</td></tr>

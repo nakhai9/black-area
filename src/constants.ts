@@ -21,7 +21,7 @@ export const DEMO_MODE = false;
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "1.31.0";
+export const GAME_VERSION = "1.32.0";
 
 // ---------------------------------------------------------------- World (real Earth)
 /** Packed Earth texture built by `npm run build:earth` (see scripts/build-earth.mjs). */
@@ -189,7 +189,7 @@ export const TECH_VEHICLES: readonly VehicleKind[] = ["ifv", "transport"];
  * HAPPY_CITY_TAX TB of taxes into its nation's budget every HAPPY_CITY_TAX_PERIOD seconds, each on its own clock.
  */
 export const HAPPY_CITY_COST = 8000;
-export const HAPPY_CITY_TAX = 1000;
+export const HAPPY_CITY_TAX = 600;
 export const HAPPY_CITY_TAX_PERIOD = 50;
 /** Every other Happy City of the nation raises each city's tax by this share of HAPPY_CITY_TAX (5 cities: ×1.6 each). */
 export const HAPPY_CITY_TAX_BONUS = 0.15;
@@ -627,7 +627,7 @@ export const CONTESTED_NATIONS: Readonly<
     site: { lon: -47.88, lat: -15.79, name: "Brasília" },
   },
 };
-export const NATION_PRESENCE_FEE = 2000;
+export const NATION_PRESENCE_FEE = 1200;
 
 /**
  * Antarctic oil: unowned derricks spread across Antarctica. They pump under the usual oil rules for whoever holds
@@ -659,9 +659,9 @@ export const STARTING_OIL = 20;
  *   target = OIL_PRICE_START × wealthFactor × flowFactor × (1 + mood), clamped to [MIN, MAX];
  * the posted price eases towards that target every OIL_PRICE_INTERVAL seconds.
  */
-export const OIL_PRICE_START = 1500;
-export const OIL_PRICE_MIN = 600;
-export const OIL_PRICE_MAX = 3500;
+export const OIL_PRICE_START = 900;
+export const OIL_PRICE_MIN = 360;
+export const OIL_PRICE_MAX = 2100;
 export const OIL_PRICE_INTERVAL = 10;
 /** Share of the gap to the target price closed at each revision (0..1). */
 export const OIL_PRICE_EASE = 0.35;
