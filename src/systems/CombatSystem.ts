@@ -57,6 +57,8 @@ export function distanceTo(x: number, y: number, e: Entity): number {
 }
 
 const HASH = 48;
+/** Seconds between two tries of a unit to resume its attack-move (each try is a full path search). */
+const RESUME_RETRY = 1;
 /** Longest weapon range in the game (world px, before faction multipliers), with room for them. */
 const MAX_WEAPON_RANGE = Math.max(...Object.values(WEAPONS).map((w) => w.range)) * 1.5;
 /** A retreating unit's group (one order = one group), or the unit alone. */
@@ -72,6 +74,8 @@ const retreatKey = (u: Unit): string => (u.retreatGroup > 0 ? `g${u.retreatGroup
 export class CombatSystem implements GameSystem {
   private time = 0;
   private readonly chaseAt = new Map<number, number>();
+  /** Unit id → game time of its next attack-move resume try. */
+  private readonly resumeAt = new Map<number, number>();
   private readonly grid = new Map<number, Unit[]>();
   private readonly pool: Unit[][] = [];
   /**
@@ -506,12 +510,24 @@ export class CombatSystem implements GameSystem {
       s.follow([dest]);
       return;
     }
+    // A full A* search per call: at most one try per RESUME_RETRY seconds per unit (it used to run every tick).
+    if ((this.resumeAt.get(s.id) ?? 0) > this.time) return;
+    this.resumeAt.set(s.id, this.time + RESUME_RETRY);
     const cell = this.pathfinder.nearestPassable(Math.floor(dest.x / CELL_SIZE), Math.floor(dest.y / CELL_SIZE), 10, undefined, s.swims);
-    if (!cell) {
+    const sx = Math.floor(s.px / CELL_SIZE);
+    const sy = Math.floor(s.py / CELL_SIZE);
+    // No standable cell there, or across the sea for a unit that cannot swim: the destination cannot be reached.
+    if (!cell || (!s.swims && !this.pathfinder.sameLandmass(sx, sy, cell.x, cell.y))) {
       s.attackMove = null;
       return;
     }
-    s.follow(this.pathfinder.find({ x: s.px, y: s.py }, cell, s.swims));
+    const path = this.pathfinder.find({ x: s.px, y: s.py }, cell, s.swims);
+    // Already as close as it can get: the order is done (instead of searching again and again on the spot).
+    if (path.length <= 1) {
+      s.attackMove = null;
+      return;
+    }
+    s.follow(path);
   }
 
   /** Housekeeping: forgets chase timers that have run out or belong to units that no longer exist. */
@@ -519,6 +535,7 @@ export class CombatSystem implements GameSystem {
     for (const [id, until] of [...this.chaseAt]) {
       if (until <= this.time || !this.entities.get(id)) this.chaseAt.delete(id);
     }
+    for (const [id, at] of [...this.resumeAt]) if (at <= this.time) this.resumeAt.delete(id);
   }
 
   /** Removes everything that ran out of health. */

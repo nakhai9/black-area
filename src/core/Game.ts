@@ -210,6 +210,9 @@ const SCATTER_CELLS = 3;
 /** Landmark labels sit a bit above the footprint centre when focusing. */
 const FOCUS_OFFSET_Y = 6;
 
+/** Most units re-routed per stuck-unit pass (every 0.5 s); each re-route is a path search. */
+const REPATH_BUDGET = 8;
+
 /**
  * Composition root: loads the Earth, builds the world, wires systems/UI
  * through the event bus and drives everything from the game loop.
@@ -3211,7 +3214,10 @@ export class Game {
     this.repathTimer -= dt;
     if (this.repathTimer > 0) return;
     this.repathTimer = 0.5;
+    // Path searches are dear: at most REPATH_BUDGET units per pass; the rest keep their flag and go next pass.
+    let budget = REPATH_BUDGET;
     for (const u of this.entities.fieldMovers()) {
+      if (budget <= 0) break;
       if (!u.moving || u.aircraft || !u.destination) continue;
       const next = u.waypoints()[0];
       const nextCell = next ? this.map.cellAt(next.x, next.y) : null;
@@ -3220,12 +3226,18 @@ export class Game {
       const dest = u.destination;
       const cell = this.map.cellAt(dest.x, dest.y);
       if (!cell) continue;
+      budget--;
       const goal = this.pathfinder.passable(cell.x, cell.y, u.swims) ? cell : this.pathfinder.nearestPassable(cell.x, cell.y, 6, undefined, u.swims);
       if (!goal) {
         u.stop();
         continue;
       }
       const path = this.paths.find({ x: u.px, y: u.py }, goal, u.swims);
+      // No way on from here: stop instead of being re-routed again every pass.
+      if (path.length <= 1) {
+        u.stop();
+        continue;
+      }
       const last = path[path.length - 1];
       if (last && goal.x === cell.x && goal.y === cell.y) {
         last.x = dest.x;
