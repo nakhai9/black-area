@@ -196,11 +196,7 @@ export class VehicleSystem implements GameSystem {
         q.state = 'onHold';
         continue;
       }
-      // Factories and airfields do not run without power.
-      if (p.powerShort) {
-        q.state = 'noPower';
-        continue;
-      }
+      // Orders always run while there is money: power no longer stops production.
       const option = this.optionsFor(p).find((o) => o.kind === kind);
       if (!option) continue;
       const want = Math.min((option.cost / option.trainSeconds) * dt, option.cost - q.paid);

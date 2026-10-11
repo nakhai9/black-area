@@ -223,11 +223,7 @@ export class ConstructionSystem implements GameSystem {
     for (const p of this.players) {
       const s = this.slot(p);
       if (!s.option || (s.state !== 'building' && s.state !== 'onHold' && s.state !== 'noPower')) continue;
-      // Short of power the economy slows to a halt: only a power plant can still be built.
-      if (p.powerShort && s.option.id !== 'powerPlant') {
-        s.state = 'noPower';
-        continue;
-      }
+      // Orders always run while there is money: power no longer stops construction.
       const cost = buildCost(s.option, p.faction);
       const want = Math.min(cost * RATE * dt, cost - s.paid);
       const pay = p.capitalLost ? 0 : Math.max(0, Math.min(want, p.credits));

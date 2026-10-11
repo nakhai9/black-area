@@ -547,9 +547,9 @@ export class Sidebar {
     this.powerText.textContent = `${compactEnergy(player.powerSupply)}/s / ${compactEnergy(player.powerConsumed)}/s`;
     this.powerText.classList.toggle('low', player.powerShort);
     this.powerText.parentElement!.title = player.blackout
-      ? 'BLACKOUT: no power and no TB to buy oil from the Global Financial Center. No construction, vehicles or take-offs.'
+      ? 'BLACKOUT: no power and no TB to buy oil from the Global Financial Center. No take-offs.'
       : player.powerShort
-        ? 'Not enough power: the Global Financial Center sells oil for the missing power (+25%), but construction (except power plants), vehicles and take-offs stop.'
+        ? 'Not enough power: the Global Financial Center sells oil for the missing power (+25%), and take-offs stop (construction and production keep running while you have TB).'
         : `Stored ${compactEnergy(player.powerStored)} / ${compactEnergy(player.powerCapacity)}. Plants burn your oil (0.001 bbl = 1 J).`;
 
     // The radar picture is blurred and dimmed until the nation owns an Airfield.

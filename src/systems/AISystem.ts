@@ -75,7 +75,7 @@ const FORWARD_RANGE = 14;
  * carry instead of on a fixed schedule. What holds it back is deliberate: it never borrows to invest, it
  * replaces battle losses before it invests, and it stops investing while its base is under attack.
  */
-const MAX_CITIES = 10;
+const MAX_CITIES = 30;
 /** While saving for a city, units are only bought with money above this share of its price. */
 const CITY_SAVE_SHARE = 0.7;
 /** Below this many fighting units the AI ignores savings and rebuilds its army first. */
@@ -203,6 +203,10 @@ const ECONOMIC_TARGETS: Partial<Record<BuildingType, number>> = { oilDerrick: 0.
 const MILITARY_TARGETS: Partial<Record<BuildingType, number>> = { barracks: 0.75, warFactory: 0.8, airfield: 0.85, techCenter: 0.9 };
 /** Any other structure (hospital…). */
 const OTHER_TARGET = 1.1;
+/** Seconds between re-weighing which nation to make war on. */
+const RIVAL_PERIOD = 60;
+/** The chosen rival's structures count as this much closer, so the offensive concentrates on one nation. */
+const RIVAL_FOCUS = 0.55;
 
 interface AIState {
   nextThink: number;
@@ -225,6 +229,9 @@ interface AIState {
   convoys: Map<number, WorldPoint>;
   /** Own derrick id -> its health at the last think (a drop means it is under attack). */
   derrickHp: Map<number, number>;
+  /** The nation this government has chosen to make war on (AI or the player), re-weighed every RIVAL_PERIOD s. */
+  rival: number | null;
+  nextRival: number;
 }
 
 /**
@@ -262,6 +269,8 @@ export class AISystem implements GameSystem {
       claimSite: null,
       convoys: new Map(),
       derrickHp: new Map(),
+      rival: null,
+      nextRival: 0,
     };
     this.state.set(p.id, st);
     return st;
@@ -278,6 +287,8 @@ export class AISystem implements GameSystem {
     if (!(st.derrickHp instanceof Map)) st.derrickHp = new Map();
     st.claimSite ??= null;
     st.overseas ??= false;
+    st.rival ??= null;
+    st.nextRival ??= 0;
   }
 
   update(dt: number): void {
@@ -309,6 +320,10 @@ export class AISystem implements GameSystem {
     if (!capital || p.defeated) return;
     const owned = this.host.ownedTypesOf(p);
     const threat = this.threat(p, capital);
+    if (this.time >= st.nextRival) {
+      st.nextRival = this.time + RIVAL_PERIOD;
+      st.rival = this.chooseRival(p, st, capital);
+    }
     st.overseas = this.isOverseas(p, capital);
     this.sellOil(p, st);
     this.build(p, st, capital, owned, threat);
@@ -393,9 +408,7 @@ export class AISystem implements GameSystem {
       else this.host.construction.cancel(p); // nowhere to put it: refund and try the next plan step
       return;
     }
-    // Stuck for lack of power: refund it so a power plant can go into the queue first.
-    if (slot.state === 'noPower') this.host.construction.cancel(p);
-    else if (slot.state !== 'idle') return;
+    if (slot.state !== 'idle') return;
     // Another nuclear plant once the drain outgrows what the plants can generate (oil from the Center is dear).
     const plants = this.host.entities.buildings().filter((b) => b.owner === p.id && b.alive && b.spec.type === 'powerPlant').length;
     const plant = BUILD_OPTIONS.find((o) => o.id === 'powerPlant');
@@ -409,7 +422,7 @@ export class AISystem implements GameSystem {
     // Base core done: a couple of machine-gun bunkers round the base.
     if (!next && owned.has('barracks')) {
       const bunkers = this.host.entities.buildings().filter((b) => b.owner === p.id && b.alive && b.spec.type === 'bunker').length;
-      if (bunkers < AI_BUNKERS) next = BUILD_OPTIONS.find((o) => o.id === 'bunker');
+      if (bunkers < AI_BUNKERS + Math.floor(this.cities(p) / 3)) next = BUILD_OPTIONS.find((o) => o.id === 'bunker');
     }
     // A claim flag stands on new land without its ally yet: raise the Allied Building next to it.
     if (!next && threat === 0 && this.openClaims(p).length > 0 && this.host.alliesOf(p) < MAX_ALLIES) next = BUILD_OPTIONS.find((o) => o.id === 'alliedBuilding');
@@ -644,7 +657,8 @@ export class AISystem implements GameSystem {
     // Which side is short: soldiers or vehicles?
     const wantVehicle = canVehicles && f.soldiers >= vehicleCount * st.style.soldiersPerVehicle;
 
-    if (owned.has('barracks') && (!wantVehicle || threat > 0)) {
+    // Both queues run without pause: the ratio only decides which side gets the money first when it is short.
+    if (owned.has('barracks') && (!wantVehicle || threat > 0 || budget > 1500)) {
       const q = training.queue(p);
       if (q.items.length < depth && budget > (threat > 0 ? 120 : 250)) {
         const r = training.army(p);
@@ -656,7 +670,7 @@ export class AISystem implements GameSystem {
         if (training.enqueue(p, tier) !== 'ok' && tier !== 'regular') training.enqueue(p, 'regular');
       }
     }
-    if (canVehicles && (wantVehicle || threat > 0)) {
+    if (canVehicles && (wantVehicle || threat > 0 || budget > 1200)) {
       const q = production.queue(p);
       if (q.items.length < depth && budget > (threat > 0 ? 500 : 700)) {
         // Every combat vehicle the nation can build here (its own national kinds included: bombers…).
@@ -1248,8 +1262,38 @@ export class AISystem implements GameSystem {
     const eco = ECONOMIC_TARGETS[type];
     const mil = MILITARY_TARGETS[type];
     const base = eco !== undefined ? eco * (st?.style.economicFocus ?? 1) : mil !== undefined ? mil * (st?.style.militaryFocus ?? 1) : OTHER_TARGET;
-    // A structure already burning is cheaper to finish off.
-    return base * (0.6 + (0.4 * b.hp) / b.maxHp);
+    // A structure already burning is cheaper to finish off; the chosen rival is hit first.
+    return base * (0.6 + (0.4 * b.hp) / b.maxHp) * (st?.rival === b.owner ? RIVAL_FOCUS : 1);
+  }
+
+  /**
+   * Picks the nation to make war on — any nation, AI or the player: the one whose nearest structure is closest,
+   * weighed by how its army compares with ours (a weaker neighbour is the better prey) and how rich it is
+   * (cities and derricks are worth taking).
+   */
+  private chooseRival(p: PlayerState, st: AIState, capital: Building): number | null {
+    const home = capital.centerWorld();
+    const near = new Map<number, number>();
+    const wealth = new Map<number, number>();
+    for (const b of this.enemyStructures(p)) {
+      const c = b.centerWorld();
+      near.set(b.owner, Math.min(near.get(b.owner) ?? Infinity, Math.hypot(c.x - home.x, c.y - home.y)));
+      if (ECONOMY_TYPES.has(b.spec.type)) wealth.set(b.owner, (wealth.get(b.owner) ?? 0) + 1);
+    }
+    const armies = new Map<number, number>();
+    for (const u of this.host.entities.fieldMovers()) if (u.alive && u.weapon !== null) armies.set(u.owner, (armies.get(u.owner) ?? 0) + 1);
+    const mine = armies.get(p.id) ?? 0;
+    let best: number | null = null;
+    let bestScore = Infinity;
+    for (const [owner, d] of near) {
+      const odds = ((armies.get(owner) ?? 0) + 5) / (mine + 5);
+      const score = (d * Math.sqrt(odds)) / (1 + 0.05 * (wealth.get(owner) ?? 0)) * (0.9 + 0.2 * st.rng());
+      if (score < bestScore) {
+        bestScore = score;
+        best = owner;
+      }
+    }
+    return best;
   }
 
   /** Enemy structures this nation may attack (not its own, not neutral, not protected). */
