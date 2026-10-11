@@ -21,7 +21,7 @@ export const DEMO_MODE = true;
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "1.25.0";
+export const GAME_VERSION = "1.26.0";
 
 // ---------------------------------------------------------------- World (real Earth)
 /** Packed Earth texture built by `npm run build:earth` (see scripts/build-earth.mjs). */
@@ -213,12 +213,10 @@ export const INFANTRY_BASE = {
  */
 export const BUILD_LIMIT_SOLDIERS = 15;
 export const BUILD_LIMIT_VEHICLES = 10;
-/** Army cap: a nation never has more than this many soldiers (alive anywhere + on order). */
-export const MAX_SOLDIERS = 25;
-/** Ground vehicle cap (light, tank, IFV — alive + on order); aircraft are not limited by it. */
-export const MAX_GROUND_VEHICLES = 30;
-/** Transport aircraft a nation may own at once (alive + on order). Fighters are not limited by it. */
-export const MAX_TRANSPORTS = 3;
+/** Army size is unlimited: soldiers, ground vehicles and transport aircraft have no cap (only money, queues and parking). */
+export const MAX_SOLDIERS = Number.POSITIVE_INFINITY;
+export const MAX_GROUND_VEHICLES = Number.POSITIVE_INFINITY;
+export const MAX_TRANSPORTS = Number.POSITIVE_INFINITY;
 /**
  * Elite (second-tier) soldiers are never more than the regular (first-tier) ones, at most 2 for every 3
  * regulars: with 5 soldiers that is 3 regular + 2 elite. Alive soldiers and soldiers on order both count.
