@@ -216,6 +216,13 @@ const OTHER_TARGET = 1.1;
 const RIVAL_PERIOD = 60;
 /** The chosen rival's structures count as this much closer, so the offensive concentrates on one nation. */
 const RIVAL_FOCUS = 0.55;
+/**
+ * Each other government already at war with a nation makes it this much less attractive as a rival, so the AIs
+ * spread their wars across every nation (each other included) instead of all piling onto the same one.
+ */
+const RIVAL_PILE_UP = 0.6;
+/** No nation (AI or player) is made war on by more than this many governments at once. */
+const MAX_ATTACKERS = 2;
 
 interface AIState {
   nextThink: number;
@@ -1485,11 +1492,17 @@ export class AISystem implements GameSystem {
     const armies = new Map<number, number>();
     for (const u of this.host.entities.fieldMovers()) if (u.alive && u.weapon !== null) armies.set(u.owner, (armies.get(u.owner) ?? 0) + 1);
     const mine = armies.get(p.id) ?? 0;
+    // How many other governments have already picked each nation as their rival.
+    const pile = new Map<number, number>();
+    for (const [id, other] of this.state) if (id !== p.id && other.rival !== null) pile.set(other.rival, (pile.get(other.rival) ?? 0) + 1);
     let best: number | null = null;
     let bestScore = Infinity;
     for (const [owner, d] of near) {
+      // A nation already besieged by MAX_ATTACKERS governments is left to them (unless every candidate is).
+      if ((pile.get(owner) ?? 0) >= MAX_ATTACKERS && [...near.keys()].some((o) => (pile.get(o) ?? 0) < MAX_ATTACKERS)) continue;
       const odds = ((armies.get(owner) ?? 0) + 5) / (mine + 5);
-      const score = (d * Math.sqrt(odds)) / (1 + 0.05 * (wealth.get(owner) ?? 0)) * (0.9 + 0.2 * st.rng());
+      const crowd = 1 + RIVAL_PILE_UP * (pile.get(owner) ?? 0);
+      const score = ((d * Math.sqrt(odds)) / (1 + 0.05 * (wealth.get(owner) ?? 0))) * crowd * (0.9 + 0.2 * st.rng());
       if (score < bestScore) {
         bestScore = score;
         best = owner;
@@ -1541,7 +1554,12 @@ export class AISystem implements GameSystem {
    */
   private pickTarget(p: PlayerState, from: WorldPoint | Building): Building | null {
     const mine = 'spec' in from ? from.centerWorld() : from;
-    const targets = this.enemyStructures(p);
+    // Offensives go to the chosen rival only (at most MAX_ATTACKERS governments besiege one nation); any enemy once
+    // the rival has nothing left to hit.
+    const all = this.enemyStructures(p);
+    const rival = this.state.get(p.id)?.rival ?? null;
+    const ofRival = rival === null ? [] : all.filter((b) => b.owner === rival);
+    const targets = ofRival.length > 0 ? ofRival : all;
     let best: Building | null = null;
     let bestScore = Infinity;
     // Capitals wait until their own nation has no other structure left.

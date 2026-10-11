@@ -1,4 +1,5 @@
 import {
+  HELI_FIREPOWER,
   CELL_SIZE,
   TRANSPORT_MIXED_SOLDIERS,
   TRANSPORT_SOLDIERS,
@@ -184,7 +185,8 @@ export class Vehicle extends Unit {
     const weapon = VEHICLE_WEAPON[type];
     if (weapon) {
       const spec = WEAPONS[weapon];
-      this.weapon = { ...spec, damage: spec.damage * f.stats.firepower, range: spec.range * f.stats.range };
+      const heli = type === 'heli' ? HELI_FIREPOWER : 1;
+      this.weapon = { ...spec, damage: spec.damage * f.stats.firepower * heli, range: spec.range * f.stats.range };
     }
     this.bombs = this.maxBombs;
     const h = HANDLING[type];

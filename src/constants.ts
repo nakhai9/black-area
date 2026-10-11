@@ -21,7 +21,7 @@ export const DEMO_MODE = false;
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "1.51.0";
+export const GAME_VERSION = "1.54.0";
 
 // ---------------------------------------------------------------- World (real Earth)
 /** Packed Earth texture built by `npm run build:earth` (see scripts/build-earth.mjs). */
@@ -369,7 +369,7 @@ export const VEHICLE_BASE = {
   ifv: { cost: 900, trainSeconds: 11, maxHp: 300, speed: 1.8, radius: 4.0 },
   jet: { cost: 1600, trainSeconds: 16, maxHp: 220, speed: 9, radius: 3.2 },
   /** Attack helicopter: slower than the fighter, built at the Airfield like it. */
-  heli: { cost: 1300, trainSeconds: 14, maxHp: 260, speed: 4.5, radius: 3.4 },
+  heli: { cost: 1300, trainSeconds: 14, maxHp: 200, speed: 4.5, radius: 3.4 },
   /** Unarmed cargo aircraft: slower than the fighter. */
   transport: {
     cost: 1400,
@@ -427,6 +427,11 @@ export const BOMB_FALL_SECONDS = 0.9;
  * its max health each). While any are left they are also dropped on ground units (JET_BOMB_VS_VEHICLE of a
  * vehicle's max health, a soldier killed); aircraft, and ground units once the bombs are gone, get the guns. */
 export const JET_BOMBS = 2;
+/**
+ * A helicopter never out-fights a fighter of its nation: it fires the same missile at this share of the damage, has
+ * less health (VEHICLE_BASE), shoots only ground vehicles and carries no bombs.
+ */
+export const HELI_FIREPOWER = 0.75;
 export const JET_BOMB_VS_STRUCTURE = 0.1;
 export const JET_BOMB_VS_VEHICLE = 0.6;
 /** A fighter's bomb costs this much to load (a bomber's costs BOMB_COST). */
@@ -714,13 +719,13 @@ export const OIL_SALE_BURST = 6;
 export const OIL_SALE_COOLDOWN = 3;
 /** Barrels that always stay in the nation's stock: a sale never dips below this reserve. */
 export const OIL_RESERVE = 1.0;
-/** Oil derricks per nation, built in one straight row on the safest ground: 2 each, but 4 for the Islamic world (the Middle East oil fields). */
+/** Oil derricks per nation, built in one straight row on the safest ground: 2 each, but 3 for the Islamic world (the Middle East oil fields). */
 export const OIL_DERRICK_COUNT: Readonly<Record<FactionId, number>> = {
   usa: 2,
   russia: 2,
   china: 2,
   europe: 2,
-  islamic: 4,
+  islamic: 3,
 };
 /**
  * Real oil regions some nations must put their field in (centre within 16 cells, widened to 24 / 32 only if needed,
