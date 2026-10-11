@@ -208,6 +208,7 @@ export interface PlayerState {
 
 export type BuildingType =
   | 'capital'
+  | 'nationCapital'
   | 'constructionYard'
   | 'powerPlant'
   | 'barracks'

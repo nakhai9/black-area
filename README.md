@@ -4,7 +4,7 @@
 
 <h1 align="center">Black Area</h1>
 
-<p align="center"><sub>Phiên bản 1.23.0</sub></p>
+<p align="center"><sub>Phiên bản 1.24.0</sub></p>
 
 <p align="center"><b><a href="https://black-area.vercel.app">▶ CHƠI NGAY: black-area.vercel.app</a></b></p>
 
@@ -35,6 +35,10 @@ Từ Washington đến Moscow, từ Bắc Kinh đến Paris và Riyadh, các qu�
 ### Dầu là máu của chiến tranh
 
 Giếng dầu bơm ngày đêm. Bán đúng lúc thì ngân khố đầy. Bán sai lúc thì cả thị trường sụp đổ. Global Financial Center ở Zürich đứng giữa tất cả: mua dầu, cho vay, và chờ xem ai vỡ nợ trước.
+
+### Vùng tranh chấp
+
+Bắc Triều Tiên, Hàn Quốc, Nhật Bản, Úc và Brazil là những quốc gia độc lập. Thủ đô của họ không thể bị phá huỷ — chỉ có thể bị kỹ sư chiếm. Phe nào giữ được nhận 2000 TB mỗi phút phí hiện diện quân sự và được xây căn cứ ngay bên cạnh. Ai giữ thì phải đóng quân bảo vệ, vì các phe khác sẽ đến giành lại.
 
 ### Dựng căn cứ. Lập quân đội. Vượt đại dương.
 

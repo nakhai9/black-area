@@ -16,6 +16,8 @@ import { createPowerPlantArt } from './PowerPlant';
 import { createGrandMosqueArt } from './GrandMosque';
 import { createWashingtonWhiteHouseArt } from './WashingtonWhiteHouse';
 import { WorldBankArt } from './WorldBank';
+import { createNationCapitalArt } from './NationCapital';
+import type { ContestedNationId } from '../../constants';
 import { FACTIONS } from '../../factions';
 import type { FactionId } from '../../types';
 
@@ -27,6 +29,12 @@ export const BUILDING_ART: Readonly<Record<string, BuildingArt>> = {
   'capital:europe': createBrusselsEUHeadquartersArt(),
   'capital:islamic': createGrandMosqueArt(),
   'bank:world': WorldBankArt,
+  // Capitals of the contested independent nations (neutral until an engineer takes one).
+  'nation:northKorea': createNationCapitalArt('northKorea'),
+  'nation:southKorea': createNationCapitalArt('southKorea'),
+  'nation:japan': createNationCapitalArt('japan'),
+  'nation:australia': createNationCapitalArt('australia'),
+  'nation:brazil': createNationCapitalArt('brazil'),
   // Oil derricks in each nation's team colour.
   'oil:usa': createOilDerrickArt(FACTIONS.usa.colors),
   'oil:russia': createOilDerrickArt(FACTIONS.russia.colors),
@@ -106,6 +114,7 @@ const FLAG_VARIANTS: Readonly<Record<string, (design: FactionId, flag: FactionId
             ? createGrandMosqueArt
             : createBrusselsEUHeadquartersArt)(flag),
   alliedBuilding: (design, flag) => createAlliedBuildingArt(design, flag),
+  nation: (design, flag) => createNationCapitalArt(design as unknown as ContestedNationId, flag),
 };
 
 /** Art for a `kind:design@flag` sprite key, or undefined when the key is not one. */

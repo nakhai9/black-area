@@ -1,6 +1,7 @@
-import { AI_BUNKERS, CELL_SIZE, INFANTRY_BASE, INFANTRY_MARCH_CELLS, MAX_ALLIES, NEUTRAL_OWNER, OIL_DERRICK_OUTPUT, OIL_LEASE_CARTEL_SHARE, OIL_LEASE_SECONDS, TECH_VEHICLES, TRUCK_SOLDIERS } from '../constants';
+import { AI_BUNKERS, CELL_SIZE, INFANTRY_BASE, INFANTRY_MARCH_CELLS, MAX_ALLIES, NATION_GARRISON, NATION_GARRISON_CELLS, NEUTRAL_OWNER, OIL_DERRICK_OUTPUT, OIL_LEASE_CARTEL_SHARE, OIL_LEASE_SECONDS, TECH_VEHICLES, TRUCK_SOLDIERS } from '../constants';
 import { FACTIONS } from '../factions';
 import { OilDerrick } from '../entities/OilDerrick';
+import { NationCapital } from '../entities/NationCapital';
 import type { Building } from '../entities/Building';
 import type { Entity } from '../entities/Entity';
 import type { EntityManager } from '../entities/EntityManager';
@@ -61,6 +62,8 @@ export interface AIHost {
   plantFlag(u: Infantry): string | null;
   /** Allies the nation leads (Allied Buildings standing + one under construction). */
   alliesOf(player: PlayerState): number;
+  /** Sends an engineer to take over a contested nation's capital (false if it cannot get there). */
+  orderCapture(u: Infantry, b: NationCapital): boolean;
 }
 
 /** Order in which an AI nation builds its base. */
@@ -133,6 +136,8 @@ const CLAIM_SAMPLE = 5;
 const ALLIED_SEARCH = 9;
 /** Rival structures that make a claim next to them a threat to that rival's economy. */
 const ECONOMY_TYPES: ReadonlySet<BuildingType> = new Set(['oilDerrick', 'happyCity', 'powerPlant']);
+/** From this game time on the nation goes after the contested nations' capitals (one at a time). */
+const NATION_FROM = 90;
 
 /**
  * Each AI nation gets a character so no two games play the same:
@@ -232,6 +237,11 @@ interface AIState {
   /** The nation this government has chosen to make war on (AI or the player), re-weighed every RIVAL_PERIOD s. */
   rival: number | null;
   nextRival: number;
+  /** Contested capital this nation is trying to take, and the engineer sent for it. */
+  nationTarget: number | null;
+  nationEngineer: number | null;
+  /** Contested capital id -> ids of the units stationed there (held ones) or escorting the engineer (the target). */
+  nationGuard: Map<number, Set<number>>;
 }
 
 /**
@@ -271,6 +281,9 @@ export class AISystem implements GameSystem {
       derrickHp: new Map(),
       rival: null,
       nextRival: 0,
+      nationTarget: null,
+      nationEngineer: null,
+      nationGuard: new Map(),
     };
     this.state.set(p.id, st);
     return st;
@@ -289,6 +302,9 @@ export class AISystem implements GameSystem {
     st.overseas ??= false;
     st.rival ??= null;
     st.nextRival ??= 0;
+    st.nationTarget ??= null;
+    st.nationEngineer ??= null;
+    if (!(st.nationGuard instanceof Map)) st.nationGuard = new Map();
   }
 
   update(dt: number): void {
@@ -331,6 +347,7 @@ export class AISystem implements GameSystem {
     this.repairBase(p, owned);
     this.mendFleet(p);
     this.claimLand(p, st, capital, owned, threat);
+    this.contestNations(p, st, capital, owned, threat);
     if (st.overseas) this.loadTransports(p, st, capital);
     this.leaseOil(p, owned, threat);
     this.healWounded(p);
@@ -879,7 +896,8 @@ export class AISystem implements GameSystem {
     const home = capital.centerWorld();
     const guard = this.pickGuard(st, army, home);
     const defenders = this.defendDerricks(p, st, army, all);
-    const strike = army.filter((u) => !st.guard.has(u.id) && !defenders.has(u.id));
+    const stationed = this.holdNations(p, st, army.filter((u) => !st.guard.has(u.id) && !defenders.has(u.id)), all, home);
+    const strike = army.filter((u) => !st.guard.has(u.id) && !defenders.has(u.id) && !stationed.has(u.id));
 
     this.defend(p, guard, home, all);
     this.retreatFromLostFights(p, st, strike, army, home, all);
@@ -1014,6 +1032,139 @@ export class AISystem implements GameSystem {
     }
     const strays = guard.filter((u) => !u.moving && u.attackMove === null && u.combatTarget === null && Math.hypot(u.px - home.x, u.py - home.y) > HOME_RADIUS);
     if (strays.length > 0) this.host.orderAttackMove(strays, { x: home.x, y: home.y + CELL_SIZE * 8 });
+  }
+
+  /**
+   * Contested nations (CONTESTED_NATIONS): the nation goes after the nearest capital it does not hold, one at a time,
+   * with a dedicated engineer - on foot when it is on the same landmass, otherwise flown in by transport. With no
+   * free engineer it trains one. Never while the home front is under attack.
+   */
+  private contestNations(p: PlayerState, st: AIState, capital: Building, owned: Set<BuildingType>, threat: number): void {
+    const caps = this.host.entities.buildings().filter((b): b is NationCapital => b instanceof NationCapital && b.alive);
+    const pf = this.host.pathfinder;
+    const cellOf = (b: Building): GridPoint | null => pf.nearestPassable(b.x + Math.floor(b.w / 2), b.y + b.d, 10);
+    let target = caps.find((c) => c.id === st.nationTarget && c.owner !== p.id) ?? null;
+    if (!target) {
+      st.nationTarget = null;
+      if (threat > 0 || this.time < NATION_FROM) return;
+      const home = cellOf(capital);
+      const homeW = capital.centerWorld();
+      let best = Infinity;
+      for (const c of caps) {
+        if (c.owner === p.id) continue;
+        const cell = cellOf(c);
+        if (!cell) continue;
+        const w = c.centerWorld();
+        // Across the sea counts as twice as far (it needs an airlift); nobody's capital is easier prey.
+        const overland = home !== null && pf.sameLandmass(home.x, home.y, cell.x, cell.y);
+        const score = Math.hypot(w.x - homeW.x, w.y - homeW.y) * (overland ? 1 : 2) * (c.owner === NEUTRAL_OWNER ? 0.8 : 1);
+        if (score < best) {
+          best = score;
+          target = c;
+        }
+      }
+      if (!target) return;
+      st.nationTarget = target.id;
+    }
+    const goal = cellOf(target);
+    if (!goal) return;
+    const known = st.nationEngineer !== null ? this.host.entities.get(st.nationEngineer) : undefined;
+    let eng = known instanceof Infantry && known.alive && known.owner === p.id ? known : undefined;
+    if (!eng) {
+      st.nationEngineer = null;
+      eng = this.host.entities
+        .fieldUnits()
+        .find((u): u is Infantry => u instanceof Infantry && u.owner === p.id && u.alive && u.isEngineer && u.task === null && u.insideId === null && u.boardTarget === null);
+      if (!eng) {
+        const faction = FACTIONS[p.faction];
+        const cost = INFANTRY_BASE.engineer.cost * faction.stats.cost * (faction.stats.infantryCost ?? 1);
+        if (owned.has('barracks') && p.credits >= cost + 600 && !this.host.training.queue(p).items.includes('engineer')) this.host.training.enqueue(p, 'engineer');
+        return;
+      }
+      st.nationEngineer = eng.id;
+    }
+    const engineer = eng;
+    // Riding a transport: once it is loaded and parked at home, it takes off for the capital.
+    const lift = this.host.entities.vehicles().find((v) => v.owner === p.id && v.alive && v.isTransport && v.cargo.includes(engineer));
+    if (lift) {
+      if (lift.flight === 'parked' && lift.incoming === 0) {
+        const c = target.centerWorld();
+        this.host.orderAttackMove([lift], { x: c.x, y: c.y + CELL_SIZE * 9 });
+      }
+      return;
+    }
+    if (engineer.insideId !== null || engineer.boardTarget !== null || engineer.task?.type === 'capture') return;
+    const ex = Math.floor(engineer.px / CELL_SIZE);
+    const ey = Math.floor(engineer.py / CELL_SIZE);
+    if (engineer.swims || pf.sameLandmass(ex, ey, goal.x, goal.y)) {
+      if (!this.host.orderCapture(engineer, target)) st.nationTarget = null;
+      return;
+    }
+    // Overseas: board a transport at home (soldiers loaded with it go along as the escort).
+    if (!owned.has('airfield')) return;
+    const t = this.homeTransports(p).find((v) => !this.carriesSquatters(v) && v.cargo.length < TRANSPORT_LOAD);
+    if (t) this.host.orderBoard(t, [engineer]);
+    else if (!this.host.entities.vehicles().some((v) => v.owner === p.id && v.alive && v.isTransport) && !this.host.production.queue(p).items.includes('transport'))
+      this.host.production.enqueue(p, 'transport');
+  }
+
+  /**
+   * Garrisons: every contested capital this nation holds (and the one it is taking) gets up to NATION_GARRISON ground
+   * units that can reach it. They walk there, fight any enemy that comes near it, and otherwise stay put. A held
+   * capital across the sea that is short of men gets a loaded transport from home. Returns the units stationed.
+   */
+  private holdNations(p: PlayerState, st: AIState, free: readonly Unit[], all: readonly Unit[], home: WorldPoint): Set<number> {
+    const busy = new Set<number>();
+    const caps = this.host.entities
+      .buildings()
+      .filter((b): b is NationCapital => b instanceof NationCapital && b.alive && (b.owner === p.id || b.id === st.nationTarget));
+    for (const id of [...st.nationGuard.keys()]) if (!caps.some((c) => c.id === id)) st.nationGuard.delete(id);
+    if (caps.length === 0) return busy;
+    const pf = this.host.pathfinder;
+    const byId = new Map(free.map((u) => [u.id, u]));
+    const radius = NATION_GARRISON_CELLS * CELL_SIZE;
+    for (const c of caps) {
+      const centre = c.centerWorld();
+      const spot = { x: centre.x, y: centre.y + CELL_SIZE * 4 };
+      const cell = pf.nearestPassable(c.x + Math.floor(c.w / 2), c.y + c.d, 10);
+      if (!cell) continue;
+      const reaches = (u: Unit): boolean => !u.aircraft && (u.swims || pf.sameLandmass(Math.floor(u.px / CELL_SIZE), Math.floor(u.py / CELL_SIZE), cell.x, cell.y));
+      const dist = (u: Unit): number => Math.hypot(u.px - centre.x, u.py - centre.y);
+      const kept = [...(st.nationGuard.get(c.id) ?? [])].map((id) => byId.get(id)).filter((u): u is Unit => u !== undefined && !busy.has(u.id) && reaches(u));
+      if (kept.length < NATION_GARRISON) {
+        const extra = free.filter((u) => !busy.has(u.id) && !kept.includes(u) && reaches(u)).sort((a, b) => dist(a) - dist(b));
+        kept.push(...extra.slice(0, NATION_GARRISON - kept.length));
+      }
+      st.nationGuard.set(c.id, new Set(kept.map((u) => u.id)));
+      for (const u of kept) busy.add(u.id);
+      // An enemy near the capital: the garrison takes it on.
+      let threat: Unit | null = null;
+      let nearest = radius * 2;
+      for (const e of all) {
+        if (!e.alive || e.owner === p.id || e.owner === NEUTRAL_OWNER || e.retreating) continue;
+        const d = Math.hypot(e.px - centre.x, e.py - centre.y);
+        if (d < nearest && kept.some((u) => canTarget(u, e))) {
+          threat = e;
+          nearest = d;
+        }
+      }
+      const t = threat;
+      if (t) {
+        const responders = kept.filter((u) => canTarget(u, t) && dist(u) < radius * 3 && u.combatTarget === null);
+        if (responders.length > 0) this.host.orderAttackMove(responders, { x: t.px, y: t.py });
+      }
+      const away = kept.filter((u) => !u.moving && u.attackMove === null && u.combatTarget === null && dist(u) > radius);
+      if (away.length > 0) this.host.orderAttackMove(this.motorize(p, st, away, spot), spot);
+      // Held across the sea and short of men: fly in a loaded transport from home.
+      if (c.owner === p.id && kept.length < NATION_GARRISON / 2) {
+        const homeCell = pf.nearestPassable(Math.floor(home.x / CELL_SIZE), Math.floor(home.y / CELL_SIZE) + 1, 10);
+        if (homeCell && !pf.sameLandmass(homeCell.x, homeCell.y, cell.x, cell.y)) {
+          const t2 = this.homeTransports(p).find((v) => v.cargo.length >= TRANSPORT_LOAD / 2 && v.incoming === 0 && !this.carriesSquatters(v) && !v.cargo.some((x) => x.id === st.nationEngineer));
+          if (t2) this.host.orderAttackMove([t2], { x: centre.x, y: centre.y + CELL_SIZE * 9 });
+        }
+      }
+    }
+    return busy;
   }
 
   /** Waiting in (or walking to) one of the nation's own safe zones to be flown home. */
@@ -1241,7 +1392,7 @@ export class AISystem implements GameSystem {
     if (!target) return;
     const goal = target.centerWorld();
     const crossers = army.filter((u) => (u.aircraft || u.swims) && !u.retreating && !this.resting(st, u));
-    const loaded = this.homeTransports(p).filter((t) => t.cargo.length > 0 && !this.carriesSquatters(t));
+    const loaded = this.homeTransports(p).filter((t) => t.cargo.length > 0 && !this.carriesSquatters(t) && !t.cargo.some((c) => c.id === st.nationEngineer));
     const boarding = this.host.entities.fieldMovers().some((u) => u.owner === p.id && u.boardTarget !== null);
     const force = crossers.length + loaded.reduce((s, t) => s + t.cargo.length, 0);
     const need = Math.max(OVERSEAS_MIN_FORCE, Math.min(st.waveSize, 24));

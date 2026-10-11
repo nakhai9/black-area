@@ -26,7 +26,7 @@
 <body>
 <main>
 <img class="logo" src="/logo.png" alt="Black Area" />
-<h1>Black Area — RULE <small>v1.23.0</small></h1>
+<h1>Black Area — RULE <small>v1.24.0</small></h1>
 <p class="lead">Tài liệu luật chơi + kiến trúc code dành cho AI/dev sửa game. Mọi con số gameplay chính xác nằm trong <code>src/constants.ts</code> và <code>src/factions/*.ts</code>. Nếu tài liệu này khác code thì <b>code đúng</b>. <b>Khi đổi luật/số trong code, phải cập nhật file này.</b></p>
 <nav><a href="#s1">Quy tắc làm việc cho AI</a><a href="#s2">Chạy dự án</a><a href="#s3">Kiến trúc thư mục</a><a href="#s4">Thế giới</a><a href="#s5">Kinh tế (dầu)</a><a href="#s6">Công trình (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Quân đội</a><a href="#s8">Chiến đấu</a><a href="#s9">Điều khiển (Game.handleKey, handleInput)</a><a href="#s10">Giới hạn &amp; hiệu năng</a><a href="#s11">Thắng / thua &amp; AI</a><a href="#s12">Công thức sửa thường gặp</a></nav>
 <h2 id="s1">0. Quy tắc làm việc cho AI</h2>
@@ -78,6 +78,8 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
   <li><b>Ô đơn vị</b>: ô 1×1 của lưới, đơn vị đo chung cho cả hệ thống (đường đi, đặt công trình, footprint, cờ, khoảng cách tính bằng ô); kích thước <code>CELL_SIZE = 7</code> world px. Ở chế độ DEMO toàn bộ lưới ô đơn vị (cả đất liền lẫn biển) được vẽ lên bản đồ. Hiển thị isometric kiểu RA2, camera không xoay.</li>
   <li>Zoom chiến thuật <code>ZOOM_MIN 3</code> – <code>ZOOM_MAX 9</code> (bước <code>1.12</code>, <code>FOCUS_ZOOM 8</code>); toàn cảnh xem trên radar sidebar.</li>
   <li>Thủ đô ở toạ độ thật (<code>CAPITAL_LOCATIONS</code>): Washington D.C., Moscow, Beijing, Paris, <b>Riyadh</b> (Islamic). Global Financial Center (trung lập, <code>WorldBank</code>) ở Zürich.</li>
+  <li><b>Quốc gia tranh chấp</b> (<code>CONTESTED_NATIONS</code>, entity <code>NationCapital</code>, type <code>nationCapital</code>): Bắc Triều Tiên (Pyongyang), Hàn Quốc (Seoul), Nhật Bản (Tokyo), Úc (Canberra), Brazil (Brasília). Thủ đô độc lập, ban đầu trung lập; không thể bị phá huỷ, chỉ bị <b>kỹ sư</b> chiếm (từ trung lập hoặc từ phe đang giữ). Phe giữ được nhận <code>NATION_PRESENCE_FEE 2000</code> TB mỗi <code>NATION_PRESENCE_PERIOD 60</code>s (phí hiện diện quân sự, qua <code>TaxSystem</code>, trả nợ trước) và được xây công trình của mình cạnh thủ đô đó (như Allied Building). Không tính là thủ đô riêng của phe khi xét thua. AI (từ 90s, khi nhà yên) gửi 1 kỹ sư đi chiếm thủ đô gần nhất chưa giữ (qua biển: chở bằng máy bay vận tải), và giữ <code>NATION_GARRISON 6</code> lính/xe đồn trú tại mỗi thủ đô đang giữ (trong <code>NATION_GARRISON_CELLS 10</code> ô).</li>
+  <li>Radar (minimap): công trình trung lập / chưa thuộc về ai vẽ hình <b>tam giác</b>; công trình của các phe vẽ chấm tròn.</li>
   <li>Rừng làm chậm đơn vị mặt đất ×0.78. Nước: chỉ lính special bơi được (<code>SWIM_SPEED_FACTOR 0.6</code>); xe không xuống nước.</li>
 </ul>
 <h3>Phe</h3>

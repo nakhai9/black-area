@@ -88,9 +88,14 @@ export class Minimap {
       ctx.fillStyle = teamColors(b.faction).primary;
       ctx.strokeStyle = '#000';
       ctx.lineWidth = 1;
-      // A small round dot per structure (radius 2.2 px, outlined in black).
+      // A small round dot per structure (radius 2.2 px, outlined in black); neutral / unowned ones are triangles.
       ctx.beginPath();
-      ctx.arc(c.x, c.y, 2.2, 0, Math.PI * 2);
+      if (b.owner === NEUTRAL_OWNER) {
+        ctx.moveTo(c.x, c.y - 3.2);
+        ctx.lineTo(c.x + 3, c.y + 2.2);
+        ctx.lineTo(c.x - 3, c.y + 2.2);
+        ctx.closePath();
+      } else ctx.arc(c.x, c.y, 2.2, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
     }

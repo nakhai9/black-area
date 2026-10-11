@@ -11,7 +11,7 @@ import type {
 } from "./types";
 
 /** DEMO: skip the faction screen and start a solo test game as Russia (no AI opponents). Set to false for production. */
-export const DEMO_MODE = false;
+export const DEMO_MODE = true;
 
 /**
  * Version of the game, x.y.z (semantic versioning):
@@ -21,7 +21,7 @@ export const DEMO_MODE = false;
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "1.23.0";
+export const GAME_VERSION = "1.24.0";
 
 // ---------------------------------------------------------------- World (real Earth)
 /** Packed Earth texture built by `npm run build:earth` (see scripts/build-earth.mjs). */
@@ -582,6 +582,32 @@ export const CAPITAL_LOCATIONS: Readonly<Record<FactionId, NamedSite>> = {
 };
 export const WORLD_BANK_LOCATION: GeoPoint = { lon: 8.54, lat: 47.37 }; // Zürich
 
+/**
+ * Contested nations: independent states that belong to no faction. Their capitals stand on the map from the start,
+ * owned by nobody; they can never be damaged or destroyed, only taken by an engineer (of any nation, from anyone).
+ * The nation holding one is paid NATION_PRESENCE_FEE TB every NATION_PRESENCE_PERIOD seconds (military presence fee)
+ * and may build its own structures next to it (like an Allied Building). An AI holder keeps a garrison there.
+ */
+export type ContestedNationId = "northKorea" | "southKorea" | "japan" | "australia" | "brazil";
+export interface ContestedNation {
+  name: string;
+  /** Name of the capital building shown in game. */
+  capital: string;
+  site: NamedSite;
+}
+export const CONTESTED_NATIONS: Readonly<Record<ContestedNationId, ContestedNation>> = {
+  northKorea: { name: "North Korea", capital: "Pyongyang Palace", site: { lon: 125.75, lat: 39.02, name: "Pyongyang" } },
+  southKorea: { name: "South Korea", capital: "Seoul Blue House", site: { lon: 126.98, lat: 37.57, name: "Seoul" } },
+  japan: { name: "Japan", capital: "Tokyo Kantei", site: { lon: 139.69, lat: 35.69, name: "Tokyo" } },
+  australia: { name: "Australia", capital: "Canberra Parliament", site: { lon: 149.13, lat: -35.28, name: "Canberra" } },
+  brazil: { name: "Brazil", capital: "Brasília Planalto", site: { lon: -47.88, lat: -15.79, name: "Brasília" } },
+};
+export const NATION_PRESENCE_FEE = 2000;
+export const NATION_PRESENCE_PERIOD = 60;
+/** Soldiers / vehicles an AI keeps stationed at each contested capital it holds, and how near (cells) counts as there. */
+export const NATION_GARRISON = 6;
+export const NATION_GARRISON_CELLS = 10;
+
 // ---------------------------------------------------------------- Oil (replaces RA2 ore)
 /** Barrels of oil pumped per second by each derrick while it is pumping (oil is sold to the Global Financial Center for TB). */
 export const OIL_DERRICK_OUTPUT = 0.08; // barrels/s per derrick
@@ -724,6 +750,7 @@ export const BUILDING_VALUE: Readonly<Partial<Record<BuildingType, number>>> = {
   flagpole: FLAGPOLE_COST,
   alliedBuilding: ALLIED_BUILDING_COST,
   capital: 4000,
+  nationCapital: 5000,
   oilDerrick: 1500,
 };
 

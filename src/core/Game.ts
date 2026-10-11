@@ -68,6 +68,9 @@ import {
   STARTING_CREDITS,
   STARTING_OIL,
   WORLD_BANK_LOCATION,
+  CONTESTED_NATIONS,
+  type ContestedNationId,
+  NATION_PRESENCE_FEE,
   WORLD_HEIGHT,
   WORLD_WIDTH,
   ZOOM_STEP,
@@ -80,6 +83,7 @@ import { worldToIso } from './IsoView';
 import { Building } from '../entities/Building';
 import { PLACEMENT_MARGIN } from '../map/TileMap';
 import { Capital } from '../entities/Capital';
+import { NationCapital } from '../entities/NationCapital';
 import { EntityManager } from '../entities/EntityManager';
 import { SoundSystem } from '../audio/SoundSystem';
 import type { Entity } from '../entities/Entity';
@@ -357,6 +361,10 @@ export class Game {
     }
     // The Global Financial Center is neutral: shared by every nation, never destroyed or occupied.
     this.landmarks.push(this.entities.add(new WorldBank(geoToWorld(WORLD_BANK_LOCATION))));
+    // Contested independent nations: their capitals start neutral and go to whoever's engineer takes them.
+    for (const id of Object.keys(CONTESTED_NATIONS) as ContestedNationId[]) {
+      this.landmarks.push(this.entities.add(new NationCapital(id, geoToWorld(CONTESTED_NATIONS[id].site))));
+    }
 
     // World grid + terrain art from Earth data.
     const biomes = computeBiomes(GRID_WIDTH, GRID_HEIGHT, MAP_SEED);
@@ -436,9 +444,17 @@ export class Game {
       new PowerSystem(this.players, this.entities, this.oilMarket),
       this.economy,
       this.oilMarket,
-      new TaxSystem(this.players, this.entities, this.oilMarket, (player, _city, amount) => {
-        if (player.isHuman) this.sidebar.notify(`Happy City taxes: +${amount} ${CURRENCY}.`, 3);
-      }),
+      new TaxSystem(
+        this.players,
+        this.entities,
+        this.oilMarket,
+        (player, _city, amount) => {
+          if (player.isHuman) this.sidebar.notify(`Happy City taxes: +${amount} ${CURRENCY}.`, 3);
+        },
+        (player, capital) => {
+          if (player.isHuman) this.sidebar.notify(`Military presence fee (${capital.city}): +${NATION_PRESENCE_FEE} ${CURRENCY}.`, 3);
+        },
+      ),
       this.construction,
       this.training,
       this.production,
@@ -892,6 +908,26 @@ export class Game {
     if (!this.walkToDoor(u, b)) return false;
     u.task = { type: 'lease', buildingId: b.id, lessor: b.owner };
     return true;
+  }
+
+  /** An engineer walks to a contested nation's capital and takes it over (false if it cannot get there). */
+  orderCapture(u: Infantry, b: NationCapital): boolean {
+    if (!u.isEngineer || b.owner === u.owner || !this.walkToDoor(u, b)) return false;
+    u.task = { type: 'capture', buildingId: b.id };
+    return true;
+  }
+
+  /** BREAKING NEWS: a contested nation's capital changed hands. */
+  private announceNationCapture(b: NationCapital, before: number): void {
+    const nation = CONTESTED_NATIONS[b.nation].name;
+    const name = (id: number): string => {
+      const p = this.players.find((pl) => pl.id === id);
+      return !p ? 'nobody' : p.isHuman ? 'You' : FACTIONS[p.faction].name;
+    };
+    const taker = name(b.owner);
+    const from = before === NEUTRAL_OWNER ? '' : ` from ${name(before) === 'You' ? 'you' : name(before)}`;
+    this.news.show('BREAKING NEWS', `${taker} ${taker === 'You' ? 'have' : 'has'} taken ${b.city}, capital of ${nation}${from}.`);
+    if (before === this.humanPlayer.id) this.sidebar.notify(`${b.spec.name} was taken from you!`, 5);
   }
 
   /** An engineer walks into a damaged own building and restores it to full health (and is consumed). */
@@ -3421,14 +3457,14 @@ export class Game {
         // treated there once the repair is done (see processRepairs).
         if (u.isEngineer && b.hp < b.maxHp && !b.indestructible) type = 'repair';
         else if (b.canEnter(u)) type = 'enter';
-      } else if (u.isEngineer && b.capturable && b.faction !== 'neutral') {
+      } else if (u.isEngineer && b.capturable && (b.faction !== 'neutral' || b instanceof NationCapital)) {
         type = 'capture';
       }
       if (!type || !this.walkToDoor(u, b)) continue;
       u.task = type === 'lease' ? { type, buildingId: b.id, lessor: b.owner } : { type, buildingId: b.id };
       ordered++;
     }
-    if (ordered === 0 && b.faction === 'neutral' && this.selection.selectedUnitList().some((u) => u instanceof Infantry && u.isEngineer)) {
+    if (ordered === 0 && b.faction === 'neutral' && !(b instanceof NationCapital) && this.selection.selectedUnitList().some((u) => u instanceof Infantry && u.isEngineer)) {
       this.sidebar.notify('Neutral buildings cannot be captured or destroyed.');
     }
     // Enemy building and nobody could capture it: armed units attack it instead.
@@ -3626,10 +3662,12 @@ export class Game {
         } else if (u.owner === this.humanPlayer.id) this.sidebar.notify('That derrick is already leased.', 3);
       } else {
         // Capture: the engineer is consumed and the building changes sides.
+        const before = b.owner;
         if (b.capture(u.owner, u.faction as FactionId)) {
           this.entities.remove(u.id);
           this.selection.selectedUnits.delete(u.id);
           if (u.owner === this.humanPlayer.id) this.sidebar.notify(`${b.spec.name} captured!`);
+          if (b instanceof NationCapital) this.announceNationCapture(b, before);
           this.razeFlagsAround(b);
         } else u.task = null;
       }

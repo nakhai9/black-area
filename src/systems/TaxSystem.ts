@@ -1,6 +1,7 @@
-import { HAPPY_CITY_TAX, HAPPY_CITY_TAX_BONUS, HAPPY_CITY_TAX_PERIOD } from '../constants';
+import { HAPPY_CITY_TAX, HAPPY_CITY_TAX_BONUS, HAPPY_CITY_TAX_PERIOD, NATION_PRESENCE_FEE, NATION_PRESENCE_PERIOD } from '../constants';
 import type { EntityManager } from '../entities/EntityManager';
 import { HappyCity } from '../entities/HappyCity';
+import { NationCapital } from '../entities/NationCapital';
 import type { PlayerState } from '../types';
 import type { GameSystem } from './GameSystem';
 import type { OilMarket } from './OilMarket';
@@ -10,6 +11,7 @@ import type { OilMarket } from './OilMarket';
  * clock (from when it was placed), so several cities pay at different moments. The money is income: it goes
  * through the Global Financial Center, which takes any debt first. A damaged city pays in proportion to its health.
  * The more cities a nation runs, the more each one pays: +HAPPY_CITY_TAX_BONUS of the base tax for every other city.
+ * Military presence: the holder of a contested nation's capital is paid NATION_PRESENCE_FEE every NATION_PRESENCE_PERIOD s.
  */
 export class TaxSystem implements GameSystem {
   constructor(
@@ -17,11 +19,23 @@ export class TaxSystem implements GameSystem {
     private readonly entities: EntityManager,
     private readonly bank: OilMarket,
     private readonly onTax: (player: PlayerState, city: HappyCity, amount: number) => void = () => undefined,
+    private readonly onPresence: (player: PlayerState, capital: NationCapital) => void = () => undefined,
   ) {}
 
   update(dt: number): void {
     const cities = new Map<number, number>();
     for (const b of this.entities.buildings()) if (b instanceof HappyCity && b.alive) cities.set(b.owner, (cities.get(b.owner) ?? 0) + 1);
+    for (const b of this.entities.buildings()) {
+      if (!(b instanceof NationCapital) || !b.alive) continue;
+      const holder = this.players.find((p) => p.id === b.owner);
+      if (!holder || holder.defeated) continue;
+      b.presenceClock -= dt;
+      while (b.presenceClock <= 0) {
+        b.presenceClock += NATION_PRESENCE_PERIOD;
+        this.bank.receive(holder, NATION_PRESENCE_FEE);
+        this.onPresence(holder, b);
+      }
+    }
     for (const b of this.entities.buildings()) {
       if (!(b instanceof HappyCity) || !b.alive) continue;
       const owner = this.players.find((p) => p.id === b.owner);

@@ -186,6 +186,12 @@ export function drawEmblemFlagOnPole(p: IsoPainter, faction: FactionId, u: numbe
   wave(p.ctx, emblemFlagTexture(faction), x + 0.6, y, w, h, time, phase);
 }
 
+/** Any flag bitmap waving from the top of a pole in a building's local space. */
+export function drawTextureFlagOnPole(p: IsoPainter, tex: HTMLCanvasElement, u: number, v: number, zTop: number, time: number, phase = 0, w = 22, h = 13): void {
+  const [x, y] = p.project(u, v, zTop);
+  wave(p.ctx, tex, x + 0.6, y, w, h, time, phase);
+}
+
 /** Convenience: waving flag attached to the top of a pole in a building's local space. */
 export function drawFlagOnPole(
   p: IsoPainter,
