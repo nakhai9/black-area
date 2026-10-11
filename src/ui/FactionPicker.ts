@@ -2,6 +2,7 @@ import {
   CAPITAL_LOCATIONS,
   DEMO_MODE,
   FACTION_ORDER,
+  GAME_VERSION,
 } from "../constants";
 import { FACTIONS } from "../factions";
 import { getFlagTexture } from "../render/Flags";
@@ -63,6 +64,7 @@ export class FactionPicker {
     this.root.setAttribute("aria-labelledby", "fp-title");
     this.root.innerHTML = `
       <div class="fp-modal">
+        <span class="fp-version" title="Game version of this build">v${GAME_VERSION}</span>
         <header class="fp-header">
           <div class="sb-logo"><img src="${import.meta.env.BASE_URL}logo.png" alt="Black Area" /></div>
           <h1 id="fp-title">Choose your side</h1>

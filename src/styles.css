@@ -335,12 +335,22 @@ kbd {
 }
 
 .fp-modal {
+  position: relative;
   width: min(1180px, 100%);
   padding: 22px;
   background: linear-gradient(180deg, #1b232b, #0e1318);
   border: 2px solid #3a4754;
   border-radius: 6px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+}
+.fp-version {
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: #8a98a6;
+  user-select: text;
 }
 .fp-header {
   text-align: center;
