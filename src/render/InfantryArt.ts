@@ -106,7 +106,7 @@ const SHEETS: Record<SoldierSheetId, SoldierSheet> = {
   cnSpecial: sheet8('cn-special-8dir.png', 'gi', true),
   euRegular: sheet8('eu-regular-8dir.png', 'gi'),
   euSpecial: sheet8('eu-special-8dir.png', 'gi', true),
-  islamicRegular: sheet8('islamic-regular-8dir.png', 'ruRegular'),
+  islamicRegular: sheet8('ru-regular-8dir.png', 'conscript'), // no own sheet yet: wears the Russian one
   islamicSpecial: sheet8('islamic-special-8dir.png', 'ruSpecial', true),
   euSquatters: squad8('eu-squatters-8dir.png', 'euSpecial'),
   ruSquatters: squad8('ru-squatters-8dir.png', 'ruSpecial'),
