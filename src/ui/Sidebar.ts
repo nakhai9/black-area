@@ -859,7 +859,7 @@ export class Sidebar {
       setData(c.el, 'state', producing ? q.state : count > 0 ? 'queued' : 'idle');
       const atLimit = model.vehicleQueued >= BUILD_LIMIT_VEHICLES && count === 0;
       const noTech = TECH_VEHICLES.includes(option.kind) && !model.owned.has('techCenter');
-      const noParking = isAircraftKind(option.kind) && model.parkingFree <= 0 && count === 0;
+      const noParking = isAircraftKind(option.kind) && option.kind !== 'heli' && model.parkingFree <= 0 && count === 0;
       const locked = !have || atLimit || noTech || noParking;
       c.el.classList.toggle('locked', locked);
       (c.el as HTMLButtonElement).disabled = locked;

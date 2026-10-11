@@ -115,14 +115,15 @@ export class VehicleSystem implements GameSystem {
    * Parking spots still free for new aircraft orders: spots on the nation's airfields minus the aircraft it owns
    * (parked or flying) and the aircraft already on order. A destroyed aircraft gives its spot back.
    */
+  /** Free parking spots (helicopters take none: they land wherever they like). */
   parkingFree(player: PlayerState): number {
     // A transport on order needs two spots: one for itself and one for the tanker that comes with it.
-    const ordered = this.queue(player).items.reduce((n, k) => n + (k === 'transport' ? 2 : needsAirfield(k) ? 1 : 0), 0);
+    const ordered = this.queue(player).items.reduce((n, k) => n + (k === 'transport' ? 2 : needsAirfield(k) && k !== 'heli' ? 1 : 0), 0);
     return this.parkingCapacity(player) - this.aircraftOwned(player) - ordered;
   }
 
   private aircraftOwned(player: PlayerState): number {
-    return this.entities.vehicles().filter((v) => v.owner === player.id && v.alive && needsAirfield(v.type)).length;
+    return this.entities.vehicles().filter((v) => v.owner === player.id && v.alive && needsAirfield(v.type) && v.type !== 'heli').length;
   }
 
   /** Second-tier vehicles need a High-Tech Center. */
@@ -139,7 +140,7 @@ export class VehicleSystem implements GameSystem {
     if (TECH_VEHICLES.includes(kind) && !this.hasTech(player)) return 'tech';
     // BuildLimit: only the orders waiting are limited, not the vehicles the nation owns.
     if (!AVAILABLE_VEHICLES.includes(kind) || q.items.length >= BUILD_LIMIT_VEHICLES) return 'full';
-    if (needsAirfield(kind) && this.parkingFree(player) < (kind === 'transport' ? 2 : 1)) return 'noParking';
+    if (needsAirfield(kind) && kind !== 'heli' && this.parkingFree(player) < (kind === 'transport' ? 2 : 1)) return 'noParking';
     if (!needsAirfield(kind) && this.groundCount(player) >= MAX_GROUND_VEHICLES) return 'cap';
     if (kind === 'transport' && this.transportCount(player) >= MAX_TRANSPORTS) return 'transportCap';
     q.items.push(kind);
