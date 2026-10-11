@@ -13,7 +13,7 @@ export const FACTIONS: Readonly<Record<FactionId, FactionConfig>> = {
   islamic: ISLAMIC,
 };
 
-/** Colours for neutral, shared landmarks (Global Financial Center). */
+/** Colours for neutral, shared landmarks (Global Monitoring Center). */
 const NEUTRAL_COLORS: FactionColors = { primary: '#e8d9a8', light: '#fff6d8', dark: '#6b5f3a' };
 
 export const teamColors = (a: Allegiance): FactionColors => (a === 'neutral' ? NEUTRAL_COLORS : FACTIONS[a].colors);

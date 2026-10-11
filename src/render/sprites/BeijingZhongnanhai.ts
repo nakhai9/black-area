@@ -29,12 +29,6 @@ const LANTERN_Z = 26;
 /** Art-space depth: 4 units of compound plus 2.4 of Chang'an Avenue (see the footprint note below). */
 const ART_D = 6.4;
 
-/** Weeping willow on the lake shore. */
-function willow(p: IsoPainter, u: number, v: number): void {
-  p.cylinder(u, v, 0.04, 3, 6, '#6b513a');
-  p.dome(u, v, 0.2, 8, 9, '#5f7d3c');
-}
-
 /** Red-columned pavilion body with teal painted beams under the eaves. */
 function hall(p: IsoPainter, u: number, v: number, w: number, d: number, z: number, h: number, cols: number): void {
   p.box(u, v, w, d, z, h, RED);
@@ -64,14 +58,12 @@ function compound(p: IsoPainter): void {
   p.hipRoof(2.55, 1.6, 1.1, 0.5, 11, 6, 0.14, GREEN_ROOF, 2);
   hall(p, 0.4, 2.35, 0.9, 0.45, 3, 7, 5);
   p.hipRoof(0.4, 2.35, 0.9, 0.45, 10, 5, 0.12, GREEN_ROOF, 2);
-  const willows: readonly [number, number][] = [[0.3, 2.1], [2.3, 0.4], [2.3, 1.9], [2.4, 2.6], [3.6, 2.5], [1.6, 2.6]];
-  for (const [u, v] of willows) willow(p, u, v);
   // Screen wall inside the gate ("Serve the People").
   p.box(1.45, 2.95, 1.1, 0.12, 3, 9, RED, { top: GOLD_ROOF });
   p.faceRect('left', 1.45, 2.95, 1.1, 0.12, 3, 9, 0.15, 0.85, 0.35, 0.75, shade(GOLD_ROOF, 1.05));
 }
 
-/** Chang'an Avenue in front of the gate: wide road with lane lines, pavements and trees. */
+/** Chang'an Avenue in front of the gate: wide road with lane lines and pavements. */
 function avenue(p: IsoPainter): void {
   p.topRect(0.05, 4.0, 3.95, 4.45, 3, shade(PAVING, 1.05));
   p.topRect(0.05, 4.45, 3.95, 6.0, 3, ROAD);
@@ -85,10 +77,6 @@ function avenue(p: IsoPainter): void {
   for (let u = 0.6; u < 4; u += 0.85) {
     p.pole(u, 4.3, 3, 10, '#3a3c3e');
     p.box(u - 0.03, 4.27, 0.06, 0.06, 13, 1.5, '#e8dfb8');
-  }
-  for (let u = 0.3; u < 4; u += 0.85) {
-    p.cylinder(u, 6.18, 0.035, 3, 5, '#6b513a');
-    p.dome(u, 6.18, 0.15, 8, 7, '#47652f');
   }
 }
 

@@ -9,7 +9,7 @@ import type { OilMarket } from './OilMarket';
 /**
  * City taxes: every Happy City pays HAPPY_CITY_TAX TB to its nation every HAPPY_CITY_TAX_PERIOD seconds, on its own
  * clock (from when it was placed), so several cities pay at different moments. The money is income: it goes
- * through the Global Financial Center, which takes any debt first. A damaged city pays in proportion to its health.
+ * through the Global Monitoring Center, which takes any debt first. A damaged city pays in proportion to its health.
  * The more cities a nation runs, the more each one pays: +HAPPY_CITY_TAX_BONUS of the base tax for every other city.
  * Military presence: the holder of a contested nation's capital is paid NATION_PRESENCE_FEE every NATION_PRESENCE_PERIOD s.
  */

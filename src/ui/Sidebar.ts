@@ -73,7 +73,7 @@ export interface RankRow {
 
 /** Construction tabs (RA2 sidebar), shown as Lucide icons. */
 /** Protective structures: bought from the Defense tab, not the Build tab (main structures). */
-const DEFENSE_IDS: ReadonlySet<string> = new Set(['bunker']);
+const DEFENSE_IDS: ReadonlySet<string> = new Set(['bunker', 'flagpole']);
 
 const BUILD_TABS: readonly { id: TabId; label: string; icon: IconNode; enabled: boolean }[] = [
   { id: 'build', label: 'Build', icon: Hammer, enabled: true },
@@ -86,7 +86,7 @@ export interface SidebarModel {
   player: PlayerState;
   /** Oil output in barrels per second. */
   oilRate: number;
-  /** The price the Global Financial Center pays right now, in TB per barrel, the one before it and the recent history. */
+  /** The price the Global Monitoring Center pays right now, in TB per barrel, the one before it and the recent history. */
   oilPrice: number;
   previousPrice: number;
   priceHistory: readonly number[];
@@ -101,7 +101,7 @@ export interface SidebarModel {
   cartel: boolean;
   oilPolicy: OilPolicy;
   policyWait: number;
-  /** Why the Global Financial Center would refuse a loan now (null = available). */
+  /** Why the Global Monitoring Center would refuse a loan now (null = available). */
   loanBlocker: string | null;
   /** Most the nation may owe (from its oil and assets) and the size of the next loan. */
   creditLine: number;
@@ -155,11 +155,11 @@ export interface SidebarHandlers {
   /** Right click on an infantry cameo: remove one from the queue (refund if in training). */
   onTrainCancel: (option: TrainOption) => void;
   trainPreview: (option: TrainOption) => HTMLCanvasElement;
-  /** The Sell oil button: offer the stock to the Global Financial Center. */
+  /** The Sell oil button: offer the stock to the Global Monitoring Center. */
   onSellOil: () => void;
   /** The Auto sell button: turn automatic oil sales on / off. */
   onToggleAutoSell: () => void;
-  /** The Emergency loan button: borrow from the Global Financial Center (only at 0 TB). */
+  /** The Emergency loan button: borrow from the Global Monitoring Center (only at 0 TB). */
   onLoan: () => void;
   /** A cartel policy button (oil-cartel nation only). */
   onOilPolicy: (policy: OilPolicy) => void;
@@ -284,9 +284,9 @@ export class Sidebar {
         <div class="sb-oil">DEBT <span class="sb-debt"></span></div>
         <div class="sb-oil">DERRICKS <span class="sb-derricks"></span></div>
         <div class="sb-actions">
-          <button class="sb-sell" type="button" title="Offer your oil to the Global Financial Center: it decides whether and how much to buy (at most 25% per sale) and pays the posted price into your budget">Sell oil</button>
-          <button class="sb-sell sb-auto" type="button" title="Auto sell: offer your oil to the Global Financial Center automatically whenever a sale is allowed">Auto sell: OFF</button>
-          <button class="sb-sell sb-loan" type="button" title="Emergency loan from the Global Financial Center (only when your budget is 0 ${CURRENCY}). Oil sales pay the debt back automatically.">Emergency loan</button>
+          <button class="sb-sell" type="button" title="Offer your oil to the Global Monitoring Center: it decides whether and how much to buy (at most 25% per sale) and pays the posted price into your budget">Sell oil</button>
+          <button class="sb-sell sb-auto" type="button" title="Auto sell: offer your oil to the Global Monitoring Center automatically whenever a sale is allowed">Auto sell: OFF</button>
+          <button class="sb-sell sb-loan" type="button" title="Emergency loan from the Global Monitoring Center (only when your budget is 0 ${CURRENCY}). Oil sales pay the debt back automatically.">Emergency loan</button>
         </div>
         <div class="sb-cartel" hidden>
           <div class="sb-oil">CARTEL POLICY <span class="sb-policy"></span></div>
@@ -335,8 +335,8 @@ export class Sidebar {
       </div>
       <div class="sb-view" data-page="rank" hidden>
         <section class="sb-panel sb-prices">
-          <div class="sb-price-row" title="Oil: what the Global Financial Center pays per barrel"><i data-icon="oil"></i><b class="sb-price"></b><i class="sb-price-trend"></i></div>
-          <div class="sb-price-row" title="Power: what the Global Financial Center charges when your grid runs dry (oil at +${Math.round((OIL_GRID_MARKUP - 1) * 100)}%, per 1 kJ)"><i data-icon="power"></i><b class="sb-power-price"></b></div>
+          <div class="sb-price-row" title="Oil: what the Global Monitoring Center pays per barrel"><i data-icon="oil"></i><b class="sb-price"></b><i class="sb-price-trend"></i></div>
+          <div class="sb-price-row" title="Power: what the Global Monitoring Center charges when your grid runs dry (oil at +${Math.round((OIL_GRID_MARKUP - 1) * 100)}%, per 1 kJ)"><i data-icon="power"></i><b class="sb-power-price"></b></div>
           <div class="sb-price-row" title="Next price revision"><i data-icon="clock"></i><b class="sb-price-clock"></b></div>
           <svg class="sb-price-chart" viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Oil price, last 5 minutes"><polyline fill="none" stroke-width="1.5" vector-effect="non-scaling-stroke"></polyline></svg>
         </section>
@@ -552,9 +552,9 @@ export class Sidebar {
     this.powerText.textContent = `${compactEnergy(player.powerSupply)}/s / ${compactEnergy(player.powerConsumed)}/s`;
     this.powerText.classList.toggle('low', player.powerShort);
     this.powerText.parentElement!.title = player.blackout
-      ? 'BLACKOUT: no power and no TB to buy oil from the Global Financial Center. No take-offs.'
+      ? 'BLACKOUT: no power and no TB to buy oil from the Global Monitoring Center. No take-offs.'
       : player.powerShort
-        ? 'Not enough power: the Global Financial Center sells oil for the missing power (+25%), and take-offs stop (construction and production keep running while you have TB).'
+        ? 'Not enough power: the Global Monitoring Center sells oil for the missing power (+25%), and take-offs stop (construction and production keep running while you have TB).'
         : `Stored ${compactEnergy(player.powerStored)} / ${compactEnergy(player.powerCapacity)}. Plants burn your oil (0.001 bbl = 1 J).`;
 
     // The radar picture is blurred and dimmed until the nation owns an Airfield.

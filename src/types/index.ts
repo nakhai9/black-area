@@ -177,13 +177,13 @@ export interface PlayerState {
   isHuman: boolean;
   /** Treasury in TB. */
   credits: number;
-  /** Oil in stock (barrels): pumped by the derricks, sold to the Global Financial Center for TB. */
+  /** Oil in stock (barrels): pumped by the derricks, sold to the Global Monitoring Center for TB. */
   oil: number;
   /** Part of `oil` pumped from leased derricks: when sold, the cartel takes its share (OIL_LEASE_CARTEL_SHARE). */
   leasedOil: number;
-  /** TB owed to the Global Financial Center (emergency loans); income pays it back automatically. */
+  /** TB owed to the Global Monitoring Center (emergency loans); income pays it back automatically. */
   debt: number;
-  /** Credit frozen by the Global Financial Center after reaching its credit line; lifted once DEBT ≤ DEBT_RESUME_SHARE of the line. */
+  /** Credit frozen by the Global Monitoring Center after reaching its credit line; lifted once DEBT ≤ DEBT_RESUME_SHARE of the line. */
   creditFrozen: boolean;
   /** Set when the nation's capital has been destroyed: it has lost the war. */
   defeated: boolean;
@@ -196,7 +196,7 @@ export interface PlayerState {
   /** Power stored in the nation's plants, and their total storage. */
   powerStored: number;
   powerCapacity: number;
-  /** The grid ran dry and the treasury could not buy oil from the Global Financial Center. */
+  /** The grid ran dry and the treasury could not buy oil from the Global Monitoring Center. */
   blackout: boolean;
   /** Most the nation's nuclear plants can generate (J/s, scaled by their health). */
   powerSupply: number;

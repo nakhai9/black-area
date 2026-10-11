@@ -49,7 +49,7 @@ export class Building extends Entity {
 
   /**
    * Transfers ownership (e.g. an engineer occupying it). Returns false for
-   * protected buildings such as the Global Financial Center.
+   * protected buildings such as the Global Monitoring Center.
    */
   capture(owner: number, faction: FactionId): boolean {
     if (!this.capturable || !this.alive) return false;

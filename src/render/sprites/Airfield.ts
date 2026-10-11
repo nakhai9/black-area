@@ -4,12 +4,11 @@ import { shade } from '../Color';
 import type { IsoPainter } from '../IsoPainter';
 
 import type { BuildingArt } from './BuildingArt';
-import { RA2, crate, facade, parapet, rnd } from './Ra2Kit';
+import { RA2, facade, parapet } from './Ra2Kit';
 
 const RUNWAY = '#3a3c40';
 const PAINT = '#d4d2c8';
 const TAXI = '#c4a83a';
-const TANK = '#a9aeb3';
 
 function materials(faction: FactionId): { ground: string; apron: string; tower: string } {
   switch (faction) {
@@ -59,8 +58,8 @@ function outline(p: IsoPainter, u0: number, v0: number, u1: number, v1: number):
 /**
  * Airfield (12×8 tiles, mirror-symmetric about its centre line): a long runway along the
  * back, and below it an apron that fills the rest of the block with nine marked parking spots
- * in three rows (the fighters are real units), a control tower beside the runway, and fuel
- * tanks and service lanes at both ends. Aircraft that return here are repaired.
+ * in three rows (the fighters are real units). The only structure on it is the control tower, in the
+ * front corner opposite the runway. Aircraft that return here are repaired.
  */
 export function createAirfieldArt(faction: FactionId): BuildingArt {
   const team = FACTIONS[faction].colors;
@@ -84,18 +83,6 @@ export function createAirfieldArt(faction: FactionId): BuildingArt {
       // Apron fills the rest of the block, edge to edge.
       p.topRect(0.15, RUNWAY_D, W - 0.15, D - 0.12, 2.1, APRON);
       p.topRect(0.15, RUNWAY_D + 0.02, W - 0.15, RUNWAY_D + 0.08, 2.2, PAINT);
-      // Concrete slab joints and weathered patches on the apron.
-      for (let u = 1; u < W - 0.2; u += 1) p.topRect(u - 0.01, RUNWAY_D + 0.1, u + 0.01, D - 0.14, 2.15, shade(APRON, 0.85));
-      for (let v = RUNWAY_D + 1; v < D - 0.2; v += 1) p.topRect(0.15, v - 0.01, W - 0.15, v + 0.01, 2.15, shade(APRON, 0.85));
-      for (let i = 0; i < 14; i++) {
-        const u = 0.4 + rnd(5, i, 1) * (W - 1);
-        const v = RUNWAY_D + 0.2 + rnd(5, i, 2) * (D - RUNWAY_D - 0.6);
-        p.topRect(u, v, u + 0.3 + rnd(5, i, 3) * 0.4, v + 0.15 + rnd(5, i, 4) * 0.25, 2.12, 'rgba(40,38,32,0.14)');
-      }
-      // Tyre skid marks on the runway and hazard stripes at both ends.
-      for (const u of [1.2, 2.4, W - 3.2, W - 1.8]) p.topRect(u, 0.55, u + 0.8, 0.62, 2.15, 'rgba(15,15,15,0.35)');
-      for (const u of [0, W - 0.08]) for (let k = 0; k < 8; k++) p.topRect(u, k * 0.2, u + 0.08, k * 0.2 + 0.1, 2.25, RA2.hazard);
-
       // Taxi lanes: one above each row of parking spots, joined at both ends.
       const laneA = 2.4;
       const laneB = 4.1;
@@ -108,30 +95,19 @@ export function createAirfieldArt(faction: FactionId): BuildingArt {
         outline(p, u - 1.25, v - 0.45, u + 1.25, v + 0.42);
       }
 
-      // Fuel tanks at both ends (mirror images).
-      for (const u of [1.0, W - 1.0]) {
-        for (const du of [-0.35, 0.35]) {
-          p.cylinder(u + du, 1.95, 0.27, 2, 1.5, '#5a5d60');
-          p.cylinder(u + du, 1.95, 0.24, 3.5, 7.5, TANK, 6);
-          p.cylinder(u + du, 1.95, 0.25, 6, 1, shade(team.primary, 0.85));
-          p.cylinder(u + du, 1.95, 0.05, 11, 1.5, '#5a5d60');
-        }
-        crate(p, u + (u < W / 2 ? 0.6 : -0.8), 1.75, 0.2, 2);
-      }
-
-      // Control tower beside the runway: shaft, glass cab, team-colour roof, antenna.
-      const c = W / 2;
-      p.box(c - 0.32, 1.66, 0.64, 0.5, 2, 6, shade(TOWER, 0.8));
-      p.box(c - 0.2, 1.7, 0.4, 0.36, 8, 18, TOWER);
-      p.faceRect('left', c - 0.2, 1.7, 0.4, 0.36, 8, 18, 0.35, 0.65, 0.1, 0.9, shade(TOWER, 0.78));
-      p.box(c - 0.45, 1.52, 0.9, 0.76, 25, 1.2, RA2.steelDark);
-      p.box(c - 0.4, 1.55, 0.8, 0.7, 26, 6, RA2.glass, { top: RA2.tar });
-      facade(p, 'left', c - 0.4, 1.55, 0.8, 0.7, 26, 6, { cols: 4, floors: 1, frame: '#c8ccd0', band: 0.1, lit: 0.3, seed: 9 });
-      facade(p, 'right', c - 0.4, 1.55, 0.8, 0.7, 26, 6, { cols: 3, floors: 1, frame: '#c8ccd0', band: 0.1, lit: 0.3, seed: 10 });
-      p.box(c - 0.47, 1.5, 0.94, 0.84, 32, 1.4, shade(team.primary, 0.85));
-      parapet(p, c - 0.47, 1.5, 0.94, 0.84, 33.4, RA2.steelDark, 0.05, 1);
-      p.box(c + 0.1, 1.6, 0.18, 0.18, 33.4, 2.5, '#8f939a');
-      p.pole(c, 1.9, 33.4, 11, '#c0c0c0');
+      // The only structure on the field: the control tower, in the front corner opposite the runway.
+      const tu = W - 0.6;
+      const tv = D - 0.6;
+      p.box(tu - 0.25, tv - 0.25, 0.5, 0.5, 2, 4, shade(TOWER, 0.8));
+      p.box(tu - 0.16, tv - 0.16, 0.32, 0.32, 6, 20, TOWER);
+      p.faceRect('left', tu - 0.16, tv - 0.16, 0.32, 0.32, 6, 20, 0.35, 0.65, 0.1, 0.9, shade(TOWER, 0.78));
+      p.box(tu - 0.34, tv - 0.34, 0.68, 0.68, 26, 1.2, RA2.steelDark);
+      p.box(tu - 0.3, tv - 0.3, 0.6, 0.6, 27, 6, RA2.glass, { top: RA2.tar });
+      facade(p, 'left', tu - 0.3, tv - 0.3, 0.6, 0.6, 27, 6, { cols: 3, floors: 1, frame: '#c8ccd0', band: 0.1, lit: 0.3, seed: 9 });
+      facade(p, 'right', tu - 0.3, tv - 0.3, 0.6, 0.6, 27, 6, { cols: 3, floors: 1, frame: '#c8ccd0', band: 0.1, lit: 0.3, seed: 10 });
+      p.box(tu - 0.36, tv - 0.36, 0.72, 0.72, 33, 1.4, shade(team.primary, 0.85));
+      parapet(p, tu - 0.36, tv - 0.36, 0.72, 0.72, 34.4, RA2.steelDark, 0.05, 1);
+      p.pole(tu, tv, 34.4, 10, '#c0c0c0');
     },
 
     drawAnimated(p, time) {
@@ -148,7 +124,7 @@ export function createAirfieldArt(faction: FactionId): BuildingArt {
       }
       // Tower beacon.
       if (Math.sin(time * 2.4) > 0.3) {
-        const [x, y] = p.project(W / 2, 1.9, 45);
+        const [x, y] = p.project(W - 0.6, D - 0.6, 45);
         p.ctx.fillStyle = '#ff3b30';
         p.ctx.beginPath();
         p.ctx.arc(x, y, 1.4, 0, Math.PI * 2);

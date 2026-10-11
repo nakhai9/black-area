@@ -235,12 +235,6 @@ export function createGrandMosqueArt(flag: Allegiance = 'islamic'): BuildingArt 
       iwanMinaret(p, 1.3, 2.25, Z + 56);
       iwanMinaret(p, 2.7, 2.25, Z + 56);
 
-      // Garden trees in the corners of the court.
-      for (const [u, v] of [[0.85, 3.0], [3.15, 3.0], [0.85, 5.6], [3.15, 5.6]] as const) {
-        p.cylinder(u, v, 0.04, Z, 6, '#6b5b47');
-        p.dome(u, v, 0.18, Z + 6, 8, '#4f6a32');
-      }
-
       // East arcade (its outer face shows) and the east iwan block.
       const east: Box = [3.5, 2.3, 0.4, 3.75, Z, 20];
       tiledBox(p, east);

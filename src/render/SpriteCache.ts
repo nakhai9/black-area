@@ -137,7 +137,7 @@ export class SpriteCache {
       }
     }
     // The shadow goes in after the hit mask and bounds: it is never part of the building.
-    castShadow(canvas, ctx, centerY, RASTER_SCALE, SHADOW_RUN_X, SHADOW_RUN_Y);
+    if (!art.noShadow) castShadow(canvas, ctx, centerY, RASTER_SCALE, SHADOW_RUN_X, SHADOW_RUN_Y);
     const bounds: Rect = {
       x: minX / RASTER_SCALE,
       y: minY / RASTER_SCALE,

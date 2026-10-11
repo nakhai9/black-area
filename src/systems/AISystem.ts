@@ -54,7 +54,7 @@ export interface AIHost {
   orderAttackTarget(units: readonly Unit[], target: Entity): void;
   /** Falls back to `target` without stopping to fight; enemies may not chase retreating units. */
   orderRetreat(units: readonly Unit[], target: WorldPoint): void;
-  /** Green safe zones of the Global Financial Center (units stranded abroad wait there to be flown home). */
+  /** Green safe zones of the Global Monitoring Center (units stranded abroad wait there to be flown home). */
   readonly safeZones: SafeZoneSystem;
   /** Structure that may not be attacked right now (the player's derricks during their grace period). */
   isShielded(b: Building): boolean;
@@ -223,7 +223,7 @@ interface AIState {
   guard: Set<number>;
   /** Unit id → game time it fell back from a lost fight (rests RETREAT_REST s before attacking again). */
   retreated: Map<number, number>;
-  /** Earliest game time the nation offers oil to the Global Financial Center again. */
+  /** Earliest game time the nation offers oil to the Global Monitoring Center again. */
   nextSell: number;
   nextWave: number;
   waveSize: number;
@@ -391,7 +391,7 @@ export class AISystem implements GameSystem {
 
   /**
    * Does the nation want another Happy City right now? It does whenever it can grow without weakening
-   * itself: the High-Tech Center is up, it owes the Global Financial Center nothing, and it still has an army on the
+   * itself: the High-Tech Center is up, it owes the Global Monitoring Center nothing, and it still has an army on the
    * field. The cap is per personality — an economist runs the full MAX_CITIES, a warlord 70% of them.
    */
   private savingForCity(p: PlayerState, owned: Set<BuildingType>, st?: AIState): boolean {

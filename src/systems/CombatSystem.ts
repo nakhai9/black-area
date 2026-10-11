@@ -19,7 +19,7 @@ export interface CombatHooks {
   onDeath(entity: Entity, killer: Entity | undefined): void;
   /** `nation` let the retreating `fugitive` go instead of chasing it (once per nation per retreat). */
   onSpare(nation: number, fugitive: Unit): void;
-  /** Is (x, y) inside a safe zone of the Global Financial Center? Nobody fights there. */
+  /** Is (x, y) inside a safe zone of the Global Monitoring Center? Nobody fights there. */
   safeAt(x: number, y: number): boolean;
   /** Structure that may not be attacked right now (the player's derricks during their grace period). */
   shielded(target: Entity): boolean;

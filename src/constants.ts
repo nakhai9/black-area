@@ -11,7 +11,7 @@ import type {
 } from "./types";
 
 /** DEMO: skip the faction screen and start a solo test game as Russia (no AI opponents). Set to false for production. */
-export const DEMO_MODE = false;
+export const DEMO_MODE = true;
 
 /**
  * Version of the game, x.y.z (semantic versioning):
@@ -21,7 +21,7 @@ export const DEMO_MODE = false;
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "1.32.0";
+export const GAME_VERSION = "1.51.0";
 
 // ---------------------------------------------------------------- World (real Earth)
 /** Packed Earth texture built by `npm run build:earth` (see scripts/build-earth.mjs). */
@@ -107,6 +107,8 @@ export const CRUISE_ALTITUDE =
 /** Large structures (War Factory, Hospital) occupy 5×4 cells, everything else 4×4 (7 px cells). */
 export const FOOTPRINT_LARGE = { w: 5, d: 4 } as const;
 export const FOOTPRINT_SMALL = { w: 4, d: 4 } as const;
+/** The Global Monitoring Center: 5 × 5 cells. */
+export const FOOTPRINT_GMC = { w: 5, d: 5 } as const;
 /** Flagpole: exactly one cell. */
 export const FOOTPRINT_FLAGPOLE = { w: 1, d: 1 } as const;
 /** Bunker: a small pillbox filling one cell. */
@@ -124,7 +126,7 @@ export const FOOTPRINT_CITY = { w: 8, d: 8 } as const;
 
 // ---------------------------------------------------------------- Simulation & camera
 export const TICK_RATE = 30;
-/** Mercy bonus: the Global Financial Center pays a nation this much for each retreating enemy group it lets go unchased (once per group, whatever its size). */
+/** Mercy bonus: the Global Monitoring Center pays a nation this much for each retreating enemy group it lets go unchased (once per group, whatever its size). */
 export const MERCY_BONUS = 100;
 /**
  * Grace period for the player's oil derricks: they cannot be attacked until enemy nations have launched this many
@@ -591,7 +593,9 @@ export type ContestedNationId =
   | "southKorea"
   | "japan"
   | "australia"
-  | "brazil";
+  | "brazil"
+  | "unitedKingdom"
+  | "canada";
 export interface ContestedNation {
   name: string;
   /** Name of the capital building shown in game. */
@@ -626,6 +630,18 @@ export const CONTESTED_NATIONS: Readonly<
     capital: "Brasília Planalto",
     site: { lon: -47.88, lat: -15.79, name: "Brasília" },
   },
+  // Out of the European Union since Brexit: Great Britain is independent land, no longer part of Europe's territory.
+  unitedKingdom: {
+    name: "United Kingdom",
+    capital: "10 Downing Street",
+    site: { lon: -0.13, lat: 51.5, name: "London" },
+  },
+  // Canada is its own nation: its land is no longer part of the USA's territory.
+  canada: {
+    name: "Canada",
+    capital: "Parliament Hill",
+    site: { lon: -75.7, lat: 45.42, name: "Ottawa" },
+  },
 };
 export const NATION_PRESENCE_FEE = 1200;
 
@@ -646,12 +662,12 @@ export const NATION_GARRISON = 6;
 export const NATION_GARRISON_CELLS = 10;
 
 // ---------------------------------------------------------------- Oil (replaces RA2 ore)
-/** Barrels of oil pumped per second by each derrick while it is pumping (oil is sold to the Global Financial Center for TB). */
+/** Barrels of oil pumped per second by each derrick while it is pumping (oil is sold to the Global Monitoring Center for TB). */
 export const OIL_DERRICK_OUTPUT = 0.08; // barrels/s per derrick
 /** Every nation starts with some oil in stock, so the first sale can pay for the first buildings. */
 export const STARTING_OIL = 20;
 /**
- * Global Financial Center oil market: one price for everybody (TB per barrel). It rises and falls mainly with
+ * Global Monitoring Center oil market: one price for everybody (TB per barrel). It rises and falls mainly with
  *   - FLOW: barrels the nations sold to the Center lately (more oil sold → cheaper) against barrels the Center had
  *     to sell them for their power grids (more bought → dearer), both remembered over ~OIL_FLOW_MEMORY seconds;
  *   - WEALTH: the average net worth of the nations still in the war (richer world → dearer oil);
@@ -679,7 +695,7 @@ export const OIL_MOOD_MAX = 0.12;
 export const OIL_MOOD_STEP = 0.04;
 export const OIL_MOOD_PULL = 0.15;
 /**
- * Global Financial Center credit: when the treasury is at 0 TB the player may press "Emergency loan" (never automatic). No interest.
+ * Global Monitoring Center credit: when the treasury is at 0 TB the player may press "Emergency loan" (never automatic). No interest.
  * The Center lends against what the nation could sell to pay it back (its collateral):
  *   collateral = oil stock × posted price + RESALE_SHARE × (structures' build cost × health share + vehicles' cost)
  *   credit line = LOAN_TO_VALUE × collateral
@@ -765,7 +781,7 @@ export const OIL_REST_SECONDS = 60;
  * stock into energy, counted in joules (J): 0.001 barrel → 1 J, so a plant burning at full rate uses 0.025 bbl/s for 25 J/s.
  * One plant covers exactly one of each: capital 1 + barracks 1 + hospital 2 + war factory 3 + airfield 4 +
  * tech center 6 + city 8 = 25. Anything beyond that needs another plant (or the nation is short of power). Each plant also stores up to POWER_PLANT_STORAGE; a new plant starts empty (0).
- * When the grid runs dry (drain > generation and storage empty) the Global Financial Center is forced to sell the missing
+ * When the grid runs dry (drain > generation and storage empty) the Global Monitoring Center is forced to sell the missing
  * oil at OIL_GRID_MARKUP × the posted price; with an empty treasury the nation falls into a blackout (low power).
  */
 export const POWER_PER_BARREL = 1000;

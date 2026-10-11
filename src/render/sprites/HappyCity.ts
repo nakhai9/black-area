@@ -1,6 +1,7 @@
 import { FACTIONS } from '../../factions';
 import type { FactionId } from '../../types';
 import { shade } from '../Color';
+import { drawFlagOnPole } from '../Flags';
 import type { IsoPainter } from '../IsoPainter';
 import type { BuildingArt } from './BuildingArt';
 import { drawMosque } from './GrandMosque';
@@ -36,6 +37,8 @@ interface CityStyle {
   towers: 'glass' | 'panel' | 'pagoda' | 'gable' | 'russian';
   /** Landmark face whose windows light up at night (u, v, w, d, height). */
   lit: readonly [number, number, number, number, number];
+  /** Top of the landmark's mast (u, v, z), where its flag flies when the landmark is the tallest building. */
+  flag: readonly [number, number, number];
 }
 
 const tower = (p: IsoPainter, u: number, v: number, w: number, d: number, h: number, color: string, floors: number, z = 2): void => {
@@ -110,6 +113,7 @@ const STYLES: Readonly<Record<FactionId, CityStyle>> = {
     roof: '#4b5560',
     towers: 'glass',
     lit: [1.2, 1.2, 2.2, 2.2, 40],
+    flag: [2.3, 2.3, 212],
     landmark: (p, team) => {
       tower(p, 1.2, 1.2, 2.2, 2.2, 90, '#c9c1a8', 16);
       tower(p, 1.6, 1.6, 1.4, 1.4, 50, '#d4ccb3', 9, 92);
@@ -125,6 +129,7 @@ const STYLES: Readonly<Record<FactionId, CityStyle>> = {
     roof: '#4f7a5a',
     towers: 'russian',
     lit: [0.95, 0.95, 1.6, 1.4, 34],
+    flag: [1.8, 1.65, 141],
     landmark: (p) => {
       // Seven Sisters (Moscow State University style): wings, stepped tower, golden spire and star.
       const STONE = '#e6dac0';
@@ -167,6 +172,7 @@ const STYLES: Readonly<Record<FactionId, CityStyle>> = {
     roof: '#6e3a2c',
     towers: 'pagoda',
     lit: [1.2, 1.2, 2.2, 2.2, 40],
+    flag: [2.3, 2.3, 188],
     landmark: (p, team) => {
       p.box(1.1, 1.1, 2.4, 2.4, 2, 6, '#d9d2c4');
       for (const [du, dv] of [[0.4, 1.8], [1.8, 0.4], [1.8, 1.8]] as const) p.cylinder(1.1 + du, 1.1 + dv, 0.12, 8, 34, '#d8d8d8');
@@ -183,6 +189,7 @@ const STYLES: Readonly<Record<FactionId, CityStyle>> = {
     roof: '#4d5560',
     towers: 'gable',
     lit: [1.2, 1.2, 2.2, 2.2, 40],
+    flag: [3.0, 2.8, 130],
     landmark: (p, team) => {
       p.box(1.0, 1.3, 2.6, 1.6, 2, 34, '#d8cdb3');
       p.windows('left', 1.0, 1.3, 2.6, 1.6, 2, 34, 6, 2, '#5a6f8a', 0.1, 0.5);
@@ -208,6 +215,7 @@ const STYLES: Readonly<Record<FactionId, CityStyle>> = {
     roof: '#b89e74',
     towers: 'panel',
     lit: [0.9, 0.9, 2.4, 2.4, 30],
+    flag: [1.45, 2.94, 64],
     landmark: (p) => drawMosque(p, 0.6, 0.6, 0.85, 2),
   },
 };
@@ -239,6 +247,11 @@ export function createHappyCityArt(faction: FactionId): BuildingArt {
   };
 
   const pieces: Piece[] = [];
+  // The tallest building flies the nation's flag: the landmark unless an ordinary tower rises higher.
+  let flag: { u: number; v: number; z: number; pole: number } = { u: style.flag[0], v: style.flag[1], z: style.flag[2], pole: 0 };
+  const tallest = (u: number, v: number, z: number): void => {
+    if (z > flag.z) flag = { u, v, z: z + 14, pole: 14 };
+  };
   const blocks: [number, number, number, number][] = [
     [0.8, 0.8, 3.75, 3.75],
     [4.25, 0.8, 7.2, 3.75],
@@ -273,11 +286,14 @@ export function createHappyCityArt(faction: FactionId): BuildingArt {
           return;
         }
         const tall = 16 + rnd() * (bi === 3 ? 14 : 26);
+        tallest(lot.u + lot.w / 2, lot.v + lot.d / 2, 2 + tall);
         pieces.push({ key: lot.u + lot.v + lot.w + lot.d, draw: (p) => townhouse(p, lot.u, lot.v, lot.w, lot.d, tall, color, Math.max(3, Math.round(tall / 7))) });
         return;
       }
       const tall = style.towers === 'gable' ? 14 + rnd() * 14 : 24 + rnd() * (bi === 3 ? 40 : 70);
       const floors = Math.max(3, Math.round(tall / 7));
+      const roofExtra = style.towers === 'glass' ? 12 : style.towers === 'gable' ? 10.5 : style.towers === 'pagoda' ? 11 : 0;
+      tallest(lot.u + lot.w / 2, lot.v + lot.d / 2, 2 + tall + roofExtra);
       pieces.push({
         key: lot.u + lot.v + lot.w + lot.d,
         draw: (p) => {
@@ -343,9 +359,11 @@ export function createHappyCityArt(faction: FactionId): BuildingArt {
         }
       }
       for (const piece of pieces) piece.draw(p);
+      if (flag.pole > 0) p.pole(flag.u, flag.v, flag.z - flag.pole, flag.pole, '#e8e8e8');
     },
 
     drawAnimated(p, time) {
+      drawFlagOnPole(p, faction, flag.u, flag.v, flag.z, time, 0, 16, 10);
       // Traffic on the two front ring roads (animated art is drawn over the static towers, so only roads that
       // nothing stands in front of carry cars), team-coloured buses among them.
       const road = ROADS[2];

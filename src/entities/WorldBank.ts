@@ -1,9 +1,9 @@
-import { FOOTPRINT_SMALL, NEUTRAL_OWNER } from '../constants';
+import { FOOTPRINT_GMC, NEUTRAL_OWNER } from '../constants';
 import type { WorldPoint } from '../types';
 import { Building } from './Building';
 
 /**
- * The Global Financial Center — a neutral landmark shared by every nation.
+ * The Global Monitoring Center — a neutral landmark shared by every nation.
  * By rule it can never be destroyed, damaged, captured or occupied.
  */
 export class WorldBank extends Building {
@@ -13,8 +13,8 @@ export class WorldBank extends Building {
   constructor(center: WorldPoint) {
     super(NEUTRAL_OWNER, 'neutral', center, {
       type: 'bank',
-      name: 'Global Financial Center',
-      footprint: FOOTPRINT_SMALL,
+      name: 'Global Monitoring Center',
+      footprint: FOOTPRINT_GMC,
       maxHp: 3000,
       powerOutput: 0,
       powerDrain: 0,

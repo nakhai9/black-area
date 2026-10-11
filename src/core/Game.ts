@@ -69,6 +69,7 @@ import {
   STARTING_OIL,
   WORLD_BANK_LOCATION,
   CONTESTED_NATIONS,
+  FOOTPRINT_GMC,
   type ContestedNationId,
   NATION_PRESENCE_FEE,
   ANTARCTIC_OIL_SITES,
@@ -248,7 +249,7 @@ export class Game {
   readonly combat: CombatSystem;
   /** Take-off, flight home, landing and parking of fighters. */
   readonly aircraft: AircraftSystem;
-  /** Green safe zones of the Global Financial Center for units evacuated by air. */
+  /** Green safe zones of the Global Monitoring Center for units evacuated by air. */
   readonly safeZones: SafeZoneSystem;
   private repathTimer = 0;
   private yieldTimer = 0;
@@ -267,7 +268,7 @@ export class Game {
   readonly ai: AISystem;
   readonly effects = new EffectsLayer();
   readonly sound: SoundSystem;
-  /** Global Financial Center oil market (one price for every nation) and the news toasts. */
+  /** Global Monitoring Center oil market (one price for every nation) and the news toasts. */
   readonly oilMarket: OilMarket;
   private readonly news: NewsToast;
   private readonly endScreen = new EndScreen();
@@ -363,7 +364,7 @@ export class Game {
       const f = player.faction;
       this.landmarks.push(this.entities.add(new Capital(FACTIONS[f], player.id, geoToWorld(CAPITAL_LOCATIONS[f]))));
     }
-    // The Global Financial Center is neutral: shared by every nation, never destroyed or occupied.
+    // The Global Monitoring Center is neutral: shared by every nation, never destroyed or occupied.
     this.landmarks.push(this.entities.add(new WorldBank(geoToWorld(WORLD_BANK_LOCATION))));
     // Contested independent nations: their capitals start neutral and go to whoever's engineer takes them.
     for (const id of Object.keys(CONTESTED_NATIONS) as ContestedNationId[]) {
@@ -497,7 +498,7 @@ export class Game {
       onSellOil: () => this.sellOil(),
       onToggleAutoSell: () => {
         this.autoSellOil = !this.autoSellOil;
-        this.sidebar.notify(this.autoSellOil ? 'Auto sell ON: oil is offered to the Global Financial Center whenever a sale is allowed.' : 'Auto sell OFF.', 3);
+        this.sidebar.notify(this.autoSellOil ? 'Auto sell ON: oil is offered to the Global Monitoring Center whenever a sale is allowed.' : 'Auto sell OFF.', 3);
         this.sidebarTimer = SIDEBAR_REFRESH;
       },
       onLoan: () => this.takeLoan(),
@@ -640,6 +641,8 @@ export class Game {
       return e ? [[e, s] as const] : [];
     });
     for (const [e, s] of shells) codec.fillEntity(e, s);
+    // Saves from before 1.51.0 carry the Global Monitoring Center's old 4 × 4 footprint in its spec: it is 5 × 5 now.
+    for (const [e] of shells) if (e instanceof WorldBank) (e.spec as { footprint: { w: number; d: number } }).footprint = FOOTPRINT_GMC;
     for (const [e] of shells) this.entities.add(e);
     this.shrinkOldBunkers();
     for (const b of this.entities.buildings()) if (b.alive) this.map.occupy(b.x, b.y, b.w, b.d, b.id);
@@ -1014,7 +1017,7 @@ export class Game {
   }
 
   /**
-   * Units stranded on a foreign land fall back into a green safe zone that the Global Financial Center opens near
+   * Units stranded on a foreign land fall back into a green safe zone that the Global Monitoring Center opens near
    * them (within reach of the enemy capital they fought near). Nobody may attack inside it; transports fly them home.
    */
   private sendToSafeZone(units: readonly Unit[]): void {
@@ -1994,7 +1997,7 @@ export class Game {
             // Fighters selected + Ctrl+click on one of my transports / tankers / bombers: they fly guard on it.
             const ward = this.selection.pickUnit(world);
             if (ward instanceof Vehicle && ward.owner === this.humanPlayer.id && this.orderGuard(ward, this.selection.selectedUnitList())) break;
-            // Ctrl+click on one of my structures: sell it to the Global Financial Center.
+            // Ctrl+click on one of my structures: sell it to the Global Monitoring Center.
             const b = this.selection.pick(world);
             if (b && b.owner === this.humanPlayer.id) this.sellBuilding(b);
           } else this.leftClick(world, ev.shift, ev.double);
@@ -2700,16 +2703,16 @@ export class Game {
     this.sound.alarm();
   }
 
-  /** Sell button: the Global Financial Center looks at the offer and decides whether, and how much, to buy. */
+  /** Sell button: the Global Monitoring Center looks at the offer and decides whether, and how much, to buy. */
   private sellOil(auto = false): void {
     const result = this.oilMarket.sell(this.humanPlayer);
     if (auto && result.kind !== 'sold') return; // auto sell stays quiet when the Center declines
     this.sidebar.notify(
       result.kind === 'sold'
-        ? `Global Financial Center bought ${result.barrels.toFixed(1)} barrels at ${result.price} ${CURRENCY} → +${result.revenue} ${CURRENCY}` +
+        ? `Global Monitoring Center bought ${result.barrels.toFixed(1)} barrels at ${result.price} ${CURRENCY} → +${result.revenue} ${CURRENCY}` +
           (result.royalty > 0 ? ` (−${result.royalty} ${CURRENCY} lease share to the oil cartel)` : '') +
           (result.repaid > 0 ? ` (${result.repaid} ${CURRENCY} paid back on your debt)` : '')
-        : `Global Financial Center declined: ${result.reason}.`,
+        : `Global Monitoring Center declined: ${result.reason}.`,
       5,
     );
     this.sidebarTimer = SIDEBAR_REFRESH;
@@ -2775,7 +2778,7 @@ export class Game {
     const result = this.oilMarket.borrow(this.humanPlayer);
     this.sidebar.notify(
       result.kind === 'granted'
-        ? `Global Financial Center loan: +${result.amount} ${CURRENCY}. Debt ${result.debt} ${CURRENCY} — oil sales pay it back automatically.`
+        ? `Global Monitoring Center loan: +${result.amount} ${CURRENCY}. Debt ${result.debt} ${CURRENCY} — oil sales pay it back automatically.`
         : `Loan refused: ${result.reason}.`,
       5,
     );
@@ -3856,7 +3859,7 @@ export class Game {
     return b.spec.type === 'oilDerrick' && b.owner === this.humanPlayer.id && this.attacksOnPlayer < DERRICK_GRACE_ATTACKS;
   }
 
-  /** What the Global Financial Center pays for `b` (its build cost × health × RESALE_SHARE); null: cannot be sold. */
+  /** What the Global Monitoring Center pays for `b` (its build cost × health × RESALE_SHARE); null: cannot be sold. */
   private salePrice(b: Building): number | null {
     if (!b.alive || b.indestructible || b.spec.type === 'capital') return null;
     const option = BUILD_OPTIONS.find((o) => o.id === b.spec.type);
@@ -3865,7 +3868,7 @@ export class Game {
   }
 
   /**
-   * Ctrl+click on one of the player's structures: the Global Financial Center buys it back, the money goes into the
+   * Ctrl+click on one of the player's structures: the Global Monitoring Center buys it back, the money goes into the
    * national budget and the structure is taken down, leaving its ground free for the next one.
    */
   private sellBuilding(b: Building): void {
@@ -3878,7 +3881,7 @@ export class Game {
     if (!p) return;
     p.credits += price;
     this.removeBuilding(b);
-    this.sidebar.notify(`${b.spec.name} sold to the Global Financial Center: +${price} ${CURRENCY}.`, 3);
+    this.sidebar.notify(`${b.spec.name} sold to the Global Monitoring Center: +${price} ${CURRENCY}.`, 3);
   }
 
   /** Takes a structure off the map: its people step out, its aircraft move or burn, its cells become free. */
@@ -3894,7 +3897,7 @@ export class Game {
     if (i >= 0) this.derricks.splice(i, 1);
   }
 
-  /** Humane victor: the Global Financial Center rewards a nation that lets a retreating enemy go. */
+  /** Humane victor: the Global Monitoring Center rewards a nation that lets a retreating enemy go. */
   private payMercyBonus(nation: number, fugitive: Unit): void {
     // Once per retreating group and nation, however many units of the group it lets go.
     const key = `${fugitive.retreatGroup}:${nation}`;
@@ -3903,7 +3906,7 @@ export class Game {
     const p = this.players.find((pl) => pl.id === nation);
     if (!p || p.defeated) return;
     p.credits += MERCY_BONUS;
-    if (p.isHuman) this.sidebar.notify(`Mercy bonus: you let a retreating enemy group go — Global Financial Center pays +${MERCY_BONUS} ${CURRENCY}.`, 3);
+    if (p.isHuman) this.sidebar.notify(`Mercy bonus: you let a retreating enemy group go — Global Monitoring Center pays +${MERCY_BONUS} ${CURRENCY}.`, 3);
   }
 
   /** A plain move that takes the unit closer to its own capital is a retreat (enemies may not chase it). */
@@ -4191,7 +4194,7 @@ export class Game {
         continue;
       }
       row.forEach((cell, i) => {
-        // One derrick of every row is managed by the Global Financial Center: it stays the nation's but cannot be destroyed.
+        // One derrick of every row is managed by the Global Monitoring Center: it stays the nation's but cannot be destroyed.
         const derrick = new OilDerrick(player.id, f, { x: 0, y: 0 }, i, i === Math.min(1, row.length - 1));
         derrick.moveTo(cell.x, cell.y);
         this.entities.add(derrick);

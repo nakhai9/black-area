@@ -13,7 +13,6 @@ const CORE = '#b2b4b0';
 const LAWN = '#5a7634';
 
 const WING_H = 36;
-const CORE_H = 46;
 const FLAG_U = [0.55, 1.15, 2.85, 3.45] as const;
 const FLAG_V = 3.7;
 const POLE_H = 30;
@@ -27,12 +26,6 @@ function esplanade(p: IsoPainter): void {
   p.topRect(2.75, 4.1, 3.85, 6.25, 3, LAWN);
   p.topRect(1.35, 4.1, 2.65, 6.25, 3, shade(PLAZA, 1.06));
 
-  for (const u of [0.7, 3.3]) {
-    p.cylinder(u, 4.5, 0.045, 3, 5, '#6b5b47');
-    p.dome(u, 4.5, 0.15, 7, 6, '#47652f');
-    p.cylinder(u, 5.9, 0.045, 3, 5, '#6b5b47');
-    p.dome(u, 5.9, 0.15, 7, 6, '#47652f');
-  }
 
   // Light glass canopy over the walk out of the doors — kept short so it does not roof the whole square.
   for (const u of [1.45, 2.55]) {
@@ -77,44 +70,68 @@ function curtainWall(p: IsoPainter, u: number, v: number, w: number, d: number, 
   roofClutter(p, u, v, w, d, z + h, Math.round(u * 13 + v * 5));
 }
 
+/** A round glass tower: stacked floor bands of glass and white slabs, its upper floors stepping out of round. */
+function glassDrum(p: IsoPainter, cu: number, cv: number, r: number, z: number, h: number): void {
+  const floors = Math.round(h / 4.5);
+  for (let f = 0; f < floors; f++) {
+    const fz = z + (f * h) / floors;
+    p.cylinder(cu, cv, r, fz, (h / floors) * 0.7, shade(GLASS, 0.9 + (f % 3) * 0.06), 16);
+    p.cylinder(cu, cv, r * 1.02, fz + (h / floors) * 0.7, (h / floors) * 0.3, FRAME);
+  }
+}
+
 /**
- * Brussels — stylised EU headquarters (Berlaymont-inspired): a cross-shaped
- * glass-and-steel block around a taller core, with a row of EU flags.
+ * Paris — the seat of the European Union's unified government, a building for the whole continent rather than any
+ * one nation (inspired by the European Parliament): a tall round glass tower, the domed glass hemicycle of the
+ * assembly before it, two curved office wings embracing a court, the ring of twelve gold stars on the esplanade
+ * and the Union's flags along the front.
  */
 /** The landmark with `flag` flying over it (its own nation's, until it is captured). */
 export function createBrusselsEUHeadquartersArt(flag: Allegiance = 'europe'): BuildingArt {
   return {
     footprint: { w: 4, d: ART_D },
     // The capital sits on a 5 × 8 plot (FOOTPRINT_CAPITAL). The art below is authored in 4 × 6.4 units and drawn
-    // 1.25× to fill it: the palace itself keeps its square proportions in v 0…4, and the nation's own ceremonial
-    // approach fills v 4…6.4 in front of it.
+    // 1.25× to fill it: the building keeps its square proportions in v 0…4, and the ceremonial esplanade fills
+    // v 4…6.4 in front of it.
     scale: 5 / 4,
-    height: 96,
+    height: 110,
 
     drawStatic(p) {
       p.box(0, 0, 4, ART_D, 0, 3, PLAZA);
-      p.topRect(0.15, 0.15, 1.35, 1.35, 3, LAWN);
-      p.topRect(2.65, 0.15, 3.85, 1.35, 3, LAWN);
-      p.topRect(0.15, 2.65, 1.35, 3.4, 3, LAWN);
-      p.topRect(2.65, 2.65, 3.85, 3.4, 3, LAWN);
+      p.topRect(0.15, 0.15, 3.85, 0.6, 3, LAWN);
 
-      // Cross plan: back wing, left wing, core, right wing, front wing.
-      curtainWall(p, 1.55, 0.35, 0.9, 1.2, 3, WING_H);
-      curtainWall(p, 0.35, 1.55, 1.2, 0.9, 3, WING_H);
-      curtainWall(p, 1.55, 1.55, 0.9, 0.9, 3, CORE_H);
-      p.box(1.65, 1.65, 0.7, 0.7, 3 + CORE_H, 4, CORE);
-      curtainWall(p, 2.45, 1.55, 1.2, 0.9, 3, WING_H);
-      curtainWall(p, 1.55, 2.45, 0.9, 1.2, 3, WING_H);
+      // Two curved office wings, embracing the court (stepped segments along a half ring).
+      for (let i = 0; i <= 10; i++) {
+        const a = Math.PI + (i / 10) * Math.PI;
+        const cu = 2.0 + Math.cos(a) * 1.55;
+        const cv = 2.3 + Math.sin(a) * 1.55;
+        curtainWall(p, cu - 0.22, cv - 0.22, 0.44, 0.44, 3, WING_H * 0.6);
+      }
 
-      // Roof plant + EU emblem ring.
-      p.box(1.8, 1.8, 0.4, 0.4, 3 + CORE_H + 4, 6, '#9aa3ab');
-      const [ex, ey] = p.project(2.0, 2.0, 3 + CORE_H + 22);
-      p.ctx.strokeStyle = '#ffcc00';
-      p.ctx.lineWidth = 1.2;
-      p.ctx.beginPath();
-      p.ctx.arc(ex, ey, 6, 0, Math.PI * 2);
-      p.ctx.stroke();
-      p.pole(2.0, 2.0, 3 + CORE_H + 10, 8, '#9aa3ab');
+      // The round glass tower at the back of the court, with an open steel crown.
+      glassDrum(p, 2.0, 1.25, 0.62, 3, 80);
+      p.cylinder(2.0, 1.25, 0.64, 83, 1.2, CORE);
+      for (let k = 0; k < 12; k++) {
+        const a = (k / 12) * Math.PI * 2;
+        p.pole(2.0 + Math.cos(a) * 0.6, 1.25 + Math.sin(a) * 0.6, 84, 8, '#c9ccd0');
+      }
+      p.cylinder(2.0, 1.25, 0.63, 92, 0.8, '#c9ccd0');
+
+      // The hemicycle: a low round assembly hall under a glass dome, in front of the tower.
+      p.cylinder(2.0, 2.65, 0.85, 3, 12, FRAME, 18);
+      p.cylinder(2.0, 2.65, 0.86, 9, 2, '#2a4f9e');
+      p.dome(2.0, 2.65, 0.82, 15, 14, 'rgba(150,200,230,0.85)');
+      p.pole(2.0, 2.65, 29, 6, '#c9ccd0');
+
+      // The twelve gold stars ringing the dome's crown (the Union, not one nation).
+      for (let i = 0; i < 12; i++) {
+        const a = (i / 12) * Math.PI * 2 - Math.PI / 2;
+        const [sx, sy] = p.project(2.0 + Math.cos(a) * 0.5, 2.65 + Math.sin(a) * 0.5, 25);
+        p.ctx.fillStyle = '#ffcc00';
+        p.ctx.beginPath();
+        starPath(p.ctx, sx, sy, 2.4);
+        p.ctx.fill();
+      }
 
       for (const u of FLAG_U) drawNationalPole(p, flag, u, FLAG_V, 3, POLE_H);
 

@@ -21,7 +21,7 @@ const REUSE_RADIUS = 40;
 export const MAX_FROM_ENEMY_CAPITAL = 25;
 
 /**
- * Green safe zone (5 × 5 cells) opened by the Global Financial Center for a nation whose units fall back from a
+ * Green safe zone (5 × 5 cells) opened by the Global Monitoring Center for a nation whose units fall back from a
  * land they can only leave by air: nobody may attack inside it, and the nation's transports land there to fly
  * the units home. It closes once none of the nation's units is inside it or still on the way to it. A zone not
  * emptied within SAFE_ZONE_LIFETIME is lost with everything still inside it.

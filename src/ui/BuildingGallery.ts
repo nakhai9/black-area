@@ -1,5 +1,7 @@
-import { FACTION_ORDER } from '../constants';
+import { CONTESTED_NATIONS, type ContestedNationId, FACTION_ORDER } from '../constants';
+import type { FactionId } from '../types';
 import { FACTIONS } from '../factions';
+import { bunkerPreview, loadBunkerSprites } from '../render/BunkerSheet';
 import { IsoPainter } from '../render/IsoPainter';
 import { type Sprite, SpriteCache } from '../render/SpriteCache';
 import { BUILDING_ART } from '../render/sprites';
@@ -12,7 +14,8 @@ const PIC_H = 220;
 /** Display name of a sprite key ("type:owner"). */
 function displayName(type: string, owner: string): string {
   if (type === 'capital') return FACTIONS[owner as keyof typeof FACTIONS]?.capital.name ?? 'Capital';
-  if (type === 'bank') return 'Global Financial Center';
+  if (type === 'nation') return `${CONTESTED_NATIONS[owner as ContestedNationId]?.capital ?? 'Capital'} (${CONTESTED_NATIONS[owner as ContestedNationId]?.name ?? owner})`;
+  if (type === 'bank') return 'Global Monitoring Center';
   if (type === 'oil') return 'Oil Derrick';
   return BUILD_OPTIONS.find((o) => o.id === type)?.name ?? type;
 }
@@ -20,10 +23,13 @@ function displayName(type: string, owner: string): string {
 interface Card {
   readonly canvas: HTMLCanvasElement;
   readonly sprite: Sprite;
+  /** Bunkers are drawn from their pre-drawn sheet, not from building art. */
+  readonly bunker?: FactionId;
 }
 
 /**
- * `?view=buildings`: a gallery of every structure in the game, grouped by nation (plus the neutral ones), each
+ * `?view=buildings`: a gallery of every structure in the game, grouped by nation (plus the contested nations' capitals
+ * and the neutral ones), each
  * drawn with its animated layer (flags, lights, pumpjacks) running.
  */
 export function showBuildingGallery(root: HTMLElement): void {
@@ -47,18 +53,23 @@ export function showBuildingGallery(root: HTMLElement): void {
   document.head.append(style);
 
   const cache = new SpriteCache(BUILDING_ART);
+  loadBunkerSprites().catch(() => undefined);
   const page = document.createElement('div');
   page.className = 'bg-page';
   page.innerHTML = `<h1>BUILDINGS</h1><p>Every structure of every nation. <a href="?">Back to the game</a> · <a href="?view=units">Units</a></p>`;
   root.replaceChildren(page);
 
-  const groups: { id: string; name: string; color: string }[] = [
-    ...FACTION_ORDER.map((f) => ({ id: f, name: FACTIONS[f].name, color: FACTIONS[f].colors.primary })),
-    { id: 'world', name: 'Neutral', color: '#c9c3b2' },
+  const groups: { name: string; color: string; match: (type: string, owner: string) => boolean }[] = [
+    ...FACTION_ORDER.map((f) => ({ name: FACTIONS[f].name, color: FACTIONS[f].colors.primary, match: (_t: string, o: string) => o === f })),
+    { name: 'Contested nations', color: '#8a8f96', match: (t: string) => t === 'nation' },
+    { name: 'Neutral', color: '#c9c3b2', match: (_t: string, o: string) => o === 'world' },
   ];
   const cards: Card[] = [];
   for (const g of groups) {
-    const keys = Object.keys(BUILDING_ART).filter((k) => k.split(':')[1] === g.id);
+    const keys = Object.keys(BUILDING_ART).filter((k) => {
+      const [type = '', owner = ''] = k.split(':');
+      return g.match(type, owner);
+    });
     if (keys.length === 0) continue;
     const h = document.createElement('h2');
     h.className = 'bg-nation';
@@ -80,7 +91,7 @@ export function showBuildingGallery(root: HTMLElement): void {
       label.innerHTML = `<b>${displayName(type, owner)}</b><small>${size} cells · ${key}</small>`;
       card.append(canvas, label);
       grid.append(card);
-      cards.push({ canvas, sprite });
+      cards.push({ canvas, sprite, bunker: type === 'bunker' ? (owner as FactionId) : undefined });
     }
   }
 
@@ -105,6 +116,15 @@ function draw(card: Card, time: number): void {
   if (!ctx) return;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, w, h);
+  const sheet = card.bunker ? bunkerPreview(card.bunker) : null;
+  if (card.bunker) {
+    // The intact bunker facing south, cut out of its nation's sheet (blank until the sheet has downloaded).
+    if (sheet) {
+      const k = Math.min(w, h) - 20;
+      ctx.drawImage(sheet, (w - k) / 2, (h - k) / 2, k, k);
+    }
+    return;
+  }
   const b = s.bounds;
   const k = Math.min((w - 20) / b.w, (h - 20) / b.h);
   // Sprite top-left so that its opaque bounds sit centred in the card.

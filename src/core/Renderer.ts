@@ -70,7 +70,7 @@ export interface RenderScene {
   readonly ghost?: PlacementGhost | null;
   /** World rects where the player may build (shown while placing). */
   readonly buildZones?: readonly Rect[];
-  /** Green safe zones of the Global Financial Center (world px). */
+  /** Green safe zones of the Global Monitoring Center (world px). */
   readonly safeZones?: readonly Rect[];
   readonly units?: readonly Unit[];
   /** Tracers, flashes, explosions and smoke. */
@@ -1286,7 +1286,7 @@ export class Renderer {
     const managed = 'bankManaged' in b && (b as { bankManaged: boolean }).bankManaged;
     const health = `${Math.max(0, Math.ceil((b.hp / b.maxHp) * 100))}%`;
     const text = managed
-      ? `${b.spec.name} · ${health} · Global Financial Center managed`
+      ? `${b.spec.name} · ${health} · Global Monitoring Center managed`
       : b.indestructible
         ? `${b.spec.name} · ${health} · Neutral · Protected`
         : `${b.spec.name} · ${health}${inside}`;

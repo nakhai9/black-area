@@ -45,11 +45,11 @@ export type LoanResult = { kind: 'granted'; amount: number; debt: number } | { k
 /** Price revisions kept for the chart (10 s each → the last 5 minutes). */
 const PRICE_HISTORY = 30;
 
-/** Smallest stock worth offering to the Global Financial Center (barrels). */
+/** Smallest stock worth offering to the Global Monitoring Center (barrels). */
 export const MIN_SALE_STOCK = 0.5;
 
 /**
- * The Global Financial Center (Zürich): a neutral, purely financial institution. It runs the oil market and emergency
+ * The Global Monitoring Center (Zürich): a neutral, purely financial institution. It runs the oil market and emergency
  * credit automatically and never takes sides.
  *
  * Price — see the OIL_* constants: it falls when nations sell a lot of oil, rises when the Center has to sell oil
