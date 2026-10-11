@@ -11,7 +11,7 @@ import type {
 } from "./types";
 
 /** DEMO: skip the faction screen and start a solo test game as Russia (no AI opponents). Set to false for production. */
-export const DEMO_MODE = true;
+export const DEMO_MODE = false;
 
 /**
  * Version of the game, x.y.z (semantic versioning):
@@ -586,19 +586,46 @@ export const WORLD_BANK_LOCATION: GeoPoint = { lon: 8.54, lat: 47.37 }; // Züri
  * The nation holding one is paid NATION_PRESENCE_FEE TB every NATION_PRESENCE_PERIOD seconds (military presence fee)
  * and may build its own structures next to it (like an Allied Building). An AI holder keeps a garrison there.
  */
-export type ContestedNationId = "northKorea" | "southKorea" | "japan" | "australia" | "brazil";
+export type ContestedNationId =
+  | "northKorea"
+  | "southKorea"
+  | "japan"
+  | "australia"
+  | "brazil";
 export interface ContestedNation {
   name: string;
   /** Name of the capital building shown in game. */
   capital: string;
   site: NamedSite;
 }
-export const CONTESTED_NATIONS: Readonly<Record<ContestedNationId, ContestedNation>> = {
-  northKorea: { name: "North Korea", capital: "Pyongyang Palace", site: { lon: 125.75, lat: 39.02, name: "Pyongyang" } },
-  southKorea: { name: "South Korea", capital: "Seoul Blue House", site: { lon: 126.98, lat: 37.57, name: "Seoul" } },
-  japan: { name: "Japan", capital: "Tokyo Kantei", site: { lon: 139.69, lat: 35.69, name: "Tokyo" } },
-  australia: { name: "Australia", capital: "Canberra Parliament", site: { lon: 149.13, lat: -35.28, name: "Canberra" } },
-  brazil: { name: "Brazil", capital: "Brasília Planalto", site: { lon: -47.88, lat: -15.79, name: "Brasília" } },
+export const CONTESTED_NATIONS: Readonly<
+  Record<ContestedNationId, ContestedNation>
+> = {
+  northKorea: {
+    name: "North Korea",
+    capital: "Pyongyang Palace",
+    site: { lon: 125.75, lat: 39.02, name: "Pyongyang" },
+  },
+  southKorea: {
+    name: "South Korea",
+    capital: "Seoul Blue House",
+    site: { lon: 126.98, lat: 37.57, name: "Seoul" },
+  },
+  japan: {
+    name: "Japan",
+    capital: "Tokyo Kantei",
+    site: { lon: 139.69, lat: 35.69, name: "Tokyo" },
+  },
+  australia: {
+    name: "Australia",
+    capital: "Canberra Parliament",
+    site: { lon: 149.13, lat: -35.28, name: "Canberra" },
+  },
+  brazil: {
+    name: "Brazil",
+    capital: "Brasília Planalto",
+    site: { lon: -47.88, lat: -15.79, name: "Brasília" },
+  },
 };
 export const NATION_PRESENCE_FEE = 2000;
 
