@@ -21,7 +21,7 @@ export const DEMO_MODE = true;
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "1.26.0";
+export const GAME_VERSION = "1.27.0";
 
 // ---------------------------------------------------------------- World (real Earth)
 /** Packed Earth texture built by `npm run build:earth` (see scripts/build-earth.mjs). */
@@ -188,9 +188,9 @@ export const TECH_VEHICLES: readonly VehicleKind[] = ["ifv", "transport"];
  * Happy City: no limit on how many a nation builds; fixed price (no faction cost multiplier). Every city pays
  * HAPPY_CITY_TAX TB of taxes into its nation's budget every HAPPY_CITY_TAX_PERIOD seconds, each on its own clock.
  */
-export const HAPPY_CITY_COST = 10000;
+export const HAPPY_CITY_COST = 8000;
 export const HAPPY_CITY_TAX = 1000;
-export const HAPPY_CITY_TAX_PERIOD = 60;
+export const HAPPY_CITY_TAX_PERIOD = 30;
 /** Every other Happy City of the nation raises each city's tax by this share of HAPPY_CITY_TAX (5 cities: ×1.6 each). */
 export const HAPPY_CITY_TAX_BONUS = 0.15;
 /** Duration of the build-up animation after placing a structure. */

@@ -4,7 +4,7 @@ import { Building } from './Building';
 
 /**
  * Happy City (8×8 cells): a crowded city in the nation's own style. A nation may build as many as it likes;
- * every city pays HAPPY_CITY_TAX TB into the budget once a minute, counted from the moment it was placed.
+ * every city pays HAPPY_CITY_TAX TB into the budget every HAPPY_CITY_TAX_PERIOD seconds, counted from the moment it was placed.
  */
 export class HappyCity extends Building {
   /** Seconds until this city's next tax payment. */
