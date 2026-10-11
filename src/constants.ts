@@ -11,7 +11,7 @@ import type {
 } from "./types";
 
 /** DEMO: skip the faction screen and start a solo test game as Russia (no AI opponents). Set to false for production. */
-export const DEMO_MODE = true;
+export const DEMO_MODE = false;
 
 /**
  * Version of the game, x.y.z (semantic versioning):
