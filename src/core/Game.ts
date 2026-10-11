@@ -625,6 +625,8 @@ export class Game {
   importSave(save: SaveFile): void {
     migrateSave(save); // checks the format and upgrades an older save to the current one
     const codec = new SaveCodec(this.players);
+    // World sites added by later versions (contested capitals, Antarctic oil): kept from the fresh game in case the save has none.
+    const freshSites = this.entities.buildings().filter((b) => b instanceof NationCapital || (b instanceof OilDerrick && b.antarctic));
     // Clear the new game's starting world: its structures leave the map, every entity goes.
     for (const b of this.entities.buildings()) this.map.occupy(b.x, b.y, b.w, b.d, null);
     for (const e of [...this.entities.all()]) this.entities.remove(e.id);
@@ -647,6 +649,7 @@ export class Game {
       if (part) codec.restore(part, data);
     }
     codec.restore(this, save.game);
+    this.addMissingSites(freshSites);
     this.dropRemovedOrders();
     // Visual effects are not saved, except ticking charges, which draw their own.
     this.effects.list.length = 0;
@@ -657,6 +660,30 @@ export class Game {
     this.camera.setZoom(save.camera.zoom);
     this.sidebarTimer = SIDEBAR_REFRESH;
     this.sidebar.notify('Game loaded.', 3);
+  }
+
+  /**
+   * After loading a save made before a world site existed (contested capitals: 1.24.0, Antarctic oil: 1.25.0): every
+   * site the save lacks is put back, neutral, where the fresh game placed it (or the nearest free spot).
+   */
+  private addMissingSites(fresh: readonly Building[]): void {
+    const loaded = this.entities.buildings();
+    for (const site of fresh) {
+      const present =
+        site instanceof NationCapital
+          ? loaded.some((b) => b instanceof NationCapital && b.nation === site.nation)
+          : loaded.some((b) => b instanceof OilDerrick && b.antarctic && Math.hypot(b.x - site.x, b.y - site.y) < 20);
+      if (present) continue;
+      if (!this.map.isAreaBuildable(site.x, site.y, site.w, site.d, false, true)) {
+        const at = this.map.findBuildableSite(site.x, site.y, site.w, site.d, { ignoreTrees: true, maxRadius: 12 });
+        if (at) site.moveTo(at.x, at.y);
+      }
+      this.entities.add(site);
+      this.map.occupy(site.x, site.y, site.w, site.d, site.id);
+      if (site instanceof NationCapital) {
+        if (!this.landmarks.includes(site)) this.landmarks.push(site);
+      } else if (site instanceof OilDerrick && !this.derricks.includes(site)) this.derricks.push(site);
+    }
   }
 
   /**
