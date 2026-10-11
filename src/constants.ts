@@ -21,7 +21,7 @@ export const DEMO_MODE = false;
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "1.30.1";
+export const GAME_VERSION = "1.31.0";
 
 // ---------------------------------------------------------------- World (real Earth)
 /** Packed Earth texture built by `npm run build:earth` (see scripts/build-earth.mjs). */
@@ -190,7 +190,7 @@ export const TECH_VEHICLES: readonly VehicleKind[] = ["ifv", "transport"];
  */
 export const HAPPY_CITY_COST = 8000;
 export const HAPPY_CITY_TAX = 1000;
-export const HAPPY_CITY_TAX_PERIOD = 30;
+export const HAPPY_CITY_TAX_PERIOD = 50;
 /** Every other Happy City of the nation raises each city's tax by this share of HAPPY_CITY_TAX (5 cities: ×1.6 each). */
 export const HAPPY_CITY_TAX_BONUS = 0.15;
 /** Duration of the build-up animation after placing a structure. */
@@ -698,13 +698,13 @@ export const OIL_SALE_BURST = 6;
 export const OIL_SALE_COOLDOWN = 3;
 /** Barrels that always stay in the nation's stock: a sale never dips below this reserve. */
 export const OIL_RESERVE = 1.0;
-/** Oil derricks per nation, built in one straight row on the safest ground: 2 each, but 8 for the Islamic world (the Middle East oil fields). */
+/** Oil derricks per nation, built in one straight row on the safest ground: 2 each, but 4 for the Islamic world (the Middle East oil fields). */
 export const OIL_DERRICK_COUNT: Readonly<Record<FactionId, number>> = {
   usa: 2,
   russia: 2,
   china: 2,
   europe: 2,
-  islamic: 8,
+  islamic: 4,
 };
 /**
  * Real oil regions some nations must put their field in (centre within 16 cells, widened to 24 / 32 only if needed,
