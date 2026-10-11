@@ -6,7 +6,7 @@ import { type BuildOption, type QueueSlot, buildCost, missingRequirement } from 
 import { MIN_SALE_STOCK } from '../systems/OilMarket';
 import type { ArmyCount, TrainOption, TrainingQueue } from '../systems/TrainingSystem';
 import type { VehicleOption, VehicleQueue } from '../systems/VehicleSystem';
-import type { BuildingType, FactionId, OilPolicy, PlayerState, WorldPoint } from '../types';
+import type { BuildingType, FactionId, OilPolicy, PlayerState, UnitTier, VehicleKind, WorldPoint } from '../types';
 import type { CarrierState } from '../entities/Vehicle';
 
 /** The selected transport, for the Transport panel (RA2: passengers aboard + the Deploy / Unload button). */
@@ -109,9 +109,14 @@ export interface SidebarModel {
   derricks: number;
   /** Derricks currently pumping (the others are resting). */
   pumping: number;
-  queue: QueueSlot;
-  /** True while the finished structure is being positioned on the map. */
+  /** The order slot of each structure (every structure is built on its own, in parallel). */
+  buildSlot: (id: BuildOption['id']) => QueueSlot;
+  /** True while a finished structure is being positioned on the map (and which one). */
   placing: boolean;
+  placingId: string | null;
+  /** 0..1 progress of the most advanced order of each soldier / vehicle (all orders are produced in parallel). */
+  unitProgress: (tier: UnitTier) => number;
+  vehicleProgress: (kind: VehicleKind) => number;
   training: TrainingQueue;
   vehicleQueue: VehicleQueue;
   /** Types of the player's living buildings (drives the tech tree). */
@@ -510,7 +515,7 @@ export class Sidebar {
   }
 
   update(model: SidebarModel, dt: number): void {
-    const { player, queue } = model;
+    const { player } = model;
     this.credits.textContent = Math.floor(player.credits).toLocaleString('en-US');
     this.renderAllies(model.allies);
     if (model.ranking) {
@@ -556,10 +561,10 @@ export class Sidebar {
     this.radarPanel.classList.toggle('offline', !model.owned.has('airfield'));
 
     // Blink the Build tab (and the sidebar opener) while a finished structure waits.
-    const awaiting = queue.state === 'ready' && !model.placing;
-    const readyDefense = queue.option !== null && DEFENSE_IDS.has(queue.option.id);
-    this.tabButtons.get('build')?.classList.toggle('sb-attention', awaiting && !readyDefense);
-    this.tabButtons.get('defense')?.classList.toggle('sb-attention', awaiting && readyDefense);
+    const ready = this.options.filter((o) => model.buildSlot(o.id).state === 'ready' && model.placingId !== o.id);
+    const awaiting = ready.length > 0;
+    this.tabButtons.get('build')?.classList.toggle('sb-attention', ready.some((o) => !DEFENSE_IDS.has(o.id)));
+    this.tabButtons.get('defense')?.classList.toggle('sb-attention', ready.some((o) => DEFENSE_IDS.has(o.id)));
     // Infantry tab: locked without a Barracks, blinks when it first becomes available.
     const infantryTab = this.tabButtons.get('infantry');
     if (infantryTab) {
@@ -590,26 +595,27 @@ export class Sidebar {
     for (const option of this.options) {
       const c = this.cameos.get(option.id);
       if (!c) continue;
-      const mine = queue.option?.id === option.id;
-      const state = mine ? queue.state : 'idle';
-      const busyElsewhere = !mine && queue.state !== 'idle';
-      setData(c.el, 'state', model.placing && mine ? 'placing' : state);
+      const queue = model.buildSlot(option.id);
+      const state = queue.state;
+      const mine = state !== 'idle';
+      const placingThis = model.placingId === option.id;
+      setData(c.el, 'state', placingThis ? 'placing' : state);
       const missing = missingRequirement(option, model.owned);
-      const locked = busyElsewhere || (missing !== null && !mine);
+      const locked = missing !== null && !mine;
       c.el.classList.toggle('locked', locked);
       (c.el as HTMLButtonElement).disabled = locked;
       // RA2 clock wipe: the dark sector shrinks as the build progresses.
       const remaining = mine && state !== 'ready' ? 1 - queue.progress : 0;
       setBackground(
         c.wipe,
-        mine && state !== 'idle' ? `conic-gradient(rgba(0,0,0,0.62) 0 ${Math.round(remaining * 360)}deg, transparent 0)` : 'none',
+        mine ? `conic-gradient(rgba(0,0,0,0.62) 0 ${Math.round(remaining * 360)}deg, transparent 0)` : 'none',
       );
       setText(
         c.state,
-        !mine || state === 'idle'
+        !mine
           ? `${buildCost(option, this.faction)} ${CURRENCY}`
           : state === 'ready'
-            ? model.placing
+            ? placingThis
               ? 'PLACING'
               : 'READY'
             : state === 'onHold'
@@ -812,13 +818,14 @@ export class Sidebar {
 
   private updateUnitCameos(model: SidebarModel): void {
     const q = model.training;
-    const head = q.items[0];
     for (const option of this.trainOptions) {
       const c = this.unitCameos.get(option.tier);
       if (!c) continue;
       const count = q.items.filter((t) => t === option.tier).length;
-      const training = head === option.tier;
-      setData(c.el, 'state', training ? q.state : count > 0 ? 'queued' : 'idle');
+      // Every order trains at once: each cameo shows its own most advanced soldier.
+      const training = count > 0;
+      const progress = model.unitProgress(option.tier);
+      setData(c.el, 'state', training ? q.state : 'idle');
       const atLimit = model.army.queued >= model.army.limit && count === 0;
       const noTech = TECH_TIERS.includes(option.tier) && !model.owned.has('techCenter');
       const overElite = option.tier === 'special' && model.army.special >= model.army.specialCap && count === 0;
@@ -829,34 +836,29 @@ export class Sidebar {
         c.badge.textContent = count > 0 ? String(count) : '';
         c.badge.hidden = count === 0;
       }
-      const remaining = training ? 1 - q.progress : 0;
-      setBackground(c.wipe, training
-        ? `conic-gradient(rgba(0,0,0,0.62) 0 ${Math.round(remaining * 360)}deg, transparent 0)`
-        : count > 0
-          ? 'rgba(0,0,0,0.45)'
-          : 'none');
+      const remaining = training ? 1 - progress : 0;
+      setBackground(c.wipe, training ? `conic-gradient(rgba(0,0,0,0.62) 0 ${Math.round(remaining * 360)}deg, transparent 0)` : 'none');
       setText(c.state, !training
-        ? count > 0
-          ? 'QUEUED'
-          : `${option.cost} ${CURRENCY}`
+        ? `${option.cost} ${CURRENCY}`
         : q.state === 'noBarracks'
           ? 'NO MINISTRY'
           : q.state === 'onHold'
-            ? `ON HOLD ${Math.floor(q.progress * 100)}%`
-            : `${Math.floor(q.progress * 100)}%`);
+            ? `ON HOLD ${Math.floor(progress * 100)}%`
+            : `${Math.floor(progress * 100)}%`);
     }
   }
 
   private updateVehicleCameos(model: SidebarModel): void {
     const q = model.vehicleQueue;
-    const head = q.items[0];
     for (const option of this.vehicleOptions) {
       const c = this.vehicleCameos.get(option.kind);
       if (!c) continue;
       const have = option.needsAirfield ? model.hasAirfield : model.hasWarFactory;
       const count = q.items.filter((k) => k === option.kind).length;
-      const producing = head === option.kind;
-      setData(c.el, 'state', producing ? q.state : count > 0 ? 'queued' : 'idle');
+      // Every order is built at once: each cameo shows its own most advanced machine.
+      const producing = count > 0;
+      const progress = model.vehicleProgress(option.kind);
+      setData(c.el, 'state', producing ? q.state : 'idle');
       const atLimit = model.vehicleQueued >= BUILD_LIMIT_VEHICLES && count === 0;
       const noTech = TECH_VEHICLES.includes(option.kind) && !model.owned.has('techCenter');
       const noParking = isAircraftKind(option.kind) && option.kind !== 'heli' && model.parkingFree <= 0 && count === 0;
@@ -867,16 +869,10 @@ export class Sidebar {
         c.badge.textContent = count > 0 ? String(count) : '';
         c.badge.hidden = count === 0;
       }
-      const remaining = producing ? 1 - q.progress : 0;
-      setBackground(c.wipe, producing
-        ? `conic-gradient(rgba(0,0,0,0.62) 0 ${Math.round(remaining * 360)}deg, transparent 0)`
-        : count > 0
-          ? 'rgba(0,0,0,0.45)'
-          : 'none');
+      const remaining = producing ? 1 - progress : 0;
+      setBackground(c.wipe, producing ? `conic-gradient(rgba(0,0,0,0.62) 0 ${Math.round(remaining * 360)}deg, transparent 0)` : 'none');
       setText(c.state, !producing
-        ? count > 0
-          ? 'QUEUED'
-          : !have
+        ? !have
             ? option.needsAirfield
               ? 'NO AIRFIELD'
               : 'NO FACTORY'
@@ -886,12 +882,12 @@ export class Sidebar {
           : q.state === 'noFactory'
             ? 'NO FACTORY'
             : q.state === 'noPower'
-              ? `NO POWER ${Math.floor(q.progress * 100)}%`
+              ? `NO POWER ${Math.floor(progress * 100)}%`
               : q.state === 'exitBlocked'
               ? 'EXIT BLOCKED'
               : q.state === 'onHold'
-              ? `ON HOLD ${Math.floor(q.progress * 100)}%`
-              : `${Math.floor(q.progress * 100)}%`);
+              ? `ON HOLD ${Math.floor(progress * 100)}%`
+              : `${Math.floor(progress * 100)}%`);
     }
   }
 

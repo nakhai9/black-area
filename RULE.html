@@ -26,7 +26,7 @@
 <body>
 <main>
 <img class="logo" src="/logo.png" alt="Black Area" />
-<h1>Black Area — RULE <small>v1.29.1</small></h1>
+<h1>Black Area — RULE <small>v1.30.0</small></h1>
 <p class="lead">Tài liệu luật chơi + kiến trúc code dành cho AI/dev sửa game. Mọi con số gameplay chính xác nằm trong <code>src/constants.ts</code> và <code>src/factions/*.ts</code>. Nếu tài liệu này khác code thì <b>code đúng</b>. <b>Khi đổi luật/số trong code, phải cập nhật file này.</b></p>
 <nav><a href="#s1">Quy tắc làm việc cho AI</a><a href="#s2">Chạy dự án</a><a href="#s3">Kiến trúc thư mục</a><a href="#s4">Thế giới</a><a href="#s5">Kinh tế (dầu)</a><a href="#s6">Công trình (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Quân đội</a><a href="#s8">Chiến đấu</a><a href="#s9">Điều khiển (Game.handleKey, handleInput)</a><a href="#s10">Giới hạn &amp; hiệu năng</a><a href="#s11">Thắng / thua &amp; AI</a><a href="#s12">Công thức sửa thường gặp</a></nav>
 <h2 id="s1">0. Quy tắc làm việc cho AI</h2>
@@ -358,6 +358,7 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 <h3>Giới hạn</h3>
 <ul>
   <li>Đơn chờ (BuildLimit): <code>BUILD_LIMIT_SOLDIERS 15</code>, <code>BUILD_LIMIT_VEHICLES 10</code>.</li>
+  <li><b>Sản xuất song song</b>: mọi đơn trong từng tab chạy độc lập và cùng lúc. Công trình (tab Build / Defense): mỗi loại công trình có ô đơn riêng (<code>ConstructionSystem.slot(player, id)</code>), xây cùng lúc, mỗi cái xong thì chờ đặt riêng. Lính / phương tiện: mọi đơn trong hàng được làm cùng lúc, mỗi đơn trả tiền riêng (<code>paidEach</code>); thiếu TB thì đơn cũ được trả trước. War Factory: mỗi lần chỉ lăn ra 1 xe, xe tiếp theo chờ cửa trống. Áp dụng cho cả AI.</li>
   <li>Không giới hạn quân: <code>MAX_SOLDIERS</code>, <code>MAX_GROUND_VEHICLES</code>, <code>MAX_TRANSPORTS</code> = vô hạn (AI cũng không giới hạn số xe tải). Chỉ còn giới hạn bởi tiền, hàng chờ (<code>BUILD_LIMIT_*</code>) và chỗ đỗ máy bay ở Airfield. <b>Trực thăng không chiếm chỗ đỗ</b>: không tính vào chỗ đỗ của Airfield, đáp xuống bất kỳ đâu trên mặt đất.</li>
   <li>Hạ cánh: chọn máy bay rồi click vào sân bay của mình (còn chỗ đỗ) → bay vào từ <b>đầu đường băng gần hơn</b> (cả hai đầu đều được, <code>AircraftSystem.land</code>); chỉ một máy bay dùng đường băng mỗi lúc, chiếc khác chờ trên điểm tiếp cận. Máy bay tự về cũng chọn đầu gần hơn.</li>
   <li>Khóa mục tiêu (lệnh tấn công rõ ràng) thì chỉ đánh đúng mục tiêu đó: khóa sân bay → chỉ sân bay mất máu, máy bay đỗ trên đó không bị trúng; khóa máy bay / xe / lính đang ở trên sân bay → chỉ mục tiêu đó (và bom chùm của máy bay ném bom vào đơn vị mặt đất quanh nó), sân bay không mất máu. Mục tiêu khóa là máy bay vận tải thì không tự chuyển sang bắn máy bay tiếp dầu. Sân bay bị phá: máy bay đỗ trên đó chuyển sang sân bay khác của phe; <b>phe không còn sân bay nào thì máy bay đỗ trên sân bay bị phá hủy</b> (máy bay đang bay thì rơi như cũ).</li>

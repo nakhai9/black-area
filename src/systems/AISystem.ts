@@ -32,7 +32,7 @@ export interface AIHost {
   readonly placement: PlacementSystem;
   readonly oilMarket: OilMarket;
   /** Puts the finished structure of `player`'s construction queue down at (x, y). */
-  placeReady(player: PlayerState, x: number, y: number): boolean;
+  placeReady(player: PlayerState, id: BuildOption['id'], x: number, y: number): boolean;
   ownedTypesOf(player: PlayerState): Set<BuildingType>;
   /** Sends a person into a building (wounded → hospital). */
   orderEnter(u: Infantry, b: Building): void;
@@ -420,25 +420,25 @@ export class AISystem implements GameSystem {
   }
 
   private build(p: PlayerState, st: AIState, capital: Building, owned: Set<BuildingType>, threat: number): void {
-    const slot = this.host.construction.slot(p);
-    if (slot.state === 'ready' && slot.option) {
-      const forward = this.forwardAnchor(p, slot.option.id);
-      const site =
-        slot.option.id === 'alliedBuilding' ? this.findAlliedSite(p, slot.option) : this.findSite(p, st, forward ?? capital, slot.option);
-      if (site) this.host.placeReady(p, site.x, site.y);
-      else this.host.construction.cancel(p); // nowhere to put it: refund and try the next plan step
-      return;
+    // Every structure has its own order slot (parallel construction): place whatever is finished.
+    for (const slot of this.host.construction.active(p)) {
+      if (slot.state !== 'ready' || !slot.option) continue;
+      const option = slot.option;
+      const forward = this.forwardAnchor(p, option.id);
+      const site = option.id === 'alliedBuilding' ? this.findAlliedSite(p, option) : this.findSite(p, st, forward ?? capital, option);
+      if (site) this.host.placeReady(p, option.id, site.x, site.y);
+      else this.host.construction.cancel(p, option.id); // nowhere to put it: refund and try the next plan step
     }
-    if (slot.state !== 'idle') return;
+    const busy = (id: BuildOption['id']): boolean => this.host.construction.slot(p, id).state !== 'idle';
     // Another nuclear plant once the drain outgrows what the plants can generate (oil from the Center is dear).
     const plants = this.host.entities.buildings().filter((b) => b.owner === p.id && b.alive && b.spec.type === 'powerPlant').length;
     const plant = BUILD_OPTIONS.find((o) => o.id === 'powerPlant');
-    if (plant && plants > 0 && p.powerConsumed > p.powerSupply && p.credits >= buildCost(plant, p.faction) * 0.3) {
+    if (plant && !busy('powerPlant') && plants > 0 && p.powerConsumed > p.powerSupply && p.credits >= buildCost(plant, p.faction) * 0.3) {
       this.host.construction.start(p, plant);
       return;
     }
     let next = BUILD_PLAN.map((id) => BUILD_OPTIONS.find((o) => o.id === id)).find(
-      (o) => o && !owned.has(o.id as BuildingType) && missingRequirement(o, owned) === null,
+      (o) => o && !busy(o.id) && !owned.has(o.id as BuildingType) && missingRequirement(o, owned) === null,
     );
     // Base core done: a couple of machine-gun bunkers round the base.
     if (!next && owned.has('barracks')) {
@@ -457,6 +457,7 @@ export class AISystem implements GameSystem {
     }
     // Base complete (or waiting): grow the economy with Happy Cities when nobody is attacking.
     if (!next && threat === 0 && this.savingForCity(p, owned, st)) next = BUILD_OPTIONS.find((o) => o.id === 'happyCity');
+    if (next && busy(next.id)) next = undefined;
     if (next && p.credits >= buildCost(next, p.faction) * (next.id === 'happyCity' ? 1 : next.id === 'alliedBuilding' ? 0.6 : 0.3)) this.host.construction.start(p, next);
   }
 

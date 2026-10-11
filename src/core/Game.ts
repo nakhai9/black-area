@@ -295,7 +295,7 @@ export class Game {
   private waypoints: WorldPoint[] | null = null;
   private lastBuildingClick: { id: number; at: number } | null = null;
   private ghost: PlacementGhost | null = null;
-  private lastQueueState: QueueState = 'idle';
+  private readonly lastQueueState = new Map<string, QueueState>();
   private readonly sidebar: Sidebar;
   private readonly minimap: Minimap;
   private readonly status: StatusBar;
@@ -483,7 +483,7 @@ export class Game {
     const human = this.humanPlayer;
     this.sidebar = new Sidebar(dom.sidebar, human, BUILD_OPTIONS, this.training.optionsFor(human), this.production.optionsFor(human), {
       onBuild: (option) => this.onBuildClick(option),
-      onCancel: () => this.onBuildCancel(),
+      onCancel: (option) => this.onBuildCancel(option),
       preview: (option) => (option.id === 'bunker' ? bunkerPreview(human.faction) : null) ?? this.sprites.get(option.spriteKey(human.faction)).canvas,
       onTrain: (option) => this.onTrainClick(option.tier),
       onTrainCancel: (option) => this.onTrainCancel(option.tier),
@@ -692,8 +692,8 @@ export class Game {
    */
   private dropRemovedOrders(): void {
     for (const p of this.players) {
-      const slot = this.construction.slot(p);
-      if (slot.state !== 'idle' && (!slot.option || !BUILD_OPTIONS.includes(slot.option))) {
+      for (const slot of this.construction.active(p)) {
+        if (slot.option && BUILD_OPTIONS.includes(slot.option)) continue;
         p.credits += Math.floor(slot.paid);
         Object.assign(slot, { option: null, state: 'idle', progress: 0, paid: 0 });
       }
@@ -704,6 +704,7 @@ export class Game {
         vq.paid = 0;
         vq.progress = 0;
       }
+      vq.paidEach = vq.items.flatMap((k, i) => (kinds.has(k) ? [vq.paidEach[i] ?? 0] : []));
       vq.items = vq.items.filter((k) => kinds.has(k));
       if (vq.items.length === 0) vq.state = 'idle';
       const tq = this.training.queue(p);
@@ -713,6 +714,7 @@ export class Game {
         tq.paid = 0;
         tq.progress = 0;
       }
+      tq.paidEach = tq.items.flatMap((t, i) => (tiers.has(t) ? [tq.paidEach[i] ?? 0] : []));
       tq.items = tq.items.filter((t) => tiers.has(t));
       if (tq.items.length === 0) tq.state = 'idle';
     }
@@ -800,13 +802,13 @@ export class Game {
     }
   }
 
-  placeReady(player: PlayerState, x: number, y: number): boolean {
-    const slot = this.construction.slot(player);
+  placeReady(player: PlayerState, id: BuildOption['id'], x: number, y: number): boolean {
+    const slot = this.construction.slot(player, id);
     const option = slot.option;
     if (!option || slot.state !== 'ready') return false;
     const { w, d } = option.footprint;
     if (!this.placement.check({ owner: player.id, x, y, w, d, unclaimedOnly: option.id === 'alliedBuilding', radius: buildRadius(option.id) }).ok) return false;
-    if (!this.construction.takeReady(player)) return false;
+    if (!this.construction.takeReady(player, option.id)) return false;
     const b = this.entities.add(option.create(player.id, player.faction, x, y));
     b.placedAt = this.time;
     this.map.occupy(b.x, b.y, b.w, b.d, b.id);
@@ -816,7 +818,7 @@ export class Game {
   /** Allies the nation leads: its Allied Buildings standing, plus one under construction. */
   alliesOf(player: PlayerState): number {
     const built = this.entities.buildings().filter((b) => b.owner === player.id && b.alive && b.spec.type === 'alliedBuilding').length;
-    return built + (this.construction.slot(player).option?.id === 'alliedBuilding' ? 1 : 0);
+    return built + (this.construction.slot(player, 'alliedBuilding').state !== 'idle' ? 1 : 0);
   }
 
   /**
@@ -1890,12 +1892,12 @@ export class Game {
     }
     this.status.update(dt, this.mouseWorld, this.camera.zoom);
 
-    const queue = this.construction.slot(this.humanPlayer);
-    if (queue.state !== this.lastQueueState) {
-      if (queue.state === 'ready') this.sidebar.notify('Construction complete — click the cameo, then place it.');
-      if (queue.state === 'onHold') this.sidebar.notify(`Not enough ${CURRENCY} — construction on hold.`);
-      if (queue.state === 'noPower') this.sidebar.notify('Not enough power — construction stopped. Build a Nuclear Power Plant.');
-      this.lastQueueState = queue.state;
+    for (const option of BUILD_OPTIONS) {
+      const s = this.construction.slot(this.humanPlayer, option.id);
+      if (s.state === (this.lastQueueState.get(option.id) ?? 'idle')) continue;
+      if (s.state === 'ready') this.sidebar.notify(`${option.name} complete — click its cameo, then place it.`);
+      if (s.state === 'onHold') this.sidebar.notify(`Not enough ${CURRENCY} — construction on hold.`);
+      this.lastQueueState.set(option.id, s.state);
       this.sidebarTimer = SIDEBAR_REFRESH;
     }
 
@@ -1931,8 +1933,11 @@ export class Game {
           loanSize: this.oilMarket.loanSize(this.humanPlayer),
           derricks: own.length,
           pumping,
-          queue,
+          buildSlot: (id) => this.construction.slot(this.humanPlayer, id),
           placing: this.placing !== null,
+          placingId: this.placing?.id ?? null,
+          unitProgress: (tier) => this.training.progressOf(this.humanPlayer, tier),
+          vehicleProgress: (kind) => this.production.progressOf(this.humanPlayer, kind),
           training: this.training.queue(this.humanPlayer),
           vehicleQueue: this.production.queue(this.humanPlayer),
           owned: (this.ownedCache = this.ownedTypes()),
@@ -2391,7 +2396,7 @@ export class Game {
   /** Cameo left-click: start building, or pick up a finished structure to place it. */
   private onBuildClick(option: BuildOption): void {
     const player = this.humanPlayer;
-    const slot = this.construction.slot(player);
+    const slot = this.construction.slot(player, option.id);
     if (slot.state === 'idle') {
       if (option.id === 'alliedBuilding' && this.alliesOf(player) >= MAX_ALLIES) {
         this.sidebar.notify(`A nation leads at most ${MAX_ALLIES} allies.`);
@@ -2411,24 +2416,24 @@ export class Game {
         return;
       }
       this.sidebar.notify(`Building ${option.name} — ${buildCost(option, player.faction)} ${CURRENCY}`);
-    } else if (slot.state === 'ready' && slot.option?.id === option.id) {
+    } else if (slot.state === 'ready') {
       this.placing = option;
       this.placingRotated = false;
       this.selection.select(null);
       this.sidebar.notify('Click a free spot near your base to place it.');
-    } else if (slot.option?.id !== option.id) {
-      this.sidebar.notify('Already building another structure.');
+    } else {
+      this.sidebar.notify(`${option.name} is already being built.`);
     }
     this.sidebarTimer = SIDEBAR_REFRESH;
   }
 
   /** Cameo right-click: cancel production and refund what was paid. */
-  private onBuildCancel(): void {
-    const slot = this.construction.slot(this.humanPlayer);
+  private onBuildCancel(option: BuildOption): void {
+    const slot = this.construction.slot(this.humanPlayer, option.id);
     if (slot.state === 'idle') return;
     const refund = Math.floor(slot.paid);
-    this.stopPlacing();
-    this.construction.cancel(this.humanPlayer);
+    if (this.placing?.id === option.id) this.stopPlacing();
+    this.construction.cancel(this.humanPlayer, option.id);
     this.sidebar.notify(`Construction cancelled — ${refund} ${CURRENCY} refunded.`);
     this.sidebarTimer = SIDEBAR_REFRESH;
   }
@@ -2477,7 +2482,7 @@ export class Game {
       return;
     }
     const player = this.humanPlayer;
-    if (!this.construction.takeReady(player)) return;
+    if (!this.construction.takeReady(player, option.id)) return;
     const b = this.entities.add(option.create(player.id, player.faction, g.x, g.y));
     b.rotated = g.mirrored;
     b.moveTo(g.x, g.y);

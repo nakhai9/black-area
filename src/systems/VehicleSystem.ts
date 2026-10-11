@@ -6,6 +6,7 @@ import { FACTIONS } from '../factions';
 import type { BuildingType, FactionId, PlayerState, VehicleKind } from '../types';
 import { PARKING_SLOTS } from './AircraftSystem';
 import type { GameSystem } from './GameSystem';
+import { fixPaidEach } from './TrainingSystem';
 
 /** A vehicle or aircraft as offered on the Vehicles tab. */
 export interface VehicleOption {
@@ -41,12 +42,14 @@ export type VehicleQueueState = 'idle' | 'building' | 'onHold' | 'noFactory' | '
 export type VehicleEnqueueResult = 'ok' | 'full' | 'noFactory' | 'noAirfield' | 'noParking' | 'tech' | 'cap' | 'transportCap' | 'noCapital';
 
 export interface VehicleQueue {
-  /** Waiting vehicles; the first one is in production. */
+  /** Vehicles on order: every one of them is built at the same time (parallel production). */
   items: VehicleKind[];
+  /** TB paid so far for each order (same index as `items`). */
+  paidEach: number[];
   state: VehicleQueueState;
-  /** 0..1 progress of the first item. */
+  /** 0..1 progress of the most advanced order. */
   progress: number;
-  /** TB paid so far for the first item. */
+  /** TB paid so far for every order together. */
   paid: number;
 }
 
@@ -69,7 +72,7 @@ export class VehicleSystem implements GameSystem {
     private readonly exitClear: (producer: Building) => boolean = () => true,
   ) {
     for (const p of players) {
-      this.queues.set(p.id, { items: [], state: 'idle', progress: 0, paid: 0 });
+      this.queues.set(p.id, { items: [], paidEach: [], state: 'idle', progress: 0, paid: 0 });
       this.options.set(p.id, vehicleOptions(p.faction));
     }
   }
@@ -77,6 +80,7 @@ export class VehicleSystem implements GameSystem {
   queue(player: PlayerState): VehicleQueue {
     const q = this.queues.get(player.id);
     if (!q) throw new Error(`No vehicle queue for player ${player.id}`);
+    fixPaidEach(q);
     return q;
   }
 
@@ -144,6 +148,7 @@ export class VehicleSystem implements GameSystem {
     if (!needsAirfield(kind) && this.groundCount(player) >= MAX_GROUND_VEHICLES) return 'cap';
     if (kind === 'transport' && this.transportCount(player) >= MAX_TRANSPORTS) return 'transportCap';
     q.items.push(kind);
+    q.paidEach.push(0);
     if (q.state === 'idle') q.state = 'building';
     return 'ok';
   }
@@ -162,62 +167,92 @@ export class VehicleSystem implements GameSystem {
     return n;
   }
 
-  /** Removes the last queued vehicle of `kind`; refunds if it was the one in production. */
+  /** Removes the last queued vehicle of `kind`, refunding what was paid for it. */
   cancelOne(player: PlayerState, kind: VehicleKind): boolean {
     const q = this.queue(player);
     const i = q.items.lastIndexOf(kind);
     if (i < 0) return false;
+    player.credits += q.paidEach[i] ?? 0;
     q.items.splice(i, 1);
-    if (i === 0) {
-      player.credits += q.paid;
-      q.paid = 0;
-      q.progress = 0;
-    }
+    q.paidEach.splice(i, 1);
+    q.paid = q.paidEach.reduce((s, v) => s + v, 0);
     if (q.items.length === 0) q.state = 'idle';
     return true;
+  }
+
+  /** 0..1 progress of the most advanced order of `kind` (0 when none is on order). */
+  progressOf(player: PlayerState, kind: VehicleKind): number {
+    const q = this.queue(player);
+    const option = this.optionsFor(player).find((o) => o.kind === kind);
+    if (!option) return 0;
+    let best = 0;
+    q.items.forEach((k, i) => {
+      if (k === kind) best = Math.max(best, (q.paidEach[i] ?? 0) / option.cost);
+    });
+    return Math.min(1, best);
+  }
+
+  /** Why the orders of `kind` are stuck right now (no producer, no tech), or null. */
+  private blocked(player: PlayerState, kind: VehicleKind): VehicleQueueState | null {
+    const missing = this.missingBuilding(player, kind);
+    if (missing || !this.deliveryPoint(player, kind)) return missing ?? 'noFactory';
+    // Without a High-Tech Center (destroyed meanwhile) second-tier vehicles wait, unpaid.
+    if (TECH_VEHICLES.includes(kind) && !this.hasTech(player)) return 'onHold';
+    return null;
   }
 
   update(dt: number): void {
     for (const p of this.players) {
       const q = this.queue(p);
-      const kind = q.items[0];
-      if (!kind) {
+      if (q.items.length === 0) {
         q.state = 'idle';
+        q.progress = 0;
+        q.paid = 0;
         continue;
       }
-      // Its War Factory / Airfield is gone (destroyed meanwhile): the order waits, unpaid.
-      const missing = this.missingBuilding(p, kind);
-      const producer = this.deliveryPoint(p, kind);
-      if (missing || !producer) {
-        q.state = missing ?? 'noFactory';
-        continue;
-      }
-      // Without a High-Tech Center (destroyed meanwhile) second-tier vehicles wait, unpaid.
-      if (TECH_VEHICLES.includes(kind) && !this.hasTech(p)) {
-        q.state = 'onHold';
-        continue;
-      }
-      // Orders always run while there is money: power no longer stops production.
-      const option = this.optionsFor(p).find((o) => o.kind === kind);
-      if (!option) continue;
-      const want = Math.min((option.cost / option.trainSeconds) * dt, option.cost - q.paid);
-      const pay = p.capitalLost ? 0 : Math.max(0, Math.min(want, p.credits));
-      p.credits -= pay;
-      q.paid += pay;
-      q.progress = Math.min(1, q.paid / option.cost);
-      q.state = pay < want - 1e-6 ? 'onHold' : 'building';
-      if (q.progress >= 1) {
-        // RA2: the finished vehicle stays inside, production paused, until nothing stands in the factory's exit.
-        if (!needsAirfield(kind) && !this.exitClear(producer)) {
-          q.state = 'exitBlocked';
+      let state: VehicleQueueState | null = null;
+      let short = false;
+      const done: number[] = [];
+      // Every order is built at once; the oldest are paid first when TB runs short. Power no longer stops production.
+      q.items.forEach((kind, i) => {
+        const stuck = this.blocked(p, kind);
+        if (stuck) {
+          state ??= stuck;
+          return;
+        }
+        const option = this.optionsFor(p).find((o) => o.kind === kind);
+        if (!option) return;
+        const paid = q.paidEach[i] ?? 0;
+        const want = Math.min((option.cost / option.trainSeconds) * dt, option.cost - paid);
+        const pay = p.capitalLost ? 0 : Math.max(0, Math.min(want, p.credits));
+        p.credits -= pay;
+        q.paidEach[i] = paid + pay;
+        if (pay < want - 1e-6) short = true;
+        if (q.paidEach[i]! >= option.cost - 1e-6) done.push(i);
+      });
+      // Finished machines come out; at a War Factory only one rolls out at a time, the next waits for a clear exit (RA2).
+      const outOf = new Set<number>();
+      let blockedExit = false;
+      for (const i of done) {
+        const kind = q.items[i]!;
+        const producer = this.deliveryPoint(p, kind);
+        if (!producer) continue;
+        if (!needsAirfield(kind) && (outOf.has(producer.id) || !this.exitClear(producer))) {
+          blockedExit = true;
           continue;
         }
-        q.items.shift();
-        q.paid = 0;
-        q.progress = 0;
-        q.state = q.items.length > 0 ? 'building' : 'idle';
+        if (!needsAirfield(kind)) outOf.add(producer.id);
         this.spawn(p, kind, producer);
+        q.items[i] = undefined as unknown as VehicleKind;
       }
+      for (let i = q.items.length - 1; i >= 0; i--) {
+        if (q.items[i] !== undefined) continue;
+        q.items.splice(i, 1);
+        q.paidEach.splice(i, 1);
+      }
+      q.paid = q.paidEach.reduce((s, v) => s + v, 0);
+      q.progress = q.items.reduce((m, k) => Math.max(m, this.progressOf(p, k)), 0);
+      q.state = q.items.length === 0 ? 'idle' : blockedExit ? 'exitBlocked' : (state ?? (short ? 'onHold' : 'building'));
     }
   }
 }

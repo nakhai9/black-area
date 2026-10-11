@@ -47,18 +47,27 @@ export interface ArmyCount {
 }
 
 export interface TrainingQueue {
-  /** Waiting soldiers; the first one is in training. */
+  /** Soldiers on order: every one of them trains at the same time (parallel production). */
   items: UnitTier[];
+  /** TB paid so far for each order (same index as `items`). */
+  paidEach: number[];
   state: TrainingState;
-  /** 0..1 progress of the first item. */
+  /** 0..1 progress of the most advanced order. */
   progress: number;
-  /** TB paid so far for the first item. */
+  /** TB paid so far for every order together. */
   paid: number;
 }
 
+/** Old saves (one soldier at a time): the paid amount belonged to the first order. */
+export function fixPaidEach(q: { items: unknown[]; paidEach?: number[]; paid: number }): void {
+  if (Array.isArray(q.paidEach) && q.paidEach.length === q.items.length) return;
+  const old = Array.isArray(q.paidEach) ? q.paidEach : [q.paid];
+  q.paidEach = q.items.map((_, i) => old[i] ?? 0);
+}
+
 /**
- * Infantry production, independent from structure construction (RA2 has one
- * queue per category). Requires a Barracks; cost is paid gradually from the
+ * Infantry production, independent from structure construction. Every soldier on order trains at the same time,
+ * each on its own (parallel production); with too little TB the oldest orders are paid first. Requires a Barracks; cost is paid gradually from the
  * treasury, and finished soldiers walk out of the barracks via `spawn`.
  */
 export class TrainingSystem implements GameSystem {
@@ -71,7 +80,7 @@ export class TrainingSystem implements GameSystem {
     private readonly spawn: (player: PlayerState, tier: UnitTier, barracks: Building) => void,
   ) {
     for (const p of players) {
-      this.queues.set(p.id, { items: [], state: 'idle', progress: 0, paid: 0 });
+      this.queues.set(p.id, { items: [], paidEach: [], state: 'idle', progress: 0, paid: 0 });
       this.options.set(p.id, trainOptions(p.faction));
     }
   }
@@ -79,6 +88,7 @@ export class TrainingSystem implements GameSystem {
   queue(player: PlayerState): TrainingQueue {
     const q = this.queues.get(player.id);
     if (!q) throw new Error(`No training queue for player ${player.id}`);
+    fixPaidEach(q);
     return q;
   }
 
@@ -129,6 +139,7 @@ export class TrainingSystem implements GameSystem {
     // Elite soldiers never outnumber the regulars: 2 elite for every 3 regular (alive + already on order).
     if (tier === 'special' && army.special + 1 > army.specialCap) return 'ratio';
     q.items.push(tier);
+    q.paidEach.push(0);
     if (q.state === 'idle') q.state = 'training';
     return 'ok';
   }
@@ -157,23 +168,34 @@ export class TrainingSystem implements GameSystem {
     return true;
   }
 
-  /** Removes queue item `i`, refunding the paid amount if it was in training. */
+  /** Removes queue item `i`, refunding what was paid for it. */
   private removeAt(player: PlayerState, i: number): void {
     const q = this.queue(player);
+    player.credits += q.paidEach[i] ?? 0;
     q.items.splice(i, 1);
-    if (i === 0) {
-      player.credits += q.paid;
-      q.paid = 0;
-      q.progress = 0;
-    }
+    q.paidEach.splice(i, 1);
+    q.paid = q.paidEach.reduce((s, v) => s + v, 0);
+  }
+
+  /** 0..1 progress of the most advanced order of `tier` (0 when none is on order). */
+  progressOf(player: PlayerState, tier: UnitTier): number {
+    const q = this.queue(player);
+    const option = this.optionsFor(player).find((o) => o.tier === tier);
+    if (!option) return 0;
+    let best = 0;
+    q.items.forEach((t, i) => {
+      if (t === tier) best = Math.max(best, (q.paidEach[i] ?? 0) / option.cost);
+    });
+    return Math.min(1, best);
   }
 
   update(dt: number): void {
     for (const p of this.players) {
       const q = this.queue(p);
-      const tier = q.items[0];
-      if (!tier) {
+      if (q.items.length === 0) {
         q.state = 'idle';
+        q.progress = 0;
+        q.paid = 0;
         continue;
       }
       const barracks = this.barracksOf(p);
@@ -181,26 +203,35 @@ export class TrainingSystem implements GameSystem {
         q.state = 'noBarracks';
         continue;
       }
-      // Without a High-Tech Center (destroyed meanwhile) second-tier soldiers wait, unpaid.
-      if (TECH_TIERS.includes(tier) && !this.hasTech(p)) {
-        q.state = 'onHold';
-        continue;
-      }
-      const option = this.optionsFor(p).find((o) => o.tier === tier);
-      if (!option) continue;
-      const want = Math.min((option.cost / option.trainSeconds) * dt, option.cost - q.paid);
-      const pay = p.capitalLost ? 0 : Math.max(0, Math.min(want, p.credits));
-      p.credits -= pay;
-      q.paid += pay;
-      q.progress = Math.min(1, q.paid / option.cost);
-      q.state = pay < want - 1e-6 ? 'onHold' : 'training';
-      if (q.progress >= 1) {
-        q.items.shift();
-        q.paid = 0;
-        q.progress = 0;
-        q.state = q.items.length > 0 ? 'training' : 'idle';
+      const tech = this.hasTech(p);
+      let short = false;
+      const done: number[] = [];
+      // Every order trains at once; the oldest are paid first when TB runs short.
+      q.items.forEach((tier, i) => {
+        // Without a High-Tech Center (destroyed meanwhile) second-tier soldiers wait, unpaid.
+        if (TECH_TIERS.includes(tier) && !tech) {
+          short = true;
+          return;
+        }
+        const option = this.optionsFor(p).find((o) => o.tier === tier);
+        if (!option) return;
+        const paid = q.paidEach[i] ?? 0;
+        const want = Math.min((option.cost / option.trainSeconds) * dt, option.cost - paid);
+        const pay = p.capitalLost ? 0 : Math.max(0, Math.min(want, p.credits));
+        p.credits -= pay;
+        q.paidEach[i] = paid + pay;
+        if (pay < want - 1e-6) short = true;
+        if (q.paidEach[i]! >= option.cost - 1e-6) done.push(i);
+      });
+      for (const i of done.reverse()) {
+        const tier = q.items[i]!;
+        q.items.splice(i, 1);
+        q.paidEach.splice(i, 1);
         this.spawn(p, tier, barracks);
       }
+      q.paid = q.paidEach.reduce((s, v) => s + v, 0);
+      q.progress = q.items.reduce((m, t) => Math.max(m, this.progressOf(p, t)), 0);
+      q.state = q.items.length === 0 ? 'idle' : short ? 'onHold' : 'training';
     }
   }
 }

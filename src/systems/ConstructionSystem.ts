@@ -164,7 +164,7 @@ export function buildCost(option: BuildOption, faction: FactionId): number {
 
 export type QueueState = 'idle' | 'building' | 'onHold' | 'noPower' | 'ready';
 
-/** One structure is produced at a time per nation (RA2 rule). */
+/** One order of one structure. Every structure of the Build / Defense tabs has its own, all running in parallel. */
 export interface QueueSlot {
   option: BuildOption | null;
   state: QueueState;
@@ -177,61 +177,86 @@ export interface QueueSlot {
 /** Share of the build completed per second (20% every 4 s → 20 s total). */
 const RATE = BUILD_STEP_FRACTION / BUILD_STEP_SECONDS;
 
+const idleSlot = (): QueueSlot => ({ option: null, state: 'idle', progress: 0, paid: 0 });
+
 /**
- * Sidebar production queue. Cost is paid gradually from the owner's treasury
- * while building; with no money the item goes on hold and resumes as soon as
- * TB comes in. A finished structure waits in the "ready" state until placed.
+ * Sidebar production of structures. Every structure has its own order slot, so all of them are built at the same
+ * time, independently (parallel production); a finished one waits in the "ready" state until it is placed. Cost is
+ * paid gradually from the owner's treasury; with no money an order goes on hold (the oldest are paid first) and
+ * resumes as soon as TB comes in.
  */
 export class ConstructionSystem implements GameSystem {
-  private readonly slots = new Map<number, QueueSlot>();
+  /** Player id → structure id → its order. (Saves up to 1.29 hold one QueueSlot per player: see `orders`.) */
+  private readonly slots = new Map<number, Map<string, QueueSlot> | QueueSlot>();
 
   constructor(private readonly players: readonly PlayerState[]) {
-    for (const p of players) this.slots.set(p.id, { option: null, state: 'idle', progress: 0, paid: 0 });
+    for (const p of players) this.slots.set(p.id, new Map());
   }
 
-  slot(player: PlayerState): QueueSlot {
-    const s = this.slots.get(player.id);
-    if (!s) throw new Error(`No construction slot for player ${player.id}`);
+  /** The nation's orders by structure id (an old single-slot save is converted on first use). */
+  private orders(player: PlayerState): Map<string, QueueSlot> {
+    const v = this.slots.get(player.id);
+    if (v instanceof Map) return v;
+    const m = new Map<string, QueueSlot>();
+    if (v && v.option && v.state !== 'idle') m.set(v.option.id, v);
+    this.slots.set(player.id, m);
+    return m;
+  }
+
+  /** The order slot of structure `id` (idle when nothing is ordered). */
+  slot(player: PlayerState, id: BuildOption['id']): QueueSlot {
+    const m = this.orders(player);
+    let s = m.get(id);
+    if (!s) {
+      s = idleSlot();
+      m.set(id, s);
+    }
     return s;
   }
 
-  /** Starts producing `option`; only when the slot is free. */
+  /** Every order of the nation that is not idle (building, on hold or ready). */
+  active(player: PlayerState): QueueSlot[] {
+    return [...this.orders(player).values()].filter((s) => s.state !== 'idle' && s.option !== null);
+  }
+
+  /** Starts producing `option`; only when its own slot is free. */
   start(player: PlayerState, option: BuildOption): boolean {
-    const s = this.slot(player);
+    const s = this.slot(player, option.id);
     if (s.state !== 'idle' || player.capitalLost) return false;
     Object.assign(s, { option, state: 'building', progress: 0, paid: 0 });
     return true;
   }
 
-  /** Cancels production (or a finished, unplaced item) and refunds what was paid. */
-  cancel(player: PlayerState): void {
-    const s = this.slot(player);
+  /** Cancels the order of structure `id` (or a finished, unplaced one) and refunds what was paid. */
+  cancel(player: PlayerState, id: BuildOption['id']): void {
+    const s = this.slot(player, id);
     player.credits += s.paid;
-    Object.assign(s, { option: null, state: 'idle', progress: 0, paid: 0 });
+    Object.assign(s, idleSlot());
   }
 
-  /** Takes the finished item for placement; the slot becomes free again. */
-  takeReady(player: PlayerState): BuildOption | null {
-    const s = this.slot(player);
+  /** Takes the finished structure `id` for placement; its slot becomes free again. */
+  takeReady(player: PlayerState, id: BuildOption['id']): BuildOption | null {
+    const s = this.slot(player, id);
     if (s.state !== 'ready' || !s.option) return null;
     const option = s.option;
-    Object.assign(s, { option: null, state: 'idle', progress: 0, paid: 0 });
+    Object.assign(s, idleSlot());
     return option;
   }
 
   update(dt: number): void {
     for (const p of this.players) {
-      const s = this.slot(p);
-      if (!s.option || (s.state !== 'building' && s.state !== 'onHold' && s.state !== 'noPower')) continue;
-      // Orders always run while there is money: power no longer stops construction.
-      const cost = buildCost(s.option, p.faction);
-      const want = Math.min(cost * RATE * dt, cost - s.paid);
-      const pay = p.capitalLost ? 0 : Math.max(0, Math.min(want, p.credits));
-      p.credits -= pay;
-      s.paid += pay;
-      s.progress = Math.min(1, s.paid / cost);
-      if (s.progress >= 1) s.state = 'ready';
-      else s.state = pay < want - 1e-6 ? 'onHold' : 'building';
+      for (const s of this.orders(p).values()) {
+        if (!s.option || (s.state !== 'building' && s.state !== 'onHold' && s.state !== 'noPower')) continue;
+        // Orders always run while there is money: power no longer stops construction.
+        const cost = buildCost(s.option, p.faction);
+        const want = Math.min(cost * RATE * dt, cost - s.paid);
+        const pay = p.capitalLost ? 0 : Math.max(0, Math.min(want, p.credits));
+        p.credits -= pay;
+        s.paid += pay;
+        s.progress = Math.min(1, s.paid / cost);
+        if (s.progress >= 1) s.state = 'ready';
+        else s.state = pay < want - 1e-6 ? 'onHold' : 'building';
+      }
     }
   }
 }
