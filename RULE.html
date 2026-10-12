@@ -26,7 +26,7 @@
 <body>
 <main>
 <img class="logo" src="/logo.png" alt="Black Area" />
-<h1>Black Area — RULE <small>v1.60.0</small></h1>
+<h1>Black Area — RULE <small>v1.60.1</small></h1>
 <p class="lead">Tài liệu luật chơi + kiến trúc code dành cho AI/dev sửa game. Mọi con số gameplay chính xác nằm trong <code>src/constants.ts</code> và <code>src/factions/*.ts</code>. Nếu tài liệu này khác code thì <b>code đúng</b>. <b>Khi đổi luật/số trong code, phải cập nhật file này.</b></p>
 <nav><a href="#s1">Quy tắc làm việc cho AI</a><a href="#s2">Chạy dự án</a><a href="#s3">Kiến trúc thư mục</a><a href="#s4">Thế giới</a><a href="#s5">Kinh tế (dầu)</a><a href="#s6">Công trình (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Quân đội</a><a href="#s8">Chiến đấu</a><a href="#s9">Điều khiển (Game.handleKey, handleInput)</a><a href="#s10">Giới hạn &amp; hiệu năng</a><a href="#s11">Thắng / thua &amp; AI</a><a href="#s12">Công thức sửa thường gặp</a></nav>
 <h2 id="s1">0. Quy tắc làm việc cho AI</h2>
@@ -49,7 +49,7 @@ npm run build        # typecheck + vite build
 npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mjs)</pre>
 <ul>
   <li>URL <code>?faction=usa|russia|china|europe|islamic</code> bỏ qua màn chọn phe (<code>src/main.ts</code>).</li>
-  <li><code>DEMO_MODE</code> (constants, mặc định <code>false</code>): vào thẳng ván test solo với phe số <code>DEMO_FACTION</code> (1 USA, 2 Russia, 3 China, 4 Europe, 5 Islamic); giá mọi thứ <code>DEMO_PRICE = 100</code>, tiền/dầu giữ ở <code>DEMO_CREDITS = 999_999</code>, mỗi loại quân có sẵn <code>DEMO_UNITS_EACH = 2</code>.</li>
+  <li><code>DEMO_MODE</code> (constants, đọc từ env <code>VITE_DEMO_MODE=true</code>; <code>DEMO_FACTION</code> từ <code>VITE_DEMO_FACTION</code>, mặc định 2. Đặt trong <code>.env.local</code> (không commit, mẫu ở <code>.env.example</code>); thiếu biến → tắt, nên bản production không bao giờ vào demo. Đổi env phải khởi động lại <code>npm run dev</code>): vào thẳng ván test solo với phe số <code>DEMO_FACTION</code> (1 USA, 2 Russia, 3 China, 4 Europe, 5 Islamic); giá mọi thứ <code>DEMO_PRICE = 100</code>, tiền/dầu giữ ở <code>DEMO_CREDITS = 999_999</code>, mỗi loại quân có sẵn <code>DEMO_UNITS_EACH = 2</code>.</li>
   <li>URL <code>?view=buildings</code>: trang xem mọi công trình theo phe, có nhóm <b>Contested nations</b> (thủ đô các quốc gia tranh chấp: Bắc Triều Tiên, Hàn Quốc, Nhật, Úc, Brazil, Anh, Canada) (<code>ui/BuildingGallery.ts</code>); <code>?view=units</code>: trang xem mọi lính, xe, máy bay của mọi phe, vẽ bằng sprite trong game, xoay qua các hướng, kèm tên hiển thị và giá / máu / tốc độ / vũ khí (<code>ui/UnitGallery.ts</code>).</li>
   <li>Alt+F: bật/tắt toàn màn hình.</li>
 </ul>
