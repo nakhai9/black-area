@@ -265,6 +265,8 @@ export class Renderer {
     units.length = 0;
     for (const u of scene.units ?? []) if (onScreen(u.px, u.py)) units.push(u);
     const selUnits = scene.selectedUnits ?? new Set<number>();
+    // DEMO: a selected combat vehicle shows its weapon range (light green).
+    if (demoActive) for (const u of units) if (selUnits.has(u.id) && u instanceof Vehicle && u.weapon) this.drawRangeCircle(u, u.weapon.range);
     for (const u of units) if (selUnits.has(u.id)) this.drawUnitRing(u, '#5cff6a');
     const hovered = units.find((u) => u.id === scene.hoveredUnitId);
     if (hovered && !selUnits.has(hovered.id)) this.drawUnitRing(hovered, 'rgba(255,255,255,0.6)');
@@ -565,6 +567,18 @@ export class Renderer {
   }
 
   /** RA2-style selection ring under a unit's feet: a circle on the ground, so an ellipse on screen (ground transform). */
+  /** Weapon range of a unit: light green disc with a thin edge (ground transform). */
+  private drawRangeCircle(u: Unit, range: number): void {
+    const { ctx } = this;
+    ctx.beginPath();
+    ctx.arc(u.px, u.py, range, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(144,238,144,0.12)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(144,238,144,0.7)';
+    ctx.lineWidth = 1.5 / this.camera.zoom;
+    ctx.stroke();
+  }
+
   private drawUnitRing(u: Unit, color: string): void {
     const { ctx } = this;
     ctx.strokeStyle = color;

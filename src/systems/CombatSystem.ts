@@ -208,6 +208,12 @@ export class CombatSystem implements GameSystem {
       s.chasing = false;
       s.retreating = false;
     }
+    // A bomber never bombs on its own: only on an order (an attack order or an attack-move).
+    if (s instanceof Vehicle && s.type === 'bomber' && s.attackTarget === null && s.attackMove === null) {
+      s.combatTarget = null;
+      s.engaged = false;
+      return;
+    }
     let target = this.currentTarget(s);
 
     // Explicit attack order beats everything else.
@@ -224,7 +230,11 @@ export class CombatSystem implements GameSystem {
     const holdsSpot = (s instanceof Vehicle && s.type === 'mantis') || (!s.flies && s.attackTarget === null && s.attackMove === null);
     if (target && s.attackTarget === null && distanceTo(s.px, s.py, target) > (holdsSpot ? w.range : w.range * GUARD_VISION_FACTOR * 1.25)) target = undefined;
 
-    if (!target && this.time >= s.nextThink) {
+    // An air-defence vehicle sweeps its range every tick: an aircraft entering it is locked at once (no search delay),
+    // and it always switches to the nearest aircraft in range unless it has an explicit attack order.
+    const sweeps = s instanceof Vehicle && s.type === 'mantis';
+    if (sweeps && s.attackTarget === null) target = this.acquire(s, w, grid) ?? target;
+    else if (!target && this.time >= s.nextThink) {
       target = this.acquire(s, w, grid);
       s.nextThink = this.time + ACQUIRE_PERIOD + (s.id % 4) * 0.04;
     }
@@ -417,7 +427,8 @@ export class CombatSystem implements GameSystem {
   }
 
   private fire(s: Unit, t: Entity, w: WeaponSpec): void {
-    s.cooldown = w.cooldown * RANK_RELOAD[s.rank];
+    // The air-defence vehicle needs no reload: it fires without pause while an aircraft is in range.
+    s.cooldown = s instanceof Vehicle && s.type === 'mantis' ? 0 : w.cooldown * RANK_RELOAD[s.rank];
     s.fightingWith.set(t.owner, this.time);
     if (t instanceof Unit) t.fightingWith.set(s.owner, this.time);
     const impact = this.impactPoint(t);
