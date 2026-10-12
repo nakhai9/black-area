@@ -978,7 +978,10 @@ export class Game {
   orderAttackTarget(units: readonly Unit[], target: Entity): void {
     for (const u of units) {
       if (!canTarget(u, target)) continue;
-      if (u instanceof Vehicle) u.heliHome = null;
+      if (u instanceof Vehicle) {
+        u.heliHome = null;
+        u.heliRevenge = null;
+      }
       u.parade = null;
       u.task = null;
       u.attackMove = null;
@@ -1078,7 +1081,10 @@ export class Game {
     units = this.keepAircraftAtAirfield(units, target);
     const spacing = Math.max(UNIT_SPACING * 1.15, Math.max(0, ...units.map((u) => u.radius)) * 2.1);
     units.forEach((u, k) => {
-      if (u instanceof Vehicle) u.heliHome = null;
+      if (u instanceof Vehicle) {
+        u.heliHome = null;
+        u.heliRevenge = null;
+      }
       u.parade = null;
       u.task = null;
       if (u instanceof Infantry) u.charge = null;
@@ -1895,6 +1901,7 @@ export class Game {
       pathPeekId: this.pathPeekId,
       waypointPlan: this.waypointPlan(),
       flagHints: this.flagHints(),
+      enemyInfoId: !this.placing && hoverUnit instanceof Unit && hoverUnit.owner !== this.humanPlayer.id ? hoverUnit.id : null,
       focus: focus.map((f) => ({ entity: f.entity, strong: f.strong, engaged: f.engaged, airLock: f.airLock })),
       taskLocks: this.placing ? [] : this.taskLocks(),
       effects: this.effects.list,
@@ -4051,6 +4058,7 @@ export class Game {
     if (!this.map.cellAt(world.x, world.y) || units.length === 0) return;
     // A new move order ends a repair job (mending, or driving to a repair vehicle).
     for (const u of units) if (u instanceof Vehicle) {
+      u.heliRevenge = null;
       u.heliHome = null; // a new order: no going back to where it was scrambled from
       u.repairTargetId = null;
       u.seekRepairId = null;

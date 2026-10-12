@@ -26,7 +26,7 @@
 <body>
 <main>
 <img class="logo" src="/logo.png" alt="Black Area" />
-<h1>Black Area — RULE <small>v1.60.3</small></h1>
+<h1>Black Area — RULE <small>v1.62.2</small></h1>
 <p class="lead">Tài liệu luật chơi + kiến trúc code dành cho AI/dev sửa game. Mọi con số gameplay chính xác nằm trong <code>src/constants.ts</code> và <code>src/factions/*.ts</code>. Nếu tài liệu này khác code thì <b>code đúng</b>. <b>Khi đổi luật/số trong code, phải cập nhật file này.</b></p>
 <nav><a href="#s1">Quy tắc làm việc cho AI</a><a href="#s2">Chạy dự án</a><a href="#s3">Kiến trúc thư mục</a><a href="#s4">Thế giới</a><a href="#s5">Kinh tế (dầu)</a><a href="#s6">Công trình (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Quân đội</a><a href="#s8">Chiến đấu</a><a href="#s9">Điều khiển (Game.handleKey, handleInput)</a><a href="#s10">Giới hạn &amp; hiệu năng</a><a href="#s11">Thắng / thua &amp; AI</a><a href="#s12">Công thức sửa thường gặp</a></nav>
 <h2 id="s1">0. Quy tắc làm việc cho AI</h2>
@@ -151,7 +151,7 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 <ul>
   <li>Apache (Mỹ, Âu), Ka-52 (Nga, Hồi), Z-19E (Trung). Chỉ bắn <b>xe / phương tiện mặt đất</b>: không bắn công trình, lính, máy bay.</li>
   <li>Đậu ở bất kỳ đâu trên đất liền như xe; chở tối đa <code>HELI_SOLDIERS = 8</code> lính, không chở xe.</li>
-  <li>Đang đậu mà bị bắn: bay lên đánh trả, đánh xong bay về đúng chỗ cũ và đáp lại (lệnh mới thì bỏ việc quay về). Áp dụng cho cả người chơi và AI.</li>
+  <li><b>Phòng vệ trực thăng</b>: đang đậu mà bị lính hoặc xe/tank mặt đất bắn → bay lên, khóa mục tiêu kẻ vừa bắn và đánh trả (ngoại lệ: được bắn cả <b>lính</b> đó; <code>Vehicle.heliRevenge</code>, hết khi xong trận hoặc có lệnh mới), đánh xong bay về đúng chỗ cũ và đáp lại (lệnh mới thì bỏ việc quay về). Áp dụng cho cả người chơi và AI.</li>
 </ul>
 <h3>Vay khẩn cấp (Global Monitoring Center)</h3>
 <ul>
@@ -450,6 +450,7 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 <tr><td>Tab</td><td>Ẩn/hiện sidebar</td></tr>
 <tr><td>Lăn chuột, <code>+</code> <code>-</code></td><td>Zoom</td></tr>
 <tr><td>WASD / mũi tên / chuột giữa / mép màn hình</td><td>Cuộn camera</td></tr>
+<tr><td>Hover vào đơn vị đối thủ (mọi loại)</td><td>Nhãn trên đầu: logo phe + tên đơn vị (inline), không hiện thanh máu (trừ khi đang chọn) (<code>Renderer.drawEnemyInfo</code>)</td></tr>
 <tr><td>Esc</td><td>Huỷ đặt nhà → huỷ waypoint → tạm dừng</td></tr>
 </table>
 <h3>Lưu / tải</h3>

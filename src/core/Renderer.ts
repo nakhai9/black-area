@@ -90,6 +90,8 @@ export interface RenderScene {
   readonly waypointPlan?: readonly { x: number; y: number }[] | null;
   /** Selected Squatters teams standing still: a "F: plant flag" hint above their heads. */
   readonly flagHints?: ReadonlySet<number>;
+  /** An opponent's unit under the cursor: its info card is drawn above its head. */
+  readonly enemyInfoId?: number | null;
 }
 
 
@@ -298,18 +300,20 @@ export class Renderer {
     for (const u of units) if (u.flies) this.drawUnit(u);
     if (scene.ghost) this.drawGhost(scene.ghost);
     this.upright();
-    for (const f of focus) if (f.entity.kind !== 'building' && !f.airLock) this.drawFocusMarks(f.entity, f.strong);
+    for (const f of focus) if (f.entity.kind !== 'building' && !f.airLock) this.drawFocusMarks(f.entity, f.strong && f.entity.id !== scene.enemyInfoId);
     for (const f of focus) if (f.airLock) this.drawAirLock(f.entity);
     for (const l of scene.taskLocks ?? []) this.drawAirLock(l.entity, l.color);
     if (selected) this.drawFootprintEdge(selected, scene.time);
-    for (const u of units) if (selUnits.has(u.id) || u.hp < u.maxHp) this.drawUnitHealth(u, selUnits.has(u.id) || focus.some((f) => f.entity === u));
+    for (const u of units) if ((selUnits.has(u.id) || u.hp < u.maxHp) && (u.id !== scene.enemyInfoId || selUnits.has(u.id))) this.drawUnitHealth(u, selUnits.has(u.id) || focus.some((f) => f.entity === u));
     // The fuel gauge shows only while the transport is out on a sortie; parked or taxiing at home it is idle (hidden).
     for (const u of units) if (u instanceof Vehicle && u.maxBombs > 0) this.drawBombs(u);
     for (const u of units) if (u instanceof Vehicle && (u.isTransport || u.isTanker) && u.flight !== 'parked' && u.flight !== 'taxi' && u.flight !== 'taxiHome') this.drawFuel(u);
-    for (const f of focus) if (f.entity.kind !== 'building' && !selUnits.has(f.entity.id) && f.entity.hp >= f.entity.maxHp) this.drawUnitHealth(f.entity, true);
+    for (const f of focus) if (f.entity.kind !== 'building' && !selUnits.has(f.entity.id) && f.entity.id !== scene.enemyInfoId && f.entity.hp >= f.entity.maxHp) this.drawUnitHealth(f.entity, true);
     const hints = scene.flagHints;
     if (hints?.size) for (const u of units) if (hints.has(u.id)) this.drawFlagHint(u);
     for (const u of units) if (u.restLeft > 0 && !hints?.has(u.id)) this.drawTag(u, `Resting ${Math.ceil(u.restLeft)}s`, '#9fd3ff');
+    const info = units.find((u) => u.id === scene.enemyInfoId);
+    if (info) this.drawEnemyInfo(info);
     for (const u of units) {
       if (u.rank > 0) this.drawRank(u);
       if (u instanceof Vehicle && u.isCarrier && (u.cargo.length > 0 || u.incoming > 0)) this.drawCargoBadge(u);
@@ -704,6 +708,38 @@ export class Renderer {
       ctx.textAlign = 'center';
       ctx.fillText(text, x + w / 2, y + h / 2 - k);
     }
+    ctx.restore();
+  }
+
+  /** Tag above a hovered opponent unit: its nation's emblem inline, then its name (upright transform). */
+  private drawEnemyInfo(u: Unit): void {
+    const { ctx } = this;
+    const k = 1 / this.camera.zoom;
+    const P = worldToIso(u.px, u.py);
+    const lift = u.flies && 'altitude' in u ? Number((u as { altitude: number }).altitude) : 0;
+    const top = P.y - lift - Math.max(u.bodyHeight, 2) - 1.6 - (u.rank > 0 ? 3.6 : 0);
+    const text = 'name' in u ? String((u as { name: string }).name) : 'Enemy';
+    const img = u.faction !== 'neutral' ? emblemImage(u.faction as FactionId) : null;
+    ctx.save();
+    ctx.font = `600 ${11 * k}px "Segoe UI", system-ui, sans-serif`;
+    const s = 11 * k;
+    const iw = img ? (s * img.naturalWidth) / Math.max(img.naturalWidth, img.naturalHeight) : 0;
+    const ih = img ? (s * img.naturalHeight) / Math.max(img.naturalWidth, img.naturalHeight) : 0;
+    const gap = img ? 4 * k : 0;
+    const tw = ctx.measureText(text).width;
+    const w = iw + gap + tw + 10 * k;
+    const h = 15 * k;
+    const x = P.x - w / 2;
+    const y = top - 1.5 - h;
+    ctx.fillStyle = 'rgba(8,12,16,0.85)';
+    ctx.fillRect(x, y, w, h);
+    ctx.fillStyle = teamColors(u.faction).primary;
+    ctx.fillRect(x, y + h - 2 * k, w, 2 * k);
+    if (img) ctx.drawImage(img, x + 5 * k, y + (h - k) / 2 - ih / 2, iw, ih);
+    ctx.fillStyle = '#f2f5f8';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, x + 5 * k + iw + gap, y + h / 2 - k);
     ctx.restore();
   }
 

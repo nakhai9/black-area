@@ -105,6 +105,8 @@ export class Vehicle extends Unit {
   homeId: number | null = null;
   /** Helicopter scrambled off the ground under fire: where it stood, to land there again once the fight is over. */
   heliHome: WorldPoint | null = null;
+  /** Helicopter self-defence: the ground soldier / tank that shot it while landed; it may fire back at this one (soldier included). */
+  heliRevenge: number | null = null;
   slot = -1;
   /** Comes in to land from the runway's far end (flying against the take-off direction). */
   landReverse = false;

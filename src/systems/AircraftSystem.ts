@@ -161,6 +161,12 @@ export class AircraftSystem implements GameSystem {
         v.heliHome = { x: v.px, y: v.py };
         v.flight = 'liftoff';
         v.phaseTime = 0;
+        // Self-defence: a soldier or ground vehicle that shot it becomes its target (player and AI alike).
+        const a = v.lastAttackerId === null ? undefined : this.entities.get(v.lastAttackerId);
+        if (a && a.alive && a.owner !== v.owner && a.kind === 'unit' && !(a as Vehicle).flies && (a as Vehicle).weapon !== null) {
+          v.heliRevenge = a.id;
+          v.attackTarget = a.id;
+        }
       }
       if (v.isTransport) this.fuel(v, prev, dt);
       if (v.isTanker) this.escort(v, dt);
@@ -1079,6 +1085,7 @@ export class AircraftSystem implements GameSystem {
       v.idleFor = 0;
       return;
     }
+    v.heliRevenge = null; // the fight is over: back to hunting ground vehicles only
     v.idleFor += dt;
     if (v.idleFor < HELI_SETTLE_SECONDS) return;
     // Scrambled under fire: the fight is over, so it flies back to the spot it lifted off from and lands there.
