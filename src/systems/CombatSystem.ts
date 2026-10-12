@@ -219,7 +219,9 @@ export class CombatSystem implements GameSystem {
 
     // Auto targets are dropped when they walk too far away. An air-defence vehicle drops an aircraft as soon as it leaves its range,
     // so it is always free to engage whatever is in range.
-    const holdsSpot = s instanceof Vehicle && s.type === 'mantis';
+    // Ground units without an attack order (explicit target or attack-move) hold their ground too: they shoot what is in
+    // range but never set off after an enemy on their own.
+    const holdsSpot = (s instanceof Vehicle && s.type === 'mantis') || (!s.flies && s.attackTarget === null && s.attackMove === null);
     if (target && s.attackTarget === null && distanceTo(s.px, s.py, target) > (holdsSpot ? w.range : w.range * GUARD_VISION_FACTOR * 1.25)) target = undefined;
 
     if (!target && this.time >= s.nextThink) {
@@ -271,7 +273,7 @@ export class CombatSystem implements GameSystem {
     // An air-defence vehicle holds its firing spot: it only shoots what comes into range and moves only when ordered (a move or an
     // explicit attack order), never chasing on its own.
     if (holdsSpot && s.attackTarget === null) return;
-    const mayChase = s.chasing || !s.moving || s.attackTarget !== null || s.attackMove !== null;
+    const mayChase = s.chasing || s.flies || s.attackTarget !== null || s.attackMove !== null;
     if (mayChase) this.chase(s, target, w);
   }
 
@@ -303,8 +305,8 @@ export class CombatSystem implements GameSystem {
   private acquire(s: Unit, w: WeaponSpec, grid: Map<number, Unit[]>): Entity | undefined {
     const cx = Math.floor(s.px / HASH);
     const cy = Math.floor(s.py / HASH);
-    // An air-defence vehicle never chases, so it only looks at aircraft already inside its range.
-    const holdsSpot = s instanceof Vehicle && s.type === 'mantis';
+    // An air-defence vehicle, or a ground unit without an attack order, never chases: it only looks inside its range.
+    const holdsSpot = (s instanceof Vehicle && s.type === 'mantis') || (!s.flies && s.attackTarget === null && s.attackMove === null);
     const sight = holdsSpot ? w.range : w.range * GUARD_VISION_FACTOR;
     const reach = Math.ceil(sight / HASH);
     let best: Entity | undefined;

@@ -26,7 +26,7 @@ export const DEMO_FACTION = Number(import.meta.env.VITE_DEMO_FACTION) || 2;
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "1.76.5";
+export const GAME_VERSION = "1.77.0";
 
 // ---------------------------------------------------------------- World (real Earth)
 /** Packed Earth texture built by `npm run build:earth` (see scripts/build-earth.mjs). */
@@ -377,7 +377,7 @@ export const VEHICLE_BASE = {
   /** Attack helicopter: slow (well under the fighter and the transport), built at the Airfield like it. */
   heli: { cost: 1300, trainSeconds: 14, maxHp: 200, speed: 3, radius: 3.4 },
   /** Self-propelled air-defence vehicle (NOMADS for the USA and Europe, Buk-M3 for the others): dear, slow, tank-like health; shoots aircraft only (see MANTIS_FIREPOWER). */
-  mantis: { cost: 3000, trainSeconds: 18, maxHp: 380, speed: 1.1, radius: 4.4 },
+  mantis: { cost: 3000, trainSeconds: 18, maxHp: 460, speed: 1.1, radius: 4.4 },
   /** Unarmed cargo aircraft: slower than the fighter. */
   transport: {
     cost: 1400,
@@ -438,7 +438,7 @@ export const JET_BOMBS = 2;
  */
 export const HELI_FIREPOWER = 0.75;
 /** Air-defence vehicle (`mantis`): its missile hits this many times as hard as the base missile, and reaches MANTIS_RANGE_CELLS cells for every nation (no faction range bonus); aircraft only. */
-export const MANTIS_FIREPOWER = 2.5;
+export const MANTIS_FIREPOWER = 3.5;
 export const MANTIS_RANGE_CELLS = 20;
 export const JET_BOMB_VS_STRUCTURE = 0.1;
 export const JET_BOMB_VS_VEHICLE = 0.6;

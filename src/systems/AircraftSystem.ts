@@ -425,10 +425,8 @@ export class AircraftSystem implements GameSystem {
     }
     const slot = this.freeSlot(v, home);
     if (slot < 0) {
-      // Every apron full: wait over the airfield's approach point and try again in a moment.
-      v.returningHome = true;
-      v.idleFor = RETURN_AFTER - 1.5;
-      v.follow([this.approachFor(v, home).point]);
+      // Every apron of the nation full: no holding for a new airfield, the aircraft has nowhere to land and falls.
+      this.startCrash(v);
       return;
     }
     v.slot = slot;
@@ -857,27 +855,10 @@ export class AircraftSystem implements GameSystem {
   }
 
   private adoptHome(v: Vehicle): boolean {
-    // An airfield with a free spot first; a full one only when there is nothing else.
+    // Only an airfield with a free spot will do: a full one is never adopted, so with none the aircraft falls.
     const roomy = this.airfieldWithRoom(v);
-    if (roomy) {
-      v.homeId = roomy.id;
-      v.slot = -1;
-      v.idleFor = RETURN_AFTER;
-      return true;
-    }
-    let best: Building | null = null;
-    let bestD = Infinity;
-    for (const b of this.entities.buildings()) {
-      if (b.owner !== v.owner || !b.alive || b.spec.type !== 'airfield') continue;
-      const c = b.centerWorld();
-      const d = Math.hypot(c.x - v.px, c.y - v.py);
-      if (d < bestD) {
-        best = b;
-        bestD = d;
-      }
-    }
-    if (!best) return false;
-    v.homeId = best.id;
+    if (!roomy) return false;
+    v.homeId = roomy.id;
     v.slot = -1;
     v.idleFor = RETURN_AFTER; // head for the new airfield as soon as there is nothing else to do
     return true;

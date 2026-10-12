@@ -914,12 +914,17 @@ export class Game {
     );
     // A captured contested-nation capital stays an ally of its holder (shown here, outside the MAX_ALLIES cap).
     const capitals = mine.filter((b) => b instanceof NationCapital);
-    return [...allied, ...capitals, ...claims].map((b) => {
+    // Rival nations' capitals the player has taken (its own capital is not listed).
+    const taken = mine.filter((b) => b.spec.type === 'capital' && b.spec.spriteKey !== `capital:${this.humanPlayer.faction}`);
+    const embassy = `${FACTIONS[this.humanPlayer.faction].shortName} Embassy`;
+    return [...allied, ...capitals, ...taken, ...claims].map((b) => {
       const at = b.centerWorld();
+      const rival = b.spec.type === 'capital' ? (b.spec.spriteKey.replace(/^capital:/, '') as FactionId) : null;
       return {
         id: b.id,
         built: b.spec.type !== 'flagpole',
-        capital: b instanceof NationCapital ? (b.alliance() ?? b.spec.name) : undefined,
+        capital: b instanceof NationCapital ? (b.alliance() ?? b.spec.name) : rival ? `${b.spec.name} (${FACTIONS[rival].name})` : undefined,
+        embassy: b.spec.type === 'alliedBuilding' ? `${embassy} in ${this.nearestCapitalCity(at)}` : undefined,
         nation: b instanceof NationCapital ? b.nation : undefined,
         holder: b instanceof NationCapital && b.faction !== 'neutral' ? b.faction : undefined,
         place: formatGeo(worldToGeo(at)),
@@ -929,6 +934,28 @@ export class Game {
         underAttack: this.time - b.lastAttackedAt < ALLY_ALERT_SECONDS,
       };
     });
+  }
+
+  /** City of the capital (a nation's or a contested nation's) nearest to `at`: where an embassy is said to stand. */
+  private nearestCapitalCity(at: WorldPoint): string {
+    let best = '';
+    let bestD = Infinity;
+    for (const b of this.landmarks) {
+      const city =
+        b instanceof NationCapital
+          ? CONTESTED_NATIONS[b.nation].site.name
+          : b.spec.type === 'capital'
+            ? FACTIONS[b.spec.spriteKey.replace(/^capital:/, '') as FactionId].capital.city
+            : null;
+      if (!city) continue;
+      const c = b.centerWorld();
+      const d = Math.hypot(c.x - at.x, c.y - at.y);
+      if (d < bestD) {
+        best = city;
+        bestD = d;
+      }
+    }
+    return best;
   }
 
   ownedTypesOf(player: PlayerState): Set<BuildingType> {
@@ -2168,7 +2195,8 @@ export class Game {
       this.selection.clearAll();
       return;
     }
-    const unit = this.selection.pickUnit(world);
+    // A selected aircraft circling right over its next target must not swallow the click: it is looked through.
+    const unit = this.selection.pickUnit(world, (u) => u.flies && this.selection.selectedUnits.has(u.id));
     if (unit && unit.owner !== me && this.orderAttack(unit)) return;
     if (attackMove) {
       this.orderHumanAttackMove(selected, world);

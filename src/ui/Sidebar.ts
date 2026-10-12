@@ -52,6 +52,8 @@ export interface AllyInfo {
   built: boolean;
   /** Captured contested-nation capital (its name): counts as an ally, outside the MAX_ALLIES cap. */
   capital?: string;
+  /** Allied Building: its display name (the nation's embassy in that land). */
+  embassy?: string;
   /** Captured capital: the nation taken and the faction holding it (emblem 🤝 flag in the row). */
   nation?: ContestedNationId;
   holder?: FactionId;
@@ -359,7 +361,7 @@ export class Sidebar {
         <section class="sb-panel sb-allies">
           <h3 class="sb-rank-title">ALLIES <small class="sb-allies-count"></small></h3>
           <ol class="sb-ally-list"></ol>
-          <p class="sb-muted sb-allies-hint">Click an ally to look at it. Raise up to ${MAX_ALLIES} allies on land claimed by Squatters.</p>
+          <p class="sb-muted sb-allies-hint">Captured capitals and embassies are listed here. Click one to look at it. Raise up to ${MAX_ALLIES} allies on land claimed by Squatters.</p>
         </section>
       </div>
       <div class="sb-view" data-page="production" hidden>
@@ -793,7 +795,7 @@ export class Sidebar {
           name.append(img(`${import.meta.env.BASE_URL}emblems/${a.holder}.png`), shake, img(nationFlag(a.nation).toDataURL()));
           if (hit) name.append(hit);
         } else {
-          name.textContent = a.built ? `${a.capital ?? `Ally ${n}`}${hit}` : 'Claimed land · no ally yet';
+          name.textContent = a.built ? `${a.capital ?? (a.embassy ?? `Ally ${n}`)}${hit}` : 'Claimed land · no ally yet';
         }
         const place = document.createElement('div');
         place.className = 'sb-muted sb-ally-place';

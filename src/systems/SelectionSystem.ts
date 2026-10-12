@@ -63,12 +63,12 @@ export class SelectionSystem {
    * The unit whose drawn body is under `world` (front-most when several overlap). Only a click on the body itself
    * counts — a soldier's figure, a vehicle's hull — not the ground around it. Aircraft stay big targets.
    */
-  pickUnit(world: WorldPoint): Unit | null {
+  pickUnit(world: WorldPoint, ignore?: (u: Unit) => boolean): Unit | null {
     let best: Unit | null = null;
     let bestY = -Infinity;
     const m = worldToIso(world.x, world.y);
     for (const u of this.entities.fieldMovers()) {
-      if (!u.alive) continue;
+      if (!u.alive || ignore?.(u)) continue;
       const iso = worldToIso(u.px, u.py);
       const dx = Math.abs(m.x - iso.x);
       let hit: boolean;
