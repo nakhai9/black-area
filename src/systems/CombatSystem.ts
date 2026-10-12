@@ -273,6 +273,9 @@ export class CombatSystem implements GameSystem {
     }
 
     // Idle units, attack-movers, attack orders and retaliators move in; units on a plain move order keep walking.
+    // A MANTIS holds its firing spot: it only shoots what comes into range and moves only when ordered (a move or an
+    // explicit attack order), never chasing on its own.
+    if (s instanceof Vehicle && s.type === 'mantis' && s.attackTarget === null) return;
     const mayChase = s.chasing || !s.moving || s.attackTarget !== null || s.attackMove !== null;
     if (mayChase) this.chase(s, target, w);
   }
