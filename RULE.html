@@ -26,7 +26,7 @@
 <body>
 <main>
 <img class="logo" src="/logo.png" alt="Black Area" />
-<h1>Black Area — RULE <small>v1.60.1</small></h1>
+<h1>Black Area — RULE <small>v1.60.2</small></h1>
 <p class="lead">Tài liệu luật chơi + kiến trúc code dành cho AI/dev sửa game. Mọi con số gameplay chính xác nằm trong <code>src/constants.ts</code> và <code>src/factions/*.ts</code>. Nếu tài liệu này khác code thì <b>code đúng</b>. <b>Khi đổi luật/số trong code, phải cập nhật file này.</b></p>
 <nav><a href="#s1">Quy tắc làm việc cho AI</a><a href="#s2">Chạy dự án</a><a href="#s3">Kiến trúc thư mục</a><a href="#s4">Thế giới</a><a href="#s5">Kinh tế (dầu)</a><a href="#s6">Công trình (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Quân đội</a><a href="#s8">Chiến đấu</a><a href="#s9">Điều khiển (Game.handleKey, handleInput)</a><a href="#s10">Giới hạn &amp; hiệu năng</a><a href="#s11">Thắng / thua &amp; AI</a><a href="#s12">Công thức sửa thường gặp</a></nav>
 <h2 id="s1">0. Quy tắc làm việc cho AI</h2>
@@ -235,7 +235,7 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 <tr><td><code>tank</code></td><td>1200</td><td>14</td><td>420</td><td>1.4</td><td>cannon</td><td>War Factory</td><td></td></tr>
 <tr><td><code>jet</code></td><td>1600</td><td>16</td><td>220</td><td>9</td><td>missile + 2 bom</td><td>Airfield</td><td></td></tr>
 <tr><td><code>heli</code></td><td>1300</td><td>14</td><td>200</td><td>3</td><td>missile ×<code>HELI_FIREPOWER 0.75</code>, chỉ bắn xe mặt đất (không bắn công trình, lính, máy bay), không bom</td><td>Airfield</td><td>Sức chiến đấu luôn dưới máy bay chiến đấu cùng phe (máu, sát thương thấp hơn; không bắn máy bay, không bom).</td></tr>
-<tr><td><code>mantis</code></td><td>3000</td><td>18</td><td>380</td><td>1.1</td><td>missile ×<code>MANTIS_FIREPOWER 2.5</code>, tầm ×<code>MANTIS_RANGE 1.5</code>, <b>chỉ bắn máy bay đang bay</b> (tiêm kích, ném bom, trực thăng, vận tải); không bắn lính, xe, công trình</td><td>War Factory</td><td>Pháo phòng không tự hành MANTIS, mọi phe (tên "MANTIS"). Có máu, mất máu, bị phá như xe khác. Bắn tên lửa bằng sheet <code>missile-air.png</code>. Sprite <code>public/sprites/mantis.png</code> (tools/mantis_sheet.py từ resources/mantis/mantis_ref.png, 12 góc nhìn chọn theo hướng nghiêng nòng). AI mua theo tỉ lệ máy bay của địch (không có máy bay địch → không mua).</td></tr>
+<tr><td><code>mantis</code></td><td>3000</td><td>18</td><td>380</td><td>1.1</td><td>missile ×<code>MANTIS_FIREPOWER 2.5</code>, tầm <code>MANTIS_RANGE_CELLS = 10</code> ô (mọi phe như nhau), <b>chỉ bắn máy bay đang bay</b> (tiêm kích, ném bom, trực thăng, vận tải); không bắn lính, xe, công trình</td><td>War Factory</td><td>Pháo phòng không tự hành MANTIS, mọi phe (tên "MANTIS"). Có máu, mất máu, bị phá như xe khác. Bắn tên lửa bằng sheet <code>missile-air.png</code>. Sprite <code>public/sprites/mantis.png</code> (tools/mantis_sheet.py từ resources/mantis/mantis_ref.png, 12 góc nhìn chọn theo hướng nghiêng nòng). AI mua theo tỉ lệ máy bay của địch (không có máy bay địch → không mua).</td></tr>
 <tr><td><code>bomber</code></td><td>2600</td><td>22</td><td>380</td><td>10.9</td><td>bomb</td><td>Airfield</td><td>chỉ USA B-52, Russia Tu-16</td></tr>
 <tr><td><code>transport</code></td><td>1400</td><td>14</td><td>260</td><td>5.5</td><td>không</td><td>Airfield, cần Tech Center</td><td></td></tr>
 <tr><td><code>repair</code></td><td>800</td><td>10</td><td>360</td><td>1.0</td><td>không</td><td>War Factory</td><td>Russia BREM-1, USA &amp; Europe M88, China &amp; Islamic Type 99II; sửa xe mặt đất phe mình</td></tr>

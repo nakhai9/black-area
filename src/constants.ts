@@ -26,7 +26,7 @@ export const DEMO_FACTION = Number(import.meta.env.VITE_DEMO_FACTION) || 2;
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "1.60.1";
+export const GAME_VERSION = "1.60.2";
 
 // ---------------------------------------------------------------- World (real Earth)
 /** Packed Earth texture built by `npm run build:earth` (see scripts/build-earth.mjs). */
@@ -440,9 +440,9 @@ export const JET_BOMBS = 2;
  * less health (VEHICLE_BASE), shoots only ground vehicles and carries no bombs.
  */
 export const HELI_FIREPOWER = 0.75;
-/** MANTIS: its missile hits this many times as hard, and reaches MANTIS_RANGE times as far, as the base missile; aircraft only. */
+/** MANTIS: its missile hits this many times as hard as the base missile, and reaches MANTIS_RANGE_CELLS cells for every nation (no faction range bonus); aircraft only. */
 export const MANTIS_FIREPOWER = 2.5;
-export const MANTIS_RANGE = 1.5;
+export const MANTIS_RANGE_CELLS = 10;
 export const JET_BOMB_VS_STRUCTURE = 0.1;
 export const JET_BOMB_VS_VEHICLE = 0.6;
 /** A fighter's bomb costs this much to load (a bomber's costs BOMB_COST). */

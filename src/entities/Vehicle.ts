@@ -1,7 +1,7 @@
 import {
   HELI_FIREPOWER,
   MANTIS_FIREPOWER,
-  MANTIS_RANGE,
+  MANTIS_RANGE_CELLS,
   CELL_SIZE,
   TRANSPORT_MIXED_SOLDIERS,
   TRANSPORT_SOLDIERS,
@@ -189,8 +189,7 @@ export class Vehicle extends Unit {
     if (weapon) {
       const spec = WEAPONS[weapon];
       const power = type === 'heli' ? HELI_FIREPOWER : type === 'mantis' ? MANTIS_FIREPOWER : 1;
-      const reach = type === 'mantis' ? MANTIS_RANGE : 1;
-      this.weapon = { ...spec, damage: spec.damage * f.stats.firepower * power, range: spec.range * f.stats.range * reach };
+      this.weapon = { ...spec, damage: spec.damage * f.stats.firepower * power, range: type === 'mantis' ? MANTIS_RANGE_CELLS * CELL_SIZE : spec.range * f.stats.range };
     }
     this.bombs = this.maxBombs;
     const h = HANDLING[type];
