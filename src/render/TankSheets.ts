@@ -4,15 +4,13 @@ import type { FactionId } from '../types';
 import { drawCraftBlast } from './CraftSheets';
 
 /**
- * Main battle tank sheets (tools/build_vehicle_sheets.py from resources/<model>_move.png, or tools/tank_views_sheet.py): 32 columns of 64 px —
- * screen headings clockwise from N — by 8 rows of track frames. Hull, turret and shadow are one picture.
+ * LEGO-brick main battle tank sheets (tools/lego_tank_sheet.py), one hull and one turret sheet per nation: 32 columns of 64 px —
+ * screen headings clockwise from N — in one row. Hull (with its soft shadow) and turret share the cell's pivot; the turret
+ * is drawn over the hull and turns on its own towards the combat target.
  */
 const CELL = 64;
 const DIRS = 32;
-const FRAMES = 8;
-/** Seconds per track frame while driving. */
-const TRACK_FRAME_SECONDS = 0.07;
-/** Iso px per sheet px: the hull (≈ 40 sheet px side-on) is drawn ≈ 7 iso px long. */
+/** Iso px per sheet px: the hull (≈ 44 sheet px side-on) is drawn ≈ 7.7 iso px long. */
 const SCALE = 0.175;
 /** Death: the blast plays over the wreck, which then burns dark and fades out. */
 const FADE_SECONDS = 0.8;
@@ -23,18 +21,9 @@ const sheet = (file: string): HTMLImageElement => {
   img.dataset.src = `${import.meta.env.BASE_URL}sprites/${file}`;
   return img;
 };
-/** USA tank: M1A2 Abrams, built by tools/tank_views_sheet.py. */
-const M1A2 = sheet('tank-m1a2.png');
-/** Russian (and Islamic) tank: T-14 Armata look, built by tools/tank_views_sheet.py. */
-const T14 = sheet('tank-t14.png');
-
-const SHEETS: Partial<Record<FactionId, HTMLImageElement>> = {
-  usa: M1A2,
-  europe: sheet('tank-leopard2.png'), // Leopard 2, built by tools/tank_views_sheet.py
-  russia: T14,
-  islamic: T14,
-  china: sheet('tank-type99.png'),
-};
+const FACTIONS: FactionId[] = ['usa', 'europe', 'russia', 'islamic', 'china'];
+const SHEETS = Object.fromEntries(FACTIONS.map((f) => [f, sheet(`tank-lego-${f}-hull.png`)])) as Record<FactionId, HTMLImageElement>;
+const TURRETS = Object.fromEntries(FACTIONS.map((f) => [f, sheet(`tank-lego-${f}-turret.png`)])) as Record<FactionId, HTMLImageElement>;
 /** Tank explosion shared by every nation (tools/tank_fx_sheet.py): 16 frames of BLAST_CELL px in one row. */
 const TANK_BLAST = sheet('tank-blast.png');
 const BLAST_CELL = 64;
@@ -48,7 +37,7 @@ let loaded: Promise<void> | null = null;
 /** Starts (once) and returns the tank sheet downloads. */
 export function loadTankSprites(): Promise<void> {
   loaded ??= Promise.all(
-    [...new Set(Object.values(SHEETS)), TANK_BLAST].map(
+    [...Object.values(SHEETS), ...Object.values(TURRETS), TANK_BLAST].map(
       (img) =>
         new Promise<void>((resolve, reject) => {
           img.onload = () => resolve();
@@ -67,6 +56,11 @@ export function hasTankSheet(faction: FactionId): boolean {
 
 function ready(faction: FactionId): HTMLImageElement | null {
   const img = SHEETS[faction];
+  return img && img.complete && img.naturalWidth > 0 ? img : null;
+}
+
+function readyTurret(faction: FactionId): HTMLImageElement | null {
+  const img = TURRETS[faction];
   return img && img.complete && img.naturalWidth > 0 ? img : null;
 }
 
@@ -93,8 +87,9 @@ export function drawTankSheet(ctx: CanvasRenderingContext2D, v: Vehicle, x: numb
   if (v.type !== 'tank') return false;
   const img = ready(v.faction as FactionId);
   if (!img) return false;
-  const frame = v.moving ? Math.floor(performance.now() / 1000 / TRACK_FRAME_SECONDS) % FRAMES : 0;
-  blit(ctx, img, direction(v.heading), frame, x, y, CELL * SCALE);
+  const turret = readyTurret(v.faction as FactionId);
+  blit(ctx, img, direction(v.heading), 0, x, y, CELL * SCALE);
+  if (turret) blit(ctx, turret, direction(v.combatTarget !== null ? v.aimHeading : v.heading), 0, x, y, CELL * SCALE);
   return true;
 }
 
@@ -105,6 +100,8 @@ export function drawTankPortrait(ctx: CanvasRenderingContext2D, faction: Faction
   const size = Math.min(w, h) * 1.25;
   ctx.save();
   blit(ctx, img, direction(heading), 0, w / 2, h / 2, size);
+  const turret = readyTurret(faction);
+  if (turret) blit(ctx, turret, direction(heading), 0, w / 2, h / 2, size);
   ctx.restore();
   return true;
 }
@@ -118,6 +115,8 @@ export function drawTankDeath(ctx: CanvasRenderingContext2D, faction: FactionId,
   ctx.globalAlpha = Math.max(0, Math.min(1, (ttl - age) / FADE_SECONDS));
   ctx.filter = 'brightness(0.32) saturate(0.4)';
   blit(ctx, img, direction(heading), 0, x, y, CELL * SCALE);
+  const turret = readyTurret(faction);
+  if (turret) blit(ctx, turret, direction(heading), 0, x, y, CELL * SCALE);
   ctx.filter = prevFilter;
   ctx.globalAlpha = prevAlpha;
   if (TANK_BLAST.complete && TANK_BLAST.naturalWidth > 0) {

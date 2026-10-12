@@ -1158,6 +1158,13 @@ details.sb-help[open] > summary {
   gap: 4px;
   margin-top: 6px;
 }
+/* Oil buttons (Sell / Auto sell / Get a loan) between the minimap and the page tabs. */
+.sb-oil-actions {
+  padding: 4px 6px;
+}
+.sb-oil-actions > .sb-actions {
+  margin-top: 0;
+}
 .sb-actions > button {
   width: auto;
   margin: 0;

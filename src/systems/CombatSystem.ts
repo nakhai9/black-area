@@ -217,8 +217,10 @@ export class CombatSystem implements GameSystem {
       else target = ordered;
     }
 
-    // Auto targets are dropped when they walk too far away.
-    if (target && s.attackTarget === null && distanceTo(s.px, s.py, target) > w.range * GUARD_VISION_FACTOR * 1.25) target = undefined;
+    // Auto targets are dropped when they walk too far away. A MANTIS drops an aircraft as soon as it leaves its range,
+    // so it is always free to engage whatever is in range.
+    const holdsSpot = s instanceof Vehicle && s.type === 'mantis';
+    if (target && s.attackTarget === null && distanceTo(s.px, s.py, target) > (holdsSpot ? w.range : w.range * GUARD_VISION_FACTOR * 1.25)) target = undefined;
 
     if (!target && this.time >= s.nextThink) {
       target = this.acquire(s, w, grid);
@@ -276,7 +278,7 @@ export class CombatSystem implements GameSystem {
     // Idle units, attack-movers, attack orders and retaliators move in; units on a plain move order keep walking.
     // A MANTIS holds its firing spot: it only shoots what comes into range and moves only when ordered (a move or an
     // explicit attack order), never chasing on its own.
-    if (s instanceof Vehicle && s.type === 'mantis' && s.attackTarget === null) return;
+    if (holdsSpot && s.attackTarget === null) return;
     const mayChase = s.chasing || !s.moving || s.attackTarget !== null || s.attackMove !== null;
     if (mayChase) this.chase(s, target, w);
   }
@@ -309,9 +311,12 @@ export class CombatSystem implements GameSystem {
   private acquire(s: Unit, w: WeaponSpec, grid: Map<number, Unit[]>): Entity | undefined {
     const cx = Math.floor(s.px / HASH);
     const cy = Math.floor(s.py / HASH);
-    const reach = Math.ceil((w.range * GUARD_VISION_FACTOR) / HASH);
+    // A MANTIS never chases, so it only looks at aircraft already inside its range.
+    const holdsSpot = s instanceof Vehicle && s.type === 'mantis';
+    const sight = holdsSpot ? w.range : w.range * GUARD_VISION_FACTOR;
+    const reach = Math.ceil(sight / HASH);
     let best: Entity | undefined;
-    let bestD = w.range * GUARD_VISION_FACTOR;
+    let bestD = sight;
     for (let dx = -reach; dx <= reach; dx++) {
       for (let dy = -reach; dy <= reach; dy++) {
         const cell = grid.get((cx + dx) * 100003 + cy + dy);
@@ -328,7 +333,7 @@ export class CombatSystem implements GameSystem {
         }
       }
     }
-    if (best) return best;
+    if (best || holdsSpot) return best;
     // Hit back at whoever shot us recently, even from beyond our range.
     if (s.lastAttackerId !== null && this.time - s.lastAttackedAt < 6) {
       const a = this.entities.get(s.lastAttackerId);

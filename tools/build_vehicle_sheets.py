@@ -53,17 +53,6 @@ def span(im):
     return round((box[2] - box[0]) / im.width, 3) if box else 1
 
 
-def tanks(meta):
-    # <model>_move.png: 32 rows (facings) × 8 track frames of 256 px, shadow baked in.
-    for model, src in {'type99': 'Type99_ZTZ99_move.png'}.items():
-        im = Image.open(os.path.join(SRC, src)).convert('RGBA')
-        cell = 64
-        rows = [[im.crop((f * 256, k * 256, f * 256 + 256, k * 256 + 256)).resize((cell, cell), Image.LANCZOS)
-                 for k in range(FACINGS)] for f in range(8)]
-        save_grid(rows, cell, f'tank-{model}.png')
-        meta[f'tank-{model}'] = dict(cell=cell, frames=8, span=span(rows[0][8]))
-
-
 def aircraft(meta):
     cell, fx_cell = 96, 128
     for model, folder in {'c17': 'c17_sprites', 'c130j': 'c130j_sprites', 'il76': 'il76_sprites', 'y20': 'y20_sprites'}.items():
@@ -105,7 +94,6 @@ def helis(meta):
 
 if __name__ == '__main__':
     meta = {}
-    tanks(meta)
     aircraft(meta)
     helis(meta)
     print(json.dumps(meta, indent=1))

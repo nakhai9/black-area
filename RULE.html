@@ -26,7 +26,7 @@
 <body>
 <main>
 <img class="logo" src="/logo.png" alt="Black Area" />
-<h1>Black Area — RULE <small>v1.62.2</small></h1>
+<h1>Black Area — RULE <small>v1.63.0</small></h1>
 <p class="lead">Tài liệu luật chơi + kiến trúc code dành cho AI/dev sửa game. Mọi con số gameplay chính xác nằm trong <code>src/constants.ts</code> và <code>src/factions/*.ts</code>. Nếu tài liệu này khác code thì <b>code đúng</b>. <b>Khi đổi luật/số trong code, phải cập nhật file này.</b></p>
 <nav><a href="#s1">Quy tắc làm việc cho AI</a><a href="#s2">Chạy dự án</a><a href="#s3">Kiến trúc thư mục</a><a href="#s4">Thế giới</a><a href="#s5">Kinh tế (dầu)</a><a href="#s6">Công trình (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Quân đội</a><a href="#s8">Chiến đấu</a><a href="#s9">Điều khiển (Game.handleKey, handleInput)</a><a href="#s10">Giới hạn &amp; hiệu năng</a><a href="#s11">Thắng / thua &amp; AI</a><a href="#s12">Công thức sửa thường gặp</a></nav>
 <h2 id="s1">0. Quy tắc làm việc cho AI</h2>
@@ -235,13 +235,14 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 <tr><td><code>tank</code></td><td>1200</td><td>14</td><td>420</td><td>1.4</td><td>cannon</td><td>War Factory</td><td></td></tr>
 <tr><td><code>jet</code></td><td>1600</td><td>16</td><td>220</td><td>9</td><td>missile + 2 bom</td><td>Airfield</td><td></td></tr>
 <tr><td><code>heli</code></td><td>1300</td><td>14</td><td>200</td><td>3</td><td>missile ×<code>HELI_FIREPOWER 0.75</code>, chỉ bắn xe mặt đất (không bắn công trình, lính, máy bay), không bom</td><td>Airfield</td><td>Sức chiến đấu luôn dưới máy bay chiến đấu cùng phe (máu, sát thương thấp hơn; không bắn máy bay, không bom).</td></tr>
-<tr><td><code>mantis</code></td><td>3000</td><td>18</td><td>380</td><td>1.1</td><td>missile ×<code>MANTIS_FIREPOWER 2.5</code>, tầm <code>MANTIS_RANGE_CELLS = 10</code> ô (mọi phe như nhau), <b>chỉ bắn máy bay đang bay</b> (tiêm kích, ném bom, trực thăng, vận tải); không bắn lính, xe, công trình</td><td>War Factory</td><td>Pháo phòng không tự hành MANTIS, mọi phe (tên "MANTIS"). Có máu, mất máu, bị phá như xe khác. Bắn tên lửa bằng sheet <code>missile-air.png</code>. Sprite <code>public/sprites/mantis.png</code> (tools/mantis_sheet.py từ resources/mantis/mantis_ref.png, 12 góc nhìn chọn theo hướng nghiêng nòng). Giữ vị trí: không tự đuổi theo mục tiêu, chỉ bắn máy bay bay vào tầm; chỉ di chuyển khi có lệnh (di chuyển hoặc lệnh tấn công chỉ định). AI mua theo tỉ lệ máy bay của địch (không có máy bay địch → không mua).</td></tr>
+<tr><td><code>mantis</code></td><td>3000</td><td>18</td><td>380</td><td>1.1</td><td>missile ×<code>MANTIS_FIREPOWER 2.5</code>, tầm <code>MANTIS_RANGE_CELLS = 10</code> ô (mọi phe như nhau), <b>chỉ bắn máy bay đang bay</b> (tiêm kích, ném bom, trực thăng, vận tải); không bắn lính, xe, công trình</td><td>War Factory</td><td>Pháo phòng không tự hành MANTIS, mọi phe (tên "MANTIS"). Có máu, mất máu, bị phá như xe khác. Bắn tên lửa bằng sheet <code>missile-air.png</code>. Sprite <code>public/sprites/mantis.png</code> (tools/mantis_sheet.py từ resources/mantis/mantis_ref.png, 12 góc nhìn chọn theo hướng nghiêng nòng). Giữ vị trí: không tự đuổi theo mục tiêu, tự động bắn máy bay địch gần nhất trong tầm mà không cần ra lệnh, bỏ mục tiêu ngay khi nó ra khỏi tầm để chuyển sang chiếc khác trong tầm; chỉ di chuyển khi có lệnh (di chuyển hoặc lệnh tấn công chỉ định). AI mua theo tỉ lệ máy bay của địch (không có máy bay địch → không mua).</td></tr>
 <tr><td><code>bomber</code></td><td>2600</td><td>22</td><td>380</td><td>10.9</td><td>bomb</td><td>Airfield</td><td>chỉ USA B-52, Russia Tu-16</td></tr>
 <tr><td><code>transport</code></td><td>1400</td><td>14</td><td>260</td><td>5.5</td><td>không</td><td>Airfield, cần Tech Center</td><td></td></tr>
 <tr><td><code>repair</code></td><td>800</td><td>10</td><td>360</td><td>1.0</td><td>không</td><td>War Factory</td><td>Russia BREM-1, USA &amp; Europe M88, China &amp; Islamic Type 99II; sửa xe mặt đất phe mình</td></tr>
 <tr><td><code>tanker</code></td><td>0</td><td>0</td><td>160</td><td>6</td><td>không</td><td>đi kèm transport</td><td>không bán riêng</td></tr>
 </table>
 <p><b>Xe tăng (mọi phe):</b> dưới 50% máu bốc khói, dưới 25% bốc thêm lửa (<code>Game.smokeFromDamagedBuildings</code>, như công trình). Khi bị phá: chuỗi nổ 16 khung <code>public/sprites/tank-blast.png</code> (tools/tank_fx_sheet.py từ resources/tank-fx/abrams_fx_ref.png) trên xác cháy đen, dùng chung cho mọi phe.</p>
+<p><b>Xe tăng (mọi phe):</b> hình kiểu LEGO (gạch có núm, màu theo phe), thân và tháp pháo là hai sheet riêng <code>public/sprites/tank-lego-<p><b>Abrams (Mỹ):</b> thân và tháp pháo là hai sheet riêng (<code>public/sprites/tank-m1a2-hull.png</code>, <code>tank-m1a2-turret.png</code>, tools/tank_turret_sheet.py từ resources/m1a2/m1a2_turret_ref.png); tháp pháo xoay theo mục tiêu khi giao chiến, ngoài ra quay theo thân xe.</p>lt;phe<p><b>Abrams (Mỹ):</b> thân và tháp pháo là hai sheet riêng (<code>public/sprites/tank-m1a2-hull.png</code>, <code>tank-m1a2-turret.png</code>, tools/tank_turret_sheet.py từ resources/m1a2/m1a2_turret_ref.png); tháp pháo xoay theo mục tiêu khi giao chiến, ngoài ra quay theo thân xe.</p>gt;-hull.png</code> / <code>-turret.png</code> (tools/lego_tank_sheet.py); tháp pháo xoay theo mục tiêu khi giao chiến, ngoài ra quay theo thân xe.</p>
 
 <h3>Lính &amp; phương tiện theo phe (<code>src/factions/*.ts</code>)</h3>
 <p>Tên hiển thị trong game; phần thông tin dịch sang tiếng Việt từ mô tả trong code (trong game vẫn là tiếng Anh). Chỉ liệt kê loại đang dùng (<code>light</code>, <code>ifv</code> đang ẩn).</p>
@@ -449,7 +450,8 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 <tr><td>M</td><td>Bật/tắt âm</td></tr>
 <tr><td>Tab</td><td>Ẩn/hiện sidebar</td></tr>
 <tr><td>Lăn chuột, <code>+</code> <code>-</code></td><td>Zoom</td></tr>
-<tr><td>WASD / mũi tên / chuột giữa / mép màn hình</td><td>Cuộn camera</td></tr>
+<tr><td>W S D / mũi tên / chuột giữa / mép màn hình</td><td>Cuộn camera (phím A dành cho Auto sell)</td></tr>
+<tr><td>A</td><td>Bật / tắt Auto sell (bán dầu tự động)</td></tr>
 <tr><td>Hover vào đơn vị đối thủ (mọi loại)</td><td>Nhãn trên đầu: logo phe + tên đơn vị (inline), không hiện thanh máu (trừ khi đang chọn) (<code>Renderer.drawEnemyInfo</code>)</td></tr>
 <tr><td>Esc</td><td>Huỷ đặt nhà → huỷ waypoint → tạm dừng</td></tr>
 </table>

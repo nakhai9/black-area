@@ -26,7 +26,7 @@ export const DEMO_FACTION = Number(import.meta.env.VITE_DEMO_FACTION) || 2;
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "1.62.2";
+export const GAME_VERSION = "1.63.0";
 
 // ---------------------------------------------------------------- World (real Earth)
 /** Packed Earth texture built by `npm run build:earth` (see scripts/build-earth.mjs). */
@@ -712,7 +712,7 @@ export const OIL_MOOD_MAX = 0.12;
 export const OIL_MOOD_STEP = 0.04;
 export const OIL_MOOD_PULL = 0.15;
 /**
- * Global Monitoring Center credit: when the treasury is at 0 TB the player may press "Emergency loan" (never automatic). No interest.
+ * Global Monitoring Center credit: when the treasury is at 0 TB the player may press "Get a loan" (never automatic). No interest.
  * The Center lends against what the nation could sell to pay it back (its collateral):
  *   collateral = oil stock × posted price + RESALE_SHARE × (structures' build cost × health share + vehicles' cost)
  *   credit line = LOAN_TO_VALUE × collateral

@@ -498,11 +498,7 @@ export class Game {
         if (!this.paused) this.camera.centerOn(at.x, at.y);
       },
       onSellOil: () => this.sellOil(),
-      onToggleAutoSell: () => {
-        this.autoSellOil = !this.autoSellOil;
-        this.sidebar.notify(this.autoSellOil ? 'Auto sell ON: oil is offered to the Global Monitoring Center whenever a sale is allowed.' : 'Auto sell OFF.', 3);
-        this.sidebarTimer = SIDEBAR_REFRESH;
-      },
+      onToggleAutoSell: () => this.toggleAutoSell(),
       onLoan: () => this.takeLoan(),
       onOilPolicy: (policy) => this.setOilPolicy(policy),
       onUnload: () => this.unloadSelectedTransport(),
@@ -2047,7 +2043,7 @@ export class Game {
     // Keyboard + edge scrolling (edge keeps scrolling after the cursor leaves the window).
     let dx = 0;
     let dy = 0;
-    if (input.isKeyDown('ArrowLeft') || input.isKeyDown('KeyA')) dx -= 1;
+    if (input.isKeyDown('ArrowLeft')) dx -= 1;
     if (input.isKeyDown('ArrowRight') || input.isKeyDown('KeyD')) dx += 1;
     if (input.isKeyDown('ArrowUp') || input.isKeyDown('KeyW')) dy -= 1;
     if (input.isKeyDown('ArrowDown') || input.isKeyDown('KeyS')) dy += 1;
@@ -2324,6 +2320,13 @@ export class Game {
     this.sidebar.notify(`Form up: ${units.length} unit${units.length === 1 ? '' : 's'} in ${COLS}-wide ranks, ${RANKS} deep.`, 2);
   }
 
+  /** Auto sell on / off (sidebar button or the A key). */
+  private toggleAutoSell(): void {
+    this.autoSellOil = !this.autoSellOil;
+    this.sidebar.notify(this.autoSellOil ? 'Auto sell ON: oil is offered to the Global Monitoring Center whenever a sale is allowed.' : 'Auto sell OFF.', 3);
+    this.sidebarTimer = SIDEBAR_REFRESH;
+  }
+
   private handleKey(code: string): void {
     // While the pause menu is open only Esc (resume) works.
     if (this.paused && code !== 'Escape') return;
@@ -2334,6 +2337,9 @@ export class Game {
       return;
     }
     switch (code) {
+      case 'KeyA':
+        this.toggleAutoSell();
+        break;
       case 'KeyH':
         this.focusOwnCapital();
         break;
@@ -2791,7 +2797,7 @@ export class Game {
     this.sidebarTimer = SIDEBAR_REFRESH;
   }
 
-  /** Emergency loan button: only on the player's request, only at 0 TB. */
+  /** Get a loan button: only on the player's request, only at 0 TB. */
   private takeLoan(): void {
     const result = this.oilMarket.borrow(this.humanPlayer);
     this.sidebar.notify(

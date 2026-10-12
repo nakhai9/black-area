@@ -159,7 +159,7 @@ export interface SidebarHandlers {
   onSellOil: () => void;
   /** The Auto sell button: turn automatic oil sales on / off. */
   onToggleAutoSell: () => void;
-  /** The Emergency loan button: borrow from the Global Monitoring Center (only at 0 TB). */
+  /** The Get a loan button: borrow from the Global Monitoring Center (only at 0 TB). */
   onLoan: () => void;
   /** A cartel policy button (oil-cartel nation only). */
   onOilPolicy: (policy: OilPolicy) => void;
@@ -264,6 +264,13 @@ export class Sidebar {
         <button class="sb-collapse" title="Hide sidebar (Tab)" aria-label="Hide sidebar"></button>
       </header>
       <section class="sb-panel sb-radar"><canvas class="sb-minimap"></canvas></section>
+      <section class="sb-panel sb-oil-actions">
+        <div class="sb-actions">
+          <button class="sb-sell" type="button" title="Offer your oil to the Global Monitoring Center: it decides whether and how much to buy (at most 25% per sale) and pays the posted price into your budget">Sell oil</button>
+          <button class="sb-sell sb-auto" type="button" title="Auto sell: offer your oil to the Global Monitoring Center automatically whenever a sale is allowed (green = on). Hotkey: A">Auto sell</button>
+          <button class="sb-sell sb-loan" type="button" title="Loan from the Global Monitoring Center (only when your budget is 0 ${CURRENCY}). Oil sales pay the debt back automatically.">Get a loan</button>
+        </div>
+      </section>
       <nav class="sb-main-tabs" aria-label="Sidebar pages"></nav>
       <div class="sb-view" data-page="command">
       <section class="sb-panel sb-resources">
@@ -277,17 +284,12 @@ export class Sidebar {
             <div class="sb-muted sb-leader" title="Head of state">${faction.leader.name}</div>
           </div>
         </div>
-        <div class="sb-budget-label">National budget</div>
+        <div class="sb-budget-label">Budget</div>
         <div class="sb-credits"><span>0</span> <small>${CURRENCY}</small></div>
         <div class="sb-oil">OIL OUTPUT <span class="sb-income"></span></div>
         <div class="sb-oil">OIL STOCK <span class="sb-stock"></span></div>
         <div class="sb-oil">DEBT <span class="sb-debt"></span></div>
         <div class="sb-oil">DERRICKS <span class="sb-derricks"></span></div>
-        <div class="sb-actions">
-          <button class="sb-sell" type="button" title="Offer your oil to the Global Monitoring Center: it decides whether and how much to buy (at most 25% per sale) and pays the posted price into your budget">Sell oil</button>
-          <button class="sb-sell sb-auto" type="button" title="Auto sell: offer your oil to the Global Monitoring Center automatically whenever a sale is allowed">Auto sell: OFF</button>
-          <button class="sb-sell sb-loan" type="button" title="Emergency loan from the Global Monitoring Center (only when your budget is 0 ${CURRENCY}). Oil sales pay the debt back automatically.">Emergency loan</button>
-        </div>
         <div class="sb-cartel" hidden>
           <div class="sb-oil">CARTEL POLICY <span class="sb-policy"></span></div>
           <div class="sb-actions">
@@ -328,7 +330,7 @@ export class Sidebar {
           <li>Aircraft: <kbd>T</kbd>/<b>Turbo</b> — the selected aircraft in the air fly 2× faster for 15 s, then the turbo recharges (40 s)</li>
           <li>Squatters (flag bearer + escort, one unit): walk it (or fly it by transport) to unclaimed land (not your rivals' home lands, never Antarctica), select it and press <kbd>F</kbd> (or double-click it) — the flag goes up on the nearest open cell, on any land (the Squatters are gone once it stands) · then build an <b>Allied Building</b> beside it (max 3 allies)</li>
           <li>When <b>READY</b>: click cameo, then click the map to place · <kbd>R</kbd> turn it 90° (only before it is placed) · <kbd>Esc</kbd>/<kbd>Right-click</kbd> stop placing</li>
-          <li><kbd>WASD</kbd>/<kbd>Arrows</kbd>/screen edge — scroll · <kbd>Wheel</kbd> zoom · <kbd>Middle-drag</kbd> pan</li>
+          <li><kbd>WSD</kbd>/<kbd>Arrows</kbd>/screen edge — scroll · <kbd>A</kbd> auto sell · <kbd>Wheel</kbd> zoom · <kbd>Middle-drag</kbd> pan</li>
           <li><kbd>Click</kbd> select · <kbd>1</kbd> your capital · <kbd>2</kbd>–<kbd>5</kbd> rival capitals · <kbd>O</kbd> oil · <kbd>H</kbd> home · <kbd>Tab</kbd> sidebar</li>
         </ul>
       </details>
@@ -528,7 +530,6 @@ export class Sidebar {
     this.sellButton.hidden = model.autoSell; // auto sell does the selling: no manual button
     this.sellButton.disabled = player.defeated || model.sellable < MIN_SALE_STOCK || model.salesWait > 0;
     this.sellButton.textContent = model.salesWait > 0 ? `Sell oil · wait ${model.salesWait} s` : 'Sell oil';
-    this.autoSellButton.textContent = model.autoSell ? 'Auto sell: ON' : 'Auto sell: OFF';
     this.autoSellButton.classList.toggle('on', model.autoSell);
     this.debt.textContent = `${Math.ceil(player.debt).toLocaleString('en-US')} / ${model.creditLine.toLocaleString('en-US')} ${CURRENCY}`;
     this.loanButton.disabled = model.loanBlocker !== null;
