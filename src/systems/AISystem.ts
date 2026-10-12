@@ -1,4 +1,4 @@
-import { AI_BUNKERS, BUNKER_RANGE, CELL_SIZE, INFANTRY_BASE, INFANTRY_MARCH_CELLS, MAX_ALLIES, NATION_GARRISON, NATION_GARRISON_CELLS, NEUTRAL_OWNER, OIL_DERRICK_OUTPUT, OIL_LEASE_CARTEL_SHARE, OIL_LEASE_SECONDS, TECH_VEHICLES, TRUCK_SOLDIERS } from '../constants';
+import { AI_BUNKERS, AI_WALL_GAP, AI_WALL_RING, AI_WALL_SEGMENT, BUNKER_RANGE, CELL_SIZE, INFANTRY_BASE, INFANTRY_MARCH_CELLS, MAX_ALLIES, NATION_GARRISON, NATION_GARRISON_CELLS, NEUTRAL_OWNER, OIL_DERRICK_OUTPUT, OIL_LEASE_CARTEL_SHARE, OIL_LEASE_SECONDS, TECH_VEHICLES, TRUCK_SOLDIERS } from '../constants';
 import { FACTIONS } from '../factions';
 import { OilDerrick } from '../entities/OilDerrick';
 import { NationCapital } from '../entities/NationCapital';
@@ -433,7 +433,8 @@ export class AISystem implements GameSystem {
       if (slot.state !== 'ready' || !slot.option) continue;
       const option = slot.option;
       const forward = this.forwardAnchor(p, option.id);
-      const site = option.id === 'alliedBuilding' ? this.findAlliedSite(p, option) : this.findSite(p, st, forward ?? capital, option);
+      const site =
+        option.id === 'alliedBuilding' ? this.findAlliedSite(p, option) : option.id === 'wall' ? this.findWallSite(p, capital) : this.findSite(p, st, forward ?? capital, option);
       if (site) this.host.placeReady(p, option.id, site.x, site.y);
       else this.host.construction.cancel(p, option.id); // nowhere to put it: refund and try the next plan step
     }
@@ -453,6 +454,8 @@ export class AISystem implements GameSystem {
       const bunkers = this.host.entities.buildings().filter((b) => b.owner === p.id && b.alive && b.spec.type === 'bunker').length;
       if (bunkers < AI_BUNKERS + Math.floor(this.cities(p) / 3)) next = BUILD_OPTIONS.find((o) => o.id === 'bunker');
     }
+    // Bunkers up: close the wall ring round the capital, one block at a time.
+    if (!next && owned.has('barracks') && !busy('wall') && this.findWallSite(p, capital)) next = BUILD_OPTIONS.find((o) => o.id === 'wall');
     // A claim flag stands on new land without its ally yet: raise the Allied Building next to it.
     if (!next && threat === 0 && this.openClaims(p).length > 0 && this.host.alliesOf(p) < MAX_ALLIES) next = BUILD_OPTIONS.find((o) => o.id === 'alliedBuilding');
     // Forward base: a Barracks and a War Factory next to each Allied Building, so troops come out on the new land.
@@ -643,6 +646,42 @@ export class AISystem implements GameSystem {
       }
     }
     return best;
+  }
+
+  /**
+   * Next free block of the AI's wall ring: the cells AI_WALL_RING cells out from the capital's edge, in segments of
+   * AI_WALL_SEGMENT blocks with AI_WALL_GAP free cells between (gates for its own troops). A cell next to another
+   * structure (not a wall) is skipped, so no door is blocked.
+   */
+  private findWallSite(p: PlayerState, capital: Building): GridPoint | null {
+    const map = this.host.map;
+    const x0 = capital.x - AI_WALL_RING;
+    const y0 = capital.y - AI_WALL_RING;
+    const x1 = capital.x + capital.w - 1 + AI_WALL_RING;
+    const y1 = capital.y + capital.d - 1 + AI_WALL_RING;
+    // Walk the ring clockwise so the segments stay evenly spaced.
+    const ring: GridPoint[] = [];
+    for (let x = x0; x < x1; x++) ring.push({ x, y: y0 });
+    for (let y = y0; y < y1; y++) ring.push({ x: x1, y });
+    for (let x = x1; x > x0; x--) ring.push({ x, y: y1 });
+    for (let y = y1; y > y0; y--) ring.push({ x: x0, y });
+    const besideStructure = (c: GridPoint): boolean => {
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          const id = map.occupantAt(c.x + dx, c.y + dy);
+          const b = id === null ? undefined : this.host.entities.get(id);
+          if (b?.kind === 'building' && (b as Building).spec.type !== 'wall') return true;
+        }
+      }
+      return false;
+    };
+    for (let i = 0; i < ring.length; i++) {
+      if (i % (AI_WALL_SEGMENT + AI_WALL_GAP) >= AI_WALL_SEGMENT) continue;
+      const c = ring[i];
+      if (map.occupantAt(c.x, c.y) !== null || besideStructure(c)) continue;
+      if (this.host.placement.check({ owner: p.id, x: c.x, y: c.y, w: 1, d: 1, radius: buildRadius('wall') }).ok) return c;
+    }
+    return null;
   }
 
   /** A legal spot near the capital (preferring close ones, with some randomness). */

@@ -58,6 +58,7 @@ import {
   FOOTPRINT_SMALL,
   FOOTPRINT_BUNKER,
   BUNKER_BUILD_RADIUS,
+  WALL_FILL_GAP,
   NEUTRAL_OWNER,
   OIL_DERRICK_COUNT,
   OIL_FIELD_SPACING,
@@ -140,6 +141,8 @@ import { EXPLOSION_SECONDS } from '../render/ExplosionSheet';
 const EXPLOSION_PER_CELL = 1.15;
 const EXPLOSION_PER_BODY = 1.4;
 import { Flagpole } from '../entities/Flagpole';
+import { Wall } from '../entities/Wall';
+import { WALL_E, WALL_N, WALL_S, WALL_W } from '../render/sprites/Wall';
 import { Bunker } from '../entities/Bunker';
 import { PowerSystem } from '../systems/PowerSystem';
 import { SAFE_ZONE_SIZE, type SafeZone, SafeZoneSystem } from '../systems/SafeZoneSystem';
@@ -762,14 +765,18 @@ export class Game {
     return [{ x: cx, y: cy }, ...this.waypoints];
   }
 
-  /** DEMO: the player starts with one of every production / support structure already standing around the capital. */
+  /**
+   * DEMO: the player starts with one of every production / support / defense structure (Allied Building included) already
+   * standing around the capital, each one (the capital too) wrapped in a ring of its nation's wall.
+   */
   private buildDemoBase(): void {
     const me = this.humanPlayer;
     const capital = this.landmarks.find((b) => b.owner === me.id && b.spec.type === 'capital');
     if (!capital) return;
     const cx = capital.x + Math.floor(capital.w / 2);
     const cy = capital.y + Math.floor(capital.d / 2);
-    const ids = ['powerPlant', 'powerPlant', 'barracks', 'warFactory', 'hospital', 'airfield', 'techCenter'];
+    const ids = ['powerPlant', 'powerPlant', 'barracks', 'warFactory', 'hospital', 'airfield', 'techCenter', 'alliedBuilding', 'bunker', 'flagpole'];
+    const placed: Building[] = [capital];
     for (const id of ids) {
       const option = BUILD_OPTIONS.find((o) => o.id === id);
       if (!option) continue;
@@ -782,15 +789,77 @@ export class Game {
             if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
             const x = cx + dx - Math.floor(w / 2);
             const y = cy + dy - Math.floor(d / 2);
-            if (this.placement.check({ owner: me.id, x, y, w, d }).ok) spot = { x, y };
+            // Two free cells all round (room for the wall ring), and within reach of the base.
+            if (this.placement.check({ owner: me.id, x: x - 2, y: y - 2, w: w + 4, d: d + 4, radius: 40 }).ok && this.placement.check({ owner: me.id, x, y, w, d, radius: 40 }).ok) spot = { x, y };
           }
         }
       }
       if (!spot) continue;
       const b = this.entities.add(option.create(me.id, me.faction, spot.x, spot.y));
       this.map.occupy(b.x, b.y, b.w, b.d, b.id);
+      placed.push(b);
+    }
+    for (const b of placed) this.wrapInWall(me, b);
+  }
+
+  /** DEMO: a ring of wall blocks one cell out from the structure, with a two-cell gate in the middle of its south and east sides. */
+  private wrapInWall(me: PlayerState, b: Building): void {
+    const x0 = b.x - 1;
+    const y0 = b.y - 1;
+    const x1 = b.x + b.w;
+    const y1 = b.y + b.d;
+    const midX = Math.floor((x0 + x1) / 2);
+    const midY = Math.floor((y0 + y1) / 2);
+    for (let y = y0; y <= y1; y++) {
+      for (let x = x0; x <= x1; x++) {
+        if (x !== x0 && x !== x1 && y !== y0 && y !== y1) continue;
+        if ((y === y1 && (x === midX || x === midX + 1)) || (x === x1 && (y === midY || y === midY + 1))) continue;
+        if (!this.placement.check({ owner: me.id, x, y, w: 1, d: 1, radius: 40 }).ok) continue;
+        const wall = this.entities.add(new Wall(me.id, me.faction, { x: (x + 0.5) * CELL_SIZE, y: (y + 0.5) * CELL_SIZE }));
+        this.map.occupy(wall.x, wall.y, wall.w, wall.d, wall.id);
+        this.orientWalls(wall.x, wall.y, false); // the gates stay open
+      }
     }
   }
+
+  /** The wall block at a cell, if any. */
+  private wallAt(x: number, y: number): Wall | undefined {
+    const id = this.map.occupantAt(x, y);
+    const e = id === null ? undefined : this.entities.get(id);
+    return e instanceof Wall && e.alive ? e : undefined;
+  }
+
+  /**
+   * A wall block was placed at (x, y): a gap of up to WALL_FILL_GAP free cells between it and another block of the nation
+   * in a straight line is filled with blocks, then every block there and round it is joined to its neighbours (straight,
+   * corner, T or cross).
+   */
+  private orientWalls(x: number, y: number, fill = true): void {
+    const placed = this.wallAt(x, y);
+    if (!placed) return;
+    for (const [dx, dy] of fill ? ([[1, 0], [-1, 0], [0, 1], [0, -1]] as const) : []) {
+      // Nearest block of the nation in this direction, at most WALL_FILL_GAP free cells away.
+      let gap = 0;
+      while (gap <= WALL_FILL_GAP && this.map.occupantAt(x + (gap + 1) * dx, y + (gap + 1) * dy) === null) gap++;
+      if (gap === 0 || gap > WALL_FILL_GAP || this.wallAt(x + (gap + 1) * dx, y + (gap + 1) * dy)?.owner !== placed.owner) continue;
+      const cells = Array.from({ length: gap }, (_, i) => ({ x: x + (i + 1) * dx, y: y + (i + 1) * dy }));
+      if (!cells.every((c) => this.placement.check({ owner: placed.owner, x: c.x, y: c.y, w: 1, d: 1, radius: buildRadius('wall') }).ok)) continue;
+      for (const c of cells) {
+        const fill = this.entities.add(new Wall(placed.owner, placed.faction as FactionId, { x: (c.x + 0.5) * CELL_SIZE, y: (c.y + 0.5) * CELL_SIZE }));
+        fill.placedAt = this.time;
+        this.map.occupy(fill.x, fill.y, fill.w, fill.d, fill.id);
+      }
+    }
+    for (let cy = y - WALL_FILL_GAP - 1; cy <= y + WALL_FILL_GAP + 1; cy++) {
+      for (let cx = x - WALL_FILL_GAP - 1; cx <= x + WALL_FILL_GAP + 1; cx++) {
+        const w = this.wallAt(cx, cy);
+        if (!w) continue;
+        const mate = (ox: number, oy: number): boolean => this.wallAt(ox, oy)?.owner === w.owner;
+        w.joins = (mate(cx, cy - 1) ? WALL_N : 0) | (mate(cx + 1, cy) ? WALL_E : 0) | (mate(cx, cy + 1) ? WALL_S : 0) | (mate(cx - 1, cy) ? WALL_W : 0);
+      }
+    }
+  }
+
 
   /** DEMO: DEMO_UNITS_EACH of every soldier, vehicle and aircraft the nation has, ready at their buildings. */
   private spawnDemoArmy(): void {
@@ -815,6 +884,7 @@ export class Game {
     const b = this.entities.add(option.create(player.id, player.faction, x, y));
     b.placedAt = this.time;
     this.map.occupy(b.x, b.y, b.w, b.d, b.id);
+    if (b instanceof Wall) this.orientWalls(b.x, b.y);
     return true;
   }
 
@@ -2548,6 +2618,7 @@ export class Game {
     b.moveTo(g.x, g.y);
     b.placedAt = this.time;
     this.map.occupy(b.x, b.y, b.w, b.d, b.id);
+    if (b instanceof Wall) this.orientWalls(b.x, b.y);
     this.stopPlacing();
     this.sidebar.notify(`${option.name} placed.`);
     this.sidebarTimer = SIDEBAR_REFRESH;

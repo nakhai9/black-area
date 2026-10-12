@@ -26,7 +26,7 @@
 <body>
 <main>
 <img class="logo" src="/logo.png" alt="Black Area" />
-<h1>Black Area — RULE <small>v1.80.0</small></h1>
+<h1>Black Area — RULE <small>v1.89.0</small></h1>
 <p class="lead">Tài liệu luật chơi + kiến trúc code dành cho AI/dev sửa game. Mọi con số gameplay chính xác nằm trong <code>src/constants.ts</code> và <code>src/factions/*.ts</code>. Nếu tài liệu này khác code thì <b>code đúng</b>. <b>Khi đổi luật/số trong code, phải cập nhật file này.</b></p>
 <nav><a href="#s1">Quy tắc làm việc cho AI</a><a href="#s2">Chạy dự án</a><a href="#s3">Kiến trúc thư mục</a><a href="#s4">Thế giới</a><a href="#s5">Kinh tế (dầu)</a><a href="#s6">Công trình (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Quân đội</a><a href="#s8">Chiến đấu</a><a href="#s9">Điều khiển (Game.handleKey, handleInput)</a><a href="#s10">Giới hạn &amp; hiệu năng</a><a href="#s11">Thắng / thua &amp; AI</a><a href="#s12">Công thức sửa thường gặp</a></nav>
 <h2 id="s1">0. Quy tắc làm việc cho AI</h2>
@@ -181,6 +181,7 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 <tr><td><code>warFactory</code></td><td>War Factory</td><td>2000</td><td>barracks</td><td>5×4</td><td>1800</td><td>−3</td></tr>
 <tr><td><code>hospital</code></td><td>Hospital</td><td>1200</td><td>barracks</td><td>5×4</td><td>1200</td><td>−2</td></tr>
 <tr><td><code>bunker</code></td><td>Bunker</td><td>800</td><td>barracks</td><td>1×1</td><td>1000</td><td>−1</td></tr>
+<tr><td><code>wall</code></td><td>Wall</td><td>100</td><td>barracks</td><td>1×1</td><td>1200</td><td>0</td></tr>
 <tr><td><code>airfield</code></td><td>Airfield</td><td>2000</td><td>warFactory</td><td>12×8</td><td>1500</td><td>−4</td></tr>
 <tr><td><code>techCenter</code></td><td>High-Tech Center</td><td>8000</td><td>warFactory</td><td>4×4</td><td>2500</td><td>−6</td></tr>
 <tr><td><code>happyCity</code></td><td>Happy City</td><td>8000 (<code>fixedCost</code>, không nhân hệ số)</td><td>airfield + hospital</td><td>8×8</td><td>4000</td><td>−8</td></tr>
@@ -191,7 +192,7 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 </table>
 <ul>
   <li>Giá thực = <code>round(giá × cost phe / 10) × 10</code> (trừ <code>fixedCost</code>).</li>
-  <li>Đặt: chỉ trên đất liền, vùng xây được, không chồng lấn, không trên cây (<code>PlacementSystem</code>, <code>TileMap.placementBlocker</code>).</li>
+  <li>Đặt: chỉ trên đất liền, vùng xây được, không chồng lấn: không công trình nào (kể cả tường, lô cốt) được đè lên bất kỳ ô nào trong footprint của công trình khác, kể cả viền 1 ô quanh hình, không trên cây (<code>PlacementSystem</code>, <code>TileMap.placementBlocker</code>).</li>
   <li>Hospital: tối đa <code>HOSPITAL_CAPACITY 20</code> người bị thương cùng phe, hồi <code>HOSPITAL_HEAL_PER_SECOND 10</code> HP/s. Bệnh viện mất máu + kỹ sư bị thương được lệnh vào: kỹ sư sửa bệnh viện trước, sửa xong ở lại làm bệnh nhân để được chữa.</li>
   <li>Airfield: <code>PARKING_SLOTS = 9</code> chỗ đỗ; số máy bay (có + đặt) ≤ 9 × số airfield. Máy bay đỗ sửa 2% HP mỗi 4 s. Mất airfield: máy bay tìm airfield khác của phe; không còn cái nào thì rơi.</li>
   <li>High-Tech Center mở <code>TECH_TIERS</code> (<code>special</code>, <code>demolition</code>) và <code>transport</code>.</li>
@@ -209,6 +210,7 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 <tr><td><code>warFactory</code></td><td>Sản xuất xe mặt đất (hiện chỉ <code>tank</code>). Mở khoá Airfield và High-Tech Center.</td></tr>
 <tr><td><code>hospital</code></td><td>Nhận tối đa 20 người <b>bị thương</b> cùng phe, hồi 10 HP/s, đủ máu thì tự đi ra (double-click để cho ra hết). Cùng Airfield mở khoá Happy City.</td></tr>
 <tr><td><code>bunker</code> (Bunker)</td><td>Công trình phòng thủ: mua ở tab <b>Defense</b> (không nằm trong tab Build cùng các công trình chính). Ô 1×1, đặt cách mép một công trình của phe tối đa <code>BUNKER_BUILD_RADIUS 7</code> ô (công trình khác: 3 ô). File save cũ có bunker 2×2: khi tải, mỗi bunker thu về 1×1 trên một trong bốn ô cũ — ô đầu tiên (trái-trên trước) cách mép một công trình khác của phe ≤ 7 ô; không ô nào đạt thì lấy ô gần công trình của phe nhất (<code>Game.shrinkOldBunkers</code>). Hình vẽ sẵn (<code>public/sprites/bunker-west.png</code> cho USA / Europe, <code>bunker-east.png</code> cho Russia / China / Islamic; dựng bằng <code>tools/bunker_sheet.py</code>): 8 hướng nòng súng xoay theo mục tiêu vừa bắn, 4 mức hư hại theo máu (&gt;75%, &gt;50%, &gt;25%, còn lại). Khi bắn: chớp lửa ở đầu nòng đúng hướng đang vẽ (Mỹ / Âu: đầu nòng tháp pháo; Nga / Trung / Hồi: khe bắn), viên đạn dùng ảnh <code>bullet.png</code> (cỡ <code>bunker</code>), tiếng súng máy <code>mg</code>. Lô cốt súng máy <b>tự bắn</b>, không cần lính đồn trú: mỗi 0,25 s bắn kẻ địch (lính hoặc xe mặt đất) gần nhất trong tầm 40 px tính từ mép lô cốt, 8 sát thương (×0,35 với xe); không bắn được máy bay. AI xây tối đa 2 cái quanh căn cứ khi đã xong kế hoạch xây.</td></tr>
+<tr><td><code>wall</code> (Wall)</td><td>Tường: mua ở tab <b>Defense</b>, ô 1×1, 100 TB, 1200 HP, cần barracks, không tốn điện. Đặt cách mép một công trình của mình tối đa <code>WALL_BUILD_RADIUS = 7</code> ô. Chặn đường bộ (lính, xe), máy bay bay qua được. Khối tường bê tông hiện đại dày đủ 1 ô, bo tròn (góc bo tròn ở đầu tường, đỉnh vê tròn), mặt nối với khối kề thì phẳng để cả dãy liền một khối, tự nối với khối tường kề của cùng phe: thẳng, góc vuông (L), chữ T, chữ thập; đặt tường cách một khối cũ tối đa <code>WALL_FILL_GAP = 5</code> ô trống trên cùng hàng/cột thì các ô trống được tự điền tường (miễn phí); màu theo phe: Nga và Trung Quốc đỏ, Hồi giáo xanh lam, Mỹ/châu Âu bê tông xám. AI xây vòng tường quanh thủ đô cách mép <code>AI_WALL_RING = 6</code> ô, từng đoạn 8 khối chừa cổng 6 ô (rộng hơn 5 nên không bị tự lấp). DEMO: có sẵn đủ công trình (cả Defense và Allied Building), mỗi công trình được bao một vòng tường, chừa cổng 2 ô ở cạnh nam và đông.</td></tr>
 <tr><td><code>airfield</code></td><td>Sản xuất máy bay (jet, bomber, transport) và là nơi đỗ: 9 chỗ, số máy bay ≤ 9 × số airfield. Sửa máy bay đỗ 2% HP mỗi 4 s, nạp bom (trả tiền). Có airfield thì radar sidebar mới hoạt động. Mất airfield: máy bay tìm airfield khác, không có thì rơi.</td></tr>
 <tr><td><code>techCenter</code> (High-Tech Center)</td><td>Khi còn đứng: mở lính <code>special</code>, <code>demolition</code> và máy bay <code>transport</code>. Mất nó thì đơn hàng các loại này dừng (không trừ tiền) cho tới khi có lại.</td></tr>
 <tr><td><code>happyCity</code></td><td>Khoản đầu tư kinh tế (toà nhà cao nhất trong thành phố luôn treo cờ của phe đang sở hữu): mỗi thành phố nộp 600 TB thuế / 50 s (theo máu còn lại), mỗi thành phố một đồng hồ riêng. Không giới hạn số lượng; bị chiếm thì thuế về phe mới.</td></tr>
@@ -422,6 +424,7 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 </ul>
 <h3>Logo phe trên thanh máu</h3>
 <ul>
+  <li>Thanh máu của lính / phương tiện chỉ hiện khi đơn vị đó được focus (đang chọn, hoặc đang bị nhắm / dưới con trỏ); không chọn thì không hiện, kể cả khi đã mất máu. Lô cốt (bunker) chọn / hover được bằng cách bấm vào ô của nó và hiện thanh máu khi được focus.</li>
   <li>Mọi phe: mọi lính và mọi phương tiện (cả không chiến đấu: vận tải, xe tải, xe sửa…) khi được chọn hoặc focus hiện logo phe nhỏ (~9 px màn hình, <code>public/emblems/&lt;phe&gt;.png</code>) sát bên trái thanh máu (<code>Renderer.drawUnitHealth</code>).</li>
 </ul>
 <h3>Hiệu ứng nổ (<code>render/ExplosionSheet.ts</code>)</h3>

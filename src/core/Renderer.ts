@@ -307,11 +307,14 @@ export class Renderer {
     for (const f of focus) if (f.airLock) this.drawAirLock(f.entity);
     for (const l of scene.taskLocks ?? []) this.drawAirLock(l.entity, l.color);
     if (selected) this.drawFootprintEdge(selected, scene.time);
-    for (const u of units) if ((selUnits.has(u.id) || u.hp < u.maxHp) && (u.id !== scene.enemyInfoId || selUnits.has(u.id))) this.drawUnitHealth(u, selUnits.has(u.id) || focus.some((f) => f.entity === u));
+    // Health bars only on focused units: selected ones, or ones in the focus list (targeted / under the cursor).
+    for (const u of units) {
+      const focused = selUnits.has(u.id) || focus.some((f) => f.entity === u);
+      if (focused && (u.id !== scene.enemyInfoId || selUnits.has(u.id))) this.drawUnitHealth(u, true);
+    }
     // The fuel gauge shows only while the transport is out on a sortie; parked or taxiing at home it is idle (hidden).
     for (const u of units) if (u instanceof Vehicle && u.maxBombs > 0) this.drawBombs(u);
     for (const u of units) if (u instanceof Vehicle && u.isTransport && u.flight !== 'parked' && u.flight !== 'taxi' && u.flight !== 'taxiHome') this.drawFuel(u);
-    for (const f of focus) if (f.entity.kind !== 'building' && !selUnits.has(f.entity.id) && f.entity.id !== scene.enemyInfoId && f.entity.hp >= f.entity.maxHp) this.drawUnitHealth(f.entity, true);
     const hints = scene.flagHints;
     if (hints?.size) for (const u of units) if (hints.has(u.id)) this.drawFlagHint(u);
     for (const u of units) if (u.restLeft > 0 && !hints?.has(u.id)) this.drawTag(u, `Resting ${Math.ceil(u.restLeft)}s`, '#9fd3ff');

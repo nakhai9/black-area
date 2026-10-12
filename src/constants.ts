@@ -26,7 +26,7 @@ export const DEMO_FACTION = Number(import.meta.env.VITE_DEMO_FACTION) || 2;
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "1.80.0";
+export const GAME_VERSION = "1.89.0";
 
 // ---------------------------------------------------------------- World (real Earth)
 /** Packed Earth texture built by `npm run build:earth` (see scripts/build-earth.mjs). */
@@ -185,6 +185,22 @@ export const BUNKER_DAMAGE = 8;
 export const BUNKER_COOLDOWN = 0.25;
 export const BUNKER_VS_VEHICLE = 0.35;
 export const AI_BUNKERS = 2;
+/**
+ * Wall (1×1, Defense tab): a block in the nation's own style (Russia / China red, Islamic blue, USA / Europe concrete)
+ * that enemy ground units cannot pass. Like a bunker it may stand up to WALL_BUILD_RADIUS cells from the edge of one of
+ * the nation's own structures. The AI rings its capital with wall segments (gaps left for its own troops).
+ */
+export const WALL_COST = 100;
+export const WALL_HP = 1200;
+export const WALL_BUILD_RADIUS = 7;
+/** Placing a wall block with up to this many free cells between it and another block of the nation in a straight line fills them (free). */
+export const WALL_FILL_GAP = 5;
+export const FOOTPRINT_WALL = { w: 1, d: 1 } as const;
+/** AI: wall ring this many cells out from the capital's edge, segments of AI_WALL_SEGMENT blocks with AI_WALL_GAP free cells between. */
+export const AI_WALL_RING = 6;
+export const AI_WALL_SEGMENT = 8;
+/** Wider than WALL_FILL_GAP, so the gates are never filled in. */
+export const AI_WALL_GAP = 6;
 export const AIRFIELD_COST = 2000;
 /** High-Tech Center (a high-rise): base price; it unlocks the second-tier soldiers and vehicles. */
 export const TECH_CENTER_COST = 8000;
@@ -801,6 +817,7 @@ export const BUILDING_VALUE: Readonly<Partial<Record<BuildingType, number>>> = {
   barracks: BARRACKS_COST,
   hospital: HOSPITAL_COST,
   bunker: BUNKER_COST,
+  wall: WALL_COST,
   warFactory: WAR_FACTORY_COST,
   airfield: AIRFIELD_COST,
   techCenter: TECH_CENTER_COST,

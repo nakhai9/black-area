@@ -5,6 +5,8 @@ import {
   TECH_CENTER_COST,
   BARRACKS_COST,
   BUNKER_COST,
+  WALL_COST,
+  FOOTPRINT_WALL,
   FOOTPRINT_BUNKER,
   BUILD_STEP_FRACTION,
   BUILD_STEP_SECONDS,
@@ -31,13 +33,14 @@ import { TechCenter } from '../entities/TechCenter';
 import { WarFactory } from '../entities/WarFactory';
 import { Barracks } from '../entities/Barracks';
 import { Flagpole } from '../entities/Flagpole';
+import { Wall } from '../entities/Wall';
 import type { Building } from '../entities/Building';
 import type { BuildingType, FactionId, PlayerState } from '../types';
 import type { GameSystem } from './GameSystem';
 
 /** A structure that can be produced from the sidebar's Build tab. */
 export interface BuildOption {
-  id: 'powerPlant' | 'barracks' | 'warFactory' | 'hospital' | 'airfield' | 'techCenter' | 'happyCity' | 'flagpole' | 'alliedBuilding' | 'bunker';
+  id: 'powerPlant' | 'barracks' | 'warFactory' | 'hospital' | 'airfield' | 'techCenter' | 'happyCity' | 'flagpole' | 'alliedBuilding' | 'bunker' | 'wall';
   name: string;
   /** Tech tree: these buildings must already stand (power plant → barracks → war factory/hospital → airfield → happy city). */
   requires?: BuildingType | readonly BuildingType[];
@@ -101,6 +104,16 @@ export const BUILD_OPTIONS: readonly BuildOption[] = [
     footprint: FOOTPRINT_BUNKER,
     spriteKey: (f) => `bunker:${f}`,
     create: (owner, faction, x, y) => new Bunker(owner, faction, center(x, y, FOOTPRINT_BUNKER)),
+  },
+  {
+    // One block of the nation's wall: stops enemy ground units.
+    id: 'wall',
+    name: 'Wall',
+    requires: 'barracks',
+    cost: WALL_COST,
+    footprint: FOOTPRINT_WALL,
+    spriteKey: (f) => `wall:${f}`,
+    create: (owner, faction, x, y) => new Wall(owner, faction, center(x, y, FOOTPRINT_WALL)),
   },
   {
     id: 'airfield',

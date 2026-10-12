@@ -55,6 +55,11 @@ export class SelectionSystem {
       const c = worldToIso(cw.x, cw.y);
       const scale = this.sprites.fitScale(e.spriteKey);
       if (this.sprites.hitTest(e.spriteKey, e.rotated, m.x - c.x, m.y - c.y, scale)) return e;
+      // A bunker is drawn from its own sheet (its registered sprite is empty): a click on its cell picks it.
+      if (e.spec.type === 'bunker') {
+        const f = e.footprintWorld();
+        if (world.x >= f.x && world.x < f.x + f.w && world.y >= f.y && world.y < f.y + f.h) return e;
+      }
     }
     return null;
   }

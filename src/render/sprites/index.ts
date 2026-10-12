@@ -3,6 +3,7 @@ import { createAlliedBuildingArt } from './AlliedBuilding';
 import { createBarracksArt } from './Barracks';
 import { createBunkerArt } from './Bunker';
 import { createFlagpoleArt } from './Flagpole';
+import { createWallArt } from './Wall';
 import { createHappyCityArt } from './HappyCity';
 import { createHospitalArt } from './Hospital';
 import { createTechCenterArt } from './TechCenter';
@@ -103,6 +104,12 @@ export const BUILDING_ART: Readonly<Record<string, BuildingArt>> = {
   'bunker:china': createBunkerArt(),
   'bunker:europe': createBunkerArt(),
   'bunker:islamic': createBunkerArt(),
+  // Walls (one cell) in each nation's colour, one sprite per neighbour mask (see createWallArt).
+  ...Object.fromEntries(
+    (['usa', 'russia', 'china', 'europe', 'islamic'] as const).flatMap((f) =>
+      Array.from({ length: 16 }, (_, m) => [m === 0 ? `wall:${f}` : `wall:${f}|${m}`, createWallArt(f, m)] as const),
+    ),
+  ),
 };
 
 /** Structures whose art flies a flag of its own: a captured one is redrawn with the new owner's flag. */

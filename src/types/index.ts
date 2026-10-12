@@ -222,7 +222,8 @@ export type BuildingType =
   | 'flagpole'
   | 'alliedBuilding'
   | 'oilDerrick'
-  | 'bunker';
+  | 'bunker'
+  | 'wall';
 
 /** Who may be stationed inside a building, and how many. */
 export interface GarrisonSpec {

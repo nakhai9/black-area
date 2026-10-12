@@ -1,5 +1,5 @@
 import type { EntityManager } from '../entities/EntityManager';
-import { BUNKER_BUILD_RADIUS, CELL_SIZE, GRID_HEIGHT } from '../constants';
+import { BUNKER_BUILD_RADIUS, CELL_SIZE, GRID_HEIGHT, WALL_BUILD_RADIUS } from '../constants';
 import type { PlacementBlocker, TileMap } from '../map/TileMap';
 
 /** Max gap (in cells) between a new building and the nearest friendly building. */
@@ -7,7 +7,7 @@ export const BUILD_RADIUS = 3;
 
 /** How far (cells) from an own structure's edge a structure of this kind may be placed. */
 export function buildRadius(type: string): number {
-  return type === 'bunker' ? BUNKER_BUILD_RADIUS : BUILD_RADIUS;
+  return type === 'bunker' ? BUNKER_BUILD_RADIUS : type === 'wall' ? WALL_BUILD_RADIUS : BUILD_RADIUS;
 }
 
 export type PlacementResult = { ok: true } | { ok: false; reason: PlacementBlocker | 'units' | 'tooFar' | 'claimed' | 'nearOil' | 'antarctica' };
@@ -60,7 +60,8 @@ export function cellGap(
  * 2. the footprint must lie within BUILD_RADIUS cells (a bunker: BUNKER_BUILD_RADIUS) of one of the builder's own buildings;
  * 3. an Allied Building stands on unclaimed land only (land claimed by a Squatters team, see isClaimable);
  * 4. at least OIL_DERRICK_CLEARANCE free cells between it and the edge of every oil derrick (anyone's);
- * 5. nothing is ever built on Antarctica (rows from ANTARCTIC_ROW down), whoever holds its derricks.
+ * 5. no structure overlaps another one (whole footprints, margin ring included);
+ * 6. nothing is ever built on Antarctica (rows from ANTARCTIC_ROW down), whoever holds its derricks.
  */
 export class PlacementSystem {
   constructor(
@@ -71,11 +72,20 @@ export class PlacementSystem {
   check(req: PlacementRequest): PlacementResult {
     const blocker = this.map.placementBlocker(req.x, req.y, req.w, req.d, req.naval === true);
     if (blocker) return { ok: false, reason: blocker };
+    // No structure may overlap another one, not even in the margin ring round the art.
+    if (this.overlapsBuilding(req)) return { ok: false, reason: 'occupied' };
     if (req.y + req.d > ANTARCTIC_ROW) return { ok: false, reason: 'antarctica' };
     if (req.unclaimedOnly && !this.allClaimable(req)) return { ok: false, reason: 'claimed' };
     if (this.nearDerrick(req)) return { ok: false, reason: 'nearOil' };
     if (this.unitsInside(req)) return { ok: false, reason: 'units' };
     return this.nearOwnBase(req) ? { ok: true } : { ok: false, reason: 'tooFar' };
+  }
+
+  /** Does the footprint share a cell with any standing structure's whole footprint (margin included)? */
+  private overlapsBuilding(req: PlacementRequest): boolean {
+    return this.entities
+      .buildings()
+      .some((b) => b.alive && req.x < b.x + b.w && b.x < req.x + req.w && req.y < b.y + b.d && b.y < req.y + req.d);
   }
 
   /** True when some living building of `owner` is within BUILD_RADIUS cells. */
