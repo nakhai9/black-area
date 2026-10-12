@@ -10,13 +10,13 @@ export function buildRadius(type: string): number {
   return type === 'bunker' ? BUNKER_BUILD_RADIUS : BUILD_RADIUS;
 }
 
-export type PlacementResult = { ok: true } | { ok: false; reason: PlacementBlocker | 'units' | 'tooFar' | 'claimed' | 'nearOil' };
+export type PlacementResult = { ok: true } | { ok: false; reason: PlacementBlocker | 'units' | 'tooFar' | 'claimed' | 'nearOil' | 'antarctica' };
 
 /** Free cells every new structure (any nation) must leave between itself and the edge of any oil derrick. */
 export const OIL_DERRICK_CLEARANCE = 4;
 
-/** Antarctica (south of 60°S) can never be claimed. */
-const ANTARCTIC_ROW = Math.floor(((90 + 60) / 180) * GRID_HEIGHT);
+/** Antarctica (south of 60°S) can never be claimed or built on. */
+export const ANTARCTIC_ROW = Math.floor(((90 + 60) / 180) * GRID_HEIGHT);
 
 /**
  * Land nobody owns yet, where a Squatters team may plant its flag and an Allied Building may stand: dry land outside
@@ -59,7 +59,8 @@ export function cellGap(
  *    no soldier or vehicle (parked aircraft included) may stand on any of its cells;
  * 2. the footprint must lie within BUILD_RADIUS cells (a bunker: BUNKER_BUILD_RADIUS) of one of the builder's own buildings;
  * 3. an Allied Building stands on unclaimed land only (land claimed by a Squatters team, see isClaimable);
- * 4. at least OIL_DERRICK_CLEARANCE free cells between it and the edge of every oil derrick (anyone's).
+ * 4. at least OIL_DERRICK_CLEARANCE free cells between it and the edge of every oil derrick (anyone's);
+ * 5. nothing is ever built on Antarctica (rows from ANTARCTIC_ROW down), whoever holds its derricks.
  */
 export class PlacementSystem {
   constructor(
@@ -70,6 +71,7 @@ export class PlacementSystem {
   check(req: PlacementRequest): PlacementResult {
     const blocker = this.map.placementBlocker(req.x, req.y, req.w, req.d, req.naval === true);
     if (blocker) return { ok: false, reason: blocker };
+    if (req.y + req.d > ANTARCTIC_ROW) return { ok: false, reason: 'antarctica' };
     if (req.unclaimedOnly && !this.allClaimable(req)) return { ok: false, reason: 'claimed' };
     if (this.nearDerrick(req)) return { ok: false, reason: 'nearOil' };
     if (this.unitsInside(req)) return { ok: false, reason: 'units' };

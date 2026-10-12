@@ -71,7 +71,6 @@ export class FactionPicker {
         </header>
         <div class="fp-grid"></div>
         <footer class="fp-footer">
-          <span class="fp-hint"><kbd>1</kbd>–<kbd>${FACTION_ORDER.length}</kbd> select</span>
           ${DEMO_MODE ? '<button class="fp-demo" type="button" title="Test game: play alone, the other nations do nothing; everything built, finances off">Test</button>' : ""}
           <button class="fp-desktop" type="button" title="Download the desktop version">Download Desktop</button>
           <button class="fp-guide" type="button" title="Open the game rules (RULE.html) in a new tab">Guide</button>
@@ -81,8 +80,8 @@ export class FactionPicker {
       </div>`;
 
     const grid = this.root.querySelector<HTMLElement>(".fp-grid");
-    for (const [i, id] of FACTION_ORDER.entries()) {
-      const card = this.buildCard(id, i + 1);
+    for (const id of FACTION_ORDER) {
+      const card = this.buildCard(id);
       grid?.append(card);
       this.cards.set(id, card);
     }
@@ -104,11 +103,8 @@ export class FactionPicker {
         resolve({ faction: id, demo });
       };
       const onKey = (e: KeyboardEvent): void => {
-        const n = Number(e.key);
         const idx = FACTION_ORDER.indexOf(this.selected);
-        if (n >= 1 && n <= FACTION_ORDER.length)
-          this.highlight(FACTION_ORDER[n - 1] ?? this.selected, true);
-        else if (e.key === "ArrowRight" || e.key === "ArrowDown")
+        if (e.key === "ArrowRight" || e.key === "ArrowDown")
           this.highlight(
             FACTION_ORDER[(idx + 1) % FACTION_ORDER.length] ?? this.selected,
             true,
@@ -162,7 +158,7 @@ export class FactionPicker {
     if (focus) this.cards.get(id)?.focus();
   }
 
-  private buildCard(id: FactionId, hotkey: number): HTMLElement {
+  private buildCard(id: FactionId): HTMLElement {
     const f = FACTIONS[id];
     const card = document.createElement("button");
     card.type = "button";
@@ -174,7 +170,6 @@ export class FactionPicker {
         `<li><span>${label}</span><div class="sb-bar"><i style="width:${((f.stats[k] ?? 1) / STAT_MAX) * 100}%"></i></div></li>`,
     ).join("");
     card.innerHTML = `
-      <kbd class="fp-key">${hotkey}</kbd>
       <div class="fp-ident">
         <span class="flag-badge">
           ${FACTION_EMBLEMS.has(id) ? `<img class="fp-emblem" src="${import.meta.env.BASE_URL}emblems/${id}.png" alt="">` : ""}

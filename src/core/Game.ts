@@ -184,6 +184,7 @@ const BLOCK_REASONS: Readonly<Record<string, string>> = {
   tooFar: `Too far from your base (max ${BUILD_RADIUS} cells)`,
   claimed: 'Allied Buildings stand only on unclaimed land claimed with a Squatters team',
   nearOil: `Too close to an oil derrick (keep ${OIL_DERRICK_CLEARANCE} free cells around it)`,
+  antarctica: 'Nothing can be built on Antarctica',
 };
 /** Map-authored buildings may shift this many cells to find tree-free ground… */
 const PRESET_SNAP_RADIUS = 2;
@@ -1113,9 +1114,16 @@ export class Game {
     return this.placement.check(req);
   }
 
-  /** Centres the camera on landmark #index (0-based) and selects it. */
+  /**
+   * Centres the camera on landmark #index (0-based) and selects it. Hotkey order: your own nation's capital first,
+   * then the other nations' capitals in FACTION_ORDER, then every other landmark.
+   */
   focusLandmark(index: number): void {
-    const b = this.landmarks[index];
+    const home = (b: Building): string => b.spec.spriteKey.replace(/^capital:/, '');
+    const mine = this.humanPlayer.faction;
+    const rank = (f: string): number => (f === mine ? -1 : FACTION_ORDER.indexOf(f as FactionId));
+    const capitals = this.landmarks.filter((b) => b.spec.type === 'capital').sort((a, b) => rank(home(a)) - rank(home(b)));
+    const b = [...capitals, ...this.landmarks.filter((l) => l.spec.type !== 'capital')][index];
     if (b) this.focusBuilding(b.id, true);
   }
 

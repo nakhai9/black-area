@@ -67,9 +67,9 @@ export class OilDerrick extends Building {
     this.remaining = this.mining ? OIL_MINE_SECONDS - t : CYCLE - t;
   }
 
-  /** Can it be leased now (a leasing nation's derrick, not already leased)? */
+  /** Can it be leased now (a leasing nation's derrick, not Antarctic, not already leased)? */
   get leasable(): boolean {
-    return this.alive && this.lessee === null && this.faction !== 'neutral' && FACTIONS[this.faction].leasesOil === true;
+    return this.alive && !this.antarctic && this.lessee === null && this.faction !== 'neutral' && FACTIONS[this.faction].leasesOil === true;
   }
 
   /** Starts a lease to `player` (of `faction`) for OIL_LEASE_SECONDS: the derrick becomes theirs until it ends. */

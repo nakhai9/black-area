@@ -69,38 +69,6 @@
    "rows": 2,
    "frames": 16,
    "facings": 1
-  },
-  "L1_ground_body_no_rotor": {
-   "file": "L1_ground_body_no_rotor.png",
-   "cell": 320,
-   "cols": 8,
-   "rows": 4,
-   "frames": 1,
-   "facings": 32
-  },
-  "L2_ground_rotor_spin_only": {
-   "file": "L2_ground_rotor_spin_only.png",
-   "cell": 320,
-   "cols": 8,
-   "rows": 24,
-   "frames": 6,
-   "facings": 32
-  },
-  "L3_fly_body_no_rotor": {
-   "file": "L3_fly_body_no_rotor.png",
-   "cell": 320,
-   "cols": 8,
-   "rows": 4,
-   "frames": 1,
-   "facings": 32
-  },
-  "L4_fly_rotor_spin_only": {
-   "file": "L4_fly_rotor_spin_only.png",
-   "cell": 320,
-   "cols": 8,
-   "rows": 24,
-   "frames": 6,
-   "facings": 32
   }
  }
 }

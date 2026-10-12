@@ -4,37 +4,33 @@
 
 <h1 align="center">Black Area</h1>
 
-<p align="center"><sub>Phiên bản 1.54.0</sub></p>
+<p align="center"><sub>Phiên bản 1.58.0</sub></p>
 
 <p align="center"><b><a href="https://black-area.vercel.app">▶ CHƠI NGAY: black-area.vercel.app</a></b></p>
 
 > **Thế giới chỉ có một. Dầu thì không đủ cho tất cả.**
 
-Năm cường quốc. Một hành tinh. Một cuộc chạy đua không có vạch đích.
-
-Từ Washington đến Moscow, từ Bắc Kinh đến Paris và Riyadh, các quốc gia dựng căn cứ, bơm dầu, và kéo quân ra khỏi biên giới. Ai nắm được dòng dầu thì nắm được đồng tiền. Ai nắm được đồng tiền thì nắm được chiến tranh.
+*Người ta vẫn kể rằng chiến tranh không bắt đầu bằng một phát súng, mà bằng một con số trên bảng giá dầu.*
 
 ---
 
-### Cốt truyện
+### I. Ngày giếng cạn
 
-**Năm 20XX.** Những mỏ dầu cuối cùng của Trái Đất bắt đầu cạn. Không còn hiệp ước nào giữ được hoà bình khi mỗi thùng dầu quyết định một quốc gia sống hay chết.
+Năm 20XX, vào một buổi sáng như mọi buổi sáng, các kỹ sư ở Texas báo về Washington rằng mũi khoan đã chạm đáy. Cùng tuần đó, những tin tương tự đến từ Tây Siberia, từ sa mạc Tân Cương, từ những giàn khoan lạnh giá ngoài khơi Bắc Âu. Trái Đất đã cho đi gần hết những gì nó có.
 
-**Thế giới chia làm năm.** Washington, Moscow, Bắc Kinh, Brussels và Riyadh rút khỏi mọi liên minh cũ. Mỗi bên chỉ còn vài giếng dầu ở Texas, Tây Siberia, Tân Cương, vùng Bắc Âu — riêng Liên minh Hồi giáo ngồi trên mỏ Abu Dhabi, giàu nhất hành tinh, và nắm trong tay cartel dầu: một lệnh **cắt giảm** đẩy giá lên trời, một lệnh **xả kho** đánh sập ngân khố đối thủ.
+Người ta tìm đến New York, như mọi lần thế giới gặp nạn.
 
-**Kẻ đứng giữa.** Ở Zürich, Global Monitoring Center là người mua dầu duy nhất. Nó niêm yết một giá chung cho tất cả, cho vay khi ngân khố cạn, và thu nợ trước mọi khoản tiền khác. Nó không chọn phe — nó chỉ chờ xem ai vỡ nợ trước.
+### II. Ngày Liên Hợp Quốc sụp đổ
 
-**Những kẻ đứng ngoài.** Anh đã rời Liên minh châu Âu; Canada tách khỏi cái bóng của Washington. Cùng Nhật Bản, Úc, Brazil và hai miền Triều Tiên, họ tuyên bố trung lập. Nhưng trong cuộc chiến này, trung lập chỉ có nghĩa là chưa bị chiếm: một kỹ sư bước vào 10 Downing Street hay Parliament Hill là đủ đổi chủ cả một quốc gia — cùng khoản phí hiện diện quân sự mà nó trả mỗi phút.
+Phiên họp khẩn cấp của Hội đồng Bảo an kéo dài mười chín ngày. Washington đề xuất chia lại hạn ngạch dầu theo sức mua. Moscow phủ quyết. Bắc Kinh đề xuất chia theo dân số. Washington phủ quyết. Paris đòi một quỹ dầu chung do một ủy ban quốc tế quản lý, và lần này cả hai bên cùng phủ quyết. Riyadh không đề xuất gì. Họ chỉ nhắc rằng dầu đang nằm dưới đất của ai.
 
-**Vùng đất cuối cùng.** Dưới lớp băng Nam Cực, những giếng dầu vô chủ vẫn đang bơm. Ai đến trước thì được — cho tới khi kỹ sư của phe khác tới sau.
+Đến ngày thứ hai mươi, những chiếc ghế bắt đầu trống. Phái đoàn này về nước "để tham vấn", rồi không quay lại. Phái đoàn khác ngừng đóng niên liễm. Lực lượng gìn giữ hòa bình bị gọi về từng đơn vị một, vì không quốc gia nào còn muốn trả tiền để lính của mình đứng giữa hai bên đang tranh giành dầu. Liên Hợp Quốc không bị ai giải tán. Nó chỉ chết dần trong im lặng: một tòa nhà bên sông East River, cờ vẫn treo, nhưng không còn ai nghe.
 
-**Luật của chiến tranh.** Dầu bán lấy tiền, tiền mua xe tăng, xe tăng bảo vệ giếng dầu. Máy bay vận tải chở quân vượt đại dương; những người cắm cờ biến đất hoang thành lãnh thổ. Tha cho kẻ địch đang rút lui, ngân hàng còn thưởng tiền cho lòng nhân từ. Nhưng mất thủ đô và mất quân đội, quốc gia của bạn biến mất khỏi bản đồ.
+Lý do thật ra rất đơn giản. Trật tự cũ được dựng lên khi chỉ có vài cường quốc đủ sức áp đặt luật chơi cho phần còn lại. Giờ đây, năm quốc gia đều đủ mạnh: đủ quân để tự vệ, đủ tiền để không phải nghe ai, đủ tham vọng để tin rằng luật của mình mới là luật đúng. Không ai chịu đứng dưới ai. Và một thế giới mà ai cũng muốn làm trọng tài thì không còn chỗ cho trọng tài nào cả.
 
-Chỉ một kẻ đứng cuối cùng sẽ quyết định Trái Đất sẽ còn lại những gì.
+### III. Năm cực, năm bộ luật
 
----
-
-### Chọn phe của bạn
+Không ai tuyên chiến. Người ta chỉ lặng lẽ xé bỏ từng hiệp ước, rút khỏi từng liên minh cũ. Đến cuối năm, thế giới không còn một trung tâm, mà có năm.
 
 <p align="center">
   <img src="public/emblems/usa.png" alt="USA" height="72">
@@ -44,27 +40,51 @@ Chỉ một kẻ đứng cuối cùng sẽ quyết định Trái Đất sẽ cò
   <img src="public/emblems/islamic.png" alt="Islamic Union" height="72">
 </p>
 
-- **USA** – Nhanh, xa, chính xác. Những pháo đài bay B-52 sẵn sàng xoá sổ mọi căn cứ.
-- **Russia** – Hoả lực áp đảo. Tu-16 rền vang trên bầu trời phương Đông.
-- **China** – Thép dày, quân đông, công xưởng không bao giờ ngủ.
-- **Europe** – Cân bằng và bền bỉ, sẵn sàng cho mọi mặt trận.
-- **Islamic Union** – Không cần súng. Một quyết định cắt giảm sản lượng đủ làm cả thế giới chao đảo.
+**Washington** muốn một thế giới của thị trường tự do, nơi dầu thuộc về ai trả giá cao nhất. Họ đánh nhanh, đánh xa, đánh chính xác, và khi lời nói không còn tác dụng, những pháo đài bay B-52 cất cánh để xóa sổ cả một căn cứ.
 
-### Dầu là máu của chiến tranh
+**Moscow** muốn một thế giới của vùng ảnh hưởng, nơi mỗi cường quốc được tự quyết trong sân nhà mình. Họ tin vào hỏa lực áp đảo, và tiếng Tu-16 rền vang trên bầu trời phương Đông là lời nhắc rằng sân nhà ấy rộng đến đâu.
 
-Giếng dầu bơm ngày đêm. Bán đúng lúc thì ngân khố đầy. Bán sai lúc thì cả thị trường sụp đổ. Global Monitoring Center ở Zürich đứng giữa tất cả: mua dầu, cho vay, và chờ xem ai vỡ nợ trước.
+**Bắc Kinh** muốn một thế giới của trật tự và kế hoạch, nơi tài nguyên chia theo nhu cầu của những dân tộc đông người nhất. Thép của họ dày, quân của họ đông, và công xưởng của họ không bao giờ ngủ.
 
-### Vùng tranh chấp
+**Paris** muốn một thế giới của luật lệ và thể chế, dù không còn ai chịu ngồi vào bàn để viết chúng. Châu Âu cân bằng và bền bỉ, sẵn sàng cho mọi mặt trận, vì họ biết mình không thể thua ở mặt trận nào.
 
-Bắc Triều Tiên, Hàn Quốc, Nhật Bản, Úc, Brazil, Anh và Canada là những quốc gia độc lập. Thủ đô của họ không thể bị phá huỷ — chỉ có thể bị kỹ sư chiếm. Phe nào giữ được nhận 1200 TB mỗi phút phí hiện diện quân sự và được xây căn cứ ngay bên cạnh. Ai giữ thì phải đóng quân bảo vệ, vì các phe khác sẽ đến giành lại.
+**Riyadh** muốn một thế giới nơi kẻ giữ dầu đặt giá, và mọi kẻ khác phải trả. Liên minh Hồi giáo ngồi trên mỏ Abu Dhabi, mỏ dầu giàu nhất còn sót lại, và nắm trong tay cartel dầu. Họ không cần súng. Chỉ một lệnh **cắt giảm**, giá dầu vọt lên trời. Chỉ một lệnh **xả kho**, ngân khố của đối thủ sụp đổ trong một đêm.
 
-### Dựng căn cứ. Lập quân đội. Vượt đại dương.
+Năm bộ luật. Một hành tinh. Không bên nào chịu chơi theo luật của bên kia, nên chỉ còn một cách để biết luật nào thắng.
 
-Xe tăng lăn bánh khỏi xưởng chiến tranh. Tiêm kích xé gió trên đường băng. Máy bay vận tải chở cả đội quân vượt biển, đổ bộ lên vùng đất vô chủ. Cắm cờ ở đó, và thế giới có thêm một đồng minh của bạn.
+### IV. Kẻ đứng giữa
 
-### Chỉ một kẻ đứng cuối cùng
+Ở Zürich, giữa những tòa nhà kính im lặng, Global Monitoring Center đếm tiền. Nó là người mua dầu duy nhất còn lại. Nó niêm yết một giá chung cho tất cả, cho vay khi ngân khố cạn, và luôn thu nợ trước mọi khoản tiền khác.
 
-Mất thủ đô, mất quân đội, và quốc gia của bạn biến mất khỏi bản đồ.
+Giếng dầu bơm ngày đêm. Ai bán đúng lúc thì ngân khố đầy. Ai bán sai lúc thì kéo cả thị trường sụp theo. Global Monitoring Center không chọn phe. Nó chỉ kiên nhẫn chờ xem ai vỡ nợ trước.
+
+### V. Những kẻ muốn đứng ngoài
+
+Anh rời Liên minh châu Âu. Canada bước ra khỏi cái bóng của Washington. Cùng với Nhật Bản, Úc, Brazil và hai miền Triều Tiên, họ tuyên bố trung lập và tin rằng như vậy là an toàn.
+
+Họ đã nhầm. Trong cuộc chiến này, trung lập chỉ có nghĩa là *chưa bị chiếm*. Thủ đô của họ không thể bị phá hủy, nhưng một kỹ sư lặng lẽ bước qua cửa 10 Downing Street hay Parliament Hill là đủ để cả một quốc gia đổi chủ. Kẻ chiếm được nhận 1200 TB mỗi phút tiền phí hiện diện quân sự và được dựng căn cứ ngay bên cạnh. Nhưng giữ được thì phải đóng quân canh, vì các phe khác sẽ đến giành lại.
+
+### VI. Lục địa trắng
+
+Rồi một ngày, vệ tinh chụp được những ngọn lửa đốt khí giữa băng tuyết Nam Cực. Dưới lớp băng, những giếng dầu vô chủ vẫn đang bơm.
+
+Không ai được phép dựng dù chỉ một mái nhà trên lục địa ấy. Không căn cứ, không doanh trại, không đường băng. Chỉ có những kỹ sư được thả xuống từ máy bay vận tải, lội qua bão tuyết để đặt tay lên van giếng. Giếng thuộc về phe của người kỹ sư cuối cùng chạm vào nó, và dầu chảy về ngân khố phe đó như mọi giếng dầu khác. Nhưng chẳng ai giữ được lâu: luôn có một kỹ sư khác, của một phe khác, đang trên đường tới.
+
+### VII. Luật của chiến tranh
+
+Dầu bán lấy tiền. Tiền mua xe tăng. Xe tăng bảo vệ giếng dầu. Vòng tròn ấy cứ thế quay.
+
+Xe tăng lăn bánh khỏi xưởng chiến tranh. Tiêm kích xé gió trên đường băng. Máy bay vận tải chở cả đội quân vượt đại dương, đổ bộ lên những vùng đất vô chủ. Những người cắm cờ biến đất hoang thành lãnh thổ, và thế giới có thêm một đồng minh của bạn. Ai tha cho kẻ địch đang rút lui còn được ngân hàng thưởng tiền cho lòng nhân từ.
+
+Nhưng mất thủ đô và mất quân đội, quốc gia của bạn biến mất khỏi bản đồ, như chưa từng tồn tại.
+
+### VIII. Người đứng cuối cùng
+
+Câu chuyện này chưa có kết thúc. Nó đang chờ bạn viết nốt.
+
+Chỉ một kẻ còn đứng cuối cùng sẽ quyết định Trái Đất còn lại những gì.
+
+---
 
 <p align="center"><b>Black Area. Cuộc chiến giành lấy Trái Đất bắt đầu.</b></p>
 

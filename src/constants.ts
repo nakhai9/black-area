@@ -10,8 +10,10 @@ import type {
   WeaponSpec,
 } from "./types";
 
-/** DEMO: skip the faction screen and start a solo test game as Russia (no AI opponents). Set to false for production. */
+/** DEMO: skip the faction screen and start a solo test game as DEMO_FACTION (no AI opponents). Set to false for production. */
 export const DEMO_MODE = false;
+/** DEMO_MODE nation, by number: 1 USA, 2 Russia, 3 China, 4 Europe, 5 Islamic (the FACTION_ORDER position, from 1). */
+export const DEMO_FACTION = 1;
 
 /**
  * Version of the game, x.y.z (semantic versioning):
@@ -21,7 +23,7 @@ export const DEMO_MODE = false;
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "1.54.0";
+export const GAME_VERSION = "1.58.0";
 
 // ---------------------------------------------------------------- World (real Earth)
 /** Packed Earth texture built by `npm run build:earth` (see scripts/build-earth.mjs). */
@@ -481,7 +483,7 @@ export const BOMB_LOAD_SLOWDOWN = 0.2;
  * walking a soldier halts where he is for INFANTRY_REST_SECONDS, then marches on — to the end of any order, fights
  * included. Riding a truck or a transport aircraft costs no strength. Standing INFANTRY_RECOVER_SECONDS rests him too.
  */
-export const INFANTRY_MARCH_CELLS = Math.round(35 * GROUND_SPEED_SCALE); // same march time as before the speed-up
+export const INFANTRY_MARCH_CELLS = Math.round(52 * GROUND_SPEED_SCALE);
 export const INFANTRY_REST_SECONDS = 35;
 export const INFANTRY_RECOVER_SECONDS = 10;
 

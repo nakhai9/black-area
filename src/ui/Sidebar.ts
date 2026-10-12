@@ -329,7 +329,7 @@ export class Sidebar {
           <li>Squatters (flag bearer + escort, one unit): walk it (or fly it by transport) to unclaimed land (not your rivals' home lands, never Antarctica), select it and press <kbd>F</kbd> (or double-click it) — the flag goes up on the nearest open cell, on any land (the Squatters are gone once it stands) · then build an <b>Allied Building</b> beside it (max 3 allies)</li>
           <li>When <b>READY</b>: click cameo, then click the map to place · <kbd>R</kbd> turn it 90° (only before it is placed) · <kbd>Esc</kbd>/<kbd>Right-click</kbd> stop placing</li>
           <li><kbd>WASD</kbd>/<kbd>Arrows</kbd>/screen edge — scroll · <kbd>Wheel</kbd> zoom · <kbd>Middle-drag</kbd> pan</li>
-          <li><kbd>Click</kbd> select · <kbd>1</kbd>–<kbd>5</kbd> landmarks · <kbd>O</kbd> oil · <kbd>H</kbd> home · <kbd>Tab</kbd> sidebar</li>
+          <li><kbd>Click</kbd> select · <kbd>1</kbd> your capital · <kbd>2</kbd>–<kbd>5</kbd> rival capitals · <kbd>O</kbd> oil · <kbd>H</kbd> home · <kbd>Tab</kbd> sidebar</li>
         </ul>
       </details>
       </div>

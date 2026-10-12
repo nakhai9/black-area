@@ -26,7 +26,7 @@
 <body>
 <main>
 <img class="logo" src="/logo.png" alt="Black Area" />
-<h1>Black Area — RULE <small>v1.54.0</small></h1>
+<h1>Black Area — RULE <small>v1.58.0</small></h1>
 <p class="lead">Tài liệu luật chơi + kiến trúc code dành cho AI/dev sửa game. Mọi con số gameplay chính xác nằm trong <code>src/constants.ts</code> và <code>src/factions/*.ts</code>. Nếu tài liệu này khác code thì <b>code đúng</b>. <b>Khi đổi luật/số trong code, phải cập nhật file này.</b></p>
 <nav><a href="#s1">Quy tắc làm việc cho AI</a><a href="#s2">Chạy dự án</a><a href="#s3">Kiến trúc thư mục</a><a href="#s4">Thế giới</a><a href="#s5">Kinh tế (dầu)</a><a href="#s6">Công trình (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Quân đội</a><a href="#s8">Chiến đấu</a><a href="#s9">Điều khiển (Game.handleKey, handleInput)</a><a href="#s10">Giới hạn &amp; hiệu năng</a><a href="#s11">Thắng / thua &amp; AI</a><a href="#s12">Công thức sửa thường gặp</a></nav>
 <h2 id="s1">0. Quy tắc làm việc cho AI</h2>
@@ -49,7 +49,7 @@ npm run build        # typecheck + vite build
 npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mjs)</pre>
 <ul>
   <li>URL <code>?faction=usa|russia|china|europe|islamic</code> bỏ qua màn chọn phe (<code>src/main.ts</code>).</li>
-  <li><code>DEMO_MODE</code> (constants, mặc định <code>false</code>): vào thẳng ván test solo với Russia; giá mọi thứ <code>DEMO_PRICE = 100</code>, tiền/dầu giữ ở <code>DEMO_CREDITS = 999_999</code>, mỗi loại quân có sẵn <code>DEMO_UNITS_EACH = 2</code>.</li>
+  <li><code>DEMO_MODE</code> (constants, mặc định <code>false</code>): vào thẳng ván test solo với phe số <code>DEMO_FACTION</code> (1 USA, 2 Russia, 3 China, 4 Europe, 5 Islamic); giá mọi thứ <code>DEMO_PRICE = 100</code>, tiền/dầu giữ ở <code>DEMO_CREDITS = 999_999</code>, mỗi loại quân có sẵn <code>DEMO_UNITS_EACH = 2</code>.</li>
   <li>URL <code>?view=buildings</code>: trang xem mọi công trình theo phe, có nhóm <b>Contested nations</b> (thủ đô các quốc gia tranh chấp: Bắc Triều Tiên, Hàn Quốc, Nhật, Úc, Brazil, Anh, Canada) (<code>ui/BuildingGallery.ts</code>); <code>?view=units</code>: trang xem mọi lính, xe, máy bay của mọi phe, vẽ bằng sprite trong game, xoay qua các hướng, kèm tên hiển thị và giá / máu / tốc độ / vũ khí (<code>ui/UnitGallery.ts</code>).</li>
   <li>Alt+F: bật/tắt toàn màn hình.</li>
 </ul>
@@ -79,7 +79,7 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
   <li>Zoom chiến thuật <code>ZOOM_MIN 3</code> – <code>ZOOM_MAX 9</code> (bước <code>1.12</code>, <code>FOCUS_ZOOM 8</code>); toàn cảnh xem trên radar sidebar.</li>
   <li>Thủ đô ở toạ độ thật (<code>CAPITAL_LOCATIONS</code>): Washington D.C., Moscow, Beijing, Paris, <b>Riyadh</b> (Islamic). Global Monitoring Center (trung lập, <code>WorldBank</code>) ở Zürich.</li>
   <li><b>Quốc gia tranh chấp</b> (<code>CONTESTED_NATIONS</code>, entity <code>NationCapital</code>, type <code>nationCapital</code>): Bắc Triều Tiên (Pyongyang), Hàn Quốc (Seoul), Nhật Bản (Tokyo), Úc (Canberra), Brazil (Brasília), <b>Anh</b> (London, 10 Downing Street — đã rời EU nên đảo Anh không còn thuộc lãnh thổ Europe), <b>Canada</b> (Ottawa, Parliament Hill — đất Canada tách khỏi lãnh thổ USA; USA còn Mỹ lục địa + Alaska). Thủ đô độc lập, ban đầu trung lập; không thể bị phá huỷ, chỉ bị <b>kỹ sư</b> chiếm (từ trung lập hoặc từ phe đang giữ). Phe giữ được nhận <code>NATION_PRESENCE_FEE 1200</code> TB mỗi <code>NATION_PRESENCE_PERIOD 60</code>s (phí hiện diện quân sự, qua <code>TaxSystem</code>, trả nợ trước) và được xây công trình của mình cạnh thủ đô đó (như Allied Building). Không tính là thủ đô riêng của phe khi xét thua. AI (từ 90s, khi nhà yên) gửi 1 kỹ sư đi chiếm thủ đô gần nhất chưa giữ (qua biển: chở bằng máy bay vận tải), và giữ <code>NATION_GARRISON 6</code> lính/xe đồn trú tại mỗi thủ đô đang giữ (trong <code>NATION_GARRISON_CELLS 10</code> ô).</li>
-  <li><b>Dầu Nam Cực</b> (<code>ANTARCTIC_OIL_SITES</code>, <code>OilDerrick.antarctic</code>): 5 giếng dầu vô chủ trải đều Nam Cực. Bơm theo luật dầu như cũ cho phe đang giữ; không thể bị phá huỷ; kỹ sư của bất kỳ phe nào cũng chiếm được (từ vô chủ hoặc từ phe khác). AI coi như mục tiêu tranh chấp: gửi kỹ sư bằng máy bay vận tải đi chiếm và để lính đồn trú bảo vệ (như thủ đô tranh chấp).</li>
+  <li><b>Dầu Nam Cực</b> (<code>ANTARCTIC_OIL_SITES</code>, <code>OilDerrick.antarctic</code>): 5 giếng dầu vô chủ trải đều Nam Cực. Bơm theo luật dầu như cũ cho phe đang giữ; không thể bị phá huỷ; kỹ sư của bất kỳ phe nào cũng chiếm được (từ vô chủ hoặc từ phe khác), kể cả khi phe giữ nó cho thuê dầu: giếng Nam Cực không bao giờ cho thuê, kỹ sư luôn chiếm. <b>Không được xây bất kỳ công trình nào trên Nam Cực</b> (mọi ô từ <code>ANTARCTIC_ROW</code> = 60°S trở xuống, <code>PlacementSystem.check</code> → lý do <code>antarctica</code>), áp dụng cho cả người chơi và AI. AI coi như mục tiêu tranh chấp: gửi kỹ sư bằng máy bay vận tải đi chiếm và để lính đồn trú bảo vệ (như thủ đô tranh chấp).</li>
   <li>Máy bay vận tải AI (<code>AISystem.safeDrop</code>): khi chở quân / kỹ sư đi xa, chọn điểm hạ cánh trong <code>SAFE_DROP_CELLS 24</code> ô quanh mục tiêu ít bị lính / xe / bunker phe khác bắn tới nhất.</li>
   <li>Radar (minimap): công trình trung lập / chưa thuộc về ai vẽ hình <b>tam giác</b>; công trình của các phe vẽ chấm tròn.</li>
   <li>Rừng làm chậm đơn vị mặt đất ×0.78. Nước: chỉ lính special bơi được (<code>SWIM_SPEED_FACTOR 0.6</code>); xe không xuống nước.</li>
@@ -342,7 +342,7 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 </ul>
 <h3>Hành quân bộ binh (mệt mỏi)</h3>
 <ul>
-  <li>Mọi lính trừ đặc nhiệm (<code>special</code>): đi bộ được <code>INFANTRY_MARCH_CELLS = 35 × GROUND_SPEED_SCALE ≈ 46</code> ô đơn vị thì dừng tại chỗ nghỉ <code>INFANTRY_REST_SECONDS = 35</code> s (hiện "Resting Ns" trên đầu), giữ nguyên lệnh rồi đi tiếp — kể cả khi đang đi đánh. Đứng yên <code>INFANTRY_RECOVER_SECONDS = 10</code> s cũng tính là đã nghỉ. Ngồi xe tải / máy bay vận tải không mệt.</li>
+  <li>Mọi lính trừ đặc nhiệm (<code>special</code>): đi bộ được <code>INFANTRY_MARCH_CELLS = 52 × GROUND_SPEED_SCALE ≈ 68</code> ô đơn vị thì dừng tại chỗ nghỉ <code>INFANTRY_REST_SECONDS = 35</code> s (hiện "Resting Ns" trên đầu), giữ nguyên lệnh rồi đi tiếp — kể cả khi đang đi đánh. Đứng yên <code>INFANTRY_RECOVER_SECONDS = 10</code> s cũng tính là đã nghỉ. Ngồi xe tải / máy bay vận tải không mệt.</li>
   <li>Máy bay mang bom (B-52, Tu-16, tiêm kích) bay chậm hơn khi còn bom: đầy bom chậm <code>BOMB_LOAD_SLOWDOWN = 20%</code>, ném dần thì nhanh dần, hết bom bay đủ tốc độ.</li>
   <li>Nhiều Barracks / War Factory / Airfield: double-click vào công trình nào thì lính / xe / máy bay mới ra ở công trình đó.</li>
   <li>AI: giữ 1 xe tải cho mỗi 8 lính (tối đa 4); khi mục tiêu xa hơn 30 ô, lính gần xe tải rảnh (trong 25 ô) lên xe, xe chở tới cách mục tiêu 8 ô rồi thả xuống (<code>AISystem.motorize</code> / <code>driveConvoys</code>); khác lục địa thì dùng máy bay vận tải như cũ.</li>
@@ -443,7 +443,7 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 <tr><td>U</td><td>Thả quân khỏi transport</td></tr>
 <tr><td><b>F</b> / double-click</td><td>Squatters: cắm cờ vào ô trống gần nhất (đất nào cũng được), đội biến mất</td></tr>
 <tr><td>R</td><td>Xoay công trình 90° — chỉ khi đang đặt công trình mới lấy từ cửa hàng; xây xong thì không xoay được nữa</td></tr>
-<tr><td>H / O / 1–9</td><td>Về thủ đô / duyệt giếng dầu / nhảy tới landmark</td></tr>
+<tr><td>H / O / 1–9</td><td>Về thủ đô / duyệt giếng dầu / nhảy tới landmark: <b>1</b> luôn là thủ đô phe mình, <b>2–5</b> là thủ đô 4 phe còn lại theo <code>FACTION_ORDER</code>, <b>6–9</b> là Global Monitoring Center và các thủ đô tranh chấp. Màn chọn phe chỉ chọn bằng chuột (không còn phím 1–5).</td></tr>
 <tr><td>M</td><td>Bật/tắt âm</td></tr>
 <tr><td>Tab</td><td>Ẩn/hiện sidebar</td></tr>
 <tr><td>Lăn chuột, <code>+</code> <code>-</code></td><td>Zoom</td></tr>

@@ -1,5 +1,5 @@
 import './styles.css';
-import { DEMO_MODE, EARTH_TEXTURE_URL, FACTION_ORDER } from './constants';
+import { DEMO_FACTION, DEMO_MODE,EARTH_TEXTURE_URL, FACTION_ORDER } from './constants';
 import { SoundSystem } from './audio/SoundSystem';
 import { Game } from './core/Game';
 import { loadEarthData } from './map/EarthData';
@@ -94,7 +94,7 @@ async function boot(): Promise<void> {
       : (FACTION_ORDER as readonly string[]).includes(preset ?? '')
       ? { faction: preset as FactionId, demo: false }
       : DEMO_MODE
-        ? { faction: 'russia' as FactionId, demo: true } // DEMO_MODE: straight into a demo game as Russia
+        ? { faction: FACTION_ORDER[DEMO_FACTION - 1] ?? 'russia', demo: true } // DEMO_MODE: straight into a demo game as DEMO_FACTION
         : await new FactionPicker(document.body).choose();
 
     // A picked save is confirmed first; only then is the world generated and the game loaded into it.
