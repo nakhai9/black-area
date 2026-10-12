@@ -1,7 +1,8 @@
 import { type IconNode, Clock, Handshake, Info, Droplet, Factory, Hammer, LogIn, LogOut, Minus, PersonStanding, Radar, Shield, TrendingDown, TrendingUp, Trophy, Truck, Zap, createElement } from 'lucide';
-import { BUILD_LIMIT_VEHICLES, CURRENCY, MAX_ALLIES, OIL_GRID_MARKUP, OIL_POLICIES, POWER_PER_BARREL, TECH_TIERS, TECH_VEHICLES, isAircraftKind } from '../constants';
+import { type ContestedNationId, BUILD_LIMIT_VEHICLES, CURRENCY, MAX_ALLIES, OIL_GRID_MARKUP, OIL_POLICIES, POWER_PER_BARREL, TECH_TIERS, TECH_VEHICLES, isAircraftKind } from '../constants';
 import { FACTIONS } from '../factions';
 import { getFlagTexture } from '../render/Flags';
+import { nationFlag } from '../render/sprites/NationCapital';
 import { type BuildOption, type QueueSlot, buildCost, missingRequirement } from '../systems/ConstructionSystem';
 import { MIN_SALE_STOCK } from '../systems/OilMarket';
 import type { ArmyCount, TrainOption, TrainingQueue } from '../systems/TrainingSystem';
@@ -49,6 +50,11 @@ export interface AllyInfo {
   id: number;
   /** Allied Building standing (false: only the claim flag so far). */
   built: boolean;
+  /** Captured contested-nation capital (its name): counts as an ally, outside the MAX_ALLIES cap. */
+  capital?: string;
+  /** Captured capital: the nation taken and the faction holding it (emblem 🤝 flag in the row). */
+  nation?: ContestedNationId;
+  holder?: FactionId;
   /** Where it stands (latitude / longitude). */
   place: string;
   at: WorldPoint;
@@ -745,9 +751,9 @@ export class Sidebar {
    */
   private renderAllies(allies: readonly AllyInfo[]): void {
     const tab = this.mainTabs.get('allies');
-    const built = allies.filter((a) => a.built).length;
+    const built = allies.filter((a) => a.built && !a.capital).length;
     if (tab) {
-      const show = built > 0;
+      const show = allies.some((a) => a.built);
       if (show && tab.hidden) tab.classList.add('sb-attention');
       tab.hidden = !show;
       if (!show && this.activeView === 'allies') this.switchView('command');
@@ -763,14 +769,32 @@ export class Sidebar {
         const li = document.createElement('li');
         li.classList.toggle('pending', !a.built);
         li.classList.toggle('hit', a.underAttack);
-        li.title = 'Look at it';
+        li.title = a.capital ?? 'Look at it';
         const pos = document.createElement('span');
         pos.className = 'sb-rank-pos';
         pos.textContent = a.built ? String(++n) : '⚑';
         const info = document.createElement('div');
         const name = document.createElement('div');
         name.className = 'sb-ally-name';
-        name.textContent = a.built ? `Ally ${n}${a.underAttack ? ' · under attack!' : ''}` : 'Claimed land · no ally yet';
+        const hit = a.underAttack ? ' · under attack!' : '';
+        if (a.nation && a.holder) {
+          // Emblem of the holder [handshake] flag of the nation taken: the alliance between them.
+          const img = (src: string) => {
+            const el = document.createElement('img');
+            el.src = src;
+            el.alt = '';
+            el.style.height = '14px';
+            el.style.verticalAlign = '-2px';
+            return el;
+          };
+          const shake = createElement(Handshake, { width: 14, height: 14, 'stroke-width': 2, 'aria-hidden': 'true' });
+          shake.style.verticalAlign = '-2px';
+          shake.style.margin = '0 4px';
+          name.append(img(`${import.meta.env.BASE_URL}emblems/${a.holder}.png`), shake, img(nationFlag(a.nation).toDataURL()));
+          if (hit) name.append(hit);
+        } else {
+          name.textContent = a.built ? `${a.capital ?? `Ally ${n}`}${hit}` : 'Claimed land · no ally yet';
+        }
         const place = document.createElement('div');
         place.className = 'sb-muted sb-ally-place';
         place.textContent = a.place;
@@ -975,7 +999,11 @@ export class Sidebar {
       const el = document.createElement('button');
       el.type = 'button';
       el.className = 'sb-cameo';
-      el.title = `${option.name} — ${buildCost(option, this.faction)} ${CURRENCY}. Click to build, right-click to cancel.`;
+      // The Allied Building is the nation's embassy in that land.
+      el.title =
+        option.id === 'alliedBuilding'
+          ? `${FACTIONS[this.faction].shortName} Embassy`
+          : `${option.name} — ${buildCost(option, this.faction)} ${CURRENCY}. Click to build, right-click to cancel.`;
       el.innerHTML = `
         <canvas width="128" height="96"></canvas>
         <span class="sb-cameo-wipe"></span>

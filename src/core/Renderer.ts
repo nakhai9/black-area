@@ -23,6 +23,7 @@ import { drawTruckDeath, drawTruckSheet } from '../render/TruckSheets';
 import { drawTankDeath, drawTankSheet } from '../render/TankSheets';
 import { drawCraftDeath } from '../render/CraftSheets';
 import { FACTIONS, teamColors } from '../factions';
+import { NationCapital } from '../entities/NationCapital';
 import type { TerrainRenderer } from '../map/TerrainRenderer';
 import { createCanvas, get2d } from '../render/Canvas';
 import { withAlpha } from '../render/Color';
@@ -1324,7 +1325,10 @@ export class Renderer {
     const inside = b.garrison.length > 0 ? ` · ${b.garrison.length} inside` : '';
     const managed = 'bankManaged' in b && (b as { bankManaged: boolean }).bankManaged;
     const health = `${Math.max(0, Math.ceil((b.hp / b.maxHp) * 100))}%`;
-    const text = managed
+    const alliance = b instanceof NationCapital ? b.alliance() : null;
+    const text = alliance
+      ? `${alliance} · ${health}${inside}`
+      : managed
       ? `${b.spec.name} · ${health} · Global Monitoring Center managed`
       : b.indestructible
         ? `${b.spec.name} · ${health} · Neutral · Protected`

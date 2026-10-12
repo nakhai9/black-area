@@ -135,7 +135,7 @@ const FLAG_PAINTERS: Record<ContestedNationId, (ctx: CanvasRenderingContext2D, w
 
 const flagTextures = new Map<ContestedNationId, HTMLCanvasElement>();
 
-function nationFlag(nation: ContestedNationId): HTMLCanvasElement {
+export function nationFlag(nation: ContestedNationId): HTMLCanvasElement {
   let tex = flagTextures.get(nation);
   if (!tex) {
     const { canvas, ctx } = createCanvas(FLAG_W, FLAG_H);

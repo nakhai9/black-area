@@ -1,6 +1,7 @@
 import { CONTESTED_NATIONS, type ContestedNationId, FOOTPRINT_SMALL, NATION_PRESENCE_PERIOD, NEUTRAL_OWNER } from '../constants';
 import type { WorldPoint } from '../types';
 import { Building } from './Building';
+import { FACTIONS } from '../factions';
 
 /**
  * Capital of a contested independent nation (North / South Korea, Japan, Australia, Brazil). It starts neutral and
@@ -32,6 +33,12 @@ export class NationCapital extends Building {
     });
     this.city = n.site.name;
     this.description = `Capital of ${n.name}, an independent nation. Cannot be destroyed; an engineer takes it over. Its holder earns a military presence fee every ${NATION_PRESENCE_PERIOD / 60} minutes and may build next to it.`;
+  }
+
+  /** Nation + holder ("South Korea + Russia": the + is their alliance), or null while neutral. */
+  alliance(): string | null {
+    if (this.owner === NEUTRAL_OWNER || this.faction === 'neutral') return null;
+    return `${CONTESTED_NATIONS[this.nation].name} + ${FACTIONS[this.faction].shortName}`;
   }
 
   override capture(owner: number, faction: import('../types').FactionId): boolean {

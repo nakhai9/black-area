@@ -912,11 +912,16 @@ export class Game {
     const claims = mine.filter(
       (b) => b.spec.type === 'flagpole' && isClaimable(this.map, b.x, b.y) && !allied.some((a) => Math.hypot(a.x - b.x, a.y - b.y) < 14),
     );
-    return [...allied, ...claims].map((b) => {
+    // A captured contested-nation capital stays an ally of its holder (shown here, outside the MAX_ALLIES cap).
+    const capitals = mine.filter((b) => b instanceof NationCapital);
+    return [...allied, ...capitals, ...claims].map((b) => {
       const at = b.centerWorld();
       return {
         id: b.id,
-        built: b.spec.type === 'alliedBuilding',
+        built: b.spec.type !== 'flagpole',
+        capital: b instanceof NationCapital ? (b.alliance() ?? b.spec.name) : undefined,
+        nation: b instanceof NationCapital ? b.nation : undefined,
+        holder: b instanceof NationCapital && b.faction !== 'neutral' ? b.faction : undefined,
         place: formatGeo(worldToGeo(at)),
         at,
         hp: b.hp,
