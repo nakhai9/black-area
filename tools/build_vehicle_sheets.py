@@ -55,8 +55,7 @@ def span(im):
 
 def tanks(meta):
     # <model>_move.png: 32 rows (facings) × 8 track frames of 256 px, shadow baked in.
-    for model, src in {'m1a2': 'M1A2_Abrams_move.png', 'leopard2': 'Leopard2A7V_move.png',
-                       't90m': 'T90M_Proryv_move.png', 'type99': 'Type99_ZTZ99_move.png'}.items():
+    for model, src in {'type99': 'Type99_ZTZ99_move.png'}.items():
         im = Image.open(os.path.join(SRC, src)).convert('RGBA')
         cell = 64
         rows = [[im.crop((f * 256, k * 256, f * 256 + 256, k * 256 + 256)).resize((cell, cell), Image.LANCZOS)

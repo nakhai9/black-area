@@ -42,6 +42,8 @@ export function canTarget(shooter: Unit, target: Entity): boolean {
   if (shooter.unarmedTransport) return false; // transports never attack anything
   // Attack helicopters hunt ground vehicles only: no structures, soldiers or aircraft.
   if (shooter instanceof Vehicle && shooter.isHeli) return target instanceof Vehicle && !target.aircraft;
+  // MANTIS air defence: aircraft in flight only.
+  if (shooter instanceof Vehicle && shooter.type === 'mantis') return target instanceof Unit && target.flies;
   if (target instanceof Unit && target.flies) return shooter.aircraft && w.hitsAir;
   return true;
 }

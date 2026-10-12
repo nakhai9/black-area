@@ -15,11 +15,12 @@ export const PLACEMENT_MARGIN = 0;
  * occupy whole cells (3×3 or 4×3).
  */
 export class TileMap {
-  private readonly types: Uint8Array;
+  /** Terrain code per cell (index into TERRAIN_TYPES, 0 = water). Read-only outside TileMap (hot path searches). */
+  readonly types: Uint8Array;
   /** Metres above sea level (negative = water depth). */
   readonly heights: Float32Array;
-  /** Building id per cell, 0 = free. */
-  private readonly occupied: Int32Array;
+  /** Building id per cell, 0 = free. Read-only outside TileMap (hot path searches). */
+  readonly occupied: Int32Array;
   /** Territory index + 1 per cell (0 = neutral), see map/Territories.ts. */
   readonly territory: Uint8Array;
   /** Number of trees standing in each cell (0 = clear), filled by TreeLayer. */

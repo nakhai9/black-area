@@ -4,7 +4,7 @@ import type { FactionId } from '../types';
 import { drawCraftBlast } from './CraftSheets';
 
 /**
- * Main battle tank sheets (tools/build_vehicle_sheets.py, from resources/<model>_move.png): 32 columns of 64 px —
+ * Main battle tank sheets (tools/build_vehicle_sheets.py from resources/<model>_move.png, or tools/tank_views_sheet.py): 32 columns of 64 px —
  * screen headings clockwise from N — by 8 rows of track frames. Hull, turret and shadow are one picture.
  */
 const CELL = 64;
@@ -23,17 +23,24 @@ const sheet = (file: string): HTMLImageElement => {
   img.dataset.src = `${import.meta.env.BASE_URL}sprites/${file}`;
   return img;
 };
+/** USA tank: M1A2 Abrams, built by tools/tank_views_sheet.py. */
 const M1A2 = sheet('tank-m1a2.png');
-const T90M = sheet('tank-t90m.png');
+/** Russian (and Islamic) tank: T-14 Armata look, built by tools/tank_views_sheet.py. */
+const T14 = sheet('tank-t14.png');
 
 const SHEETS: Partial<Record<FactionId, HTMLImageElement>> = {
   usa: M1A2,
-  europe: sheet('tank-leopard2.png'),
-  russia: T90M,
-  islamic: T90M,
+  europe: sheet('tank-leopard2.png'), // Leopard 2, built by tools/tank_views_sheet.py
+  russia: T14,
+  islamic: T14,
   china: sheet('tank-type99.png'),
 };
-/** Which aircraft explosion each nation's tanks blow up with. */
+/** Tank explosion shared by every nation (tools/tank_fx_sheet.py): 16 frames of BLAST_CELL px in one row. */
+const TANK_BLAST = sheet('tank-blast.png');
+const BLAST_CELL = 64;
+const BLAST_FRAMES = 16;
+const BLAST_FRAME_SECONDS = 0.09;
+/** Fallback when the tank explosion sheet is missing: which aircraft explosion each nation's tanks blow up with. */
 const BLAST: Record<FactionId, string> = { usa: 'apache', europe: 'apache', russia: 'ka52', islamic: 'ka52', china: 'z19e' };
 
 let loaded: Promise<void> | null = null;
@@ -41,7 +48,7 @@ let loaded: Promise<void> | null = null;
 /** Starts (once) and returns the tank sheet downloads. */
 export function loadTankSprites(): Promise<void> {
   loaded ??= Promise.all(
-    [...new Set(Object.values(SHEETS))].map(
+    [...new Set(Object.values(SHEETS)), TANK_BLAST].map(
       (img) =>
         new Promise<void>((resolve, reject) => {
           img.onload = () => resolve();
@@ -113,5 +120,14 @@ export function drawTankDeath(ctx: CanvasRenderingContext2D, faction: FactionId,
   blit(ctx, img, direction(heading), 0, x, y, CELL * SCALE);
   ctx.filter = prevFilter;
   ctx.globalAlpha = prevAlpha;
-  drawCraftBlast(ctx, `heli:${BLAST[faction]}`, false, x, y, age, CELL * SCALE * 1.6);
+  if (TANK_BLAST.complete && TANK_BLAST.naturalWidth > 0) {
+    const frame = Math.floor(age / BLAST_FRAME_SECONDS);
+    if (age >= 0 && frame < BLAST_FRAMES) {
+      const size = CELL * SCALE * 1.5;
+      const prevSmooth = ctx.imageSmoothingEnabled;
+      ctx.imageSmoothingEnabled = true;
+      ctx.drawImage(TANK_BLAST, frame * BLAST_CELL, 0, BLAST_CELL, BLAST_CELL, x - size / 2, y - size * 0.62, size, size);
+      ctx.imageSmoothingEnabled = prevSmooth;
+    }
+  } else drawCraftBlast(ctx, `heli:${BLAST[faction]}`, false, x, y, age, CELL * SCALE * 1.6);
 }

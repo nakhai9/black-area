@@ -52,6 +52,7 @@ const ENGINE_BY_KIND: Readonly<Record<VehicleKind, EngineProfile>> = {
   tank: 'dieselTank',
   ifv: 'dieselTank',
   repair: 'recovery',
+  mantis: 'dieselTank',
   jet: 'fighter',
   heli: 'bomber',
   bomber: 'bomber',

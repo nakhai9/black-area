@@ -109,6 +109,7 @@ import { TreeLayer } from '../map/Trees';
 import { SOLDIER_DEATH_SECONDS, hasSoldierDeath, soldierPortrait } from '../render/InfantryArt';
 import { vehiclePortrait } from '../render/VehicleArt';
 import { REPAIR_DEATH_SECONDS, hasRepairSheet } from '../render/RepairSheets';
+import { MANTIS_DEATH_SECONDS, hasMantisSheet } from '../render/MantisSheet';
 import { TRUCK_DEATH_SECONDS, hasTruckSheet } from '../render/TruckSheets';
 import { TANK_DEATH_SECONDS, hasTankSheet } from '../render/TankSheets';
 import { CRAFT_DEATH_SECONDS, craftKey } from '../render/CraftSheets';
@@ -2612,7 +2613,9 @@ export class Game {
         return;
       }
     }
-    if (w.kind !== 'bomb' && hasBulletSheet()) {
+    // The MANTIS always fires its missile from the missile sheet (below), never a bullet.
+    const mantisMissile = s instanceof Vehicle && s.type === 'mantis' && hasMissileSheet();
+    if (w.kind !== 'bomb' && !mantisMissile && hasBulletSheet()) {
       // A real bullet from the shared sheet, sized to the gun: rifle < bunker MG < autocannon < aircraft < tank.
       let size: BulletSize = 'rifle';
       if (s instanceof Vehicle) {
@@ -2635,8 +2638,8 @@ export class Game {
       this.sound.play(w.kind, { x: mx, y: my });
       return;
     }
-    if (w.kind === 'missile' && s instanceof Vehicle && s.flies && hasMissileSheet()) {
-      // Aircraft missile from the shared sheet: smoke trail in flight, then a burst on aircraft or a blast on the ground.
+    if (w.kind === 'missile' && s instanceof Vehicle && (s.flies || s.type === 'mantis') && hasMissileSheet()) {
+      // Aircraft (or MANTIS) missile from the shared sheet: smoke trail in flight, then a burst on aircraft or a blast on the ground.
       const air = t instanceof Unit && t.flies;
       this.effects.add({ kind: 'missile', x0: muzzle.x, y0: muzzle.y, x1: hit.x, y1: hit.y, age: 0, ttl: MISSILE_FLIGHT_SECONDS });
       this.effects.add({ kind: 'missileBlast', x: hit.x, y: hit.y, age: -MISSILE_FLIGHT_SECONDS, ttl: MISSILE_BLAST_SECONDS, air });
@@ -2887,6 +2890,9 @@ export class Game {
         this.sound.play('explosion', { x: e.px, y: e.py });
       } else if (vehicle && e.isTruck && hasTruckSheet(e.faction as FactionId)) {
         this.effects.add({ kind: 'truckDeath', ...this.fx(e.px, e.py), age: 0, ttl: TRUCK_DEATH_SECONDS, faction: e.faction as FactionId, heading: e.heading, flatbed: wasCarryingTank });
+      } else if (vehicle && e.type === 'mantis' && hasMantisSheet()) {
+        this.effects.add({ kind: 'mantisDeath', ...this.fx(e.px, e.py), age: 0, ttl: MANTIS_DEATH_SECONDS });
+        this.sound.play('explosion', { x: e.px, y: e.py });
       } else if (vehicle && e.isRepair && hasRepairSheet(e.faction as FactionId)) {
         this.effects.add({ kind: 'repairDeath', ...this.fx(e.px, e.py), age: 0, ttl: REPAIR_DEATH_SECONDS, faction: e.faction as FactionId, heading: e.heading });
         this.sound.play('explosion', { x: e.px, y: e.py });
@@ -2913,7 +2919,7 @@ export class Game {
     if (e.owner === this.humanPlayer.id) this.sidebar.notify(`Your ${e.spec.name} was destroyed!`, 5);
   }
 
-  /** Buildings below half health smoke; below a quarter they also burn. */
+  /** Buildings (and tanks) below half health smoke; below a quarter they also burn. */
   private smokeFromDamagedBuildings(dt: number): void {
     this.smokeTimer -= dt;
     if (this.smokeTimer > 0) return;
@@ -2924,6 +2930,13 @@ export class Game {
       const spot = this.fx(f.x + f.w * (0.25 + Math.random() * 0.5), f.y + f.h * (0.2 + Math.random() * 0.5), 6);
       this.effects.add({ kind: 'smoke', ...spot, age: 0, ttl: 1.8, radius: 4.5 });
       if (b.hpRatio < 0.25) this.effects.add({ kind: 'blast', x: spot.x, y: spot.y + 2, age: 0, ttl: 0.4, radius: 5 });
+    }
+    // Tanks (every nation) the same way, smaller: smoke below half health, flames too below a quarter.
+    for (const v of this.entities.vehicles()) {
+      if (v.type !== 'tank' || !v.alive || !v.visible || v.hp >= v.maxHp * 0.5) continue;
+      const spot = this.fx(v.px + (Math.random() - 0.5) * 2, v.py + (Math.random() - 0.5) * 2, 3);
+      this.effects.add({ kind: 'smoke', ...spot, age: 0, ttl: 1.4, radius: 2.4 });
+      if (v.hp < v.maxHp * 0.25) this.effects.add({ kind: 'blast', x: spot.x, y: spot.y + 1, age: 0, ttl: 0.35, radius: 2.2 });
     }
   }
 
@@ -3796,6 +3809,10 @@ export class Game {
     for (const id of [...this.lastShot.keys()]) if (!this.entities.get(id)) this.lastShot.delete(id);
     for (const id of [...this.lastDry.keys()]) if (!this.entities.get(id)) this.lastDry.delete(id);
     for (const [key, at] of [...this.alertAt]) if (this.time - at > 12) this.alertAt.delete(key);
+    // Mercy bonuses already paid for retreating groups that no longer have anyone alive (they cannot be spared again).
+    const groups = new Set<number>();
+    for (const u of [...this.entities.units(), ...this.entities.vehicles()]) if (u.alive && u.retreatGroup > 0) groups.add(u.retreatGroup);
+    for (const key of [...this.mercyPaid]) if (!groups.has(Number(key.split(':')[0]))) this.mercyPaid.delete(key);
     this.combat.sweep();
     const pics = sweepUnitSprites();
     const chunks = this.terrain.sweepChunks();

@@ -99,6 +99,7 @@ const VEHICLE_WEIGHT: Readonly<Partial<Record<VehicleKind, number>>> = {
   heli: 0.1,
   bomber: 0.1,
   repair: 0.04,
+  mantis: 0.05,
 };
 /** Repairs come first: any structure below this share of its health gets an engineer. */
 const REPAIR_BELOW = 0.98;
@@ -774,6 +775,8 @@ export class AISystem implements GameSystem {
     for (const [k, base] of Object.entries(VEHICLE_WEIGHT) as [VehicleKind, number][]) {
       let w = base;
       if (k === 'jet') w *= 1 + airShare * 2;
+      // MANTIS only shoots aircraft: worth buying only as far as the enemies field them.
+      if (k === 'mantis') w *= airShare * 4;
       if (k === 'bomber') w *= 1 + Math.min(1, structures / 40);
       if (k === 'tank') w *= 1 + Math.min(1, ground / 60) * 0.5;
       if (st.overseas) w *= k === 'jet' || k === 'heli' || k === 'bomber' ? 2 : 0.5;

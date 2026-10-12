@@ -4,7 +4,7 @@
 
 <h1 align="center">Black Area</h1>
 
-<p align="center"><sub>Phiên bản 1.58.0</sub></p>
+<p align="center"><sub>Phiên bản 1.60.0</sub></p>
 
 <p align="center"><b><a href="https://black-area.vercel.app">▶ CHƠI NGAY: black-area.vercel.app</a></b></p>
 
@@ -62,7 +62,7 @@ Giếng dầu bơm ngày đêm. Ai bán đúng lúc thì ngân khố đầy. Ai 
 
 Anh rời Liên minh châu Âu. Canada bước ra khỏi cái bóng của Washington. Cùng với Nhật Bản, Úc, Brazil và hai miền Triều Tiên, họ tuyên bố trung lập và tin rằng như vậy là an toàn.
 
-Họ đã nhầm. Trong cuộc chiến này, trung lập chỉ có nghĩa là *chưa bị chiếm*. Thủ đô của họ không thể bị phá hủy, nhưng một kỹ sư lặng lẽ bước qua cửa 10 Downing Street hay Parliament Hill là đủ để cả một quốc gia đổi chủ. Kẻ chiếm được nhận 1200 TB mỗi phút tiền phí hiện diện quân sự và được dựng căn cứ ngay bên cạnh. Nhưng giữ được thì phải đóng quân canh, vì các phe khác sẽ đến giành lại.
+Họ đã nhầm. Trong cuộc chiến này, trung lập chỉ có nghĩa là *chưa bị chiếm*. Thủ đô của họ không thể bị phá hủy, nhưng một kỹ sư lặng lẽ bước qua cửa 10 Downing Street hay Parliament Hill là đủ để cả một quốc gia đổi chủ. Kẻ chiếm được nhận 1200 TB mỗi hai phút tiền phí hiện diện quân sự và được dựng căn cứ ngay bên cạnh. Nhưng giữ được thì phải đóng quân canh, vì các phe khác sẽ đến giành lại.
 
 ### VI. Lục địa trắng
 

@@ -113,6 +113,7 @@ export const ISLAMIC: FactionConfig = {
       description: "BMP-2 armoured fighting vehicle for infantry support.",
     },
     heli: { name: "Ka-52", description: "Ka-52 attack helicopter of the Islamic air force: guided missiles against ground vehicles only. Carries up to 8 soldiers (no vehicles) and sets down anywhere on open ground." },
+    mantis: { name: "MANTIS", description: "MANTIS self-propelled air-defence vehicle: long-range missiles that hit aircraft only (fighters, bombers, helicopters, transports), never ground units or structures. Expensive and slow, armoured like a tank." },
     jet: {
       name: "Su-35",
       description:

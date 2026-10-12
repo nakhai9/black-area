@@ -11,9 +11,9 @@ import type {
 } from "./types";
 
 /** DEMO: skip the faction screen and start a solo test game as DEMO_FACTION (no AI opponents). Set to false for production. */
-export const DEMO_MODE = false;
+export const DEMO_MODE = true;
 /** DEMO_MODE nation, by number: 1 USA, 2 Russia, 3 China, 4 Europe, 5 Islamic (the FACTION_ORDER position, from 1). */
-export const DEMO_FACTION = 1;
+export const DEMO_FACTION = 2;
 
 /**
  * Version of the game, x.y.z (semantic versioning):
@@ -23,7 +23,7 @@ export const DEMO_FACTION = 1;
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "1.58.0";
+export const GAME_VERSION = "1.60.0";
 
 // ---------------------------------------------------------------- World (real Earth)
 /** Packed Earth texture built by `npm run build:earth` (see scripts/build-earth.mjs). */
@@ -341,6 +341,7 @@ export const VEHICLE_WEAPON: Readonly<
   ifv: "autocannon",
   jet: "missile",
   heli: "missile",
+  mantis: "missile",
   bomber: "bomb",
 };
 /** Soldiers only shoot at enemies within this many cells (vehicles keep their own, longer ranges). */
@@ -370,8 +371,10 @@ export const VEHICLE_BASE = {
   tank: { cost: 1200, trainSeconds: 14, maxHp: 420, speed: 1.4, radius: 4.2 },
   ifv: { cost: 900, trainSeconds: 11, maxHp: 300, speed: 1.8, radius: 4.0 },
   jet: { cost: 1600, trainSeconds: 16, maxHp: 220, speed: 9, radius: 3.2 },
-  /** Attack helicopter: slower than the fighter, built at the Airfield like it. */
-  heli: { cost: 1300, trainSeconds: 14, maxHp: 200, speed: 4.5, radius: 3.4 },
+  /** Attack helicopter: slow (well under the fighter and the transport), built at the Airfield like it. */
+  heli: { cost: 1300, trainSeconds: 14, maxHp: 200, speed: 3, radius: 3.4 },
+  /** MANTIS air-defence vehicle: dear, slow, tank-like health; shoots aircraft only (see MANTIS_FIREPOWER). */
+  mantis: { cost: 3000, trainSeconds: 18, maxHp: 380, speed: 1.1, radius: 4.4 },
   /** Unarmed cargo aircraft: slower than the fighter. */
   transport: {
     cost: 1400,
@@ -434,6 +437,9 @@ export const JET_BOMBS = 2;
  * less health (VEHICLE_BASE), shoots only ground vehicles and carries no bombs.
  */
 export const HELI_FIREPOWER = 0.75;
+/** MANTIS: its missile hits this many times as hard, and reaches MANTIS_RANGE times as far, as the base missile; aircraft only. */
+export const MANTIS_FIREPOWER = 2.5;
+export const MANTIS_RANGE = 1.5;
 export const JET_BOMB_VS_STRUCTURE = 0.1;
 export const JET_BOMB_VS_VEHICLE = 0.6;
 /** A fighter's bomb costs this much to load (a bomber's costs BOMB_COST). */
@@ -503,6 +509,7 @@ export const AVAILABLE_VEHICLES: readonly VehicleKind[] = [
   "transport",
   "repair",
   "truck",
+  "mantis",
 ];
 
 /**
@@ -663,7 +670,7 @@ export const ANTARCTIC_OIL_SITES: readonly GeoPoint[] = [
   { lon: 66, lat: -74 },
   { lon: 136, lat: -75 },
 ];
-export const NATION_PRESENCE_PERIOD = 60;
+export const NATION_PRESENCE_PERIOD = 120;
 /** Soldiers / vehicles an AI keeps stationed at each contested capital it holds, and how near (cells) counts as there. */
 export const NATION_GARRISON = 6;
 export const NATION_GARRISON_CELLS = 10;

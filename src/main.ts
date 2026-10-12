@@ -10,6 +10,7 @@ import { loadMissileSprites } from './render/MissileSheet';
 import { loadShellSprites } from './render/ShellSheet';
 import { loadBulletSprites } from './render/BulletSheet';
 import { loadRepairSprites } from './render/RepairSheets';
+import { loadMantisSprites } from './render/MantisSheet';
 import { loadTruckSprites } from './render/TruckSheets';
 import { loadTankSprites } from './render/TankSheets';
 import { loadBunkerSprites } from './render/BunkerSheet';
@@ -60,6 +61,7 @@ async function boot(): Promise<void> {
   aircraft.catch(() => undefined);
   const tanks = loadTankSprites();
   tanks.catch(() => undefined);
+  loadMantisSprites().catch(() => undefined);
   const repairs = loadRepairSprites();
   repairs.catch(() => undefined);
   loadBunkerSprites().catch(() => undefined);

@@ -95,6 +95,7 @@ export const CHINA: FactionConfig = {
     },
     ifv: { name: "ZBD-04", description: "ZBD-04 armoured fighting vehicle." },
     heli: { name: "Z-19E", description: "Z-19E light attack helicopter: guided missiles against ground vehicles only. Carries up to 8 soldiers (no vehicles) and sets down anywhere on open ground." },
+    mantis: { name: "MANTIS", description: "MANTIS self-propelled air-defence vehicle: long-range missiles that hit aircraft only (fighters, bombers, helicopters, transports), never ground units or structures. Expensive and slow, armoured like a tank." },
     jet: { name: "J-15", description: "J-15 carrier-based multirole fighter." },
     transport: {
       name: "Y-20",

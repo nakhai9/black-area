@@ -1,5 +1,7 @@
 import {
   HELI_FIREPOWER,
+  MANTIS_FIREPOWER,
+  MANTIS_RANGE,
   CELL_SIZE,
   TRANSPORT_MIXED_SOLDIERS,
   TRANSPORT_SOLDIERS,
@@ -45,6 +47,7 @@ const HANDLING: Readonly<Record<VehicleKind, { accel: number; turn: number; pivo
   bomber: { accel: 1.0, turn: 1.4, pivot: false },
   repair: { accel: 1.0, turn: 2.0, pivot: true },
   truck: { accel: 0.6, turn: 3.0, pivot: true },
+  mantis: { accel: 1.0, turn: 2.0, pivot: true },
 };
 
 /** Can `soldiers` soldiers and `vehicles` vehicles travel together in one transport? */
@@ -185,8 +188,9 @@ export class Vehicle extends Unit {
     const weapon = VEHICLE_WEAPON[type];
     if (weapon) {
       const spec = WEAPONS[weapon];
-      const heli = type === 'heli' ? HELI_FIREPOWER : 1;
-      this.weapon = { ...spec, damage: spec.damage * f.stats.firepower * heli, range: spec.range * f.stats.range };
+      const power = type === 'heli' ? HELI_FIREPOWER : type === 'mantis' ? MANTIS_FIREPOWER : 1;
+      const reach = type === 'mantis' ? MANTIS_RANGE : 1;
+      this.weapon = { ...spec, damage: spec.damage * f.stats.firepower * power, range: spec.range * f.stats.range * reach };
     }
     this.bombs = this.maxBombs;
     const h = HANDLING[type];

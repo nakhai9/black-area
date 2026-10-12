@@ -18,6 +18,11 @@ const DIRS: readonly [number, number, number][] = [
   [-1, -1, SQRT2],
 ];
 
+/** DIRS split into flat arrays for the search loop. */
+const DX = DIRS.map((d) => d[0]);
+const DY = DIRS.map((d) => d[1]);
+const STEP = DIRS.map((d) => d[2]);
+
 /**
  * A* pathfinding for infantry on the cell grid (8-directional, no corner
  * cutting). Buildings block; water blocks walkers but not swimmers (special
@@ -27,6 +32,10 @@ export class Pathfinder {
   private readonly g: Float32Array;
   private readonly from: Int32Array;
   private readonly stamp: Uint32Array;
+  /** Cells already expanded in the current run (== run). */
+  private readonly closed: Uint32Array;
+  /** Open list, reused by every search. */
+  private readonly heap = new MinHeap();
   private run = 0;
 
   constructor(private readonly map: TileMap) {
@@ -34,6 +43,7 @@ export class Pathfinder {
     this.g = new Float32Array(n);
     this.from = new Int32Array(n);
     this.stamp = new Uint32Array(n);
+    this.closed = new Uint32Array(n);
   }
 
   passable(x: number, y: number, swim = false): boolean {
@@ -111,49 +121,69 @@ export class Pathfinder {
   find(start: WorldPoint, goal: GridPoint, swim = false, corridor: Corridor | null = null): WorldPoint[] {
     const { map } = this;
     const W = map.width;
+    const H = map.height;
     const sx = Math.floor(start.x / CELL_SIZE);
     const sy = Math.floor(start.y / CELL_SIZE);
     if (!map.inBounds(sx, sy) || !map.inBounds(goal.x, goal.y)) return [];
     const startI = map.index(sx, sy);
     const goalI = map.index(goal.x, goal.y);
-
-    this.run++;
-    const open = new MinHeap();
-    const h = (i: number): number => {
-      const dx = Math.abs((i % W) - goal.x);
-      const dy = Math.abs(((i / W) | 0) - goal.y);
-      return dx + dy + (SQRT2 - 2) * Math.min(dx, dy);
+    // Hot loop: the grid's typed arrays are read directly (same rules as passable()).
+    const types = map.types;
+    const occupied = map.occupied;
+    const trees = map.trees;
+    const { g, stamp, closed } = this;
+    const open = this.heap;
+    open.clear();
+    const free = (i: number): boolean => (swim || types[i] !== 0) && occupied[i] === 0;
+    const gx = goal.x;
+    const gy = goal.y;
+    const h = (x: number, y: number): number => {
+      const dx = Math.abs(x - gx);
+      const dy = Math.abs(y - gy);
+      return dx + dy + (SQRT2 - 2) * (dx < dy ? dx : dy);
     };
+
+    const run = ++this.run;
     this.visit(startI, 0, -1);
-    open.push(startI, h(startI));
+    open.push(startI, h(sx, sy));
     let best = startI;
-    let bestH = h(startI);
+    let bestH = h(sx, sy);
     let expansions = 0;
 
-    while (open.size > 0 && expansions++ < MAX_EXPANSIONS) {
+    while (open.size > 0 && expansions < MAX_EXPANSIONS) {
       const cur = open.pop();
+      // A cell queued several times (a cheaper route found later) is expanded once: the later copies are stale.
+      if (closed[cur] === run) continue;
+      closed[cur] = run;
+      expansions++;
       if (cur === goalI) {
         best = cur;
         break;
       }
       const cx = cur % W;
       const cy = (cur / W) | 0;
-      const hc = h(cur);
+      const hc = h(cx, cy);
       if (hc < bestH) {
         bestH = hc;
         best = cur;
       }
-      for (const [dx, dy, step] of DIRS) {
+      const gc = g[cur] ?? 0;
+      for (let k = 0; k < 8; k++) {
+        const dx = DX[k] ?? 0;
+        const dy = DY[k] ?? 0;
         const nx = cx + dx;
         const ny = cy + dy;
-        if (!this.passable(nx, ny, swim)) continue;
+        if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+        const ni = ny * W + nx;
+        if (!free(ni)) continue;
         if (corridor && !inCorridor(corridor, nx, ny)) continue;
-        if (dx !== 0 && dy !== 0 && (!this.passable(cx + dx, cy, swim) || !this.passable(cx, cy + dy, swim))) continue;
-        const ni = map.index(nx, ny);
-        const cost = (this.g[cur] ?? 0) + step * (map.hasTrees(nx, ny) ? TREE_COST : 1);
-        if (this.stamp[ni] === this.run && cost >= (this.g[ni] ?? Infinity)) continue;
+        // No corner cutting: both side cells of a diagonal step must be open too (they are in bounds here).
+        if (dx !== 0 && dy !== 0 && (!free(cy * W + nx) || !free(ny * W + cx))) continue;
+        if (closed[ni] === run) continue;
+        const cost = gc + (STEP[k] ?? 1) * ((trees[ni] ?? 0) > 0 ? TREE_COST : 1);
+        if (stamp[ni] === run && cost >= (g[ni] ?? Infinity)) continue;
         this.visit(ni, cost, cur);
-        open.push(ni, cost + h(ni));
+        open.push(ni, cost + h(nx, ny));
       }
     }
 
@@ -231,51 +261,66 @@ export function inCorridor(c: Corridor, x: number, y: number): boolean {
   return c.mask[((y / c.cluster) | 0) * c.width + ((x / c.cluster) | 0)] === 1;
 }
 
-/** Binary min-heap of (index, priority). */
+/** Binary min-heap of (index, priority) on growable typed arrays (no per-search allocation, no tuple swaps). */
 export class MinHeap {
-  private readonly items: number[] = [];
-  private readonly prio: number[] = [];
+  private items = new Int32Array(1024);
+  private prio = new Float64Array(1024);
+  private n = 0;
 
   get size(): number {
-    return this.items.length;
+    return this.n;
+  }
+
+  clear(): void {
+    this.n = 0;
   }
 
   push(item: number, priority: number): void {
-    this.items.push(item);
-    this.prio.push(priority);
-    let i = this.items.length - 1;
+    if (this.n === this.items.length) {
+      const items = new Int32Array(this.n * 2);
+      const prio = new Float64Array(this.n * 2);
+      items.set(this.items);
+      prio.set(this.prio);
+      this.items = items;
+      this.prio = prio;
+    }
+    const { items, prio } = this;
+    let i = this.n++;
     while (i > 0) {
       const p = (i - 1) >> 1;
-      if ((this.prio[p] ?? 0) <= priority) break;
-      this.swap(i, p);
+      const pp = prio[p] ?? 0;
+      if (pp <= priority) break;
+      items[i] = items[p] ?? 0;
+      prio[i] = pp;
       i = p;
     }
+    items[i] = item;
+    prio[i] = priority;
   }
 
   pop(): number {
-    const top = this.items[0] ?? -1;
-    const lastItem = this.items.pop();
-    const lastPrio = this.prio.pop();
-    if (this.items.length > 0 && lastItem !== undefined && lastPrio !== undefined) {
-      this.items[0] = lastItem;
-      this.prio[0] = lastPrio;
+    const { items, prio } = this;
+    if (this.n === 0) return -1;
+    const top = items[0] ?? -1;
+    const n = --this.n;
+    if (n > 0) {
+      const lastItem = items[n] ?? 0;
+      const lastPrio = prio[n] ?? 0;
       let i = 0;
       for (;;) {
         const l = i * 2 + 1;
+        if (l >= n) break;
         const r = l + 1;
-        let m = i;
-        if (l < this.items.length && (this.prio[l] ?? 0) < (this.prio[m] ?? 0)) m = l;
-        if (r < this.items.length && (this.prio[r] ?? 0) < (this.prio[m] ?? 0)) m = r;
-        if (m === i) break;
-        this.swap(i, m);
+        let m = l;
+        if (r < n && (prio[r] ?? 0) < (prio[l] ?? 0)) m = r;
+        if ((prio[m] ?? 0) >= lastPrio) break;
+        items[i] = items[m] ?? 0;
+        prio[i] = prio[m] ?? 0;
         i = m;
       }
+      items[i] = lastItem;
+      prio[i] = lastPrio;
     }
     return top;
-  }
-
-  private swap(a: number, b: number): void {
-    [this.items[a], this.items[b]] = [this.items[b] ?? 0, this.items[a] ?? 0];
-    [this.prio[a], this.prio[b]] = [this.prio[b] ?? 0, this.prio[a] ?? 0];
   }
 }

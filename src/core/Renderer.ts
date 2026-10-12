@@ -18,6 +18,7 @@ import { drawCarriedFlag } from '../render/Flags';
 import { drawAircraftSheet } from '../render/AircraftSheets';
 import { drawFlagOnPole, drawNationalPole } from '../render/Flags';
 import { drawRepairDeath, drawRepairSheet } from '../render/RepairSheets';
+import { drawMantisDeath, drawMantisSheet } from '../render/MantisSheet';
 import { drawTruckDeath, drawTruckSheet } from '../render/TruckSheets';
 import { drawTankDeath, drawTankSheet } from '../render/TankSheets';
 import { drawCraftDeath } from '../render/CraftSheets';
@@ -435,6 +436,7 @@ export class Renderer {
       if (u.aircraft && drawAircraftSheet(ctx, u, P.x, P.y)) return;
       if (u.type === 'tank' && drawTankSheet(ctx, u, P.x, P.y)) return;
       if (u.type === 'repair' && drawRepairSheet(ctx, u, P.x, P.y)) return;
+      if (u.type === 'mantis' && drawMantisSheet(ctx, u, P.x, P.y)) return;
       if (u.type === 'truck' && drawTruckSheet(ctx, u, P.x, P.y)) return;
       const heading = isoHeading(u.heading, u.aircraft ? 0.8 : SQUASH);
       // On the iso ground a vehicle's neighbours are half as far apart on screen: ground vehicles are drawn a bit
@@ -926,6 +928,8 @@ export class Renderer {
         drawCraftDeath(ctx, e.model, e.type, e.heading, e.air, e.x, e.y, e.age, e.ttl);
       } else if (e.kind === 'truckDeath') {
         drawTruckDeath(ctx, e.faction, e.heading, e.flatbed, e.x, e.y, e.age, e.ttl);
+      } else if (e.kind === 'mantisDeath') {
+        drawMantisDeath(ctx, e.x, e.y, e.age, e.ttl);
       } else if (e.kind === 'repairDeath') {
         drawRepairDeath(ctx, e.faction, e.heading, e.x, e.y, e.age, e.ttl);
       } else {

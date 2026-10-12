@@ -31,7 +31,7 @@ export class NationCapital extends Building {
       indestructible: true,
     });
     this.city = n.site.name;
-    this.description = `Capital of ${n.name}, an independent nation. Cannot be destroyed; an engineer takes it over. Its holder earns a military presence fee every minute and may build next to it.`;
+    this.description = `Capital of ${n.name}, an independent nation. Cannot be destroyed; an engineer takes it over. Its holder earns a military presence fee every ${NATION_PRESENCE_PERIOD / 60} minutes and may build next to it.`;
   }
 
   override capture(owner: number, faction: import('../types').FactionId): boolean {
