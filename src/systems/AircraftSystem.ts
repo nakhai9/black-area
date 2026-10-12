@@ -1,4 +1,4 @@
-import { BOMB_COST, BOMB_LOAD_SECONDS, JET_BOMB_COST, CELL_SIZE, REFUEL_RANGE_CELLS, REFUEL_RATE, TANKER_LEAD_CELLS, TANKER_LOAD_TANKS, TURBO_RECHARGE_SECONDS, TURBO_SECONDS, TRANSPORT_FUEL_CELLS } from '../constants';
+import { BOMB_COST, BOMB_LOAD_SECONDS, JET_BOMB_COST, CELL_SIZE, TURBO_RECHARGE_SECONDS, TURBO_SECONDS, TRANSPORT_FUEL_CELLS } from '../constants';
 import type { Building } from '../entities/Building';
 import type { EntityManager } from '../entities/EntityManager';
 import { CRUISE_ALTITUDE, type Vehicle } from '../entities/Vehicle';
@@ -53,8 +53,6 @@ export interface AircraftHooks {
   computer(owner: number): boolean;
   /** Does the owner have enough power? The airfield cannot launch aircraft without it. */
   powered(owner: number): boolean;
-  /** A transport parked at home without a tanker gets a new one on a free spot; false when there is no room. */
-  newTanker(transport: Vehicle): boolean;
   /** Charges `owner` `amount` (a bomb reload); false, and nothing is charged, when it cannot pay. */
   pay(owner: number, amount: number): boolean;
   /** The aircraft is about to go down (crashing, or badly hit in the air): the pilot's distress call. */
@@ -150,7 +148,7 @@ export class AircraftSystem implements GameSystem {
       if (v.turboLeft > 0) v.turboLeft = Math.max(0, v.turboLeft - dt);
       else if (v.turboCharge < 1) v.turboCharge = Math.min(1, v.turboCharge + dt / TURBO_RECHARGE_SECONDS);
       if (prev && v.hp < prev.hp) this.hitAt.set(v.id, this.clock);
-      if (v.turboReady && !v.isTanker && v.flight === 'airborne' && this.hooks.computer(v.owner) && this.aiWantsTurbo(v)) this.turbo(v);
+      if (v.turboReady && v.flight === 'airborne' && this.hooks.computer(v.owner) && this.aiWantsTurbo(v)) this.turbo(v);
       // Badly hit in the air: the pilot calls mayday before the aircraft falls.
       if (!v.maydaySent && v.altitude > 0 && v.hp <= v.maxHp * MAYDAY_HP) this.callMayday(v);
       else if (v.maydaySent && v.flight === 'parked' && v.hp > v.maxHp * MAYDAY_HP) v.maydaySent = false; // repaired
@@ -168,8 +166,7 @@ export class AircraftSystem implements GameSystem {
           v.attackTarget = a.id;
         }
       }
-      if (v.isTransport) this.fuel(v, prev, dt);
-      if (v.isTanker) this.escort(v, dt);
+      if (v.isTransport) this.fuel(v, prev);
       const base = this.home(v);
       // Drawn right after its airfield only while it is on the airfield's apron or runway.
       const onAirfield = v.flight === 'parked' || v.flight === 'taxi' || v.flight === 'takeoff' || v.flight === 'landing' || v.flight === 'taxiHome';
@@ -239,14 +236,6 @@ export class AircraftSystem implements GameSystem {
   private parked(v: Vehicle, dt: number): void {
     v.altitude = 0;
     this.service(v, dt);
-    // Its tanker was shot down: a replacement is only issued once the transport is back home on its spot.
-    if (v.isTransport && this.home(v)) {
-      const tanker = v.tankerId === null ? undefined : this.entities.get(v.tankerId);
-      if (!tanker || !tanker.alive) {
-        v.tankerId = null;
-        this.hooks.newTanker(v);
-      }
-    }
     // Its airfield is gone: fly to another airfield of the nation; with none left it is destroyed where it stands.
     if (!this.home(v) && !v.isHeli) {
       if (!this.adoptHome(v)) {
@@ -418,7 +407,7 @@ export class AircraftSystem implements GameSystem {
     }
     if (v.idleFor < RETURN_AFTER) return;
     // A selected fighter with nothing to do circles where it is, waiting for its next order; once deselected it heads home.
-    if (!v.isTransport && !v.isTanker && !v.returningHome && this.hooks.selected(v)) {
+    if (!v.isTransport && !v.returningHome && this.hooks.selected(v)) {
       this.orbit(v, dt);
       return;
     }
@@ -453,7 +442,7 @@ export class AircraftSystem implements GameSystem {
    * comes in over whichever runway end is nearer. False when it cannot land there.
    */
   land(v: Vehicle, airfield: Building): boolean {
-    if (!v.aircraft || !v.alive || v.isTanker || airfield.owner !== v.owner || !airfield.alive || airfield.spec.type !== 'airfield') return false;
+    if (!v.aircraft || !v.alive || airfield.owner !== v.owner || !airfield.alive || airfield.spec.type !== 'airfield') return false;
     const slot = this.freeSlot(v.homeId === airfield.id ? v : null, airfield);
     if (slot < 0) return false;
     // Parked at another airfield: it takes off towards the new one and comes in to land there once airborne.
@@ -597,88 +586,17 @@ export class AircraftSystem implements GameSystem {
   }
 
   /**
-   * Transport fuel: every px flown burns a fixed share of the tank. Its tanker (close by, in the air or on the
-   * ground) and the airfield's apron fill it back up. An empty tank in the air means a crash.
+   * Transport fuel: every px flown burns a fixed share of the tank (TRANSPORT_FUEL_CELLS). It is only filled back up
+   * on the ground — its airfield's apron, or set down in the field. An empty tank in the air means a crash.
    */
-  private fuel(v: Vehicle, prev: { x: number; y: number } | undefined, dt: number): void {
+  private fuel(v: Vehicle, prev: { x: number; y: number } | undefined): void {
     if (prev && (v.flight === 'airborne' || v.flight === 'approach')) {
       v.fuel -= Math.hypot(v.px - prev.x, v.py - prev.y) / (TRANSPORT_FUEL_CELLS * CELL_SIZE);
     }
-    const tanker = v.tankerId === null ? undefined : this.entities.get(v.tankerId);
-    const tankerNear = tanker && tanker.alive && Math.hypot((tanker as Vehicle).px - v.px, (tanker as Vehicle).py - v.py) <= REFUEL_RANGE_CELLS * CELL_SIZE;
-    // Parked on its airfield the tank is filled right up; in the field only the tanker tops it up.
-    // On the ground (its apron, or set down in the field): its tank and its tanker's load are filled right up.
     const grounded = v.flight === 'parked' || ((v.flight === 'landed' || v.flight === 'unloading') && v.altitude <= 0);
-    if (grounded) {
-      v.fuel = 1;
-      if (tanker && tanker.alive) (tanker as Vehicle).fuel = 1;
-    } else if (tankerNear && (tanker as Vehicle).fuel > 0 && v.fuel < 1) {
-      // The tanker's own load runs down by what it hands over: full, it holds a quarter of a pole-to-pole flight.
-      const tk = tanker as Vehicle;
-      const give = Math.min(REFUEL_RATE * dt, 1 - v.fuel, tk.fuel * this.tankerCapacity());
-      v.fuel += give;
-      tk.fuel = Math.max(0, tk.fuel - give / this.tankerCapacity());
-    }
+    if (grounded) v.fuel = 1;
     v.fuel = Math.max(0, Math.min(1, v.fuel));
     if (v.fuel <= 0 && (v.flight === 'airborne' || v.flight === 'approach')) this.startCrash(v);
-  }
-
-  /**
-   * Tanker: follows its transport everywhere. It takes off when the transport leaves, flies a little behind it, sets
-   * down beside it wherever it lands in the field, and heads home to park when the transport does.
-   */
-  private escort(v: Vehicle, dt: number): void {
-    // Nobody gives a tanker orders (the AI's attack groups included): it only ever follows its transport.
-    v.attackTarget = null;
-    v.attackMove = null;
-    // Load to hand over (v.fuel): topped up on the apron. Its own flying never runs dry; with the load spent it
-    // still stays with the transport, it just has nothing left to give.
-    if (v.flight === 'parked') v.fuel = 1;
-    const t = v.escortOf === null ? undefined : (this.entities.get(v.escortOf) as Vehicle | undefined);
-    // Its transport is falling out of the sky: the tanker goes down with it.
-    if (t && t.alive && t.flight === 'crashing' && v.altitude > 0 && v.flight !== 'crashing') {
-      this.startCrash(v);
-      return;
-    }
-    if (!t || !t.alive) {
-      v.escortOf = null; // transport lost: the tanker just goes home and stays there
-      return;
-    }
-    const out = t.flight === 'taxi' || t.flight === 'takeoff' || t.flight === 'airborne' || t.flight === 'unloading' || t.flight === 'landed' || t.flight === 'liftoff';
-    // Every sortie: the tanker goes out with the transport (and flies back to park when it heads home).
-    const away = out;
-    if (v.flight === 'parked') {
-      if (away && !v.moving) v.follow([{ x: t.px, y: t.py }]); // off after it
-      return;
-    }
-    // Was coming in to land but the transport has set off again: break off the approach and catch up.
-    if (v.flight === 'approach' && away) {
-      this.leaveQueue(v);
-      v.flight = 'airborne';
-    }
-    if (v.flight !== 'airborne' || !away) return; // on the runway, or the transport is heading home: normal flight
-    // Station always ahead of the transport's nose — in the air and when it sets down in the field — never behind it.
-    const lead = TANKER_LEAD_CELLS * CELL_SIZE;
-    const goal = { x: t.px + Math.cos(t.heading) * lead, y: t.py + Math.sin(t.heading) * lead };
-    // Flown here directly (not by waypoints, which brake on arrival and would leave it trailing): it closes on its
-    // station well faster than the transport flies, then holds it, nose pointing the transport's way.
-    if (v.moving) v.stop();
-    const dx = goal.x - v.px;
-    const dy = goal.y - v.py;
-    const d = Math.hypot(dx, dy);
-    const step = Math.min(d, Math.max(t.speed, v.speed) * 1.8 * dt);
-    if (d > 0.01) this.place(v, v.px + (dx / d) * step, v.py + (dy / d) * step);
-    v.walkPhase += step;
-    v.heading = d > CELL_SIZE ? Math.atan2(dy, dx) : t.heading;
-    v.facing = Math.cos(v.heading) < 0 ? -1 : 1;
-    v.idleFor = 0;
-    v.returningHome = false;
-    this.orbits.delete(v.id);
-  }
-
-  /** A full tanker's load, in full transport tanks: a quarter of the pole-to-pole distance (TANKER_LOAD_TANKS). */
-  private tankerCapacity(): number {
-    return TANKER_LOAD_TANKS;
   }
 
   /**
@@ -704,9 +622,6 @@ export class AircraftSystem implements GameSystem {
     }
     v.climb = Math.max(0, Math.min(1, v.climb + (climb ? 1.6 : -0.8) * dt));
     v.altitude = CRUISE_ALTITUDE * (1 + AVOID_CLIMB * v.climb);
-    // A tanker whose transport has set down in the field comes down beside it (and climbs back with it).
-    const t = v.isTanker && v.escortOf !== null ? (this.entities.get(v.escortOf) as Vehicle | undefined) : undefined;
-    if (t && t.alive && (t.flight === 'unloading' || t.flight === 'landed' || t.flight === 'liftoff')) v.altitude = Math.min(v.altitude, t.altitude);
   }
 
   /** Escorting fighters whose ward has been in the air since the escort began (its touchdown then ends the escort). */
@@ -770,18 +685,6 @@ export class AircraftSystem implements GameSystem {
     return -1;
   }
 
-  /**
-   * Spot for a new transport that leaves the next spot of the same row (the one ahead of its nose, towards the runway
-   * end) free for its tanker; any free spot when no such pair is left.
-   */
-  freeTransportSlot(home: Building): number {
-    const taken = this.takenSlots(null, home);
-    for (let i = 0; i < PARKING_SLOTS; i++) {
-      if (i % SLOTS_PER_ROW < SLOTS_PER_ROW - 1 && !taken.has(i) && !taken.has(i + 1)) return i;
-    }
-    return this.freeSlot(null, home);
-  }
-
   /** Spots of `home` held by its aircraft (other than `v`): a spot belongs to its aircraft even while it flies. */
   private takenSlots(v: Vehicle | null, home: Building): Set<number> {
     const taken = new Set<number>();
@@ -833,17 +736,6 @@ export class AircraftSystem implements GameSystem {
    * free and nobody eligible may be ahead of it. Without power take-offs are held, but landings still go first.
    */
   private cleared(v: Vehicle, home: Building): boolean {
-    // A transport never leads: on every sortie it waits at the
-    // threshold until its tanker's wheels are off the ground (whichever airfield the tanker stands on), so the tanker
-    // is always out ahead of the transport's nose.
-    if (v.isTransport && v.tankerId !== null) {
-      const tk = this.entities.get(v.tankerId) as Vehicle | undefined;
-      if (tk && tk.alive && (tk.flight === 'parked' || tk.flight === 'taxi' || tk.flight === 'takeoff' || tk.altitude < CRUISE_ALTITUDE * 0.5)) {
-        // Waiting for its tanker must not block the runway: the tanker itself may be queued behind it.
-        this.leaveQueue(v);
-        return false;
-      }
-    }
     const q = this.joinQueue(v, home);
     if (this.runwayBusy(v, home)) return false;
     const powered = this.hooks.powered(v.owner);
@@ -1019,13 +911,6 @@ export class AircraftSystem implements GameSystem {
     v.turboLeft = TURBO_SECONDS;
     v.turboCharge = 0;
     return true;
-  }
-
-  /** A transport was shot down in the air: its tanker, flying with it, falls too. */
-  transportDown(t: Vehicle): void {
-    if (t.altitude <= 0 || t.tankerId === null) return;
-    const tk = this.entities.get(t.tankerId) as Vehicle | undefined;
-    if (tk && tk.alive && tk.altitude > 0 && tk.flight !== 'crashing') this.startCrash(tk);
   }
 
   private startCrash(v: Vehicle): void {

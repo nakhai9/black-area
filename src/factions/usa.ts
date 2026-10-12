@@ -43,20 +43,19 @@ export const USA: FactionConfig = {
     tank: { name: "Abrams", description: "M1 Abrams main battle tank: heavy armour and a powerful gun." },
     ifv: { name: "Bradley", description: "M2 Bradley armoured fighting vehicle for infantry support." },
     heli: { name: "AH-64 Apache", description: "AH-64 Apache attack helicopter: anti-tank missiles against ground vehicles only. Carries up to 8 soldiers (no vehicles) and sets down anywhere on open ground." },
-    mantis: { name: "MANTIS", description: "MANTIS self-propelled air-defence vehicle: long-range missiles that hit aircraft only (fighters, bombers, helicopters, transports), never ground units or structures. Expensive and slow, armoured like a tank." },
+    mantis: { name: "NOMADS", description: "NOMADS self-propelled air-defence vehicle: long-range missiles that hit aircraft only (fighters, bombers, helicopters, transports), never ground units or structures. Expensive and slow, armoured like a tank." },
     jet: { name: "F-22", description: "F-22 Raptor stealth air superiority fighter." },
     transport: { name: "C-17", description: "Heavy transport aircraft: carries soldiers and vehicles; unarmed." },
-    bomber: { name: "B-52", description: "B-52 Stratofortress long-range heavy bomber, USA only: heavy bombs that flatten ground forces and structures; cannot hit aircraft." },
+    bomber: { name: "B-1A Lancer", description: "B-1A Lancer supersonic long-range bomber, USA only: heavy bombs that flatten ground forces and structures; cannot hit aircraft." },
     truck: {
-      name: "LVSR",
+      name: "MTVR",
       description:
-        "Oshkosh LVSR heavy army truck: unarmed and faster than soldiers or tanks; carries up to 8 soldiers under its canvas cover, or one tank on its flatbed (never both). Ground only — it cannot cross the sea. Select soldiers or a tank and click the truck to board; select the truck and press U to unload.",
+        "Oshkosh MTVR army truck: unarmed and faster than soldiers or tanks; carries up to 8 soldiers under its canvas cover (no vehicles). Ground only — it cannot cross the sea. Select soldiers or a tank and click the truck to board; select the truck and press U to unload.",
     },
     repair: {
       name: "M88",
       description:
         "M88 armoured recovery vehicle: slow and unarmed; click a damaged friendly ground vehicle to drive up and repair it, or select damaged vehicles and click it to send them in for repair (5% of its max health every 2 s).",
     },
-    tanker: { name: "KC-46", description: "KC-46 Pegasus aerial tanker: flies escort behind its C-17 and keeps it fuelled; unarmed." },
   },
 };

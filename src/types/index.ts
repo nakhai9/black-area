@@ -98,9 +98,9 @@ export interface WeaponSpec {
 // ---------------------------------------------------------------- Vehicles
 
 /** Light car, main battle tank, armoured vehicle (IFV) and fighter aircraft. */
-/** `bomber` is a national special: only nations that list it in their `vehicles` can build it (Russia's Tu-16, the USA's B-52). */
+/** `bomber` is a national special: only nations that list it in their `vehicles` can build it (Russia's Tu-160, the USA's B-1A Lancer). */
 /** `repair` is a national special too: an unarmed armoured recovery vehicle that mends friendly ground vehicles (Russia's BREM-1). */
-export type VehicleKind = 'light' | 'tank' | 'ifv' | 'jet' | 'transport' | 'tanker' | 'bomber' | 'repair' | 'truck' | 'heli' | 'mantis';
+export type VehicleKind = 'light' | 'tank' | 'ifv' | 'jet' | 'transport' | 'bomber' | 'repair' | 'truck' | 'heli' | 'mantis';
 
 export interface VehicleProfile {
   name: string;
@@ -149,16 +149,15 @@ export interface FactionConfig {
   /** Ground forces trained at the Barracks. */
   infantry: Readonly<Record<Exclude<UnitTier, 'demolition'>, InfantryProfile>> & { readonly demolition?: InfantryProfile };
   /** Vehicles (War Factory) and aircraft (Airfield). */
-  vehicles: Readonly<Record<Exclude<VehicleKind, 'bomber' | 'repair' | 'truck' | 'transport' | 'tanker' | 'heli'>, VehicleProfile>> & {
+  vehicles: Readonly<Record<Exclude<VehicleKind, 'bomber' | 'repair' | 'truck' | 'transport' | 'heli'>, VehicleProfile>> & {
     readonly bomber?: VehicleProfile;
     /** Attack helicopter (built at the Airfield). */
     readonly heli?: VehicleProfile;
     readonly repair?: VehicleProfile;
     /** Army truck (KamAZ): only nations that field one. */
     readonly truck?: VehicleProfile;
-    /** Transport aircraft and its escort tanker: a nation without them flies no airlifts. */
+    /** Transport aircraft: a nation without it flies no airlifts. */
     readonly transport?: VehicleProfile;
-    readonly tanker?: VehicleProfile;
   };
   /** Leads the world oil cartel (like OPEC in real life): sets a production policy that moves the global oil price. */
   oilCartel?: boolean;

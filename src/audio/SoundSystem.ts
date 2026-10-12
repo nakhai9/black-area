@@ -22,9 +22,9 @@ export interface MotionLevels {
  *  - turbineTank: the M1 Abrams' AGT1500 gas turbine — a high jet-like whine over the tracks;
  *  - recovery: heavy, slower diesel of an armoured recovery vehicle, loud track clank (BREM-1, M88, Type 99II);
  *  - wheeled: truck engine, no tracks (KamAZ, Humvee, jeeps, scouts);
- *  - fighter: afterburning turbofans, a sharp roar with a high whine (F-22, Su-57, J-15, Rafale, Su-35);
- *  - bomber: many big jet engines beating against each other, deep and heavy (B-52, Tu-16);
- *  - airlifter: four big turbofans, a broad steady drone (C-17, Il-76, Y-20, A400M, tankers).
+ *  - fighter: afterburning turbofans, a sharp roar with a high whine (F-22, Su-57, J-31, Rafale, Su-35);
+ *  - bomber: many big jet engines beating against each other, deep and heavy (B-1A Lancer, Tu-160);
+ *  - airlifter: four big turbofans, a broad steady drone (C-17, Il-76, Y-20, A400M).
  */
 type EngineProfile = 'dieselTank' | 'turbineTank' | 'recovery' | 'wheeled' | 'fighter' | 'bomber' | 'airlifter';
 const ENGINE_BY_NAME: Readonly<Record<string, EngineProfile>> = {
@@ -38,14 +38,14 @@ const ENGINE_BY_NAME: Readonly<Record<string, EngineProfile>> = {
   'Type 99II': 'recovery',
   'F-22': 'fighter',
   'Su-57': 'fighter',
-  'J-15': 'fighter',
+  'J-31': 'fighter',
   Rafale: 'fighter',
   'Su-35': 'fighter',
-  'B-52': 'bomber',
-  'Tu-16': 'bomber',
+  'B-1A Lancer': 'bomber',
+  'Tu-160': 'bomber',
   KamAZ: 'wheeled',
-  LVSR: 'wheeled',
-  IVECO: 'wheeled',
+  MTVR: 'wheeled',
+  Zetros: 'wheeled',
 };
 const ENGINE_BY_KIND: Readonly<Record<VehicleKind, EngineProfile>> = {
   light: 'wheeled',
@@ -57,7 +57,6 @@ const ENGINE_BY_KIND: Readonly<Record<VehicleKind, EngineProfile>> = {
   heli: 'bomber',
   bomber: 'bomber',
   transport: 'airlifter',
-  tanker: 'airlifter',
   truck: 'wheeled',
 };
 /** Synthesis recipe per engine: rumble (low-passed noise, pulsed by an LFO), a whine band and a track-clank band. */

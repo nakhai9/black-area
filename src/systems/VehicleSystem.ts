@@ -121,8 +121,7 @@ export class VehicleSystem implements GameSystem {
    */
   /** Free parking spots (helicopters take none: they land wherever they like). */
   parkingFree(player: PlayerState): number {
-    // A transport on order needs two spots: one for itself and one for the tanker that comes with it.
-    const ordered = this.queue(player).items.reduce((n, k) => n + (k === 'transport' ? 2 : needsAirfield(k) && k !== 'heli' ? 1 : 0), 0);
+    const ordered = this.queue(player).items.reduce((n, k) => n + (needsAirfield(k) && k !== 'heli' ? 1 : 0), 0);
     return this.parkingCapacity(player) - this.aircraftOwned(player) - ordered;
   }
 

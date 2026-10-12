@@ -764,7 +764,7 @@ export class AISystem implements GameSystem {
     let structures = 0;
     for (const v of this.host.entities.vehicles()) {
       if (!v.alive || v.owner === p.id || v.owner === NEUTRAL_OWNER) continue;
-      if (v.aircraft && !v.isTransport && !v.isTanker) air++;
+      if (v.aircraft && !v.isTransport) air++;
       else if (!v.aircraft) ground++;
     }
     for (const u of this.host.entities.units()) if (u.alive && u.owner !== p.id && u.owner !== NEUTRAL_OWNER) ground += 0.3;
@@ -775,7 +775,7 @@ export class AISystem implements GameSystem {
     for (const [k, base] of Object.entries(VEHICLE_WEIGHT) as [VehicleKind, number][]) {
       let w = base;
       if (k === 'jet') w *= 1 + airShare * 2;
-      // MANTIS only shoots aircraft: worth buying only as far as the enemies field them.
+      // The air-defence vehicle only shoots aircraft: worth buying only as far as the enemies field them.
       if (k === 'mantis') w *= airShare * 4;
       if (k === 'bomber') w *= 1 + Math.min(1, structures / 40);
       if (k === 'tank') w *= 1 + Math.min(1, ground / 60) * 0.5;

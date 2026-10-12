@@ -4,14 +4,14 @@ import type { FactionId } from '../types';
 import { drawCraftBlast } from './CraftSheets';
 
 /**
- * LEGO-brick main battle tank sheets (tools/lego_tank_sheet.py), one hull and one turret sheet per nation: 32 columns of 64 px —
+ * Main battle tank sheets rendered from 3D models (tools/tank_model_sheet.py), one hull and one turret sheet per nation: 32 columns of 64 px —
  * screen headings clockwise from N — in one row. Hull (with its soft shadow) and turret share the cell's pivot; the turret
  * is drawn over the hull and turns on its own towards the combat target.
  */
 const CELL = 64;
 const DIRS = 32;
-/** Iso px per sheet px: the hull (≈ 44 sheet px side-on) is drawn ≈ 7.7 iso px long. */
-const SCALE = 0.175;
+/** Iso px per sheet px: the hull (≈ 44 sheet px side-on) is drawn ≈ 7.3 iso px long. */
+const SCALE = 0.166; // 5% under the old 0.175
 /** Death: the blast plays over the wreck, which then burns dark and fades out. */
 const FADE_SECONDS = 0.8;
 export const TANK_DEATH_SECONDS = 4.5;
@@ -22,15 +22,17 @@ const sheet = (file: string): HTMLImageElement => {
   return img;
 };
 const FACTIONS: FactionId[] = ['usa', 'europe', 'russia', 'islamic', 'china'];
-const SHEETS = Object.fromEntries(FACTIONS.map((f) => [f, sheet(`tank-lego-${f}-hull.png`)])) as Record<FactionId, HTMLImageElement>;
-const TURRETS = Object.fromEntries(FACTIONS.map((f) => [f, sheet(`tank-lego-${f}-turret.png`)])) as Record<FactionId, HTMLImageElement>;
+/** Sheet name per nation: M1A1 Abrams, Leopard 2A4M, T-14 Armata, Karrar (T-90), ZTZ-96. */
+const MODEL: Record<FactionId, string> = { usa: 'm1a1', europe: 'leopard2', russia: 't14', islamic: 't90', china: 'ztz96' };
+const SHEETS = Object.fromEntries(FACTIONS.map((f) => [f, sheet(`tank-${MODEL[f]}-hull.png`)])) as Record<FactionId, HTMLImageElement>;
+const TURRETS = Object.fromEntries(FACTIONS.map((f) => [f, sheet(`tank-${MODEL[f]}-turret.png`)])) as Record<FactionId, HTMLImageElement>;
 /** Tank explosion shared by every nation (tools/tank_fx_sheet.py): 16 frames of BLAST_CELL px in one row. */
 const TANK_BLAST = sheet('tank-blast.png');
 const BLAST_CELL = 64;
 const BLAST_FRAMES = 16;
 const BLAST_FRAME_SECONDS = 0.09;
 /** Fallback when the tank explosion sheet is missing: which aircraft explosion each nation's tanks blow up with. */
-const BLAST: Record<FactionId, string> = { usa: 'apache', europe: 'apache', russia: 'ka52', islamic: 'ka52', china: 'z19e' };
+const BLAST: Record<FactionId, string> = { usa: 'apache', europe: 'apache', russia: 'ka52', islamic: 'ka52', china: 'z10' };
 
 let loaded: Promise<void> | null = null;
 
@@ -119,14 +121,18 @@ export function drawTankDeath(ctx: CanvasRenderingContext2D, faction: FactionId,
   if (turret) blit(ctx, turret, direction(heading), 0, x, y, CELL * SCALE);
   ctx.filter = prevFilter;
   ctx.globalAlpha = prevAlpha;
-  if (TANK_BLAST.complete && TANK_BLAST.naturalWidth > 0) {
-    const frame = Math.floor(age / BLAST_FRAME_SECONDS);
-    if (age >= 0 && frame < BLAST_FRAMES) {
-      const size = CELL * SCALE * 1.5;
-      const prevSmooth = ctx.imageSmoothingEnabled;
-      ctx.imageSmoothingEnabled = true;
-      ctx.drawImage(TANK_BLAST, frame * BLAST_CELL, 0, BLAST_CELL, BLAST_CELL, x - size / 2, y - size * 0.62, size, size);
-      ctx.imageSmoothingEnabled = prevSmooth;
-    }
-  } else drawCraftBlast(ctx, `heli:${BLAST[faction]}`, false, x, y, age, CELL * SCALE * 1.6);
+  if (!drawTankBlast(ctx, x, y, age, CELL * SCALE * 1.5)) drawCraftBlast(ctx, `heli:${BLAST[faction]}`, false, x, y, age, CELL * SCALE * 1.6);
+}
+
+/** The shared ground-vehicle explosion (`age` s in, `size` iso px across) at (x, y); false when its sheet is not loaded. */
+export function drawTankBlast(ctx: CanvasRenderingContext2D, x: number, y: number, age: number, size: number): boolean {
+  if (!TANK_BLAST.complete || TANK_BLAST.naturalWidth === 0) return false;
+  const frame = Math.floor(age / BLAST_FRAME_SECONDS);
+  if (age >= 0 && frame < BLAST_FRAMES) {
+    const prevSmooth = ctx.imageSmoothingEnabled;
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(TANK_BLAST, frame * BLAST_CELL, 0, BLAST_CELL, BLAST_CELL, x - size / 2, y - size * 0.62, size, size);
+    ctx.imageSmoothingEnabled = prevSmooth;
+  }
+  return true;
 }

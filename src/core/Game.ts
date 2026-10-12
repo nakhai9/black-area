@@ -419,7 +419,6 @@ export class Game {
       selected: (v) => this.selection.selectedUnits.has(v.id),
       computer: (owner) => owner !== this.humanPlayer.id,
       powered: (owner) => !this.players.find((p) => p.id === owner)?.powerShort,
-      newTanker: (t) => this.newTanker(t),
       mayday: (v) => {
         if (v.owner === this.humanPlayer.id) this.sound.mayday();
       },
@@ -1228,7 +1227,7 @@ export class Game {
     t.ejectClock = 0;
   }
 
-  /** Trucks told to unload (U): they stand still and let their riders out one by one (a tank rolls off the bed). */
+  /** Trucks told to unload (U): they stand still and let their riders out one by one. */
   private processTruckUnloading(dt: number): void {
     for (const t of this.entities.vehicles()) {
       if (!t.isTruck || !t.ejecting) continue;
@@ -1285,11 +1284,11 @@ export class Game {
   }
 
   /** Sidebar Transport panel for the first selected transport of mine. */
-  /** My selected aircraft (not tankers: they only follow their transport). */
+  /** My selected aircraft. */
   private selectedAircraft(): Vehicle[] {
     return this.selection
       .selectedUnitList()
-      .filter((u): u is Vehicle => u instanceof Vehicle && u.aircraft && !u.isTanker && u.owner === this.humanPlayer.id && u.alive);
+      .filter((u): u is Vehicle => u instanceof Vehicle && u.aircraft && u.owner === this.humanPlayer.id && u.alive);
   }
 
   private aircraftInfo(): AircraftInfo | null {
@@ -2006,7 +2005,7 @@ export class Game {
             } else if (ev.ctrl && ev.shift) this.rightClick(world, true);
             else if (!this.peekPath(world)) this.selection.clearAll();
           } else if (ev.ctrl && !ev.shift) {
-            // Fighters selected + Ctrl+click on one of my transports / tankers / bombers: they fly guard on it.
+            // Fighters selected + Ctrl+click on one of my transports / bombers: they fly guard on it.
             const ward = this.selection.pickUnit(world);
             if (ward instanceof Vehicle && ward.owner === this.humanPlayer.id && this.orderGuard(ward, this.selection.selectedUnitList())) break;
             // Ctrl+click on one of my structures: sell it to the Global Monitoring Center.
@@ -2186,11 +2185,11 @@ export class Game {
   }
 
   /**
-   * Fighters escort one of my transports / tankers / bombers: they keep GUARD_TRAIL_CELLS behind it and fight any
+   * Fighters escort one of my transports / bombers: they keep GUARD_TRAIL_CELLS behind it and fight any
    * enemy that comes near (AircraftSystem). A new move / attack order ends the escort.
    */
   private orderGuard(ward: Vehicle, selected: readonly Unit[]): boolean {
-    if (!ward.alive || !ward.aircraft || !(ward.isTransport || ward.isTanker || ward.type === 'bomber')) return false;
+    if (!ward.alive || !ward.aircraft || !(ward.isTransport || ward.type === 'bomber')) return false;
     if (this.selection.selectedUnits.has(ward.id)) return false;
     const fighters = selected.filter((u): u is Vehicle => u instanceof Vehicle && u.aircraft && u.type === 'jet' && u.alive);
     if (fighters.length === 0) return false;
@@ -2626,7 +2625,7 @@ export class Game {
         return;
       }
     }
-    // The MANTIS always fires its missile from the missile sheet (below), never a bullet.
+    // The air-defence vehicle always fires its missile from the missile sheet (below), never a bullet.
     const mantisMissile = s instanceof Vehicle && s.type === 'mantis' && hasMissileSheet();
     if (w.kind !== 'bomb' && !mantisMissile && hasBulletSheet()) {
       // A real bullet from the shared sheet, sized to the gun: rifle < bunker MG < autocannon < aircraft < tank.
@@ -2652,7 +2651,7 @@ export class Game {
       return;
     }
     if (w.kind === 'missile' && s instanceof Vehicle && (s.flies || s.type === 'mantis') && hasMissileSheet()) {
-      // Aircraft (or MANTIS) missile from the shared sheet: smoke trail in flight, then a burst on aircraft or a blast on the ground.
+      // Aircraft (or air-defence) missile from the shared sheet: smoke trail in flight, then a burst on aircraft or a blast on the ground.
       const air = t instanceof Unit && t.flies;
       this.effects.add({ kind: 'missile', x0: muzzle.x, y0: muzzle.y, x1: hit.x, y1: hit.y, age: 0, ttl: MISSILE_FLIGHT_SECONDS });
       this.effects.add({ kind: 'missileBlast', x: hit.x, y: hit.y, age: -MISSILE_FLIGHT_SECONDS, ttl: MISSILE_BLAST_SECONDS, air });
@@ -2869,7 +2868,6 @@ export class Game {
     this.awardKill(e, killer);
     this.selection.selectedUnits.delete(e.id);
     if (e instanceof Unit) {
-      const wasCarryingTank = e instanceof Vehicle && e.vehiclesAboard > 0;
       // Everyone aboard a destroyed transport goes down with it.
       if (e instanceof Vehicle && e.cargo.length > 0) {
         for (const c of e.cargo) {
@@ -2882,15 +2880,13 @@ export class Game {
       const vehicle = e instanceof Vehicle;
       // One of my aircraft shot down / crashed: the pilot's distress call.
       if (vehicle && e.aircraft && !e.maydaySent && e.owner === this.humanPlayer.id) this.sound.mayday();
-      // A transport shot down in the air takes its tanker down with it.
-      if (vehicle && e.isTransport) this.aircraft.transportDown(e);
       if (e instanceof Infantry && !e.inWater && hasSoldierDeath(e.profile.look)) {
         this.effects.add({ kind: 'soldierDeath', ...this.fx(e.px, e.py), age: 0, ttl: SOLDIER_DEATH_SECONDS, look: e.profile.look, heading: e.heading });
         return;
       }
       const model = vehicle ? craftKey(e.faction as FactionId, e.type) : null;
       if (vehicle && model) {
-        // Transports, tankers and helicopters blow up with their own model's explosion (and leave a wreck on the ground).
+        // Transports and helicopters blow up with their own model's explosion (and leave a wreck on the ground).
         const air = e.altitude > 1;
         this.effects.add({ kind: 'craftDeath', ...this.fx(e.px, e.py, air ? e.altitude : 0), age: 0, ttl: air ? 1.4 : CRAFT_DEATH_SECONDS, model, type: e.type, heading: e.heading, air });
         this.sound.play('explosion', { x: e.px, y: e.py });
@@ -2902,9 +2898,9 @@ export class Game {
         this.effects.add({ kind: 'tankDeath', ...this.fx(e.px, e.py), age: 0, ttl: TANK_DEATH_SECONDS, faction: e.faction as FactionId, heading: e.heading });
         this.sound.play('explosion', { x: e.px, y: e.py });
       } else if (vehicle && e.isTruck && hasTruckSheet(e.faction as FactionId)) {
-        this.effects.add({ kind: 'truckDeath', ...this.fx(e.px, e.py), age: 0, ttl: TRUCK_DEATH_SECONDS, faction: e.faction as FactionId, heading: e.heading, flatbed: wasCarryingTank });
-      } else if (vehicle && e.type === 'mantis' && hasMantisSheet()) {
-        this.effects.add({ kind: 'mantisDeath', ...this.fx(e.px, e.py), age: 0, ttl: MANTIS_DEATH_SECONDS });
+        this.effects.add({ kind: 'truckDeath', ...this.fx(e.px, e.py), age: 0, ttl: TRUCK_DEATH_SECONDS, faction: e.faction as FactionId, heading: e.heading });
+      } else if (vehicle && e.type === 'mantis' && hasMantisSheet(e.faction as FactionId)) {
+        this.effects.add({ kind: 'mantisDeath', ...this.fx(e.px, e.py), age: 0, ttl: MANTIS_DEATH_SECONDS, faction: e.faction as FactionId, heading: e.heading });
         this.sound.play('explosion', { x: e.px, y: e.py });
       } else if (vehicle && e.isRepair && hasRepairSheet(e.faction as FactionId)) {
         this.effects.add({ kind: 'repairDeath', ...this.fx(e.px, e.py), age: 0, ttl: REPAIR_DEATH_SECONDS, faction: e.faction as FactionId, heading: e.heading });
@@ -3028,9 +3024,8 @@ export class Game {
       }
     }
     // One aircraft per parking spot: use the producing airfield, or another one of the nation with room.
-    // A transport takes a spot with a free one ahead of it for its tanker.
     let airfield = producer;
-    let slot = kind === 'transport' ? this.aircraft.freeTransportSlot(airfield) : this.aircraft.freeSlot(null, airfield, prefer);
+    let slot = this.aircraft.freeSlot(null, airfield, prefer);
     if (slot < 0) {
       for (const b of this.entities.buildings()) {
         if (b.owner !== player.id || !b.alive || b.spec.type !== 'airfield') continue;
@@ -3051,29 +3046,8 @@ export class Game {
     jet.homeId = airfield.id;
     jet.slot = slot;
     jet.heading = g.heading;
-    // Every transport comes with its own tanker, parked on the next free spot.
-    if (kind === 'transport') {
-      const tanker = this.spawnAircraft(player, 'tanker', airfield, slot + 1);
-      if (tanker) {
-        tanker.escortOf = jet.id;
-        jet.tankerId = tanker.id;
-      }
-    }
-    if (player.isHuman && kind !== 'tanker') this.sidebar.notify(`${jet.name} parked on the airfield.`);
+    if (player.isHuman) this.sidebar.notify(`${jet.name} parked on the airfield.`);
     return jet;
-  }
-
-  /** A transport back on its airfield without a tanker gets a new one on a free spot there (false: no room yet). */
-  private newTanker(t: Vehicle): boolean {
-    const home = t.homeId === null ? undefined : this.entities.get(t.homeId);
-    const player = this.players.find((p) => p.id === t.owner);
-    if (!(home instanceof Building) || !player || this.aircraft.freeSlot(null, home) < 0) return false;
-    const tanker = this.spawnAircraft(player, 'tanker', home, t.slot + 1);
-    if (!tanker) return false;
-    tanker.escortOf = t.id;
-    t.tankerId = tanker.id;
-    if (player.isHuman) this.sidebar.notify(`${t.name}: a new ${tanker.name} tanker has joined it.`);
-    return true;
   }
 
   /**

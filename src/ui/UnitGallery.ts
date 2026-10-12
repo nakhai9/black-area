@@ -78,7 +78,7 @@ export async function showUnitGallery(root: HTMLElement): Promise<void> {
     const units: { unit: Unit; note: string }[] = [];
     for (const tier of Object.keys(f.infantry) as UnitTier[]) units.push({ unit: new Infantry(0, id, tier, at), note: tier });
     for (const kind of Object.keys(f.vehicles) as VehicleKind[]) {
-      if (!AVAILABLE_VEHICLES.includes(kind) && kind !== 'tanker') continue; // hidden vehicles (light, ifv) are left out
+      if (!AVAILABLE_VEHICLES.includes(kind)) continue; // hidden vehicles (light, ifv) are left out
       units.push({ unit: new Vehicle(0, id, kind, at), note: kind });
     }
     for (const { unit, note } of units) {

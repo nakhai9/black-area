@@ -3,7 +3,8 @@ import type { Vehicle } from '../entities/Vehicle';
 import type { FactionId, VehicleKind } from '../types';
 
 /**
- * Transport aircraft and helicopter sheets (tools/build_vehicle_sheets.py, from resources/): 32 columns — screen
+ * Transport aircraft and helicopter sheets (tools/aircraft_model_sheet.py / tools/heli_model_sheet.py, rendered from 3D
+ * models; explosions: tools/build_vehicle_sheets.py, from resources/): 32 columns — screen
  * headings clockwise from N — by one row per animation frame (rows below), plus an explosion sheet per model:
  * row 0 blowing up in the air, row 1 on the ground.
  */
@@ -30,26 +31,27 @@ const img = (file: string): HTMLImageElement => {
   return i;
 };
 const air = (model: string, span: number): CraftSheet => ({ image: img(`air-${model}.png`), fx: img(`air-${model}-fx.png`), cell: 96, fxCell: 128, fxFrames: 20, span, heli: false });
-const heli = (model: string, span: number): CraftSheet => ({ image: img(`heli-${model}.png`), fx: img(`heli-${model}-fx.png`), cell: 80, fxCell: 128, fxFrames: 16, span, heli: true });
+/** `fx`: the model whose explosion sheet it uses (the Z-10 blows up with the old Z-19E explosion). */
+const heli = (model: string, span: number, fx = model): CraftSheet => ({ image: img(`heli-${model}.png`), fx: img(`heli-${fx}-fx.png`), cell: 80, fxCell: 128, fxFrames: 16, span, heli: true });
 
 /** Every model, by key ('air:c17', 'heli:apache', …). Spans as measured by the build script. */
 const MODELS: Readonly<Record<string, CraftSheet>> = {
-  'air:c17': air('c17', 0.708),
-  'air:c130j': air('c130j', 0.604),
-  'air:il76': air('il76', 0.667),
-  'air:y20': air('y20', 0.729),
-  'heli:apache': heli('apache', 0.7),
-  'heli:ka52': heli('ka52', 0.637),
-  'heli:z19e': heli('z19e', 0.55),
+  'air:c17': air('c17', 0.833),
+  'air:c130j': air('c130j', 0.625),
+  'air:il76': air('il76', 0.76),
+  'air:y20': air('y20', 0.833),
+  'heli:apache': heli('apache', 0.825),
+  'heli:ka52': heli('ka52', 0.85),
+  'heli:z10': heli('z10', 0.825, 'z19e'),
 };
-const TRANSPORT: Record<FactionId, string> = { usa: 'air:c17', europe: 'air:c130j', russia: 'air:il76', islamic: 'air:il76', china: 'air:y20' };
-const HELI: Record<FactionId, string> = { usa: 'heli:apache', europe: 'heli:apache', russia: 'heli:ka52', islamic: 'heli:ka52', china: 'heli:z19e' };
-/** Iso px each kind is drawn long (tankers: a smaller copy of their nation's transport). */
-const LENGTH: Partial<Record<VehicleKind, number>> = { transport: 13, tanker: 9.5, heli: 12 };
+const TRANSPORT: Record<FactionId, string> = { usa: 'air:c17', europe: 'air:c130j', russia: 'air:il76', islamic: 'air:y20', china: 'air:y20' };
+const HELI: Record<FactionId, string> = { usa: 'heli:apache', europe: 'heli:apache', russia: 'heli:ka52', islamic: 'heli:ka52', china: 'heli:z10' };
+/** Iso px each kind is drawn long. */
+const LENGTH: Partial<Record<VehicleKind, number>> = { transport: 13, heli: 11.4 };
 
 /** Model key of a nation's aircraft of `kind`, or null when it is not drawn from these sheets. */
 export function craftKey(faction: FactionId, kind: VehicleKind): string | null {
-  if (kind === 'transport' || kind === 'tanker') return TRANSPORT[faction] ?? null;
+  if (kind === 'transport') return TRANSPORT[faction] ?? null;
   if (kind === 'heli') return HELI[faction] ?? null;
   return null;
 }
@@ -100,7 +102,7 @@ function blit(ctx: CanvasRenderingContext2D, image: HTMLImageElement, cell: numb
 const drawnSize = (m: CraftSheet, kind: VehicleKind): number => (LENGTH[kind] ?? 10) / m.span;
 
 /**
- * Draws a transport, tanker or helicopter with its ground point at (x, y) in iso px: shadow on the ground, body
+ * Draws a transport or helicopter with its ground point at (x, y) in iso px: shadow on the ground, body
  * `altitude` px above it. Returns false when it has no loaded sheet (the caller falls back).
  */
 export function drawCraftSheet(ctx: CanvasRenderingContext2D, v: Vehicle, x: number, y: number): boolean {
@@ -156,7 +158,7 @@ export function drawCraftBlast(ctx: CanvasRenderingContext2D, key: string, inAir
 }
 
 /**
- * A transport, tanker or helicopter destroyed (`age` s into a `ttl` s effect) at iso point (x, y): blown up in the
+ * A transport or helicopter destroyed (`age` s into a `ttl` s effect) at iso point (x, y): blown up in the
  * air, or blown up on the ground where its burning wreck stays a while.
  */
 export function drawCraftDeath(ctx: CanvasRenderingContext2D, key: string, kind: VehicleKind, heading: number, inAir: boolean, x: number, y: number, age: number, ttl: number): void {

@@ -307,7 +307,7 @@ export class Renderer {
     for (const u of units) if ((selUnits.has(u.id) || u.hp < u.maxHp) && (u.id !== scene.enemyInfoId || selUnits.has(u.id))) this.drawUnitHealth(u, selUnits.has(u.id) || focus.some((f) => f.entity === u));
     // The fuel gauge shows only while the transport is out on a sortie; parked or taxiing at home it is idle (hidden).
     for (const u of units) if (u instanceof Vehicle && u.maxBombs > 0) this.drawBombs(u);
-    for (const u of units) if (u instanceof Vehicle && (u.isTransport || u.isTanker) && u.flight !== 'parked' && u.flight !== 'taxi' && u.flight !== 'taxiHome') this.drawFuel(u);
+    for (const u of units) if (u instanceof Vehicle && u.isTransport && u.flight !== 'parked' && u.flight !== 'taxi' && u.flight !== 'taxiHome') this.drawFuel(u);
     for (const f of focus) if (f.entity.kind !== 'building' && !selUnits.has(f.entity.id) && f.entity.id !== scene.enemyInfoId && f.entity.hp >= f.entity.maxHp) this.drawUnitHealth(f.entity, true);
     const hints = scene.flagHints;
     if (hints?.size) for (const u of units) if (hints.has(u.id)) this.drawFlagHint(u);
@@ -805,8 +805,7 @@ export class Renderer {
     const k = 1 / this.camera.zoom;
     // RA2 style: seats taken / seats there are (e.g. 3/12), plus what it is doing.
     const vehicles = t.vehiclesAboard;
-    // A truck carries soldiers or one tank, never both: show only what it holds.
-    const parts = t.isTruck && vehicles > 0 ? [`${vehicles}/${t.vehicleCapacity} tank`] : [`${t.soldiersAboard}/${t.soldierCapacity} inf`];
+    const parts = [`${t.soldiersAboard}/${t.soldierCapacity} inf`];
     if (vehicles > 0 && !t.isTruck) parts.push(`${vehicles}/${t.vehicleCapacity} veh`);
     const state = t.carrierState;
     const prefix = t.full ? 'FULL · ' : state === 'loading' ? 'LOADING · ' : state === 'unloading' ? 'UNLOADING · ' : '';
@@ -963,9 +962,9 @@ export class Renderer {
       } else if (e.kind === 'craftDeath') {
         drawCraftDeath(ctx, e.model, e.type, e.heading, e.air, e.x, e.y, e.age, e.ttl);
       } else if (e.kind === 'truckDeath') {
-        drawTruckDeath(ctx, e.faction, e.heading, e.flatbed, e.x, e.y, e.age, e.ttl);
+        drawTruckDeath(ctx, e.faction, e.heading, e.x, e.y, e.age, e.ttl);
       } else if (e.kind === 'mantisDeath') {
-        drawMantisDeath(ctx, e.x, e.y, e.age, e.ttl);
+        drawMantisDeath(ctx, e.faction, e.heading, e.x, e.y, e.age, e.ttl);
       } else if (e.kind === 'repairDeath') {
         drawRepairDeath(ctx, e.faction, e.heading, e.x, e.y, e.age, e.ttl);
       } else {

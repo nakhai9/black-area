@@ -4,8 +4,8 @@ import type { FactionId, VehicleKind } from '../types';
 import { drawCraftPortrait, drawCraftSheet, loadCraftSprites } from './CraftSheets';
 
 /**
- * Pre-drawn fighter and bomber sheets (RA2 style; transports, tankers and helicopters: see CraftSheets), built with scripts/build-aircraft-sheet.mjs at 128 px cells and shipped
- * at 75% (96 px cells) to save download and memory.
+ * Fighter and bomber sheets (transports and helicopters: see CraftSheets), rendered from 3D models by
+ * tools/aircraft_model_sheet.py at 96 px cells.
  * Columns: 16 screen headings, clockwise from N (nose up the screen). Rows below.
  */
 const COLS = 16;
@@ -29,14 +29,14 @@ const sheet = (file: string, cell: number, length: number): AircraftSheet => ({
 });
 
 const SHEETS: Partial<Record<`${FactionId}:${VehicleKind}`, AircraftSheet>> = {
-  'usa:jet': sheet('jet-usa.png', 96, 10),
-  'russia:jet': sheet('jet-russia.png', 96, 10),
-  'china:jet': sheet('jet-china.png', 96, 10),
-  'europe:jet': sheet('jet-europe.png', 96, 10),
-  'islamic:jet': sheet('jet-islamic.png', 96, 10),
-  // National bombers, one nation each (built from scripts/assets/*-source.png by scripts/build-bomber-sheet.py).
-  'russia:bomber': sheet('tu26-russia.png', 96, 14),
-  'usa:bomber': sheet('b52-usa.png', 96, 16),
+  'usa:jet': sheet('jet-usa.png', 96, 9.5),
+  'russia:jet': sheet('jet-russia.png', 96, 9.5),
+  'china:jet': sheet('jet-china.png', 96, 9.5),
+  'europe:jet': sheet('jet-europe.png', 96, 9.5),
+  'islamic:jet': sheet('jet-islamic.png', 96, 9.5),
+  // National bombers, one nation each (rendered from 3D models by tools/aircraft_model_sheet.py).
+  'russia:bomber': sheet('tu160-russia.png', 96, 15.2),
+  'usa:bomber': sheet('b1-usa.png', 96, 14.25),
 };
 
 /** Turn rate (rad/s) above which an airborne aircraft is drawn banked. */

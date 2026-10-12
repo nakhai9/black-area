@@ -43,19 +43,18 @@ export const EUROPE: FactionConfig = {
     tank: { name: "Leopard 2", description: "Leopard 2 main battle tank, precise and well protected." },
     ifv: { name: "Puma", description: "Puma armoured fighting vehicle, modern and fast." },
     heli: { name: "AH-64 Apache", description: "AH-64 Apache attack helicopter: anti-tank missiles against ground vehicles only. Carries up to 8 soldiers (no vehicles) and sets down anywhere on open ground." },
-    mantis: { name: "MANTIS", description: "MANTIS self-propelled air-defence vehicle: long-range missiles that hit aircraft only (fighters, bombers, helicopters, transports), never ground units or structures. Expensive and slow, armoured like a tank." },
+    mantis: { name: "NOMADS", description: "NOMADS self-propelled air-defence vehicle: long-range missiles that hit aircraft only (fighters, bombers, helicopters, transports), never ground units or structures. Expensive and slow, armoured like a tank." },
     jet: { name: "Rafale", description: "Dassault Rafale multirole fighter." },
     transport: { name: "C-130", description: "C-130 transport aircraft: carries soldiers and vehicles; unarmed." },
     truck: {
-      name: "IVECO",
+      name: "Zetros",
       description:
-        "IVECO heavy army truck: unarmed and faster than soldiers or tanks; carries up to 8 soldiers under its canvas cover, or one tank on its flatbed (never both). Ground only — it cannot cross the sea. Select soldiers or a tank and click the truck to board; select the truck and press U to unload.",
+        "Mercedes-Benz Zetros army truck: unarmed and faster than soldiers or tanks; carries up to 8 soldiers under its canvas cover (no vehicles). Ground only — it cannot cross the sea. Select soldiers or a tank and click the truck to board; select the truck and press U to unload.",
     },
     repair: {
       name: "M88",
       description:
         "M88 armoured recovery vehicle: slow and unarmed; click a damaged friendly ground vehicle to drive up and repair it, or select damaged vehicles and click it to send them in for repair (5% of its max health every 2 s).",
     },
-    tanker: { name: "A330 MRTT", description: "A330 MRTT aerial tanker: flies escort behind its C-130 and keeps it fuelled; unarmed." },
   },
 };

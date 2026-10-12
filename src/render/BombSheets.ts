@@ -23,8 +23,8 @@ interface BombSheet {
 const sheet = (file: string): BombSheet => ({ url: `${import.meta.env.BASE_URL}sprites/${file}`, image: new Image() });
 
 const SHEETS: Partial<Record<FactionId, BombSheet>> = {
-  russia: sheet('bomb-tu16.png'),
-  usa: sheet('bomb-b52.png'),
+  russia: sheet('bomb-tu160.png'),
+  usa: sheet('bomb-b1a.png'),
 };
 
 let loaded: Promise<void> | null = null;

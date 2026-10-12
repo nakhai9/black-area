@@ -17,7 +17,7 @@ export const CHINA: FactionConfig = {
     buildSpeed: 1.2,
     cost: 0.85,
     trainDelay: 0,
-    // No heavy bomber (Tu-16 / B-52): China's edge is its foot soldiers — cheap, quick and nimble.
+    // No heavy bomber (Tu-160 / B-1A Lancer): China's edge is its foot soldiers — cheap, quick and nimble.
     infantryCost: 0.7,
     infantrySpeed: 1.35,
   },
@@ -94,9 +94,9 @@ export const CHINA: FactionConfig = {
       description: "Type 99 main battle tank, produced in large numbers.",
     },
     ifv: { name: "ZBD-04", description: "ZBD-04 armoured fighting vehicle." },
-    heli: { name: "Z-19E", description: "Z-19E light attack helicopter: guided missiles against ground vehicles only. Carries up to 8 soldiers (no vehicles) and sets down anywhere on open ground." },
-    mantis: { name: "MANTIS", description: "MANTIS self-propelled air-defence vehicle: long-range missiles that hit aircraft only (fighters, bombers, helicopters, transports), never ground units or structures. Expensive and slow, armoured like a tank." },
-    jet: { name: "J-15", description: "J-15 carrier-based multirole fighter." },
+    heli: { name: "Z-10", description: "Changhe Z-10 attack helicopter: guided missiles against ground vehicles only. Carries up to 8 soldiers (no vehicles) and sets down anywhere on open ground." },
+    mantis: { name: "Buk-M3", description: "Buk-M3 (9K317) self-propelled air-defence vehicle: long-range missiles that hit aircraft only (fighters, bombers, helicopters, transports), never ground units or structures. Expensive and slow, armoured like a tank." },
+    jet: { name: "J-31", description: "Shenyang J-31 Gyrfalcon stealth multirole fighter." },
     transport: {
       name: "Y-20",
       description:
@@ -105,17 +105,12 @@ export const CHINA: FactionConfig = {
     truck: {
       name: "KamAZ",
       description:
-        "KamAZ army truck: unarmed and faster than soldiers or tanks; carries up to 8 soldiers under its canvas cover, or one tank on its flatbed (never both). Ground only — it cannot cross the sea. Select soldiers or a tank and click the truck to board; select the truck and press U to unload.",
+        "KamAZ army truck: unarmed and faster than soldiers or tanks; carries up to 8 soldiers under its canvas cover (no vehicles). Ground only — it cannot cross the sea. Select soldiers or a tank and click the truck to board; select the truck and press U to unload.",
     },
     repair: {
       name: "Type 99II",
       description:
         "Type 99II armoured recovery vehicle: slow and unarmed; click a damaged friendly ground vehicle to drive up and repair it, or select damaged vehicles and click it to send them in for repair (5% of its max health every 2 s).",
-    },
-    tanker: {
-      name: "YY-20",
-      description:
-        "YY-20 aerial tanker: flies escort behind its Y-20 and keeps it fuelled; unarmed.",
     },
   },
 };

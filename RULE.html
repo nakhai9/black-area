@@ -26,7 +26,7 @@
 <body>
 <main>
 <img class="logo" src="/logo.png" alt="Black Area" />
-<h1>Black Area — RULE <small>v1.63.0</small></h1>
+<h1>Black Area — RULE <small>v1.75.0</small></h1>
 <p class="lead">Tài liệu luật chơi + kiến trúc code dành cho AI/dev sửa game. Mọi con số gameplay chính xác nằm trong <code>src/constants.ts</code> và <code>src/factions/*.ts</code>. Nếu tài liệu này khác code thì <b>code đúng</b>. <b>Khi đổi luật/số trong code, phải cập nhật file này.</b></p>
 <nav><a href="#s1">Quy tắc làm việc cho AI</a><a href="#s2">Chạy dự án</a><a href="#s3">Kiến trúc thư mục</a><a href="#s4">Thế giới</a><a href="#s5">Kinh tế (dầu)</a><a href="#s6">Công trình (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Quân đội</a><a href="#s8">Chiến đấu</a><a href="#s9">Điều khiển (Game.handleKey, handleInput)</a><a href="#s10">Giới hạn &amp; hiệu năng</a><a href="#s11">Thắng / thua &amp; AI</a><a href="#s12">Công thức sửa thường gặp</a></nav>
 <h2 id="s1">0. Quy tắc làm việc cho AI</h2>
@@ -87,8 +87,8 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 <h3>Phe</h3>
 <table>
 <tr><th>Phe</th><th>Màu</th><th>unitSpeed</th><th>armor</th><th>firepower</th><th>range</th><th>buildSpeed</th><th>cost</th><th>trainDelay</th><th>HP thủ đô</th><th>Ghi chú</th></tr>
-<tr><td>USA</td><td><code>#2f6fe0</code></td><td>1.25</td><td>0.9</td><td>1.0</td><td>1.05</td><td>1.1</td><td>1.3</td><td>2</td><td>15000</td><td>Có bomber B-52</td></tr>
-<tr><td>Russia</td><td><code>#d22b2b</code></td><td>0.95</td><td>1.1</td><td>1.2</td><td>1.3</td><td>0.95</td><td>1.0</td><td>0</td><td>16500</td><td>Có bomber Tu-16</td></tr>
+<tr><td>USA</td><td><code>#2f6fe0</code></td><td>1.25</td><td>0.9</td><td>1.0</td><td>1.05</td><td>1.1</td><td>1.3</td><td>2</td><td>15000</td><td>Có bomber B-1A Lancer</td></tr>
+<tr><td>Russia</td><td><code>#d22b2b</code></td><td>0.95</td><td>1.1</td><td>1.2</td><td>1.3</td><td>0.95</td><td>1.0</td><td>0</td><td>16500</td><td>Có bomber Tu-160</td></tr>
 <tr><td>China</td><td><code>#e8b10a</code></td><td>0.85</td><td>1.3</td><td>1.0</td><td>0.95</td><td>1.2</td><td>0.85</td><td>0</td><td>18000</td><td>Không có bomber; lính rẻ + nhanh: <code>infantryCost 0.7</code> (giá lính ≈ 0.6 × gốc), <code>infantrySpeed 1.35</code> (tốc độ lính ≈ 1.15 × gốc)</td></tr>
 <tr><td>Europe</td><td><code>#8a5cf6</code></td><td>1.05</td><td>1.0</td><td>1.05</td><td>1.1</td><td>1.05</td><td>1.25</td><td>2</td><td>15600</td><td></td></tr>
 <tr><td>Islamic</td><td><code>#1f9d4a</code></td><td>1.0</td><td>1.05</td><td>1.0</td><td>1.0</td><td>1.0</td><td>0.95</td><td>1</td><td>16000</td><td><code>oilCartel</code>, <code>leasesOil</code></td></tr>
@@ -149,7 +149,7 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 </ul>
 <h3>Trực thăng (<code>heli</code>)</h3>
 <ul>
-  <li>Apache (Mỹ, Âu), Ka-52 (Nga, Hồi), Z-19E (Trung). Chỉ bắn <b>xe / phương tiện mặt đất</b>: không bắn công trình, lính, máy bay.</li>
+  <li>Apache (Mỹ, Âu), Ka-52 (Nga, Hồi), Z-10 (Trung). Chỉ bắn <b>xe / phương tiện mặt đất</b>: không bắn công trình, lính, máy bay.</li>
   <li>Đậu ở bất kỳ đâu trên đất liền như xe; chở tối đa <code>HELI_SOLDIERS = 8</code> lính, không chở xe.</li>
   <li><b>Phòng vệ trực thăng</b>: đang đậu mà bị lính hoặc xe/tank mặt đất bắn → bay lên, khóa mục tiêu kẻ vừa bắn và đánh trả (ngoại lệ: được bắn cả <b>lính</b> đó; <code>Vehicle.heliRevenge</code>, hết khi xong trận hoặc có lệnh mới), đánh xong bay về đúng chỗ cũ và đáp lại (lệnh mới thì bỏ việc quay về). Áp dụng cho cả người chơi và AI.</li>
 </ul>
@@ -235,14 +235,13 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 <tr><td><code>tank</code></td><td>1200</td><td>14</td><td>420</td><td>1.4</td><td>cannon</td><td>War Factory</td><td></td></tr>
 <tr><td><code>jet</code></td><td>1600</td><td>16</td><td>220</td><td>9</td><td>missile + 2 bom</td><td>Airfield</td><td></td></tr>
 <tr><td><code>heli</code></td><td>1300</td><td>14</td><td>200</td><td>3</td><td>missile ×<code>HELI_FIREPOWER 0.75</code>, chỉ bắn xe mặt đất (không bắn công trình, lính, máy bay), không bom</td><td>Airfield</td><td>Sức chiến đấu luôn dưới máy bay chiến đấu cùng phe (máu, sát thương thấp hơn; không bắn máy bay, không bom).</td></tr>
-<tr><td><code>mantis</code></td><td>3000</td><td>18</td><td>380</td><td>1.1</td><td>missile ×<code>MANTIS_FIREPOWER 2.5</code>, tầm <code>MANTIS_RANGE_CELLS = 10</code> ô (mọi phe như nhau), <b>chỉ bắn máy bay đang bay</b> (tiêm kích, ném bom, trực thăng, vận tải); không bắn lính, xe, công trình</td><td>War Factory</td><td>Pháo phòng không tự hành MANTIS, mọi phe (tên "MANTIS"). Có máu, mất máu, bị phá như xe khác. Bắn tên lửa bằng sheet <code>missile-air.png</code>. Sprite <code>public/sprites/mantis.png</code> (tools/mantis_sheet.py từ resources/mantis/mantis_ref.png, 12 góc nhìn chọn theo hướng nghiêng nòng). Giữ vị trí: không tự đuổi theo mục tiêu, tự động bắn máy bay địch gần nhất trong tầm mà không cần ra lệnh, bỏ mục tiêu ngay khi nó ra khỏi tầm để chuyển sang chiếc khác trong tầm; chỉ di chuyển khi có lệnh (di chuyển hoặc lệnh tấn công chỉ định). AI mua theo tỉ lệ máy bay của địch (không có máy bay địch → không mua).</td></tr>
-<tr><td><code>bomber</code></td><td>2600</td><td>22</td><td>380</td><td>10.9</td><td>bomb</td><td>Airfield</td><td>chỉ USA B-52, Russia Tu-16</td></tr>
+<tr><td><code>mantis</code></td><td>3000</td><td>18</td><td>380</td><td>1.1</td><td>missile ×<code>MANTIS_FIREPOWER 2.5</code>, tầm <code>MANTIS_RANGE_CELLS = 10</code> ô (mọi phe như nhau), <b>chỉ bắn máy bay đang bay</b> (tiêm kích, ném bom, trực thăng, vận tải); không bắn lính, xe, công trình</td><td>War Factory</td><td>Pháo phòng không tự hành, mọi phe: Mỹ và châu Âu "NOMADS", Nga, Trung Quốc, Hồi giáo "Buk-M3". Có máu, mất máu, bị phá như xe khác. Bắn tên lửa bằng sheet <code>missile-air.png</code>. Sprite <code>public/sprites/sam-nomads.png</code> / <code>sam-buk.png</code> (tools/ground_model_sheet.py, 32 hướng); hiệu ứng nổ từ <code>mantis.png</code>. Giữ vị trí: không tự đuổi theo mục tiêu, tự động bắn máy bay địch gần nhất trong tầm mà không cần ra lệnh, bỏ mục tiêu ngay khi nó ra khỏi tầm để chuyển sang chiếc khác trong tầm; chỉ di chuyển khi có lệnh (di chuyển hoặc lệnh tấn công chỉ định). AI mua theo tỉ lệ máy bay của địch (không có máy bay địch → không mua).</td></tr>
+<tr><td><code>bomber</code></td><td>2600</td><td>22</td><td>380</td><td>10.9</td><td>bomb</td><td>Airfield</td><td>chỉ USA B-1A Lancer, Russia Tu-160</td></tr>
 <tr><td><code>transport</code></td><td>1400</td><td>14</td><td>260</td><td>5.5</td><td>không</td><td>Airfield, cần Tech Center</td><td></td></tr>
 <tr><td><code>repair</code></td><td>800</td><td>10</td><td>360</td><td>1.0</td><td>không</td><td>War Factory</td><td>Russia BREM-1, USA &amp; Europe M88, China &amp; Islamic Type 99II; sửa xe mặt đất phe mình</td></tr>
-<tr><td><code>tanker</code></td><td>0</td><td>0</td><td>160</td><td>6</td><td>không</td><td>đi kèm transport</td><td>không bán riêng</td></tr>
 </table>
 <p><b>Xe tăng (mọi phe):</b> dưới 50% máu bốc khói, dưới 25% bốc thêm lửa (<code>Game.smokeFromDamagedBuildings</code>, như công trình). Khi bị phá: chuỗi nổ 16 khung <code>public/sprites/tank-blast.png</code> (tools/tank_fx_sheet.py từ resources/tank-fx/abrams_fx_ref.png) trên xác cháy đen, dùng chung cho mọi phe.</p>
-<p><b>Xe tăng (mọi phe):</b> hình kiểu LEGO (gạch có núm, màu theo phe), thân và tháp pháo là hai sheet riêng <code>public/sprites/tank-lego-<p><b>Abrams (Mỹ):</b> thân và tháp pháo là hai sheet riêng (<code>public/sprites/tank-m1a2-hull.png</code>, <code>tank-m1a2-turret.png</code>, tools/tank_turret_sheet.py từ resources/m1a2/m1a2_turret_ref.png); tháp pháo xoay theo mục tiêu khi giao chiến, ngoài ra quay theo thân xe.</p>lt;phe<p><b>Abrams (Mỹ):</b> thân và tháp pháo là hai sheet riêng (<code>public/sprites/tank-m1a2-hull.png</code>, <code>tank-m1a2-turret.png</code>, tools/tank_turret_sheet.py từ resources/m1a2/m1a2_turret_ref.png); tháp pháo xoay theo mục tiêu khi giao chiến, ngoài ra quay theo thân xe.</p>gt;-hull.png</code> / <code>-turret.png</code> (tools/lego_tank_sheet.py); tháp pháo xoay theo mục tiêu khi giao chiến, ngoài ra quay theo thân xe.</p>
+<p><b>Xe tăng (mọi phe):</b> render từ mô hình 3D (tools/tank_model_sheet.py): Mỹ M1A1 Abrams, châu Âu Leopard 2A4M, Nga T-14 Armata, Hồi giáo Karrar (T-90), Trung Quốc ZTZ-96. Thân và tháp pháo là hai sheet riêng <code>public/sprites/tank-&lt;mẫu&gt;-hull.png</code> / <code>-turret.png</code>; tháp pháo xoay theo mục tiêu khi giao chiến, ngoài ra quay theo thân xe.</p>
 
 <h3>Lính &amp; phương tiện theo phe (<code>src/factions/*.ts</code>)</h3>
 <p>Tên hiển thị trong game; phần thông tin dịch sang tiếng Việt từ mô tả trong code (trong game vẫn là tiếng Anh). Chỉ liệt kê loại đang dùng (<code>light</code>, <code>ifv</code> đang ẩn).</p>
@@ -255,10 +254,9 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 <tr><td>Squatters (<code>squatters</code>)</td><td><b>Squatters</b></td><td>Người cầm cờ Mỹ và lính hộ tống, đi cùng nhau như một đơn vị: đi bộ (hoặc được máy bay vận tải chở) tới đất chưa ai sở hữu, cắm quốc kỳ ở đó (chọn đội rồi nhấn <b>F</b> hoặc double-click: cờ cắm vào ô trống gần nhất, đất nào cũng được) — xong nhiệm vụ thì cả đội biến mất.</td></tr>
 <tr><td>Xe tăng (<code>tank</code>)</td><td><b>Abrams</b></td><td>Xe tăng chủ lực M1 Abrams: giáp dày, pháo mạnh.</td></tr>
 <tr><td>Tiêm kích (<code>jet</code>)</td><td><b>F-22</b></td><td>Tiêm kích chiếm ưu thế trên không tàng hình F-22 Raptor.</td></tr>
-<tr><td>Máy bay ném bom (<code>bomber</code>)</td><td><b>B-52</b></td><td>Máy bay ném bom hạng nặng tầm xa B-52 Stratofortress, chỉ USA có: bom nặng san phẳng quân mặt đất và công trình; không bắn được máy bay.</td></tr>
+<tr><td>Máy bay ném bom (<code>bomber</code>)</td><td><b>B-1A Lancer</b></td><td>Máy bay ném bom siêu thanh tầm xa B-1A Lancer, chỉ USA có: bom nặng san phẳng quân mặt đất và công trình; không bắn được máy bay.</td></tr>
 <tr><td>Máy bay vận tải (<code>transport</code>)</td><td><b>C-17</b></td><td>Máy bay vận tải hạng nặng: chở lính và xe; không vũ khí.</td></tr>
 <tr><td>Xe sửa chữa (<code>repair</code>)</td><td><b>M88</b></td><td>Xe cứu kéo bọc thép M88: chậm, không vũ khí; click vào xe mặt đất phe mình đang hỏng để chạy tới sửa (hoặc chọn xe hỏng rồi click vào nó) (5% máu tối đa mỗi 2 s).</td></tr>
-<tr><td>Máy bay tiếp dầu (<code>tanker</code>)</td><td><b>KC-46</b></td><td>Máy bay tiếp dầu KC-46 Pegasus: bay hộ tống C-17 và tiếp nhiên liệu cho nó; không vũ khí.</td></tr>
 </table>
 <h4>Russia</h4>
 <table>
@@ -269,10 +267,9 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 <tr><td>Squatters (<code>squatters</code>)</td><td><b>Squatters</b></td><td>Người cầm cờ Nga và lính hộ tống, đi cùng nhau như một đơn vị: đi bộ (hoặc được máy bay vận tải chở) tới đất chưa ai sở hữu, cắm quốc kỳ ở đó (chọn đội rồi nhấn <b>F</b> hoặc double-click: cờ cắm vào ô trống gần nhất, đất nào cũng được) — xong nhiệm vụ thì cả đội biến mất.</td></tr>
 <tr><td>Xe tăng (<code>tank</code>)</td><td><b>T-90</b></td><td>Xe tăng chủ lực T-90, bền và bắn xa.</td></tr>
 <tr><td>Tiêm kích (<code>jet</code>)</td><td><b>Su-57</b></td><td>Tiêm kích chiếm ưu thế trên không tàng hình Su-57.</td></tr>
-<tr><td>Máy bay ném bom (<code>bomber</code>)</td><td><b>Tu-16</b></td><td>Máy bay ném bom chiến lược Tu-16, chỉ Russia có: bom nặng san phẳng quân mặt đất và công trình; không bắn được máy bay.</td></tr>
+<tr><td>Máy bay ném bom (<code>bomber</code>)</td><td><b>Tu-160</b></td><td>Máy bay ném bom chiến lược siêu thanh Tu-160, chỉ Russia có: bom nặng san phẳng quân mặt đất và công trình; không bắn được máy bay.</td></tr>
 <tr><td>Máy bay vận tải (<code>transport</code>)</td><td><b>Il-76</b></td><td>Máy bay vận tải quân sự Il-76: chở lính và xe; không vũ khí.</td></tr>
 <tr><td>Xe sửa chữa (<code>repair</code>)</td><td><b>BREM-1</b></td><td>Xe cứu kéo bọc thép BREM-1, chỉ Russia có: chậm, không vũ khí; click vào xe mặt đất phe mình đang hỏng để chạy tới sửa (hoặc chọn xe hỏng rồi click vào nó) (5% máu tối đa mỗi 2 s).</td></tr>
-<tr><td>Máy bay tiếp dầu (<code>tanker</code>)</td><td><b>Il-78</b></td><td>Máy bay tiếp dầu Il-78: bay hộ tống Il-76 và tiếp nhiên liệu cho nó; không vũ khí.</td></tr>
 </table>
 <h4>China</h4>
 <table>
@@ -282,10 +279,9 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 <tr><td>Kỹ sư (<code>engineer</code>)</td><td><b>Engineer</b></td><td>Kỹ sư PLA: sửa công trình và chiếm công trình địch.</td></tr>
 <tr><td>Squatters (<code>squatters</code>)</td><td><b>Squatters</b></td><td>Người cầm cờ PLA và lính hộ tống, đi cùng nhau như một đơn vị: đi bộ (hoặc được máy bay vận tải chở) tới đất chưa ai sở hữu, cắm quốc kỳ ở đó (chọn đội rồi nhấn <b>F</b> hoặc double-click: cờ cắm vào ô trống gần nhất, đất nào cũng được) — xong nhiệm vụ thì cả đội biến mất.</td></tr>
 <tr><td>Xe tăng (<code>tank</code>)</td><td><b>Type 99</b></td><td>Xe tăng chủ lực Type 99, sản xuất số lượng lớn.</td></tr>
-<tr><td>Tiêm kích (<code>jet</code>)</td><td><b>J-15</b></td><td>Tiêm kích đa năng J-15 trên tàu sân bay.</td></tr>
+<tr><td>Tiêm kích (<code>jet</code>)</td><td><b>J-31</b></td><td>Tiêm kích tàng hình đa năng Shenyang J-31 Gyrfalcon.</td></tr>
 <tr><td>Máy bay vận tải (<code>transport</code>)</td><td><b>Y-20</b></td><td>Máy bay vận tải hạng nặng Y-20: chở lính và xe; không vũ khí.</td></tr>
 <tr><td>Xe sửa chữa (<code>repair</code>)</td><td><b>Type 99II</b></td><td>Xe cứu kéo bọc thép Type 99II: chậm, không vũ khí; click vào xe mặt đất phe mình đang hỏng để chạy tới sửa (hoặc chọn xe hỏng rồi click vào nó) (5% máu tối đa mỗi 2 s).</td></tr>
-<tr><td>Máy bay tiếp dầu (<code>tanker</code>)</td><td><b>YY-20</b></td><td>Máy bay tiếp dầu YY-20: bay hộ tống Y-20 và tiếp nhiên liệu cho nó; không vũ khí.</td></tr>
 </table>
 <h4>Europe</h4>
 <table>
@@ -298,7 +294,6 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 <tr><td>Tiêm kích (<code>jet</code>)</td><td><b>Rafale</b></td><td>Tiêm kích đa năng Dassault Rafale.</td></tr>
 <tr><td>Máy bay vận tải (<code>transport</code>)</td><td><b>C-130</b></td><td>Máy bay vận tải C-130: chở lính và xe; không vũ khí.</td></tr>
 <tr><td>Xe sửa chữa (<code>repair</code>)</td><td><b>M88</b></td><td>Xe cứu kéo bọc thép M88: chậm, không vũ khí; click vào xe mặt đất phe mình đang hỏng để chạy tới sửa (hoặc chọn xe hỏng rồi click vào nó) (5% máu tối đa mỗi 2 s).</td></tr>
-<tr><td>Máy bay tiếp dầu (<code>tanker</code>)</td><td><b>A330 MRTT</b></td><td>Máy bay tiếp dầu A330 MRTT: bay hộ tống C-130 và tiếp nhiên liệu cho nó; không vũ khí.</td></tr>
 </table>
 <h4>Islamic</h4>
 <table>
@@ -337,16 +332,16 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
   <li>Dừng khi xe được sửa đầy máu, một trong hai xe chết hoặc lên máy bay vận tải, không tới được, hoặc khi xe nhận lệnh di chuyển / lên máy bay mới.</li>
   <li>Sprite: <code>public/sprites/brem1-russia.png</code> (Russia), <code>public/sprites/arv-usa.png</code> (USA và Europe dùng chung), <code>public/sprites/type90ii-china.png</code> (China và Islamic dùng chung) — ô 80 px, 16 × 15; bảng sheet theo phe trong <code>render/RepairSheets.ts</code>.</li>
 </ul>
-<h3>Xe tải quân sự (<code>truck</code>): KamAZ (Russia, China, Islamic), LVSR (USA), IVECO (Europe)</h3>
+<h3>Xe tải quân sự (<code>truck</code>): KamAZ (Russia, China, Islamic), MTVR (USA), Zetros (Europe)</h3>
 <ul>
-  <li>Giá gốc <code>700</code> TB, <code>9</code> s, <code>240</code> máu, tốc độ <code>2.1</code> (nhanh hơn lính 1.3–1.7 và xe tăng 1.4); không vũ khí, chỉ đi trên đất (không qua biển), sản xuất ở War Factory. Sprite: <code>public/sprites/kamaz-truck.png</code> (KamAZ), <code>public/sprites/lvsr-usa.png</code> (LVSR), <code>public/sprites/iveco-europe.png</code> (IVECO), cùng bố cục; vẽ to hơn xe tăng chủ lực một chút (scale 0.23 so với 0.2) để tăng nằm trên sàn trông vừa, vẽ bằng <code>render/TruckSheets.ts</code>.</li>
-  <li>Chở <b>tối đa 8 lính</b> (xe có thùng che bạt) <b>hoặc 1 xe tăng</b> (xe bỏ thùng, tăng nằm trên sàn sau), không chở lẫn, không chở xe khác hay máy bay/trực thăng (<code>TRUCK_SOLDIERS</code>, <code>TRUCK_TANKS</code>).</li>
-  <li>Lên xe: chọn lính / xe tăng rồi click vào xe tải (xe tải dừng chờ). Xuống xe: chọn xe tải, nhấn <b>U</b> hoặc double-click chuột trái vào chính xe đang chọn (áp dụng cho mọi xe/máy bay chở quân) — xe đứng yên, từng người (hoặc chiếc tăng) xuống ô trống bên cạnh. Xe tải bị phá thì mọi thứ trên xe mất theo.</li>
+  <li>Giá gốc <code>700</code> TB, <code>9</code> s, <code>240</code> máu, tốc độ <code>2.1</code> (nhanh hơn lính 1.3–1.7 và xe tăng 1.4); không vũ khí, chỉ đi trên đất (không qua biển), sản xuất ở War Factory. Sprite render từ mô hình 3D (tools/ground_model_sheet.py, 32 hướng, hàng 2 là xác cháy): <code>public/sprites/truck-kamaz.png</code> (KamAZ-5330), <code>truck-mtvr.png</code> (Oshkosh MTVR), <code>truck-zetros.png</code> (Mercedes-Benz Zetros).</li>
+  <li>Chở <b>tối đa 8 lính</b> (<code>TRUCK_SOLDIERS</code>) cho đỡ mệt khi hành quân; <b>không chở bất kỳ phương tiện nào</b> (xe tăng, xe khác, máy bay/trực thăng).</li>
+  <li>Lên xe: chọn lính rồi click vào xe tải (xe tải dừng chờ). Xuống xe: chọn xe tải, nhấn <b>U</b> hoặc double-click chuột trái vào chính xe đang chọn (áp dụng cho mọi xe/máy bay chở quân) — xe đứng yên, từng người xuống ô trống bên cạnh. Xe tải bị phá thì mọi thứ trên xe mất theo.</li>
 </ul>
 <h3>Hành quân bộ binh (mệt mỏi)</h3>
 <ul>
   <li>Mọi lính trừ đặc nhiệm (<code>special</code>): đi bộ được <code>INFANTRY_MARCH_CELLS = 52 × GROUND_SPEED_SCALE ≈ 68</code> ô đơn vị thì dừng tại chỗ nghỉ <code>INFANTRY_REST_SECONDS = 35</code> s (hiện "Resting Ns" trên đầu), giữ nguyên lệnh rồi đi tiếp — kể cả khi đang đi đánh. Đứng yên <code>INFANTRY_RECOVER_SECONDS = 10</code> s cũng tính là đã nghỉ. Ngồi xe tải / máy bay vận tải không mệt.</li>
-  <li>Máy bay mang bom (B-52, Tu-16, tiêm kích) bay chậm hơn khi còn bom: đầy bom chậm <code>BOMB_LOAD_SLOWDOWN = 20%</code>, ném dần thì nhanh dần, hết bom bay đủ tốc độ.</li>
+  <li>Máy bay mang bom (B-1A Lancer, Tu-160, tiêm kích) bay chậm hơn khi còn bom: đầy bom chậm <code>BOMB_LOAD_SLOWDOWN = 20%</code>, ném dần thì nhanh dần, hết bom bay đủ tốc độ.</li>
   <li>Nhiều Barracks / War Factory / Airfield: double-click vào công trình nào thì lính / xe / máy bay mới ra ở công trình đó.</li>
   <li>AI: giữ 1 xe tải cho mỗi 8 lính (tối đa 4); khi mục tiêu xa hơn 30 ô, lính gần xe tải rảnh (trong 25 ô) lên xe, xe chở tới cách mục tiêu 8 ô rồi thả xuống (<code>AISystem.motorize</code> / <code>driveConvoys</code>); khác lục địa thì dùng máy bay vận tải như cũ.</li>
 </ul>
@@ -365,12 +360,12 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
   <li><b>Sản xuất song song</b>: mọi đơn trong từng tab chạy độc lập và cùng lúc. Công trình (tab Build / Defense): mỗi loại công trình có ô đơn riêng (<code>ConstructionSystem.slot(player, id)</code>), xây cùng lúc, mỗi cái xong thì chờ đặt riêng. Lính / phương tiện: mọi đơn trong hàng được làm cùng lúc, mỗi đơn trả tiền riêng (<code>paidEach</code>); thiếu TB thì đơn cũ được trả trước. War Factory: mỗi lần chỉ lăn ra 1 xe, xe tiếp theo chờ cửa trống. Áp dụng cho cả AI.</li>
   <li>Không giới hạn quân: <code>MAX_SOLDIERS</code>, <code>MAX_GROUND_VEHICLES</code>, <code>MAX_TRANSPORTS</code> = vô hạn (AI cũng không giới hạn số xe tải). Chỉ còn giới hạn bởi tiền, hàng chờ (<code>BUILD_LIMIT_*</code>) và chỗ đỗ máy bay ở Airfield. <b>Trực thăng không chiếm chỗ đỗ</b>: không tính vào chỗ đỗ của Airfield, đáp xuống bất kỳ đâu trên mặt đất.</li>
   <li>Hạ cánh: chọn máy bay rồi click vào sân bay của mình (còn chỗ đỗ) → bay vào từ <b>đầu đường băng gần hơn</b> (cả hai đầu đều được, <code>AircraftSystem.land</code>); chỉ một máy bay dùng đường băng mỗi lúc, chiếc khác chờ trên điểm tiếp cận. Máy bay tự về cũng chọn đầu gần hơn.</li>
-  <li>Khóa mục tiêu (lệnh tấn công rõ ràng) thì chỉ đánh đúng mục tiêu đó: khóa sân bay → chỉ sân bay mất máu, máy bay đỗ trên đó không bị trúng; khóa máy bay / xe / lính đang ở trên sân bay → chỉ mục tiêu đó (và bom chùm của máy bay ném bom vào đơn vị mặt đất quanh nó), sân bay không mất máu. Mục tiêu khóa là máy bay vận tải thì không tự chuyển sang bắn máy bay tiếp dầu. Sân bay bị phá: máy bay đỗ trên đó chuyển sang sân bay khác của phe; <b>phe không còn sân bay nào thì máy bay đỗ trên sân bay bị phá hủy</b> (máy bay đang bay thì rơi như cũ).</li>
-  <li>Chuyển sân bay: chọn máy bay (đang bay hoặc đang đỗ ở sân bay khác) rồi click một sân bay khác của phe còn chỗ đỗ → máy bay bay tới đó, hạ cánh và đổi sân bay nhà sang sân bay mới (máy bay đang đỗ thì cất cánh trước, theo luật cất cánh). Sân bay hết chỗ: báo "No free parking spot". Máy bay tiếp dầu đi theo máy bay vận tải nên không chuyển riêng.</li>
-  <li>Cất cánh: xếp hàng theo thứ tự được ra lệnh (ai lăn bánh trước bay trước). Đầu đường băng đang kẹt (đã có máy bay chờ ở đó, hoặc máy bay đang hạ cánh lăn về phía đó) thì lăn sang đầu kia và cất cánh ngược chiều; vẫn chỉ một máy bay dùng đường băng mỗi lúc. Máy bay vận tải chờ máy bay tiếp dầu thì rời hàng, không chắn đường băng.</li>
+  <li>Khóa mục tiêu (lệnh tấn công rõ ràng) thì chỉ đánh đúng mục tiêu đó: khóa sân bay → chỉ sân bay mất máu, máy bay đỗ trên đó không bị trúng; khóa máy bay / xe / lính đang ở trên sân bay → chỉ mục tiêu đó (và bom chùm của máy bay ném bom vào đơn vị mặt đất quanh nó), sân bay không mất máu. Mục tiêu khóa là máy bay vận tải. Sân bay bị phá: máy bay đỗ trên đó chuyển sang sân bay khác của phe; <b>phe không còn sân bay nào thì máy bay đỗ trên sân bay bị phá hủy</b> (máy bay đang bay thì rơi như cũ).</li>
+  <li>Chuyển sân bay: chọn máy bay (đang bay hoặc đang đỗ ở sân bay khác) rồi click một sân bay khác của phe còn chỗ đỗ → máy bay bay tới đó, hạ cánh và đổi sân bay nhà sang sân bay mới (máy bay đang đỗ thì cất cánh trước, theo luật cất cánh). Sân bay hết chỗ: báo "No free parking spot".</li>
+  <li>Cất cánh: xếp hàng theo thứ tự được ra lệnh (ai lăn bánh trước bay trước). Đầu đường băng đang kẹt (đã có máy bay chờ ở đó, hoặc máy bay đang hạ cánh lăn về phía đó) thì lăn sang đầu kia và cất cánh ngược chiều; vẫn chỉ một máy bay dùng đường băng mỗi lúc.</li>
   <li>Thiếu điện: sân bay <b>không cho cất cánh</b> (kể cả máy bay đang hạ cánh nhận lệnh mới cũng phải đáp xuống, đỗ rồi chờ có điện), nhưng <b>vẫn cho hạ cánh</b>.</li>
   <li>Click (đi / tấn công-di chuyển) trên sân bay N×M của mình hoặc trong vùng (N+2)×(M+2) quanh nó (<code>AIRFIELD_CLICK_MARGIN = 2</code> ô mỗi phía): máy bay đang đỗ không cất cánh, máy bay đang bay thì hạ cánh xuống sân bay đó. Chỉ click cách sân bay từ 3 ô trở ra mới làm máy bay cất cánh bay tới.</li>
-  <li>Âm thanh (<code>audio/SoundSystem.ts</code>): tiếng súng, pháo, nổ; tiếng bước chân, động cơ + xích xe, động cơ máy bay khi di chuyển gần camera. Mặc định tổng hợp bằng Web Audio; mỗi mẫu phương tiện có tiếng động cơ riêng theo tên (Abrams: tuabin khí; T-90/Leopard 2/Type 99/Karrar: diesel; BREM-1/M88/Type 99II: diesel xe cứu kéo; tiêm kích; B-52/Tu-16; máy bay vận tải/tiếp dầu), chỉ phát khi phương tiện trong khung hình, giữa màn hình to nhất, ra mép thì nhỏ dần. File ghi âm thật (xem <code>public/sounds/README.md</code>): tất cả nằm chung trong <code>public/sounds/</code>, không thư mục con — rifle, smg, mg, sniper, autocannon, tank-cannon, missile, explosion, bomb, foot, board, và tiếng xe <code>engine-&lt;tên-mẫu&gt;</code> hoặc <code>engine-&lt;loại&gt;</code> (vd. <code>engine-abrams.mp3</code>, <code>engine-tank.mp3</code>); định dạng mp3|ogg|wav. Đã có: rifle, tank-cannon, bomb (dùng thay explosion), engine-tank. File dài được cắt thành đoạn ngắn bắt đầu tại một phát bắn (<code>SAMPLE_CLIP</code>); có file ghi âm súng thì không ghép loạt tổng hợp nữa. Súng nhỏ phát thành loạt (rifle 3, smg 4, mg 5, autocannon 3 viên), pháo tăng 1 tiếng mỗi phát. Khi có tiếng súng/nổ nhạc nền giảm còn 35% (<code>SFX_DUCK</code>) trong 0.8 s. Điểm nổ đạn: lính ≤ 5% thân lính, xe tăng ≤ 20% thân xe tăng (<code>BULLET_SIZES</code>).</li>
+  <li>Âm thanh (<code>audio/SoundSystem.ts</code>): tiếng súng, pháo, nổ; tiếng bước chân, động cơ + xích xe, động cơ máy bay khi di chuyển gần camera. Mặc định tổng hợp bằng Web Audio; mỗi mẫu phương tiện có tiếng động cơ riêng theo tên (Abrams: tuabin khí; T-90/Leopard 2/Type 99/Karrar: diesel; BREM-1/M88/Type 99II: diesel xe cứu kéo; tiêm kích; B-1A Lancer/Tu-160; máy bay vận tải), chỉ phát khi phương tiện trong khung hình, giữa màn hình to nhất, ra mép thì nhỏ dần. File ghi âm thật (xem <code>public/sounds/README.md</code>): tất cả nằm chung trong <code>public/sounds/</code>, không thư mục con — rifle, smg, mg, sniper, autocannon, tank-cannon, missile, explosion, bomb, foot, board, và tiếng xe <code>engine-&lt;tên-mẫu&gt;</code> hoặc <code>engine-&lt;loại&gt;</code> (vd. <code>engine-abrams.mp3</code>, <code>engine-tank.mp3</code>); định dạng mp3|ogg|wav. Đã có: rifle, tank-cannon, bomb (dùng thay explosion), engine-tank. File dài được cắt thành đoạn ngắn bắt đầu tại một phát bắn (<code>SAMPLE_CLIP</code>); có file ghi âm súng thì không ghép loạt tổng hợp nữa. Súng nhỏ phát thành loạt (rifle 3, smg 4, mg 5, autocannon 3 viên), pháo tăng 1 tiếng mỗi phát. Khi có tiếng súng/nổ nhạc nền giảm còn 35% (<code>SFX_DUCK</code>) trong 0.8 s. Điểm nổ đạn: lính ≤ 5% thân lính, xe tăng ≤ 20% thân xe tăng (<code>BULLET_SIZES</code>).</li>
 </ul>
 <h3>Tốc độ máy bay &amp; quân</h3>
 <ul>
@@ -379,18 +374,23 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 </ul>
 <h3>Turbo máy bay</h3>
 <ul>
-  <li>Chọn máy bay của mình đang bay → tab Command hiện mục <b>Aircraft</b> có nút <b>Turbo (T)</b> (máy bay còn đỗ / lăn bánh / cất hạ cánh thì không hiện) (máy bay vận tải có thêm mục Transport với nút <b>Unload (U)</b>). Nhấn T / Turbo: các máy bay đang bay (không tính tanker) bay nhanh gấp <code>TURBO_MULT 2</code> lần trong <code>TURBO_SECONDS 15</code> s; sau đó phải nạp lại <code>TURBO_RECHARGE_SECONDS 40</code> s mới bật tiếp được (nút mờ, hiện "Turbo on · Ns" / "Recharging · N%"). Turbo chỉ bật được khi máy bay đang trên không.</li>
-  <li>Áp dụng cho mọi phe: máy (AI) tự tính khi nào dùng turbo (<code>aiWantsTurbo</code>). Bật ngay: máy bay dưới 50% máu và vừa trúng đạn trong 2 s → chạy thoát. Ngoài ra chỉ bật khi quãng bay còn lại dài hơn quãng turbo đi được (tốc độ × 15 s, tối thiểu <code>AI_TURBO_CELLS 60</code> ô) và chuyến bay đáng giá: đi đánh (lệnh tấn công / tấn công-di chuyển), máy bay vận tải chở quân đi ra, tiêm kích đuổi theo máy bay mình hộ tống, máy bay dưới 60% máu bay về sửa. Máy bay vận tải rỗng, bay chuyển chỗ, hay về nhà còn khỏe thì giữ turbo. Tanker không dùng turbo.</li>
+  <li>Chọn máy bay của mình đang bay → tab Command hiện mục <b>Aircraft</b> có nút <b>Turbo (T)</b> (máy bay còn đỗ / lăn bánh / cất hạ cánh thì không hiện) (máy bay vận tải có thêm mục Transport với nút <b>Unload (U)</b>). Nhấn T / Turbo: các máy bay đang bay bay nhanh gấp <code>TURBO_MULT 2</code> lần trong <code>TURBO_SECONDS 15</code> s; sau đó phải nạp lại <code>TURBO_RECHARGE_SECONDS 40</code> s mới bật tiếp được (nút mờ, hiện "Turbo on · Ns" / "Recharging · N%"). Turbo chỉ bật được khi máy bay đang trên không.</li>
+  <li>Áp dụng cho mọi phe: máy (AI) tự tính khi nào dùng turbo (<code>aiWantsTurbo</code>). Bật ngay: máy bay dưới 50% máu và vừa trúng đạn trong 2 s → chạy thoát. Ngoài ra chỉ bật khi quãng bay còn lại dài hơn quãng turbo đi được (tốc độ × 15 s, tối thiểu <code>AI_TURBO_CELLS 60</code> ô) và chuyến bay đáng giá: đi đánh (lệnh tấn công / tấn công-di chuyển), máy bay vận tải chở quân đi ra, tiêm kích đuổi theo máy bay mình hộ tống, máy bay dưới 60% máu bay về sửa. Máy bay vận tải rỗng, bay chuyển chỗ, hay về nhà còn khỏe thì giữ turbo.</li>
   <li>Mỗi máy bay có turbo riêng (thời gian bật và nạp lại tính riêng từng chiếc). Người chơi bật turbo cho máy bay của mình.</li>
 </ul>
-<h3>Máy bay vận tải &amp; tanker</h3>
+<h3>Máy bay vận tải</h3>
 <ul>
+  <li>Hình: render từ mô hình 3D (tools/aircraft_model_sheet.py; FBX/DAE đổi sang OBJ bằng tools/model_to_obj.py): Mỹ C-17, châu Âu C-130J, Nga Il-76, Trung Quốc và Hồi giáo Y-20 (<code>public/sprites/air-&lt;mẫu&gt;.png</code>). Hiệu ứng nổ giữ nguyên.</li>
+  <li>Máy bay ném bom cũng render từ mô hình 3D (tools/aircraft_model_sheet.py, bố cục 16 hướng × 9 hàng): Mỹ B-1A Lancer (<code>b1-usa.png</code>), Nga Tu-160 (<code>tu160-russia.png</code>).</li>
+  <li>Tiêm kích cũng render từ mô hình 3D, cùng bố cục (<code>jet-&lt;phe&gt;.png</code>): Mỹ F-22, châu Âu Rafale, Nga Su-57, Trung Quốc J-31, Hồi giáo Su-35. File .blend được Blender xuất sang OBJ (tools/blend_to_obj.py).</li>
+  <li>Xe phòng không tự hành (<code>mantis</code>) render từ mô hình 3D (32 hướng, hàng 2 là xác cháy): Mỹ và châu Âu dùng NOMADS (<code>sam-nomads.png</code>; script tools/ground_model_sheet.py), Nga, Trung Quốc, Hồi giáo dùng Buk-M3 (<code>sam-buk.png</code>). Tên hiển thị: NOMADS / Buk-M3; hiệu ứng nổ lấy từ <code>mantis.png</code>.</li>
+  <li>Trực thăng render từ mô hình 3D (tools/heli_model_sheet.py, 32 hướng × 16 hàng, cánh quạt xoay từng khung): Mỹ và châu Âu AH-64 Apache (<code>heli-apache.png</code>), Nga và Hồi giáo Ka-52 (<code>heli-ka52.png</code>), Trung Quốc Z-10 (<code>heli-z10.png</code>, nổ dùng <code>heli-z19e-fx.png</code>).</li>
+  <li>Kích thước hiển thị phương tiện chiến đấu giảm 5%: xe tăng và xe phòng không (tỷ lệ 0.175 → 0.166), tiêm kích (10 → 9.5 px), máy bay ném bom (B-1A 15 → 14.25, Tu-160 16 → 15.2), trực thăng (12 → 11.4). Máy bay vận tải, xe tải, xe sửa giữ nguyên. Chỉ đổi hình vẽ, không đổi bán kính va chạm.</li>
   <li>Chở: 12 lính; hoặc 8 lính + 1 xe; hoặc 3 xe (<code>TRANSPORT_*</code>). Máy bay nổ → quân bên trong chết theo.</li>
   <li>Lên: chọn quân, chuột phải vào transport của mình. Xuống: U / nút Unload; quân ra mỗi 0.3 s.</li>
-  <li>Nhiên liệu <code>TRANSPORT_FUEL_CELLS</code> = chiều cao bản đồ (<code>GRID_HEIGHT</code>): bình đầy bay đúng từ cực bắc tới cực nam rồi phải nạp. Mọi chuyến bay tanker đều bay kèm; transport chờ ở đầu đường băng tới khi tanker đã cất cánh mới được cất cánh. Tanker bay kèm, dẫn trước <code>TANKER_LEAD_CELLS 2.2</code> ô, tiếp nhiên liệu trong <code>REFUEL_RANGE_CELLS 4</code> ô với tốc độ <code>REFUEL_RATE 0.08</code> bình/s.</li>
-  <li>Hộ tống: chọn tiêm kích, giữ <b>Ctrl</b> + chuột trái vào máy bay vận tải / tiếp dầu / ném bom của mình → tiêm kích bay theo sau đuôi nó <code>GUARD_TRAIL_CELLS 4</code> ô; gặp địch thì đổi mục tiêu đánh (không đuổi xa quá <code>GUARD_LEASH_CELLS 14</code> ô), đánh xong quay lại hộ tống. Máy bay được hộ tống chạm đất (sân bay hoặc ngoài chiến trường) → hoàn thành, tiêm kích bay về căn cứ. Nhận lệnh di chuyển / tấn công mới thì hủy hộ tống.</li>
-  <li>Dầu nạp của tanker (thanh đen trên đầu tanker): đầy bình chứa <code>TANKER_LOAD_TANKS 0.25</code> bình transport, tức đủ cho transport bay 1/4 quãng cực bắc → cực nam. Nạp cho transport bao nhiêu thì trừ bấy nhiêu. Hết dầu nạp: tanker vẫn bay theo transport nhưng không tiếp dầu được nữa (tanker không bao giờ hết nhiên liệu bay); về đỗ ở sân bay / transport đậu xuống đất thì được nạp đầy lại. Transport rơi (hết nhiên liệu, mất sân bay) hoặc bị bắn hạ trên không → tanker đang bay theo rơi cùng.</li>
-  <li>Máy bay vận tải đậu dưới mặt đất (ở sân bay hoặc hạ cánh ngoài chiến trường): nó và tanker của nó được nạp đầy dầu ngay.</li>
+  <li>Nhiên liệu <code>TRANSPORT_FUEL_CELLS</code> = 1.25 × chiều cao bản đồ (<code>GRID_HEIGHT</code>): bình đầy bay hết quãng cực bắc → cực nam rồi thêm 1/4 quãng đó nữa (gộp phần dầu trước đây do máy bay tiếp dầu nạp). Không còn máy bay tiếp dầu: transport chỉ được nạp lại khi đậu dưới mặt đất. Hết nhiên liệu trên không → rơi.</li>
+  <li>Hộ tống: chọn tiêm kích, giữ <b>Ctrl</b> + chuột trái vào máy bay vận tải / ném bom của mình → tiêm kích bay theo sau đuôi nó <code>GUARD_TRAIL_CELLS 4</code> ô; gặp địch thì đổi mục tiêu đánh (không đuổi xa quá <code>GUARD_LEASH_CELLS 14</code> ô), đánh xong quay lại hộ tống. Máy bay được hộ tống chạm đất (sân bay hoặc ngoài chiến trường) → hoàn thành, tiêm kích bay về căn cứ. Nhận lệnh di chuyển / tấn công mới thì hủy hộ tống.</li>
+  <li>Máy bay vận tải đậu dưới mặt đất (ở sân bay hoặc hạ cánh ngoài chiến trường): được nạp đầy dầu ngay.</li>
 </ul>
 <h3>Cấp bậc</h3>
 <ul>
@@ -419,7 +419,7 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 </ul>
 <h3>Logo phe trên thanh máu</h3>
 <ul>
-  <li>Mọi phe: mọi lính và mọi phương tiện (cả không chiến đấu: vận tải, tanker, xe tải, xe sửa…) khi được chọn hoặc focus hiện logo phe nhỏ (~9 px màn hình, <code>public/emblems/&lt;phe&gt;.png</code>) sát bên trái thanh máu (<code>Renderer.drawUnitHealth</code>).</li>
+  <li>Mọi phe: mọi lính và mọi phương tiện (cả không chiến đấu: vận tải, xe tải, xe sửa…) khi được chọn hoặc focus hiện logo phe nhỏ (~9 px màn hình, <code>public/emblems/&lt;phe&gt;.png</code>) sát bên trái thanh máu (<code>Renderer.drawUnitHealth</code>).</li>
 </ul>
 <h3>Hiệu ứng nổ (<code>render/ExplosionSheet.ts</code>)</h3>
 <ul>

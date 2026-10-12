@@ -26,8 +26,8 @@ const rgb = (hex: string): RGB => [parseInt(hex.slice(1, 3), 16), parseInt(hex.s
 // Terrain codes follow TERRAIN_TYPES: 0 water, 1 sand, 2 grass, 3 forest, 4 desert, 5 rock, 6 snow.
 // Red Alert 2 palette: deep mottled grass with bare-earth patches, orange-yellow desert sand, brown-orange rock,
 // grey-white snow, and a dark navy sea whose shore is a black-green wet band.
-const GRASS_A = rgb('#5c8f36');
-const GRASS_B = rgb('#77a842');
+const GRASS_A = rgb('#6ca044'); // a little lighter than RA2's so green-camo vehicles stand out
+const GRASS_B = rgb('#86b852');
 const DIRT = rgb('#a09058');
 const FOREST_A = rgb('#45702e');
 const FOREST_B = rgb('#568338');

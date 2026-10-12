@@ -43,7 +43,7 @@ export function canTarget(shooter: Unit, target: Entity): boolean {
   // Attack helicopters hunt ground vehicles only: no structures, soldiers or aircraft.
   // Exception (self-defence): the ground attacker that shot it while it stood landed, soldier or vehicle.
   if (shooter instanceof Vehicle && shooter.isHeli) return (target instanceof Vehicle && !target.aircraft) || (shooter.heliRevenge === target.id && target instanceof Unit && !target.flies);
-  // MANTIS air defence: aircraft in flight only.
+  // Air-defence vehicle (NOMADS / Buk-M3): aircraft in flight only.
   if (shooter instanceof Vehicle && shooter.type === 'mantis') return target instanceof Unit && target.flies;
   if (target instanceof Unit && target.flies) return shooter.aircraft && w.hitsAir;
   return true;
@@ -217,7 +217,7 @@ export class CombatSystem implements GameSystem {
       else target = ordered;
     }
 
-    // Auto targets are dropped when they walk too far away. A MANTIS drops an aircraft as soon as it leaves its range,
+    // Auto targets are dropped when they walk too far away. An air-defence vehicle drops an aircraft as soon as it leaves its range,
     // so it is always free to engage whatever is in range.
     const holdsSpot = s instanceof Vehicle && s.type === 'mantis';
     if (target && s.attackTarget === null && distanceTo(s.px, s.py, target) > (holdsSpot ? w.range : w.range * GUARD_VISION_FACTOR * 1.25)) target = undefined;
@@ -231,14 +231,6 @@ export class CombatSystem implements GameSystem {
       const better = this.acquire(s, w, grid);
       s.nextThink = this.time + ACQUIRE_PERIOD + (s.id % 4) * 0.04;
       if (better) target = better;
-    }
-    // A transport's escorting tanker is shot down first, while it is close enough to be hit (not when the transport
-    // itself is the locked target of an explicit order: a locked target is the only one attacked).
-    const tankerId = (target as { tankerId?: number | null } | undefined)?.tankerId;
-    if (target && tankerId != null && s.attackTarget === null) {
-      const tanker = this.entities.get(tankerId);
-      if (tanker && tanker.alive && isHostile(s, tanker) && this.canHit(s, w, tanker) && !this.sheltered(tanker) && distanceTo(s.px, s.py, tanker) <= w.range * GUARD_VISION_FACTOR)
-        target = tanker;
     }
     s.combatTarget = target?.id ?? null;
 
@@ -276,7 +268,7 @@ export class CombatSystem implements GameSystem {
     }
 
     // Idle units, attack-movers, attack orders and retaliators move in; units on a plain move order keep walking.
-    // A MANTIS holds its firing spot: it only shoots what comes into range and moves only when ordered (a move or an
+    // An air-defence vehicle holds its firing spot: it only shoots what comes into range and moves only when ordered (a move or an
     // explicit attack order), never chasing on its own.
     if (holdsSpot && s.attackTarget === null) return;
     const mayChase = s.chasing || !s.moving || s.attackTarget !== null || s.attackMove !== null;
@@ -311,7 +303,7 @@ export class CombatSystem implements GameSystem {
   private acquire(s: Unit, w: WeaponSpec, grid: Map<number, Unit[]>): Entity | undefined {
     const cx = Math.floor(s.px / HASH);
     const cy = Math.floor(s.py / HASH);
-    // A MANTIS never chases, so it only looks at aircraft already inside its range.
+    // An air-defence vehicle never chases, so it only looks at aircraft already inside its range.
     const holdsSpot = s instanceof Vehicle && s.type === 'mantis';
     const sight = holdsSpot ? w.range : w.range * GUARD_VISION_FACTOR;
     const reach = Math.ceil(sight / HASH);

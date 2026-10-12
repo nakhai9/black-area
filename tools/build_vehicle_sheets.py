@@ -54,42 +54,25 @@ def span(im):
 
 
 def aircraft(meta):
-    cell, fx_cell = 96, 128
+    fx_cell = 128
     for model, folder in {'c17': 'c17_sprites', 'c130j': 'c130j_sprites', 'il76': 'il76_sprites', 'y20': 'y20_sprites'}.items():
         d = os.path.join(SRC, folder)
-        info = json.load(open(os.path.join(d, f'{model}_meta.json')))['states']
         p = lambda s: os.path.join(d, f'{model}_{s}.png')
-        two = lambda s: [0, 1] if info[s]['frames'] > 1 else [0, 0]
-        idle = 'idle_spin' if 'idle_spin' in info else 'parked'
-        rows = (cells(p('parked'), cell, [0], 512)                    # 0 parked
-                + cells(p(idle), cell, two(idle), 512)                # 1-2 engines running on the ground
-                + cells(p('takeoff'), cell, [0], 512)                 # 3 take-off (nose up)
-                + cells(p('flying'), cell, two('flying'), 512)        # 4-5 flying
-                + cells(p('falling'), cell, [0, 2], 512)              # 6-7 falling
-                + cells(p('wreck'), cell, [0, 2], 512)                # 8-9 burning wreck
-                + cells(p('parked_shadow'), cell, [0], 512)           # 10 shadow on the ground
-                + cells(p('flying_shadow'), cell, [0], 512))          # 11 shadow in flight
-        save_grid(rows, cell, f'air-{model}.png')
+        # air-<model>.png itself is rendered from the 3D model by tools/aircraft_model_sheet.py.
         fx = [strip(p('explode_air'), fx_cell, 512, 5, 20), strip(p('explode_ground'), fx_cell, 512, 5, 20)]
         save_grid(fx, fx_cell, f'air-{model}-fx.png')
-        meta[f'air-{model}'] = dict(cell=cell, span=span(rows[4][8]), fxCell=fx_cell, fxFrames=20)
+        meta[f'air-{model}-fx'] = dict(fxCell=fx_cell, fxFrames=20)
 
 
 def helis(meta):
-    cell, fx_cell = 80, 128
+    fx_cell = 128
     for model in ['apache', 'ka52', 'z19e']:
         d = os.path.join(SRC, model)
         p = lambda f: os.path.join(d, f)
-        rows = (cells(p('01_parked_rotor_stopped.png'), cell, [0], 320)           # 0 parked
-                + cells(p('02_ground_rotor_spinning.png'), cell, [0, 1, 2, 3], 320)  # 1-4 rotor turning on the ground
-                + cells(p('03_takeoff_ascending.png'), cell, [0, 1, 2], 320)      # 5-7 lifting off
-                + cells(p('04_flying_rotor_spinning.png'), cell, [0, 1, 2, 3], 320)  # 8-11 flying
-                + cells(p('05_crash_falling.png'), cell, [0, 1], 320)             # 12-13 falling
-                + cells(p('06_wreck_burning.png'), cell, [0, 1], 320))            # 14-15 burning wreck
-        save_grid(rows, cell, f'heli-{model}.png')
+        # heli-<model>.png itself is rendered from the 3D model by tools/heli_model_sheet.py.
         fx = [strip(p('07_explosion_air.png'), fx_cell, 320, 8, 16), strip(p('08_explosion_ground.png'), fx_cell, 320, 8, 16)]
         save_grid(fx, fx_cell, f'heli-{model}-fx.png')
-        meta[f'heli-{model}'] = dict(cell=cell, span=span(rows[8][8]), fxCell=fx_cell, fxFrames=16)
+        meta[f'heli-{model}-fx'] = dict(fxCell=fx_cell, fxFrames=16)
 
 
 if __name__ == '__main__':

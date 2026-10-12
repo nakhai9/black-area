@@ -94,7 +94,7 @@ export const RUSSIA: FactionConfig = {
       description: "BMP-3 armoured fighting vehicle with a heavy autocannon.",
     },
     heli: { name: "Ka-52", description: "Ka-52 Alligator attack helicopter: coaxial rotors and guided missiles against ground vehicles only. Carries up to 8 soldiers (no vehicles) and sets down anywhere on open ground." },
-    mantis: { name: "MANTIS", description: "MANTIS self-propelled air-defence vehicle: long-range missiles that hit aircraft only (fighters, bombers, helicopters, transports), never ground units or structures. Expensive and slow, armoured like a tank." },
+    mantis: { name: "Buk-M3", description: "Buk-M3 (9K317) self-propelled air-defence vehicle: long-range missiles that hit aircraft only (fighters, bombers, helicopters, transports), never ground units or structures. Expensive and slow, armoured like a tank." },
     jet: {
       name: "Su-57",
       description: "Su-57 stealth air superiority fighter.",
@@ -105,24 +105,19 @@ export const RUSSIA: FactionConfig = {
         "Il-76 military transport aircraft: carries soldiers and vehicles; unarmed.",
     },
     bomber: {
-      name: "Tu-16",
+      name: "Tu-160",
       description:
-        "Tu-16 strategic bomber, Russia only: heavy bombs that flatten ground forces and structures; cannot hit aircraft.",
+        "Tu-160 supersonic strategic bomber, Russia only: heavy bombs that flatten ground forces and structures; cannot hit aircraft.",
     },
     truck: {
       name: "KamAZ",
       description:
-        "KamAZ army truck: unarmed and faster than soldiers or tanks; carries up to 8 soldiers under its canvas cover, or one tank on its flatbed (never both). Ground only — it cannot cross the sea. Select soldiers or a tank and click the truck to board; select the truck and press U to unload.",
+        "KamAZ-5330 army truck: unarmed and faster than soldiers or tanks; carries up to 8 soldiers under its canvas cover (no vehicles). Ground only — it cannot cross the sea. Select soldiers or a tank and click the truck to board; select the truck and press U to unload.",
     },
     repair: {
       name: "BREM-1",
       description:
         "BREM-1 armoured recovery vehicle, Russia only: slow and unarmed; click a damaged friendly ground vehicle to drive up and repair it, or select damaged vehicles and click it to send them in for repair (5% of its max health every 2 s).",
-    },
-    tanker: {
-      name: "Il-78",
-      description:
-        "Il-78 aerial tanker: flies escort behind its Il-76 and keeps it fuelled; unarmed.",
     },
   },
 };

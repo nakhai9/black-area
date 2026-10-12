@@ -26,7 +26,7 @@ export const DEMO_FACTION = Number(import.meta.env.VITE_DEMO_FACTION) || 2;
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "1.63.0";
+export const GAME_VERSION = "1.75.0";
 
 // ---------------------------------------------------------------- World (real Earth)
 /** Packed Earth texture built by `npm run build:earth` (see scripts/build-earth.mjs). */
@@ -376,7 +376,7 @@ export const VEHICLE_BASE = {
   jet: { cost: 1600, trainSeconds: 16, maxHp: 220, speed: 9, radius: 3.2 },
   /** Attack helicopter: slow (well under the fighter and the transport), built at the Airfield like it. */
   heli: { cost: 1300, trainSeconds: 14, maxHp: 200, speed: 3, radius: 3.4 },
-  /** MANTIS air-defence vehicle: dear, slow, tank-like health; shoots aircraft only (see MANTIS_FIREPOWER). */
+  /** Self-propelled air-defence vehicle (NOMADS for the USA and Europe, Buk-M3 for the others): dear, slow, tank-like health; shoots aircraft only (see MANTIS_FIREPOWER). */
   mantis: { cost: 3000, trainSeconds: 18, maxHp: 380, speed: 1.1, radius: 4.4 },
   /** Unarmed cargo aircraft: slower than the fighter. */
   transport: {
@@ -386,7 +386,7 @@ export const VEHICLE_BASE = {
     speed: 5.5,
     radius: 3.6,
   },
-  /** National heavy bomber (Russia's Tu-16, the USA's B-52; no other nation has one): tough, flattens ground targets and structures; cannot hit aircraft. */
+  /** National heavy bomber (Russia's Tu-160, the USA's B-1A Lancer; no other nation has one): tough, flattens ground targets and structures; cannot hit aircraft. */
   bomber: {
     cost: 2600,
     trainSeconds: 22,
@@ -396,11 +396,9 @@ export const VEHICLE_BASE = {
   },
   /** National armoured recovery vehicle (Russia's BREM-1): slow and unarmed, it mends friendly ground vehicles (see REPAIR_VEHICLE_*). */
   repair: { cost: 800, trainSeconds: 10, maxHp: 360, speed: 1.0, radius: 4.2 },
-  /** National army truck (KamAZ: Russia, China, the Islamic world; LVSR: USA; IVECO: Europe), a little bigger than a tank: unarmed, faster than soldiers and tanks, carries
-   * TRUCK_SOLDIERS soldiers (covered cargo truck) or one tank on its flatbed; ground only. */
+  /** National army truck (KamAZ: Russia, China, the Islamic world; Oshkosh MTVR: USA; Mercedes-Benz Zetros: Europe), a little bigger than a tank: unarmed, faster than soldiers and tanks, carries
+   * TRUCK_SOLDIERS soldiers (no vehicles); ground only. */
   truck: { cost: 700, trainSeconds: 9, maxHp: 240, speed: 2.1, radius: 4.6 },
-  /** Aerial refueler: never sold on its own — every transport comes with one that flies escort and keeps it fuelled. */
-  tanker: { cost: 0, trainSeconds: 0, maxHp: 160, speed: 6, radius: 3.2 },
 } as const;
 
 /**
@@ -425,7 +423,6 @@ export const TURBO_SECONDS = 15;
 export const TURBO_RECHARGE_SECONDS = 40;
 export const AIR_BOOST_FAR_CELLS = 400;
 
-/** Transport fuel: a full tank lasts this many cells of flight (enough for a round trip to the tanker-escort distance); the escorting tanker refills it. */
 /** Bomber payload: bombs carried per sortie (reloaded on its airfield) and bombs released per drop. */
 export const BOMBER_BOMBS = 6;
 export const BOMBS_PER_DROP = 2;
@@ -440,7 +437,7 @@ export const JET_BOMBS = 2;
  * less health (VEHICLE_BASE), shoots only ground vehicles and carries no bombs.
  */
 export const HELI_FIREPOWER = 0.75;
-/** MANTIS: its missile hits this many times as hard as the base missile, and reaches MANTIS_RANGE_CELLS cells for every nation (no faction range bonus); aircraft only. */
+/** Air-defence vehicle (`mantis`): its missile hits this many times as hard as the base missile, and reaches MANTIS_RANGE_CELLS cells for every nation (no faction range bonus); aircraft only. */
 export const MANTIS_FIREPOWER = 2.5;
 export const MANTIS_RANGE_CELLS = 10;
 export const JET_BOMB_VS_STRUCTURE = 0.1;
@@ -460,15 +457,9 @@ export const BOMB_TOUGH_DAMAGE = 0.5;
  * vehicles all of them die, from BOMB_GROUP_SIZE up a third of them (the ones nearest the impact). */
 export const BOMB_GROUP_RADIUS_CELLS = 2.5;
 export const BOMB_GROUP_SIZE = 10;
-/** A full transport tank flies the map's height (north pole to south pole) before it must refuel. */
-export const TRANSPORT_FUEL_CELLS = GRID_HEIGHT;
-/** A full tanker carries this many full transport tanks to hand over: a quarter of the pole-to-pole distance. */
-export const TANKER_LOAD_TANKS = 0.25;
-/** A tanker within this many cells of its transport refuels it, at this many full tanks per second. */
-export const REFUEL_RANGE_CELLS = 4;
-export const REFUEL_RATE = 0.08;
-/** The tanker flies (and sets down) this many cells ahead of its transport's nose — never behind it. */
-export const TANKER_LEAD_CELLS = 2.2;
+/** A full transport tank flies 1.25 × the map's height (north pole to south pole plus a quarter more) before it must
+ * land to refuel: the pole-to-pole tank plus the quarter its former aerial tanker used to hand over. */
+export const TRANSPORT_FUEL_CELLS = GRID_HEIGHT * 1.25;
 /** Length of a transport aircraft (world px, as drawn). */
 export const TRANSPORT_LENGTH = 13;
 
@@ -477,7 +468,6 @@ export const isAircraftKind = (kind: VehicleKind): boolean =>
   kind === "jet" ||
   kind === "heli" ||
   kind === "transport" ||
-  kind === "tanker" ||
   kind === "bomber";
 
 /** Aircraft are built at, park at and take off from an airfield. */
@@ -496,9 +486,8 @@ export const INFANTRY_MARCH_CELLS = Math.round(52 * GROUND_SPEED_SCALE);
 export const INFANTRY_REST_SECONDS = 35;
 export const INFANTRY_RECOVER_SECONDS = 10;
 
-/** Army truck loads: soldiers in the covered cargo truck, or a single tank on the flatbed (never both, nothing else). */
+/** Army truck load: soldiers only, never a vehicle. */
 export const TRUCK_SOLDIERS = 8;
-export const TRUCK_TANKS = 1;
 
 /**
  * Temporary: only these vehicles can be produced (sidebar and AI). The rest stay in the code but are

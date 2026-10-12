@@ -113,7 +113,7 @@ export const ISLAMIC: FactionConfig = {
       description: "BMP-2 armoured fighting vehicle for infantry support.",
     },
     heli: { name: "Ka-52", description: "Ka-52 attack helicopter of the Islamic air force: guided missiles against ground vehicles only. Carries up to 8 soldiers (no vehicles) and sets down anywhere on open ground." },
-    mantis: { name: "MANTIS", description: "MANTIS self-propelled air-defence vehicle: long-range missiles that hit aircraft only (fighters, bombers, helicopters, transports), never ground units or structures. Expensive and slow, armoured like a tank." },
+    mantis: { name: "Buk-M3", description: "Buk-M3 (9K317) self-propelled air-defence vehicle: long-range missiles that hit aircraft only (fighters, bombers, helicopters, transports), never ground units or structures. Expensive and slow, armoured like a tank." },
     jet: {
       name: "Su-35",
       description:
@@ -122,7 +122,7 @@ export const ISLAMIC: FactionConfig = {
     truck: {
       name: "KamAZ",
       description:
-        "KamAZ army truck: unarmed and faster than soldiers or tanks; carries up to 8 soldiers under its canvas cover, or one tank on its flatbed (never both). Ground only — it cannot cross the sea. Select soldiers or a tank and click the truck to board; select the truck and press U to unload.",
+        "KamAZ army truck: unarmed and faster than soldiers or tanks; carries up to 8 soldiers under its canvas cover (no vehicles). Ground only — it cannot cross the sea. Select soldiers or a tank and click the truck to board; select the truck and press U to unload.",
     },
     repair: {
       name: "Type 99II",

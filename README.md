@@ -4,7 +4,7 @@
 
 <h1 align="center">Black Area</h1>
 
-<p align="center"><sub>Phiên bản 1.63.0</sub></p>
+<p align="center"><sub>Phiên bản 1.75.0</sub></p>
 
 <p align="center"><b><a href="https://black-area.vercel.app">▶ CHƠI NGAY: black-area.vercel.app</a></b></p>
 
@@ -40,9 +40,9 @@ Không ai tuyên chiến. Người ta chỉ lặng lẽ xé bỏ từng hiệp �
   <img src="public/emblems/islamic.png" alt="Islamic Union" height="72">
 </p>
 
-**Washington** muốn một thế giới của thị trường tự do, nơi dầu thuộc về ai trả giá cao nhất. Họ đánh nhanh, đánh xa, đánh chính xác, và khi lời nói không còn tác dụng, những pháo đài bay B-52 cất cánh để xóa sổ cả một căn cứ.
+**Washington** muốn một thế giới của thị trường tự do, nơi dầu thuộc về ai trả giá cao nhất. Họ đánh nhanh, đánh xa, đánh chính xác, và khi lời nói không còn tác dụng, những chiếc B-1A Lancer cất cánh để xóa sổ cả một căn cứ.
 
-**Moscow** muốn một thế giới của vùng ảnh hưởng, nơi mỗi cường quốc được tự quyết trong sân nhà mình. Họ tin vào hỏa lực áp đảo, và tiếng Tu-16 rền vang trên bầu trời phương Đông là lời nhắc rằng sân nhà ấy rộng đến đâu.
+**Moscow** muốn một thế giới của vùng ảnh hưởng, nơi mỗi cường quốc được tự quyết trong sân nhà mình. Họ tin vào hỏa lực áp đảo, và tiếng Tu-160 rền vang trên bầu trời phương Đông là lời nhắc rằng sân nhà ấy rộng đến đâu.
 
 **Bắc Kinh** muốn một thế giới của trật tự và kế hoạch, nơi tài nguyên chia theo nhu cầu của những dân tộc đông người nhất. Thép của họ dày, quân của họ đông, và công xưởng của họ không bao giờ ngủ.
 

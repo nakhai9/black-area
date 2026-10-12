@@ -32,7 +32,7 @@ export type Flight = 'parked' | 'taxi' | 'takeoff' | 'airborne' | 'approach' | '
 export type CarrierState = 'idle' | 'loading' | 'carrying' | 'unloading';
 
 /** Cruise height of an aircraft above the ground (world px, drawn offset). */
-import { TURBO_MULT, AIR_BOOST_FAR_CELLS, AIR_BOOST_NEAR_CELLS, AIR_SPEED_SCALE, GROUND_SPEED_SCALE, BOMBER_BOMBS, BOMB_LOAD_SLOWDOWN, CRUISE_ALTITUDE, JET_BOMBS, TRUCK_SOLDIERS, TRUCK_TANKS } from '../constants';
+import { TURBO_MULT, AIR_BOOST_FAR_CELLS, AIR_BOOST_NEAR_CELLS, AIR_SPEED_SCALE, GROUND_SPEED_SCALE, BOMBER_BOMBS, BOMB_LOAD_SLOWDOWN, CRUISE_ALTITUDE, JET_BOMBS, TRUCK_SOLDIERS } from '../constants';
 export { CRUISE_ALTITUDE };
 
 /** Handling per vehicle kind: seconds to full speed, turn rate (rad/s), whether it must face where it drives. */
@@ -43,7 +43,6 @@ const HANDLING: Readonly<Record<VehicleKind, { accel: number; turn: number; pivo
   jet: { accel: 0.6, turn: 2.2, pivot: false },
   heli: { accel: 0.7, turn: 2.8, pivot: false },
   transport: { accel: 0.9, turn: 1.6, pivot: false },
-  tanker: { accel: 0.8, turn: 2.2, pivot: false },
   bomber: { accel: 1.0, turn: 1.4, pivot: false },
   repair: { accel: 1.0, turn: 2.0, pivot: true },
   truck: { accel: 0.6, turn: 3.0, pivot: true },
@@ -144,16 +143,12 @@ export class Vehicle extends Unit {
   ejecting = false;
   /** Seconds until the next passenger steps out while ejecting. */
   ejectClock = 0;
-  /** Transport: fuel left (0..1), it falls out of the sky at 0. Tanker: load left to hand over (0..1). */
+  /** Transport: fuel left (0..1), it falls out of the sky at 0. */
   fuel = 1;
-  /** Transport only: id of its escorting tanker. */
-  tankerId: number | null = null;
   /** Aircraft: the pilot has already called mayday (going down, or badly hit in the air). */
   maydaySent = false;
-  /** Fighter only: own transport / tanker / bomber it flies guard on (GUARD_TRAIL_CELLS behind it), or null. */
+  /** Fighter only: own transport / bomber it flies guard on (GUARD_TRAIL_CELLS behind it), or null. */
   guardId: number | null = null;
-  /** Tanker only: id of the transport it escorts and refuels. */
-  escortOf: number | null = null;
   /** Repair vehicle only: id of the friendly ground vehicle it was ordered to mend, or null. */
   repairTargetId: number | null = null;
   /** Repair vehicle only: seconds towards the next repair tick on its target. */
@@ -217,7 +212,7 @@ export class Vehicle extends Unit {
   }
 
   override get unarmedTransport(): boolean {
-    return this.isTransport || this.isTanker || this.isTruck;
+    return this.isTransport || this.isTruck;
   }
 
   /** Bombs a full load holds: the bomber's payload, a fighter's pair, none for anything else. */
@@ -225,16 +220,12 @@ export class Vehicle extends Unit {
     return this.type === 'bomber' ? BOMBER_BOMBS : this.type === 'jet' ? JET_BOMBS : 0;
   }
 
-  get isTanker(): boolean {
-    return this.type === 'tanker';
-  }
-
   /** Armoured recovery vehicle: unarmed, mends friendly ground vehicles. */
   get isRepair(): boolean {
     return this.type === 'repair';
   }
 
-  /** Army truck: unarmed ground carrier (soldiers, or one tank). */
+  /** Army truck: unarmed ground carrier for soldiers only. */
   /** Attack helicopter: lands and waits anywhere on open ground, like a vehicle parks; needs no airfield after it is built. */
   get isHeli(): boolean {
     return this.type === 'heli';
@@ -245,7 +236,7 @@ export class Vehicle extends Unit {
   }
 
   override get canFight(): boolean {
-    if (this.isTransport || this.isTanker || this.isRepair || this.isTruck) return false;
+    if (this.isTransport || this.isRepair || this.isTruck) return false;
     return !this.aircraft ||(this.flight === 'airborne' && this.weapon !== null);
   }
 
@@ -273,12 +264,10 @@ export class Vehicle extends Unit {
     return this.isTruck || this.flight === 'parked' || this.flight === 'landed';
   }
 
-  /** Could this unit ride in this carrier at all? A truck takes soldiers and tanks only; nothing carries aircraft. */
+  /** Could this unit ride in this carrier at all? A truck takes soldiers only; nothing carries aircraft. */
   accepts(u: Unit): boolean {
     if (!(u instanceof Vehicle)) return true;
-    if (u.aircraft) return false;
-    if (this.isHeli) return false;
-    return !this.isTruck || u.type === 'tank';
+    return !u.aircraft && !this.isHeli && !this.isTruck;
   }
 
   get soldiersAboard(): number {
@@ -298,16 +287,16 @@ export class Vehicle extends Unit {
     return this.loadFits(s, v);
   }
 
-  /** The load limits of this carrier: the truck's (soldiers or one tank) or the transport aircraft's. */
+  /** The load limits of this carrier: the truck's (soldiers only) or the transport aircraft's. */
   private loadFits(soldiers: number, vehicles: number): boolean {
-    if (this.isTruck) return vehicles === 0 ? soldiers <= TRUCK_SOLDIERS : soldiers === 0 && vehicles <= TRUCK_TANKS;
+    if (this.isTruck) return vehicles === 0 && soldiers <= TRUCK_SOLDIERS;
     if (this.isHeli) return vehicles === 0 && soldiers <= HELI_SOLDIERS;
     return transportFits(soldiers, vehicles);
   }
 
   /** Soldier seats with the vehicles now aboard (12 alone, 8 beside one vehicle, none beside two or more; a helicopter: 8). */
   get soldierCapacity(): number {
-    if (this.isTruck) return this.vehiclesAboard > 0 ? 0 : TRUCK_SOLDIERS;
+    if (this.isTruck) return TRUCK_SOLDIERS;
     if (this.isHeli) return HELI_SOLDIERS;
     const v = this.vehiclesAboard;
     return v === 0 ? TRANSPORT_SOLDIERS : v === 1 ? TRANSPORT_MIXED_SOLDIERS : 0;
@@ -315,8 +304,7 @@ export class Vehicle extends Unit {
 
   /** Vehicle places with the soldiers now aboard (3 when empty of soldiers, 1 beside up to 8 soldiers, else none; a helicopter: none). */
   get vehicleCapacity(): number {
-    if (this.isHeli) return 0;
-    if (this.isTruck) return this.soldiersAboard > 0 ? 0 : TRUCK_TANKS;
+    if (this.isHeli || this.isTruck) return 0;
     const s = this.soldiersAboard;
     return s === 0 ? TRANSPORT_VEHICLES : s <= TRANSPORT_MIXED_SOLDIERS ? 1 : 0;
   }
