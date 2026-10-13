@@ -1,4 +1,4 @@
-import { CELL_SIZE, MOUNTAIN_PATH_COST } from '../constants';
+import { CELL_SIZE, MOUNTAIN_PASS, MOUNTAIN_PATH_COST } from '../constants';
 import type { Unit } from '../entities/Unit';
 import type { GridPoint, WorldPoint } from '../types';
 import { type Corridor, MinHeap, type Pathfinder } from './Pathfinder';
@@ -74,7 +74,7 @@ export class PathService {
 
   private buildClusters(): void {
     const { map } = this;
-    const dry = (x: number, y: number): boolean => map.inBounds(x, y) && !map.isWater(x, y);
+    const dry = (x: number, y: number): boolean => map.inBounds(x, y) && !map.isWater(x, y) && !map.isRockWall(x, y);
     for (let cy = 0; cy < this.ch; cy++) {
       for (let cx = 0; cx < this.cw; cx++) {
         const x0 = cx * CLUSTER;
@@ -254,7 +254,7 @@ export class PathService {
         if (Math.max(Math.abs(nx - goal.x), Math.abs(ny - goal.y)) > limit) continue;
         if (dx !== 0 && dy !== 0 && (!pathfinder.passable(cx + dx, cy, swim) || !pathfinder.passable(cx, cy + dy, swim))) continue;
         const ni = ny * W + nx;
-        const nd = dc + step * (map.isMountain(nx, ny) ? MOUNTAIN_PATH_COST : map.hasTrees(nx, ny) ? TREE_COST : 1);
+        const nd = dc + step * (map.mountain[ny * W + nx] === MOUNTAIN_PASS ? MOUNTAIN_PATH_COST : map.hasTrees(nx, ny) ? TREE_COST : 1);
         if (this.stamp[ni] === this.run && nd >= (this.dist[ni] ?? Infinity)) continue;
         this.stamp[ni] = this.run;
         this.dist[ni] = nd;

@@ -1,4 +1,4 @@
-import { CELL_SIZE, MOUNTAIN_PATH_COST, SWIM_MAX_CELLS } from '../constants';
+import { CELL_SIZE, MOUNTAIN_CLIFF, MOUNTAIN_CREST, MOUNTAIN_PASS, MOUNTAIN_PATH_COST, SWIM_MAX_CELLS } from '../constants';
 import type { GridPoint, WorldPoint } from '../types';
 import type { TileMap } from './TileMap';
 
@@ -47,8 +47,13 @@ export class Pathfinder {
   }
 
   passable(x: number, y: number, swim = false): boolean {
-    if (!this.map.inBounds(x, y) || this.map.occupantAt(x, y) !== null) return false;
+    if (!this.map.inBounds(x, y) || this.map.occupantAt(x, y) !== null || this.map.isRockWall(x, y)) return false;
     return !this.map.isWater(x, y) || (swim && (this.swimmable()[this.map.index(x, y)] ?? 0) === 1);
+  }
+
+  /** World px (x, y) on a mountain ledge (high ground)? */
+  highGround(px: number, py: number): boolean {
+    return this.map.isHighGround(Math.floor(px / CELL_SIZE), Math.floor(py / CELL_SIZE));
   }
 
   /** 1 for every cell a swimmer may be in: land, or water at most SWIM_MAX_CELLS from the shore (built once, lazily). */
@@ -176,7 +181,7 @@ export class Pathfinder {
     const open = this.heap;
     open.clear();
     const swimCells = swim ? this.swimmable() : null;
-    const free = (i: number): boolean => (types[i] !== 0 || (swimCells !== null && swimCells[i] === 1)) && occupied[i] === 0;
+    const free = (i: number): boolean => (types[i] !== 0 || (swimCells !== null && swimCells[i] === 1)) && occupied[i] === 0 && mountain[i] !== MOUNTAIN_CLIFF && mountain[i] !== MOUNTAIN_CREST;
     const gx = goal.x;
     const gy = goal.y;
     const h = (x: number, y: number): number => {
@@ -222,7 +227,7 @@ export class Pathfinder {
         // No corner cutting: both side cells of a diagonal step must be open too (they are in bounds here).
         if (dx !== 0 && dy !== 0 && (!free(cy * W + nx) || !free(ny * W + cx))) continue;
         if (closed[ni] === run) continue;
-        const cost = gc + (STEP[k] ?? 1) * (mountain[ni] === 1 ? MOUNTAIN_PATH_COST : (trees[ni] ?? 0) > 0 ? TREE_COST : 1);
+        const cost = gc + (STEP[k] ?? 1) * (mountain[ni] === MOUNTAIN_PASS ? MOUNTAIN_PATH_COST : (trees[ni] ?? 0) > 0 ? TREE_COST : 1);
         if (stamp[ni] === run && cost >= (g[ni] ?? Infinity)) continue;
         this.visit(ni, cost, cur);
         open.push(ni, cost + h(nx, ny));

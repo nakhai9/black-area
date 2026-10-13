@@ -1,4 +1,4 @@
-import { CELL_SIZE, DEPTH_M_PER_UNIT, ELEVATION_M_PER_UNIT, MOUNTAIN_HALF_WIDTH_CELLS, MOUNTAIN_RANGES, WORLD_SCALE } from '../constants';
+import { CELL_SIZE, DEPTH_M_PER_UNIT, ELEVATION_M_PER_UNIT, MOUNTAIN_CLIFF, MOUNTAIN_CLIFF_CELLS, MOUNTAIN_CREST, MOUNTAIN_CREST_CELLS, MOUNTAIN_HALF_WIDTH_CELLS, MOUNTAIN_LEDGE, MOUNTAIN_PASS, MOUNTAIN_PASS_CELLS, MOUNTAIN_PASSES, MOUNTAIN_RANGES, WORLD_SCALE } from '../constants';
 import { type BiomeFields, sampleField } from './Biomes';
 import type { EarthData } from './EarthData';
 import { fracToLon, geoToWorld } from './Geo';
@@ -84,8 +84,8 @@ export function buildWorld(earth: EarthData, biomes: BiomeFields, map: TileMap):
 }
 
 /**
- * Mountain cells: the land along each range's crest line (MOUNTAIN_RANGES), up to MOUNTAIN_HALF_WIDTH_CELLS either
- * side; the width wanders with a smooth noise so the foothills look natural, never ruler-straight.
+ * Mountain ranges (MOUNTAIN_RANGES): for each land cell near a crest line, its distance to the line decides crest,
+ * ledge or cliff (the outer edge wanders with a smooth noise); then MOUNTAIN_PASSES passes are cut straight across.
  */
 function markMountains(map: TileMap, land: Uint8Array): void {
   const noise = new ValueNoise(4242);
@@ -95,23 +95,46 @@ function markMountains(map: TileMap, land: Uint8Array): void {
       const w = geoToWorld({ lon, lat });
       return { x: w.x / CELL_SIZE, y: w.y / CELL_SIZE };
     });
-    for (let k = 0; k + 1 < pts.length; k++) {
-      const a = pts[k]!;
+    const segs = pts.slice(0, -1).map((a, k) => {
       const b = pts[k + 1]!;
-      const dx = b.x - a.x;
-      const dy = b.y - a.y;
-      const len2 = dx * dx + dy * dy || 1;
+      return { a, dx: b.x - a.x, dy: b.y - a.y, len: Math.hypot(b.x - a.x, b.y - a.y) || 1 };
+    });
+    const total = segs.reduce((n, g) => n + g.len, 0);
+    // Pass centres (cells) and the crest direction there, evenly along the range.
+    const passes: { x: number; y: number; ux: number; uy: number }[] = [];
+    for (let k = 1; k <= MOUNTAIN_PASSES; k++) {
+      let at = (total * k) / (MOUNTAIN_PASSES + 1);
+      for (const g of segs) {
+        if (at > g.len) {
+          at -= g.len;
+          continue;
+        }
+        passes.push({ x: g.a.x + (g.dx * at) / g.len, y: g.a.y + (g.dy * at) / g.len, ux: g.dx / g.len, uy: g.dy / g.len });
+        break;
+      }
+    }
+    // Distance of every nearby land cell to the crest line (nearest segment).
+    const dist = new Map<number, number>();
+    for (const g of segs) {
       const pad = R * 1.4;
-      for (let y = Math.floor(Math.min(a.y, b.y) - pad); y <= Math.ceil(Math.max(a.y, b.y) + pad); y++) {
-        for (let x = Math.floor(Math.min(a.x, b.x) - pad); x <= Math.ceil(Math.max(a.x, b.x) + pad); x++) {
+      for (let y = Math.floor(Math.min(g.a.y, g.a.y + g.dy) - pad); y <= Math.ceil(Math.max(g.a.y, g.a.y + g.dy) + pad); y++) {
+        for (let x = Math.floor(Math.min(g.a.x, g.a.x + g.dx) - pad); x <= Math.ceil(Math.max(g.a.x, g.a.x + g.dx) + pad); x++) {
           if (!map.inBounds(x, y)) continue;
           const i = map.index(x, y);
           if (!land[i]) continue;
-          const t = Math.max(0, Math.min(1, ((x + 0.5 - a.x) * dx + (y + 0.5 - a.y) * dy) / len2));
-          const d = Math.hypot(x + 0.5 - (a.x + dx * t), y + 0.5 - (a.y + dy * t));
-          if (d <= R * (0.7 + 0.6 * noise.noise(x / 6, y / 6))) map.mountain[i] = 1;
+          const t = Math.max(0, Math.min(1, ((x + 0.5 - g.a.x) * g.dx + (y + 0.5 - g.a.y) * g.dy) / (g.len * g.len)));
+          const d = Math.hypot(x + 0.5 - (g.a.x + g.dx * t), y + 0.5 - (g.a.y + g.dy * t));
+          if (d < (dist.get(i) ?? Infinity)) dist.set(i, d);
         }
       }
+    }
+    for (const [i, d] of dist) {
+      const x = i % map.width;
+      const y = (i / map.width) | 0;
+      const edge = R * (0.75 + 0.5 * noise.noise(x / 7, y / 7));
+      if (d > edge) continue;
+      const pass = passes.some((p) => Math.abs((x + 0.5 - p.x) * p.ux + (y + 0.5 - p.y) * p.uy) <= MOUNTAIN_PASS_CELLS / 2 && Math.hypot(x + 0.5 - p.x, y + 0.5 - p.y) <= R * 1.6);
+      map.mountain[i] = pass ? MOUNTAIN_PASS : d <= MOUNTAIN_CREST_CELLS ? MOUNTAIN_CREST : d > edge - MOUNTAIN_CLIFF_CELLS ? MOUNTAIN_CLIFF : MOUNTAIN_LEDGE;
     }
   }
 }

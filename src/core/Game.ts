@@ -89,8 +89,9 @@ import {
   MAX_ALLIES,
   GAME_VERSION,
   TRUCK_MIN_RIDERS,
-  MOUNTAIN_SPEED_INFANTRY,
-  MOUNTAIN_SPEED_VEHICLE,
+  MOUNTAIN_PASS,
+  MOUNTAIN_PASS_SPEED_INFANTRY,
+  MOUNTAIN_PASS_SPEED_VEHICLE,
   TRUCK_SOLDIERS,
   GUARD_VISION_FACTOR,
 } from '../constants';
@@ -1816,8 +1817,8 @@ export class Game {
       const cx = Math.floor(u.px / CELL_SIZE);
       const cy = Math.floor(u.py / CELL_SIZE);
       u.inWater = !u.flies && this.map.isWater(cx, cy);
-      // Woods slow everybody down; mountains slow soldiers and vehicles (machines more).
-      u.terrainFactor = u.flies ? 1 : this.map.isMountain(cx, cy) ? (u instanceof Vehicle ? MOUNTAIN_SPEED_VEHICLE : MOUNTAIN_SPEED_INFANTRY) : this.map.hasTrees(cx, cy) ? 0.78 : 1;
+      // Woods slow everybody down; mountain passes (slopes) slow soldiers and vehicles (machines more).
+      u.terrainFactor = u.flies ? 1 : this.map.mountain[this.map.index(cx, cy)] === MOUNTAIN_PASS ? (u instanceof Vehicle ? MOUNTAIN_PASS_SPEED_VEHICLE : MOUNTAIN_PASS_SPEED_INFANTRY) : this.map.hasTrees(cx, cy) ? 0.78 : 1;
     }
     this.paths.update();
     this.queueInCrowds();

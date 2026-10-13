@@ -1,5 +1,5 @@
 import { movesRight } from '../core/IsoView';
-import { BOMB_FALL_SECONDS, BUNKER_COOLDOWN, BUNKER_DAMAGE, BUNKER_RANGE, BUNKER_VS_VEHICLE, JET_BOMB_VS_STRUCTURE, JET_BOMB_VS_VEHICLE, ACQUIRE_PERIOD, RANK_FIREPOWER, RANK_RELOAD, BOMB_GROUP_RADIUS_CELLS, BOMB_GROUP_SIZE, BOMB_TOUGH_DAMAGE, BOMB_TOUGH_STRUCTURES, BOMBS_PER_DROP, CELL_SIZE, CHASE_GIVE_UP_SECONDS, CHASE_LIMIT_CELLS, CHASE_PERIOD, FIGHT_MEMORY_SECONDS, GUARD_VISION_FACTOR, NEUTRAL_OWNER, RETALIATE_RANGE_FACTOR, WEAPONS } from '../constants';
+import { BOMB_FALL_SECONDS, HIGH_GROUND_DAMAGE, HIGH_GROUND_RANGE, LOW_GROUND_DAMAGE, BUNKER_COOLDOWN, BUNKER_DAMAGE, BUNKER_RANGE, BUNKER_VS_VEHICLE, JET_BOMB_VS_STRUCTURE, JET_BOMB_VS_VEHICLE, ACQUIRE_PERIOD, RANK_FIREPOWER, RANK_RELOAD, BOMB_GROUP_RADIUS_CELLS, BOMB_GROUP_SIZE, BOMB_TOUGH_DAMAGE, BOMB_TOUGH_STRUCTURES, BOMBS_PER_DROP, CELL_SIZE, CHASE_GIVE_UP_SECONDS, CHASE_LIMIT_CELLS, CHASE_PERIOD, FIGHT_MEMORY_SECONDS, GUARD_VISION_FACTOR, NEUTRAL_OWNER, RETALIATE_RANGE_FACTOR, WEAPONS } from '../constants';
 import { Building } from '../entities/Building';
 import { Bunker } from '../entities/Bunker';
 import type { Entity } from '../entities/Entity';
@@ -284,7 +284,7 @@ export class CombatSystem implements GameSystem {
     const tx = target instanceof Unit ? target.px : target instanceof Building ? target.centerWorld().x : s.px;
     const ty = target instanceof Unit ? target.py : target instanceof Building ? target.centerWorld().y : s.py;
     s.aimHeading = Math.atan2(ty - s.py, tx - s.px);
-    if (d <= w.range) {
+    if (d <= w.range * this.heightReach(s)) {
       s.facing = movesRight(tx - s.px, ty - s.py) ? 1 : -1;
       s.heading = Math.atan2(ty - s.py, tx - s.px);
       // Units on attack orders stand and fight; ones just passing through keep walking and shooting.
@@ -464,7 +464,7 @@ export class CombatSystem implements GameSystem {
       this.hooks.onFire(s, t, { ...w, kind: 'bomb' }, impact);
       return;
     }
-    const dmg = w.damage * RANK_FIREPOWER[s.rank] * (t instanceof Building ? w.vsBuilding : 1);
+    const dmg = w.damage * RANK_FIREPOWER[s.rank] * (t instanceof Building ? w.vsBuilding : 1) * this.heightFactor(s, t);
     t.damage(dmg);
     t.lastAttackerId = s.id;
     t.lastAttackedAt = this.time;
@@ -480,6 +480,24 @@ export class CombatSystem implements GameSystem {
     }
     s.engaged = true;
     this.hooks.onFire(s, t, w, impact);
+  }
+
+  /** A ground unit on a mountain ledge (high ground) reaches HIGH_GROUND_RANGE farther. */
+  private heightReach(s: Unit): number {
+    return !s.flies && this.pathfinder.highGround(s.px, s.py) ? HIGH_GROUND_RANGE : 1;
+  }
+
+  /**
+   * High ground: a ground shooter on a ledge firing at a target below hits HIGH_GROUND_DAMAGE harder; a ground shooter
+   * below firing at a unit on a ledge does LOW_GROUND_DAMAGE. Aircraft are not affected.
+   */
+  private heightFactor(s: Unit, t: Entity): number {
+    if (s.flies || !(t instanceof Unit) || t.flies) return 1;
+    const up = this.pathfinder.highGround(s.px, s.py);
+    const targetUp = this.pathfinder.highGround(t.px, t.py);
+    if (up && !targetUp) return HIGH_GROUND_DAMAGE;
+    if (!up && targetUp) return LOW_GROUND_DAMAGE;
+    return 1;
   }
 
   private impactPoint(t: Entity): WorldPoint {

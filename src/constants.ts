@@ -26,7 +26,7 @@ export const DEMO_FACTION = Number(import.meta.env.VITE_DEMO_FACTION) || 2;
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "1.109.0";
+export const GAME_VERSION = "1.110.0";
 
 /** An Allied Building within this many cells of any capital is an embassy; farther out it is a "Pro-<nation> regime". */
 export const EMBASSY_CAPITAL_CELLS = 25;
@@ -292,25 +292,40 @@ export const FORMATION_RANKS = 3;
 /** Special-forces soldiers swim; they move at this fraction of their speed in water. */
 export const SWIM_SPEED_FACTOR = 0.6;
 /**
- * A few real mountain ranges as natural barriers that slow an offensive down: each follows its true crest line
- * (lon, lat points) and covers the land within about MOUNTAIN_HALF_WIDTH_CELLS of it (the edge wanders). Nothing can
- * be built there; ground units cross very slowly, so an attack goes round by a gap or the coast when it can
- * (MOUNTAIN_PATH_COST). `m` is the typical crest height (drawn taller for higher ranges). Gaps between ranges are the passes.
+ * The world's great mountain ranges (the top 5 plus the Altai) (RA2-style relief), on their true crest lines (lon, lat points). Across a range:
+ *  - the crest (MOUNTAIN_CREST_CELLS either side of the line): peaks of real height, impassable;
+ *  - ledges (high ground) on both sides: walkable and buildable, a defensive position: units there hit
+ *    HIGH_GROUND_DAMAGE harder and reach HIGH_GROUND_RANGE farther, and take LOW_GROUND_DAMAGE from units below;
+ *  - the outer rim (MOUNTAIN_CLIFF_CELLS deep): rock cliffs, impassable;
+ *  - passes: MOUNTAIN_PASSES per range, evenly along it, a slope MOUNTAIN_PASS_CELLS wide cut through cliff and crest
+ *    (the only way up and across; slow: MOUNTAIN_PASS_SPEED_*).
+ * The band is about MOUNTAIN_HALF_WIDTH_CELLS either side of the crest; its edge wanders naturally.
  */
-export const MOUNTAIN_RANGES: readonly { name: string; m: number; points: readonly (readonly [number, number])[] }[] = [
-  { name: 'Himalaya', m: 7000, points: [[73.5, 35.2], [76.5, 34.0], [79.0, 32.0], [81.0, 30.3], [84.0, 28.6], [86.9, 28.0], [88.5, 27.8], [91.0, 27.9], [94.0, 28.5], [96.0, 28.3]] },
-  { name: 'Karakoram – Hindu Kush', m: 6500, points: [[69.0, 35.2], [71.5, 36.0], [74.5, 36.3], [76.5, 35.9], [77.8, 35.3]] },
-  { name: 'Andes', m: 5500, points: [[-78.0, 2.0], [-79.0, -2.0], [-77.0, -8.0], [-72.5, -14.0], [-69.0, -17.0], [-68.5, -22.0], [-69.0, -27.0], [-70.0, -33.0], [-71.0, -38.0], [-71.7, -43.0], [-73.0, -48.0]] },
-  { name: 'Rocky Mountains', m: 4000, points: [[-122.0, 55.0], [-118.0, 51.5], [-114.0, 48.0], [-110.5, 44.0], [-107.0, 40.0], [-106.5, 37.0], [-106.0, 33.0]] },
-  { name: 'Alps', m: 3800, points: [[6.5, 44.2], [6.9, 45.8], [8.0, 46.4], [10.0, 46.5], [12.3, 47.0], [14.0, 47.3]] },
-  { name: 'Caucasus', m: 4500, points: [[39.5, 43.6], [42.4, 43.3], [44.5, 42.7], [47.0, 41.8], [49.0, 41.0]] },
-  { name: 'Zagros', m: 3500, points: [[45.5, 36.5], [47.5, 34.0], [50.0, 31.5], [53.0, 29.0], [56.5, 27.5]] },
-  { name: 'Atlas', m: 3300, points: [[-9.5, 30.5], [-7.9, 31.1], [-5.5, 32.5], [-3.0, 33.5], [1.0, 35.0], [6.0, 35.5]] },
+export const MOUNTAIN_RANGES: readonly { name: string; points: readonly (readonly [number, number])[] }[] = [
+  { name: 'Himalaya', points: [[73.5, 35.2], [76.5, 34.0], [79.0, 32.0], [81.0, 30.3], [84.0, 28.6], [86.9, 28.0], [88.5, 27.8], [91.0, 27.9], [94.0, 28.5], [96.0, 28.3]] },
+  { name: 'Andes', points: [[-78.0, 2.0], [-79.0, -2.0], [-77.0, -8.0], [-72.5, -14.0], [-69.0, -17.0], [-68.5, -22.0], [-69.0, -27.0], [-70.0, -33.0], [-71.0, -38.0], [-71.7, -43.0], [-73.0, -48.0]] },
+  { name: 'Rocky Mountains', points: [[-122.0, 55.0], [-118.0, 51.5], [-114.0, 48.0], [-110.5, 44.0], [-107.0, 40.0], [-106.5, 37.0], [-106.0, 33.0]] },
+  { name: 'Alps', points: [[6.5, 44.2], [6.9, 45.8], [8.0, 46.4], [10.0, 46.5], [12.3, 47.0], [14.0, 47.3]] },
+  { name: 'Altai', points: [[82.0, 51.0], [84.5, 50.3], [86.6, 49.8], [88.5, 49.0], [90.5, 48.0], [93.0, 46.8], [96.0, 45.5], [99.5, 44.5], [102.5, 44.0]] },
+  { name: 'Caucasus', points: [[39.5, 43.6], [42.4, 43.3], [44.5, 42.7], [47.0, 41.8], [49.0, 41.0]] },
 ];
-export const MOUNTAIN_HALF_WIDTH_CELLS = 3.5;
-export const MOUNTAIN_SPEED_INFANTRY = 0.45;
-export const MOUNTAIN_SPEED_VEHICLE = 0.3;
-export const MOUNTAIN_PATH_COST = 4;
+export const MOUNTAIN_HALF_WIDTH_CELLS = 6;
+export const MOUNTAIN_CREST_CELLS = 1.3;
+export const MOUNTAIN_CLIFF_CELLS = 1.6;
+export const MOUNTAIN_PASSES = 3;
+export const MOUNTAIN_PASS_CELLS = 3;
+export const MOUNTAIN_PASS_SPEED_INFANTRY = 0.6;
+export const MOUNTAIN_PASS_SPEED_VEHICLE = 0.45;
+/** Path cost per pass cell (they are slow). */
+export const MOUNTAIN_PATH_COST = 2;
+export const HIGH_GROUND_DAMAGE = 1.25;
+export const HIGH_GROUND_RANGE = 1.2;
+export const LOW_GROUND_DAMAGE = 0.75;
+/** TileMap.mountain codes. */
+export const MOUNTAIN_LEDGE = 1;
+export const MOUNTAIN_CLIFF = 2;
+export const MOUNTAIN_PASS = 3;
+export const MOUNTAIN_CREST = 4;
 /** Special forces never swim farther than this many cells from land. */
 export const SWIM_MAX_CELLS = 5;
 /** Leg-swing phase (radians) per world px walked: higher = shorter, quicker steps. */
