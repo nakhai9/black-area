@@ -4,6 +4,7 @@ import { createBarracksArt } from './Barracks';
 import { createBunkerArt } from './Bunker';
 import { createFlagpoleArt } from './Flagpole';
 import { createWallArt } from './Wall';
+import { createGateArt } from './Gate';
 import { createHappyCityArt } from './HappyCity';
 import { createHospitalArt } from './Hospital';
 import { createTechCenterArt } from './TechCenter';
@@ -110,6 +111,8 @@ export const BUILDING_ART: Readonly<Record<string, BuildingArt>> = {
       Array.from({ length: 16 }, (_, m) => [m === 0 ? `wall:${f}` : `wall:${f}|${m}`, createWallArt(f, m)] as const),
     ),
   ),
+  // Nation Gates (4 × 1) in each nation's architecture.
+  ...Object.fromEntries((['usa', 'russia', 'china', 'europe', 'islamic'] as const).map((f) => [`gate:${f}`, createGateArt(f)] as const)),
 };
 
 /** Structures whose art flies a flag of its own: a captured one is redrawn with the new owner's flag. */

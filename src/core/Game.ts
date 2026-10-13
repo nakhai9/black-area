@@ -4,6 +4,10 @@ import {
   DEMO_CREDITS,
   MAX_WAYPOINTS,
   DEMO_UNITS_EACH,
+  CAPITAL_SEA_CLEARANCE,
+  CAPITAL_INLAND_SEARCH,
+  DEMO_SPREAD,
+  FOOTPRINT_GATE,
   BUILDING_VALUE,
   CAMERA_EDGE_PAN_SPEED,
   DERRICK_GRACE_ATTACKS,
@@ -142,6 +146,7 @@ const EXPLOSION_PER_CELL = 1.15;
 const EXPLOSION_PER_BODY = 1.4;
 import { Flagpole } from '../entities/Flagpole';
 import { Wall } from '../entities/Wall';
+import { Gate } from '../entities/Gate';
 import { WALL_E, WALL_N, WALL_S, WALL_W } from '../render/sprites/Wall';
 import { Bunker } from '../entities/Bunker';
 import { PowerSystem } from '../systems/PowerSystem';
@@ -149,7 +154,7 @@ import { SAFE_ZONE_SIZE, type SafeZone, SafeZoneSystem } from '../systems/SafeZo
 import { SelectionSystem } from '../systems/SelectionSystem';
 import { TrainingSystem } from '../systems/TrainingSystem';
 import { VehicleSystem } from '../systems/VehicleSystem';
-import type { BuildingType, FactionId, GameEvents, OilPolicy, PlayerState, UnitTier, VehicleKind, WeaponSpec, WorldPoint } from '../types';
+import type { BuildingType, FactionId, GameEvents, GridPoint, OilPolicy, PlayerState, UnitTier, VehicleKind, WeaponSpec, WorldPoint } from '../types';
 import { Minimap } from '../ui/Minimap';
 import { sweepUnitSprites, unitSpriteBytes } from '../render/UnitSprites';
 import { type AircraftInfo, type TransportInfo, type RankRow, type AllyInfo, Sidebar } from '../ui/Sidebar';
@@ -505,6 +510,9 @@ export class Game {
       onOilPolicy: (policy) => this.setOilPolicy(policy),
       onUnload: () => this.unloadSelectedTransport(),
       onTurbo: () => this.turboSelected(),
+      onHome: () => {
+        if (!this.paused) this.focusOwnCapital();
+      },
       onVehicle: (option) => this.onVehicleClick(option.kind),
       onVehicleCancel: (option) => this.onVehicleCancel(option.kind),
       vehiclePreview: (option) => vehiclePortrait(human.faction, option.kind),
@@ -645,7 +653,7 @@ export class Game {
     for (const [e] of shells) if (e instanceof WorldBank) (e.spec as { footprint: { w: number; d: number } }).footprint = FOOTPRINT_GMC;
     for (const [e] of shells) this.entities.add(e);
     this.shrinkOldBunkers();
-    for (const b of this.entities.buildings()) if (b.alive) this.map.occupy(b.x, b.y, b.w, b.d, b.id);
+    for (const b of this.entities.buildings()) if (b.alive) this.occupyBuilding(b);
     setNextEntityId(Math.max(save.nextEntityId, ...save.entities.map((s) => (s.data.id as number) + 1)));
     Unit.insideVersion++;
     for (const p of save.players) codec.restorePlayer(p);
@@ -781,7 +789,10 @@ export class Game {
       const option = BUILD_OPTIONS.find((o) => o.id === id);
       if (!option) continue;
       const { w, d } = option.footprint;
-      // Nearest free spot on a growing ring around the capital.
+      // Spread out: every structure keeps DEMO_SPREAD free cells to the others (room for both wall rings and a way
+      // between them), yet stands within its own build radius of the base, the same rule a player has to follow.
+      const gapTo = (x: number, y: number, o: Building): number =>
+        Math.max(o.x - (x + w), x - (o.x + o.w), o.y - (y + d), y - (o.y + o.d));
       let spot: { x: number; y: number } | null = null;
       for (let r = 2; r <= 40 && !spot; r++) {
         for (let dy = -r; dy <= r && !spot; dy++) {
@@ -789,20 +800,25 @@ export class Game {
             if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
             const x = cx + dx - Math.floor(w / 2);
             const y = cy + dy - Math.floor(d / 2);
-            // Two free cells all round (room for the wall ring), and within reach of the base.
-            if (this.placement.check({ owner: me.id, x: x - 2, y: y - 2, w: w + 4, d: d + 4, radius: 40 }).ok && this.placement.check({ owner: me.id, x, y, w, d, radius: 40 }).ok) spot = { x, y };
+            if (placed.some((o) => gapTo(x, y, o) < DEMO_SPREAD)) continue;
+            if (!this.placement.check({ owner: me.id, x: x - 1, y: y - 1, w: w + 2, d: d + 2, radius: 40 }).ok) continue; // room for its wall ring
+            if (this.placement.check({ owner: me.id, x, y, w, d, radius: buildRadius(option.id) }).ok) spot = { x, y };
           }
         }
       }
       if (!spot) continue;
       const b = this.entities.add(option.create(me.id, me.faction, spot.x, spot.y));
-      this.map.occupy(b.x, b.y, b.w, b.d, b.id);
+      this.occupyBuilding(b);
       placed.push(b);
     }
     for (const b of placed) this.wrapInWall(me, b);
   }
 
-  /** DEMO: a ring of wall blocks one cell out from the structure, with a two-cell gate in the middle of its south and east sides. */
+  /**
+   * DEMO: a ring of wall blocks one cell out from the structure, closed off by a Nation Gate in the middle of its south
+   * side and another on its east side (turned): a walled yard whose only ways in are the gates. A side too short for a
+   * gate (under 4 cells between the corners) keeps a plain 2-cell opening instead.
+   */
   private wrapInWall(me: PlayerState, b: Building): void {
     const x0 = b.x - 1;
     const y0 = b.y - 1;
@@ -810,16 +826,32 @@ export class Game {
     const y1 = b.y + b.d;
     const midX = Math.floor((x0 + x1) / 2);
     const midY = Math.floor((y0 + y1) / 2);
+    // Gate cells: four in a row centred on the side, never on a corner.
+    const southGate = midX - 1 > x0 && midX + 2 < x1;
+    const eastGate = midY - 1 > y0 && midY + 2 < y1;
+    const inSouth = (x: number, y: number): boolean => y === y1 && x >= (southGate ? midX - 1 : midX) && x <= (southGate ? midX + 2 : midX + 1);
+    const inEast = (x: number, y: number): boolean => x === x1 && y >= (eastGate ? midY - 1 : midY) && y <= (eastGate ? midY + 2 : midY + 1);
     for (let y = y0; y <= y1; y++) {
       for (let x = x0; x <= x1; x++) {
         if (x !== x0 && x !== x1 && y !== y0 && y !== y1) continue;
-        if ((y === y1 && (x === midX || x === midX + 1)) || (x === x1 && (y === midY || y === midY + 1))) continue;
-        if (!this.placement.check({ owner: me.id, x, y, w: 1, d: 1, radius: 40 }).ok) continue;
+        if (inSouth(x, y) || inEast(x, y)) continue;
+        if (!this.placement.check({ owner: me.id, x, y, w: 1, d: 1, radius: buildRadius('wall') }).ok) continue;
         const wall = this.entities.add(new Wall(me.id, me.faction, { x: (x + 0.5) * CELL_SIZE, y: (y + 0.5) * CELL_SIZE }));
         this.map.occupy(wall.x, wall.y, wall.w, wall.d, wall.id);
-        this.orientWalls(wall.x, wall.y, false); // the gates stay open
+        this.orientWalls(wall.x, wall.y, false); // the openings stay open
       }
     }
+    const gate = (x: number, y: number, rotated: boolean): void => {
+      const w = rotated ? FOOTPRINT_GATE.d : FOOTPRINT_GATE.w;
+      const d = rotated ? FOOTPRINT_GATE.w : FOOTPRINT_GATE.d;
+      if (!this.placement.check({ owner: me.id, x, y, w, d, radius: buildRadius('gate') }).ok) return;
+      const g = this.entities.add(new Gate(me.id, me.faction, { x: (x + w / 2) * CELL_SIZE, y: (y + d / 2) * CELL_SIZE }));
+      g.rotated = rotated;
+      g.moveTo(x, y);
+      this.occupyBuilding(g);
+    };
+    if (southGate) gate(midX - 1, y1, false);
+    if (eastGate) gate(x1, midY - 1, true);
   }
 
   /** The wall block at a cell, if any. */
@@ -874,16 +906,27 @@ export class Game {
     }
   }
 
-  placeReady(player: PlayerState, id: BuildOption['id'], x: number, y: number): boolean {
+  /** Marks a structure's cells as taken; a Nation Gate leaves its two middle cells open as the way through. */
+  private occupyBuilding(b: Building): void {
+    this.map.occupy(b.x, b.y, b.w, b.d, b.id);
+    if (b instanceof Gate) for (const c of b.openCells()) this.map.occupy(c.x, c.y, 1, 1, null);
+  }
+
+  placeReady(player: PlayerState, id: BuildOption['id'], x: number, y: number, rotated = false): boolean {
     const slot = this.construction.slot(player, id);
     const option = slot.option;
     if (!option || slot.state !== 'ready') return false;
-    const { w, d } = option.footprint;
+    const w = rotated ? option.footprint.d : option.footprint.w;
+    const d = rotated ? option.footprint.w : option.footprint.d;
     if (!this.placement.check({ owner: player.id, x, y, w, d, unclaimedOnly: option.id === 'alliedBuilding', radius: buildRadius(option.id) }).ok) return false;
     if (!this.construction.takeReady(player, option.id)) return false;
     const b = this.entities.add(option.create(player.id, player.faction, x, y));
+    if (rotated) {
+      b.rotated = true;
+      b.moveTo(x, y);
+    }
     b.placedAt = this.time;
-    this.map.occupy(b.x, b.y, b.w, b.d, b.id);
+    this.occupyBuilding(b);
     if (b instanceof Wall) this.orientWalls(b.x, b.y);
     return true;
   }
@@ -1394,14 +1437,14 @@ export class Game {
   }
 
   private aircraftInfo(): AircraftInfo | null {
-    // The Turbo button shows only once the aircraft is up in the air.
-    const planes = this.selectedAircraft().filter((p) => p.flight === 'airborne' || p.flight === 'approach');
+    // The air tools show for any selected aircraft; Turbo is usable only once one is up in the air.
+    const planes = this.selectedAircraft();
     const first = planes[0];
     if (!first) return null;
     return {
       name: first.name,
       count: planes.length,
-      ready: planes.some((p) => p.turboReady),
+      ready: planes.some((p) => p.turboReady && (p.flight === 'airborne' || p.flight === 'approach')),
       active: Math.max(0, ...planes.map((p) => p.turboLeft)),
       charge: Math.max(...planes.map((p) => (p.turboLeft > 0 ? 0 : p.turboCharge))),
     };
@@ -2512,13 +2555,45 @@ export class Game {
     for (const b of buildings) {
       const opts = { naval: b.naval };
       const site =
+        this.inlandSite(b) ??
         this.map.findBuildableSite(b.x, b.y, b.w, b.d, { ...opts, maxRadius: PRESET_SNAP_RADIUS }) ??
         this.map.findBuildableSite(b.x, b.y, b.w, b.d, { ...opts, ignoreTrees: true, maxRadius: PRESET_SEARCH_RADIUS });
       if (site) b.moveTo(site.x, site.y);
       else if (!b.indestructible) console.warn(`No legal site near ${b.spec.name} (${b.x},${b.y}); kept as is.`);
       trees.clearArea(b.x, b.y, b.w, b.d);
-      this.map.occupy(b.x, b.y, b.w, b.d, b.id);
+      this.occupyBuilding(b);
     }
+  }
+
+  /**
+   * A capital (a nation's or a player's) never stands on the coast: the nearest dry, free spot whose every cell lies
+   * at least CAPITAL_SEA_CLEARANCE cells from water (trees are cleared). Null for other buildings, or when none is near.
+   */
+  private inlandSite(b: Building): GridPoint | null {
+    if (b.spec.type !== 'capital' && b.spec.type !== 'nationCapital') return null;
+    const c = CAPITAL_SEA_CLEARANCE;
+    const dry = (x: number, y: number): boolean => {
+      for (let ty = y - c; ty < y + b.d + c; ty++) for (let tx = x - c; tx < x + b.w + c; tx++) if (this.map.isWater(tx, ty)) return false;
+      return true;
+    };
+    for (let r = 0; r <= CAPITAL_INLAND_SEARCH; r++) {
+      let best: GridPoint | null = null;
+      let bestDist = Infinity;
+      for (let dy = -r; dy <= r; dy++) {
+        for (let dx = -r; dx <= r; dx++) {
+          if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+          const x = b.x + dx;
+          const y = b.y + dy;
+          const dist = dx * dx + dy * dy;
+          if (dist < bestDist && this.map.isAreaBuildable(x, y, b.w, b.d, false, true) && dry(x, y)) {
+            best = { x, y };
+            bestDist = dist;
+          }
+        }
+      }
+      if (best) return best;
+    }
+    return null;
   }
 
   // ------------------------------------------------------------------ construction
@@ -2617,7 +2692,7 @@ export class Game {
     b.rotated = g.mirrored;
     b.moveTo(g.x, g.y);
     b.placedAt = this.time;
-    this.map.occupy(b.x, b.y, b.w, b.d, b.id);
+    this.occupyBuilding(b);
     if (b instanceof Wall) this.orientWalls(b.x, b.y);
     this.stopPlacing();
     this.sidebar.notify(`${option.name} placed.`);

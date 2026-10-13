@@ -8,6 +8,7 @@ import { HappyCity } from '../entities/HappyCity';
 import { Hospital } from '../entities/Hospital';
 import { Bunker } from '../entities/Bunker';
 import { Wall } from '../entities/Wall';
+import { Gate } from '../entities/Gate';
 import { Infantry } from '../entities/Infantry';
 import { OilDerrick } from '../entities/OilDerrick';
 import { PowerPlant } from '../entities/PowerPlant';
@@ -49,6 +50,7 @@ const ENTITY_CLASSES: Readonly<Record<string, abstract new (...args: never[]) =>
   AlliedBuilding,
   Bunker,
   Wall,
+  Gate,
   Infantry,
   Vehicle,
 };

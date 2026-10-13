@@ -2,6 +2,7 @@ import { AI_BUNKERS, AI_WALL_GAP, AI_WALL_RING, AI_WALL_SEGMENT, BUNKER_RANGE, C
 import { FACTIONS } from '../factions';
 import { OilDerrick } from '../entities/OilDerrick';
 import { NationCapital } from '../entities/NationCapital';
+import { Gate } from '../entities/Gate';
 import type { Building } from '../entities/Building';
 import type { Entity } from '../entities/Entity';
 import type { EntityManager } from '../entities/EntityManager';
@@ -32,7 +33,7 @@ export interface AIHost {
   readonly placement: PlacementSystem;
   readonly oilMarket: OilMarket;
   /** Puts the finished structure of `player`'s construction queue down at (x, y). */
-  placeReady(player: PlayerState, id: BuildOption['id'], x: number, y: number): boolean;
+  placeReady(player: PlayerState, id: BuildOption['id'], x: number, y: number, rotated?: boolean): boolean;
   ownedTypesOf(player: PlayerState): Set<BuildingType>;
   /** Sends a person into a building (wounded → hospital). */
   orderEnter(u: Infantry, b: Building): void;
@@ -432,6 +433,12 @@ export class AISystem implements GameSystem {
     for (const slot of this.host.construction.active(p)) {
       if (slot.state !== 'ready' || !slot.option) continue;
       const option = slot.option;
+      if (option.id === 'gate') {
+        const g = this.findGateSite(p, capital);
+        if (g) this.host.placeReady(p, 'gate', g.x, g.y, g.rotated);
+        else this.host.construction.cancel(p, 'gate');
+        continue;
+      }
       const forward = this.forwardAnchor(p, option.id);
       const site =
         option.id === 'alliedBuilding' ? this.findAlliedSite(p, option) : option.id === 'wall' ? this.findWallSite(p, capital) : this.findSite(p, st, forward ?? capital, option);
@@ -456,6 +463,8 @@ export class AISystem implements GameSystem {
     }
     // Bunkers up: close the wall ring round the capital, one block at a time.
     if (!next && owned.has('barracks') && !busy('wall') && this.findWallSite(p, capital)) next = BUILD_OPTIONS.find((o) => o.id === 'wall');
+    // Ring closed: a Nation Gate in each straight gap of it.
+    if (!next && owned.has('barracks') && !busy('gate') && this.findGateSite(p, capital)) next = BUILD_OPTIONS.find((o) => o.id === 'gate');
     // A claim flag stands on new land without its ally yet: raise the Allied Building next to it.
     if (!next && threat === 0 && this.openClaims(p).length > 0 && this.host.alliesOf(p) < MAX_ALLIES) next = BUILD_OPTIONS.find((o) => o.id === 'alliedBuilding');
     // Forward base: a Barracks and a War Factory next to each Allied Building, so troops come out on the new land.
@@ -653,31 +662,73 @@ export class AISystem implements GameSystem {
    * AI_WALL_SEGMENT blocks with AI_WALL_GAP free cells between (gates for its own troops). A cell next to another
    * structure (not a wall) is skipped, so no door is blocked.
    */
-  private findWallSite(p: PlayerState, capital: Building): GridPoint | null {
-    const map = this.host.map;
+  /** The capital's wall ring, walked clockwise so the segments stay evenly spaced. */
+  private wallRing(capital: Building): GridPoint[] {
     const x0 = capital.x - AI_WALL_RING;
     const y0 = capital.y - AI_WALL_RING;
     const x1 = capital.x + capital.w - 1 + AI_WALL_RING;
     const y1 = capital.y + capital.d - 1 + AI_WALL_RING;
-    // Walk the ring clockwise so the segments stay evenly spaced.
     const ring: GridPoint[] = [];
     for (let x = x0; x < x1; x++) ring.push({ x, y: y0 });
     for (let y = y0; y < y1; y++) ring.push({ x: x1, y });
     for (let x = x1; x > x0; x--) ring.push({ x, y: y1 });
     for (let y = y1; y > y0; y--) ring.push({ x: x0, y });
+    return ring;
+  }
+
+  /**
+   * A Nation Gate for a gap of the wall ring: the gap's middle four cells when they run straight (not round a corner)
+   * and are free; `rotated` when the gap runs north–south. The cells either side are walled up afterwards.
+   */
+  private findGateSite(p: PlayerState, capital: Building): { x: number; y: number; rotated: boolean } | null {
+    const map = this.host.map;
+    const ring = this.wallRing(capital);
+    const period = AI_WALL_SEGMENT + AI_WALL_GAP;
+    const lead = Math.floor((AI_WALL_GAP - 4) / 2);
+    for (let start = AI_WALL_SEGMENT + lead; start + 4 <= ring.length; start += period) {
+      const cells = ring.slice(start, start + 4);
+      const vertical = cells.every((c) => c.x === cells[0].x);
+      const horizontal = cells.every((c) => c.y === cells[0].y);
+      if (!vertical && !horizontal) continue;
+      if (cells.some((c) => map.occupantAt(c.x, c.y) !== null)) continue;
+      const x = Math.min(...cells.map((c) => c.x));
+      const y = Math.min(...cells.map((c) => c.y));
+      const w = vertical ? 1 : 4;
+      const d = vertical ? 4 : 1;
+      if (this.host.placement.check({ owner: p.id, x, y, w, d, radius: buildRadius('gate') }).ok) return { x, y, rotated: vertical };
+    }
+    return null;
+  }
+
+  private findWallSite(p: PlayerState, capital: Building): GridPoint | null {
+    const map = this.host.map;
+    const ring = this.wallRing(capital);
+    // A gap cell next to one of the nation's gate pillars is walled up, so the gate is the only way through.
+    const besideGate = (c: GridPoint): boolean =>
+      [
+        [1, 0],
+        [-1, 0],
+        [0, 1],
+        [0, -1],
+      ].some(([dx, dy]) => {
+        const id = map.occupantAt(c.x + dx, c.y + dy);
+        const b = id === null ? undefined : this.host.entities.get(id);
+        // Never the gate's own way through (its two middle cells sit between its pillars too).
+        return b instanceof Gate && b.owner === p.id && !b.openCells().some((o) => o.x === c.x && o.y === c.y);
+      });
     const besideStructure = (c: GridPoint): boolean => {
       for (let dy = -1; dy <= 1; dy++) {
         for (let dx = -1; dx <= 1; dx++) {
           const id = map.occupantAt(c.x + dx, c.y + dy);
           const b = id === null ? undefined : this.host.entities.get(id);
-          if (b?.kind === 'building' && (b as Building).spec.type !== 'wall') return true;
+          if (b?.kind === 'building' && (b as Building).spec.type !== 'wall' && (b as Building).spec.type !== 'gate') return true;
         }
       }
       return false;
     };
     for (let i = 0; i < ring.length; i++) {
-      if (i % (AI_WALL_SEGMENT + AI_WALL_GAP) >= AI_WALL_SEGMENT) continue;
       const c = ring[i];
+      if (i % (AI_WALL_SEGMENT + AI_WALL_GAP) >= AI_WALL_SEGMENT && !besideGate(c)) continue;
       if (map.occupantAt(c.x, c.y) !== null || besideStructure(c)) continue;
       if (this.host.placement.check({ owner: p.id, x: c.x, y: c.y, w: 1, d: 1, radius: buildRadius('wall') }).ok) return c;
     }

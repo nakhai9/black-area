@@ -5,9 +5,9 @@ import type { BuildingArt } from './BuildingArt';
 
 /** Wall height (px), and how far (px) the rounded (bullnose) top curls in. */
 const WALL_H = 22;
-const ROUND_H = 5;
+const ROUND_H = 2;
 /** Corner radius (cells) on the open corners, and the inset (cells) of the open sides. */
-const RADIUS = 0.3;
+const RADIUS = 0.08;
 const INSET = 0.04;
 
 /** Concrete tint per nation: Russia / China red, Islamic blue, USA / Europe bare concrete. */
@@ -82,6 +82,7 @@ export function createWallArt(faction: FactionId, mask = 0): BuildingArt {
   return {
     footprint: { w: 1, d: 1 },
     height: WALL_H + 4,
+    noRim: true, // joined blocks read as one piece
     drawStatic(p) {
       // Extruded body: the outline stacked up layer by layer, darker at the foot.
       const straight = WALL_H - ROUND_H;
@@ -89,7 +90,7 @@ export function createWallArt(faction: FactionId, mask = 0): BuildingArt {
       // Bullnose top: each layer pulled in a little more (quarter circle), getting lighter.
       for (let i = 1; i <= 8; i++) {
         const t = i / 8;
-        const pull = 0.12 * (1 - Math.cos((t * Math.PI) / 2)); // cells the open sides draw in at this layer
+        const pull = 0.04 * (1 - Math.cos((t * Math.PI) / 2)); // cells the open sides draw in at this layer
         fillAt(p, outline(mask, INSET + pull, RADIUS), straight + Math.sin((t * Math.PI) / 2) * ROUND_H, shade(c, 0.9 + 0.25 * t));
       }
     },

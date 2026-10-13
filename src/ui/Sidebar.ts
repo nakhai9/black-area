@@ -1,4 +1,4 @@
-import { type IconNode, Clock, Handshake, Info, Droplet, Factory, Hammer, LogIn, LogOut, Minus, PersonStanding, Radar, Shield, TrendingDown, TrendingUp, Trophy, Truck, Zap, createElement } from 'lucide';
+import { type IconNode, ArrowUpFromLine, Clock, House, Handshake, TriangleAlert, Wallet, Info, Keyboard, Droplet, Hammer, LogIn, LogOut, Minus, PersonStanding, Radar, Rocket, Shield, TrendingDown, TrendingUp, Trophy, Truck, Zap, createElement } from 'lucide';
 import { type ContestedNationId, BUILD_LIMIT_VEHICLES, CURRENCY, MAX_ALLIES, OIL_GRID_MARKUP, OIL_POLICIES, POWER_PER_BARREL, TECH_TIERS, TECH_VEHICLES, isAircraftKind } from '../constants';
 import { FACTIONS } from '../factions';
 import { getFlagTexture } from '../render/Flags';
@@ -26,7 +26,7 @@ export interface TransportInfo {
 export interface AircraftInfo {
   name: string;
   count: number;
-  /** Some selected aircraft can fire its turbo now. */
+  /** Some selected aircraft can fire its turbo now (in the air and charged). */
   ready: boolean;
   /** Seconds of turbo left on the one burning longest (0 = none burning). */
   active: number;
@@ -43,7 +43,9 @@ const CARRIER_STATE_LABEL: Readonly<Record<CarrierState, string>> = {
 
 type TabId = 'build' | 'defense' | 'infantry' | 'vehicles';
 /** Sidebar pages: the command centre (budget, oil, alerts), production (build, train) and the world ranking with oil & power prices. */
-type ViewId = 'command' | 'production' | 'rank' | 'allies';
+type ViewId = 'command' | 'production';
+/** Tabs of the row above the alerts on the Command page: what shows under it. */
+type InfoId = 'alerts' | 'finance' | 'rank' | 'allies' | 'controls';
 
 /** One of the player's allies (Allied Building) or a claim flag still waiting for its ally, for the Allies tab. */
 export interface AllyInfo {
@@ -81,7 +83,7 @@ export interface RankRow {
 
 /** Construction tabs (RA2 sidebar), shown as Lucide icons. */
 /** Protective structures: bought from the Defense tab, not the Build tab (main structures). */
-const DEFENSE_IDS: ReadonlySet<string> = new Set(['bunker', 'wall', 'flagpole']);
+const DEFENSE_IDS: ReadonlySet<string> = new Set(['bunker', 'wall', 'gate', 'flagpole']);
 
 const BUILD_TABS: readonly { id: TabId; label: string; icon: IconNode; enabled: boolean }[] = [
   { id: 'build', label: 'Build', icon: Hammer, enabled: true },
@@ -175,6 +177,8 @@ export interface SidebarHandlers {
   onUnload: () => void;
   /** The Turbo button of the Aircraft panel (same as the T key). */
   onTurbo: () => void;
+  /** The Home button of the action bar (same as the H key): camera to the own capital. */
+  onHome: () => void;
   /** An alert in the alert section was clicked: look at where it happened. */
   onAlert: (at: WorldPoint) => void;
 }
@@ -212,7 +216,8 @@ export class Sidebar {
   private readonly policyText: HTMLElement;
   private readonly policyButtons: HTMLButtonElement[];
   private readonly derricks: HTMLElement;
-  private readonly powerText: HTMLElement;
+  private readonly powerBar: HTMLElement;
+  private readonly powerFill: HTMLElement;
   private readonly powerPrice: HTMLElement;
   private readonly priceTrend: HTMLElement;
   private readonly priceClock: HTMLElement;
@@ -228,14 +233,18 @@ export class Sidebar {
   private readonly transportVehicles: HTMLElement;
   private readonly transportState: HTMLElement;
   private readonly unloadButton: HTMLButtonElement;
-  private readonly aircraftPanel: HTMLElement;
-  private readonly aircraftName: HTMLElement;
+  /** Floating action bar left of the sidebar (Home / Turbo / Unload), always shown; each button is disabled when it does not apply. */
+  private readonly airTools: HTMLElement;
   private readonly turboButton: HTMLButtonElement;
+  private readonly turboBadge: HTMLElement;
   private readonly alerts: AlertEntry[] = [];
   private readonly faction: FactionId;
   private readonly mainTabs = new Map<ViewId, HTMLButtonElement>();
   private readonly views = new Map<ViewId, HTMLElement>();
   private activeView: ViewId = 'command';
+  private readonly infoTabs = new Map<InfoId, HTMLButtonElement>();
+  private readonly infoPanes = new Map<InfoId, HTMLElement>();
+  private activeInfo: InfoId = 'alerts';
   private rankEconomy!: HTMLElement;
   private rankMilitary!: HTMLElement;
   private lastRanking: readonly RankRow[] = [];
@@ -292,12 +301,10 @@ export class Sidebar {
             <div class="sb-muted sb-leader" title="Head of state">${faction.leader.name}</div>
           </div>
         </div>
-        <div class="sb-budget-label">Budget</div>
-        <div class="sb-credits"><span>0</span> <small>${CURRENCY}</small></div>
-        <div class="sb-oil">OIL OUTPUT <span class="sb-income"></span></div>
-        <div class="sb-oil">OIL STOCK <span class="sb-stock"></span></div>
-        <div class="sb-oil">DEBT <span class="sb-debt"></span></div>
-        <div class="sb-oil">DERRICKS <span class="sb-derricks"></span></div>
+        <div class="sb-budget-row">
+          <span class="sb-budget-label">Budget</span>
+          <span class="sb-credits"><span>0</span> <small>${CURRENCY}</small></span>
+        </div>
         <div class="sb-cartel" hidden>
           <div class="sb-oil">CARTEL POLICY <span class="sb-policy"></span></div>
           <div class="sb-actions">
@@ -306,12 +313,7 @@ export class Sidebar {
             <button class="sb-sell" type="button" data-policy="flood" title="Flood the market: your derricks pump 160%, the world price crashes (−30% target) — a price war on nations that live off oil.">Flood</button>
           </div>
         </div>
-        <div class="sb-oil sb-power">POWER <span class="sb-power-value"></span></div>
-      </section>
-      <section class="sb-panel sb-aircraft" hidden>
-        <h3>Aircraft</h3>
-        <div class="sb-muted sb-aircraft-name"></div>
-        <button class="sb-unload sb-turbo" type="button" title="Turbo (T): the selected aircraft fly much faster for a while, then the turbo has to recharge before it can be used again.">Turbo (T)</button>
+        <div class="sb-power" title="Power"><i data-icon="power"></i><div class="sb-power-bar"><i class="sb-power-fill"></i></div></div>
       </section>
       <section class="sb-panel sb-transport" hidden>
         <h3>Transport</h3>
@@ -319,37 +321,28 @@ export class Sidebar {
         <div class="sb-oil">SOLDIERS <span class="sb-transport-soldiers"></span></div>
         <div class="sb-oil">VEHICLES <span class="sb-transport-vehicles"></span></div>
         <div class="sb-oil">STATUS <span class="sb-transport-state"></span></div>
-        <button class="sb-unload" type="button" title="Let the passengers out one by one (U). In the air the transport first lands on solid ground below it.">Unload (U)</button>
       </section>
-      <section class="sb-panel sb-alerts" aria-live="polite">
-        <h3>Alerts</h3>
+      <nav class="sb-main-tabs sb-page-links" aria-label="Alerts, rank and allies"></nav>
+      <section class="sb-panel sb-alerts" data-info="alerts" aria-live="polite" aria-label="Alerts">
         <ul class="sb-alert-list"></ul>
         <div class="sb-alert-empty">All quiet.</div>
       </section>
-      <details class="sb-panel sb-help">
-        <summary>Controls</summary>
-        <ul>
-          <li><kbd>Click</kbd> cameo — build/train · <kbd>Right-click</kbd> cameo — cancel (refund)</li>
-          <li>Soldiers &amp; vehicles: <kbd>Left-drag</kbd> box-select · <kbd>Left-click</kbd> a unit select · <kbd>Shift</kbd>+<kbd>Left-click</kbd> add/remove · <kbd>Double-click</kbd> all of that type on screen · <kbd>Right-click</kbd> — deselect (units keep going)</li>
-          <li>Orders: <kbd>Left-click</kbd> ground — move · <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Right-click</kbd> attack-move · <kbd>X</kbd> scatter</li>
-          <li>Armed units: <kbd>Left-click</kbd> an enemy to attack — they never shoot buildings on their own, <kbd>Left-click</kbd> the building to focus it · enemy engineers capture buildings · <kbd>M</kbd> sound on/off</li>
-          <li>Elite (type II) soldiers: at most 2 for every 3 regulars · orders: up to 15 soldiers and 10 vehicles waiting at once — a new one the moment one is done, whatever your army size · special forces swim · tanks run soldiers over · only aircraft shoot aircraft</li>
-          <li>Transport: select soldiers/vehicles, <kbd>Left-click</kbd> your transport to board (one in the air lands first) · select the transport, <kbd>Left-click</kbd> ground — it flies there, lands and unloads · <kbd>U</kbd>/<b>Unload</b> — let them out here, one by one</li>
-          <li>Aircraft: <kbd>T</kbd>/<b>Turbo</b> — the selected aircraft in the air fly 2× faster for 15 s, then the turbo recharges (40 s)</li>
-          <li>Squatters (flag bearer + escort, one unit): walk it (or fly it by transport) to unclaimed land (not your rivals' home lands, never Antarctica), select it and press <kbd>F</kbd> (or double-click it) — the flag goes up on the nearest open cell, on any land (the Squatters are gone once it stands) · then build an <b>Allied Building</b> beside it (max 3 allies)</li>
-          <li>When <b>READY</b>: click cameo, then click the map to place · <kbd>R</kbd> turn it 90° (only before it is placed) · <kbd>Esc</kbd>/<kbd>Right-click</kbd> stop placing</li>
-          <li><kbd>WSD</kbd>/<kbd>Arrows</kbd>/screen edge — scroll · <kbd>A</kbd> auto sell · <kbd>Wheel</kbd> zoom · <kbd>Middle-drag</kbd> pan</li>
-          <li><kbd>Click</kbd> select · <kbd>1</kbd> your capital · <kbd>2</kbd>–<kbd>5</kbd> rival capitals · <kbd>O</kbd> oil · <kbd>H</kbd> home · <kbd>Tab</kbd> sidebar</li>
-        </ul>
-      </details>
-      </div>
-      <div class="sb-view" data-page="rank" hidden>
+      <div class="sb-info" data-info="finance" hidden>
+        <section class="sb-panel sb-finance">
+          <h3>Finance</h3>
+          <div class="sb-oil">OIL OUTPUT <span class="sb-income"></span></div>
+          <div class="sb-oil">OIL STOCK <span class="sb-stock"></span></div>
+          <div class="sb-oil">DEBT <span class="sb-debt"></span></div>
+          <div class="sb-oil">DERRICKS <span class="sb-derricks"></span></div>
+        </section>
         <section class="sb-panel sb-prices">
           <div class="sb-price-row" title="Oil: what the Global Monitoring Center pays per barrel"><i data-icon="oil"></i><b class="sb-price"></b><i class="sb-price-trend"></i></div>
           <div class="sb-price-row" title="Power: what the Global Monitoring Center charges when your grid runs dry (oil at +${Math.round((OIL_GRID_MARKUP - 1) * 100)}%, per 1 kJ)"><i data-icon="power"></i><b class="sb-power-price"></b></div>
           <div class="sb-price-row" title="Next price revision"><i data-icon="clock"></i><b class="sb-price-clock"></b></div>
           <svg class="sb-price-chart" viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Oil price, last 5 minutes"><polyline fill="none" stroke-width="1.5" vector-effect="non-scaling-stroke"></polyline></svg>
         </section>
+      </div>
+      <div class="sb-info" data-info="rank" hidden>
         <section class="sb-panel sb-rank">
           <h3 class="sb-rank-title">ECONOMY <small>oil + assets + budget + spare power</small></h3>
           <ol class="sb-rank-list" data-rank="economy"></ol>
@@ -357,15 +350,33 @@ export class Sidebar {
           <ol class="sb-rank-list" data-rank="military"></ol>
         </section>
       </div>
-      <div class="sb-view" data-page="allies" hidden>
+      <div class="sb-info" data-info="allies" hidden>
         <section class="sb-panel sb-allies">
           <h3 class="sb-rank-title">ALLIES <small class="sb-allies-count"></small></h3>
           <ol class="sb-ally-list"></ol>
           <p class="sb-muted sb-allies-hint">Captured capitals and embassies are listed here. Click one to look at it. Raise up to ${MAX_ALLIES} allies on land claimed by Squatters.</p>
         </section>
       </div>
+      <div class="sb-info" data-info="controls" hidden>
+        <section class="sb-panel sb-help">
+          <h3>Controls</h3>
+          <ul>
+            <li><kbd>Click</kbd> cameo — build/train · <kbd>Right-click</kbd> cameo — cancel (refund)</li>
+            <li>Soldiers &amp; vehicles: <kbd>Left-drag</kbd> box-select · <kbd>Left-click</kbd> a unit select · <kbd>Shift</kbd>+<kbd>Left-click</kbd> add/remove · <kbd>Double-click</kbd> all of that type on screen · <kbd>Right-click</kbd> — deselect (units keep going)</li>
+            <li>Orders: <kbd>Left-click</kbd> ground — move · <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Right-click</kbd> attack-move · <kbd>X</kbd> scatter</li>
+            <li>Armed units: <kbd>Left-click</kbd> an enemy to attack — they never shoot buildings on their own, <kbd>Left-click</kbd> the building to focus it · enemy engineers capture buildings · <kbd>M</kbd> sound on/off</li>
+            <li>Elite (type II) soldiers: at most 2 for every 3 regulars · orders: up to 15 soldiers and 10 vehicles waiting at once — a new one the moment one is done, whatever your army size · special forces swim · tanks run soldiers over · only aircraft shoot aircraft</li>
+            <li>Transport: select soldiers/vehicles, <kbd>Left-click</kbd> your transport to board (one in the air lands first) · select the transport, <kbd>Left-click</kbd> ground — it flies there, lands and unloads · <kbd>U</kbd>/<b>Unload</b> — let them out here, one by one</li>
+            <li>Aircraft: <kbd>T</kbd>/<b>Turbo</b> — the selected aircraft in the air fly 2× faster for 15 s, then the turbo recharges (40 s)</li>
+            <li>Squatters (flag bearer + escort, one unit): walk it (or fly it by transport) to unclaimed land (not your rivals' home lands, never Antarctica), select it and press <kbd>F</kbd> (or double-click it) — the flag goes up on the nearest open cell, on any land (the Squatters are gone once it stands) · then build an <b>Allied Building</b> beside it (max 3 allies)</li>
+            <li>When <b>READY</b>: click cameo, then click the map to place · <kbd>R</kbd> turn it 90° (only before it is placed) · <kbd>Esc</kbd>/<kbd>Right-click</kbd> stop placing</li>
+            <li><kbd>WSD</kbd>/<kbd>Arrows</kbd>/screen edge — scroll · <kbd>A</kbd> auto sell · <kbd>Wheel</kbd> zoom · <kbd>Middle-drag</kbd> pan</li>
+            <li><kbd>Click</kbd> select · <kbd>1</kbd> your capital · <kbd>2</kbd>–<kbd>5</kbd> rival capitals · <kbd>O</kbd> oil · <kbd>H</kbd> home · <kbd>Tab</kbd> sidebar</li>
+          </ul>
+        </section>
+      </div>
+      </div>
       <div class="sb-view" data-page="production" hidden>
-      <nav class="sb-tabs" aria-label="Construction"></nav>
       <section class="sb-panel sb-build">
         <div class="sb-cameos" data-panel="build"></div>
         <div class="sb-cameos" data-panel="defense" hidden></div>
@@ -397,7 +408,8 @@ export class Sidebar {
     this.policyButtons = [...root.querySelectorAll<HTMLButtonElement>('.sb-cartel [data-policy]')];
     for (const b of this.policyButtons) b.addEventListener('click', () => this.handlers.onOilPolicy(b.dataset.policy as OilPolicy));
     this.derricks = q('.sb-derricks');
-    this.powerText = q('.sb-power-value');
+    this.powerBar = q('.sb-power-bar');
+    this.powerFill = q('.sb-power-fill');
     this.message = q('.sb-msg');
     this.radarPanel = q('.sb-radar');
     this.alertList = q('.sb-alert-list');
@@ -407,19 +419,32 @@ export class Sidebar {
     this.transportSoldiers = q('.sb-transport-soldiers');
     this.transportVehicles = q('.sb-transport-vehicles');
     this.transportState = q('.sb-transport-state');
-    this.unloadButton = q<HTMLButtonElement>('.sb-unload:not(.sb-turbo)');
-    this.unloadButton.addEventListener('click', () => this.handlers.onUnload());
-    this.aircraftPanel = q('.sb-aircraft');
-    this.aircraftName = q('.sb-aircraft-name');
-    this.turboButton = q<HTMLButtonElement>('.sb-turbo');
-    this.turboButton.addEventListener('click', () => this.handlers.onTurbo());
+    this.airTools = document.createElement('div');
+    this.airTools.className = 'air-tools';
+    const tool = (icon: IconNode, title: string, onClick: () => void): HTMLButtonElement => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'air-tool';
+      b.title = title;
+      b.append(createElement(icon, { width: 20, height: 20, 'stroke-width': 2, 'aria-hidden': 'true' }));
+      b.addEventListener('click', onClick);
+      b.addEventListener('contextmenu', (e) => e.preventDefault());
+      this.airTools.append(b);
+      return b;
+    };
+    tool(House, 'Home (H): jump the camera to your capital.', () => this.handlers.onHome());
+    this.turboButton = tool(Rocket, 'Turbo (T): the selected aircraft fly much faster for a while, then the turbo has to recharge before it can be used again.', () => this.handlers.onTurbo());
+    this.turboBadge = document.createElement('span');
+    this.turboBadge.className = 'air-tool-badge';
+    this.turboButton.append(this.turboBadge);
+    this.unloadButton = tool(ArrowUpFromLine, 'Unload (U): let the passengers out one by one. In the air the transport first lands on solid ground below it.', () => this.handlers.onUnload());
+    document.body.append(this.airTools);
     // No browser context menu anywhere on the sidebar (radar, cameos, panels): right-click is a game command.
     root.addEventListener('contextmenu', (e) => e.preventDefault());
-    this.buildMainTabs(q('.sb-main-tabs'));
+    this.buildMainTabs(q('.sb-main-tabs'), q('.sb-page-links'));
     this.views.set('command', q('[data-page=command]'));
     this.views.set('production', q('[data-page=production]'));
-    this.views.set('rank', q('[data-page=rank]'));
-    this.views.set('allies', q('[data-page=allies]'));
+    for (const id of ['alerts', 'finance', 'rank', 'allies', 'controls'] as const) this.infoPanes.set(id, q(`[data-info=${id}]`));
     this.allyList = q('.sb-ally-list');
     this.allyCount = q('.sb-allies-count');
     this.powerPrice = q('.sb-power-price');
@@ -427,13 +452,13 @@ export class Sidebar {
     this.priceClock = q('.sb-price-clock');
     this.priceLine = q<HTMLElement>('.sb-price-chart polyline');
     const icons: Readonly<Record<string, IconNode>> = { oil: Droplet, power: Zap, clock: Clock };
-    for (const slot of root.querySelectorAll<HTMLElement>('.sb-price-row [data-icon]')) {
+    for (const slot of root.querySelectorAll<HTMLElement>('.sb-price-row [data-icon], .sb-power [data-icon]')) {
       const icon = icons[slot.dataset.icon ?? ''];
       if (icon) slot.replaceWith(createElement(icon, { width: 16, height: 16, 'stroke-width': 2, 'aria-hidden': 'true' }));
     }
     this.rankEconomy = q('[data-rank=economy]');
     this.rankMilitary = q('[data-rank=military]');
-    this.buildTabs(q('.sb-tabs'));
+    this.buildTabs(q('.sb-main-tabs'));
     const buildPanel = q('[data-panel=build]');
     const infantryPanel = q('[data-panel=infantry]');
     this.panels.set('build', buildPanel);
@@ -497,18 +522,11 @@ export class Sidebar {
     this.messageTimer = seconds;
   }
 
-  /** Aircraft panel: the Turbo button, lit when ready, otherwise counting down its burn / recharge. */
+  /** Air tools: Turbo lit when ready, otherwise counting down its burn / recharge; disabled for a selection without aircraft. */
   private renderAircraft(a: AircraftInfo | null): void {
-    this.aircraftPanel.hidden = a === null;
-    if (!a) return;
-    this.aircraftName.textContent = a.count > 1 ? `${a.count} aircraft` : a.name;
-    this.turboButton.disabled = !a.ready;
-    this.turboButton.classList.toggle('lit', a.ready);
-    this.turboButton.textContent = a.ready
-      ? 'Turbo (T)'
-      : a.active > 0
-        ? `Turbo on · ${Math.ceil(a.active)}s`
-        : `Recharging · ${Math.floor(a.charge * 100)}%`;
+    this.turboButton.disabled = !a?.ready;
+    this.turboButton.classList.toggle('lit', !!a?.ready);
+    this.turboBadge.textContent = !a || a.ready ? '' : a.active > 0 ? `${Math.ceil(a.active)}s` : `${Math.floor(a.charge * 100)}%`;
   }
 
   /** Transport panel: seats taken / free and the Unload button, lit while there are passengers to let out. */
@@ -519,9 +537,6 @@ export class Sidebar {
     this.transportSoldiers.textContent = `${t.soldiers}/${t.soldierCapacity}`;
     this.transportVehicles.textContent = `${t.vehicles}/${t.vehicleCapacity}`;
     this.transportState.textContent = CARRIER_STATE_LABEL[t.state];
-    const passengers = t.soldiers + t.vehicles;
-    this.unloadButton.disabled = passengers === 0 || t.state === 'unloading';
-    this.unloadButton.classList.toggle('lit', passengers > 0 && t.state !== 'unloading');
   }
 
   update(model: SidebarModel, dt: number): void {
@@ -556,15 +571,24 @@ export class Sidebar {
     }
     this.renderTransport(model.transport);
     this.renderAircraft(model.aircraft);
+    // Unload works only for a carrier with someone aboard (a fighter / bomber has no seats).
+    const t = model.transport;
+    this.unloadButton.disabled = !t || t.soldiers + t.vehicles === 0 || t.state === 'unloading';
+    this.unloadButton.classList.toggle('lit', !this.unloadButton.disabled);
 
     // POWER: what the nuclear plants can generate / what the structures need (J/s); red while short.
-    this.powerText.textContent = `${compactEnergy(player.powerSupply)}/s / ${compactEnergy(player.powerConsumed)}/s`;
-    this.powerText.classList.toggle('low', player.powerShort);
-    this.powerText.parentElement!.title = player.blackout
+    // No numbers on the bar: supply / demand goes in the tooltip.
+    const powerLine = `${compactEnergy(player.powerSupply)}/s / ${compactEnergy(player.powerConsumed)}/s`;
+    // Bar: supply against demand. Green = enough power; orange = short but the Global Monitoring Center still sells the
+    // missing power (things keep running, no take-offs); red = blackout, nothing can run.
+    const ratio = player.powerConsumed > 0 ? Math.min(1, player.powerSupply / player.powerConsumed) : 1;
+    this.powerFill.style.width = `${Math.round(ratio * 100)}%`;
+    this.powerBar.dataset.level = player.blackout ? 'dead' : player.powerShort ? 'weak' : 'ok';
+    this.powerBar.parentElement!.title = `Power ${powerLine}. ` + (player.blackout
       ? 'BLACKOUT: no power and no TB to buy oil from the Global Monitoring Center. No take-offs.'
       : player.powerShort
         ? 'Not enough power: the Global Monitoring Center sells oil for the missing power (+25%), and take-offs stop (construction and production keep running while you have TB).'
-        : `Stored ${compactEnergy(player.powerStored)} / ${compactEnergy(player.powerCapacity)}. Plants burn your oil (0.001 bbl = 1 J).`;
+        : `Stored ${compactEnergy(player.powerStored)} / ${compactEnergy(player.powerCapacity)}. Plants burn your oil (0.001 bbl = 1 J).`);
 
     // The radar picture is blurred and dimmed until the nation owns an Airfield.
     this.radarPanel.classList.toggle('offline', !model.owned.has('airfield'));
@@ -594,10 +618,6 @@ export class Sidebar {
     this.opener.classList.toggle('sb-attention', awaiting);
     // The page you are not looking at calls for attention: green when something can be built / placed / unlocked,
     // red while a fresh alert (an attack) is showing.
-    const productionNews = awaiting;
-    const freshAlert = this.alerts.some((a) => performance.now() - a.born < 4000);
-    this.mainTabs.get('production')?.classList.toggle('sb-attention', this.activeView !== 'production' && productionNews);
-    this.mainTabs.get('command')?.classList.toggle('sb-alerting', this.activeView !== 'command' && freshAlert);
     this.updateVehicleCameos(model);
     this.updateUnitCameos(model);
 
@@ -651,28 +671,36 @@ export class Sidebar {
     }
   }
 
-  private buildMainTabs(nav: HTMLElement): void {
-    const pages: readonly { id: ViewId; label: string; icon: IconNode }[] = [
-      { id: 'command', label: 'Command', icon: Radar },
-      { id: 'production', label: 'Production', icon: Factory },
-      { id: 'rank', label: 'Rank', icon: Trophy },
-      { id: 'allies', label: 'Allies', icon: Handshake },
-    ];
-    for (const page of pages) {
+  /** Command goes on the top row (the production tabs follow it); Alerts / Rank / Allies tabs sit on the Command page. */
+  private buildMainTabs(nav: HTMLElement, links: HTMLElement): void {
+    const tabButton = (label: string, icon: IconNode, active: boolean, onClick: () => void): HTMLButtonElement => {
       const btn = document.createElement('button');
       btn.type = 'button';
-      btn.dataset.view = page.id;
-      btn.setAttribute('aria-pressed', String(page.id === this.activeView));
-      btn.classList.toggle('active', page.id === this.activeView);
+      btn.setAttribute('aria-pressed', String(active));
+      btn.classList.toggle('active', active);
       // Icon only: the name is in the tooltip and for screen readers.
-      btn.title = page.label;
-      btn.setAttribute('aria-label', page.label);
-      btn.append(createElement(page.icon, { width: 18, height: 18, 'stroke-width': 2, 'aria-hidden': 'true' }));
-      btn.addEventListener('click', () => this.switchView(page.id));
+      btn.title = label;
+      btn.setAttribute('aria-label', label);
+      btn.append(createElement(icon, { width: 18, height: 18, 'stroke-width': 2, 'aria-hidden': 'true' }));
+      btn.addEventListener('click', onClick);
+      return btn;
+    };
+    const command = tabButton('Command', Radar, true, () => this.switchView('command'));
+    nav.append(command);
+    this.mainTabs.set('command', command);
+    const infos: readonly { id: InfoId; label: string; icon: IconNode }[] = [
+      { id: 'alerts', label: 'Alerts', icon: TriangleAlert },
+      { id: 'finance', label: 'Finance', icon: Wallet },
+      { id: 'rank', label: 'Rank', icon: Trophy },
+      { id: 'allies', label: 'Allies', icon: Handshake },
+      { id: 'controls', label: 'Controls', icon: Keyboard },
+    ];
+    for (const info of infos) {
+      const btn = tabButton(info.label, info.icon, info.id === this.activeInfo, () => this.switchInfo(info.id));
       // The Allies tab only shows up once the nation has its first ally.
-      if (page.id === 'allies') btn.hidden = true;
-      nav.append(btn);
-      this.mainTabs.set(page.id, btn);
+      if (info.id === 'allies') btn.hidden = true;
+      links.append(btn);
+      this.infoTabs.set(info.id, btn);
     }
   }
 
@@ -752,15 +780,13 @@ export class Sidebar {
    * building. The tab button appears with the first ally (and blinks until opened); it goes away if all are lost.
    */
   private renderAllies(allies: readonly AllyInfo[]): void {
-    const tab = this.mainTabs.get('allies');
+    const tab = this.infoTabs.get('allies');
     const built = allies.filter((a) => a.built && !a.capital).length;
     if (tab) {
       const show = allies.some((a) => a.built);
-      if (show && tab.hidden) tab.classList.add('sb-attention');
       tab.hidden = !show;
-      if (!show && this.activeView === 'allies') this.switchView('command');
+      if (!show && this.activeInfo === 'allies') this.switchInfo('alerts');
     }
-    if (this.activeView === 'allies') tab?.classList.remove('sb-attention');
     const key = allies.map((a) => `${a.id}:${a.built}:${Math.ceil((a.hp / a.maxHp) * 20)}:${a.underAttack}`).join('|');
     if (key === this.allyKey) return;
     this.allyKey = key;
@@ -817,7 +843,7 @@ export class Sidebar {
 
   /** True when the Rank tab is open and its 1 s refresh is due (the ranking is only computed then). */
   wantsRanking(dt: number): boolean {
-    if (this.activeView !== 'rank') return false;
+    if (this.activeView !== 'command' || this.activeInfo !== 'rank') return false;
     this.rankTimer -= dt;
     if (this.rankTimer > 0) return false;
     this.rankTimer = 1;
@@ -831,16 +857,35 @@ export class Sidebar {
       btn.setAttribute('aria-pressed', String(view === id));
     }
     for (const [view, el] of this.views) el.hidden = view !== id;
+    this.markTabs();
+  }
+
+  /** Alerts (the default), Rank or Allies under the tab row of the Command page. */
+  private switchInfo(id: InfoId): void {
+    this.activeInfo = id;
+    for (const [info, btn] of this.infoTabs) {
+      btn.classList.toggle('active', info === id);
+      btn.setAttribute('aria-pressed', String(info === id));
+    }
+    for (const [info, pane] of this.infoPanes) pane.hidden = info !== id;
     if (id === 'rank') this.renderRanking(this.lastRanking);
   }
 
-  private switchTab(id: TabId): void {
+  /** Picks the production panel; `open` also brings the production page up (a click on its tab). */
+  private switchTab(id: TabId, open = false): void {
     this.activeTab = id;
-    for (const [tab, btn] of this.tabButtons) {
-      btn.classList.toggle('active', tab === id);
-      btn.setAttribute('aria-pressed', String(tab === id));
-    }
     for (const [tab, panel] of this.panels) panel.hidden = tab !== id;
+    if (open) this.switchView('production');
+    else this.markTabs();
+  }
+
+  /** A production tab shows as active only while the production page is open. */
+  private markTabs(): void {
+    for (const [tab, btn] of this.tabButtons) {
+      const on = this.activeView === 'production' && tab === this.activeTab;
+      btn.classList.toggle('active', on);
+      btn.setAttribute('aria-pressed', String(on));
+    }
   }
 
   private updateUnitCameos(model: SidebarModel): void {
@@ -982,15 +1027,16 @@ export class Sidebar {
       btn.type = 'button';
       btn.disabled = !tab.enabled;
       btn.dataset.tab = tab.id;
-      btn.classList.toggle('active', tab.id === 'build');
+      btn.classList.toggle('active', false);
       btn.title = tab.enabled ? tab.label : `${tab.label} (coming soon)`;
       if (tab.id === 'infantry' || tab.id === 'vehicles') btn.disabled = true; // unlocked by the matching building
       btn.setAttribute('aria-label', tab.label);
-      btn.setAttribute('aria-pressed', String(tab.id === 'build'));
+      btn.setAttribute('aria-pressed', 'false');
       btn.append(createElement(tab.icon, { width: 18, height: 18, 'stroke-width': 2, 'aria-hidden': 'true' }));
       btn.addEventListener('click', () => {
-        if (!btn.disabled) this.switchTab(tab.id);
+        if (!btn.disabled) this.switchTab(tab.id, true);
       });
+      // One row with Command: the production tabs follow it.
       nav.append(btn);
       this.tabButtons.set(tab.id, btn);
     }

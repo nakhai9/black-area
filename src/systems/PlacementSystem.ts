@@ -1,5 +1,5 @@
 import type { EntityManager } from '../entities/EntityManager';
-import { BUNKER_BUILD_RADIUS, CELL_SIZE, GRID_HEIGHT, WALL_BUILD_RADIUS } from '../constants';
+import { BUNKER_BUILD_RADIUS, CELL_SIZE, GATE_BUILD_RADIUS, GRID_HEIGHT, WALL_BUILD_RADIUS } from '../constants';
 import type { PlacementBlocker, TileMap } from '../map/TileMap';
 
 /** Max gap (in cells) between a new building and the nearest friendly building. */
@@ -7,7 +7,7 @@ export const BUILD_RADIUS = 3;
 
 /** How far (cells) from an own structure's edge a structure of this kind may be placed. */
 export function buildRadius(type: string): number {
-  return type === 'bunker' ? BUNKER_BUILD_RADIUS : type === 'wall' ? WALL_BUILD_RADIUS : BUILD_RADIUS;
+  return type === 'bunker' ? BUNKER_BUILD_RADIUS : type === 'wall' ? WALL_BUILD_RADIUS : type === 'gate' ? GATE_BUILD_RADIUS : BUILD_RADIUS;
 }
 
 export type PlacementResult = { ok: true } | { ok: false; reason: PlacementBlocker | 'units' | 'tooFar' | 'claimed' | 'nearOil' | 'antarctica' };

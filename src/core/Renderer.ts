@@ -254,6 +254,7 @@ export class Renderer {
       const c = b.centerWorld();
       if (b.id === scene.selectedId || onScreen(c.x, c.y, (b.w + b.d) * CELL_SIZE)) sorted.push(b);
     }
+    this.settleSmallPieces(sorted);
     sorted.sort(byDepth);
     const selected = sorted.find((b) => b.id === scene.selectedId) ?? null;
     if (selected) this.drawFootprint(selected, scene.time);
@@ -350,6 +351,30 @@ export class Renderer {
     if (this.vignette) {
       ctx.fillStyle = this.vignette;
       ctx.fillRect(0, 0, camera.viewWidth, camera.viewHeight);
+    }
+  }
+
+  /**
+   * Centre depth breaks down for a thin piece (wall block, gate) against a large structure: a wall block along the
+   * front of an airfield has a smaller centre sum than the airfield and would be painted under it. Each small piece
+   * next to a large one is moved just in front of it when it stands past its near edges, or just behind it otherwise.
+   */
+  private settleSmallPieces(buildings: readonly Building[]): void {
+    const large = buildings.filter((b) => b.w * b.d > 4);
+    for (const s of buildings) {
+      if (s.w * s.d > 4) continue;
+      s.depthOverride = null;
+      const base = s.depth;
+      let front = -Infinity;
+      let back = Infinity;
+      for (const b of large) {
+        if (s.x + s.w < b.x - 1 || s.y + s.d < b.y - 1 || s.x > b.x + b.w + 1 || s.y > b.y + b.d + 1) continue;
+        const behind = s.x + s.w <= b.x || s.y + s.d <= b.y;
+        if (behind) back = Math.min(back, b.depth);
+        else front = Math.max(front, b.depth);
+      }
+      if (front > -Infinity && base <= front) s.depthOverride = front + 0.005;
+      else if (back < Infinity && base >= back) s.depthOverride = back - 0.005;
     }
   }
 

@@ -43,8 +43,9 @@ export function canTarget(shooter: Unit, target: Entity): boolean {
   // Attack helicopters hunt ground vehicles only: no structures, soldiers or aircraft.
   // Exception (self-defence): the ground attacker that shot it while it stood landed, soldier or vehicle.
   if (shooter instanceof Vehicle && shooter.isHeli) return (target instanceof Vehicle && !target.aircraft) || (shooter.heliRevenge === target.id && target instanceof Unit && !target.flies);
-  // Air-defence vehicle (NOMADS / Buk-M3): aircraft in flight only.
-  if (shooter instanceof Vehicle && shooter.type === 'mantis') return target instanceof Unit && target.flies;
+  // Air-defence vehicle (NOMADS / Buk-M3): any enemy aircraft off the ground (altitude > 0), whatever it is doing —
+  // cruising, hovering, lifting off, climbing, descending. Never one standing on the ground.
+  if (shooter instanceof Vehicle && shooter.type === 'mantis') return target instanceof Vehicle && target.aircraft && target.altitude > 0;
   if (target instanceof Unit && target.flies) return shooter.aircraft && w.hitsAir;
   return true;
 }

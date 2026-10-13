@@ -211,11 +211,51 @@ body.sidebar-hidden .sb-open {
 .sb-credits {
   margin-top: 8px;
   font: 700 20px/1 Consolas, monospace;
-  color: #7dff8a;
-  text-shadow: 0 0 6px rgba(125, 255, 138, 0.35);
+  color: #ffd24a;
+  text-shadow: 0 0 6px rgba(255, 210, 74, 0.4);
 }
-.sb-power .low {
-  color: #ff6a4d;
+.sb-budget-row {
+  margin-top: 8px;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.sb-budget-row .sb-budget-label,
+.sb-budget-row .sb-credits {
+  margin-top: 0;
+}
+/* Power: icon + a long bar (supply / demand). Green = steady, orange = short but still running, red = blackout. */
+.sb-power {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.sb-power-bar {
+  --power-color: #3fd35a;
+  position: relative;
+  flex: 0 1 150px;
+  margin-left: auto; /* icon on the left, bar pushed to the right edge */
+  height: 16px;
+  overflow: hidden;
+  border: 1px solid #2f3a45;
+  border-radius: 4px;
+  background: #10161b;
+}
+.sb-power-bar[data-level='weak'] {
+  --power-color: #ff9a2e;
+}
+.sb-power-bar[data-level='dead'] {
+  --power-color: #e0301e;
+  border-color: #e0301e;
+}
+.sb-power-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 100%;
+  background: var(--power-color);
+  transition: width 0.3s ease, background-color 0.3s ease;
 }
 
 .sb-tabs {
@@ -535,7 +575,7 @@ kbd {
 .sb-credits small {
   font-size: 12px;
   letter-spacing: 1px;
-  color: #b6f5bd;
+  color: #e8c66a;
 }
 
 /* ------------------------------------------------------------- build panel */
@@ -658,25 +698,6 @@ kbd {
 
 /* ------------------------------------------------------------- "construction complete" blinking */
 
-@keyframes sb-attention {
-  0%,
-  100% {
-    color: #0b1014;
-    background: #7dff8a;
-    border-color: #b9ffc1;
-    box-shadow: 0 0 10px rgba(125, 255, 138, 0.85);
-  }
-  50% {
-    color: #cfd8e0;
-    background: linear-gradient(#232c35, #161c22);
-    border-color: #2f3a45;
-    box-shadow: none;
-  }
-}
-.sb-tabs button.sb-attention,
-.sb-open.sb-attention {
-  animation: sb-attention 0.8s ease-in-out infinite;
-}
 @keyframes sb-cameo-glow {
   0%,
   100% {
@@ -692,17 +713,10 @@ kbd {
   animation: sb-cameo-glow 0.8s ease-in-out infinite;
 }
 @media (prefers-reduced-motion: reduce) {
-  .sb-tabs button.sb-attention,
-  .sb-open.sb-attention,
   .sb-cameo[data-state='ready'],
   .sb-cameo[data-state='ready'] .sb-cameo-state,
   .sb-cameo[data-state='placing'] .sb-cameo-state {
     animation: none;
-  }
-  .sb-tabs button.sb-attention,
-  .sb-open.sb-attention {
-    color: #0b1014;
-    background: #7dff8a;
   }
 }
 
@@ -835,15 +849,6 @@ kbd {
   color: #ff9d94;
   white-space: nowrap;
 }
-.sb-alert.fresh {
-  animation: sb-alert-flash 0.7s steps(2) infinite;
-}
-@keyframes sb-alert-flash {
-  50% {
-    background: rgba(255, 59, 48, 0.45);
-    border-color: #ff3b30;
-  }
-}
 /* A production tab without its building shows no icon and cannot be opened. */
 .sb-tabs button.no-icon svg {
   visibility: hidden;
@@ -945,32 +950,6 @@ kbd {
 }
 
 /* ------------------------------------------------------------- controls: an accordion */
-details.sb-help > summary {
-  cursor: pointer;
-  list-style: none;
-  font-size: 11px;
-  letter-spacing: 1.5px;
-  text-transform: uppercase;
-  color: var(--accent);
-  font-weight: 700;
-  display: flex;
-  justify-content: space-between;
-  user-select: none;
-}
-details.sb-help > summary::-webkit-details-marker {
-  display: none;
-}
-details.sb-help > summary::after {
-  content: '+';
-  font-size: 14px;
-  line-height: 1;
-}
-details.sb-help[open] > summary::after {
-  content: '–';
-}
-details.sb-help[open] > summary {
-  margin-bottom: 6px;
-}
 
 /* ------------------------------------------------------------- game over / victory */
 .end-screen {
@@ -1034,9 +1013,19 @@ details.sb-help[open] > summary {
 
 /* ------------------------------------------------------------- two pages: command centre / production */
 .sb-main-tabs {
+  /* Command, the four production tabs (Build / Defense / Infantry / Vehicles), Rank and Allies share one row. */
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
   gap: 4px;
+}
+.sb-main-tabs button:disabled {
+  color: #4a5560;
+  cursor: not-allowed;
+}
+/* A production tab without its building shows no icon and cannot be opened. */
+.sb-main-tabs button.no-icon svg {
+  visibility: hidden;
 }
 .sb-main-tabs button {
   /* Four icon-only tabs share the row; min-width: 0 lets each grid item shrink to its column. */
@@ -1074,19 +1063,7 @@ details.sb-help[open] > summary {
   border-color: var(--accent);
   background: linear-gradient(#2d3946, #1b232c);
 }
-.sb-main-tabs button.sb-attention {
-  animation: sb-attention 0.8s ease-in-out infinite;
-}
-.sb-main-tabs button.sb-alerting {
-  animation: sb-page-alert 0.7s steps(2) infinite;
-}
-@keyframes sb-page-alert {
-  50% {
-    color: #fff;
-    background: #d62d20;
-    border-color: #ff3b30;
-  }
-}
+/* Tabs never blink for news (things ready to place, a new ally, a fresh alert). */
 .sb-view {
   display: flex;
   flex-direction: column;
@@ -1410,4 +1387,92 @@ details.sb-help[open] > summary {
 .sb-open svg {
   display: block;
   margin: auto;
+}
+
+/* ------------------------------------------------------------- air tools (Turbo / Unload, left of the sidebar) */
+.air-tools {
+  position: fixed;
+  right: calc(var(--sidebar-w) + 8px);
+  bottom: 40px;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+body.sidebar-hidden .air-tools {
+  right: 8px;
+}
+.air-tools[hidden] {
+  display: none;
+}
+.air-tool {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid #2f7a3a;
+  border-radius: 50%;
+  background: linear-gradient(#1d4a24, #123017);
+  color: #b9ffc3;
+  cursor: pointer;
+}
+.air-tool:hover:not(:disabled) {
+  background: linear-gradient(#276330, #18401f);
+}
+.air-tool.lit {
+  border-color: #5cff6a;
+  box-shadow: 0 0 6px rgba(92, 255, 106, 0.55);
+}
+.air-tool:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.air-tool-badge {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-top: 2px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #b9ffc3;
+  white-space: nowrap;
+  text-shadow: 0 1px 2px #000;
+}
+
+/* ------------------------------------------------------------- Command page: Alerts / Rank / Allies tabs */
+.sb-alerts[hidden],
+.sb-info[hidden] {
+  display: none;
+}
+.sb-info:not([hidden]) {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.sb-power > svg {
+  flex: none;
+  color: #ffe08a;
+}
+
+/* ------------------------------------------------------------- compass (bottom left, above the status bar) */
+/* Laid flat on the isometric ground: the icon's east (+x) goes to the screen's down-right and its south (+y) to the
+   down-left, the same 2:1 projection as the map (HALF_TW = 2 × HALF_TH), so N points to the map's north (up-right). */
+#compass {
+  position: absolute;
+  left: 18px;
+  bottom: 30px;
+  width: 120px;
+  height: 120px;
+  color: #ffe08a;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.85));
+  pointer-events: none;
+  transform: matrix(0.7071, 0.3536, -0.7071, 0.3536, 0, 0);
+}
+#compass svg {
+  width: 100%;
+  height: 100%;
+  display: block;
 }

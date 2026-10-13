@@ -2,7 +2,7 @@ import { HALF_TH, HALF_TW, SPRITE_SCALE } from '../constants';
 import type { Rect } from '../types';
 import { createCanvas } from './Canvas';
 import { IsoPainter } from './IsoPainter';
-import { applyRa2Finish, castShadow } from './Ra2Finish';
+import { applyRa2Finish } from './Ra2Finish';
 import { flagVariantArt, type BuildingArt } from './sprites';
 
 /** Sprites are rasterised at 2× for crisp results when zoomed in / on HiDPI. */
@@ -117,7 +117,7 @@ export class SpriteCache {
     ctx.restore();
 
     // Red Alert 2 look: grainy, slightly muted pre-rendered surfaces with a dark rim.
-    applyRa2Finish(ctx, canvas.width, canvas.height);
+    applyRa2Finish(ctx, canvas.width, canvas.height, !art.noRim);
     const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
     const alpha = new Uint8Array(canvas.width * canvas.height);
     let minX = canvas.width;
@@ -136,8 +136,7 @@ export class SpriteCache {
         if (y > maxY) maxY = y;
       }
     }
-    // The shadow goes in after the hit mask and bounds: it is never part of the building.
-    if (!art.noShadow) castShadow(canvas, ctx, centerY, RASTER_SCALE, SHADOW_RUN_X, SHADOW_RUN_Y);
+    // Structures cast no shadow on the ground.
     const bounds: Rect = {
       x: minX / RASTER_SCALE,
       y: minY / RASTER_SCALE,

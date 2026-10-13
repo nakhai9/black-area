@@ -7,6 +7,8 @@ import {
   BUNKER_COST,
   WALL_COST,
   FOOTPRINT_WALL,
+  GATE_COST,
+  FOOTPRINT_GATE,
   FOOTPRINT_BUNKER,
   BUILD_STEP_FRACTION,
   BUILD_STEP_SECONDS,
@@ -34,13 +36,14 @@ import { WarFactory } from '../entities/WarFactory';
 import { Barracks } from '../entities/Barracks';
 import { Flagpole } from '../entities/Flagpole';
 import { Wall } from '../entities/Wall';
+import { Gate } from '../entities/Gate';
 import type { Building } from '../entities/Building';
 import type { BuildingType, FactionId, PlayerState } from '../types';
 import type { GameSystem } from './GameSystem';
 
 /** A structure that can be produced from the sidebar's Build tab. */
 export interface BuildOption {
-  id: 'powerPlant' | 'barracks' | 'warFactory' | 'hospital' | 'airfield' | 'techCenter' | 'happyCity' | 'flagpole' | 'alliedBuilding' | 'bunker' | 'wall';
+  id: 'powerPlant' | 'barracks' | 'warFactory' | 'hospital' | 'airfield' | 'techCenter' | 'happyCity' | 'flagpole' | 'alliedBuilding' | 'bunker' | 'wall' | 'gate';
   name: string;
   /** Tech tree: these buildings must already stand (power plant → barracks → war factory/hospital → airfield → happy city). */
   requires?: BuildingType | readonly BuildingType[];
@@ -114,6 +117,16 @@ export const BUILD_OPTIONS: readonly BuildOption[] = [
     footprint: FOOTPRINT_WALL,
     spriteKey: (f) => `wall:${f}`,
     create: (owner, faction, x, y) => new Wall(owner, faction, center(x, y, FOOTPRINT_WALL)),
+  },
+  {
+    // Nation Gate: two pillars in the nation's architecture, a 2-cell way through the middle (R turns it).
+    id: 'gate',
+    name: 'Nation Gate',
+    requires: 'barracks',
+    cost: GATE_COST,
+    footprint: FOOTPRINT_GATE,
+    spriteKey: (f) => `gate:${f}`,
+    create: (owner, faction, x, y) => new Gate(owner, faction, center(x, y, FOOTPRINT_GATE)),
   },
   {
     id: 'airfield',

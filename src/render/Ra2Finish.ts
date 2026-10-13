@@ -11,7 +11,7 @@ const hash = (x: number, y: number): number => {
  * Red Alert 2 "pre-rendered" finish over a freshly painted sprite: fine surface grain, a touch of desaturation and
  * contrast (RA2's muted, slightly dirty palette) and a dark 1px rim round the silhouette.
  */
-export function applyRa2Finish(ctx: CanvasRenderingContext2D, w: number, h: number): void {
+export function applyRa2Finish(ctx: CanvasRenderingContext2D, w: number, h: number, rim = true): void {
   const img = ctx.getImageData(0, 0, w, h);
   const d = img.data;
   const src = new Uint8ClampedArray(d);
@@ -38,7 +38,8 @@ export function applyRa2Finish(ctx: CanvasRenderingContext2D, w: number, h: numb
       d[i + 2] = b + n;
       // Rim: an opaque pixel next to a transparent one darkens.
       const edge =
-        (x > 0 && src[i - 1]! < 40) || (x < w - 1 && src[i + 7]! < 40) || (y > 0 && src[i - w * 4 + 3]! < 40) || (y < h - 1 && src[i + w * 4 + 3]! < 40);
+        rim &&
+        ((x > 0 && src[i - 1]! < 40) || (x < w - 1 && src[i + 7]! < 40) || (y > 0 && src[i - w * 4 + 3]! < 40) || (y < h - 1 && src[i + w * 4 + 3]! < 40));
       if (edge) {
         d[i] = d[i]! * 0.45;
         d[i + 1] = d[i + 1]! * 0.45;

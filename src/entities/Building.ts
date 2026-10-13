@@ -62,7 +62,7 @@ export class Building extends Entity {
     this.owner = owner;
     this.faction = faction;
     // Team-coloured structures switch to the new owner's colours.
-    const m = /^(oil|barracks|hospital|airfield|warFactory|techCenter|happyCity|powerPlant|flagpole|bunker|wall):/.exec(this.spec.spriteKey);
+    const m = /^(oil|barracks|hospital|airfield|warFactory|techCenter|happyCity|powerPlant|flagpole|bunker|wall|gate):/.exec(this.spec.spriteKey);
     if (m) this.spriteKeyOverride = `${m[1]}:${faction}`;
     // Landmarks keep their design and only hoist the new owner's flag.
     const f = /^(capital|alliedBuilding|nation):(\w+)$/.exec(this.spec.spriteKey);
@@ -112,8 +112,11 @@ export class Building extends Entity {
   }
 
   /** Isometric view: things with a larger x + y (cells, taken at the centre) are in front. */
+  /** Draw depth set by the renderer for a small piece (wall, gate…) standing right against a large structure. */
+  depthOverride: number | null = null;
+
   get depth(): number {
-    return this.x + this.w / 2 + (this.y + this.d / 2);
+    return this.depthOverride ?? this.x + this.w / 2 + (this.y + this.d / 2);
   }
 
   containsCell(tx: number, ty: number): boolean {

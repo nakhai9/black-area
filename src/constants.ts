@@ -26,7 +26,7 @@ export const DEMO_FACTION = Number(import.meta.env.VITE_DEMO_FACTION) || 2;
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "1.89.0";
+export const GAME_VERSION = "1.100.0";
 
 // ---------------------------------------------------------------- World (real Earth)
 /** Packed Earth texture built by `npm run build:earth` (see scripts/build-earth.mjs). */
@@ -191,7 +191,7 @@ export const AI_BUNKERS = 2;
  * the nation's own structures. The AI rings its capital with wall segments (gaps left for its own troops).
  */
 export const WALL_COST = 100;
-export const WALL_HP = 1200;
+export const WALL_HP = 4000;
 export const WALL_BUILD_RADIUS = 7;
 /** Placing a wall block with up to this many free cells between it and another block of the nation in a straight line fills them (free). */
 export const WALL_FILL_GAP = 5;
@@ -201,6 +201,15 @@ export const AI_WALL_RING = 6;
 export const AI_WALL_SEGMENT = 8;
 /** Wider than WALL_FILL_GAP, so the gates are never filled in. */
 export const AI_WALL_GAP = 6;
+/**
+ * Nation Gate (4 × 1, Defense tab, R turns it 1 × 4): two end pillars in the nation's architecture with a 2-cell way
+ * through the middle. Placed like a wall (up to GATE_BUILD_RADIUS cells from an own structure). The AI sets one in
+ * each gap of its capital's wall ring.
+ */
+export const GATE_COST = 300;
+export const GATE_HP = 6000;
+export const GATE_BUILD_RADIUS = WALL_BUILD_RADIUS;
+export const FOOTPRINT_GATE = { w: 4, d: 1 } as const;
 export const AIRFIELD_COST = 2000;
 /** High-Tech Center (a high-rise): base price; it unlocks the second-tier soldiers and vehicles. */
 export const TECH_CENTER_COST = 8000;
@@ -818,6 +827,7 @@ export const BUILDING_VALUE: Readonly<Partial<Record<BuildingType, number>>> = {
   hospital: HOSPITAL_COST,
   bunker: BUNKER_COST,
   wall: WALL_COST,
+  gate: GATE_COST,
   warFactory: WAR_FACTORY_COST,
   airfield: AIRFIELD_COST,
   techCenter: TECH_CENTER_COST,
@@ -839,3 +849,9 @@ export const DEMO_PRICE = 100;
 export const DEMO_CREDITS = 999_999;
 /** In a DEMO game the player starts with this many of every soldier, vehicle and aircraft. */
 export const DEMO_UNITS_EACH = 2;
+/** DEMO: free cells kept between the starting structures (the most the build radius BUILD_RADIUS = 3 allows), room for their wall rings. */
+export const DEMO_SPREAD = 3;
+/** Capitals keep this many cells of land (more than 3) between their footprint and the sea. */
+export const CAPITAL_SEA_CLEARANCE = 4;
+/** How far (cells) a capital may be moved inland from its real spot to clear the coast. */
+export const CAPITAL_INLAND_SEARCH = 20;

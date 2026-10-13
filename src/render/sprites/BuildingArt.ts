@@ -15,8 +15,8 @@ export interface BuildingArt {
    * built from them multiplied by this. Defaults to 1.
    */
   readonly scale?: number;
-  /** True when the sprite casts no shadow on the ground (e.g. the flagpole). */
-  readonly noShadow?: boolean;
+  /** True for pieces that join their neighbours (wall blocks): no dark rim, so a wall line shows no seams. */
+  readonly noRim?: boolean;
   drawStatic(p: IsoPainter): void;
   drawAnimated?(p: IsoPainter, time: number, active: boolean): void;
 }

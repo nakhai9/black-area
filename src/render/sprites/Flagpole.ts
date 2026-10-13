@@ -144,7 +144,6 @@ export function createFlagpoleArt(faction: FactionId): BuildingArt {
   return {
     footprint: { w: 1, d: 1 },
     height: POLE_H + 30,
-    noShadow: true,
 
     drawStatic(p) {
       plaza.podium(p);
