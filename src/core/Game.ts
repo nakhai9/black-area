@@ -90,6 +90,7 @@ import {
   GAME_VERSION,
   TRUCK_MIN_RIDERS,
   MOUNTAIN_PASS,
+  MOUNTAIN_RANGES,
   MOUNTAIN_PASS_SPEED_INFANTRY,
   MOUNTAIN_PASS_SPEED_VEHICLE,
   TRUCK_SOLDIERS,
@@ -2115,6 +2116,7 @@ export class Game {
       waypointPlan: this.waypointPlan(),
       flagHints: this.flagHints(),
       enemyInfoId: !this.placing && hoverUnit instanceof Unit && hoverUnit.owner !== this.humanPlayer.id ? hoverUnit.id : null,
+      mountainTip: this.placing || hovering ? null : this.mountainTip(),
       focus: focus.map((f) => ({ entity: f.entity, strong: f.strong, engaged: f.engaged, airLock: f.airLock })),
       taskLocks: this.placing ? [] : this.taskLocks(),
       effects: this.effects.list,
@@ -3783,6 +3785,15 @@ export class Game {
     // Enemy building and nobody could capture it: armed units attack it instead.
     if (ordered === 0 && b.owner !== me.id && b.owner !== NEUTRAL_OWNER) return this.orderAttack(b);
     return ordered > 0;
+  }
+
+  /** The mountain range under the mouse, if any: its name at the mouse. */
+  private mountainTip(): { name: string; x: number; y: number } | null {
+    const m = this.mouseWorld;
+    const cell = m ? this.map.cellAt(m.x, m.y) : null;
+    if (!m || !cell) return null;
+    const range = MOUNTAIN_RANGES[(this.map.mountainRange[this.map.index(cell.x, cell.y)] ?? 0) - 1];
+    return range ? { name: range.name, x: m.x, y: m.y } : null;
   }
 
   /** Every selected armed unit that can hurt `target` is ordered to attack it. */

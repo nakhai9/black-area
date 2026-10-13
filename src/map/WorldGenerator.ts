@@ -90,7 +90,7 @@ export function buildWorld(earth: EarthData, biomes: BiomeFields, map: TileMap):
 function markMountains(map: TileMap, land: Uint8Array): void {
   const noise = new ValueNoise(4242);
   const R = MOUNTAIN_HALF_WIDTH_CELLS;
-  for (const range of MOUNTAIN_RANGES) {
+  MOUNTAIN_RANGES.forEach((range, r) => {
     const pts = range.points.map(([lon, lat]) => {
       const w = geoToWorld({ lon, lat });
       return { x: w.x / CELL_SIZE, y: w.y / CELL_SIZE };
@@ -135,8 +135,9 @@ function markMountains(map: TileMap, land: Uint8Array): void {
       if (d > edge) continue;
       const pass = passes.some((p) => Math.abs((x + 0.5 - p.x) * p.ux + (y + 0.5 - p.y) * p.uy) <= MOUNTAIN_PASS_CELLS / 2 && Math.hypot(x + 0.5 - p.x, y + 0.5 - p.y) <= R * 1.6);
       map.mountain[i] = pass ? MOUNTAIN_PASS : d <= MOUNTAIN_CREST_CELLS ? MOUNTAIN_CREST : MOUNTAIN_LEDGE;
+      map.mountainRange[i] = r + 1;
     }
-  }
+  });
 }
 
 /** Cells to the nearest sea cell for every land cell (4-neighbour BFS, capped). */

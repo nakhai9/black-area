@@ -28,6 +28,8 @@ export class TileMap {
   readonly trees: Uint8Array;
   /** Mountain code per cell: 0 none, MOUNTAIN_LEDGE / PASS / CREST (see WorldGenerator.markMountains). */
   readonly mountain: Uint8Array;
+  /** Mountain range per cell: index into MOUNTAIN_RANGES + 1 (0 = none). */
+  readonly mountainRange: Uint8Array;
 
   constructor(
     readonly width: number,
@@ -40,6 +42,7 @@ export class TileMap {
     this.territory = new Uint8Array(n);
     this.trees = new Uint8Array(n);
     this.mountain = new Uint8Array(n);
+    this.mountainRange = new Uint8Array(n);
   }
 
   inBounds(x: number, y: number): boolean {
@@ -85,7 +88,10 @@ export class TileMap {
 
   /** Turns the mountain cells of a w×d area into open ground. */
   clearMountain(x: number, y: number, w: number, d: number): void {
-    for (let ty = y; ty < y + d; ty++) for (let tx = x; tx < x + w; tx++) if (this.inBounds(tx, ty)) this.mountain[this.index(tx, ty)] = 0;
+    for (let ty = y; ty < y + d; ty++) for (let tx = x; tx < x + w; tx++) if (this.inBounds(tx, ty)) {
+      this.mountain[this.index(tx, ty)] = 0;
+      this.mountainRange[this.index(tx, ty)] = 0;
+    }
   }
 
   isMountain(x: number, y: number): boolean {

@@ -93,6 +93,8 @@ export interface RenderScene {
   readonly flagHints?: ReadonlySet<number>;
   /** An opponent's unit under the cursor: its info card is drawn above its head. */
   readonly enemyInfoId?: number | null;
+  /** Mountain range under the mouse (nothing else hovered): its name, drawn at the mouse (world px). */
+  readonly mountainTip?: { name: string; x: number; y: number } | null;
 }
 
 
@@ -322,6 +324,7 @@ export class Renderer {
     for (const u of units) if (u.restLeft > 0 && !hints?.has(u.id)) this.drawTag(u, `Resting ${Math.ceil(u.restLeft)}s`, '#9fd3ff');
     const info = units.find((u) => u.id === scene.enemyInfoId);
     if (info) this.drawEnemyInfo(info);
+    if (scene.mountainTip) this.drawMountainTip(scene.mountainTip);
     for (const u of units) {
       if (u.rank > 0) this.drawRank(u);
       if (u instanceof Vehicle && u.isCarrier && (u.cargo.length > 0 || u.incoming > 0)) this.drawCargoBadge(u);
@@ -752,6 +755,28 @@ export class Renderer {
       ctx.textAlign = 'center';
       ctx.fillText(text, x + w / 2, y + h / 2 - k);
     }
+    ctx.restore();
+  }
+
+  /** Name of the hovered mountain range, in a dark tag just above the mouse (upright transform). */
+  private drawMountainTip(tip: { name: string; x: number; y: number }): void {
+    const { ctx } = this;
+    const k = 1 / this.camera.zoom;
+    const P = worldToIso(tip.x, tip.y);
+    ctx.save();
+    ctx.font = `600 ${11 * k}px "Segoe UI", system-ui, sans-serif`;
+    const w = ctx.measureText(tip.name).width + 10 * k;
+    const h = 15 * k;
+    const x = P.x - w / 2;
+    const y = P.y - 14 * k - h;
+    ctx.fillStyle = 'rgba(8,12,16,0.85)';
+    ctx.fillRect(x, y, w, h);
+    ctx.fillStyle = '#b08a5e';
+    ctx.fillRect(x, y + h - 2 * k, w, 2 * k);
+    ctx.fillStyle = '#f2f5f8';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(tip.name, P.x, y + h / 2 - k);
     ctx.restore();
   }
 
