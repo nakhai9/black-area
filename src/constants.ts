@@ -26,7 +26,7 @@ export const DEMO_FACTION = Number(import.meta.env.VITE_DEMO_FACTION) || 2;
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "1.113.0";
+export const GAME_VERSION = "1.114.0";
 
 /** An Allied Building within this many cells of any capital is an embassy; farther out it is a "Pro-<nation> regime". */
 export const EMBASSY_CAPITAL_CELLS = 25;
@@ -305,7 +305,7 @@ export const MOUNTAIN_RANGES: readonly { name: string; points: readonly (readonl
   { name: 'Andes', points: [[-78.0, 2.0], [-79.0, -2.0], [-77.0, -8.0], [-72.5, -14.0], [-69.0, -17.0], [-68.5, -22.0], [-69.0, -27.0], [-70.0, -33.0], [-71.0, -38.0], [-71.7, -43.0], [-73.0, -48.0]] },
   { name: 'Rocky Mountains', points: [[-122.0, 55.0], [-118.0, 51.5], [-114.0, 48.0], [-110.5, 44.0], [-107.0, 40.0], [-106.5, 37.0], [-106.0, 33.0]] },
   { name: 'Alps', points: [[6.5, 44.2], [6.9, 45.8], [8.0, 46.4], [10.0, 46.5], [12.3, 47.0], [14.0, 47.3]] },
-  { name: 'Altai', points: [[82.0, 51.0], [84.5, 50.3], [86.6, 49.8], [88.5, 49.0], [90.5, 48.0], [93.0, 46.8], [96.0, 45.5], [99.5, 44.5], [102.5, 44.0]] },
+  { name: 'Altai', points: [[82.0, 49.8], [85.0, 49.5], [88.0, 49.6], [91.0, 49.2], [94.0, 49.3], [97.0, 48.9], [100.0, 48.8], [103.0, 48.5]] },
   { name: 'Ural', points: [[59.5, 68.0], [60.0, 65.0], [59.3, 62.0], [59.2, 59.0], [59.5, 56.0], [58.5, 53.5], [58.8, 51.5]] },
   // Pamir ("Roof of the World") and Karakoram: the icy wall between West / South Asia and China (Xinjiang).
   { name: 'Pamir', points: [[69.5, 39.3], [71.5, 39.5], [73.5, 39.4], [74.5, 38.7], [75.1, 37.8], [74.9, 36.9]] },
