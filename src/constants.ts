@@ -26,7 +26,7 @@ export const DEMO_FACTION = Number(import.meta.env.VITE_DEMO_FACTION) || 2;
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "1.108.0";
+export const GAME_VERSION = "1.109.0";
 
 /** An Allied Building within this many cells of any capital is an embassy; farther out it is a "Pro-<nation> regime". */
 export const EMBASSY_CAPITAL_CELLS = 25;
@@ -292,30 +292,25 @@ export const FORMATION_RANKS = 3;
 /** Special-forces soldiers swim; they move at this fraction of their speed in water. */
 export const SWIM_SPEED_FACTOR = 0.6;
 /**
- * A few landmark mountains, symbolic, at their real places: each covers the land within MOUNTAIN_RADIUS_CELLS of
- * its summit. Nothing can be built there; ground units cross slowly and walk round when they can (MOUNTAIN_PATH_COST).
- * `m` is the real height (drawn taller for higher peaks).
+ * A few real mountain ranges as natural barriers that slow an offensive down: each follows its true crest line
+ * (lon, lat points) and covers the land within about MOUNTAIN_HALF_WIDTH_CELLS of it (the edge wanders). Nothing can
+ * be built there; ground units cross very slowly, so an attack goes round by a gap or the coast when it can
+ * (MOUNTAIN_PATH_COST). `m` is the typical crest height (drawn taller for higher ranges). Gaps between ranges are the passes.
  */
-export const MOUNTAIN_PEAKS: readonly { name: string; lon: number; lat: number; m: number }[] = [
-  { name: 'Everest', lon: 86.925, lat: 27.988, m: 8849 },
-  { name: 'K2', lon: 76.513, lat: 35.881, m: 8611 },
-  { name: 'Aconcagua', lon: -70.011, lat: -32.653, m: 6961 },
-  { name: 'Chimborazo', lon: -78.817, lat: -1.469, m: 6263 },
-  { name: 'Denali', lon: -151.007, lat: 63.069, m: 6190 },
-  { name: 'Kilimanjaro', lon: 37.355, lat: -3.068, m: 5895 },
-  { name: 'Elbrus', lon: 42.439, lat: 43.355, m: 5642 },
-  { name: 'Damavand', lon: 52.109, lat: 35.955, m: 5610 },
-  { name: 'Ararat', lon: 44.298, lat: 39.702, m: 5137 },
-  { name: 'Mont Blanc', lon: 6.865, lat: 45.833, m: 4806 },
-  { name: 'Whitney', lon: -118.292, lat: 36.578, m: 4421 },
-  { name: 'Toubkal', lon: -7.915, lat: 31.06, m: 4167 },
-  { name: 'Fuji', lon: 138.727, lat: 35.361, m: 3776 },
-  { name: 'Fansipan', lon: 103.775, lat: 22.303, m: 3143 },
+export const MOUNTAIN_RANGES: readonly { name: string; m: number; points: readonly (readonly [number, number])[] }[] = [
+  { name: 'Himalaya', m: 7000, points: [[73.5, 35.2], [76.5, 34.0], [79.0, 32.0], [81.0, 30.3], [84.0, 28.6], [86.9, 28.0], [88.5, 27.8], [91.0, 27.9], [94.0, 28.5], [96.0, 28.3]] },
+  { name: 'Karakoram – Hindu Kush', m: 6500, points: [[69.0, 35.2], [71.5, 36.0], [74.5, 36.3], [76.5, 35.9], [77.8, 35.3]] },
+  { name: 'Andes', m: 5500, points: [[-78.0, 2.0], [-79.0, -2.0], [-77.0, -8.0], [-72.5, -14.0], [-69.0, -17.0], [-68.5, -22.0], [-69.0, -27.0], [-70.0, -33.0], [-71.0, -38.0], [-71.7, -43.0], [-73.0, -48.0]] },
+  { name: 'Rocky Mountains', m: 4000, points: [[-122.0, 55.0], [-118.0, 51.5], [-114.0, 48.0], [-110.5, 44.0], [-107.0, 40.0], [-106.5, 37.0], [-106.0, 33.0]] },
+  { name: 'Alps', m: 3800, points: [[6.5, 44.2], [6.9, 45.8], [8.0, 46.4], [10.0, 46.5], [12.3, 47.0], [14.0, 47.3]] },
+  { name: 'Caucasus', m: 4500, points: [[39.5, 43.6], [42.4, 43.3], [44.5, 42.7], [47.0, 41.8], [49.0, 41.0]] },
+  { name: 'Zagros', m: 3500, points: [[45.5, 36.5], [47.5, 34.0], [50.0, 31.5], [53.0, 29.0], [56.5, 27.5]] },
+  { name: 'Atlas', m: 3300, points: [[-9.5, 30.5], [-7.9, 31.1], [-5.5, 32.5], [-3.0, 33.5], [1.0, 35.0], [6.0, 35.5]] },
 ];
-export const MOUNTAIN_RADIUS_CELLS = 2.5;
-export const MOUNTAIN_SPEED_INFANTRY = 0.6;
-export const MOUNTAIN_SPEED_VEHICLE = 0.4;
-export const MOUNTAIN_PATH_COST = 3;
+export const MOUNTAIN_HALF_WIDTH_CELLS = 3.5;
+export const MOUNTAIN_SPEED_INFANTRY = 0.45;
+export const MOUNTAIN_SPEED_VEHICLE = 0.3;
+export const MOUNTAIN_PATH_COST = 4;
 /** Special forces never swim farther than this many cells from land. */
 export const SWIM_MAX_CELLS = 5;
 /** Leg-swing phase (radians) per world px walked: higher = shorter, quicker steps. */

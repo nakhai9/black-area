@@ -1,9 +1,10 @@
-import { CELL_SIZE, DEPTH_M_PER_UNIT, ELEVATION_M_PER_UNIT, MOUNTAIN_PEAKS, MOUNTAIN_RADIUS_CELLS, WORLD_SCALE } from '../constants';
+import { CELL_SIZE, DEPTH_M_PER_UNIT, ELEVATION_M_PER_UNIT, MOUNTAIN_HALF_WIDTH_CELLS, MOUNTAIN_RANGES, WORLD_SCALE } from '../constants';
 import { type BiomeFields, sampleField } from './Biomes';
 import type { EarthData } from './EarthData';
 import { fracToLon, geoToWorld } from './Geo';
 import { TERRITORIES, containsGeo } from './Territories';
 import type { TileMap } from './TileMap';
+import { ValueNoise } from '../core/Random';
 import type { TerrainType } from '../types';
 
 const SAND_COAST_RANGE = 1;
@@ -51,7 +52,7 @@ export function buildWorld(earth: EarthData, biomes: BiomeFields, map: TileMap):
     }
   }
 
-  // 2b. Landmark mountains.
+  // 2b. Mountain ranges.
   markMountains(map, land);
 
   // 3. Beaches on low land next to the sea.
@@ -82,18 +83,34 @@ export function buildWorld(earth: EarthData, biomes: BiomeFields, map: TileMap):
   }
 }
 
-/** Mountain cells: the land within MOUNTAIN_RADIUS_CELLS of each landmark summit (MOUNTAIN_PEAKS). */
+/**
+ * Mountain cells: the land along each range's crest line (MOUNTAIN_RANGES), up to MOUNTAIN_HALF_WIDTH_CELLS either
+ * side; the width wanders with a smooth noise so the foothills look natural, never ruler-straight.
+ */
 function markMountains(map: TileMap, land: Uint8Array): void {
-  const R = MOUNTAIN_RADIUS_CELLS;
-  for (const peak of MOUNTAIN_PEAKS) {
-    const at = geoToWorld(peak);
-    const px = at.x / CELL_SIZE;
-    const py = at.y / CELL_SIZE;
-    for (let y = Math.floor(py - R); y <= Math.ceil(py + R); y++) {
-      for (let x = Math.floor(px - R); x <= Math.ceil(px + R); x++) {
-        if (!map.inBounds(x, y) || Math.hypot(x + 0.5 - px, y + 0.5 - py) > R) continue;
-        const i = map.index(x, y);
-        if (land[i]) map.mountain[i] = 1;
+  const noise = new ValueNoise(4242);
+  const R = MOUNTAIN_HALF_WIDTH_CELLS;
+  for (const range of MOUNTAIN_RANGES) {
+    const pts = range.points.map(([lon, lat]) => {
+      const w = geoToWorld({ lon, lat });
+      return { x: w.x / CELL_SIZE, y: w.y / CELL_SIZE };
+    });
+    for (let k = 0; k + 1 < pts.length; k++) {
+      const a = pts[k]!;
+      const b = pts[k + 1]!;
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const len2 = dx * dx + dy * dy || 1;
+      const pad = R * 1.4;
+      for (let y = Math.floor(Math.min(a.y, b.y) - pad); y <= Math.ceil(Math.max(a.y, b.y) + pad); y++) {
+        for (let x = Math.floor(Math.min(a.x, b.x) - pad); x <= Math.ceil(Math.max(a.x, b.x) + pad); x++) {
+          if (!map.inBounds(x, y)) continue;
+          const i = map.index(x, y);
+          if (!land[i]) continue;
+          const t = Math.max(0, Math.min(1, ((x + 0.5 - a.x) * dx + (y + 0.5 - a.y) * dy) / len2));
+          const d = Math.hypot(x + 0.5 - (a.x + dx * t), y + 0.5 - (a.y + dy * t));
+          if (d <= R * (0.7 + 0.6 * noise.noise(x / 6, y / 6))) map.mountain[i] = 1;
+        }
       }
     }
   }
