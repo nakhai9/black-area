@@ -26,7 +26,17 @@ export interface CombatHooks {
 }
 
 /** Two entities are enemies when they belong to different nations (neutral ones are never targets). */
+/** Ceasefire (the peace part of the war cycle): no nation may attack or take over another's. */
+let truce = false;
+export function setTruce(on: boolean): void {
+  truce = on;
+}
+export function inTruce(): boolean {
+  return truce;
+}
+
 export function isHostile(a: Entity, b: Entity): boolean {
+  if (truce) return false;
   // An engineer on his way to lease a derrick is a customer, not a target, for the derrick's owner.
   if (b instanceof Unit && b.task?.type === 'lease' && b.task.lessor === a.owner) return false;
   return a.owner !== b.owner && a.owner !== NEUTRAL_OWNER && b.owner !== NEUTRAL_OWNER && !b.indestructible && b.alive;
@@ -284,7 +294,9 @@ export class CombatSystem implements GameSystem {
     // An air-defence vehicle holds its firing spot: it only shoots what comes into range and moves only when ordered (a move or an
     // explicit attack order), never chasing on its own.
     if (holdsSpot && s.attackTarget === null) return;
-    const mayChase = s.chasing || s.flies || s.attackTarget !== null || s.attackMove !== null;
+    // An aircraft on a plain move order flies there: it shoots what passes in range but is not pulled off course.
+    const plainFlight = s.flies && s.moving && !s.chasing && !(s instanceof Vehicle && (s.returningHome || s.guardId !== null));
+    const mayChase = s.chasing || (s.flies && !plainFlight) || s.attackTarget !== null || s.attackMove !== null;
     if (mayChase) this.chase(s, target, w);
   }
 

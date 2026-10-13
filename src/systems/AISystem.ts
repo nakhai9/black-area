@@ -1,4 +1,4 @@
-import { AI_BUNKERS, AI_WALL_ALERT_SECONDS, AI_WALL_ENEMY_UNITS, AI_WALL_GAP, AI_WALL_WATCH_CELLS, AI_WALL_RING, AI_WALL_SEGMENT, BUNKER_RANGE, CELL_SIZE, INFANTRY_BASE, INFANTRY_MARCH_CELLS, MAX_ALLIES, NATION_GARRISON, NATION_GARRISON_CELLS, NEUTRAL_OWNER, OIL_DERRICK_OUTPUT, OIL_LEASE_CARTEL_SHARE, OIL_LEASE_SECONDS, TECH_VEHICLES, TRUCK_SOLDIERS } from '../constants';
+import { AI_BUNKERS, AI_WALL_ALERT_SECONDS, AI_WALL_ENEMY_UNITS, AI_WALL_GAP, AI_WALL_WATCH_CELLS, AI_WALL_RING, AI_WALL_SEGMENT, BUNKER_RANGE, CELL_SIZE, INFANTRY_BASE, INFANTRY_MARCH_CELLS, EMBASSY_CAPITAL_CELLS, MAX_ALLIES, NATION_GARRISON, NATION_GARRISON_CELLS, NEUTRAL_OWNER, OIL_DERRICK_OUTPUT, OIL_LEASE_CARTEL_SHARE, OIL_LEASE_SECONDS, TECH_VEHICLES, TRUCK_SOLDIERS } from '../constants';
 import { FACTIONS } from '../factions';
 import { OilDerrick } from '../entities/OilDerrick';
 import { NationCapital } from '../entities/NationCapital';
@@ -9,7 +9,7 @@ import type { EntityManager } from '../entities/EntityManager';
 import { Infantry } from '../entities/Infantry';
 import { Vehicle } from '../entities/Vehicle';
 import type { Unit } from '../entities/Unit';
-import { canTarget } from './CombatSystem';
+import { canTarget, inTruce } from './CombatSystem';
 import type { OilMarket } from './OilMarket';
 import type { Pathfinder } from '../map/Pathfinder';
 import type { TileMap } from '../map/TileMap';
@@ -381,6 +381,13 @@ export class AISystem implements GameSystem {
     this.repairBase(p, owned);
     this.mendFleet(p);
     this.claimLand(p, st, capital, owned, threat);
+    // Ceasefire: the nation only builds up (economy, base, army) and launches no attack until the war resumes.
+    if (inTruce()) {
+      this.leaseOil(p, owned, threat);
+      this.healWounded(p);
+      this.driveConvoys(st);
+      return;
+    }
     this.contestNations(p, st, capital, owned, threat);
     if (st.overseas) this.loadTransports(p, st, capital);
     this.leaseOil(p, owned, threat);
@@ -462,7 +469,7 @@ export class AISystem implements GameSystem {
       }
       const forward = this.forwardAnchor(p, option.id);
       const site =
-        option.id === 'alliedBuilding' ? this.findAlliedSite(p, option) : option.id === 'wall' ? this.findWallSite(p, capital) : this.findSite(p, st, forward ?? capital, option);
+        option.id === 'alliedBuilding' ? this.findAlliedSite(p, option, capital) : option.id === 'wall' ? this.findWallSite(p, capital) : this.findSite(p, st, forward ?? capital, option);
       if (site) this.host.placeReady(p, option.id, site.x, site.y);
       else this.host.construction.cancel(p, option.id); // nowhere to put it: refund and try the next plan step
     }
@@ -487,7 +494,7 @@ export class AISystem implements GameSystem {
       if (bunkers < AI_BUNKERS + Math.floor(this.cities(p) / 3)) next = BUILD_OPTIONS.find((o) => o.id === 'bunker');
     }
     // A claim flag stands on new land without its ally yet: raise the Allied Building next to it.
-    if (!next && threat === 0 && this.openClaims(p).length > 0 && this.host.alliesOf(p) < MAX_ALLIES) next = BUILD_OPTIONS.find((o) => o.id === 'alliedBuilding');
+    if (!next && threat === 0 && this.embassyAnchors(p, capital).length > 0 && this.host.alliesOf(p) < MAX_ALLIES) next = BUILD_OPTIONS.find((o) => o.id === 'alliedBuilding');
     // Forward base: a Barracks and a War Factory next to each Allied Building, so troops come out on the new land.
     if (!next && threat === 0) {
       for (const id of FORWARD_TYPES) {
@@ -528,17 +535,33 @@ export class AISystem implements GameSystem {
     return this.claimFlags(p).filter((f) => !allied.some((a) => Math.hypot(a.x - f.x, a.y - f.y) < ALLIED_SEARCH + 4));
   }
 
-  /** Legal spot for the Allied Building beside one of the nation's open claim flags (closest to the flag). */
-  private findAlliedSite(p: PlayerState, option: BuildOption): GridPoint | null {
+  /**
+   * Where the nation may raise an embassy, same rule as the player: beside an open claim flag, or beside any own structure
+   * out beyond EMBASSY_CAPITAL_CELLS of its capital (a Pro-<nation> regime there) that has no embassy near it yet.
+   */
+  private embassyAnchors(p: PlayerState, capital: Building): Building[] {
+    const mine = this.host.entities.buildings().filter((b) => b.owner === p.id && b.alive);
+    const allied = mine.filter((b) => b.spec.type === 'alliedBuilding');
+    const far = mine.filter(
+      (b) =>
+        !['alliedBuilding', 'flagpole', 'wall', 'gate'].includes(b.spec.type) &&
+        Math.hypot(b.x - capital.x, b.y - capital.y) > EMBASSY_CAPITAL_CELLS &&
+        !allied.some((a) => Math.hypot(a.x - b.x, a.y - b.y) < ALLIED_SEARCH + 4),
+    );
+    return [...this.openClaims(p), ...far];
+  }
+
+  /** Legal spot for the Allied Building beside one of the nation's embassy anchors (closest to it). */
+  private findAlliedSite(p: PlayerState, option: BuildOption, capital: Building): GridPoint | null {
     const { w, d } = option.footprint;
-    for (const flag of this.openClaims(p)) {
+    for (const flag of this.embassyAnchors(p, capital)) {
       let best: GridPoint | null = null;
       let bestD = Infinity;
       for (let dy = -ALLIED_SEARCH; dy <= ALLIED_SEARCH; dy++) {
         for (let dx = -ALLIED_SEARCH; dx <= ALLIED_SEARCH; dx++) {
           const x = flag.x + dx;
           const y = flag.y + dy;
-          if (!this.host.placement.check({ owner: p.id, x, y, w, d, unclaimedOnly: true }).ok) continue;
+          if (!this.host.placement.check({ owner: p.id, x, y, w, d, radius: buildRadius(option.id) }).ok) continue;
           const dist = Math.hypot(x + w / 2 - flag.x, y + d / 2 - flag.y);
           if (dist < bestD) {
             bestD = dist;

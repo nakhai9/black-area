@@ -165,10 +165,9 @@ export const BUILD_OPTIONS: readonly BuildOption[] = [
     create: (owner, faction, x, y) => new Flagpole(owner, faction, center(x, y, FOOTPRINT_FLAGPOLE)),
   },
   {
-    // Seat of an ally: only on land claimed by a Squatters team (see Game.alliedBlocker), at most MAX_ALLIES per nation.
+    // Seat of an ally (embassy / Pro-<nation> regime): built like any structure, next to an own flag or building, no cap.
     id: 'alliedBuilding',
     name: 'Allied Building',
-    requires: 'flagpole',
     cost: ALLIED_BUILDING_COST,
     footprint: FOOTPRINT_SMALL,
     spriteKey: (f) => `alliedBuilding:${f}`,

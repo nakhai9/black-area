@@ -64,6 +64,8 @@ import {
   BUNKER_BUILD_RADIUS,
   WALL_FILL_GAP,
   NEUTRAL_OWNER,
+  PEACE_SECONDS,
+  WAR_SECONDS,
   OIL_DERRICK_COUNT,
   OIL_FIELD_SPACING,
   OIL_POLICIES,
@@ -83,6 +85,7 @@ import {
   ZOOM_STEP,
   isAircraftKind,
   POWER_PER_BARREL,
+  EMBASSY_CAPITAL_CELLS,
   MAX_ALLIES,
   GAME_VERSION,
 } from '../constants';
@@ -123,7 +126,7 @@ import { BUILDING_ART } from '../render/sprites';
 import { AIRFIELD_SLOTS, RUNWAY_D, AIRFIELD_SIZE } from '../render/sprites/Airfield';
 import { AircraftSystem, type AirfieldGeometry } from '../systems/AircraftSystem';
 import { AISystem } from '../systems/AISystem';
-import { canTarget, CombatSystem, distanceTo, isHostile } from '../systems/CombatSystem';
+import { canTarget, CombatSystem, distanceTo, inTruce, isHostile, setTruce } from '../systems/CombatSystem';
 import { MIN_SALE_STOCK, OilMarket } from '../systems/OilMarket';
 import { TaxSystem } from '../systems/TaxSystem';
 import { EndScreen } from '../ui/EndScreen';
@@ -295,6 +298,8 @@ export class Game {
   private paused = false;
   private minimapTimer = 0;
   private endCheck = 0;
+  /** Game seconds into the war / ceasefire cycle (saved with the game). */
+  private warClock = 0;
   private readonly lastShot = new Map<number, number>();
   private smokeTimer = 0;
   /** Types of the human player's buildings, refreshed with the sidebar. */
@@ -918,7 +923,7 @@ export class Game {
     if (!option || slot.state !== 'ready') return false;
     const w = rotated ? option.footprint.d : option.footprint.w;
     const d = rotated ? option.footprint.w : option.footprint.d;
-    if (!this.placement.check({ owner: player.id, x, y, w, d, unclaimedOnly: option.id === 'alliedBuilding', radius: buildRadius(option.id) }).ok) return false;
+    if (!this.placement.check({ owner: player.id, x, y, w, d, radius: buildRadius(option.id) }).ok) return false;
     if (!this.construction.takeReady(player, option.id)) return false;
     const b = this.entities.add(option.create(player.id, player.faction, x, y));
     if (rotated) {
@@ -1029,7 +1034,6 @@ export class Game {
     const capitals = mine.filter((b) => b instanceof NationCapital);
     // Rival nations' capitals the player has taken (its own capital is not listed).
     const taken = mine.filter((b) => b.spec.type === 'capital' && b.spec.spriteKey !== `capital:${this.humanPlayer.faction}`);
-    const embassy = `${FACTIONS[this.humanPlayer.faction].shortName} Embassy`;
     return [...allied, ...capitals, ...taken, ...claims].map((b) => {
       const at = b.centerWorld();
       const rival = b.spec.type === 'capital' ? (b.spec.spriteKey.replace(/^capital:/, '') as FactionId) : null;
@@ -1037,7 +1041,7 @@ export class Game {
         id: b.id,
         built: b.spec.type !== 'flagpole',
         capital: b instanceof NationCapital ? (b.alliance() ?? b.spec.name) : rival ? `${b.spec.name} (${FACTIONS[rival].name})` : undefined,
-        embassy: b.spec.type === 'alliedBuilding' ? `${embassy} in ${this.nearestCapitalCity(at)}` : undefined,
+        embassy: b.spec.type === 'alliedBuilding' ? this.embassyName(b) : undefined,
         nation: b instanceof NationCapital ? b.nation : undefined,
         holder: b instanceof NationCapital && b.faction !== 'neutral' ? b.faction : undefined,
         place: formatGeo(worldToGeo(at)),
@@ -1047,6 +1051,21 @@ export class Game {
         underAttack: this.time - b.lastAttackedAt < ALLY_ALERT_SECONDS,
       };
     });
+  }
+
+  /**
+   * What an Allied Building is called: "<nation> Embassy in <city>" within EMBASSY_CAPITAL_CELLS of a capital (a nation's or a
+   * contested nation's), otherwise — out on its own land — a "Pro-<nation> regime".
+   */
+  embassyName(b: Building): string {
+    const nation = FACTIONS[b.faction as FactionId].shortName;
+    const at = b.centerWorld();
+    const nearCapital = this.entities.buildings().some((c) => {
+      if (!c.alive || (c.spec.type !== 'capital' && !(c instanceof NationCapital))) return false;
+      const p = c.centerWorld();
+      return Math.hypot(p.x - at.x, p.y - at.y) <= EMBASSY_CAPITAL_CELLS * CELL_SIZE;
+    });
+    return nearCapital ? `${nation} Embassy in ${this.nearestCapitalCity(at)}` : `Pro-${nation} regime`;
   }
 
   /** City of the capital (a nation's or a contested nation's) nearest to `at`: where an embassy is said to stand. */
@@ -1091,7 +1110,7 @@ export class Game {
 
   /** An engineer walks to a contested capital / Antarctic derrick and takes it over (false if it cannot get there). */
   orderCapture(u: Infantry, b: Building): boolean {
-    if (!u.isEngineer || b.owner === u.owner || !this.walkToDoor(u, b)) return false;
+    if (!u.isEngineer || b.owner === u.owner || this.captureBanned(b) || !this.walkToDoor(u, b)) return false;
     u.task = { type: 'capture', buildingId: b.id };
     return true;
   }
@@ -1126,6 +1145,9 @@ export class Game {
       u.task = null;
       u.attackMove = null;
       u.retreating = false;
+      u.combatTarget = null; // a new order drops whatever it was locked on
+      u.engaged = false;
+      u.chasing = false;
       u.attackTarget = target.id;
     }
   }
@@ -1230,6 +1252,9 @@ export class Game {
       if (u instanceof Infantry) u.charge = null;
       if (u instanceof Vehicle) u.guardId = null;
       u.attackTarget = null;
+      u.combatTarget = null; // a new order drops whatever it was locked on
+      u.engaged = false;
+      u.chasing = false;
       u.retreating = false;
       const off = spiralOffset(k, u.aircraft ? 10 : spacing);
       // Transports never attack anything: an attack-move is just a flight to the spot.
@@ -1773,6 +1798,7 @@ export class Game {
         p.alt = u instanceof Vehicle ? u.altitude : 0;
       } else this.prevPos.set(u, { x: u.px, y: u.py, alt: u instanceof Vehicle ? u.altitude : 0 });
     }
+    this.updateWarCycle(dt);
     this.endCheck += dt;
     if (this.endCheck >= 1) {
       this.endCheck = 0;
@@ -1809,6 +1835,43 @@ export class Game {
       this.collectGarbage();
     }
     for (const s of this.systems) s.update(dt);
+  }
+
+  /** Seconds left in the current war or ceasefire phase, and which one it is. */
+  warPhase(): { peace: boolean; left: number } {
+    const t = this.warClock % (WAR_SECONDS + PEACE_SECONDS);
+    return t < WAR_SECONDS ? { peace: false, left: WAR_SECONDS - t } : { peace: true, left: WAR_SECONDS + PEACE_SECONDS - t };
+  }
+
+  /** During a ceasefire no nation takes over a building another nation owns (unowned ones are still fair game). */
+  private captureBanned(b: Building): boolean {
+    return inTruce() && b.owner !== NEUTRAL_OWNER;
+  }
+
+  /** 6 minutes of war, 4 of peace, over and over: at each switch every fight and takeover in progress is called off. */
+  private updateWarCycle(dt: number): void {
+    this.warClock += dt;
+    const { peace } = this.warPhase();
+    if (peace === inTruce()) return;
+    setTruce(peace);
+    if (peace) {
+      for (const u of this.entities.units()) {
+        u.attackTarget = null;
+        u.combatTarget = null;
+        u.engaged = false;
+        u.chasing = false;
+        if (u.attackMove !== null && !u.flies) u.stop(); // an advance on the enemy halts where it is
+        u.attackMove = null;
+        if (u instanceof Infantry) u.charge = null;
+        if (u.task?.type === 'capture') {
+          const b = this.entities.get(u.task.buildingId);
+          if (b instanceof Building && this.captureBanned(b)) u.task = null;
+        }
+      }
+      this.news.show('CEASEFIRE', `${PEACE_SECONDS / 60} minutes of peace: no attacks, no takeovers. Build up your nation.`);
+    } else {
+      this.news.show('WAR', `The ceasefire is over: ${WAR_SECONDS / 60} minutes of war.`);
+    }
   }
 
   /** Pushes overlapping soldiers apart (never into water, unless they swim, or buildings). */
@@ -2084,6 +2147,7 @@ export class Game {
           previousPrice: this.oilMarket.previous,
           priceHistory: this.oilMarket.history,
           priceChangeIn: Math.ceil(this.oilMarket.secondsToChange),
+          warPhase: this.warPhase(),
           sellable: this.oilMarket.sellable(this.humanPlayer),
           salesWait: this.oilMarket.waitSeconds(this.humanPlayer),
           autoSell: this.autoSellOil,
@@ -2604,15 +2668,13 @@ export class Game {
     const slot = this.construction.slot(player, option.id);
     if (slot.state === 'idle') {
       if (option.id === 'alliedBuilding' && this.alliesOf(player) >= MAX_ALLIES) {
-        this.sidebar.notify(`A nation leads at most ${MAX_ALLIES} allies.`);
+        this.sidebar.notify(`A nation has at most ${MAX_ALLIES} embassies.`);
         return;
       }
       const need = missingRequirement(option, this.ownedTypes());
       if (need) {
         this.sidebar.notify(
-          option.id === 'alliedBuilding'
-            ? 'Allied Building: first send a Squatters team to unclaimed land and plant your flag there (select it, press F).'
-            : `${option.name} requires a ${BUILD_OPTIONS.find((o) => o.id === need)?.name ?? need} first.`,
+`${option.name} requires a ${BUILD_OPTIONS.find((o) => o.id === need)?.name ?? need} first.`,
         );
         return;
       }
@@ -2663,7 +2725,7 @@ export class Game {
     const d = this.placingRotated ? fp.w : fp.d;
     const x = Math.floor(this.mouseWorld.x / CELL_SIZE - w / 2 + 0.5);
     const y = Math.floor(this.mouseWorld.y / CELL_SIZE - d / 2 + 0.5);
-    const result = this.placement.check({ owner: this.humanPlayer.id, x, y, w, d, unclaimedOnly: this.placing.id === 'alliedBuilding', radius: buildRadius(this.placing.id) });
+    const result = this.placement.check({ owner: this.humanPlayer.id, x, y, w, d, radius: buildRadius(this.placing.id) });
     this.ghost = {
       spriteKey: this.placing.spriteKey(this.humanPlayer.faction),
       faction: this.humanPlayer.faction,
@@ -3694,7 +3756,8 @@ export class Game {
         if (u.isEngineer && b.hp < b.maxHp && !b.indestructible) type = 'repair';
         else if (b.canEnter(u)) type = 'enter';
       } else if (u.isEngineer && b.capturable && (b.faction !== 'neutral' || b instanceof NationCapital || (b instanceof OilDerrick && b.antarctic))) {
-        type = 'capture';
+        if (this.captureBanned(b)) this.sidebar.notify("Ceasefire: no nation may take over another nation's buildings now.", 3);
+        else type = 'capture';
       }
       if (!type || !this.walkToDoor(u, b)) continue;
       u.task = type === 'lease' ? { type, buildingId: b.id, lessor: b.owner } : { type, buildingId: b.id };
@@ -3726,6 +3789,9 @@ export class Game {
     if (attackers.length === 0) return sappers.length > 0;
     for (const u of attackers) {
       if (u instanceof Vehicle) u.guardId = null;
+      u.combatTarget = null; // a new order drops whatever it was locked on
+      u.engaged = false;
+      u.chasing = false;
       u.attackTarget = target.id;
       u.attackMove = null;
       u.task = null;
@@ -3852,6 +3918,10 @@ export class Game {
       if (!task) continue;
       const b = this.entities.get(task.buildingId);
       if (!(b instanceof Building) || !b.alive) {
+        u.task = null;
+        continue;
+      }
+      if (task.type === 'capture' && this.captureBanned(b)) {
         u.task = null;
         continue;
       }
@@ -4266,6 +4336,8 @@ export class Game {
       if (u instanceof Vehicle) u.guardId = null;
       u.attackTarget = null;
       u.attackMove = null;
+      u.combatTarget = null; // a new move order drops whatever it was locked on
+      u.engaged = false;
       u.chasing = false;
       u.chaseFrom = null; // a new move order: any later chase is measured from where it gets to
       u.retreating = this.isRetreat(u, world);

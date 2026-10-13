@@ -102,6 +102,8 @@ export interface SidebarModel {
   priceHistory: readonly number[];
   /** Seconds until the Center posts a new price. */
   priceChangeIn: number;
+  /** War / ceasefire cycle: which phase it is and seconds left in it. */
+  warPhase: { peace: boolean; left: number };
   /** Barrels above the 1.0 reserve that may be offered, and seconds until the sale pause (after 6 sales in a row) ends. */
   sellable: number;
   salesWait: number;
@@ -221,6 +223,7 @@ export class Sidebar {
   private readonly powerPrice: HTMLElement;
   private readonly priceTrend: HTMLElement;
   private readonly priceClock: HTMLElement;
+  private readonly warClock: HTMLElement;
   private readonly priceLine: HTMLElement;
   private trendKey = 0;
   private readonly message: HTMLElement;
@@ -339,6 +342,7 @@ export class Sidebar {
           <div class="sb-price-row" title="Oil: what the Global Monitoring Center pays per barrel"><i data-icon="oil"></i><b class="sb-price"></b><i class="sb-price-trend"></i></div>
           <div class="sb-price-row" title="Power: what the Global Monitoring Center charges when your grid runs dry (oil at +${Math.round((OIL_GRID_MARKUP - 1) * 100)}%, per 1 kJ)"><i data-icon="power"></i><b class="sb-power-price"></b></div>
           <div class="sb-price-row" title="Next price revision"><i data-icon="clock"></i><b class="sb-price-clock"></b></div>
+          <div class="sb-price-row" title="War cycle: 6 minutes of war, then 4 minutes of ceasefire (no attacks, no takeovers)"><i data-icon="clock"></i><b class="sb-war-clock"></b></div>
           <svg class="sb-price-chart" viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Oil price, last 5 minutes"><polyline fill="none" stroke-width="1.5" vector-effect="non-scaling-stroke"></polyline></svg>
         </section>
       </div>
@@ -354,7 +358,7 @@ export class Sidebar {
         <section class="sb-panel sb-allies">
           <h3 class="sb-rank-title">ALLIES <small class="sb-allies-count"></small></h3>
           <ol class="sb-ally-list"></ol>
-          <p class="sb-muted sb-allies-hint">Captured capitals and embassies are listed here. Click one to look at it. Raise up to ${MAX_ALLIES} allies on land claimed by Squatters.</p>
+          <p class="sb-muted sb-allies-hint">Captured capitals and embassies are listed here. Click one to look at it. Build up to ${MAX_ALLIES} embassies next to your flags or buildings: far from every capital they become Pro-regimes.</p>
         </section>
       </div>
       <div class="sb-info" data-info="controls" hidden>
@@ -450,6 +454,7 @@ export class Sidebar {
     this.powerPrice = q('.sb-power-price');
     this.priceTrend = q('.sb-price-trend');
     this.priceClock = q('.sb-price-clock');
+    this.warClock = q('.sb-war-clock');
     this.priceLine = q<HTMLElement>('.sb-price-chart polyline');
     const icons: Readonly<Record<string, IconNode>> = { oil: Droplet, power: Zap, clock: Clock };
     for (const slot of root.querySelectorAll<HTMLElement>('.sb-price-row [data-icon], .sb-power [data-icon]')) {
@@ -709,6 +714,9 @@ export class Sidebar {
     this.price.textContent = compactMoney(model.oilPrice);
     this.powerPrice.textContent = compactMoney(((model.oilPrice * OIL_GRID_MARKUP) / POWER_PER_BARREL) * 1000);
     this.priceClock.textContent = `${model.priceChangeIn} s`;
+    const left = Math.ceil(model.warPhase.left);
+    this.warClock.textContent = `${model.warPhase.peace ? 'Peace' : 'War'} ${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
+    this.warClock.style.color = model.warPhase.peace ? '#7fd17f' : '#ff7a6b';
     const trend = Math.sign(model.oilPrice - model.previousPrice);
     if (trend !== this.trendKey || this.priceTrend.childElementCount === 0) {
       this.trendKey = trend;
@@ -888,6 +896,22 @@ export class Sidebar {
     }
   }
 
+  /** Last seen queue count and progress per soldier / vehicle cameo: a count that drops from (nearly) done means one came out. */
+  private readonly lastMade = new Map<string, { count: number; progress: number }>();
+
+  /** A soldier or vehicle just came out: its cameo (and its tab) flash green once, then stop. */
+  private flashIfDone(key: string, el: HTMLElement, tab: 'infantry' | 'vehicles', count: number, progress: number): void {
+    const before = this.lastMade.get(key);
+    this.lastMade.set(key, { count, progress });
+    if (!before || count >= before.count || before.progress < 0.9) return;
+    for (const target of [el, this.tabButtons.get(tab)]) {
+      if (!target) continue;
+      target.classList.remove('sb-done');
+      void target.offsetWidth; // restart the animation if it is still running
+      target.classList.add('sb-done');
+    }
+  }
+
   private updateUnitCameos(model: SidebarModel): void {
     const q = model.training;
     for (const option of this.trainOptions) {
@@ -897,6 +921,7 @@ export class Sidebar {
       // Every order trains at once: each cameo shows its own most advanced soldier.
       const training = count > 0;
       const progress = model.unitProgress(option.tier);
+      this.flashIfDone(`u:${option.tier}`, c.el, 'infantry', count, progress);
       setData(c.el, 'state', training ? q.state : 'idle');
       const atLimit = model.army.queued >= model.army.limit && count === 0;
       const noTech = TECH_TIERS.includes(option.tier) && !model.owned.has('techCenter');
@@ -930,6 +955,7 @@ export class Sidebar {
       // Every order is built at once: each cameo shows its own most advanced machine.
       const producing = count > 0;
       const progress = model.vehicleProgress(option.kind);
+      this.flashIfDone(`v:${option.kind}`, c.el, 'vehicles', count, progress);
       setData(c.el, 'state', producing ? q.state : 'idle');
       const atLimit = model.vehicleQueued >= BUILD_LIMIT_VEHICLES && count === 0;
       const noTech = TECH_VEHICLES.includes(option.kind) && !model.owned.has('techCenter');

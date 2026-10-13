@@ -26,7 +26,7 @@
 <body>
 <main>
 <img class="logo" src="/logo.png" alt="Black Area" />
-<h1>Black Area — RULE <small>v1.101.0</small></h1>
+<h1>Black Area — RULE <small>v1.105.0</small></h1>
 <p class="lead">Tài liệu luật chơi + kiến trúc code dành cho AI/dev sửa game. Mọi con số gameplay chính xác nằm trong <code>src/constants.ts</code> và <code>src/factions/*.ts</code>. Nếu tài liệu này khác code thì <b>code đúng</b>. <b>Khi đổi luật/số trong code, phải cập nhật file này.</b></p>
 <nav><a href="#s1">Quy tắc làm việc cho AI</a><a href="#s2">Chạy dự án</a><a href="#s3">Kiến trúc thư mục</a><a href="#s4">Thế giới</a><a href="#s5">Kinh tế (dầu)</a><a href="#s6">Công trình (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Quân đội</a><a href="#s8">Chiến đấu</a><a href="#s9">Điều khiển (Game.handleKey, handleInput)</a><a href="#s10">Giới hạn &amp; hiệu năng</a><a href="#s11">Thắng / thua &amp; AI</a><a href="#s12">Công thức sửa thường gặp</a></nav>
 <h2 id="s1">0. Quy tắc làm việc cho AI</h2>
@@ -86,6 +86,13 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
   <li>Máy bay vận tải AI (<code>AISystem.safeDrop</code>): khi chở quân / kỹ sư đi xa, chọn điểm hạ cánh trong <code>SAFE_DROP_CELLS 24</code> ô quanh mục tiêu ít bị lính / xe / bunker phe khác bắn tới nhất.</li>
   <li>Radar (minimap): công trình trung lập / chưa thuộc về ai vẽ hình <b>tam giác</b>; công trình của các phe vẽ chấm tròn.</li>
   <li>Rừng làm chậm đơn vị mặt đất ×0.78. Nước: chỉ lính special bơi được (<code>SWIM_SPEED_FACTOR 0.6</code>); xe không xuống nước.</li>
+</ul>
+<h3>Chu kỳ chiến tranh / hòa bình (<code>WAR_SECONDS</code>, <code>PEACE_SECONDS</code>, <code>Game.updateWarCycle</code>)</h3>
+<ul>
+<li>Lặp mãi: <b>6 phút chiến tranh</b> (đánh nhau, chiếm đóng lẫn nhau) rồi <b>4 phút hòa bình</b> (xây dựng phe mình). Ván bắt đầu bằng chiến tranh.</li>
+<li>Hòa bình: không phe nào tấn công được phe khác (<code>isHostile</code> = false), mọi lệnh tấn công / mục tiêu đang khóa / bom của Crazy Soldier bị hủy, quân đang tiến công dừng tại chỗ, không chiếm công trình của phe khác (công trình trung lập vẫn chiếm được).</li>
+<li>AI trong hòa bình chỉ phát triển kinh tế, căn cứ, quân đội; không mở đợt tấn công.</li>
+<li>Thanh bên hiện pha hiện tại và thời gian còn lại (War / Peace m:ss).</li>
 </ul>
 <h3>Phe</h3>
 <table>
@@ -190,7 +197,7 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 <tr><td><code>techCenter</code></td><td>High-Tech Center</td><td>8000</td><td>warFactory</td><td>4×4</td><td>2500</td><td>−6</td></tr>
 <tr><td><code>happyCity</code></td><td>Happy City</td><td>8000 (<code>fixedCost</code>, không nhân hệ số)</td><td>airfield + hospital</td><td>8×8</td><td>4000</td><td>−8</td></tr>
 <tr><td><code>flagpole</code></td><td>Flagpole</td><td>100</td><td>—</td><td>1×1</td><td>300</td><td>0</td></tr>
-<tr><td><code>alliedBuilding</code></td><td>Allied Building</td><td>6000</td><td>flagpole</td><td>4×4</td><td>2000</td><td>0</td></tr>
+<tr><td><code>alliedBuilding</code></td><td>Allied Building</td><td>6000</td><td>—</td><td>4×4</td><td>2000</td><td>0</td></tr>
 <tr><td><code>oilDerrick</code></td><td>Oil Derrick</td><td>— (đặt sẵn)</td><td>—</td><td>4×4</td><td>1000</td><td>0</td></tr>
 <tr><td><code>WorldBank</code></td><td>Global Monitoring Center</td><td>— (trung lập)</td><td>—</td><td>—</td><td>3000, indestructible, uncapturable</td><td>0</td></tr>
 </table>
@@ -201,8 +208,8 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
   <li>Airfield: <code>PARKING_SLOTS = 9</code> chỗ đỗ; số máy bay (có + đặt) ≤ 9 × số airfield. Máy bay đỗ sửa 2% HP mỗi 4 s. Mất airfield: máy bay tìm airfield khác của phe; không còn cái nào thì rơi.</li>
   <li>High-Tech Center mở <code>TECH_TIERS</code> (<code>special</code>, <code>demolition</code>) và <code>transport</code>.</li>
   <li>Happy City: không giới hạn số lượng.</li>
-  <li>Allied Building: chỉ trên đất do đội Squatters cắm cờ (đất chưa ai sở hữu); mỗi phe tối đa <code>MAX_ALLIES = 3</code> (đang có + đang xây). Trong tab Build, Allied Building được xem như <b>đại sứ quán</b> đại diện của phe ở vùng đất đó: tooltip chỉ ghi tên phe + "Embassy" (ví dụ "USA Embassy").</li>
-  <li>Tab Allies hiện: tất cả thủ đô phe mình đã chiếm (thủ đô quốc gia tranh chấp + thủ đô phe đối thủ, dạng "Tên thủ đô (Phe)") và các đại sứ quán (Allied Building, dạng "&lt;phe&gt; Embassy in &lt;thành phố thủ đô gần nhất&gt;", ví dụ "USA Embassy in Moscow"), cùng cờ cắm chờ xây.</li>
+  <li>Allied Building (đại sứ quán): xây thoải mái, mỗi phe tối đa <code>MAX_ALLIES = 6</code> (đang có + đang xây), không cần cờ; đặt như công trình thường, cạnh cờ đã cắm hoặc công trình của phe mình (<code>BUILD_RADIUS</code>), trên bề mặt xây được. Tên: trong <code>EMBASSY_CAPITAL_CELLS = 25</code> ô quanh bất kỳ thủ đô nào (phe hoặc quốc gia tranh chấp) → "&lt;phe&gt; Embassy in &lt;thành phố&gt;"; xa hơn mọi thủ đô → "<b>Pro-&lt;phe&gt; regime</b>" (ví dụ "Pro-USA regime"). AI theo cùng luật: xây đại sứ quán cạnh cờ chưa có đại sứ quán, hoặc cạnh công trình của mình cách thủ đô &gt; 25 ô.</li>
+  <li>Tab Allies hiện: tất cả thủ đô phe mình đã chiếm (thủ đô quốc gia tranh chấp + thủ đô phe đối thủ, dạng "Tên thủ đô (Phe)") và các đại sứ quán (Allied Building, dạng "&lt;phe&gt; Embassy in &lt;thành phố thủ đô gần nhất&gt;", ví dụ "USA Embassy in Moscow", hoặc "Pro-&lt;phe&gt; regime" khi xa mọi thủ đô &gt; 25 ô), cùng cờ cắm chờ xây.</li>
   <li>Engineer sửa từ trong nhà: mỗi kỹ sư <code>ENGINEER_REPAIR_SHARE 6%</code> máu tối đa/s, tới 100% thì ra.</li>
 </ul>
 <h3>Chức năng / nhiệm vụ từng công trình</h3>
