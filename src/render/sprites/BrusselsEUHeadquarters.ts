@@ -143,4 +143,3 @@ export function createBrusselsEUHeadquartersArt(flag: Allegiance = 'europe'): Bu
     },
   };
 }
-export const BrusselsEUHeadquartersArt: BuildingArt = createBrusselsEUHeadquartersArt();

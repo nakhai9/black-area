@@ -1,4 +1,4 @@
-import { AI_BUNKERS, AI_WALL_ALERT_SECONDS, AI_WALL_ENEMY_UNITS, AI_WALL_GAP, AI_WALL_WATCH_CELLS, AI_WALL_RING, AI_WALL_SEGMENT, BUNKER_RANGE, CELL_SIZE, INFANTRY_BASE, INFANTRY_MARCH_CELLS, EMBASSY_CAPITAL_CELLS, MAX_ALLIES, NATION_GARRISON, NATION_GARRISON_CELLS, NEUTRAL_OWNER, OIL_DERRICK_OUTPUT, OIL_LEASE_CARTEL_SHARE, OIL_LEASE_SECONDS, TECH_VEHICLES, TRUCK_SOLDIERS } from '../constants';
+import { AI_BUNKERS, AI_WALL_ALERT_SECONDS, AI_WALL_ENEMY_UNITS, AI_WALL_GAP, AI_WALL_WATCH_CELLS, AI_WALL_RING, AI_WALL_SEGMENT, BUNKER_RANGE, CELL_SIZE, INFANTRY_BASE, INFANTRY_MARCH_CELLS, EMBASSY_CAPITAL_CELLS, MAX_ALLIES, NATION_GARRISON, NATION_GARRISON_CELLS, NEUTRAL_OWNER, OIL_DERRICK_OUTPUT, OIL_LEASE_CARTEL_SHARE, OIL_LEASE_SECONDS, TECH_VEHICLES, TRUCK_MIN_RIDERS, TRUCK_SOLDIERS } from '../constants';
 import { FACTIONS } from '../factions';
 import { OilDerrick } from '../entities/OilDerrick';
 import { NationCapital } from '../entities/NationCapital';
@@ -1484,7 +1484,7 @@ export class AISystem implements GameSystem {
     const aboard = new Set<Unit>();
     for (const t of trucks) {
       const near = riders.filter((u) => !aboard.has(u) && Math.hypot(u.px - t.px, u.py - t.py) < TRUCK_PICKUP_CELLS * CELL_SIZE).slice(0, TRUCK_SEATS);
-      if (near.length === 0) continue;
+      if (near.length < TRUCK_MIN_RIDERS) continue; // a truck only drives with TRUCK_MIN_RIDERS aboard
       if (!this.host.orderBoard(t, near)) continue;
       for (const u of near) aboard.add(u);
       st.convoys.set(t.id, goal);
@@ -1508,8 +1508,13 @@ export class AISystem implements GameSystem {
         st.convoys.delete(id);
         continue;
       }
-      if (t.moving) continue;
+      if (t.moving && t.truckMayDrive) continue;
       const d = Math.hypot(goal.x - t.px, goal.y - t.py);
+      // Riders lost on the way (or never all aboard): too few to drive on, so they get out and walk.
+      if (!t.truckMayDrive) {
+        this.host.unloadTruck(t);
+        continue;
+      }
       if (d <= (UNLOAD_SHORT_CELLS + 2) * CELL_SIZE) {
         this.host.unloadTruck(t);
         continue;

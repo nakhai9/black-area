@@ -1,5 +1,3 @@
-import { createCanvas } from './Canvas';
-
 /** Fixed pixel hash → [0, 1): the same grain every time a sprite is rebuilt. */
 const hash = (x: number, y: number): number => {
   let h = (x * 374761393 + y * 668265263) | 0;
@@ -50,23 +48,3 @@ export function applyRa2Finish(ctx: CanvasRenderingContext2D, w: number, h: numb
   ctx.putImageData(img, 0, 0);
 }
 
-/**
- * RA2 cast shadow: the silhouette, sheared so that what stands higher falls further to the lower right, laid
- * under the sprite (only the part outside the art shows, on the ground beside it). `groundY` is the footprint
- * centre's y in logical px.
- */
-export function castShadow(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, groundY: number, raster: number, runX: number, runY: number): void {
-  const { canvas: sil, ctx: sctx } = createCanvas(canvas.width, canvas.height);
-  sctx.drawImage(canvas, 0, 0);
-  sctx.globalCompositeOperation = 'source-in';
-  sctx.fillStyle = 'rgba(0,0,0,0.42)';
-  sctx.fillRect(0, 0, sil.width, sil.height);
-  const gy = groundY * raster;
-  ctx.save();
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.globalCompositeOperation = 'destination-over';
-  // x' = x + (gy − y)·runX, y' = y + (gy − y)·runY  (a pixel at ground level stays put).
-  ctx.setTransform(1, 0, -runX, 1 - runY, runX * gy, runY * gy);
-  ctx.drawImage(sil, 0, 0);
-  ctx.restore();
-}

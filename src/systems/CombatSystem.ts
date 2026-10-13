@@ -4,6 +4,7 @@ import { Building } from '../entities/Building';
 import { Bunker } from '../entities/Bunker';
 import type { Entity } from '../entities/Entity';
 import type { EntityManager } from '../entities/EntityManager';
+import { Infantry } from '../entities/Infantry';
 import { Unit } from '../entities/Unit';
 import { Vehicle } from '../entities/Vehicle';
 import type { Pathfinder } from '../map/Pathfinder';
@@ -57,6 +58,8 @@ export function canTarget(shooter: Unit, target: Entity): boolean {
   // cruising, hovering, lifting off, climbing, descending. Never one standing on the ground.
   if (shooter instanceof Vehicle && shooter.type === 'mantis') return target instanceof Vehicle && target.aircraft && target.altitude > 0;
   if (target instanceof Unit && target.flies) return shooter.aircraft && w.hitsAir;
+  // Special forces never shoot ground vehicles: they plant a bomb on them instead (Game.processDemolition).
+  if (shooter instanceof Infantry && shooter.isSpecial && target instanceof Vehicle) return false;
   return true;
 }
 

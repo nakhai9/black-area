@@ -52,6 +52,10 @@ export class Infantry extends Unit {
     return this.tier === 'special';
   }
 
+  get isSpecial(): boolean {
+    return this.tier === 'special';
+  }
+
   get isSquatters(): boolean {
     return this.tier === 'squatters';
   }

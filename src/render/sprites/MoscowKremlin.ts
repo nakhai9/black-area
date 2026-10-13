@@ -238,4 +238,3 @@ export function createMoscowKremlinArt(flag: Allegiance = 'russia'): BuildingArt
     },
   };
 }
-export const MoscowKremlinArt: BuildingArt = createMoscowKremlinArt();

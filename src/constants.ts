@@ -26,7 +26,7 @@ export const DEMO_FACTION = Number(import.meta.env.VITE_DEMO_FACTION) || 2;
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "1.105.0";
+export const GAME_VERSION = "1.106.0";
 
 /** An Allied Building within this many cells of any capital is an embassy; farther out it is a "Pro-<nation> regime". */
 export const EMBASSY_CAPITAL_CELLS = 25;
@@ -291,6 +291,8 @@ export const FORMATION_COLS = 5;
 export const FORMATION_RANKS = 3;
 /** Special-forces soldiers swim; they move at this fraction of their speed in water. */
 export const SWIM_SPEED_FACTOR = 0.6;
+/** Special forces never swim farther than this many cells from land. */
+export const SWIM_MAX_CELLS = 5;
 /** Leg-swing phase (radians) per world px walked: higher = shorter, quicker steps. */
 export const STEP_PHASE_PER_PX = 2.4;
 /** Minimum distance between two soldiers' feet (world px): they never overlap. */
@@ -501,8 +503,6 @@ export const BOMB_GROUP_SIZE = 10;
 /** A full transport tank flies 1.25 × the map's height (north pole to south pole plus a quarter more) before it must
  * land to refuel: the pole-to-pole tank plus the quarter its former aerial tanker used to hand over. */
 export const TRANSPORT_FUEL_CELLS = GRID_HEIGHT * 1.25;
-/** Length of a transport aircraft (world px, as drawn). */
-export const TRANSPORT_LENGTH = 13;
 
 /** Aircraft are built at the Airfield and use its runway; everything else rolls out of the War Factory. */
 export const isAircraftKind = (kind: VehicleKind): boolean =>
@@ -529,6 +529,8 @@ export const INFANTRY_RECOVER_SECONDS = 10;
 
 /** Army truck load: soldiers only, never a vehicle. */
 export const TRUCK_SOLDIERS = 8;
+/** An army truck only drives with at least this many soldiers aboard (rolling out of the factory excepted). */
+export const TRUCK_MIN_RIDERS = 6;
 
 /**
  * Temporary: only these vehicles can be produced (sidebar and AI). The rest stay in the code but are

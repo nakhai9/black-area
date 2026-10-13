@@ -32,7 +32,7 @@ export type Flight = 'parked' | 'taxi' | 'takeoff' | 'airborne' | 'approach' | '
 export type CarrierState = 'idle' | 'loading' | 'carrying' | 'unloading';
 
 /** Cruise height of an aircraft above the ground (world px, drawn offset). */
-import { TURBO_MULT, AIR_BOOST_FAR_CELLS, AIR_BOOST_NEAR_CELLS, AIR_SPEED_SCALE, GROUND_SPEED_SCALE, BOMBER_BOMBS, BOMB_LOAD_SLOWDOWN, CRUISE_ALTITUDE, JET_BOMBS, TRUCK_SOLDIERS } from '../constants';
+import { TURBO_MULT, AIR_BOOST_FAR_CELLS, AIR_BOOST_NEAR_CELLS, AIR_SPEED_SCALE, GROUND_SPEED_SCALE, BOMBER_BOMBS, BOMB_LOAD_SLOWDOWN, CRUISE_ALTITUDE, JET_BOMBS, TRUCK_MIN_RIDERS, TRUCK_SOLDIERS } from '../constants';
 export { CRUISE_ALTITUDE };
 
 /** Handling per vehicle kind: seconds to full speed, turn rate (rad/s), whether it must face where it drives. */
@@ -137,6 +137,20 @@ export class Vehicle extends Unit {
   rearmClock = 0;
   /** Transport only: soldiers and vehicles aboard (hidden from the map while inside). */
   readonly cargo: Unit[] = [];
+  /** Truck: rolling out of the War Factory to its parking spot (allowed to drive empty). */
+  parking = false;
+  /** Army truck: may it drive now? Only with TRUCK_MIN_RIDERS soldiers aboard, or while leaving the factory. */
+  get truckMayDrive(): boolean {
+    if (!this.isTruck || this.cargo.length >= TRUCK_MIN_RIDERS) return true;
+    if (this.parking && this.moving) return true;
+    this.parking = false;
+    return false;
+  }
+
+  protected override speedFactor(): number {
+    return this.truckMayDrive ? super.speedFactor() : 0;
+  }
+
   /** Transport only: units on their way to climb aboard (recounted every tick). */
   incoming = 0;
   /** Transport only: standing on the ground and letting its passengers out one by one. */

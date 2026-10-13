@@ -26,7 +26,7 @@
 <body>
 <main>
 <img class="logo" src="/logo.png" alt="Black Area" />
-<h1>Black Area — RULE <small>v1.105.0</small></h1>
+<h1>Black Area — RULE <small>v1.106.0</small></h1>
 <p class="lead">Tài liệu luật chơi + kiến trúc code dành cho AI/dev sửa game. Mọi con số gameplay chính xác nằm trong <code>src/constants.ts</code> và <code>src/factions/*.ts</code>. Nếu tài liệu này khác code thì <b>code đúng</b>. <b>Khi đổi luật/số trong code, phải cập nhật file này.</b></p>
 <nav><a href="#s1">Quy tắc làm việc cho AI</a><a href="#s2">Chạy dự án</a><a href="#s3">Kiến trúc thư mục</a><a href="#s4">Thế giới</a><a href="#s5">Kinh tế (dầu)</a><a href="#s6">Công trình (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Quân đội</a><a href="#s8">Chiến đấu</a><a href="#s9">Điều khiển (Game.handleKey, handleInput)</a><a href="#s10">Giới hạn &amp; hiệu năng</a><a href="#s11">Thắng / thua &amp; AI</a><a href="#s12">Công thức sửa thường gặp</a></nav>
 <h2 id="s1">0. Quy tắc làm việc cho AI</h2>
@@ -352,10 +352,12 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 <ul>
   <li>Giá gốc <code>700</code> TB, <code>9</code> s, <code>240</code> máu, tốc độ <code>2.1</code> (nhanh hơn lính 1.3–1.7 và xe tăng 1.4); không vũ khí, chỉ đi trên đất (không qua biển), sản xuất ở War Factory. Sprite render từ mô hình 3D (tools/ground_model_sheet.py, 32 hướng, hàng 2 là xác cháy): <code>public/sprites/truck-kamaz.png</code> (KamAZ-5330), <code>truck-mtvr.png</code> (Oshkosh MTVR), <code>truck-zetros.png</code> (Mercedes-Benz Zetros).</li>
   <li>Chở <b>tối đa 8 lính</b> (<code>TRUCK_SOLDIERS</code>) cho đỡ mệt khi hành quân; <b>không chở bất kỳ phương tiện nào</b> (xe tăng, xe khác, máy bay/trực thăng).</li>
+  <li>Xe tải chỉ chạy khi chở ít nhất <code>TRUCK_MIN_RIDERS = 6</code>/<code>8</code> lính (ngoại lệ: lăn bánh từ War Factory ra chỗ đỗ). Ít hơn thì xe đứng yên, ra lệnh đi sẽ báo thiếu lính. AI chỉ cho lên xe khi gom đủ 6 lính; xe đang chạy mà còn dưới 6 lính thì thả hết xuống đi bộ.</li>
   <li>Lên xe: chọn lính rồi click vào xe tải (xe tải dừng chờ). Xuống xe: chọn xe tải, nhấn <b>U</b> hoặc double-click chuột trái vào chính xe đang chọn (áp dụng cho mọi xe/máy bay chở quân) — xe đứng yên, từng người xuống ô trống bên cạnh. Xe tải bị phá thì mọi thứ trên xe mất theo.</li>
 </ul>
 <h3>Hành quân bộ binh (mệt mỏi)</h3>
 <ul>
+  <li>Đặc nhiệm (<code>special</code>): bơi được nhưng không ra xa đất liền quá <code>SWIM_MAX_CELLS = 5</code> ô. Gặp lính địch thì bắn; gặp phương tiện địch trên mặt đất (không bắn) thì chạy tới đặt bom, bom nổ sau <code>4</code> s phá hủy luôn phương tiện đó (chỉ phương tiện đó). Hồi đặt bom tiếp <code>5</code> s. Áp dụng cho cả AI.</li>
   <li>Mọi lính trừ đặc nhiệm (<code>special</code>): đi bộ được <code>INFANTRY_MARCH_CELLS = 52 × GROUND_SPEED_SCALE ≈ 68</code> ô đơn vị thì dừng tại chỗ nghỉ <code>INFANTRY_REST_SECONDS = 35</code> s (hiện "Resting Ns" trên đầu), giữ nguyên lệnh rồi đi tiếp — kể cả khi đang đi đánh. Đứng yên <code>INFANTRY_RECOVER_SECONDS = 10</code> s cũng tính là đã nghỉ. Ngồi xe tải / máy bay vận tải không mệt.</li>
   <li>Máy bay mang bom (B-1A Lancer, Tu-160, tiêm kích) bay chậm hơn khi còn bom: đầy bom chậm <code>BOMB_LOAD_SLOWDOWN = 20%</code>, ném dần thì nhanh dần, hết bom bay đủ tốc độ.</li>
   <li>Nhiều Barracks / War Factory / Airfield: double-click vào công trình nào thì lính / xe / máy bay mới ra ở công trình đó.</li>

@@ -1,4 +1,4 @@
-import { CELL_SIZE } from '../constants';
+import { CELL_SIZE, SWIM_MAX_CELLS } from '../constants';
 import type { GridPoint, WorldPoint } from '../types';
 import type { TileMap } from './TileMap';
 
@@ -47,7 +47,47 @@ export class Pathfinder {
   }
 
   passable(x: number, y: number, swim = false): boolean {
-    return this.map.inBounds(x, y) && (swim || !this.map.isWater(x, y)) && this.map.occupantAt(x, y) === null;
+    if (!this.map.inBounds(x, y) || this.map.occupantAt(x, y) !== null) return false;
+    return !this.map.isWater(x, y) || (swim && (this.swimmable()[this.map.index(x, y)] ?? 0) === 1);
+  }
+
+  /** 1 for every cell a swimmer may be in: land, or water at most SWIM_MAX_CELLS from the shore (built once, lazily). */
+  private swimCells: Uint8Array | null = null;
+  swimmable(): Uint8Array {
+    if (this.swimCells) return this.swimCells;
+    const map = this.map;
+    const n = map.width * map.height;
+    const dist = new Int16Array(n).fill(-1);
+    const queue = new Int32Array(n);
+    let head = 0;
+    let tail = 0;
+    for (let i = 0; i < n; i++) {
+      if (!map.isWater(i % map.width, (i / map.width) | 0)) {
+        dist[i] = 0;
+        queue[tail++] = i;
+      }
+    }
+    // Breadth-first out from the shore (8 neighbours): a water cell's distance is its ring number.
+    while (head < tail) {
+      const i = queue[head++]!;
+      const d = dist[i]!;
+      if (d >= SWIM_MAX_CELLS) continue;
+      const x = i % map.width;
+      const y = (i / map.width) | 0;
+      for (let k = 0; k < DX.length; k++) {
+        const nx = x + DX[k]!;
+        const ny = y + DY[k]!;
+        if (!map.inBounds(nx, ny)) continue;
+        const j = map.index(nx, ny);
+        if (dist[j] !== -1) continue;
+        dist[j] = d + 1;
+        queue[tail++] = j;
+      }
+    }
+    const cells = new Uint8Array(n);
+    for (let i = 0; i < n; i++) cells[i] = dist[i]! >= 0 ? 1 : 0;
+    this.swimCells = cells;
+    return cells;
   }
 
   private components: Int32Array | null = null;
@@ -134,7 +174,8 @@ export class Pathfinder {
     const { g, stamp, closed } = this;
     const open = this.heap;
     open.clear();
-    const free = (i: number): boolean => (swim || types[i] !== 0) && occupied[i] === 0;
+    const swimCells = swim ? this.swimmable() : null;
+    const free = (i: number): boolean => (types[i] !== 0 || (swimCells !== null && swimCells[i] === 1)) && occupied[i] === 0;
     const gx = goal.x;
     const gy = goal.y;
     const h = (x: number, y: number): number => {

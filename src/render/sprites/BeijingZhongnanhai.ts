@@ -155,4 +155,3 @@ export function createBeijingZhongnanhaiArt(flag: Allegiance = 'china'): Buildin
     },
   };
 }
-export const BeijingZhongnanhaiArt: BuildingArt = createBeijingZhongnanhaiArt();

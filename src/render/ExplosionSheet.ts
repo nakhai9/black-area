@@ -33,10 +33,6 @@ export function loadExplosionSprites(): Promise<void> {
   return loaded;
 }
 
-export function hasExplosionSheet(): boolean {
-  return ready;
-}
-
 /** Draws the explosion `age` s in, its fireball `size` iso px wide, ground point at (x, y). False if not loaded. */
 export function drawExplosion(ctx: CanvasRenderingContext2D, x: number, y: number, age: number, size: number, variant: number): boolean {
   if (!ready) return false;

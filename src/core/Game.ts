@@ -88,6 +88,9 @@ import {
   EMBASSY_CAPITAL_CELLS,
   MAX_ALLIES,
   GAME_VERSION,
+  TRUCK_MIN_RIDERS,
+  TRUCK_SOLDIERS,
+  GUARD_VISION_FACTOR,
 } from '../constants';
 import { worldToIso } from './IsoView';
 import { Building } from '../entities/Building';
@@ -3509,6 +3512,7 @@ export class Game {
     if (!exit) return;
     const unit = this.entities.add(new Vehicle(player.id, player.faction as FactionId, kind, exit));
     unit.heading = Math.PI / 2;
+    unit.parking = true;
     const spot = this.parkingSpot(producer, unit);
     const cell = spot ? this.map.cellAt(spot.x, spot.y) : null;
     if (spot && cell) {
@@ -3551,6 +3555,7 @@ export class Game {
         last.y = spot.y;
       }
       m.follow(path);
+      m.parking = true;
     }
     return blockers.length === 0;
   }
@@ -3775,7 +3780,8 @@ export class Game {
   private orderAttack(target: Entity): boolean {
     // Crazy Soldiers run at a ground target to plant a charge on it.
     const sappers = this.selection.selectedUnitList().filter(
-      (u): u is Infantry => u instanceof Infantry && u.isDemolition && isHostile(u, target) && !(target instanceof Unit && target.flies),
+      (u): u is Infantry =>
+        u instanceof Infantry && isHostile(u, target) && !(target instanceof Unit && target.flies) && (u.isDemolition || (u.isSpecial && target instanceof Vehicle)),
     );
     for (const u of sappers) {
       u.charge = { targetId: target.id };
@@ -3804,7 +3810,7 @@ export class Game {
   }
 
   /** Charges ticking on their targets (Crazy Soldier), with the effect that draws each one. */
-  private readonly charges: { targetId: number; owner: number; planterId: number; x: number; y: number; fuse: number; fx: Extract<Effect, { kind: 'charge' }> }[] = [];
+  private readonly charges: { targetId: number; owner: number; planterId: number; x: number; y: number; fuse: number; vehicleOnly?: boolean; fx: Extract<Effect, { kind: 'charge' }> }[] = [];
 
   /** Sends a Crazy Soldier running at `target` (a structure's door, or the unit itself). */
   private runAt(u: Infantry, target: Entity): void {
@@ -3837,7 +3843,27 @@ export class Game {
    * target and blow after DEMO_FUSE_SECONDS (see the DEMO_* constants for the damage).
    */
   private processDemolition(dt: number): void {
+    const look = Math.floor(this.time * 2) !== Math.floor((this.time - dt) * 2);
     for (const u of this.entities.fieldUnits()) {
+      // Special forces meet an enemy ground vehicle: they go and plant a bomb on it (they shoot soldiers only).
+      if (look && u instanceof Infantry && u.isSpecial && !u.charge && u.visible && u.task === null && u.boardTarget === null && (!u.moving || u.attackMove !== null) && this.time >= u.chargeReadyAt) {
+        const reach = (u.weapon?.range ?? CELL_SIZE * 5) * GUARD_VISION_FACTOR;
+        let best: Vehicle | null = null;
+        let bestD = reach;
+        for (const v of this.entities.vehicles()) {
+          if (!v.alive || v.flies || !v.visible || !isHostile(u, v) || this.safeZones.isSafe(v.px, v.py)) continue;
+          if (this.charges.some((c) => c.targetId === v.id)) continue; // already ticking
+          const d = Math.hypot(v.px - u.px, v.py - u.py);
+          if (d < bestD) {
+            best = v;
+            bestD = d;
+          }
+        }
+        if (best) {
+          u.charge = { targetId: best.id };
+          this.runAt(u, best);
+        }
+      }
       if (!(u instanceof Infantry) || !u.charge) continue;
       const target = this.entities.get(u.charge.targetId);
       if (!target || !target.alive || !isHostile(u, target)) {
@@ -3851,7 +3877,7 @@ export class Game {
         const p = this.fx(at.x, at.y, target instanceof Unit ? this.aimHeight(target, 0.4) : 4);
         const fx: Extract<Effect, { kind: 'charge' }> = { kind: 'charge', x: p.x, y: p.y, age: 0, ttl: DEMO_FUSE_SECONDS };
         this.effects.add(fx);
-        this.charges.push({ targetId: target.id, owner: u.owner, planterId: u.id, x: at.x, y: at.y, fuse: DEMO_FUSE_SECONDS, fx });
+        this.charges.push({ targetId: target.id, owner: u.owner, planterId: u.id, x: at.x, y: at.y, fuse: DEMO_FUSE_SECONDS, vehicleOnly: u.isSpecial, fx });
         u.charge = null;
         u.chargeReadyAt = this.time + DEMO_RELOAD_SECONDS;
         u.stop();
@@ -3880,13 +3906,21 @@ export class Game {
   }
 
   /** A charge goes off: the structure under it is destroyed (small) or loses DEMO_LARGE_DAMAGE (large); nearby enemy combat units die. */
-  private detonate(c: { owner: number; planterId: number; x: number; y: number }, target: Entity | undefined): void {
+  private detonate(c: { owner: number; planterId: number; x: number; y: number; vehicleOnly?: boolean }, target: Entity | undefined): void {
     const hit = (o: Entity, amount: number): void => {
       if (!o.alive) return;
       o.damage(amount);
       o.lastAttackerId = c.planterId;
       o.lastAttackedAt = this.time;
     };
+    // Special forces' bomb: the vehicle it sits on is destroyed, nothing else.
+    if (c.vehicleOnly) {
+      if (target instanceof Vehicle && target.alive && !target.flies) hit(target, Infinity);
+      const p = this.fx(c.x, c.y, 0);
+      this.effects.add({ kind: 'demoBlast', x: p.x, y: p.y, age: 0, ttl: 0.8 });
+      this.sound.play('explosion', { x: c.x, y: c.y });
+      return;
+    }
     if (target instanceof Building && target.alive && !target.indestructible) {
       hit(target, target.w * target.d <= DEMO_SMALL_CELLS ? target.hp : target.maxHp * DEMO_LARGE_DAMAGE);
     }
@@ -4285,6 +4319,8 @@ export class Game {
   private orderMove(world: WorldPoint, units: Unit[] = this.selection.selectedUnitList(), evacuate = true): void {
     units = this.keepAircraftAtAirfield(units, world);
     if (!this.map.cellAt(world.x, world.y) || units.length === 0) return;
+    const parkedTruck = units.find((u) => u instanceof Vehicle && u.isTruck && u.owner === this.humanPlayer.id && u.cargo.length < TRUCK_MIN_RIDERS);
+    if (parkedTruck instanceof Vehicle) this.sidebar.notify(`The truck needs ${TRUCK_MIN_RIDERS}/${TRUCK_SOLDIERS} soldiers aboard to drive (${parkedTruck.cargo.length} now).`, 3);
     // A new move order ends a repair job (mending, or driving to a repair vehicle).
     for (const u of units) if (u instanceof Vehicle) {
       u.heliRevenge = null;

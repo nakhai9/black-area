@@ -117,4 +117,3 @@ export function createWashingtonWhiteHouseArt(flag: Allegiance = 'usa'): Buildin
     },
   };
 }
-export const WashingtonWhiteHouseArt: BuildingArt = createWashingtonWhiteHouseArt();
