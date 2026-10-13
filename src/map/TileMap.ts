@@ -1,4 +1,4 @@
-import { MOUNTAIN_CLIFF, MOUNTAIN_CREST, MOUNTAIN_LEDGE } from '../constants';
+import { MOUNTAIN_CREST, MOUNTAIN_LEDGE } from '../constants';
 import { CELL_SIZE } from '../constants';
 import type { GridPoint, TerrainType } from '../types';
 
@@ -26,7 +26,7 @@ export class TileMap {
   readonly territory: Uint8Array;
   /** Number of trees standing in each cell (0 = clear), filled by TreeLayer. */
   readonly trees: Uint8Array;
-  /** Mountain code per cell: 0 none, MOUNTAIN_LEDGE / CLIFF / PASS / CREST (see WorldGenerator.markMountains). */
+  /** Mountain code per cell: 0 none, MOUNTAIN_LEDGE / PASS / CREST (see WorldGenerator.markMountains). */
   readonly mountain: Uint8Array;
 
   constructor(
@@ -92,11 +92,9 @@ export class TileMap {
     return this.inBounds(x, y) && this.mountain[this.index(x, y)] !== 0;
   }
 
-  /** Cliff or crest: no ground unit can stand there. */
+  /** Mountain crest: no ground unit can stand there. */
   isRockWall(x: number, y: number): boolean {
-    if (!this.inBounds(x, y)) return false;
-    const m = this.mountain[this.index(x, y)];
-    return m === MOUNTAIN_CLIFF || m === MOUNTAIN_CREST;
+    return this.inBounds(x, y) && this.mountain[this.index(x, y)] === MOUNTAIN_CREST;
   }
 
   /** A mountain ledge: high ground. */

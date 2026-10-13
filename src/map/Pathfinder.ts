@@ -1,4 +1,4 @@
-import { CELL_SIZE, MOUNTAIN_CLIFF, MOUNTAIN_CREST, MOUNTAIN_PASS, MOUNTAIN_PATH_COST, SWIM_MAX_CELLS } from '../constants';
+import { CELL_SIZE, MOUNTAIN_CREST, MOUNTAIN_PASS, MOUNTAIN_PATH_COST, SWIM_MAX_CELLS } from '../constants';
 import type { GridPoint, WorldPoint } from '../types';
 import type { TileMap } from './TileMap';
 
@@ -181,7 +181,7 @@ export class Pathfinder {
     const open = this.heap;
     open.clear();
     const swimCells = swim ? this.swimmable() : null;
-    const free = (i: number): boolean => (types[i] !== 0 || (swimCells !== null && swimCells[i] === 1)) && occupied[i] === 0 && mountain[i] !== MOUNTAIN_CLIFF && mountain[i] !== MOUNTAIN_CREST;
+    const free = (i: number): boolean => (types[i] !== 0 || (swimCells !== null && swimCells[i] === 1)) && occupied[i] === 0 && mountain[i] !== MOUNTAIN_CREST;
     const gx = goal.x;
     const gy = goal.y;
     const h = (x: number, y: number): number => {

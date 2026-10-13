@@ -1,4 +1,4 @@
-import { CELL_SIZE, DEPTH_M_PER_UNIT, ELEVATION_M_PER_UNIT, MOUNTAIN_CLIFF, MOUNTAIN_CLIFF_CELLS, MOUNTAIN_CREST, MOUNTAIN_CREST_CELLS, MOUNTAIN_HALF_WIDTH_CELLS, MOUNTAIN_LEDGE, MOUNTAIN_PASS, MOUNTAIN_PASS_CELLS, MOUNTAIN_PASSES, MOUNTAIN_RANGES, WORLD_SCALE } from '../constants';
+import { CELL_SIZE, DEPTH_M_PER_UNIT, ELEVATION_M_PER_UNIT, MOUNTAIN_CREST, MOUNTAIN_CREST_CELLS, MOUNTAIN_HALF_WIDTH_CELLS, MOUNTAIN_LEDGE, MOUNTAIN_PASS, MOUNTAIN_PASS_CELLS, MOUNTAIN_PASSES, MOUNTAIN_RANGES, WORLD_SCALE } from '../constants';
 import { type BiomeFields, sampleField } from './Biomes';
 import type { EarthData } from './EarthData';
 import { fracToLon, geoToWorld } from './Geo';
@@ -84,8 +84,8 @@ export function buildWorld(earth: EarthData, biomes: BiomeFields, map: TileMap):
 }
 
 /**
- * Mountain ranges (MOUNTAIN_RANGES): for each land cell near a crest line, its distance to the line decides crest,
- * ledge or cliff (the outer edge wanders with a smooth noise); then MOUNTAIN_PASSES passes are cut straight across.
+ * Mountain ranges (MOUNTAIN_RANGES): for each land cell near a crest line, its distance to the line decides crest
+ * or ledge (the outer edge wanders with a smooth noise); then MOUNTAIN_PASSES passes are cut straight across.
  */
 function markMountains(map: TileMap, land: Uint8Array): void {
   const noise = new ValueNoise(4242);
@@ -134,7 +134,7 @@ function markMountains(map: TileMap, land: Uint8Array): void {
       const edge = R * (0.75 + 0.5 * noise.noise(x / 7, y / 7));
       if (d > edge) continue;
       const pass = passes.some((p) => Math.abs((x + 0.5 - p.x) * p.ux + (y + 0.5 - p.y) * p.uy) <= MOUNTAIN_PASS_CELLS / 2 && Math.hypot(x + 0.5 - p.x, y + 0.5 - p.y) <= R * 1.6);
-      map.mountain[i] = pass ? MOUNTAIN_PASS : d <= MOUNTAIN_CREST_CELLS ? MOUNTAIN_CREST : d > edge - MOUNTAIN_CLIFF_CELLS ? MOUNTAIN_CLIFF : MOUNTAIN_LEDGE;
+      map.mountain[i] = pass ? MOUNTAIN_PASS : d <= MOUNTAIN_CREST_CELLS ? MOUNTAIN_CREST : MOUNTAIN_LEDGE;
     }
   }
 }

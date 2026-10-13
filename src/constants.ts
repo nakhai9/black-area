@@ -26,7 +26,7 @@ export const DEMO_FACTION = Number(import.meta.env.VITE_DEMO_FACTION) || 2;
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "1.110.0";
+export const GAME_VERSION = "1.111.0";
 
 /** An Allied Building within this many cells of any capital is an embassy; farther out it is a "Pro-<nation> regime". */
 export const EMBASSY_CAPITAL_CELLS = 25;
@@ -292,13 +292,12 @@ export const FORMATION_RANKS = 3;
 /** Special-forces soldiers swim; they move at this fraction of their speed in water. */
 export const SWIM_SPEED_FACTOR = 0.6;
 /**
- * The world's great mountain ranges (the top 5 plus the Altai) (RA2-style relief), on their true crest lines (lon, lat points). Across a range:
+ * The world's great mountain ranges (the top 5 plus the Altai and the Ural) (RA2-style relief), on their true crest lines (lon, lat points). Across a range:
  *  - the crest (MOUNTAIN_CREST_CELLS either side of the line): peaks of real height, impassable;
  *  - ledges (high ground) on both sides: walkable and buildable, a defensive position: units there hit
  *    HIGH_GROUND_DAMAGE harder and reach HIGH_GROUND_RANGE farther, and take LOW_GROUND_DAMAGE from units below;
- *  - the outer rim (MOUNTAIN_CLIFF_CELLS deep): rock cliffs, impassable;
- *  - passes: MOUNTAIN_PASSES per range, evenly along it, a slope MOUNTAIN_PASS_CELLS wide cut through cliff and crest
- *    (the only way up and across; slow: MOUNTAIN_PASS_SPEED_*).
+ *  - passes: MOUNTAIN_PASSES per range, evenly along it, a slope MOUNTAIN_PASS_CELLS wide cut through the crest
+ *    (the only way across; slow: MOUNTAIN_PASS_SPEED_*).
  * The band is about MOUNTAIN_HALF_WIDTH_CELLS either side of the crest; its edge wanders naturally.
  */
 export const MOUNTAIN_RANGES: readonly { name: string; points: readonly (readonly [number, number])[] }[] = [
@@ -307,11 +306,11 @@ export const MOUNTAIN_RANGES: readonly { name: string; points: readonly (readonl
   { name: 'Rocky Mountains', points: [[-122.0, 55.0], [-118.0, 51.5], [-114.0, 48.0], [-110.5, 44.0], [-107.0, 40.0], [-106.5, 37.0], [-106.0, 33.0]] },
   { name: 'Alps', points: [[6.5, 44.2], [6.9, 45.8], [8.0, 46.4], [10.0, 46.5], [12.3, 47.0], [14.0, 47.3]] },
   { name: 'Altai', points: [[82.0, 51.0], [84.5, 50.3], [86.6, 49.8], [88.5, 49.0], [90.5, 48.0], [93.0, 46.8], [96.0, 45.5], [99.5, 44.5], [102.5, 44.0]] },
+  { name: 'Ural', points: [[59.5, 68.0], [60.0, 65.0], [59.3, 62.0], [59.2, 59.0], [59.5, 56.0], [58.5, 53.5], [58.8, 51.5]] },
   { name: 'Caucasus', points: [[39.5, 43.6], [42.4, 43.3], [44.5, 42.7], [47.0, 41.8], [49.0, 41.0]] },
 ];
 export const MOUNTAIN_HALF_WIDTH_CELLS = 6;
 export const MOUNTAIN_CREST_CELLS = 1.3;
-export const MOUNTAIN_CLIFF_CELLS = 1.6;
 export const MOUNTAIN_PASSES = 3;
 export const MOUNTAIN_PASS_CELLS = 3;
 export const MOUNTAIN_PASS_SPEED_INFANTRY = 0.6;
@@ -323,7 +322,6 @@ export const HIGH_GROUND_RANGE = 1.2;
 export const LOW_GROUND_DAMAGE = 0.75;
 /** TileMap.mountain codes. */
 export const MOUNTAIN_LEDGE = 1;
-export const MOUNTAIN_CLIFF = 2;
 export const MOUNTAIN_PASS = 3;
 export const MOUNTAIN_CREST = 4;
 /** Special forces never swim farther than this many cells from land. */

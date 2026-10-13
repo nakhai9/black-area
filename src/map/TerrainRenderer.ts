@@ -1,4 +1,4 @@
-import { CELL_SIZE, ELEVATION_M_PER_UNIT, MOUNTAIN_CLIFF, MOUNTAIN_CREST, MOUNTAIN_PASS, RELIEF_EXAGGERATION, WORLD_SCALE } from '../constants';
+import { CELL_SIZE, ELEVATION_M_PER_UNIT, MOUNTAIN_CREST, MOUNTAIN_PASS, RELIEF_EXAGGERATION, WORLD_SCALE } from '../constants';
 import { worldToIso } from '../core/IsoView';
 import { lerp, smoothstep } from '../core/MathUtils';
 import { ValueNoise, hash2 } from '../core/Random';
@@ -57,11 +57,6 @@ const PEAK_MIN_ZOOM = 0.8;
 const PEAK_BASE_PX = 6;
 const PEAK_M_PER_PX = 450;
 const PEAK_MIN_M = 2500;
-/** Cliff walls: CLIFF_BASE_PX tall plus up to CLIFF_VAR_PX (jagged rim). */
-const CLIFF_BASE_PX = 7;
-const CLIFF_VAR_PX = 5;
-/** Cliff crevices are drawn from this zoom on. */
-const CLIFF_DETAIL_ZOOM = 4.5;
 /** Snow from this height up (more of the peak is white the higher it is). */
 const PEAK_SNOW_M = 3200;
 
@@ -132,7 +127,7 @@ export class TerrainRenderer {
   /**
    * Mountain relief to draw, bucketed by PEAK_BUCKET world px: crest peaks (a jagged silhouette in iso px offsets from
    * its foot — `ridge` runs from the left foot over the summit to the right foot, `split` is the summit's index,
-   * `snowAt` the share of its height that is white), cliff cells (rock walls) and pass cells (slopes).
+   * `snowAt` the share of its height that is white) and pass cells (slopes).
    */
   private readonly peaks = new Map<number, Peak[]>();
   private readonly rocks = new Map<number, { cx: number; cy: number; kind: number }[]>();
@@ -143,7 +138,7 @@ export class TerrainRenderer {
     for (let cy = 0; cy < map.height; cy++) {
       for (let cx = 0; cx < map.width; cx++) {
         const code = map.mountain[map.index(cx, cy)];
-        if (code === MOUNTAIN_CLIFF || code === MOUNTAIN_PASS) {
+        if (code === MOUNTAIN_PASS) {
           const key = Math.floor((cy * CELL_SIZE) / PEAK_BUCKET) * 100000 + Math.floor((cx * CELL_SIZE) / PEAK_BUCKET);
           const list = this.rocks.get(key);
           const item = { cx, cy, kind: code };
@@ -188,14 +183,8 @@ export class TerrainRenderer {
     else this.peaks.set(key, [peak]);
   }
 
-  /** Height (iso px) of a cliff's top at a cell corner: shared by the cells around it, so the rim is seamless. */
-  private cliffTop(gx: number, gy: number): number {
-    return CLIFF_BASE_PX + hash2(gx, gy, this.seed + 55) * CLIFF_VAR_PX;
-  }
-
   /**
-   * Mountain ranges stand upright on the iso ground, back to front. Cliffs are RA2-style red-brown rock walls with a
-   * jagged rim and dark crevices; crest peaks are rough silhouettes, west face in shadow and east face lit (light from
+   * Mountain ranges stand upright on the iso ground, back to front. Crest peaks are rough silhouettes, west face in shadow and east face lit (light from
    * the north-east), rock shading into snow up high; passes are worn earth slopes. Call with the "iso space" transform active.
    */
   drawMountains(ctx: CanvasRenderingContext2D, view: Rect, zoom: number): void {
@@ -214,7 +203,6 @@ export class TerrainRenderer {
     items.sort((a, b) => a.d - b.d);
     for (const it of items) {
       if (it.peak) this.drawPeak(ctx, it.peak);
-      else if (it.kind === MOUNTAIN_CLIFF) this.drawCliff(ctx, it.cx, it.cy, zoom >= CLIFF_DETAIL_ZOOM);
     }
   }
 
@@ -229,52 +217,6 @@ export class TerrainRenderer {
     ctx.lineTo(b.x, b.y);
     ctx.lineTo(c.x, c.y);
     ctx.lineTo(d.x, d.y);
-    ctx.closePath();
-    ctx.fill();
-  }
-
-  /** One cliff cell: a rock column whose two front faces show only where the neighbour is not rock too. */
-  private drawCliff(ctx: CanvasRenderingContext2D, cx: number, cy: number, detail: boolean): void {
-    const { map } = this;
-    const S = CELL_SIZE;
-    const g = (gx: number, gy: number): { x: number; y: number } => worldToIso(gx * S, gy * S);
-    const corner = (gx: number, gy: number): { x: number; y: number; h: number } => ({ ...g(gx, gy), h: this.cliffTop(gx, gy) });
-    const nw = corner(cx, cy);
-    const ne = corner(cx + 1, cy);
-    const se = corner(cx + 1, cy + 1);
-    const sw = corner(cx, cy + 1);
-    const wall = (p: { x: number; y: number; h: number }, q: { x: number; y: number; h: number }, light: boolean, seed: number): void => {
-      ctx.fillStyle = light ? '#a5603a' : '#74402a';
-      ctx.beginPath();
-      ctx.moveTo(p.x, p.y);
-      ctx.lineTo(q.x, q.y);
-      ctx.lineTo(q.x, q.y - q.h);
-      ctx.lineTo(p.x, p.y - p.h);
-      ctx.closePath();
-      ctx.fill();
-      // Vertical crevices and a sunlit streak: the striated rock of RA2 cliffs (close up only).
-      for (let k = 0; detail && k < 3; k++) {
-        const t = 0.15 + 0.7 * hash2(cx * 3 + k, cy, seed);
-        const x = p.x + (q.x - p.x) * t;
-        const y = p.y + (q.y - p.y) * t;
-        const top = p.h + (q.h - p.h) * t;
-        ctx.strokeStyle = k === 2 ? (light ? 'rgba(214,150,96,0.55)' : 'rgba(150,92,60,0.5)') : 'rgba(40,20,12,0.55)';
-        ctx.lineWidth = k === 2 ? 0.5 : 0.7;
-        ctx.beginPath();
-        ctx.moveTo(x, y - top * (0.9 - 0.2 * hash2(cx, cy * 3 + k, seed)));
-        ctx.lineTo(x + (hash2(cx + k, cy + k, seed) - 0.5) * 1.2, y);
-        ctx.stroke();
-      }
-    };
-    if (!map.isRockWall(cx + 1, cy)) wall(ne, se, true, this.seed + 61);
-    if (!map.isRockWall(cx, cy + 1)) wall(sw, se, false, this.seed + 62);
-    // The rim on top: weathered rock.
-    ctx.fillStyle = hash2(cx, cy, this.seed + 63) < 0.5 ? '#8f6a48' : '#9c7550';
-    ctx.beginPath();
-    ctx.moveTo(nw.x, nw.y - nw.h);
-    ctx.lineTo(ne.x, ne.y - ne.h);
-    ctx.lineTo(se.x, se.y - se.h);
-    ctx.lineTo(sw.x, sw.y - sw.h);
     ctx.closePath();
     ctx.fill();
   }
