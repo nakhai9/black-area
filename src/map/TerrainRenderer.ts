@@ -50,6 +50,15 @@ const WATER_GLINT_CHANCE = (0.012 * (CELL_SIZE / 4) ** 2) / WORLD_SCALE ** 2;
 /** Earth texels per grid cell. */
 const TEXELS_PER_CELL = CELL_SIZE / WORLD_SCALE;
 
+/** Mountain peaks: one per PEAK_STEP × PEAK_STEP block of mountain cells, bucketed for queries, drawn from PEAK_MIN_ZOOM. */
+const PEAK_STEP = 3;
+const PEAK_BUCKET = 32;
+const PEAK_MIN_ZOOM = 0.8;
+/** Peak height on screen: PEAK_BASE_PX plus one px per PEAK_M_PER_PX metres of real elevation. */
+const PEAK_BASE_PX = 6;
+const PEAK_M_PER_PX = 220;
+/** Snow caps from this elevation (and on cells already classed as snow). */
+const PEAK_SNOW_M = 3800;
 /** Trees are drawn from this zoom on. */
 const DETAIL_MIN_ZOOM = 2;
 /** Water colours are smooth, so they are kept at 1/4 resolution. */
@@ -98,6 +107,114 @@ export class TerrainRenderer {
     this.paintRelief(ctx, earth, biomes);
     // Trees are drawn live as upright billboards (drawTrees), not into the ground textures.
     this.collectWaterSpots();
+    this.collectPeaks();
+  }
+
+  /** Mountain peaks (world px, metres), bucketed by PEAK_BUCKET × PEAK_BUCKET cells for quick view queries. */
+  private readonly peaks = new Map<number, { x: number; y: number; h: number; snow: boolean; k: number }[]>();
+
+  /**
+   * One peak per PEAK_STEP × PEAK_STEP block of mountain cells, on the block's highest cell (the real relief):
+   * a range shows as a ridge of peaks following the true crest lines.
+   */
+  private collectPeaks(): void {
+    const { map } = this;
+    for (let by = 0; by < map.height; by += PEAK_STEP) {
+      for (let bx = 0; bx < map.width; bx += PEAK_STEP) {
+        let best = -1;
+        let bestH = -Infinity;
+        for (let y = by; y < Math.min(map.height, by + PEAK_STEP); y++) {
+          for (let x = bx; x < Math.min(map.width, bx + PEAK_STEP); x++) {
+            const i = map.index(x, y);
+            if (map.mountain[i] !== 1) continue;
+            const h = map.heights[i] ?? 0;
+            if (h > bestH) {
+              bestH = h;
+              best = i;
+            }
+          }
+        }
+        if (best < 0) continue;
+        const cx = best % map.width;
+        const cy = (best / map.width) | 0;
+        const r = hash2(cx, cy, this.seed + 21);
+        const peak = {
+          x: (cx + 0.2 + r * 0.6) * CELL_SIZE,
+          y: (cy + 0.2 + hash2(cy, cx, this.seed + 22) * 0.6) * CELL_SIZE,
+          h: bestH,
+          snow: map.typeAt(cx, cy) === 'snow' || bestH >= PEAK_SNOW_M,
+          k: 0.8 + r * 0.4,
+        };
+        const key = Math.floor(cy / PEAK_BUCKET) * 100000 + Math.floor(cx / PEAK_BUCKET);
+        const list = this.peaks.get(key);
+        if (list) list.push(peak);
+        else this.peaks.set(key, [peak]);
+      }
+    }
+  }
+
+  /**
+   * Mountains stand upright on the iso ground: each peak is a lit / shaded pyramid whose height follows the real
+   * elevation, snow-capped high up. Back to front; call with the "iso space" transform active.
+   */
+  drawMountains(ctx: CanvasRenderingContext2D, view: Rect, zoom: number): void {
+    if (zoom < PEAK_MIN_ZOOM) return;
+    const span = PEAK_BUCKET * CELL_SIZE;
+    const m = CELL_SIZE * 4;
+    const visible: { x: number; y: number; h: number; snow: boolean; k: number }[] = [];
+    for (let by = Math.floor((view.y - m) / span); by <= Math.floor((view.y + view.h + m) / span); by++) {
+      for (let bx = Math.floor((view.x - m) / span); bx <= Math.floor((view.x + view.w + m) / span); bx++) {
+        for (const p of this.peaks.get(by * 100000 + bx) ?? []) {
+          if (p.x >= view.x - m && p.x <= view.x + view.w + m && p.y >= view.y - m && p.y <= view.y + view.h + m) visible.push(p);
+        }
+      }
+    }
+    visible.sort((a, b) => a.x + a.y - (b.x + b.y));
+    for (const p of visible) {
+      const iso = worldToIso(p.x, p.y);
+      const half = CELL_SIZE * PEAK_STEP * 0.75 * p.k;
+      const tall = (PEAK_BASE_PX + p.h / PEAK_M_PER_PX) * p.k;
+      const top = { x: iso.x + half * 0.1, y: iso.y - tall };
+      const left = { x: iso.x - half, y: iso.y + half * 0.15 };
+      const right = { x: iso.x + half, y: iso.y + half * 0.15 };
+      const front = { x: iso.x + half * 0.2, y: iso.y + half * 0.5 };
+      // Shaded west face, lit east face (light from the north-east).
+      ctx.fillStyle = '#5e4a36';
+      ctx.beginPath();
+      ctx.moveTo(left.x, left.y);
+      ctx.lineTo(top.x, top.y);
+      ctx.lineTo(front.x, front.y);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = '#9a7c5a';
+      ctx.beginPath();
+      ctx.moveTo(front.x, front.y);
+      ctx.lineTo(top.x, top.y);
+      ctx.lineTo(right.x, right.y);
+      ctx.closePath();
+      ctx.fill();
+      if (p.snow) {
+        const t = 0.38;
+        const at = (a: { x: number; y: number }): { x: number; y: number } => ({ x: top.x + (a.x - top.x) * t, y: top.y + (a.y - top.y) * t });
+        const l = at(left);
+        const f = at(front);
+        const r = at(right);
+        ctx.fillStyle = '#c9cdd2';
+        ctx.beginPath();
+        ctx.moveTo(l.x, l.y);
+        ctx.lineTo(top.x, top.y);
+        ctx.lineTo(f.x, f.y + 1);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = '#f2f4f6';
+        ctx.beginPath();
+        ctx.moveTo(f.x, f.y + 1);
+        ctx.lineTo(top.x, top.y);
+        ctx.lineTo(r.x, r.y);
+        ctx.closePath();
+        ctx.fill();
+      }
+    }
   }
 
   /**

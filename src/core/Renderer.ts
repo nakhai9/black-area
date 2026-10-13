@@ -244,6 +244,7 @@ export class Renderer {
     // DEMO: the whole grid of unit cells (ô đơn vị) over land and sea, to see exactly where everything stands.
     if (demoActive) this.drawCellGrid(view);
     this.upright();
+    this.terrain.drawMountains(ctx, view, camera.zoom);
     this.terrain.drawTrees(ctx, view, camera.zoom);
 
     this.ground();

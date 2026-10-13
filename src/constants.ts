@@ -26,7 +26,7 @@ export const DEMO_FACTION = Number(import.meta.env.VITE_DEMO_FACTION) || 2;
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "1.106.0";
+export const GAME_VERSION = "1.107.0";
 
 /** An Allied Building within this many cells of any capital is an embassy; farther out it is a "Pro-<nation> regime". */
 export const EMBASSY_CAPITAL_CELLS = 25;
@@ -291,6 +291,19 @@ export const FORMATION_COLS = 5;
 export const FORMATION_RANKS = 3;
 /** Special-forces soldiers swim; they move at this fraction of their speed in water. */
 export const SWIM_SPEED_FACTOR = 0.6;
+/**
+ * Mountains follow the real relief (NASA GEBCO elevation in earth.png): a land cell is mountain when it stands
+ * MOUNTAIN_HIGH_M or higher, or MOUNTAIN_MIN_M or higher with MOUNTAIN_RELIEF_M of height difference within
+ * MOUNTAIN_RELIEF_CELLS (rugged ranges, not flat plateaus). Nothing can be built on them; ground units cross them
+ * slowly, and route through passes and valleys when they can (MOUNTAIN_PATH_COST).
+ */
+export const MOUNTAIN_HIGH_M = 2600;
+export const MOUNTAIN_MIN_M = 1100;
+export const MOUNTAIN_RELIEF_M = 800;
+export const MOUNTAIN_RELIEF_CELLS = 3;
+export const MOUNTAIN_SPEED_INFANTRY = 0.6;
+export const MOUNTAIN_SPEED_VEHICLE = 0.4;
+export const MOUNTAIN_PATH_COST = 3;
 /** Special forces never swim farther than this many cells from land. */
 export const SWIM_MAX_CELLS = 5;
 /** Leg-swing phase (radians) per world px walked: higher = shorter, quicker steps. */

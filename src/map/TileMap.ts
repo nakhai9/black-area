@@ -1,7 +1,7 @@
 import { CELL_SIZE } from '../constants';
 import type { GridPoint, TerrainType } from '../types';
 
-export type PlacementBlocker = 'outOfBounds' | 'occupied' | 'water' | 'ice' | 'trees' | 'needsWater';
+export type PlacementBlocker = 'outOfBounds' | 'occupied' | 'water' | 'ice' | 'trees' | 'mountain' | 'needsWater';
 
 const TERRAIN_TYPES: readonly TerrainType[] = ['water', 'sand', 'grass', 'forest', 'desert', 'rock', 'snow'];
 const TERRAIN_INDEX = Object.fromEntries(TERRAIN_TYPES.map((t, i) => [t, i])) as Record<TerrainType, number>;
@@ -25,6 +25,8 @@ export class TileMap {
   readonly territory: Uint8Array;
   /** Number of trees standing in each cell (0 = clear), filled by TreeLayer. */
   readonly trees: Uint8Array;
+  /** 1 = mountain cell (real high, rugged relief, see WorldGenerator.markMountains), 0 = not. */
+  readonly mountain: Uint8Array;
 
   constructor(
     readonly width: number,
@@ -36,6 +38,7 @@ export class TileMap {
     this.occupied = new Int32Array(n);
     this.territory = new Uint8Array(n);
     this.trees = new Uint8Array(n);
+    this.mountain = new Uint8Array(n);
   }
 
   inBounds(x: number, y: number): boolean {
@@ -79,6 +82,15 @@ export class TileMap {
     return this.inBounds(x, y) ? { x, y } : null;
   }
 
+  /** Turns the mountain cells of a w×d area into open ground. */
+  clearMountain(x: number, y: number, w: number, d: number): void {
+    for (let ty = y; ty < y + d; ty++) for (let tx = x; tx < x + w; tx++) if (this.inBounds(tx, ty)) this.mountain[this.index(tx, ty)] = 0;
+  }
+
+  isMountain(x: number, y: number): boolean {
+    return this.inBounds(x, y) && this.mountain[this.index(x, y)] === 1;
+  }
+
   hasTrees(x: number, y: number): boolean {
     return this.inBounds(x, y) && this.trees[this.index(x, y)] > 0;
   }
@@ -109,6 +121,7 @@ export class TileMap {
         }
         if (t === 'water') return 'water';
         if (t === 'snow') return 'ice';
+        if (this.mountain[this.index(tx, ty)] === 1) return 'mountain';
         if (!ignoreTrees && this.hasTrees(tx, ty)) return 'trees';
       }
     }

@@ -89,6 +89,8 @@ import {
   MAX_ALLIES,
   GAME_VERSION,
   TRUCK_MIN_RIDERS,
+  MOUNTAIN_SPEED_INFANTRY,
+  MOUNTAIN_SPEED_VEHICLE,
   TRUCK_SOLDIERS,
   GUARD_VISION_FACTOR,
 } from '../constants';
@@ -195,6 +197,7 @@ const BLOCK_REASONS: Readonly<Record<string, string>> = {
   water: 'Cannot build on water',
   ice: 'Cannot build on ice',
   trees: 'Trees in the way',
+  mountain: 'Cannot build on mountains',
   needsWater: 'Must be built on water',
   tooFar: `Too far from your base (max ${BUILD_RADIUS} cells)`,
   claimed: 'Allied Buildings stand only on unclaimed land claimed with a Squatters team',
@@ -210,6 +213,8 @@ const CROSSING_MAX_WAIT = 6;
 const AIRFIELD_CLICK_MARGIN = 2;
 /** New vehicles park around a rally point this many cells out in front of the War Factory's door. */
 const PARKING_RALLY_CELLS = 3;
+/** Preset structures (capitals, cities…) clear the mountain this many cells around their footprint. */
+const PRESET_VALLEY_CELLS = 3;
 /** Seconds between two riders getting off a truck. */
 const TRUCK_EJECT_STEP = 0.35;
 /** F / double-click: the flag goes up on the nearest open cell within this many cells of the Squatters. */
@@ -955,7 +960,7 @@ export class Game {
    */
   private flagGround(x: number, y: number, team: Unit): boolean {
     const t = this.map.typeAt(x, y);
-    if (!t || t === 'water' || t === 'snow' || t === 'rock' || this.map.hasTrees(x, y) || this.map.occupantAt(x, y) !== null) return false;
+    if (!t || t === 'water' || t === 'snow' || t === 'rock' || this.map.isMountain(x, y) || this.map.hasTrees(x, y) || this.map.occupantAt(x, y) !== null) return false;
     const x0 = x * CELL_SIZE;
     const y0 = y * CELL_SIZE;
     return !this.entities
@@ -1811,7 +1816,8 @@ export class Game {
       const cx = Math.floor(u.px / CELL_SIZE);
       const cy = Math.floor(u.py / CELL_SIZE);
       u.inWater = !u.flies && this.map.isWater(cx, cy);
-      u.terrainFactor = u.flies ? 1 : this.map.hasTrees(cx, cy) ? 0.78 : 1; // woods slow everybody down
+      // Woods slow everybody down; mountains slow soldiers and vehicles (machines more).
+      u.terrainFactor = u.flies ? 1 : this.map.isMountain(cx, cy) ? (u instanceof Vehicle ? MOUNTAIN_SPEED_VEHICLE : MOUNTAIN_SPEED_INFANTRY) : this.map.hasTrees(cx, cy) ? 0.78 : 1;
     }
     this.paths.update();
     this.queueInCrowds();
@@ -2621,6 +2627,8 @@ export class Game {
   private placeOnGrid(buildings: readonly Building[], trees: TreeLayer): void {
     for (const b of buildings) {
       const opts = { naval: b.naval };
+      // Real cities sit in mountain valleys (La Paz, Kabul, Bogotá…): the ground they stand on is opened up.
+      this.map.clearMountain(b.x - PRESET_VALLEY_CELLS, b.y - PRESET_VALLEY_CELLS, b.w + PRESET_VALLEY_CELLS * 2, b.d + PRESET_VALLEY_CELLS * 2);
       const site =
         this.inlandSite(b) ??
         this.map.findBuildableSite(b.x, b.y, b.w, b.d, { ...opts, maxRadius: PRESET_SNAP_RADIUS }) ??

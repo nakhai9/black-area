@@ -1,4 +1,4 @@
-import { CELL_SIZE, SWIM_MAX_CELLS } from '../constants';
+import { CELL_SIZE, MOUNTAIN_PATH_COST, SWIM_MAX_CELLS } from '../constants';
 import type { GridPoint, WorldPoint } from '../types';
 import type { TileMap } from './TileMap';
 
@@ -171,6 +171,7 @@ export class Pathfinder {
     const types = map.types;
     const occupied = map.occupied;
     const trees = map.trees;
+    const mountain = map.mountain;
     const { g, stamp, closed } = this;
     const open = this.heap;
     open.clear();
@@ -221,7 +222,7 @@ export class Pathfinder {
         // No corner cutting: both side cells of a diagonal step must be open too (they are in bounds here).
         if (dx !== 0 && dy !== 0 && (!free(cy * W + nx) || !free(ny * W + cx))) continue;
         if (closed[ni] === run) continue;
-        const cost = gc + (STEP[k] ?? 1) * ((trees[ni] ?? 0) > 0 ? TREE_COST : 1);
+        const cost = gc + (STEP[k] ?? 1) * (mountain[ni] === 1 ? MOUNTAIN_PATH_COST : (trees[ni] ?? 0) > 0 ? TREE_COST : 1);
         if (stamp[ni] === run && cost >= (g[ni] ?? Infinity)) continue;
         this.visit(ni, cost, cur);
         open.push(ni, cost + h(nx, ny));
