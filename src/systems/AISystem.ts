@@ -1,4 +1,4 @@
-import { AI_BUNKERS, AI_WALL_GAP, AI_WALL_RING, AI_WALL_SEGMENT, BUNKER_RANGE, CELL_SIZE, INFANTRY_BASE, INFANTRY_MARCH_CELLS, MAX_ALLIES, NATION_GARRISON, NATION_GARRISON_CELLS, NEUTRAL_OWNER, OIL_DERRICK_OUTPUT, OIL_LEASE_CARTEL_SHARE, OIL_LEASE_SECONDS, TECH_VEHICLES, TRUCK_SOLDIERS } from '../constants';
+import { AI_BUNKERS, AI_WALL_ALERT_SECONDS, AI_WALL_ENEMY_UNITS, AI_WALL_GAP, AI_WALL_WATCH_CELLS, AI_WALL_RING, AI_WALL_SEGMENT, BUNKER_RANGE, CELL_SIZE, INFANTRY_BASE, INFANTRY_MARCH_CELLS, MAX_ALLIES, NATION_GARRISON, NATION_GARRISON_CELLS, NEUTRAL_OWNER, OIL_DERRICK_OUTPUT, OIL_LEASE_CARTEL_SHARE, OIL_LEASE_SECONDS, TECH_VEHICLES, TRUCK_SOLDIERS } from '../constants';
 import { FACTIONS } from '../factions';
 import { OilDerrick } from '../entities/OilDerrick';
 import { NationCapital } from '../entities/NationCapital';
@@ -332,6 +332,27 @@ export class AISystem implements GameSystem {
     }
   }
 
+  /**
+   * Does the nation need its wall ring now? Enemies at the capital (threat), a structure of its own hit within
+   * AI_WALL_ALERT_SECONDS, or a hostile ground force (AI_WALL_ENEMY_UNITS soldiers / vehicles) within AI_WALL_WATCH_CELLS
+   * cells — that last one only when its enemies can reach it by land (walls stop no one landing from the air or sea).
+   */
+  private needsWalls(p: PlayerState, st: AIState, capital: Building, threat: number): boolean {
+    if (threat > 0) return true;
+    for (const b of this.host.entities.buildings()) {
+      if (b.owner === p.id && b.alive && this.time - b.lastAttackedAt < AI_WALL_ALERT_SECONDS) return true;
+    }
+    if (st.overseas) return false;
+    const cx = (capital.x + capital.w / 2) * CELL_SIZE;
+    const cy = (capital.y + capital.d / 2) * CELL_SIZE;
+    let near = 0;
+    for (const e of this.host.entities.fieldMovers()) {
+      if (e.owner === p.id || e.owner === NEUTRAL_OWNER || !e.alive || e.flies) continue;
+      if (Math.hypot(e.px - cx, e.py - cy) < AI_WALL_WATCH_CELLS * CELL_SIZE && ++near >= AI_WALL_ENEMY_UNITS) return true;
+    }
+    return false;
+  }
+
   /** Number of enemy units within reach of the capital. */
   private threat(p: PlayerState, capital: Building): number {
     const cx = (capital.x + capital.w / 2) * CELL_SIZE;
@@ -456,15 +477,15 @@ export class AISystem implements GameSystem {
     let next = BUILD_PLAN.map((id) => BUILD_OPTIONS.find((o) => o.id === id)).find(
       (o) => o && !busy(o.id) && !owned.has(o.id as BuildingType) && missingRequirement(o, owned) === null,
     );
+    // Walls and gates round the capital, first of the defences, but only while the nation needs them (see needsWalls).
+    const walls = owned.has('barracks') && this.needsWalls(p, st, capital, threat);
+    if (!next && walls && !busy('wall') && this.findWallSite(p, capital)) next = BUILD_OPTIONS.find((o) => o.id === 'wall');
+    if (!next && walls && !busy('gate') && this.findGateSite(p, capital)) next = BUILD_OPTIONS.find((o) => o.id === 'gate');
     // Base core done: a couple of machine-gun bunkers round the base.
     if (!next && owned.has('barracks')) {
       const bunkers = this.host.entities.buildings().filter((b) => b.owner === p.id && b.alive && b.spec.type === 'bunker').length;
       if (bunkers < AI_BUNKERS + Math.floor(this.cities(p) / 3)) next = BUILD_OPTIONS.find((o) => o.id === 'bunker');
     }
-    // Bunkers up: close the wall ring round the capital, one block at a time.
-    if (!next && owned.has('barracks') && !busy('wall') && this.findWallSite(p, capital)) next = BUILD_OPTIONS.find((o) => o.id === 'wall');
-    // Ring closed: a Nation Gate in each straight gap of it.
-    if (!next && owned.has('barracks') && !busy('gate') && this.findGateSite(p, capital)) next = BUILD_OPTIONS.find((o) => o.id === 'gate');
     // A claim flag stands on new land without its ally yet: raise the Allied Building next to it.
     if (!next && threat === 0 && this.openClaims(p).length > 0 && this.host.alliesOf(p) < MAX_ALLIES) next = BUILD_OPTIONS.find((o) => o.id === 'alliedBuilding');
     // Forward base: a Barracks and a War Factory next to each Allied Building, so troops come out on the new land.

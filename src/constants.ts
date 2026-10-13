@@ -26,7 +26,7 @@ export const DEMO_FACTION = Number(import.meta.env.VITE_DEMO_FACTION) || 2;
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "1.100.0";
+export const GAME_VERSION = "1.101.0";
 
 // ---------------------------------------------------------------- World (real Earth)
 /** Packed Earth texture built by `npm run build:earth` (see scripts/build-earth.mjs). */
@@ -201,6 +201,15 @@ export const AI_WALL_RING = 6;
 export const AI_WALL_SEGMENT = 8;
 /** Wider than WALL_FILL_GAP, so the gates are never filled in. */
 export const AI_WALL_GAP = 6;
+/**
+ * AI: walls and gates go up only when the nation needs them — enemy units near the capital, one of its structures hit
+ * in the last AI_WALL_ALERT_SECONDS, or AI_WALL_ENEMY_UNITS enemy ground units (soldiers, vehicles) within
+ * AI_WALL_WATCH_CELLS cells of the capital. A nation whose enemies can only come across the sea skips the last test.
+ * While needed they come before the bunkers.
+ */
+export const AI_WALL_ALERT_SECONDS = 120;
+export const AI_WALL_WATCH_CELLS = 60;
+export const AI_WALL_ENEMY_UNITS = 4;
 /**
  * Nation Gate (4 × 1, Defense tab, R turns it 1 × 4): two end pillars in the nation's architecture with a 2-cell way
  * through the middle. Placed like a wall (up to GATE_BUILD_RADIUS cells from an own structure). The AI sets one in
