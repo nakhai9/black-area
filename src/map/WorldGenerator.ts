@@ -1,7 +1,7 @@
-import { CELL_SIZE, DEPTH_M_PER_UNIT, ELEVATION_M_PER_UNIT, MOUNTAIN_HIGH_M, MOUNTAIN_MIN_M, MOUNTAIN_RELIEF_CELLS, MOUNTAIN_RELIEF_M, WORLD_SCALE } from '../constants';
+import { CELL_SIZE, DEPTH_M_PER_UNIT, ELEVATION_M_PER_UNIT, MOUNTAIN_PEAKS, MOUNTAIN_RADIUS_CELLS, WORLD_SCALE } from '../constants';
 import { type BiomeFields, sampleField } from './Biomes';
 import type { EarthData } from './EarthData';
-import { fracToLon } from './Geo';
+import { fracToLon, geoToWorld } from './Geo';
 import { TERRITORIES, containsGeo } from './Territories';
 import type { TileMap } from './TileMap';
 import type { TerrainType } from '../types';
@@ -51,8 +51,8 @@ export function buildWorld(earth: EarthData, biomes: BiomeFields, map: TileMap):
     }
   }
 
-  // 2b. Mountains from the real relief.
-  markMountains(map, land, elev);
+  // 2b. Landmark mountains.
+  markMountains(map, land);
 
   // 3. Beaches on low land next to the sea.
   for (let y = 0; y < H; y++) {
@@ -82,49 +82,19 @@ export function buildWorld(earth: EarthData, biomes: BiomeFields, map: TileMap):
   }
 }
 
-/**
- * Mountain cells: high ground (MOUNTAIN_HIGH_M+), or raised ground (MOUNTAIN_MIN_M+) that is rugged — at least
- * MOUNTAIN_RELIEF_M between the highest and lowest land within MOUNTAIN_RELIEF_CELLS (separable min / max filter).
- */
-function markMountains(map: TileMap, land: Uint8Array, elev: Float32Array): void {
-  const { width: W, height: H } = map;
-  const R = MOUNTAIN_RELIEF_CELLS;
-  const n = W * H;
-  const rowMax = new Float32Array(n);
-  const rowMin = new Float32Array(n);
-  for (let y = 0; y < H; y++) {
-    for (let x = 0; x < W; x++) {
-      let hi = -Infinity;
-      let lo = Infinity;
-      for (let k = Math.max(0, x - R); k <= Math.min(W - 1, x + R); k++) {
-        const j = y * W + k;
-        if (!land[j]) continue;
-        const e = elev[j]!;
-        if (e > hi) hi = e;
-        if (e < lo) lo = e;
+/** Mountain cells: the land within MOUNTAIN_RADIUS_CELLS of each landmark summit (MOUNTAIN_PEAKS). */
+function markMountains(map: TileMap, land: Uint8Array): void {
+  const R = MOUNTAIN_RADIUS_CELLS;
+  for (const peak of MOUNTAIN_PEAKS) {
+    const at = geoToWorld(peak);
+    const px = at.x / CELL_SIZE;
+    const py = at.y / CELL_SIZE;
+    for (let y = Math.floor(py - R); y <= Math.ceil(py + R); y++) {
+      for (let x = Math.floor(px - R); x <= Math.ceil(px + R); x++) {
+        if (!map.inBounds(x, y) || Math.hypot(x + 0.5 - px, y + 0.5 - py) > R) continue;
+        const i = map.index(x, y);
+        if (land[i]) map.mountain[i] = 1;
       }
-      rowMax[y * W + x] = hi;
-      rowMin[y * W + x] = lo;
-    }
-  }
-  for (let y = 0; y < H; y++) {
-    for (let x = 0; x < W; x++) {
-      const i = y * W + x;
-      if (!land[i]) continue;
-      const e = elev[i]!;
-      if (e >= MOUNTAIN_HIGH_M) {
-        map.mountain[i] = 1;
-        continue;
-      }
-      if (e < MOUNTAIN_MIN_M) continue;
-      let hi = -Infinity;
-      let lo = Infinity;
-      for (let k = Math.max(0, y - R); k <= Math.min(H - 1, y + R); k++) {
-        const j = k * W + x;
-        if (rowMax[j]! > hi) hi = rowMax[j]!;
-        if (rowMin[j]! < lo) lo = rowMin[j]!;
-      }
-      if (hi - lo >= MOUNTAIN_RELIEF_M) map.mountain[i] = 1;
     }
   }
 }

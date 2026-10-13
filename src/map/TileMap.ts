@@ -25,7 +25,7 @@ export class TileMap {
   readonly territory: Uint8Array;
   /** Number of trees standing in each cell (0 = clear), filled by TreeLayer. */
   readonly trees: Uint8Array;
-  /** 1 = mountain cell (real high, rugged relief, see WorldGenerator.markMountains), 0 = not. */
+  /** 1 = mountain cell (a landmark peak, see WorldGenerator.markMountains), 0 = not. */
   readonly mountain: Uint8Array;
 
   constructor(

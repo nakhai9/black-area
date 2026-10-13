@@ -26,7 +26,7 @@ export const DEMO_FACTION = Number(import.meta.env.VITE_DEMO_FACTION) || 2;
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "1.107.0";
+export const GAME_VERSION = "1.108.0";
 
 /** An Allied Building within this many cells of any capital is an embassy; farther out it is a "Pro-<nation> regime". */
 export const EMBASSY_CAPITAL_CELLS = 25;
@@ -292,15 +292,27 @@ export const FORMATION_RANKS = 3;
 /** Special-forces soldiers swim; they move at this fraction of their speed in water. */
 export const SWIM_SPEED_FACTOR = 0.6;
 /**
- * Mountains follow the real relief (NASA GEBCO elevation in earth.png): a land cell is mountain when it stands
- * MOUNTAIN_HIGH_M or higher, or MOUNTAIN_MIN_M or higher with MOUNTAIN_RELIEF_M of height difference within
- * MOUNTAIN_RELIEF_CELLS (rugged ranges, not flat plateaus). Nothing can be built on them; ground units cross them
- * slowly, and route through passes and valleys when they can (MOUNTAIN_PATH_COST).
+ * A few landmark mountains, symbolic, at their real places: each covers the land within MOUNTAIN_RADIUS_CELLS of
+ * its summit. Nothing can be built there; ground units cross slowly and walk round when they can (MOUNTAIN_PATH_COST).
+ * `m` is the real height (drawn taller for higher peaks).
  */
-export const MOUNTAIN_HIGH_M = 2600;
-export const MOUNTAIN_MIN_M = 1100;
-export const MOUNTAIN_RELIEF_M = 800;
-export const MOUNTAIN_RELIEF_CELLS = 3;
+export const MOUNTAIN_PEAKS: readonly { name: string; lon: number; lat: number; m: number }[] = [
+  { name: 'Everest', lon: 86.925, lat: 27.988, m: 8849 },
+  { name: 'K2', lon: 76.513, lat: 35.881, m: 8611 },
+  { name: 'Aconcagua', lon: -70.011, lat: -32.653, m: 6961 },
+  { name: 'Chimborazo', lon: -78.817, lat: -1.469, m: 6263 },
+  { name: 'Denali', lon: -151.007, lat: 63.069, m: 6190 },
+  { name: 'Kilimanjaro', lon: 37.355, lat: -3.068, m: 5895 },
+  { name: 'Elbrus', lon: 42.439, lat: 43.355, m: 5642 },
+  { name: 'Damavand', lon: 52.109, lat: 35.955, m: 5610 },
+  { name: 'Ararat', lon: 44.298, lat: 39.702, m: 5137 },
+  { name: 'Mont Blanc', lon: 6.865, lat: 45.833, m: 4806 },
+  { name: 'Whitney', lon: -118.292, lat: 36.578, m: 4421 },
+  { name: 'Toubkal', lon: -7.915, lat: 31.06, m: 4167 },
+  { name: 'Fuji', lon: 138.727, lat: 35.361, m: 3776 },
+  { name: 'Fansipan', lon: 103.775, lat: 22.303, m: 3143 },
+];
+export const MOUNTAIN_RADIUS_CELLS = 2.5;
 export const MOUNTAIN_SPEED_INFANTRY = 0.6;
 export const MOUNTAIN_SPEED_VEHICLE = 0.4;
 export const MOUNTAIN_PATH_COST = 3;

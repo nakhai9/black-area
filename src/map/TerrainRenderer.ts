@@ -1,4 +1,4 @@
-import { CELL_SIZE, ELEVATION_M_PER_UNIT, RELIEF_EXAGGERATION, WORLD_SCALE } from '../constants';
+import { CELL_SIZE, ELEVATION_M_PER_UNIT, MOUNTAIN_PEAKS, MOUNTAIN_RADIUS_CELLS, RELIEF_EXAGGERATION, WORLD_SCALE } from '../constants';
 import { worldToIso } from '../core/IsoView';
 import { lerp, smoothstep } from '../core/MathUtils';
 import { ValueNoise, hash2 } from '../core/Random';
@@ -7,6 +7,7 @@ import { type RGB, hexToRgb, mixRgb } from '../render/Color';
 import type { Rect } from '../types';
 import { type BiomeFields, sampleField } from './Biomes';
 import type { EarthData } from './EarthData';
+import { geoToWorld } from './Geo';
 import type { TileMap } from './TileMap';
 import { TileTerrain } from './TileTerrain';
 import type { TreeLayer } from './Trees';
@@ -50,15 +51,12 @@ const WATER_GLINT_CHANCE = (0.012 * (CELL_SIZE / 4) ** 2) / WORLD_SCALE ** 2;
 /** Earth texels per grid cell. */
 const TEXELS_PER_CELL = CELL_SIZE / WORLD_SCALE;
 
-/** Mountain peaks: one per PEAK_STEP × PEAK_STEP block of mountain cells, bucketed for queries, drawn from PEAK_MIN_ZOOM. */
-const PEAK_STEP = 3;
-const PEAK_BUCKET = 32;
+/** Landmark mountains are drawn from this zoom on; height on screen = PEAK_BASE_PX + 1 px per PEAK_M_PER_PX metres. */
 const PEAK_MIN_ZOOM = 0.8;
-/** Peak height on screen: PEAK_BASE_PX plus one px per PEAK_M_PER_PX metres of real elevation. */
-const PEAK_BASE_PX = 6;
-const PEAK_M_PER_PX = 220;
+const PEAK_BASE_PX = 8;
+const PEAK_M_PER_PX = 300;
 /** Snow caps from this elevation (and on cells already classed as snow). */
-const PEAK_SNOW_M = 3800;
+const PEAK_SNOW_M = 3700;
 /** Trees are drawn from this zoom on. */
 const DETAIL_MIN_ZOOM = 2;
 /** Water colours are smooth, so they are kept at 1/4 resolution. */
@@ -110,46 +108,22 @@ export class TerrainRenderer {
     this.collectPeaks();
   }
 
-  /** Mountain peaks (world px, metres), bucketed by PEAK_BUCKET × PEAK_BUCKET cells for quick view queries. */
-  private readonly peaks = new Map<number, { x: number; y: number; h: number; snow: boolean; k: number }[]>();
+  /** Landmark mountains as pyramids to draw (world px, height px, half-width px). */
+  private readonly peaks: { x: number; y: number; tall: number; half: number; snow: boolean }[] = [];
 
-  /**
-   * One peak per PEAK_STEP × PEAK_STEP block of mountain cells, on the block's highest cell (the real relief):
-   * a range shows as a ridge of peaks following the true crest lines.
-   */
+  /** Each landmark (MOUNTAIN_PEAKS) is a summit flanked by two lower shoulders, sized by its real height. */
   private collectPeaks(): void {
-    const { map } = this;
-    for (let by = 0; by < map.height; by += PEAK_STEP) {
-      for (let bx = 0; bx < map.width; bx += PEAK_STEP) {
-        let best = -1;
-        let bestH = -Infinity;
-        for (let y = by; y < Math.min(map.height, by + PEAK_STEP); y++) {
-          for (let x = bx; x < Math.min(map.width, bx + PEAK_STEP); x++) {
-            const i = map.index(x, y);
-            if (map.mountain[i] !== 1) continue;
-            const h = map.heights[i] ?? 0;
-            if (h > bestH) {
-              bestH = h;
-              best = i;
-            }
-          }
-        }
-        if (best < 0) continue;
-        const cx = best % map.width;
-        const cy = (best / map.width) | 0;
-        const r = hash2(cx, cy, this.seed + 21);
-        const peak = {
-          x: (cx + 0.2 + r * 0.6) * CELL_SIZE,
-          y: (cy + 0.2 + hash2(cy, cx, this.seed + 22) * 0.6) * CELL_SIZE,
-          h: bestH,
-          snow: map.typeAt(cx, cy) === 'snow' || bestH >= PEAK_SNOW_M,
-          k: 0.8 + r * 0.4,
-        };
-        const key = Math.floor(cy / PEAK_BUCKET) * 100000 + Math.floor(cx / PEAK_BUCKET);
-        const list = this.peaks.get(key);
-        if (list) list.push(peak);
-        else this.peaks.set(key, [peak]);
-      }
+    const R = MOUNTAIN_RADIUS_CELLS * CELL_SIZE;
+    for (const peak of MOUNTAIN_PEAKS) {
+      const at = geoToWorld(peak);
+      const cx = Math.floor(at.x / CELL_SIZE);
+      const cy = Math.floor(at.y / CELL_SIZE);
+      if (!this.map.isMountain(cx, cy)) continue; // the summit fell in the sea at this scale
+      const tall = PEAK_BASE_PX + peak.m / PEAK_M_PER_PX;
+      const snow = peak.m >= PEAK_SNOW_M;
+      this.peaks.push({ x: at.x - R * 0.55, y: at.y - R * 0.2, tall: tall * 0.6, half: R * 0.6, snow: snow && peak.m * 0.75 >= PEAK_SNOW_M });
+      this.peaks.push({ x: at.x + R * 0.2, y: at.y - R * 0.55, tall: tall * 0.7, half: R * 0.6, snow: snow && peak.m * 0.85 >= PEAK_SNOW_M });
+      this.peaks.push({ x: at.x, y: at.y, tall, half: R * 0.85, snow });
     }
   }
 
@@ -159,21 +133,12 @@ export class TerrainRenderer {
    */
   drawMountains(ctx: CanvasRenderingContext2D, view: Rect, zoom: number): void {
     if (zoom < PEAK_MIN_ZOOM) return;
-    const span = PEAK_BUCKET * CELL_SIZE;
-    const m = CELL_SIZE * 4;
-    const visible: { x: number; y: number; h: number; snow: boolean; k: number }[] = [];
-    for (let by = Math.floor((view.y - m) / span); by <= Math.floor((view.y + view.h + m) / span); by++) {
-      for (let bx = Math.floor((view.x - m) / span); bx <= Math.floor((view.x + view.w + m) / span); bx++) {
-        for (const p of this.peaks.get(by * 100000 + bx) ?? []) {
-          if (p.x >= view.x - m && p.x <= view.x + view.w + m && p.y >= view.y - m && p.y <= view.y + view.h + m) visible.push(p);
-        }
-      }
-    }
+    const m = MOUNTAIN_RADIUS_CELLS * CELL_SIZE * 2;
+    const visible = this.peaks.filter((p) => p.x >= view.x - m && p.x <= view.x + view.w + m && p.y >= view.y - m && p.y <= view.y + view.h + m);
     visible.sort((a, b) => a.x + a.y - (b.x + b.y));
     for (const p of visible) {
       const iso = worldToIso(p.x, p.y);
-      const half = CELL_SIZE * PEAK_STEP * 0.75 * p.k;
-      const tall = (PEAK_BASE_PX + p.h / PEAK_M_PER_PX) * p.k;
+      const { half, tall } = p;
       const top = { x: iso.x + half * 0.1, y: iso.y - tall };
       const left = { x: iso.x - half, y: iso.y + half * 0.15 };
       const right = { x: iso.x + half, y: iso.y + half * 0.15 };
