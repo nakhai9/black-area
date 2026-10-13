@@ -1,7 +1,7 @@
 import { CELL_SIZE, MOUNTAIN_PASS, MOUNTAIN_PATH_COST } from '../constants';
 import type { Unit } from '../entities/Unit';
 import type { GridPoint, WorldPoint } from '../types';
-import { type Corridor, MinHeap, type Pathfinder } from './Pathfinder';
+import { type Corridor, DETOUR_EXPANSIONS, MinHeap, type Pathfinder } from './Pathfinder';
 import type { TileMap } from './TileMap';
 
 /**
@@ -169,7 +169,16 @@ export class PathService {
    * whole map.
    */
   find(start: WorldPoint, goal: GridPoint, swim = false): WorldPoint[] {
-    return this.pathfinder.find(start, goal, swim);
+    const path = this.pathfinder.find(start, goal, swim);
+    // The search gave up short of the goal (e.g. a mountain wall in the way, the route goes far round its end):
+    // try once more with a much bigger budget. Still short (truly unreachable): the partial route is kept.
+    const end = path[path.length - 1];
+    if (end && Math.floor(end.x / CELL_SIZE) === goal.x && Math.floor(end.y / CELL_SIZE) === goal.y) return path;
+    const sx = Math.floor(start.x / CELL_SIZE);
+    const sy = Math.floor(start.y / CELL_SIZE);
+    if (Math.max(Math.abs(sx - goal.x), Math.abs(sy - goal.y)) < SHORT_ROUTE || !this.pathfinder.passable(goal.x, goal.y, swim)) return path;
+    const detour = this.pathfinder.find(start, goal, swim, null, DETOUR_EXPANSIONS);
+    return detour.length > 0 ? detour : path;
   }
 
   // ------------------------------------------------------------------ layer 2: time-sliced jobs

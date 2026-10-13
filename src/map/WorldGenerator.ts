@@ -102,8 +102,9 @@ function markMountains(map: TileMap, land: Uint8Array): void {
     const total = segs.reduce((n, g) => n + g.len, 0);
     // Pass centres (cells) and the crest direction there, evenly along the range.
     const passes: { x: number; y: number; ux: number; uy: number }[] = [];
-    for (let k = 1; k <= MOUNTAIN_PASSES; k++) {
-      let at = (total * k) / (MOUNTAIN_PASSES + 1);
+    const count = range.passes ?? MOUNTAIN_PASSES;
+    for (let k = 1; k <= count; k++) {
+      let at = (total * k) / (count + 1);
       for (const g of segs) {
         if (at > g.len) {
           at -= g.len;
@@ -134,7 +135,10 @@ function markMountains(map: TileMap, land: Uint8Array): void {
       const edge = R * (0.75 + 0.5 * noise.noise(x / 7, y / 7));
       if (d > edge) continue;
       const pass = passes.some((p) => Math.abs((x + 0.5 - p.x) * p.ux + (y + 0.5 - p.y) * p.uy) <= MOUNTAIN_PASS_CELLS / 2 && Math.hypot(x + 0.5 - p.x, y + 0.5 - p.y) <= R * 1.6);
-      map.mountain[i] = pass ? MOUNTAIN_PASS : d <= MOUNTAIN_CREST_CELLS ? MOUNTAIN_CREST : MOUNTAIN_LEDGE;
+      const code = pass ? MOUNTAIN_PASS : d <= MOUNTAIN_CREST_CELLS ? MOUNTAIN_CREST : MOUNTAIN_LEDGE;
+      // Where two ranges meet, a later one's ledge never opens a gap in the other's crest (or pass).
+      if (code === MOUNTAIN_LEDGE && map.mountain[i] !== 0) continue;
+      map.mountain[i] = code;
       map.mountainRange[i] = r + 1;
     }
   });

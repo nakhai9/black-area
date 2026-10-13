@@ -4,6 +4,8 @@ import type { TileMap } from './TileMap';
 
 const SQRT2 = Math.SQRT2;
 const MAX_EXPANSIONS = 40000;
+/** Search budget for the second try when the first one ran out before reaching the goal (a long way round a mountain wall). */
+export const DETOUR_EXPANSIONS = 600000;
 /** Woods slow infantry down but do not block them. */
 const TREE_COST = 1.6;
 
@@ -163,7 +165,7 @@ export class Pathfinder {
    * Path of world-px waypoints (cell centres) from `start` to `goal`. If the
    * goal is unreachable, returns a path to the closest reachable cell.
    */
-  find(start: WorldPoint, goal: GridPoint, swim = false, corridor: Corridor | null = null): WorldPoint[] {
+  find(start: WorldPoint, goal: GridPoint, swim = false, corridor: Corridor | null = null, budget = MAX_EXPANSIONS): WorldPoint[] {
     const { map } = this;
     const W = map.width;
     const H = map.height;
@@ -197,7 +199,7 @@ export class Pathfinder {
     let bestH = h(sx, sy);
     let expansions = 0;
 
-    while (open.size > 0 && expansions < MAX_EXPANSIONS) {
+    while (open.size > 0 && expansions < budget) {
       const cur = open.pop();
       // A cell queued several times (a cheaper route found later) is expanded once: the later copies are stale.
       if (closed[cur] === run) continue;
