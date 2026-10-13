@@ -90,6 +90,8 @@ import {
   GAME_VERSION,
   TRUCK_MIN_RIDERS,
   MOUNTAIN_PASS,
+  TRUCE_GRACE_SECONDS,
+  TRUCE_ZONE_CELLS,
   MOUNTAIN_RANGES,
   MOUNTAIN_PASS_SPEED_INFANTRY,
   MOUNTAIN_PASS_SPEED_VEHICLE,
@@ -133,7 +135,7 @@ import { BUILDING_ART } from '../render/sprites';
 import { AIRFIELD_SLOTS, RUNWAY_D, AIRFIELD_SIZE } from '../render/sprites/Airfield';
 import { AircraftSystem, type AirfieldGeometry } from '../systems/AircraftSystem';
 import { AISystem } from '../systems/AISystem';
-import { canTarget, CombatSystem, distanceTo, inTruce, isHostile, setTruce } from '../systems/CombatSystem';
+import { canTarget, CombatSystem, distanceTo, inTruce, isHostile, setTruce, setViolators } from '../systems/CombatSystem';
 import { MIN_SALE_STOCK, OilMarket } from '../systems/OilMarket';
 import { TaxSystem } from '../systems/TaxSystem';
 import { EndScreen } from '../ui/EndScreen';
@@ -1809,6 +1811,7 @@ export class Game {
       } else this.prevPos.set(u, { x: u.px, y: u.py, alt: u instanceof Vehicle ? u.altitude : 0 });
     }
     this.updateWarCycle(dt);
+    this.updateViolators(dt);
     this.endCheck += dt;
     if (this.endCheck >= 1) {
       this.endCheck = 0;
@@ -1882,6 +1885,53 @@ export class Game {
       this.news.show('CEASEFIRE', `${PEACE_SECONDS / 60} minutes of peace: no attacks, no takeovers. Build up your nation.`);
     } else {
       this.news.show('WAR', `The ceasefire is over: ${WAR_SECONDS / 60} minutes of war.`);
+    }
+  }
+
+  /** Seconds to the next ceasefire-zone check, and when my last violation warning was shown (game time). */
+  private violatorClock = 0;
+  private violationWarnedAt = -Infinity;
+
+  /**
+   * Ceasefire zones (TRUCE_ZONE_CELLS): during the peace, after TRUCE_GRACE_SECONDS, every unit out on the map within
+   * that distance of the edge of another nation's structure is a violator (CombatSystem.isHostile). Engineers on
+   * their way to lease a derrick are customers, and aircraft on the ground are parked, not violators. Checked 4 times a second.
+   */
+  private updateViolators(dt: number): void {
+    const { peace, left } = this.warPhase();
+    if (!peace || PEACE_SECONDS - left < TRUCE_GRACE_SECONDS) {
+      if (this.violatorClock !== 0) {
+        setViolators(new Set());
+        this.violatorClock = 0;
+      }
+      return;
+    }
+    this.violatorClock -= dt;
+    if (this.violatorClock > 0) return;
+    this.violatorClock = 0.25;
+    const ids = new Set<number>();
+    const buildings = this.entities.buildings().filter((b) => b.alive && b.owner !== NEUTRAL_OWNER);
+    const R = TRUCE_ZONE_CELLS;
+    let mine = 0;
+    for (const u of this.entities.fieldMovers()) {
+      // Aircraft standing on the ground (parked, taxiing, landed) do not count; flying ones do.
+      if (!u.alive || u.owner === NEUTRAL_OWNER || u.task?.type === 'lease' || u.fixed) continue;
+      const cx = u.px / CELL_SIZE;
+      const cy = u.py / CELL_SIZE;
+      const inside = buildings.some((b) => {
+        if (b.owner === u.owner) return false;
+        const dx = Math.max(b.x - cx, 0, cx - (b.x + b.w));
+        const dy = Math.max(b.y - cy, 0, cy - (b.y + b.d));
+        return dx <= R && dy <= R && Math.hypot(dx, dy) <= R;
+      });
+      if (!inside) continue;
+      ids.add(u.id);
+      if (u.owner === this.humanPlayer.id) mine++;
+    }
+    setViolators(ids);
+    if (mine > 0 && this.time - this.violationWarnedAt > 10) {
+      this.violationWarnedAt = this.time;
+      this.sidebar.notify(`Ceasefire violation: ${mine} of your units are within ${R} cells of another nation's structures — anyone may destroy them and they cannot fire back. Pull them out!`, 5);
     }
   }
 

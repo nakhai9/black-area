@@ -1,3 +1,4 @@
+import { isViolator } from '../systems/CombatSystem';
 import { drawBunkerGhost, drawBunkerSheet } from '../render/BunkerSheet';
 import { Bunker } from '../entities/Bunker';
 import { drawExplosion } from '../render/ExplosionSheet';
@@ -321,7 +322,10 @@ export class Renderer {
     for (const u of units) if (u instanceof Vehicle && u.isTransport && u.flight !== 'parked' && u.flight !== 'taxi' && u.flight !== 'taxiHome') this.drawFuel(u);
     const hints = scene.flagHints;
     if (hints?.size) for (const u of units) if (hints.has(u.id)) this.drawFlagHint(u);
-    for (const u of units) if (u.restLeft > 0 && !hints?.has(u.id)) this.drawTag(u, `Resting ${Math.ceil(u.restLeft)}s`, '#9fd3ff');
+    for (const u of units) {
+      if (isViolator(u.id)) this.drawTag(u, 'Ceasefire violation', '#ff6b6b');
+      else if (u.restLeft > 0 && !hints?.has(u.id)) this.drawTag(u, `Resting ${Math.ceil(u.restLeft)}s`, '#9fd3ff');
+    }
     const info = units.find((u) => u.id === scene.enemyInfoId);
     if (info) this.drawEnemyInfo(info);
     if (scene.mountainTip) this.drawMountainTip(scene.mountainTip);

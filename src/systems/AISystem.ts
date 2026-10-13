@@ -1,4 +1,4 @@
-import { AI_BUNKERS, AI_WALL_ALERT_SECONDS, AI_WALL_ENEMY_UNITS, AI_WALL_GAP, AI_WALL_WATCH_CELLS, AI_WALL_RING, AI_WALL_SEGMENT, BUNKER_RANGE, CELL_SIZE, INFANTRY_BASE, INFANTRY_MARCH_CELLS, EMBASSY_CAPITAL_CELLS, MAX_ALLIES, NATION_GARRISON, NATION_GARRISON_CELLS, NEUTRAL_OWNER, OIL_DERRICK_OUTPUT, OIL_LEASE_CARTEL_SHARE, OIL_LEASE_SECONDS, TECH_VEHICLES, TRUCK_MIN_RIDERS, TRUCK_SOLDIERS } from '../constants';
+import { AI_BUNKERS, AI_WALL_ALERT_SECONDS, AI_WALL_ENEMY_UNITS, AI_WALL_GAP, AI_WALL_WATCH_CELLS, AI_WALL_RING, AI_WALL_SEGMENT, BUNKER_RANGE, CELL_SIZE, INFANTRY_BASE, INFANTRY_MARCH_CELLS, EMBASSY_CAPITAL_CELLS, MAX_ALLIES, NATION_GARRISON, NATION_GARRISON_CELLS, NEUTRAL_OWNER, OIL_DERRICK_OUTPUT, OIL_LEASE_CARTEL_SHARE, OIL_LEASE_SECONDS, TECH_VEHICLES, TRUCE_ZONE_CELLS, TRUCK_MIN_RIDERS, TRUCK_SOLDIERS } from '../constants';
 import { FACTIONS } from '../factions';
 import { OilDerrick } from '../entities/OilDerrick';
 import { NationCapital } from '../entities/NationCapital';
@@ -70,6 +70,8 @@ export interface AIHost {
 /** Order in which an AI nation builds its base. */
 const BUILD_PLAN: readonly BuildOption['id'][] = ['powerPlant', 'barracks', 'warFactory', 'hospital', 'airfield', 'techCenter'];
 const THINK_PERIOD = 1.5;
+/** Ceasefire: the AI keeps its units this many cells further out than the zone itself (a safety margin). */
+const TRUCE_SAFETY_CELLS = 2;
 /** Production buildings the AI raises next to each Allied Building, and how near (cells) counts as "next to". */
 const FORWARD_TYPES = ['barracks', 'warFactory'] as const;
 const FORWARD_RANGE = 14;
@@ -385,7 +387,7 @@ export class AISystem implements GameSystem {
     if (inTruce()) {
       this.leaseOil(p, owned, threat);
       this.healWounded(p);
-      this.driveConvoys(st);
+      this.keepCeasefire(p, st, capital);
       return;
     }
     this.contestNations(p, st, capital, owned, threat);
@@ -1522,6 +1524,42 @@ export class AISystem implements GameSystem {
       const k = (d - UNLOAD_SHORT_CELLS * CELL_SIZE) / d;
       this.host.orderMoveUnits([t], { x: t.px + (goal.x - t.px) * k, y: t.py + (goal.y - t.py) * k });
     }
+  }
+
+  /**
+   * Ceasefire: no soldier, vehicle or aircraft of the nation may stand within TRUCE_ZONE_CELLS of another nation's
+   * structure (it would be fair game and could not fire back). Every unit inside that distance, or about to enter it
+   * (TRUCE_SAFETY_CELLS more), falls back to the capital; convoys heading out let their riders off where they are.
+   */
+  private keepCeasefire(p: PlayerState, st: AIState, capital: Building): void {
+    const R = TRUCE_ZONE_CELLS + TRUCE_SAFETY_CELLS;
+    const others = this.host.entities.buildings().filter((b) => b.alive && b.owner !== p.id && b.owner !== NEUTRAL_OWNER);
+    const near = (u: Unit): boolean => {
+      const cx = u.px / CELL_SIZE;
+      const cy = u.py / CELL_SIZE;
+      // Heading somewhere: the end of its route counts too (never walk into a zone).
+      const d = u.destination;
+      const ex = d ? d.x / CELL_SIZE : cx;
+      const ey = d ? d.y / CELL_SIZE : cy;
+      return others.some((b) => {
+        const dist = (x: number, y: number): number => Math.hypot(Math.max(b.x - x, 0, x - (b.x + b.w)), Math.max(b.y - y, 0, y - (b.y + b.d)));
+        return dist(cx, cy) <= R || dist(ex, ey) <= R;
+      });
+    };
+    const out: Unit[] = [];
+    for (const u of this.host.entities.fieldMovers()) {
+      if (u.owner !== p.id || !u.alive || u.task?.type === 'lease' || u.retreating || u.fixed) continue;
+      if (near(u)) out.push(u);
+    }
+    for (const [id] of st.convoys) {
+      const t = this.host.entities.get(id);
+      if (!(t instanceof Vehicle) || !t.alive) st.convoys.delete(id);
+      else if (near(t)) {
+        if (t.cargo.length > 0) this.host.unloadTruck(t); // the riders get off and fall back on foot
+        st.convoys.delete(id);
+      }
+    }
+    if (out.length > 0) this.host.orderRetreat(out, capital.centerWorld());
   }
 
   /** True when the nearest enemy structure cannot be reached by land from the capital. */

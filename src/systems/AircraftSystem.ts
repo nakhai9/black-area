@@ -490,12 +490,16 @@ export class AircraftSystem implements GameSystem {
     if (!home) return this.abort(v);
     const a = this.approachFor(v, home);
     const last = v.waypoints()[v.waypoints().length - 1];
-    // A new order replaces the approach path: abort the landing.
-    if (v.moving && last && Math.hypot(last.x - a.point.x, last.y - a.point.y) > 1) {
+    // A new order on the way home (a move elsewhere, or a new target to attack) aborts the landing: the aircraft
+    // turns back into the fight instead of ignoring the order until it has parked.
+    const reordered = (v.moving && last && Math.hypot(last.x - a.point.x, last.y - a.point.y) > 1) || v.attackTarget !== null || v.attackMove !== null;
+    if (reordered) {
       this.leaveQueue(v);
       this.holds.delete(v.id);
       v.flight = 'airborne';
+      v.returningHome = false;
       v.idleFor = 0;
+      if (!v.moving || (last && Math.hypot(last.x - a.point.x, last.y - a.point.y) <= 1)) v.stop(); // drop the approach leg
       return;
     }
     if (!v.moving) {

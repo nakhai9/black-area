@@ -17,6 +17,10 @@ const CHUNK_PX = CHUNK_CELLS * TILE_PX;
 const CACHE_LIMIT = 260;
 /** Time budget per frame for painting new chunks (at least one is always painted). */
 const BUILD_BUDGET_MS = 4;
+/** Rows of the nearest unfinished chunk painted each frame even when the budget is spent (it always moves on). */
+const MIN_ROWS_PER_FRAME = 16;
+/** Unfinished chunks kept before those out of view are dropped. */
+const PENDING_LIMIT = 24;
 /** Below this zoom the quarter-size copies are drawn. */
 const ZOOMED_OUT = 5;
 
@@ -61,6 +65,8 @@ export class TileTerrain {
   private readonly touched = new Set<string>();
   private readonly noise: ValueNoise;
   private readonly col: [number, number, number] = [0, 0, 0];
+  /** Chunks being painted, a few rows per frame (see stepBuild). */
+  private readonly pending = new Map<string, BuildJob>();
 
   constructor(
     private readonly map: TileMap,
@@ -98,8 +104,19 @@ export class TileTerrain {
       if (tile) {
         this.cache.delete(key); // refresh LRU position
       } else if (built === 0 || performance.now() - start < BUILD_BUDGET_MS) {
-        tile = { full: this.build(qx, qy), half: null };
+        // Painting a chunk takes longer than a frame's budget: it is done a few rows at a time over several
+        // frames (no hitch while the camera pans); the smooth fallback shows until it is finished.
+        let job = this.pending.get(key);
+        if (!job) {
+          job = this.startBuild(qx, qy);
+          this.pending.set(key, job);
+        }
+        const canvas = this.stepBuild(job, start + BUILD_BUDGET_MS, built === 0 ? MIN_ROWS_PER_FRAME : 0);
         built++;
+        if (canvas) {
+          this.pending.delete(key);
+          tile = { full: canvas, half: null };
+        }
       }
       if (!tile) {
         fallback(qx * cw, qy * cw, cw, cw);
@@ -115,6 +132,11 @@ export class TileTerrain {
       }
       // A hair of overlap hides the seams that anti-aliased chunk borders would show on the diamond ground.
       ctx.drawImage(zoom < ZOOMED_OUT && tile.half ? tile.half : tile.full, qx * cw - 0.2, qy * cw - 0.2, cw + 0.4, cw + 0.4);
+    }
+    // Unfinished chunks the camera has left are dropped (restarted if it comes back).
+    if (this.pending.size > PENDING_LIMIT) {
+      const wantedKeys = new Set(wanted.map(([qx, qy]) => `${qx},${qy}`));
+      for (const k of [...this.pending.keys()]) if (!wantedKeys.has(k)) this.pending.delete(k);
     }
     while (this.cache.size > CACHE_LIMIT) {
       const oldest = this.cache.keys().next().value;
@@ -224,7 +246,8 @@ export class TileTerrain {
     c[2] *= k;
   }
 
-  private build(qx: number, qy: number): HTMLCanvasElement {
+  /** Sets a chunk up for painting: the terrain codes, heights and sea depths around it, and an empty image. */
+  private startBuild(qx: number, qy: number): BuildJob {
     const { map, earth } = this;
     const W = CHUNK_CELLS + 2;
     const T = new Uint8Array(W * W);
@@ -252,11 +275,32 @@ export class TileTerrain {
 
     const { canvas, ctx } = createCanvas(CHUNK_PX, CHUNK_PX);
     const img = ctx.createImageData(CHUNK_PX, CHUNK_PX);
-    const out = img.data;
+    return { qx, qy, T, H, depth, canvas, ctx, img, row: 0 };
+  }
+
+  /**
+   * Paints rows of a chunk until `until` (performance.now() ms), at least `minRows` of them; returns the finished
+   * canvas once the last row is done, else null.
+   */
+  private stepBuild(job: BuildJob, until: number, minRows: number): HTMLCanvasElement | null {
+    let rows = 0;
+    while (job.row < CHUNK_PX && (rows < minRows || performance.now() < until)) {
+      this.paintRow(job, job.row++);
+      rows++;
+    }
+    if (job.row < CHUNK_PX) return null;
+    job.ctx.putImageData(job.img, 0, 0);
+    return job.canvas;
+  }
+
+  /** One pixel row `py` of a chunk. */
+  private paintRow(job: BuildJob, py: number): void {
+    const { qx, qy, T, H, depth } = job;
+    const W = CHUNK_CELLS + 2;
+    const out = job.img.data;
     const col = this.col;
     const seed = this.seed;
-
-    for (let py = 0; py < CHUNK_PX; py++) {
+    {
       const j = Math.floor(py / TILE_PX) + 1;
       const v = ((py % TILE_PX) + 0.5) / TILE_PX;
       const cy = qy * CHUNK_CELLS + j - 1;
@@ -375,7 +419,18 @@ export class TileTerrain {
         }
       }
     }
-    ctx.putImageData(img, 0, 0);
-    return canvas;
   }
+}
+
+interface BuildJob {
+  qx: number;
+  qy: number;
+  T: Uint8Array;
+  H: Float32Array;
+  depth: Float32Array;
+  canvas: HTMLCanvasElement;
+  ctx: CanvasRenderingContext2D;
+  img: ImageData;
+  /** Next pixel row to paint. */
+  row: number;
 }

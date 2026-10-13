@@ -35,9 +35,20 @@ export function setTruce(on: boolean): void {
 export function inTruce(): boolean {
   return truce;
 }
+/** Units breaking the ceasefire right now (see Game.updateViolators): fair game for every other nation, harmless themselves. */
+let violators: ReadonlySet<number> = new Set();
+export function setViolators(ids: ReadonlySet<number>): void {
+  violators = ids;
+}
+export function isViolator(id: number): boolean {
+  return violators.has(id);
+}
 
 export function isHostile(a: Entity, b: Entity): boolean {
-  if (truce) return false;
+  // Ceasefire: nobody fights, except that a unit breaking it may be attacked by every other nation (and cannot hit back).
+  if (truce) {
+    return b instanceof Unit && violators.has(b.id) && !violators.has(a.id) && b.alive && a.owner !== b.owner && a.owner !== NEUTRAL_OWNER && b.owner !== NEUTRAL_OWNER;
+  }
   // An engineer on his way to lease a derrick is a customer, not a target, for the derrick's owner.
   if (b instanceof Unit && b.task?.type === 'lease' && b.task.lessor === a.owner) return false;
   return a.owner !== b.owner && a.owner !== NEUTRAL_OWNER && b.owner !== NEUTRAL_OWNER && !b.indestructible && b.alive;

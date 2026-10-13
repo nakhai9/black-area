@@ -26,7 +26,7 @@
 <body>
 <main>
 <img class="logo" src="/logo.png" alt="Black Area" />
-<h1>Black Area — RULE <small>v1.117.0</small></h1>
+<h1>Black Area — RULE <small>v1.118.0</small></h1>
 <p class="lead">Tài liệu luật chơi + kiến trúc code dành cho AI/dev sửa game. Mọi con số gameplay chính xác nằm trong <code>src/constants.ts</code> và <code>src/factions/*.ts</code>. Nếu tài liệu này khác code thì <b>code đúng</b>. <b>Khi đổi luật/số trong code, phải cập nhật file này.</b></p>
 <nav><a href="#s1">Quy tắc làm việc cho AI</a><a href="#s2">Chạy dự án</a><a href="#s3">Kiến trúc thư mục</a><a href="#s4">Thế giới</a><a href="#s5">Kinh tế (dầu)</a><a href="#s6">Công trình (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Quân đội</a><a href="#s8">Chiến đấu</a><a href="#s9">Điều khiển (Game.handleKey, handleInput)</a><a href="#s10">Giới hạn &amp; hiệu năng</a><a href="#s11">Thắng / thua &amp; AI</a><a href="#s12">Công thức sửa thường gặp</a></nav>
 <h2 id="s1">0. Quy tắc làm việc cho AI</h2>
@@ -92,7 +92,8 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 <ul>
 <li>Lặp mãi: <b>6 phút chiến tranh</b> (đánh nhau, chiếm đóng lẫn nhau) rồi <b>4 phút hòa bình</b> (xây dựng phe mình). Ván bắt đầu bằng chiến tranh.</li>
 <li>Hòa bình: không phe nào tấn công được phe khác (<code>isHostile</code> = false), mọi lệnh tấn công / mục tiêu đang khóa / bom của Crazy Soldier bị hủy, quân đang tiến công dừng tại chỗ, không chiếm công trình của phe khác (công trình trung lập vẫn chiếm được).</li>
-<li>AI trong hòa bình chỉ phát triển kinh tế, căn cứ, quân đội; không mở đợt tấn công.</li>
+<li><b>Vùng ngừng bắn</b> (v1.118.0, <code>TRUCE_ZONE_CELLS = 5</code>, <code>Game.updateViolators</code>): trong 4 phút hòa bình, sau <code>TRUCE_GRACE_SECONDS = 15</code> s đầu để rút quân, mọi lính / xe / máy bay / trực thăng đang bay ở trong phạm vi 5 ô tính từ mép công trình của phe khác là <b>vi phạm ngừng bắn</b>: mọi phe khác đều được tấn công nó, còn nó không được bắn trả. Hiện nhãn đỏ "Ceasefire violation" trên đầu; người chơi được cảnh báo (tối đa 10 s một lần). Ngoại lệ: kỹ sư đang đi thuê giếng dầu, máy bay đang đậu / lăn bánh / trực thăng đang đáp.</li>
+<li>AI trong hòa bình chỉ phát triển kinh tế, căn cứ, quân đội; không mở đợt tấn công. AI giữ mọi đơn vị cách công trình phe khác hơn 5 + 2 ô (cả điểm đang đi tới): đơn vị nào ở gần hoặc sắp đi vào vùng thì rút về thủ đô; xe tải chở quân ở gần vùng thì thả quân xuống (<code>AISystem.keepCeasefire</code>).</li>
 <li>Thanh bên hiện pha hiện tại và thời gian còn lại (War / Peace m:ss).</li>
 </ul>
 <h3>Phe</h3>
@@ -493,6 +494,8 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 </ul>
 <h2 id="s10">9. Giới hạn &amp; hiệu năng</h2>
 <ul>
+  <li>Mặt đất (<code>TileTerrain</code>) vẽ theo khối 16×16 ô; mỗi khối tốn ~15–35 ms nên được vẽ <b>từng vài hàng pixel mỗi khung hình</b> trong ngân sách <code>BUILD_BUDGET_MS 4</code> ms (ít nhất <code>MIN_ROWS_PER_FRAME 16</code> hàng), khối chưa xong hiện ảnh nền mờ — không còn giật khi kéo camera theo quân (v1.118.0).</li>
+  <li>Máy bay đang trên đường về sân bay (đang tiếp cận đường băng) nhận lệnh đánh / lệnh đi mới thì hủy hạ cánh và làm theo lệnh (<code>AircraftSystem.approach</code>, v1.118.0).</li>
   <li>Tìm đường (A*) là phần tốn nhất: đơn vị attack-move bị chặn chỉ thử tìm lại đường mỗi <code>RESUME_RETRY 1</code> s (đích ở bờ biển khác / không tới được thì huỷ lệnh); mỗi 0.5 s chỉ đổi đường tối đa <code>REPATH_BUDGET 8</code> đơn vị kẹt, hết đường thì dừng.</li>
   <li>Dọn cache mỗi <code>JANITOR_INTERVAL = 180</code> s (ảnh/địa hình không dùng, sổ ghi unit đã chết, sổ thưởng nhân từ của nhóm rút lui không còn ai sống). Chỉ xoá thứ không còn dùng tới, không động vào lính, công trình, tiền hay lệnh đang chạy. Tìm đường A* (<code>Pathfinder.find</code>) mỗi ô chỉ mở rộng 1 lần (bỏ bản sao cũ trong hàng đợi), đọc thẳng mảng của <code>TileMap</code>, hàng đợi ưu tiên dùng typed array dùng lại giữa các lần tìm.</li>
   <li>Art dùng sprite sheet PNG trong <code>public/sprites/</code> (tank, jet/bomber, bom, tên lửa, đạn pháo, lính 8 hướng), vẽ thủ tục khi không có sheet.</li>
