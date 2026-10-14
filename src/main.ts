@@ -1,4 +1,5 @@
 import './styles.css';
+import { t } from './i18n';
 import { DEMO_FACTION, DEMO_MODE,EARTH_TEXTURE_URL, FACTION_ORDER } from './constants';
 import { SoundSystem } from './audio/SoundSystem';
 import { Game } from './core/Game';
@@ -20,7 +21,7 @@ import { FactionPicker } from './ui/FactionPicker';
 import { showBuildingGallery } from './ui/BuildingGallery';
 import { showUnitGallery } from './ui/UnitGallery';
 import type { SaveFile } from './core/SaveCodec';
-import { PENDING_SAVE_KEY } from './ui/PauseMenu';
+import { LANGUAGE_RELOAD_KEY, PENDING_SAVE_KEY } from './ui/PauseMenu';
 import { confirmLoadedGame } from './ui/LoadConfirm';
 
 function byId<T extends HTMLElement>(id: string): T {
@@ -100,11 +101,19 @@ async function boot(): Promise<void> {
         : await new FactionPicker(document.body).choose();
 
     // A picked save is confirmed first; only then is the world generated and the game loaded into it.
-    if (pending) {
+    // A reload only to switch the language goes straight back into the game, without asking.
+    let languageReload = false;
+    try {
+      languageReload = sessionStorage.getItem(LANGUAGE_RELOAD_KEY) === '1';
+      sessionStorage.removeItem(LANGUAGE_RELOAD_KEY);
+    } catch {
+      languageReload = false;
+    }
+    if (pending && !languageReload) {
       loading.hidden = true;
       await confirmLoadedGame({ faction: pending.faction, savedAt: pending.savedAt });
     }
-    byId('loading-text').textContent = 'Generating Earth…';
+    byId('loading-text').textContent = t('Generating Earth…');
     loading.hidden = false;
     // Downloads fill the bar to 80%; the terrain bake (synchronous) takes it to 100%.
     const steps = [earth, soldiers, aircraft, tanks, repairs, trucks]; // sidebar cameos and units draw from the GI sheet

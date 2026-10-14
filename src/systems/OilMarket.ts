@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import {
   DEBT_RESUME_SHARE,
   LOAN_MIN,
@@ -138,10 +139,10 @@ export class OilMarket implements GameSystem {
 
   /** The cartel nation sets its production policy (at most once every OIL_POLICY_COOLDOWN s). */
   setPolicy(player: PlayerState, policy: OilPolicy): PolicyResult {
-    if (!this.isCartel(player)) return { kind: 'refused', reason: 'only the oil cartel sets production policy' };
-    if (policy === this.policy) return { kind: 'refused', reason: `the policy is already "${OIL_POLICIES[policy].label}"` };
+    if (!this.isCartel(player)) return { kind: 'refused', reason: t('only the oil cartel sets production policy') };
+    if (policy === this.policy) return { kind: 'refused', reason: t('the policy is already "{label}"', { label: OIL_POLICIES[policy].label }) };
     const wait = this.policyWait();
-    if (wait > 0) return { kind: 'refused', reason: `the cartel can change policy again in ${wait} s` };
+    if (wait > 0) return { kind: 'refused', reason: t('the cartel can change policy again in {wait} s', { wait }) };
     this.policy = policy;
     this.policyAt = this.now;
     return { kind: 'set', policy };
@@ -174,11 +175,11 @@ export class OilMarket implements GameSystem {
    * (never more than WB_MAX_SHARE) — and pays barrels × the posted price; any DEBT is paid back first.
    */
   sell(player: PlayerState): SaleResult {
-    if (player.defeated) return { kind: 'declined', reason: 'your nation has fallen' };
+    if (player.defeated) return { kind: 'declined', reason: t('your nation has fallen') };
     const wait = this.waitSeconds(player);
-    if (wait > 0) return { kind: 'declined', reason: `${OIL_SALE_BURST} sales in a row, then a ${OIL_SALE_COOLDOWN} s pause — try again in ${wait} s` };
+    if (wait > 0) return { kind: 'declined', reason: t('{burst} sales in a row, then a {cooldown} s pause — try again in {wait} s', { burst: OIL_SALE_BURST, cooldown: OIL_SALE_COOLDOWN, wait }) };
     const stock = this.sellable(player);
-    if (stock < MIN_SALE_STOCK) return { kind: 'declined', reason: `not enough oil to offer (${OIL_RESERVE.toFixed(1)} barrels stay in reserve)` };
+    if (stock < MIN_SALE_STOCK) return { kind: 'declined', reason: t('not enough oil to offer ({reserve} barrels stay in reserve)', { reserve: OIL_RESERVE.toFixed(1) }) };
     // A new burst starts once the last one has rested (OIL_SALE_COOLDOWN s since the previous offer).
     const last = this.offers.get(player.id);
     const rested = last === undefined || this.now - last >= OIL_SALE_COOLDOWN;

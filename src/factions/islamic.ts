@@ -1,4 +1,5 @@
 import type { FactionConfig } from "../types";
+import { t } from "../i18n";
 
 /** Islamic — one nation for the whole Islamic world, seated in Saudi Arabia: sits on the richest oil fields, fields tough, cheap forces. */
 export const ISLAMIC: FactionConfig = {
@@ -7,7 +8,7 @@ export const ISLAMIC: FactionConfig = {
   shortName: "Islamic",
   leader: { title: "Custodian of the Two Holy Mosques", name: "King Salman" },
   doctrine:
-    "Oil and endurance: leads the oil cartel — cutting or flooding production moves the world oil price — and the richest oil fields pay for cheap, hardy forces.",
+    t("Oil and endurance: leads the oil cartel — cutting or flooding production moves the world oil price — and the richest oil fields pay for cheap, hardy forces."),
   oilCartel: true,
   // Other nations may lease its derricks (engineer → derrick) for 3 minutes, 30% of the oil money comes back.
   leasesOil: true,
@@ -25,14 +26,14 @@ export const ISLAMIC: FactionConfig = {
     name: "Al Yamamah Palace",
     city: "Riyadh",
     description:
-      "Al-Yamamah Palace is the official seat of governance in the Islamic Union",
+      t("Al-Yamamah Palace is the official seat of governance in the Islamic Union"),
     maxHp: 16000,
     powerOutput: 0,
   },
   infantry: {
     regular: {
       name: "Basij",
-      description: "Islamic volunteer riflemen, numerous and determined.",
+      description: t("Islamic volunteer riflemen, numerous and determined."),
       look: {
         uniform: "#6b6a4a",
         trousers: "#53523a",
@@ -45,7 +46,7 @@ export const ISLAMIC: FactionConfig = {
     },
     special: {
       name: "Quds Force",
-      description: "Elite Islamic special operators.",
+      description: t("Elite Islamic special operators."),
       look: {
         uniform: "#4f5a3a",
         trousers: "#3d4630",
@@ -59,7 +60,7 @@ export const ISLAMIC: FactionConfig = {
     engineer: {
       name: "Engineer",
       description:
-        "Islamic combat engineer: repairs buildings and captures enemy structures.",
+        t("Islamic combat engineer: repairs buildings and captures enemy structures."),
       look: {
         uniform: "#7c7552",
         trousers: "#4f4a34",
@@ -72,7 +73,7 @@ export const ISLAMIC: FactionConfig = {
     demolition: {
       name: "Crazy Soldier",
       description:
-        "Demolition expert, like Crazy Ivan: runs up to an enemy structure or unit and plants a timed charge. Small structures are destroyed, large ones lose 40%; a group of 8 or fewer combat units dies, a bigger one loses half. Needs a High-Tech Center.",
+        t("Demolition expert, like Crazy Ivan: runs up to an enemy structure or unit and plants a timed charge. Small structures are destroyed, large ones lose 40%; a group of 8 or fewer combat units dies, a bigger one loses half. Needs a High-Tech Center."),
       look: {
         uniform: "#4f5a3a",
         trousers: "#3d4630",
@@ -86,7 +87,7 @@ export const ISLAMIC: FactionConfig = {
     squatters: {
       name: "Squatters",
       description:
-        "Islamic flag bearer and rifleman escort, moving as one: sent on foot or by transport to unclaimed land, they plant the national flag there (double-click the team once it stands still) — their mission done, they are gone.",
+        t("Islamic flag bearer and rifleman escort, moving as one: sent on foot or by transport to unclaimed land, they plant the national flag there (double-click the team once it stands still) — their mission done, they are gone."),
       look: {
         uniform: "#4f5a3a",
         trousers: "#3d4630",
@@ -101,33 +102,33 @@ export const ISLAMIC: FactionConfig = {
   vehicles: {
     light: {
       name: "Safir Jeep",
-      description: "Light jeep with a mounted machine gun.",
+      description: t("Light jeep with a mounted machine gun."),
     },
     tank: {
       name: "Karrar",
       description:
-        "Karrar main battle tank, heavy armour of the Islamic world.",
+        t("Karrar main battle tank, heavy armour of the Islamic world."),
     },
     ifv: {
       name: "BMP-2",
-      description: "BMP-2 armoured fighting vehicle for infantry support.",
+      description: t("BMP-2 armoured fighting vehicle for infantry support."),
     },
-    heli: { name: "Ka-52", description: "Ka-52 attack helicopter of the Islamic air force: guided missiles against ground vehicles only. Carries up to 8 soldiers (no vehicles) and sets down anywhere on open ground." },
-    mantis: { name: "Buk-M3", description: "Buk-M3 (9K317) self-propelled air-defence vehicle: long-range missiles that hit aircraft only (fighters, bombers, helicopters, transports), never ground units or structures. Expensive and slow, armoured like a tank." },
+    heli: { name: "Ka-52", description: t("Ka-52 attack helicopter of the Islamic air force: guided missiles against ground vehicles only. Carries up to 8 soldiers (no vehicles) and sets down anywhere on open ground.") },
+    mantis: { name: "Buk-M3", description: t("Buk-M3 (9K317) self-propelled air-defence vehicle: long-range missiles that hit aircraft only (fighters, bombers, helicopters, transports), never ground units or structures. Expensive and slow, armoured like a tank.") },
     jet: {
       name: "Su-35",
       description:
-        "Su-35 multirole air superiority fighter of the Islamic air force.",
+        t("Su-35 multirole air superiority fighter of the Islamic air force."),
     },
     truck: {
       name: "KamAZ",
       description:
-        "KamAZ army truck: unarmed and faster than soldiers or tanks; carries up to 8 soldiers under its canvas cover (no vehicles). Ground only — it cannot cross the sea. Select soldiers or a tank and click the truck to board; select the truck and press U to unload.",
+        t("KamAZ army truck: unarmed and faster than soldiers or tanks; carries up to 8 soldiers under its canvas cover (no vehicles). Ground only — it cannot cross the sea. Select soldiers or a tank and click the truck to board; select the truck and press U to unload."),
     },
     repair: {
       name: "Type 99II",
       description:
-        "Type 99II armoured recovery vehicle: slow and unarmed; click a damaged friendly ground vehicle to drive up and repair it, or select damaged vehicles and click it to send them in for repair (5% of its max health every 2 s).",
+        t("Type 99II armoured recovery vehicle: slow and unarmed; click a damaged friendly ground vehicle to drive up and repair it, or select damaged vehicles and click it to send them in for repair (5% of its max health every 2 s)."),
     },
   },
 };

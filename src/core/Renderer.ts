@@ -1,4 +1,5 @@
 import { isViolator } from '../systems/CombatSystem';
+import { t, t as tr } from '../i18n';
 import { drawBunkerGhost, drawBunkerSheet } from '../render/BunkerSheet';
 import { Bunker } from '../entities/Bunker';
 import { drawExplosion } from '../render/ExplosionSheet';
@@ -328,8 +329,8 @@ export class Renderer {
     const hints = scene.flagHints;
     if (hints?.size) for (const u of units) if (hints.has(u.id)) this.drawFlagHint(u);
     for (const u of units) {
-      if (isViolator(u.id)) this.drawTag(u, 'Ceasefire violation', '#ff6b6b');
-      else if (u.restLeft > 0 && !hints?.has(u.id)) this.drawTag(u, `Resting ${Math.ceil(u.restLeft)}s`, '#9fd3ff');
+      if (isViolator(u.id)) this.drawTag(u, t('Ceasefire violation'), '#ff6b6b');
+      else if (u.restLeft > 0 && !hints?.has(u.id)) this.drawTag(u, t('Resting {s}s', { s: Math.ceil(u.restLeft) }), '#9fd3ff');
     }
     const info = units.find((u) => u.id === scene.enemyInfoId);
     if (info) this.drawEnemyInfo(info);
@@ -748,7 +749,7 @@ export class Renderer {
     }
     ctx.stroke();
     if (strong) {
-      const name = 'name' in u ? String((u as { name: string }).name) : 'Enemy';
+      const name = 'name' in u ? String((u as { name: string }).name) : t('Enemy');
       const text = `${name} · ${FACTIONS[u.faction as keyof typeof FACTIONS]?.shortName ?? u.faction}`;
       ctx.font = `600 ${11 * k}px "Segoe UI", system-ui, sans-serif`;
       const w = ctx.measureText(text).width + 10 * k;
@@ -796,7 +797,7 @@ export class Renderer {
     const P = worldToIso(u.px, u.py);
     const lift = u.flies && 'altitude' in u ? Number((u as { altitude: number }).altitude) : 0;
     const top = P.y - lift - Math.max(u.bodyHeight, 2) - 1.6 - (u.rank > 0 ? 3.6 : 0);
-    const text = 'name' in u ? String((u as { name: string }).name) : 'Enemy';
+    const text = 'name' in u ? String((u as { name: string }).name) : t('Enemy');
     const img = u.faction !== 'neutral' ? emblemImage(u.faction as FactionId) : null;
     ctx.save();
     ctx.font = `600 ${11 * k}px "Segoe UI", system-ui, sans-serif`;
@@ -824,7 +825,7 @@ export class Renderer {
   /** Veteran chevrons (Lucide ChevronDown ×1, ×2, ×3) hovering above the unit; on a bomber, left of its bomb row. */
   /** "F: plant flag" in a small dark tag above a Squatters team (upright transform). */
   private drawFlagHint(u: Unit): void {
-    this.drawTag(u, 'F: plant flag', '#ffd84a');
+    this.drawTag(u, t('F: plant flag'), '#ffd84a');
   }
 
   /** A short line of text in a small dark tag above a soldier's head (upright transform). */
@@ -883,10 +884,10 @@ export class Renderer {
     const k = 1 / this.camera.zoom;
     // RA2 style: seats taken / seats there are (e.g. 3/12), plus what it is doing.
     const vehicles = t.vehiclesAboard;
-    const parts = [`${t.soldiersAboard}/${t.soldierCapacity} inf`];
-    if (vehicles > 0 && !t.isTruck) parts.push(`${vehicles}/${t.vehicleCapacity} veh`);
+    const parts = [`${t.soldiersAboard}/${t.soldierCapacity} ${tr('inf')}`];
+    if (vehicles > 0 && !t.isTruck) parts.push(`${vehicles}/${t.vehicleCapacity} ${tr('veh')}`);
     const state = t.carrierState;
-    const prefix = t.full ? 'FULL · ' : state === 'loading' ? 'LOADING · ' : state === 'unloading' ? 'UNLOADING · ' : '';
+    const prefix = t.full ? `${tr('FULL')} · ` : state === 'loading' ? `${tr('LOADING')} · ` : state === 'unloading' ? `${tr('UNLOADING')} · ` : '';
     const text = `${prefix}${parts.join(' + ')}`;
     ctx.save();
     ctx.font = `700 ${10 * k}px "Segoe UI", system-ui, sans-serif`;
@@ -1152,7 +1153,7 @@ export class Renderer {
       ctx.font = `700 ${Math.max(3, z.w * 0.14)}px "Segoe UI", system-ui, sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText('SAFE ZONE', z.x + z.w / 2, z.y + z.h / 2);
+      ctx.fillText(t('SAFE ZONE'), z.x + z.w / 2, z.y + z.h / 2);
     }
   }
 
@@ -1399,16 +1400,16 @@ export class Renderer {
     const { ctx } = this;
     const k = 1 / this.camera.zoom;
     const r = this.spriteRect(b);
-    const inside = b.garrison.length > 0 ? ` · ${b.garrison.length} inside` : '';
+    const inside = b.garrison.length > 0 ? ` · ${t('{n} inside', { n: b.garrison.length })}` : '';
     const managed = 'bankManaged' in b && (b as { bankManaged: boolean }).bankManaged;
     const health = `${Math.max(0, Math.ceil((b.hp / b.maxHp) * 100))}%`;
     const alliance = b instanceof NationCapital ? b.alliance() : null;
     const text = alliance
       ? `${alliance} · ${health}${inside}`
       : managed
-      ? `${b.spec.name} · ${health} · Global Monitoring Center managed`
+      ? `${b.spec.name} · ${health} · ${t('Global Monitoring Center managed')}`
       : b.indestructible
-        ? `${b.spec.name} · ${health} · Neutral · Protected`
+        ? `${b.spec.name} · ${health} · ${t('Neutral')} · ${t('Protected')}`
         : `${b.spec.name} · ${health}${inside}`;
     ctx.font = `600 ${12 * k}px "Segoe UI", system-ui, sans-serif`;
     const w = ctx.measureText(text).width + 12 * k;

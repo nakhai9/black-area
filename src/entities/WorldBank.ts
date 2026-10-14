@@ -1,4 +1,5 @@
 import { FOOTPRINT_GMC, NEUTRAL_OWNER } from '../constants';
+import { t } from '../i18n';
 import type { WorldPoint } from '../types';
 import { Building } from './Building';
 
@@ -8,7 +9,7 @@ import { Building } from './Building';
  */
 export class WorldBank extends Building {
   readonly city = 'Zürich';
-  readonly description = 'Neutral global finance hub shared by all nations. Cannot be destroyed or occupied.';
+  readonly description = t('Neutral global finance hub shared by all nations. Cannot be destroyed or occupied.');
 
   constructor(center: WorldPoint) {
     super(NEUTRAL_OWNER, 'neutral', center, {

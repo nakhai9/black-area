@@ -1,3 +1,4 @@
+import { t } from './i18n';
 import type {
   BuildingType,
   FactionId,
@@ -26,7 +27,7 @@ export const DEMO_FACTION = Number(import.meta.env.VITE_DEMO_FACTION) || 2;
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "1.128.0";
+export const GAME_VERSION = "1.131.4";
 
 /** An Allied Building within this many cells of any capital is an embassy; farther out it is a "Pro-<nation> regime". */
 export const EMBASSY_CAPITAL_CELLS = 25;
@@ -864,9 +865,9 @@ export const OIL_SITES_ABROAD: ReadonlySet<FactionId> = new Set<FactionId>([]);
 export const OIL_POLICIES: Readonly<
   Record<OilPolicy, { label: string; output: number; price: number }>
 > = {
-  cut: { label: "Cut output", output: 0.5, price: 1.35 },
-  hold: { label: "Hold", output: 1, price: 1 },
-  flood: { label: "Flood market", output: 1.6, price: 0.7 },
+  cut: { label: t("Cut output"), output: 0.5, price: 1.35 },
+  hold: { label: t("Hold"), output: 1, price: 1 },
+  flood: { label: t("Flood market"), output: 1.6, price: 0.7 },
 };
 export const OIL_POLICY_COOLDOWN = 90;
 /**

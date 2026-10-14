@@ -1,4 +1,5 @@
 import { CONTESTED_NATIONS, type ContestedNationId, FOOTPRINT_SMALL, NATION_PRESENCE_PERIOD, NEUTRAL_OWNER } from '../constants';
+import { t } from '../i18n';
 import type { WorldPoint } from '../types';
 import { Building } from './Building';
 import { FACTIONS } from '../factions';
@@ -32,7 +33,7 @@ export class NationCapital extends Building {
       indestructible: true,
     });
     this.city = n.site.name;
-    this.description = `Capital of ${n.name}, an independent nation. Cannot be destroyed; an engineer takes it over. Its holder earns a military presence fee every ${NATION_PRESENCE_PERIOD / 60} minutes and may build next to it.`;
+    this.description = t('Capital of {name}, an independent nation. Cannot be destroyed; an engineer takes it over. Its holder earns a military presence fee every {minutes} minutes and may build next to it.', { name: n.name, minutes: NATION_PRESENCE_PERIOD / 60 });
   }
 
   /** Nation + holder ("South Korea + Russia": the + is their alliance), or null while neutral. */

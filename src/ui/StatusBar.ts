@@ -1,4 +1,5 @@
 import { formatGeo, worldToGeo } from '../map/Geo';
+import { t } from '../i18n';
 import { TERRITORIES } from '../map/Territories';
 import type { TileMap } from '../map/TileMap';
 import type { TerrainType, WorldPoint } from '../types';
@@ -45,8 +46,8 @@ export class StatusBar {
       const type = this.map.typeAt(cell.x, cell.y) ?? 'water';
       const h = Math.round(this.map.heightAt(cell.x, cell.y));
       const territory = TERRITORIES[this.map.territory[this.map.index(cell.x, cell.y)] - 1];
-      place = `${formatGeo(worldToGeo(world))} · ${TERRAIN_LABELS[type]} · ${h} m${territory ? ` · ${territory.name}` : ''}`;
+      place = `${formatGeo(worldToGeo(world))} · ${t(TERRAIN_LABELS[type])} · ${h} m${territory ? ` · ${territory.name}` : ''}`;
     }
-    this.el.textContent = `${place}   |   Zoom ${zoom.toFixed(2)}×   |   ${this.fps} FPS`;
+    this.el.textContent = `${place}   |   ${t('Zoom')} ${zoom.toFixed(2)}×   |   ${this.fps} FPS`;
   }
 }

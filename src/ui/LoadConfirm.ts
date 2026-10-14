@@ -1,4 +1,6 @@
 import { FACTIONS } from '../factions';
+import { t } from '../i18n';
+import { factionBadge } from './FactionBadge';
 import type { FactionId } from '../types';
 
 /**
@@ -14,32 +16,25 @@ export function confirmLoadedGame(info: { faction: FactionId; savedAt: string },
   const card = document.createElement('div');
   card.className = 'end-card';
   card.style.setProperty('--end-color', '#f5c542'); // same as the pause menu
-  // The saved nation's emblem stands in for a title.
-  const title = document.createElement('img');
-  title.className = 'lc-emblem';
-  title.src = `${import.meta.env.BASE_URL}emblems/${info.faction}.png`;
-  title.alt = f.name;
-  const text = document.createElement('p');
-  const when = new Date(info.savedAt);
-  text.textContent = `${f.name} — saved ${Number.isNaN(when.getTime()) ? info.savedAt : when.toLocaleString()}. Press Start to load the map and continue the war.`;
+  // The saved nation's emblem (with its flag) stands in for a title.
+  const title = factionBadge(info.faction, 'lg');
   const start = document.createElement('button');
   start.type = 'button';
-  start.textContent = `Start with ${f.name}`;
+  start.textContent = t('Start as {name}', { name: f.shortName });
   start.className = 'lc-start';
   start.style.setProperty('--faction-color', f.colors.primary);
   const back = document.createElement('button');
   back.type = 'button';
-  back.textContent = 'Main menu';
-  back.title = 'Leave the loaded game and go back to the faction picker.';
+  back.textContent = t('Main menu');
+  back.title = t('Leave the loaded game and go back to the faction picker.');
   // Reload without query params so the faction picker opens again (same as the pause menu's Quit game).
   back.addEventListener('click', () => window.location.assign(window.location.pathname));
   const actions = document.createElement('div');
   actions.className = 'pause-actions';
   actions.append(back, start); // Main menu on the left
-  card.append(title, text, actions);
+  card.append(title, actions);
   root.append(card);
   parent.append(root);
-  start.focus();
   return new Promise((resolve) => {
     const go = (): void => {
       window.removeEventListener('keydown', onKey);

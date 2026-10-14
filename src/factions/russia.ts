@@ -1,4 +1,5 @@
 import type { FactionConfig } from "../types";
+import { t } from "../i18n";
 
 /** Russia — long-range artillery and hardened defences. */
 export const RUSSIA: FactionConfig = {
@@ -7,7 +8,7 @@ export const RUSSIA: FactionConfig = {
   shortName: "Russia",
   leader: { title: "President", name: "Vladimir Putin" },
   doctrine:
-    "Artillery and defence: long-range firepower behind fortified lines.",
+    t("Artillery and defence: long-range firepower behind fortified lines."),
   colors: { primary: "#d22b2b", light: "#ff9c9c", dark: "#5e0e0e" },
   stats: {
     unitSpeed: 0.95,
@@ -22,14 +23,14 @@ export const RUSSIA: FactionConfig = {
     name: "The Kremlin",
     city: "Moscow",
     description:
-      "Fortress of the Russian high command behind crenellated red walls.",
+      t("Fortress of the Russian high command behind crenellated red walls."),
     maxHp: 16500,
     powerOutput: 0,
   },
   infantry: {
     regular: {
       name: "Red Army",
-      description: "Massed Russian conscript riflemen, tough in the cold.",
+      description: t("Massed Russian conscript riflemen, tough in the cold."),
       look: {
         uniform: "#5f6b34",
         trousers: "#4a5428",
@@ -41,7 +42,7 @@ export const RUSSIA: FactionConfig = {
     },
     special: {
       name: "Spetsnaz",
-      description: "Special-purpose commandos for sabotage and raids.",
+      description: t("Special-purpose commandos for sabotage and raids."),
       look: {
         uniform: "#2b3a32",
         trousers: "#212d27",
@@ -55,7 +56,7 @@ export const RUSSIA: FactionConfig = {
     engineer: {
       name: "Engineer",
       description:
-        "Russian sapper: repairs buildings and captures enemy structures.",
+        t("Russian sapper: repairs buildings and captures enemy structures."),
       look: {
         uniform: "#7c7552",
         trousers: "#4f4a34",
@@ -68,7 +69,7 @@ export const RUSSIA: FactionConfig = {
     squatters: {
       name: "Squatters",
       description:
-        "Russian flag bearer and rifleman escort, moving as one: sent on foot or by transport to unclaimed land, they plant the national flag there (double-click the team once it stands still) — their mission done, they are gone.",
+        t("Russian flag bearer and rifleman escort, moving as one: sent on foot or by transport to unclaimed land, they plant the national flag there (double-click the team once it stands still) — their mission done, they are gone."),
       look: {
         uniform: "#2b3a32",
         trousers: "#212d27",
@@ -83,41 +84,41 @@ export const RUSSIA: FactionConfig = {
   vehicles: {
     light: {
       name: "UAZ Patrol",
-      description: "Russian light patrol vehicle, cheap and quick.",
+      description: t("Russian light patrol vehicle, cheap and quick."),
     },
     tank: {
       name: "T-90",
-      description: "T-90 main battle tank, tough and long-ranged.",
+      description: t("T-90 main battle tank, tough and long-ranged."),
     },
     ifv: {
       name: "BMP-3",
-      description: "BMP-3 armoured fighting vehicle with a heavy autocannon.",
+      description: t("BMP-3 armoured fighting vehicle with a heavy autocannon."),
     },
-    heli: { name: "Ka-52", description: "Ka-52 Alligator attack helicopter: coaxial rotors and guided missiles against ground vehicles only. Carries up to 8 soldiers (no vehicles) and sets down anywhere on open ground." },
-    mantis: { name: "Buk-M3", description: "Buk-M3 (9K317) self-propelled air-defence vehicle: long-range missiles that hit aircraft only (fighters, bombers, helicopters, transports), never ground units or structures. Expensive and slow, armoured like a tank." },
+    heli: { name: "Ka-52", description: t("Ka-52 Alligator attack helicopter: coaxial rotors and guided missiles against ground vehicles only. Carries up to 8 soldiers (no vehicles) and sets down anywhere on open ground.") },
+    mantis: { name: "Buk-M3", description: t("Buk-M3 (9K317) self-propelled air-defence vehicle: long-range missiles that hit aircraft only (fighters, bombers, helicopters, transports), never ground units or structures. Expensive and slow, armoured like a tank.") },
     jet: {
       name: "Su-57",
-      description: "Su-57 stealth air superiority fighter.",
+      description: t("Su-57 stealth air superiority fighter."),
     },
     transport: {
       name: "Il-76",
       description:
-        "Il-76 military transport aircraft: carries soldiers and vehicles; unarmed.",
+        t("Il-76 military transport aircraft: carries soldiers and vehicles; unarmed."),
     },
     bomber: {
       name: "Tu-160",
       description:
-        "Tu-160 supersonic strategic bomber, Russia only: heavy bombs that flatten ground forces and structures; cannot hit aircraft.",
+        t("Tu-160 supersonic strategic bomber, Russia only: heavy bombs that flatten ground forces and structures; cannot hit aircraft."),
     },
     truck: {
       name: "KamAZ",
       description:
-        "KamAZ-5330 army truck: unarmed and faster than soldiers or tanks; carries up to 8 soldiers under its canvas cover (no vehicles). Ground only — it cannot cross the sea. Select soldiers or a tank and click the truck to board; select the truck and press U to unload.",
+        t("KamAZ-5330 army truck: unarmed and faster than soldiers or tanks; carries up to 8 soldiers under its canvas cover (no vehicles). Ground only — it cannot cross the sea. Select soldiers or a tank and click the truck to board; select the truck and press U to unload."),
     },
     repair: {
       name: "BREM-1",
       description:
-        "BREM-1 armoured recovery vehicle, Russia only: slow and unarmed; click a damaged friendly ground vehicle to drive up and repair it, or select damaged vehicles and click it to send them in for repair (5% of its max health every 2 s).",
+        t("BREM-1 armoured recovery vehicle, Russia only: slow and unarmed; click a damaged friendly ground vehicle to drive up and repair it, or select damaged vehicles and click it to send them in for repair (5% of its max health every 2 s)."),
     },
   },
 };

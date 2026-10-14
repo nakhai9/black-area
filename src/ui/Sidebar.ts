@@ -2,6 +2,7 @@ import { type IconNode, ArrowUpFromLine, Clock, House, Handshake, TriangleAlert,
 import { type ContestedNationId, BUILD_LIMIT_VEHICLES, CURRENCY, MAX_ALLIES, OIL_GRID_MARKUP, OIL_POLICIES, POWER_PER_BARREL, TECH_TIERS, TECH_VEHICLES, isAircraftKind } from '../constants';
 import { FACTIONS } from '../factions';
 import { getFlagTexture } from '../render/Flags';
+import { factionBadgeHtml } from './FactionBadge';
 import { nationFlag } from '../render/sprites/NationCapital';
 import { type BuildOption, type QueueSlot, buildCost, missingRequirement } from '../systems/ConstructionSystem';
 import { MIN_SALE_STOCK } from '../systems/OilMarket';
@@ -9,6 +10,7 @@ import type { ArmyCount, TrainOption, TrainingQueue } from '../systems/TrainingS
 import type { VehicleOption, VehicleQueue } from '../systems/VehicleSystem';
 import type { BuildingType, FactionId, OilPolicy, PlayerState, UnitTier, VehicleKind, WorldPoint } from '../types';
 import type { CarrierState } from '../entities/Vehicle';
+import { t } from '../i18n';
 
 /** The selected transport, for the Transport panel (RA2: passengers aboard + the Deploy / Unload button). */
 export interface TransportInfo {
@@ -283,101 +285,98 @@ export class Sidebar {
     root.innerHTML = `
       <header class="sb-header">
         <div class="sb-logo"><img src="${import.meta.env.BASE_URL}logo.png" alt="Black Area" /></div>
-        <button class="sb-collapse" title="Hide sidebar (Tab)" aria-label="Hide sidebar"></button>
+        <button class="sb-collapse" title="${t('Hide sidebar (Tab)')}" aria-label="${t('Hide sidebar')}"></button>
       </header>
       <section class="sb-panel sb-radar"><canvas class="sb-minimap"></canvas></section>
       <section class="sb-panel sb-oil-actions">
         <div class="sb-actions">
-          <button class="sb-sell" type="button" title="Offer your oil to the Global Monitoring Center: it decides whether and how much to buy (at most 25% per sale) and pays the posted price into your budget">Sell oil</button>
-          <button class="sb-sell sb-auto" type="button" title="Auto sell: offer your oil to the Global Monitoring Center automatically whenever a sale is allowed (green = on). Hotkey: A">Auto sell</button>
-          <button class="sb-sell sb-loan" type="button" title="Loan from the Global Monitoring Center (only when your budget is 0 ${CURRENCY}). Oil sales pay the debt back automatically.">Get a loan</button>
+          <button class="sb-sell" type="button" title="${t('Offer your oil to the Global Monitoring Center: it decides whether and how much to buy (at most 25% per sale) and pays the posted price into your budget')}">${t('Sell oil')}</button>
+          <button class="sb-sell sb-auto" type="button" title="${t('Auto sell: offer your oil to the Global Monitoring Center automatically whenever a sale is allowed (green = on). Hotkey: A')}">${t('Auto sell')}</button>
+          <button class="sb-sell sb-loan" type="button" title="${t('Loan from the Global Monitoring Center (only when your budget is 0 {c}). Oil sales pay the debt back automatically.', { c: CURRENCY })}">${t('Get a loan')}</button>
         </div>
       </section>
-      <nav class="sb-main-tabs" aria-label="Sidebar pages"></nav>
+      <nav class="sb-main-tabs" aria-label="${t('Sidebar pages')}"></nav>
       <div class="sb-view" data-page="command">
       <section class="sb-panel sb-resources">
         <div class="sb-player">
-          <span class="flag-badge">
-            <img class="sb-emblem" src="${import.meta.env.BASE_URL}emblems/${player.faction}.png" alt="" onerror="this.remove()">
-            <img class="sb-flag" src="${getFlagTexture(player.faction).toDataURL()}" alt="">
-          </span>
+          ${factionBadgeHtml(player.faction, 'sm')}
           <div>
             <div class="sb-player-name">${faction.name}</div>
-            <div class="sb-muted sb-leader" title="Head of state">${faction.leader.name}</div>
+            <div class="sb-muted sb-leader" title="${t('Head of state')}">${faction.leader.name}</div>
           </div>
         </div>
         <div class="sb-budget-row">
-          <span class="sb-budget-label">Budget</span>
+          <span class="sb-budget-label">${t('Budget')}</span>
           <span class="sb-credits"><span>0</span> <small>${CURRENCY}</small></span>
         </div>
         <div class="sb-cartel" hidden>
-          <div class="sb-oil">CARTEL POLICY <span class="sb-policy"></span></div>
+          <div class="sb-oil">${t('CARTEL POLICY ')}<span class="sb-policy"></span></div>
           <div class="sb-actions">
-            <button class="sb-sell" type="button" data-policy="cut" title="Cut output: your derricks pump 50%, the world oil price climbs (+35% target). Rivals pay more for grid oil; you earn more per barrel.">Cut</button>
-            <button class="sb-sell" type="button" data-policy="hold" title="Hold: normal output, the market sets the price.">Hold</button>
-            <button class="sb-sell" type="button" data-policy="flood" title="Flood the market: your derricks pump 160%, the world price crashes (−30% target) — a price war on nations that live off oil.">Flood</button>
+            <button class="sb-sell" type="button" data-policy="cut" title="${t('Cut output: your derricks pump 50%, the world oil price climbs (+35% target). Rivals pay more for grid oil; you earn more per barrel.')}">${t('Cut')}</button>
+            <button class="sb-sell" type="button" data-policy="hold" title="${t('Hold: normal output, the market sets the price.')}">${t('Hold')}</button>
+            <button class="sb-sell" type="button" data-policy="flood" title="${t('Flood the market: your derricks pump 160%, the world price crashes (−30% target) — a price war on nations that live off oil.')}">${t('Flood')}</button>
           </div>
         </div>
-        <div class="sb-power" title="Power"><i data-icon="power"></i><div class="sb-power-bar"><i class="sb-power-fill"></i></div></div>
+        <div class="sb-power" title="${t('Power')}"><i data-icon="power"></i><div class="sb-power-bar"><i class="sb-power-fill"></i></div></div>
       </section>
       <section class="sb-panel sb-transport" hidden>
-        <h3>Transport</h3>
+        <h3>${t('Transport')}</h3>
         <div class="sb-muted sb-transport-name"></div>
-        <div class="sb-oil">SOLDIERS <span class="sb-transport-soldiers"></span></div>
-        <div class="sb-oil">VEHICLES <span class="sb-transport-vehicles"></span></div>
-        <div class="sb-oil">STATUS <span class="sb-transport-state"></span></div>
+        <div class="sb-oil">${t('SOLDIERS ')}<span class="sb-transport-soldiers"></span></div>
+        <div class="sb-oil">${t('VEHICLES ')}<span class="sb-transport-vehicles"></span></div>
+        <div class="sb-oil">${t('STATUS ')}<span class="sb-transport-state"></span></div>
       </section>
-      <nav class="sb-main-tabs sb-page-links" aria-label="Alerts, rank and allies"></nav>
-      <section class="sb-panel sb-alerts" data-info="alerts" aria-live="polite" aria-label="Alerts">
+      <nav class="sb-main-tabs sb-page-links" aria-label="${t('Alerts, rank and allies')}"></nav>
+      <section class="sb-panel sb-alerts" data-info="alerts" aria-live="polite" aria-label="${t('Alerts')}">
         <ul class="sb-alert-list"></ul>
-        <div class="sb-alert-empty">All quiet.</div>
+        <div class="sb-alert-empty">${t('All quiet.')}</div>
       </section>
       <div class="sb-info" data-info="finance" hidden>
         <section class="sb-panel sb-finance">
-          <h3>Finance</h3>
-          <div class="sb-oil">OIL OUTPUT <span class="sb-income"></span></div>
-          <div class="sb-oil">OIL STOCK <span class="sb-stock"></span></div>
-          <div class="sb-oil">DEBT <span class="sb-debt"></span></div>
-          <div class="sb-oil">DERRICKS <span class="sb-derricks"></span></div>
+          <h3>${t('Finance')}</h3>
+          <div class="sb-oil">${t('OIL OUTPUT ')}<span class="sb-income"></span></div>
+          <div class="sb-oil">${t('OIL STOCK ')}<span class="sb-stock"></span></div>
+          <div class="sb-oil">${t('DEBT ')}<span class="sb-debt"></span></div>
+          <div class="sb-oil">${t('DERRICKS ')}<span class="sb-derricks"></span></div>
         </section>
         <section class="sb-panel sb-prices">
-          <div class="sb-price-row" title="Oil: what the Global Monitoring Center pays per barrel"><i data-icon="oil"></i><b class="sb-price"></b><i class="sb-price-trend"></i></div>
-          <div class="sb-price-row" title="Power: what the Global Monitoring Center charges when your grid runs dry (oil at +${Math.round((OIL_GRID_MARKUP - 1) * 100)}%, per 1 kJ)"><i data-icon="power"></i><b class="sb-power-price"></b></div>
-          <div class="sb-price-row" title="Next price revision"><i data-icon="clock"></i><b class="sb-price-clock"></b></div>
-          <div class="sb-price-row" title="War cycle: 6 minutes of war, then 4 minutes of ceasefire (no attacks, no takeovers)"><i data-icon="clock"></i><b class="sb-war-clock"></b></div>
-          <svg class="sb-price-chart" viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Oil price, last 5 minutes"><polyline fill="none" stroke-width="1.5" vector-effect="non-scaling-stroke"></polyline></svg>
+          <div class="sb-price-row" title="${t('Oil: what the Global Monitoring Center pays per barrel')}"><i data-icon="oil"></i><b class="sb-price"></b><i class="sb-price-trend"></i></div>
+          <div class="sb-price-row" title="${t('Power: what the Global Monitoring Center charges when your grid runs dry (oil at +{p}%, per 1 kJ)', { p: Math.round((OIL_GRID_MARKUP - 1) * 100) })}"><i data-icon="power"></i><b class="sb-power-price"></b></div>
+          <div class="sb-price-row" title="${t('Next price revision')}"><i data-icon="clock"></i><b class="sb-price-clock"></b></div>
+          <div class="sb-price-row" title="${t('War cycle: 6 minutes of war, then 4 minutes of ceasefire (no attacks, no takeovers)')}"><i data-icon="clock"></i><b class="sb-war-clock"></b></div>
+          <svg class="sb-price-chart" viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="${t('Oil price, last 5 minutes')}"><polyline fill="none" stroke-width="1.5" vector-effect="non-scaling-stroke"></polyline></svg>
         </section>
       </div>
       <div class="sb-info" data-info="rank" hidden>
         <section class="sb-panel sb-rank">
-          <h3 class="sb-rank-title">ECONOMY <small>oil + assets + budget + spare power</small></h3>
+          <h3 class="sb-rank-title">${t('ECONOMY ')}<small>${t('oil + assets + budget + spare power')}</small></h3>
           <ol class="sb-rank-list" data-rank="economy"></ol>
-          <h3 class="sb-rank-title">MILITARY <small>rank 1 = strongest · updated every 4 min</small></h3>
+          <h3 class="sb-rank-title">${t('MILITARY ')}<small>${t('rank 1 = strongest · updated every 4 min')}</small></h3>
           <ol class="sb-rank-list" data-rank="military"></ol>
         </section>
       </div>
       <div class="sb-info" data-info="allies" hidden>
         <section class="sb-panel sb-allies">
-          <h3 class="sb-rank-title">ALLIES <small class="sb-allies-count"></small></h3>
+          <h3 class="sb-rank-title">${t('ALLIES ')}<small class="sb-allies-count"></small></h3>
           <ol class="sb-ally-list"></ol>
-          <p class="sb-muted sb-allies-hint">Captured capitals and embassies are listed here. Click one to look at it. Build up to ${MAX_ALLIES} embassies next to your flags or buildings: far from every capital they become Pro-regimes.</p>
+          <p class="sb-muted sb-allies-hint">${t('Captured capitals and embassies are listed here. Click one to look at it. Build up to {n} embassies next to your flags or buildings: far from every capital they become Pro-regimes.', { n: MAX_ALLIES })}</p>
         </section>
       </div>
       <div class="sb-info" data-info="controls" hidden>
         <section class="sb-panel sb-help">
-          <h3>Controls</h3>
+          <h3>${t('Controls')}</h3>
           <ul>
-            <li><kbd>Click</kbd> cameo — build/train · <kbd>Right-click</kbd> cameo — cancel (refund)</li>
-            <li>Soldiers &amp; vehicles: <kbd>Left-drag</kbd> box-select · <kbd>Left-click</kbd> a unit select · <kbd>Shift</kbd>+<kbd>Left-click</kbd> add/remove · <kbd>Double-click</kbd> all of that type on screen · <kbd>Right-click</kbd> — deselect (units keep going)</li>
-            <li>Orders: <kbd>Left-click</kbd> ground — move · <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Right-click</kbd> attack-move · <kbd>X</kbd> scatter</li>
-            <li>Armed units: <kbd>Left-click</kbd> an enemy to attack — they never shoot buildings on their own, <kbd>Left-click</kbd> the building to focus it · enemy engineers capture buildings · <kbd>M</kbd> sound on/off</li>
-            <li>Elite (type II) soldiers: at most 2 for every 3 regulars · orders: up to 15 soldiers and 10 vehicles waiting at once — a new one the moment one is done, whatever your army size · special forces swim · tanks run soldiers over · only aircraft shoot aircraft</li>
-            <li>Transport: select soldiers/vehicles, <kbd>Left-click</kbd> your transport to board (one in the air lands first) · select the transport, <kbd>Left-click</kbd> ground — it flies there, lands and unloads · <kbd>U</kbd>/<b>Unload</b> — let them out here, one by one</li>
-            <li>Aircraft: <kbd>T</kbd>/<b>Turbo</b> — the selected aircraft in the air fly 2× faster for 15 s, then the turbo recharges (40 s)</li>
-            <li>Squatters (flag bearer + escort, one unit): walk it (or fly it by transport) to unclaimed land (not your rivals' home lands, never Antarctica), select it and press <kbd>F</kbd> (or double-click it) — the flag goes up on the nearest open cell, on any land (the Squatters are gone once it stands) · then build an <b>Allied Building</b> beside it (max 3 allies)</li>
-            <li>When <b>READY</b>: click cameo, then click the map to place · <kbd>R</kbd> turn it 90° (only before it is placed) · <kbd>Esc</kbd>/<kbd>Right-click</kbd> stop placing</li>
-            <li><kbd>WSD</kbd>/<kbd>Arrows</kbd>/screen edge — scroll · <kbd>A</kbd> auto sell · <kbd>Wheel</kbd> zoom · <kbd>Middle-drag</kbd> pan</li>
-            <li><kbd>Click</kbd> select · <kbd>1</kbd> your capital · <kbd>2</kbd>–<kbd>5</kbd> rival capitals · <kbd>O</kbd> oil · <kbd>H</kbd> home · <kbd>Tab</kbd> sidebar</li>
+            <li>${t('<kbd>Click</kbd> cameo — build/train · <kbd>Right-click</kbd> cameo — cancel (refund)')}</li>
+            <li>${t('Soldiers &amp; vehicles: <kbd>Left-drag</kbd> box-select · <kbd>Left-click</kbd> a unit select · <kbd>Shift</kbd>+<kbd>Left-click</kbd> add/remove · <kbd>Double-click</kbd> all of that type on screen · <kbd>Right-click</kbd> — deselect (units keep going)')}</li>
+            <li>${t('Orders: <kbd>Left-click</kbd> ground — move · <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Right-click</kbd> attack-move · <kbd>X</kbd> scatter')}</li>
+            <li>${t('Armed units: <kbd>Left-click</kbd> an enemy to attack — they never shoot buildings on their own, <kbd>Left-click</kbd> the building to focus it · enemy engineers capture buildings · <kbd>M</kbd> sound on/off')}</li>
+            <li>${t('Elite (type II) soldiers: at most 2 for every 3 regulars · orders: up to 15 soldiers and 10 vehicles waiting at once — a new one the moment one is done, whatever your army size · special forces swim · tanks run soldiers over · only aircraft shoot aircraft')}</li>
+            <li>${t('Transport: select soldiers/vehicles, <kbd>Left-click</kbd> your transport to board (one in the air lands first) · select the transport, <kbd>Left-click</kbd> ground — it flies there, lands and unloads · <kbd>U</kbd>/<b>Unload</b> — let them out here, one by one')}</li>
+            <li>${t('Aircraft: <kbd>T</kbd>/<b>Turbo</b> — the selected aircraft in the air fly 2× faster for 15 s, then the turbo recharges (40 s)')}</li>
+            <li>${t('Squatters (flag bearer + escort, one unit): walk it (or fly it by transport) to unclaimed land (not your rivals\' home lands, never Antarctica), select it and press <kbd>F</kbd> (or double-click it) — the flag goes up on the nearest open cell, on any land (the Squatters are gone once it stands) · then build an <b>Allied Building</b> beside it (max 3 allies)')}</li>
+            <li>${t('When <b>READY</b>: click cameo, then click the map to place · <kbd>R</kbd> turn it 90° (only before it is placed) · <kbd>Esc</kbd>/<kbd>Right-click</kbd> stop placing')}</li>
+            <li>${t('<kbd>WSD</kbd>/<kbd>Arrows</kbd>/screen edge — scroll · <kbd>A</kbd> auto sell · <kbd>Wheel</kbd> zoom · <kbd>Middle-drag</kbd> pan')}</li>
+            <li>${t('<kbd>Click</kbd> select · <kbd>1</kbd> your capital · <kbd>2</kbd>–<kbd>5</kbd> rival capitals · <kbd>O</kbd> oil · <kbd>H</kbd> home · <kbd>Tab</kbd> sidebar')}</li>
           </ul>
         </section>
       </div>
@@ -420,7 +419,10 @@ export class Sidebar {
     this.radarPanel = q('.sb-radar');
     // The compass sits in the minimap's bottom-left corner (the minimap is drawn north-up).
     const compass = document.getElementById('compass');
-    if (compass) this.radarPanel.append(compass);
+    if (compass) {
+      this.radarPanel.append(compass);
+      compass.hidden = false; // hidden in index.html so it never shows loose in the page corner (before the CSS loads)
+    }
     this.alertList = q('.sb-alert-list');
     this.alertEmpty = q('.sb-alert-empty');
     this.transportPanel = q('.sb-transport');
@@ -446,15 +448,15 @@ export class Sidebar {
       this.airTools.append(b);
       return b;
     };
-    tool(House, 'Home (H): jump the camera to your capital.', () => this.handlers.onHome());
-    this.turboButton = tool(Rocket, 'Turbo (T): the selected aircraft fly much faster for a while, then the turbo has to recharge before it can be used again.', () => this.handlers.onTurbo());
+    tool(House, t('Home (H): jump the camera to your capital.'), () => this.handlers.onHome());
+    this.turboButton = tool(Rocket, t('Turbo (T): the selected aircraft fly much faster for a while, then the turbo has to recharge before it can be used again.'), () => this.handlers.onTurbo());
     this.turboBadge = document.createElement('span');
     this.turboBadge.className = 'air-tool-badge';
     this.turboButton.append(this.turboBadge);
-    this.unloadButton = tool(ArrowUpFromLine, 'Unload (U): let the passengers out one by one. In the air the transport first lands on solid ground below it.', () => this.handlers.onUnload());
+    this.unloadButton = tool(ArrowUpFromLine, t('Unload (U): let the passengers out one by one. In the air the transport first lands on solid ground below it.'), () => this.handlers.onUnload());
     this.peaceTimer = document.createElement('div');
     this.peaceTimer.className = 'peace-timer';
-    this.peaceTimer.title = 'Ceasefire: time left before the war resumes.';
+    this.peaceTimer.title = t('Ceasefire: time left before the war resumes.');
     this.peaceTimer.hidden = true;
     this.airTools.append(this.peaceTimer);
     document.body.append(this.airTools);
@@ -497,8 +499,8 @@ export class Sidebar {
     const opener = document.createElement('button');
     this.opener = opener;
     opener.className = 'sb-open';
-    opener.title = 'Show sidebar (Tab)';
-    opener.setAttribute('aria-label', 'Show sidebar');
+    opener.title = t('Show sidebar (Tab)');
+    opener.setAttribute('aria-label', t('Show sidebar'));
     opener.append(createElement(LogIn, { width: 16, height: 16, 'stroke-width': 2, 'aria-hidden': 'true' }));
     opener.addEventListener('click', () => this.toggle());
     document.body.append(opener);
@@ -528,7 +530,7 @@ export class Sidebar {
         btn.innerHTML = `<span class="sb-alert-text"></span><span class="sb-alert-age">${secs < 60 ? `${secs} s` : `${Math.floor(secs / 60)} m`}</span>`;
         const label = btn.querySelector('.sb-alert-text');
         if (label) label.textContent = a.text;
-        btn.title = 'Click to look at it';
+        btn.title = t('Click to look at it');
         btn.addEventListener('click', () => this.handlers.onAlert(a.at));
         li.append(btn);
         return li;
@@ -562,13 +564,13 @@ export class Sidebar {
   }
 
   /** Transport panel: seats taken / free and the Unload button, lit while there are passengers to let out. */
-  private renderTransport(t: TransportInfo | null): void {
-    this.transportPanel.hidden = t === null;
-    if (!t) return;
-    this.transportName.textContent = t.incoming > 0 ? `${t.name} · ${t.incoming} on the way` : t.name;
-    this.transportSoldiers.textContent = `${t.soldiers}/${t.soldierCapacity}`;
-    this.transportVehicles.textContent = `${t.vehicles}/${t.vehicleCapacity}`;
-    this.transportState.textContent = CARRIER_STATE_LABEL[t.state];
+  private renderTransport(tr: TransportInfo | null): void {
+    this.transportPanel.hidden = tr === null;
+    if (!tr) return;
+    this.transportName.textContent = tr.incoming > 0 ? t('{name} · {n} on the way', { name: tr.name, n: tr.incoming }) : tr.name;
+    this.transportSoldiers.textContent = `${tr.soldiers}/${tr.soldierCapacity}`;
+    this.transportVehicles.textContent = `${tr.vehicles}/${tr.vehicleCapacity}`;
+    this.transportState.textContent = t(CARRIER_STATE_LABEL[tr.state]);
   }
 
   update(model: SidebarModel, dt: number): void {
@@ -584,18 +586,18 @@ export class Sidebar {
     this.renderPrices(model);
     this.sellButton.hidden = model.autoSell; // auto sell does the selling: no manual button
     this.sellButton.disabled = player.defeated || model.sellable < MIN_SALE_STOCK || model.salesWait > 0;
-    this.sellButton.textContent = model.salesWait > 0 ? `Sell oil · wait ${model.salesWait} s` : 'Sell oil';
+    this.sellButton.textContent = model.salesWait > 0 ? t('Sell oil · wait {n} s', { n: model.salesWait }) : t('Sell oil');
     this.autoSellButton.classList.toggle('on', model.autoSell);
     this.debt.textContent = `${Math.ceil(player.debt).toLocaleString('en-US')} / ${model.creditLine.toLocaleString('en-US')} ${CURRENCY}`;
     this.loanButton.disabled = model.loanBlocker !== null;
     this.loanButton.title =
       model.loanBlocker ??
-      `Borrow ${model.loanSize.toLocaleString('en-US')} ${CURRENCY} now. Credit line ${model.creditLine.toLocaleString('en-US')} ${CURRENCY}, based on your oil stock and assets. Oil sales pay the debt back automatically.`;
-    this.derricks.textContent = `${model.pumping}/${model.derricks} pumping`;
+      t('Borrow {loan} {c} now. Credit line {line} {c}, based on your oil stock and assets. Oil sales pay the debt back automatically.', { loan: model.loanSize.toLocaleString('en-US'), line: model.creditLine.toLocaleString('en-US'), c: CURRENCY });
+    this.derricks.textContent = t('{a}/{b} pumping', { a: model.pumping, b: model.derricks });
     this.cartelPanel.hidden = !model.cartel;
     if (model.cartel) {
       const p = OIL_POLICIES[model.oilPolicy];
-      this.policyText.textContent = `${p.label} · ${Math.round(p.output * 100)}%` + (model.policyWait > 0 ? ` · ${model.policyWait} s` : '');
+      this.policyText.textContent = `${t(p.label)} · ${Math.round(p.output * 100)}%` + (model.policyWait > 0 ? ` · ${model.policyWait} s` : '');
       for (const b of this.policyButtons) {
         b.classList.toggle('lit', b.dataset.policy === model.oilPolicy);
         b.disabled = player.defeated || model.policyWait > 0 || b.dataset.policy === model.oilPolicy;
@@ -604,8 +606,8 @@ export class Sidebar {
     this.renderTransport(model.transport);
     this.renderAircraft(model.aircraft);
     // Unload works only for a carrier with someone aboard (a fighter / bomber has no seats).
-    const t = model.transport;
-    this.unloadButton.disabled = !t || t.soldiers + t.vehicles === 0 || t.state === 'unloading';
+    const carrier = model.transport;
+    this.unloadButton.disabled = !carrier || carrier.soldiers + carrier.vehicles === 0 || carrier.state === 'unloading';
     this.unloadButton.classList.toggle('lit', !this.unloadButton.disabled);
 
     // POWER: what the nuclear plants can generate / what the structures need (J/s); red while short.
@@ -616,11 +618,11 @@ export class Sidebar {
     const ratio = player.powerConsumed > 0 ? Math.min(1, player.powerSupply / player.powerConsumed) : 1;
     this.powerFill.style.width = `${Math.round(ratio * 100)}%`;
     this.powerBar.dataset.level = player.blackout ? 'dead' : player.powerShort ? 'weak' : 'ok';
-    this.powerBar.parentElement!.title = `Power ${powerLine}. ` + (player.blackout
-      ? 'BLACKOUT: no power and no TB to buy oil from the Global Monitoring Center. No take-offs.'
+    this.powerBar.parentElement!.title = t('Power {line}. ', { line: powerLine }) + (player.blackout
+      ? t('BLACKOUT: no power and no TB to buy oil from the Global Monitoring Center. No take-offs.')
       : player.powerShort
-        ? 'Not enough power: the Global Monitoring Center sells oil for the missing power (+25%), and take-offs stop (construction and production keep running while you have TB).'
-        : `Stored ${compactEnergy(player.powerStored)} / ${compactEnergy(player.powerCapacity)}. Plants burn your oil (0.001 bbl = 1 J).`);
+        ? t('Not enough power: the Global Monitoring Center sells oil for the missing power (+25%), and take-offs stop (construction and production keep running while you have TB).')
+        : t('Stored {a} / {b}. Plants burn your oil (0.001 bbl = 1 J).', { a: compactEnergy(player.powerStored), b: compactEnergy(player.powerCapacity) }));
 
     // The radar picture is blurred and dimmed until the nation owns an Airfield.
     this.radarPanel.classList.toggle('offline', !model.owned.has('airfield'));
@@ -634,7 +636,7 @@ export class Sidebar {
     const infantryTab = this.tabButtons.get('infantry');
     if (infantryTab) {
       infantryTab.disabled = !model.hasBarracks;
-      infantryTab.title = model.hasBarracks ? 'Infantry' : '';
+      infantryTab.title = model.hasBarracks ? t('Infantry') : '';
       infantryTab.classList.toggle('no-icon', !model.hasBarracks);
     }
     if (!model.hasBarracks && this.activeTab === 'infantry') this.switchTab('build');
@@ -643,7 +645,7 @@ export class Sidebar {
     const vehicleTab = this.tabButtons.get('vehicles');
     if (vehicleTab) {
       vehicleTab.disabled = !canMake;
-      vehicleTab.title = canMake ? 'Vehicles & aircraft' : '';
+      vehicleTab.title = canMake ? t('Vehicles & aircraft') : '';
       vehicleTab.classList.toggle('no-icon', !canMake);
     }
     if (!canMake && this.activeTab === 'vehicles') this.switchTab('build');
@@ -677,12 +679,12 @@ export class Sidebar {
           ? `${buildCost(option, this.faction)} ${CURRENCY}`
           : state === 'ready'
             ? placingThis
-              ? 'PLACING'
-              : 'READY'
+              ? t('PLACING')
+              : t('READY')
             : state === 'onHold'
-              ? `ON HOLD ${Math.floor(queue.progress * 100)}%`
+              ? t('ON HOLD {p}%', { p: Math.floor(queue.progress * 100) })
               : state === 'noPower'
-                ? `NO POWER ${Math.floor(queue.progress * 100)}%`
+                ? t('NO POWER {p}%', { p: Math.floor(queue.progress * 100) })
               : `${Math.floor(queue.progress * 100)}%`,
       );
     }
@@ -717,7 +719,7 @@ export class Sidebar {
       btn.addEventListener('click', onClick);
       return btn;
     };
-    const command = tabButton('Command', Radar, true, () => this.switchView('command'));
+    const command = tabButton(t('Command'), Radar, true, () => this.switchView('command'));
     nav.append(command);
     this.mainTabs.set('command', command);
     const infos: readonly { id: InfoId; label: string; icon: IconNode }[] = [
@@ -728,7 +730,7 @@ export class Sidebar {
       { id: 'controls', label: 'Controls', icon: Keyboard },
     ];
     for (const info of infos) {
-      const btn = tabButton(info.label, info.icon, info.id === this.activeInfo, () => this.switchInfo(info.id));
+      const btn = tabButton(t(info.label), info.icon, info.id === this.activeInfo, () => this.switchInfo(info.id));
       // The Allies tab only shows up once the nation has its first ally.
       if (info.id === 'allies') btn.hidden = true;
       links.append(btn);
@@ -742,7 +744,7 @@ export class Sidebar {
     this.powerPrice.textContent = compactMoney(((model.oilPrice * OIL_GRID_MARKUP) / POWER_PER_BARREL) * 1000);
     this.priceClock.textContent = `${model.priceChangeIn} s`;
     const left = Math.ceil(model.warPhase.left);
-    this.warClock.textContent = `${model.warPhase.peace ? 'Peace' : 'War'} ${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
+    this.warClock.textContent = `${model.warPhase.peace ? t('Peace') : t('War')} ${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
     this.warClock.style.color = model.warPhase.peace ? '#7fd17f' : '#ff7a6b';
     const trend = Math.sign(model.oilPrice - model.previousPrice);
     if (trend !== this.trendKey || this.priceTrend.childElementCount === 0) {
@@ -797,7 +799,7 @@ export class Sidebar {
         }),
       );
     };
-    fill(this.rankEconomy, 'economy', (r) => `Economy ${Math.round(r.economy).toLocaleString('en-US')} ${CURRENCY}`);
+    fill(this.rankEconomy, 'economy', (r) => t('Economy {v} {c}', { v: Math.round(r.economy).toLocaleString('en-US'), c: CURRENCY }));
     fill(this.rankMilitary, 'military', null);
   }
 
@@ -832,14 +834,14 @@ export class Sidebar {
         const li = document.createElement('li');
         li.classList.toggle('pending', !a.built);
         li.classList.toggle('hit', a.underAttack);
-        li.title = a.capital ?? 'Look at it';
+        li.title = a.capital ?? t('Look at it');
         const pos = document.createElement('span');
         pos.className = 'sb-rank-pos';
         pos.textContent = a.built ? String(++n) : '⚑';
         const info = document.createElement('div');
         const name = document.createElement('div');
         name.className = 'sb-ally-name';
-        const hit = a.underAttack ? ' · under attack!' : '';
+        const hit = a.underAttack ? t(' · under attack!') : '';
         if (a.nation && a.holder) {
           // Emblem of the holder [handshake] flag of the nation taken: the alliance between them.
           const img = (src: string) => {
@@ -856,7 +858,7 @@ export class Sidebar {
           name.append(img(`${import.meta.env.BASE_URL}emblems/${a.holder}.png`), shake, img(nationFlag(a.nation).toDataURL()));
           if (hit) name.append(hit);
         } else {
-          name.textContent = a.built ? `${a.capital ?? (a.embassy ?? `Ally ${n}`)}${hit}` : 'Claimed land · no ally yet';
+          name.textContent = a.built ? `${a.capital ?? (a.embassy ?? t('Ally {n}', { n }))}${hit}` : t('Claimed land · no ally yet');
         }
         const place = document.createElement('div');
         place.className = 'sb-muted sb-ally-place';
@@ -965,9 +967,9 @@ export class Sidebar {
       setText(c.state, !training
         ? `${option.cost} ${CURRENCY}`
         : q.state === 'noBarracks'
-          ? 'NO MINISTRY'
+          ? t('NO MINISTRY')
           : q.state === 'onHold'
-            ? `ON HOLD ${Math.floor(progress * 100)}%`
+            ? t('ON HOLD {p}%', { p: Math.floor(progress * 100) })
             : `${Math.floor(progress * 100)}%`);
     }
   }
@@ -999,19 +1001,19 @@ export class Sidebar {
       setText(c.state, !producing
         ? !have
             ? option.needsAirfield
-              ? 'NO AIRFIELD'
-              : 'NO FACTORY'
+              ? t('NO AIRFIELD')
+              : t('NO FACTORY')
             : `${option.cost} ${CURRENCY}`
         : q.state === 'noAirfield'
-          ? 'NO AIRFIELD'
+          ? t('NO AIRFIELD')
           : q.state === 'noFactory'
-            ? 'NO FACTORY'
+            ? t('NO FACTORY')
             : q.state === 'noPower'
-              ? `NO POWER ${Math.floor(progress * 100)}%`
+              ? t('NO POWER {p}%', { p: Math.floor(progress * 100) })
               : q.state === 'exitBlocked'
-              ? 'EXIT BLOCKED'
+              ? t('EXIT BLOCKED')
               : q.state === 'onHold'
-              ? `ON HOLD ${Math.floor(progress * 100)}%`
+              ? t('ON HOLD {p}%', { p: Math.floor(progress * 100) })
               : `${Math.floor(progress * 100)}%`);
     }
   }
@@ -1021,7 +1023,7 @@ export class Sidebar {
       const el = document.createElement('button');
       el.type = 'button';
       el.className = 'sb-cameo';
-      el.title = `${option.name} — ${option.cost} ${CURRENCY}, ${option.trainSeconds} s. ${option.description} Click to build, right-click to cancel.`;
+      el.title = `${option.name} — ${option.cost} ${CURRENCY}, ${option.trainSeconds} s. ${option.description} ${t('Click to build, right-click to cancel.')}`;
       el.innerHTML = `
         <canvas width="128" height="96"></canvas>
         <span class="sb-cameo-wipe"></span>
@@ -1050,7 +1052,7 @@ export class Sidebar {
       const el = document.createElement('button');
       el.type = 'button';
       el.className = 'sb-cameo';
-      el.title = `${option.name} — ${option.cost} ${CURRENCY}, ${option.trainSeconds} s. ${option.description} Click to train, right-click to cancel.`;
+      el.title = `${option.name} — ${option.cost} ${CURRENCY}, ${option.trainSeconds} s. ${option.description} ${t('Click to train, right-click to cancel.')}`;
       el.innerHTML = `
         <canvas width="128" height="96"></canvas>
         <span class="sb-cameo-wipe"></span>
@@ -1081,9 +1083,9 @@ export class Sidebar {
       btn.disabled = !tab.enabled;
       btn.dataset.tab = tab.id;
       btn.classList.toggle('active', false);
-      btn.title = tab.enabled ? tab.label : `${tab.label} (coming soon)`;
+      btn.title = tab.enabled ? t(tab.label) : t('{label} (coming soon)', { label: t(tab.label) });
       if (tab.id === 'infantry' || tab.id === 'vehicles') btn.disabled = true; // unlocked by the matching building
-      btn.setAttribute('aria-label', tab.label);
+      btn.setAttribute('aria-label', t(tab.label));
       btn.setAttribute('aria-pressed', 'false');
       btn.append(createElement(tab.icon, { width: 18, height: 18, 'stroke-width': 2, 'aria-hidden': 'true' }));
       btn.addEventListener('click', () => {
@@ -1103,8 +1105,8 @@ export class Sidebar {
       // The Allied Building is the nation's embassy in that land.
       el.title =
         option.id === 'alliedBuilding'
-          ? `${FACTIONS[this.faction].shortName} Embassy`
-          : `${option.name} — ${buildCost(option, this.faction)} ${CURRENCY}. Click to build, right-click to cancel.`;
+          ? t('{nation} Embassy', { nation: FACTIONS[this.faction].shortName })
+          : `${option.name} — ${buildCost(option, this.faction)} ${CURRENCY}. ${t('Click to build, right-click to cancel.')}`;
       el.innerHTML = `
         <canvas width="128" height="96"></canvas>
         <span class="sb-cameo-wipe"></span>

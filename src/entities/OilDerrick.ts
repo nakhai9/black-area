@@ -1,3 +1,4 @@
+import { t as tr } from '../i18n';
 import {
   FOOTPRINT_SMALL,
   OIL_DERRICK_OUTPUT,
@@ -57,10 +58,10 @@ export class OilDerrick extends Building {
     this.bankManaged = bankManaged;
     this.antarctic = antarctic;
     this.description = antarctic
-      ? 'Antarctic oil field: belongs to whoever took it last. It cannot be destroyed; any nation\'s engineer can take it over.'
+      ? tr("Antarctic oil field: belongs to whoever took it last. It cannot be destroyed; any nation's engineer can take it over.")
       : bankManaged
-      ? `Managed by the Global Monitoring Center: its TB still goes to its nation, and it cannot be destroyed or captured.`
-      : `Pumps oil for the nation to sell to the Global Monitoring Center. Pumps ${OIL_MINE_SECONDS} s, then rests ${OIL_REST_SECONDS} s while the field recovers.`;
+      ? tr('Managed by the Global Monitoring Center: its TB still goes to its nation, and it cannot be destroyed or captured.')
+      : tr('Pumps oil for the nation to sell to the Global Monitoring Center. Pumps {mine} s, then rests {rest} s while the field recovers.', { mine: OIL_MINE_SECONDS, rest: OIL_REST_SECONDS });
     // Stagger neighbours (0 s, 40 s, 80 s … into the 240 s cycle) so they never all rest together.
     const t = (rowIndex * 40) % CYCLE;
     this.mining = t < OIL_MINE_SECONDS;

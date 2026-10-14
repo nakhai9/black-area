@@ -1,3 +1,5 @@
+import { t } from '../i18n';
+
 /** Full-screen "GAME OVER" / "VICTORY" panel with a button that starts a new game. */
 export class EndScreen {
   private shown = false;
@@ -12,12 +14,12 @@ export class EndScreen {
     card.className = 'end-card';
     card.style.setProperty('--end-color', victory ? '#5cff6a' : '#ff3b30');
     const title = document.createElement('h1');
-    title.textContent = victory ? 'VICTORY' : 'GAME OVER';
+    title.textContent = victory ? t('VICTORY') : t('GAME OVER');
     const text = document.createElement('p');
     text.textContent = message;
     const button = document.createElement('button');
     button.type = 'button';
-    button.textContent = 'New game';
+    button.textContent = t('New game');
     button.addEventListener('click', () => window.location.reload());
     card.append(title, text, button);
     root.append(card);

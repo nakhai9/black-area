@@ -1,4 +1,5 @@
 import type { FactionConfig } from "../types";
+import { t } from "../i18n";
 
 /** China — heavy armour and mass production; cheap and tough, with cheap, fast and nimble infantry (it has no heavy bomber). */
 export const CHINA: FactionConfig = {
@@ -7,7 +8,7 @@ export const CHINA: FactionConfig = {
   shortName: "China",
   leader: { title: "President", name: "Xi Jinping" },
   doctrine:
-    "Heavy armour and mass: cheap, durable units fielded in overwhelming numbers.",
+    t("Heavy armour and mass: cheap, durable units fielded in overwhelming numbers."),
   colors: { primary: "#e8b10a", light: "#ffe48a", dark: "#6b4b00" },
   stats: {
     unitSpeed: 0.85,
@@ -25,14 +26,14 @@ export const CHINA: FactionConfig = {
     name: "Zhongnanhai",
     city: "Beijing",
     description:
-      "Leadership compound of the People’s Republic, behind the Xinhuamen gate.",
+      t("Leadership compound of the People’s Republic, behind the Xinhuamen gate."),
     maxHp: 18000,
     powerOutput: 0,
   },
   infantry: {
     regular: {
       name: "PLA",
-      description: "Disciplined Chinese line infantry, cheap and numerous.",
+      description: t("Disciplined Chinese line infantry, cheap and numerous."),
       look: {
         uniform: "#5b6a3a",
         trousers: "#47532c",
@@ -45,7 +46,7 @@ export const CHINA: FactionConfig = {
     },
     special: {
       name: "Tiger",
-      description: "Elite marine commandos trained for amphibious assault.",
+      description: t("Elite marine commandos trained for amphibious assault."),
       look: {
         uniform: "#5b6a3a",
         trousers: "#47532c",
@@ -59,7 +60,7 @@ export const CHINA: FactionConfig = {
     engineer: {
       name: "Engineer",
       description:
-        "PLA engineer: repairs buildings and captures enemy structures.",
+        t("PLA engineer: repairs buildings and captures enemy structures."),
       look: {
         uniform: "#6e7a4a",
         trousers: "#4b5533",
@@ -72,7 +73,7 @@ export const CHINA: FactionConfig = {
     squatters: {
       name: "Squatters",
       description:
-        "PLA flag bearer and rifleman escort, moving as one: sent on foot or by transport to unclaimed land, they plant the national flag there (double-click the team once it stands still) — their mission done, they are gone.",
+        t("PLA flag bearer and rifleman escort, moving as one: sent on foot or by transport to unclaimed land, they plant the national flag there (double-click the team once it stands still) — their mission done, they are gone."),
       look: {
         uniform: "#5b6a3a",
         trousers: "#47532c",
@@ -87,30 +88,30 @@ export const CHINA: FactionConfig = {
   vehicles: {
     light: {
       name: "Dongfeng Scout",
-      description: "Chinese light reconnaissance vehicle.",
+      description: t("Chinese light reconnaissance vehicle."),
     },
     tank: {
       name: "Type 99",
-      description: "Type 99 main battle tank, produced in large numbers.",
+      description: t("Type 99 main battle tank, produced in large numbers."),
     },
-    ifv: { name: "ZBD-04", description: "ZBD-04 armoured fighting vehicle." },
-    heli: { name: "Z-10", description: "Changhe Z-10 attack helicopter: guided missiles against ground vehicles only. Carries up to 8 soldiers (no vehicles) and sets down anywhere on open ground." },
-    mantis: { name: "Buk-M3", description: "Buk-M3 (9K317) self-propelled air-defence vehicle: long-range missiles that hit aircraft only (fighters, bombers, helicopters, transports), never ground units or structures. Expensive and slow, armoured like a tank." },
-    jet: { name: "J-31", description: "Shenyang J-31 Gyrfalcon stealth multirole fighter." },
+    ifv: { name: "ZBD-04", description: t("ZBD-04 armoured fighting vehicle.") },
+    heli: { name: "Z-10", description: t("Changhe Z-10 attack helicopter: guided missiles against ground vehicles only. Carries up to 8 soldiers (no vehicles) and sets down anywhere on open ground.") },
+    mantis: { name: "Buk-M3", description: t("Buk-M3 (9K317) self-propelled air-defence vehicle: long-range missiles that hit aircraft only (fighters, bombers, helicopters, transports), never ground units or structures. Expensive and slow, armoured like a tank.") },
+    jet: { name: "J-31", description: t("Shenyang J-31 Gyrfalcon stealth multirole fighter.") },
     transport: {
       name: "Y-20",
       description:
-        "Y-20 heavy transport aircraft: carries soldiers and vehicles; unarmed.",
+        t("Y-20 heavy transport aircraft: carries soldiers and vehicles; unarmed."),
     },
     truck: {
       name: "KamAZ",
       description:
-        "KamAZ army truck: unarmed and faster than soldiers or tanks; carries up to 8 soldiers under its canvas cover (no vehicles). Ground only — it cannot cross the sea. Select soldiers or a tank and click the truck to board; select the truck and press U to unload.",
+        t("KamAZ army truck: unarmed and faster than soldiers or tanks; carries up to 8 soldiers under its canvas cover (no vehicles). Ground only — it cannot cross the sea. Select soldiers or a tank and click the truck to board; select the truck and press U to unload."),
     },
     repair: {
       name: "Type 99II",
       description:
-        "Type 99II armoured recovery vehicle: slow and unarmed; click a damaged friendly ground vehicle to drive up and repair it, or select damaged vehicles and click it to send them in for repair (5% of its max health every 2 s).",
+        t("Type 99II armoured recovery vehicle: slow and unarmed; click a damaged friendly ground vehicle to drive up and repair it, or select damaged vehicles and click it to send them in for repair (5% of its max health every 2 s)."),
     },
   },
 };

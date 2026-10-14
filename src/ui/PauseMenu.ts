@@ -1,3 +1,8 @@
+import { type Lang, languageSelect, t } from '../i18n';
+
+/** Key in sessionStorage: set when the page reloads only to switch the language, so the save loads without asking. */
+export const LANGUAGE_RELOAD_KEY = 'black-area.languageReload';
+
 /** Background-music volume control wired into the pause menu. */
 export interface MusicVolumeControl {
   get: () => number;
@@ -7,6 +12,8 @@ export interface MusicVolumeControl {
 /** Save / load actions of the pause menu. */
 export interface SaveActions {
   onSave: () => void;
+  /** Settings → Language: the game switches to it (carried over through a save and a reload). */
+  onLanguage: (lang: Lang) => void;
 }
 
 /** Key in sessionStorage holding a save picked to be loaded (the page reloads and boots straight into it). */
@@ -23,7 +30,7 @@ export function pickSaveFile(onError: (message: string) => void = (m) => window.
     void file.text().then((text) => {
       try {
         const save = JSON.parse(text) as { format?: string };
-        if (save.format !== 'black-area-save') throw new Error('This file is not a Black Area save.');
+        if (save.format !== 'black-area-save') throw new Error(t('This file is not a Black Area save.'));
         sessionStorage.setItem(PENDING_SAVE_KEY, text);
       } catch (err) {
         onError(err instanceof Error ? err.message : String(err));
@@ -51,9 +58,9 @@ export class PauseMenu {
     card.className = 'end-card';
     card.style.setProperty('--end-color', '#f5c542');
     const title = document.createElement('h1');
-    title.textContent = 'PAUSED';
+    title.textContent = t('PAUSED');
     const text = document.createElement('p');
-    text.textContent = 'The game is paused. Press Esc or Continue to resume.';
+    text.textContent = t('The game is paused. Press Esc or Continue to resume.');
     const volume = document.createElement('label');
     volume.className = 'pause-volume';
     const volumeText = document.createElement('span');
@@ -63,7 +70,7 @@ export class PauseMenu {
     slider.max = '100';
     slider.step = '1';
     const showVolume = (): void => {
-      volumeText.textContent = `Music volume: ${slider.value}%`;
+      volumeText.textContent = t('Music volume: {value}%', { value: slider.value });
     };
     this.syncVolume = (): void => {
       slider.value = String(Math.round(music.get() * 100));
@@ -76,22 +83,22 @@ export class PauseMenu {
     volume.append(volumeText, slider);
     const resume = document.createElement('button');
     resume.type = 'button';
-    resume.textContent = 'Continue';
+    resume.textContent = t('Continue');
     resume.addEventListener('click', onContinue);
     const quit = document.createElement('button');
     quit.type = 'button';
-    quit.textContent = 'Quit game';
+    quit.textContent = t('Quit game');
     // Reload without query params (e.g. ?faction=…) so the faction picker opens again.
     quit.addEventListener('click', () => window.location.assign(window.location.pathname));
     const save = document.createElement('button');
     save.type = 'button';
-    save.textContent = 'Save game';
-    save.title = 'Download this game as a .json file, to continue it later with Load game.';
+    save.textContent = t('Save game');
+    save.title = t('Download this game as a .json file, to continue it later with Load saved game.');
     save.addEventListener('click', () => saves.onSave());
     const actions = document.createElement('div');
     actions.className = 'pause-actions';
     actions.append(resume, save, quit);
-    card.append(title, text, volume, actions);
+    card.append(title, text, volume, languageSelect((lang) => saves.onLanguage(lang)), actions);
     this.root.append(card);
     parent.append(this.root);
   }

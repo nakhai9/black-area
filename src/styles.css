@@ -7,6 +7,18 @@
   --accent: #e0b040;
   --team: #2f6fe0;
   --sidebar-w: 290px;
+  /* Every modal (faction picker, pause / settings, saved-game confirm, victory / game over) shares one look. */
+  --modal-bg: linear-gradient(180deg, #1b232b, #0e1318);
+  --modal-border: 2px solid #3a4754;
+  --modal-radius: 6px;
+  --modal-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+  /* Every text button shares one look (see "buttons" at the end); only its size depends on where it sits. */
+  --btn-bg: linear-gradient(180deg, #2a3540, #182028);
+  --btn-bg-hover: linear-gradient(180deg, #364552, #1f2932);
+  --btn-border: 1px solid #4a5866;
+  --btn-border-hover: #e0b040;
+  --btn-color: #e6ebef;
+  --btn-radius: 4px;
 }
 
 * {
@@ -192,13 +204,6 @@ body.sidebar-hidden .sb-open {
   cursor: crosshair;
 }
 
-.sb-flag {
-  width: 30px;
-  height: 18px;
-  border: 1px solid #000;
-  box-shadow: 0 0 0 1px #3a4652;
-  flex: none;
-}
 
 .sb-player {
   display: flex;
@@ -378,10 +383,10 @@ kbd {
   position: relative;
   width: min(1180px, 100%);
   padding: 22px;
-  background: linear-gradient(180deg, #1b232b, #0e1318);
-  border: 2px solid #3a4754;
-  border-radius: 6px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+  background: var(--modal-bg);
+  border: var(--modal-border);
+  border-radius: var(--modal-radius);
+  box-shadow: var(--modal-shadow);
 }
 .fp-version {
   position: absolute;
@@ -462,12 +467,6 @@ kbd {
   position: absolute;
   top: 10px;
   right: 10px;
-}
-.fp-flag {
-  width: 72px;
-  height: 43px;
-  border: 1px solid #000;
-  box-shadow: 0 0 0 1px #3a4652;
 }
 .fp-card h2 {
   margin: 4px 0 0;
@@ -976,9 +975,10 @@ kbd {
   max-width: min(560px, calc(100vw - 32px));
   padding: 28px 34px;
   text-align: center;
-  background: #0b1016;
-  border: 2px solid var(--end-color, #ff3b30);
-  box-shadow: 0 0 40px rgba(0, 0, 0, 0.7);
+  background: var(--modal-bg);
+  border: var(--modal-border);
+  border-radius: var(--modal-radius);
+  box-shadow: var(--modal-shadow);
 }
 .end-card h1 {
   margin: 0 0 8px;
@@ -1304,14 +1304,31 @@ kbd {
   bottom: -4px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
 }
-.sb-emblem {
-  width: 34px;
-  height: 34px;
+.fb-emblem {
+  width: var(--fb-emblem);
+  height: var(--fb-emblem);
   object-fit: contain;
 }
-.flag-badge > .sb-emblem + .sb-flag {
-  width: 18px;
-  height: 11px;
+.fb-flag {
+  width: var(--fb-flag-w);
+  height: calc(var(--fb-flag-w) * 0.6);
+  border: 1px solid #000;
+}
+.flag-badge--sm {
+  --fb-emblem: 34px;
+  --fb-flag-w: 18px;
+}
+.flag-badge--md {
+  --fb-emblem: 64px;
+  --fb-flag-w: 30px;
+}
+/* Saved-game confirm screen: the badge is the title, centred above the buttons. */
+.flag-badge--lg {
+  --fb-emblem: 96px;
+  --fb-flag-w: 37px;
+  display: block;
+  width: max-content;
+  margin: 0 auto 22px;
 }
 .sb-allies-hint {
   font-size: 11px;
@@ -1360,17 +1377,11 @@ kbd {
 .fp-ident {
   display: flex;
   align-items: flex-end;
+  justify-content: center; /* emblem + flag centred on the card */
   gap: 10px;
 }
-.fp-emblem {
-  width: 64px;
-  height: 64px;
-  object-fit: contain;
-}
-/* Small flag over the emblem's lower right corner (faction picker). */
-.flag-badge > .fp-emblem + .fp-flag {
-  width: 30px;
-  height: 18px;
+.fp-ident .flag-badge {
+  margin-right: 0;
 }
 .sb-auto.on {
   background: linear-gradient(#2f6a1e, #1c4211);
@@ -1487,11 +1498,6 @@ body.pregame #compass {
   visibility: hidden; /* keeps its layout, so the sidebar measures right while it is built */
 }
 /* Load confirm: the nation's emblem as title, Start in the nation's colour. */
-.lc-emblem {
-  display: block;
-  height: 96px;
-  margin: 0 auto 12px;
-}
 .end-card button.lc-start {
   background: var(--faction-color);
   border-color: var(--faction-color);
@@ -1527,4 +1533,82 @@ body.pregame #compass {
 .air-tool:focus,
 .air-tool:focus-visible {
   outline: none;
+}
+
+/* Language picker (main menu footer, pause menu). */
+.lang-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #cfd8e0;
+  font-size: 13px;
+}
+.fp-footer .lang-select {
+  margin-right: auto;
+}
+.pause-screen .lang-select {
+  display: flex;
+  justify-content: center;
+  margin: 0 0 18px;
+}
+.lang-select select {
+  background: #0b1016;
+  color: #f2f5f8;
+  border: 1px solid #3a4652;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font: inherit;
+}
+
+/* No side picked yet: Deploy (and Test) are not shown until a card is clicked. */
+.fp-deploy[hidden],
+.fp-demo[hidden] {
+  display: none;
+}
+
+/* ------------------------------------------------------------- buttons (one look everywhere) */
+/* Secondary: menu footer, modals, sidebar actions. */
+.fp-desktop,
+.fp-guide,
+.fp-load,
+.fp-demo,
+.end-card button,
+.sb-sell,
+.sb-unload {
+  background: var(--btn-bg);
+  border: var(--btn-border);
+  border-radius: var(--btn-radius);
+  color: var(--btn-color);
+  font-weight: 700;
+  text-transform: uppercase;
+  text-shadow: none;
+  cursor: pointer;
+}
+.fp-desktop:hover,
+.fp-guide:hover,
+.fp-load:hover,
+.fp-demo:hover,
+.end-card button:hover,
+.sb-sell:hover:not(:disabled),
+.sb-unload:hover:not(:disabled) {
+  background: var(--btn-bg-hover);
+  border-color: var(--btn-border-hover);
+  color: var(--btn-color);
+  filter: none;
+}
+/* Primary: the one main action (Deploy / Start), in the nation's colour; same shape as the others. */
+.fp-deploy,
+.end-card button.lc-start {
+  background: var(--faction-color, var(--team));
+  border: 1px solid var(--faction-color, var(--team));
+  border-radius: var(--btn-radius);
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+}
+.fp-deploy:hover,
+.end-card button.lc-start:hover {
+  background: var(--faction-color, var(--team));
+  border-color: #fff;
+  color: #fff;
+  filter: brightness(1.12);
 }

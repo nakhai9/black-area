@@ -141,7 +141,8 @@ import { canTarget, CombatSystem, distanceTo, inTruce, isHostile, setTruce, setV
 import { MIN_SALE_STOCK, OilMarket } from '../systems/OilMarket';
 import { TaxSystem } from '../systems/TaxSystem';
 import { EndScreen } from '../ui/EndScreen';
-import { PauseMenu } from '../ui/PauseMenu';
+import { LANGUAGE_RELOAD_KEY, PENDING_SAVE_KEY, PauseMenu } from '../ui/PauseMenu';
+import { type Lang, setLang, t } from '../i18n';
 import { NewsToast } from '../ui/NewsToast';
 import { BUILD_OPTIONS, type BuildOption, ConstructionSystem, type QueueState, buildCost, missingRequirement } from '../systems/ConstructionSystem';
 import { EconomySystem } from '../systems/EconomySystem';
@@ -186,6 +187,8 @@ import { SHELL_FLIGHT_SECONDS, SHELL_IMPACT_SECONDS, hasShellSheet } from '../re
 import type { Effect } from './Effects';
 import { SAVE_FORMAT, SAVE_VERSION, SaveCodec, type SaveFile, migrateSave } from './SaveCodec';
 import { peekNextEntityId, setNextEntityId } from '../entities/Entity';
+/** Alias of t() for scopes where a local variable is named t. */
+const tr = t;
 
 export interface GameDom {
   canvas: HTMLCanvasElement;
@@ -205,9 +208,9 @@ const BLOCK_REASONS: Readonly<Record<string, string>> = {
   trees: 'Trees in the way',
   mountain: 'Cannot build on mountains',
   needsWater: 'Must be built on water',
-  tooFar: `Too far from your base (max ${BUILD_RADIUS} cells)`,
+  tooFar: 'Too far from your base (max {max} cells)',
   claimed: 'Allied Buildings stand only on unclaimed land claimed with a Squatters team',
-  nearOil: `Too close to an oil derrick (keep ${OIL_DERRICK_CLEARANCE} free cells around it)`,
+  nearOil: 'Too close to an oil derrick (keep {keep} free cells around it)',
   antarctica: 'Nothing can be built on Antarctica',
 };
 /** Map-authored buildings may shift this many cells to find tree-free ground… */
@@ -305,7 +308,7 @@ export class Game {
       get: () => this.sound.musicLevel,
       set: (v) => this.sound.setMusicVolume(v),
     },
-    { onSave: () => this.downloadSave() },
+    { onSave: () => this.downloadSave(), onLanguage: (lang) => this.switchLanguage(lang) },
   );
   /** The war is decided (victory or game over): the simulation stops. */
   private ended = false;
@@ -483,10 +486,10 @@ export class Game {
         this.entities,
         this.oilMarket,
         (player, _city, amount) => {
-          if (player.isHuman) this.sidebar.notify(`Happy City taxes: +${amount} ${CURRENCY}.`, 3);
+          if (player.isHuman) this.sidebar.notify(t('Happy City taxes: +{amount} {currency}.', { amount, currency: CURRENCY }), 3);
         },
         (player, capital) => {
-          if (player.isHuman) this.sidebar.notify(`Military presence fee (${capital.city}): +${NATION_PRESENCE_FEE} ${CURRENCY}.`, 3);
+          if (player.isHuman) this.sidebar.notify(t('Military presence fee ({city}): +{fee} {currency}.', { city: capital.city, fee: NATION_PRESENCE_FEE, currency: CURRENCY }), 3);
         },
       ),
       this.construction,
@@ -692,7 +695,7 @@ export class Game {
     this.camera.y = save.camera.y;
     this.camera.setZoom(save.camera.zoom);
     this.sidebarTimer = SIDEBAR_REFRESH;
-    this.sidebar.notify('Game loaded.', 3);
+    this.sidebar.notify(t('Game loaded.'), 3);
   }
 
   /**
@@ -753,6 +756,18 @@ export class Game {
     }
   }
 
+  /** Settings → Language: the page reloads in the new language and the running game is loaded back from a save. */
+  private switchLanguage(lang: Lang): void {
+    setLang(lang);
+    try {
+      sessionStorage.setItem(PENDING_SAVE_KEY, JSON.stringify(this.exportSave()));
+      sessionStorage.setItem(LANGUAGE_RELOAD_KEY, '1');
+    } catch (err) {
+      console.error(err); // too big for the session storage: the page reloads in the new language without the game
+    }
+    window.location.assign(window.location.pathname);
+  }
+
   /** Pause menu → Save: downloads the save as a JSON file. */
   private downloadSave(): void {
     try {
@@ -767,10 +782,10 @@ export class Game {
       a.click();
       a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
-      this.sidebar.notify('Game saved to a file.', 3);
+      this.sidebar.notify(t('Game saved to a file.'), 3);
     } catch (err) {
       console.error(err);
-      this.sidebar.notify(`Could not save: ${err instanceof Error ? err.message : String(err)}`, 6);
+      this.sidebar.notify(t('Could not save: {error}', { error: err instanceof Error ? err.message : String(err) }), 6);
     }
   }
 
@@ -995,7 +1010,7 @@ export class Game {
       if (r === null) planted++;
       else why = r;
     }
-    this.sidebar.notify(planted > 0 ? 'Flag planted — the Squatters have done their duty. This land is claimed: raise an Allied Building beside it.' : `Cannot plant the flag: ${why}.`, 4);
+    this.sidebar.notify(planted > 0 ? t('Flag planted — the Squatters have done their duty. This land is claimed: raise an Allied Building beside it.') : t('Cannot plant the flag: {why}.', { why }), 4);
     if (planted > 0) {
       this.bus.emit('selection:changed', { entityId: null });
       this.sidebarTimer = SIDEBAR_REFRESH;
@@ -1003,9 +1018,9 @@ export class Game {
   }
 
   plantFlag(u: Infantry): string | null {
-    if (!u.alive || !u.isSquatters) return 'not Squatters';
+    if (!u.alive || !u.isSquatters) return t('not Squatters');
     const here = this.map.cellAt(u.px, u.py);
-    if (!here) return 'outside the map';
+    if (!here) return t('outside the map');
     // The flag goes up on the nearest unit cell (from the team) that is open ground, on any land (own, enemy or
     // unclaimed); the team is used up.
     let spot: { x: number; y: number } | null = null;
@@ -1025,9 +1040,9 @@ export class Game {
         }
       }
     }
-    if (!spot) return `no open ground within ${FLAG_SEARCH_CELLS} cells (rock, trees, water, structures or units everywhere)`;
+    if (!spot) return t('no open ground within {cells} cells (rock, trees, water, structures or units everywhere)', { cells: FLAG_SEARCH_CELLS });
     const player = this.players.find((p) => p.id === u.owner);
-    if (!player) return 'no nation';
+    if (!player) return t('no nation');
     this.entities.remove(u.id);
     this.selection.selectedUnits.delete(u.id);
     const flag = this.entities.add(new Flagpole(player.id, player.faction, { x: (spot.x + 0.5) * CELL_SIZE, y: (spot.y + 0.5) * CELL_SIZE }));
@@ -1079,7 +1094,7 @@ export class Game {
       const p = c.centerWorld();
       return Math.hypot(p.x - at.x, p.y - at.y) <= EMBASSY_CAPITAL_CELLS * CELL_SIZE;
     });
-    return nearCapital ? `${nation} Embassy in ${this.nearestCapitalCity(at)}` : `Pro-${nation} regime`;
+    return nearCapital ? t('{nation} Embassy in {city}', { nation, city: this.nearestCapitalCity(at) }) : t('Pro-{nation} regime', { nation });
   }
 
   /** City of the capital (a nation's or a contested nation's) nearest to `at`: where an embassy is said to stand. */
@@ -1134,12 +1149,19 @@ export class Game {
     const nation = CONTESTED_NATIONS[b.nation].name;
     const name = (id: number): string => {
       const p = this.players.find((pl) => pl.id === id);
-      return !p ? 'nobody' : p.isHuman ? 'You' : FACTIONS[p.faction].name;
+      return !p ? t('nobody') : p.isHuman ? 'You' : FACTIONS[p.faction].name;
     };
     const taker = name(b.owner);
-    const from = before === NEUTRAL_OWNER ? '' : ` from ${name(before) === 'You' ? 'you' : name(before)}`;
-    this.news.show('BREAKING NEWS', `${taker} ${taker === 'You' ? 'have' : 'has'} taken ${b.city}, capital of ${nation}${from}.`);
-    if (before === this.humanPlayer.id) this.sidebar.notify(`${b.spec.name} was taken from you!`, 5);
+    const prev = before === NEUTRAL_OWNER ? null : name(before);
+    const vars = { taker, city: b.city, nation, from: prev ?? '' };
+    const text =
+      taker === 'You'
+        ? prev === null ? t('You have taken {city}, capital of {nation}.', vars) : t('You have taken {city}, capital of {nation} from {from}.', vars)
+        : prev === null ? t('{taker} has taken {city}, capital of {nation}.', vars)
+        : prev === 'You' ? t('{taker} has taken {city}, capital of {nation} from you.', vars)
+        : t('{taker} has taken {city}, capital of {nation} from {from}.', vars);
+    this.news.show(t('BREAKING NEWS'), text);
+    if (before === this.humanPlayer.id) this.sidebar.notify(t('{name} was taken from you!', { name: b.spec.name }), 5);
   }
 
   /** An engineer walks into a damaged own building and restores it to full health (and is consumed). */
@@ -1322,8 +1344,8 @@ export class Game {
     const before = killer.rank;
     killer.killValue += value;
     if (killer.rank > before && killer.owner === this.humanPlayer.id) {
-      const name = killer instanceof Vehicle || killer instanceof Infantry ? killer.name : 'Unit';
-      this.sidebar.notify(`${name} promoted: ${['', 'Veteran', 'Elite', 'Elite+'][killer.rank]}!`);
+      const name = killer instanceof Vehicle || killer instanceof Infantry ? killer.name : t('Unit');
+      this.sidebar.notify(t('{name} promoted: {rank}!', { name, rank: t(['', 'Veteran', 'Elite', 'Elite+'][killer.rank] ?? '') }));
       this.effects.add({ kind: 'flash', ...this.fx(killer.px, killer.py, 3 + this.liftOf(killer)), age: 0, ttl: 0.4, size: 3 });
     }
   }
@@ -1381,7 +1403,7 @@ export class Game {
     }
     const cell = this.pathfinder.nearestPassable(here.x, here.y, 12, taken, u.swims) ?? this.pathfinder.nearestPassable(here.x, here.y, 12, undefined, u.swims);
     if (!cell) {
-      if (t.owner === this.humanPlayer.id) this.sidebar.notify(`No room around the ${t.name} to unload.`);
+      if (t.owner === this.humanPlayer.id) this.sidebar.notify(tr('No room around the {name} to unload.', { name: t.name }));
       return false;
     }
     u.px = (cell.x + 0.5) * CELL_SIZE;
@@ -1394,7 +1416,7 @@ export class Game {
     if (u instanceof Infantry && u.isSquatters) u.airlifted = true;
     t.cargo.shift();
     this.hatch(u.px, u.py);
-    if (t.cargo.length === 0 && t.owner === this.humanPlayer.id) this.sidebar.notify(`Everyone is out of the ${t.name}.`);
+    if (t.cargo.length === 0 && t.owner === this.humanPlayer.id) this.sidebar.notify(tr('Everyone is out of the {name}.', { name: t.name }));
     return true;
   }
 
@@ -1441,7 +1463,7 @@ export class Game {
     const transports = this.selection.selectedUnitList().filter((u): u is Vehicle => u instanceof Vehicle && u.isCarrier);
     const loaded = transports.filter((t) => t.cargo.length > 0);
     if (loaded.length === 0) {
-      if (transports.length > 0) this.sidebar.notify('The transport is empty.');
+      if (transports.length > 0) this.sidebar.notify(t('The transport is empty.'));
       return;
     }
     this.unloadCarriers(loaded);
@@ -1457,8 +1479,8 @@ export class Game {
         continue;
       }
       const r = this.aircraft.requestUnload(t);
-      if (r === 'noSpot') this.sidebar.notify(`The ${t.name} cannot land here (open water) — fly it over land first.`);
-      else if (r === 'busy') this.sidebar.notify(`The ${t.name} is taking off or landing — unload in a moment.`);
+      if (r === 'noSpot') this.sidebar.notify(tr('The {name} cannot land here (open water) — fly it over land first.', { name: t.name }));
+      else if (r === 'busy') this.sidebar.notify(tr('The {name} is taking off or landing — unload in a moment.', { name: t.name }));
     }
   }
 
@@ -1494,9 +1516,9 @@ export class Game {
     const planes = this.selectedAircraft();
     if (planes.length === 0) return;
     const fired = planes.filter((p) => this.aircraft.turbo(p)).length;
-    if (fired > 0) this.sidebar.notify(fired === 1 ? 'Turbo!' : `Turbo: ${fired} aircraft.`, 1.5);
-    else if (planes.some((p) => p.turboReady)) this.sidebar.notify('Turbo works only in the air.', 2);
-    else this.sidebar.notify('Turbo is recharging.', 2);
+    if (fired > 0) this.sidebar.notify(fired === 1 ? t('Turbo!') : t('Turbo: {count} aircraft.', { count: fired }), 1.5);
+    else if (planes.some((p) => p.turboReady)) this.sidebar.notify(t('Turbo works only in the air.'), 2);
+    else this.sidebar.notify(t('Turbo is recharging.'), 2);
   }
 
   private transportInfo(): TransportInfo | null {
@@ -1529,7 +1551,7 @@ export class Game {
   orderBoard(t: Vehicle, riders: Unit[]): boolean {
     if (!t.isCarrier || !t.alive) return false;
     if (!t.isTruck && (t.flight === 'airborne' || t.flight === 'approach') && !this.aircraft.setDownForPickup(t)) {
-      if (t.owner === this.humanPlayer.id) this.sidebar.notify(`The ${t.name} cannot land here (open water) to take anyone aboard.`);
+      if (t.owner === this.humanPlayer.id) this.sidebar.notify(tr('The {name} cannot land here (open water) to take anyone aboard.', { name: t.name }));
       return true;
     }
     const grounded = t.boardable || (t.flight === 'unloading' && t.pickup);
@@ -1575,8 +1597,8 @@ export class Game {
       sent++;
     }
     if (t.owner === this.humanPlayer.id) {
-      if (sent === 0) this.sidebar.notify(t.full ? `The ${t.name} is full.` : `The ${t.name} cannot take them (no room, or they cannot reach it).`);
-      else if (left > 0) this.sidebar.notify(`${sent} heading for the ${t.name}; ${left} cannot fit or reach it.`);
+      if (sent === 0) this.sidebar.notify(t.full ? tr('The {name} is full.', { name: t.name }) : tr('The {name} cannot take them (no room, or they cannot reach it).', { name: t.name }));
+      else if (left > 0) this.sidebar.notify(tr('{sent} heading for the {name}; {left} cannot fit or reach it.', { sent, name: t.name, left }));
       if (sent > 0) this.moveMarker = { x: spot.x, y: spot.y, at: this.time };
     }
     return true;
@@ -1608,7 +1630,7 @@ export class Game {
       u.boardTarget = null;
       t.incoming--;
       if (!t.canLoad(u)) {
-        if (u.owner === this.humanPlayer.id) this.sidebar.notify(`The ${t.name} is full.`);
+        if (u.owner === this.humanPlayer.id) this.sidebar.notify(tr('The {name} is full.', { name: t.name }));
         continue;
       }
       t.cargo.push(u);
@@ -1628,7 +1650,7 @@ export class Game {
     const menders = units.filter((u): u is Vehicle => u instanceof Vehicle && u.isRepair && u !== target && u.owner === target.owner);
     if (menders.length === 0) return false;
     if (target.hp >= target.maxHp) {
-      if (target.owner === this.humanPlayer.id) this.sidebar.notify(`The ${target.name} needs no repair.`);
+      if (target.owner === this.humanPlayer.id) this.sidebar.notify(t('The {name} needs no repair.', { name: target.name }));
       return true;
     }
     for (const v of menders) {
@@ -1657,7 +1679,7 @@ export class Game {
     const damaged = (v: Unit): v is Vehicle => v instanceof Vehicle && v.alive && !v.aircraft && v.hp < v.maxHp && v.owner === unit.owner;
     if (damaged(unit) && selected.some((u) => u instanceof Vehicle && u.isRepair) && this.orderMend(unit, selected)) {
       const n = selected.filter((u) => u instanceof Vehicle && u.isRepair).length;
-      this.sidebar.notify(n === 1 ? `Repairing the ${unit.name}.` : `${n} repair vehicles sent to the ${unit.name}.`);
+      this.sidebar.notify(n === 1 ? t('Repairing the {name}.', { name: unit.name }) : t('{count} repair vehicles sent to the {name}.', { count: n, name: unit.name }));
       return true;
     }
     if (!unit.isRepair) return false;
@@ -1675,7 +1697,11 @@ export class Game {
       v.parade = null;
       v.orderFlash = { kind: 'move', at: this.time, target: unit };
     }
-    this.sidebar.notify(`${patients.length === 1 ? `The ${patients[0]?.name ?? 'vehicle'} is` : `${patients.length} vehicles are`} heading to the ${unit.name} for repair.`);
+    this.sidebar.notify(
+      patients.length === 1
+        ? t('The {patient} is heading to the {name} for repair.', { patient: patients[0]?.name ?? t('vehicle'), name: unit.name })
+        : t('{count} vehicles are heading to the {name} for repair.', { count: patients.length, name: unit.name }),
+    );
     this.moveMarker = { x: unit.px, y: unit.py, at: this.time };
     return true;
   }
@@ -1901,9 +1927,9 @@ export class Game {
           if (b instanceof Building && this.captureBanned(b)) u.task = null;
         }
       }
-      this.news.show('CEASEFIRE', `${PEACE_SECONDS / 60} minutes of peace: no attacks, no takeovers. Build up your nation.`);
+      this.news.show(t('CEASEFIRE'), t('{minutes} minutes of peace: no attacks, no takeovers. Build up your nation.', { minutes: PEACE_SECONDS / 60 }));
     } else {
-      this.news.show('WAR', `The ceasefire is over: ${WAR_SECONDS / 60} minutes of war.`);
+      this.news.show(t('WAR'), t('The ceasefire is over: {minutes} minutes of war.', { minutes: WAR_SECONDS / 60 }));
     }
   }
 
@@ -1944,7 +1970,7 @@ export class Game {
     setViolators(ids);
     if (mine > 0 && this.time - this.violationWarnedAt > 10) {
       this.violationWarnedAt = this.time;
-      this.sidebar.notify(`Ceasefire violation: ${mine} of your units are within ${R} cells of another nation's structures — anyone may destroy them and they cannot fire back. Pull them out!`, 5);
+      this.sidebar.notify(t("Ceasefire violation: {count} of your units are within {cells} cells of another nation's structures — anyone may destroy them and they cannot fire back. Pull them out!", { count: mine, cells: R }), 5);
     }
   }
 
@@ -2195,8 +2221,8 @@ export class Game {
     for (const option of BUILD_OPTIONS) {
       const s = this.construction.slot(this.humanPlayer, option.id);
       if (s.state === (this.lastQueueState.get(option.id) ?? 'idle')) continue;
-      if (s.state === 'ready') this.sidebar.notify(`${option.name} complete — click its cameo, then place it.`);
-      if (s.state === 'onHold') this.sidebar.notify(`Not enough ${CURRENCY} — construction on hold.`);
+      if (s.state === 'ready') this.sidebar.notify(t('{name} complete — click its cameo, then place it.', { name: option.name }));
+      if (s.state === 'onHold') this.sidebar.notify(t('Not enough {currency} — construction on hold.', { currency: CURRENCY }));
       this.lastQueueState.set(option.id, s.state);
       this.sidebarTimer = SIDEBAR_REFRESH;
     }
@@ -2369,7 +2395,7 @@ export class Game {
       if (this.selection.selectedUnits.size === 0) this.waypoints = null;
       else {
         if (this.waypoints.length < MAX_WAYPOINTS && this.map.cellAt(world.x, world.y)) this.waypoints.push(world);
-        else if (this.waypoints.length >= MAX_WAYPOINTS) this.sidebar.notify(`At most ${MAX_WAYPOINTS} waypoints — press Z or right-click to go.`);
+        else if (this.waypoints.length >= MAX_WAYPOINTS) this.sidebar.notify(t('At most {max} waypoints — press Z or right-click to go.', { max: MAX_WAYPOINTS }));
         return;
       }
     }
@@ -2426,7 +2452,7 @@ export class Game {
       const t = hit.spec.type;
       if (dbl && hit.owner === me && (t === 'barracks' || t === 'warFactory' || t === 'airfield')) {
         (this.humanPlayer.primaryBuilding ??= {})[t] = hit.id;
-        this.sidebar.notify(`${hit.spec.name}: new units will come out here.`);
+        this.sidebar.notify(tr('{name}: new units will come out here.', { name: hit.spec.name }));
       }
       this.selection.selectedUnits.clear();
       this.selection.select(hit.id);
@@ -2473,7 +2499,7 @@ export class Game {
     if (hit && this.orderOnBuilding(hit)) return;
     // A loaded transport sent over open water has nowhere to set down: its passengers stay aboard.
     const loaded = selected.find((u): u is Vehicle => u instanceof Vehicle && u.isCarrier && u.cargo.length > 0);
-    if (loaded && !this.landingSpot(world.x, world.y, loaded)) this.sidebar.notify(`The ${loaded.name} cannot land there (open water) — the passengers stay aboard.`);
+    if (loaded && !this.landingSpot(world.x, world.y, loaded)) this.sidebar.notify(t('The {name} cannot land there (open water) — the passengers stay aboard.', { name: loaded.name }));
     this.orderMove(world);
   }
 
@@ -2494,7 +2520,7 @@ export class Game {
       f.follow([{ x: ward.px, y: ward.py }]);
       f.orderFlash = { kind: 'move', at: this.time, target: null };
     }
-    this.sidebar.notify(`${fighters.length === 1 ? 'Fighter' : `${fighters.length} fighters`} escorting the ${ward.name}.`);
+    this.sidebar.notify(fighters.length === 1 ? t('Fighter escorting the {name}.', { name: ward.name }) : t('{count} fighters escorting the {name}.', { count: fighters.length, name: ward.name }));
     return true;
   }
 
@@ -2609,13 +2635,16 @@ export class Game {
       u.follow(path);
       u.faceOnArrival = FACE;
     }
-    this.sidebar.notify(`Form up: ${units.length} unit${units.length === 1 ? '' : 's'} in ${COLS}-wide ranks, ${RANKS} deep.`, 2);
+    this.sidebar.notify(
+      t(units.length === 1 ? 'Form up: {count} unit in {cols}-wide ranks, {ranks} deep.' : 'Form up: {count} units in {cols}-wide ranks, {ranks} deep.', { count: units.length, cols: COLS, ranks: RANKS }),
+      2,
+    );
   }
 
   /** Auto sell on / off (sidebar button or the A key). */
   private toggleAutoSell(): void {
     this.autoSellOil = !this.autoSellOil;
-    this.sidebar.notify(this.autoSellOil ? 'Auto sell ON: oil is offered to the Global Monitoring Center whenever a sale is allowed.' : 'Auto sell OFF.', 3);
+    this.sidebar.notify(this.autoSellOil ? t('Auto sell ON: oil is offered to the Global Monitoring Center whenever a sale is allowed.') : t('Auto sell OFF.'), 3);
     this.sidebarTimer = SIDEBAR_REFRESH;
   }
 
@@ -2636,7 +2665,7 @@ export class Game {
         this.focusOwnCapital();
         break;
       case 'KeyM':
-        this.sidebar.notify(this.sound.toggleMute() ? 'Sound off.' : 'Sound on.');
+        this.sidebar.notify(this.sound.toggleMute() ? t('Sound off.') : t('Sound on.'));
         break;
       case 'KeyO':
         this.cycleOwnDerrick();
@@ -2657,7 +2686,7 @@ export class Game {
         if (this.placing) {
           this.placingRotated = !this.placingRotated;
           this.updateGhost();
-          this.sidebar.notify(this.placingRotated ? 'Turned 90°.' : 'Turned back.', 1.5);
+          this.sidebar.notify(this.placingRotated ? t('Turned 90°.') : t('Turned back.'), 1.5);
         }
         break;
       case 'KeyU':
@@ -2671,7 +2700,7 @@ export class Game {
         if (this.waypoints) this.finishWaypoints();
         else if (this.selection.selectedUnits.size > 0) {
           this.waypoints = [];
-          this.sidebar.notify(`Waypoint mode: left-click up to ${MAX_WAYPOINTS} points, then Z (or right-click) to go.`);
+          this.sidebar.notify(t('Waypoint mode: left-click up to {max} points, then Z (or right-click) to go.', { max: MAX_WAYPOINTS }));
         }
         break;
       case 'KeyX':
@@ -2753,28 +2782,28 @@ export class Game {
     const slot = this.construction.slot(player, option.id);
     if (slot.state === 'idle') {
       if (option.id === 'alliedBuilding' && this.alliesOf(player) >= MAX_ALLIES) {
-        this.sidebar.notify(`A nation has at most ${MAX_ALLIES} embassies.`);
+        this.sidebar.notify(t('A nation has at most {max} embassies.', { max: MAX_ALLIES }));
         return;
       }
       const need = missingRequirement(option, this.ownedTypes());
       if (need) {
         this.sidebar.notify(
-`${option.name} requires a ${BUILD_OPTIONS.find((o) => o.id === need)?.name ?? need} first.`,
+t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.find((o) => o.id === need)?.name ?? need }),
         );
         return;
       }
       if (!this.construction.start(player, option)) {
-        if (player.capitalLost) this.sidebar.notify('Your capital is lost — you can no longer buy anything.');
+        if (player.capitalLost) this.sidebar.notify(t('Your capital is lost — you can no longer buy anything.'));
         return;
       }
-      this.sidebar.notify(`Building ${option.name} — ${buildCost(option, player.faction)} ${CURRENCY}`);
+      this.sidebar.notify(t('Building {name} — {cost} {currency}', { name: option.name, cost: buildCost(option, player.faction), currency: CURRENCY }));
     } else if (slot.state === 'ready') {
       this.placing = option;
       this.placingRotated = false;
       this.selection.select(null);
-      this.sidebar.notify('Click a free spot near your base to place it.');
+      this.sidebar.notify(t('Click a free spot near your base to place it.'));
     } else {
-      this.sidebar.notify(`${option.name} is already being built.`);
+      this.sidebar.notify(t('{name} is already being built.', { name: option.name }));
     }
     this.sidebarTimer = SIDEBAR_REFRESH;
   }
@@ -2786,7 +2815,7 @@ export class Game {
     const refund = Math.floor(slot.paid);
     if (this.placing?.id === option.id) this.stopPlacing();
     this.construction.cancel(this.humanPlayer, option.id);
-    this.sidebar.notify(`Construction cancelled — ${refund} ${CURRENCY} refunded.`);
+    this.sidebar.notify(t('Construction cancelled — {refund} {currency} refunded.', { refund, currency: CURRENCY }));
     this.sidebarTimer = SIDEBAR_REFRESH;
   }
 
@@ -2820,7 +2849,7 @@ export class Game {
       d,
       mirrored: this.placingRotated,
       ok: result.ok,
-      reason: result.ok ? null : (BLOCK_REASONS[result.reason] ?? result.reason),
+      reason: result.ok ? null : (BLOCK_REASONS[result.reason] ? t(BLOCK_REASONS[result.reason]!, { max: BUILD_RADIUS, keep: OIL_DERRICK_CLEARANCE }) : result.reason),
     };
   }
 
@@ -2830,7 +2859,7 @@ export class Game {
     const option = this.placing;
     if (!g || !option) return;
     if (!g.ok) {
-      this.sidebar.notify(g.reason ?? 'Cannot place here.');
+      this.sidebar.notify(g.reason ?? t('Cannot place here.'));
       return;
     }
     const player = this.humanPlayer;
@@ -2842,7 +2871,7 @@ export class Game {
     this.occupyBuilding(b);
     if (b instanceof Wall) this.orientWalls(b.x, b.y);
     this.stopPlacing();
-    this.sidebar.notify(`${option.name} placed.`);
+    this.sidebar.notify(t('{name} placed.', { name: option.name }));
     this.sidebarTimer = SIDEBAR_REFRESH;
   }
 
@@ -3058,10 +3087,10 @@ export class Game {
     if (auto && result.kind !== 'sold') return; // auto sell stays quiet when the Center declines
     this.sidebar.notify(
       result.kind === 'sold'
-        ? `Global Monitoring Center bought ${result.barrels.toFixed(1)} barrels at ${result.price} ${CURRENCY} → +${result.revenue} ${CURRENCY}` +
-          (result.royalty > 0 ? ` (−${result.royalty} ${CURRENCY} lease share to the oil cartel)` : '') +
-          (result.repaid > 0 ? ` (${result.repaid} ${CURRENCY} paid back on your debt)` : '')
-        : `Global Monitoring Center declined: ${result.reason}.`,
+        ? t('Global Monitoring Center bought {barrels} barrels at {price} {currency} → +{revenue} {currency}', { barrels: result.barrels.toFixed(1), price: result.price, revenue: result.revenue, currency: CURRENCY }) +
+          (result.royalty > 0 ? t(' (−{royalty} {currency} lease share to the oil cartel)', { royalty: result.royalty, currency: CURRENCY }) : '') +
+          (result.repaid > 0 ? t(' ({repaid} {currency} paid back on your debt)', { repaid: result.repaid, currency: CURRENCY }) : '')
+        : t('Global Monitoring Center declined: {reason}.', { reason: result.reason }),
       5,
     );
     this.sidebarTimer = SIDEBAR_REFRESH;
@@ -3115,8 +3144,8 @@ export class Game {
     const result = this.oilMarket.setPolicy(this.humanPlayer, policy);
     this.sidebar.notify(
       result.kind === 'set'
-        ? `Oil cartel policy: ${OIL_POLICIES[result.policy].label}. Your derricks pump ${Math.round(OIL_POLICIES[result.policy].output * 100)}%; the world price heads ${result.policy === 'cut' ? 'up' : result.policy === 'flood' ? 'down' : 'back to the market level'}.`
-        : `Policy unchanged: ${result.reason}.`,
+        ? t('Oil cartel policy: {policy}. Your derricks pump {output}%; the world price heads {direction}.', { policy: OIL_POLICIES[result.policy].label, output: Math.round(OIL_POLICIES[result.policy].output * 100), direction: t(result.policy === 'cut' ? 'up' : result.policy === 'flood' ? 'down' : 'back to the market level') })
+        : t('Policy unchanged: {reason}.', { reason: result.reason }),
       5,
     );
     this.sidebarTimer = SIDEBAR_REFRESH;
@@ -3127,8 +3156,8 @@ export class Game {
     const result = this.oilMarket.borrow(this.humanPlayer);
     this.sidebar.notify(
       result.kind === 'granted'
-        ? `Global Monitoring Center loan: +${result.amount} ${CURRENCY}. Debt ${result.debt} ${CURRENCY} — oil sales pay it back automatically.`
-        : `Loan refused: ${result.reason}.`,
+        ? t('Global Monitoring Center loan: +{amount} {currency}. Debt {debt} {currency} — oil sales pay it back automatically.', { amount: result.amount, debt: result.debt, currency: CURRENCY })
+        : t('Loan refused: {reason}.', { reason: result.reason }),
       5,
     );
     this.sidebarTimer = SIDEBAR_REFRESH;
@@ -3148,9 +3177,11 @@ export class Game {
     if (!nation || nation.defeated) return;
     const name = FACTIONS[nation.faction].name;
     const fights = this.hasArmy(nation);
-    const subject = nation.isHuman ? 'Your capital has fallen' : `${name}'s capital, ${capital.spec.name}, has fallen`;
-    const army = nation.isHuman ? 'your army fights on' : 'its army fights on';
-    this.news.show('BREAKING NEWS', fights ? `${subject} — but ${army}.` : `${subject}.`);
+    const vars = { name, capital: capital.spec.name };
+    const text = nation.isHuman
+      ? fights ? t('Your capital has fallen — but your army fights on.') : t('Your capital has fallen.')
+      : fights ? t("{name}'s capital, {capital}, has fallen — but its army fights on.", vars) : t("{name}'s capital, {capital}, has fallen.", vars);
+    this.news.show(t('BREAKING NEWS'), text);
   }
 
   /**
@@ -3165,7 +3196,7 @@ export class Game {
       const own = this.entities.buildings().some((b) => b.alive && b.owner === p.id && b.spec.type === 'capital' && b.spec.spriteKey === `capital:${p.faction}`);
       if (own) continue;
       p.capitalLost = true;
-      if (p.isHuman) this.sidebar.notify('Your capital is lost — you can no longer buy anything.', 6);
+      if (p.isHuman) this.sidebar.notify(t('Your capital is lost — you can no longer buy anything.'), 6);
     }
     for (const p of this.players) {
       if (p.defeated) continue;
@@ -3173,14 +3204,14 @@ export class Game {
       if (hasCapital || this.hasArmy(p)) continue;
       p.defeated = true;
       const name = FACTIONS[p.faction].name;
-      this.news.show('BREAKING NEWS', p.isHuman ? 'Your nation has been defeated.' : `${name} has been defeated — no capital and no army left.`);
+      this.news.show(t('BREAKING NEWS'), p.isHuman ? t('Your nation has been defeated.') : t('{name} has been defeated — no capital and no army left.', { name }));
     }
     if (this.humanPlayer.defeated) {
       this.ended = true;
-      this.endScreen.show(false, 'Your capital has fallen and you have no soldiers or combat vehicles left.');
+      this.endScreen.show(false, t('Your capital has fallen and you have no soldiers or combat vehicles left.'));
     } else if (this.players.every((p) => p.isHuman || p.defeated)) {
       this.ended = true;
-      this.endScreen.show(true, 'Every enemy capital is destroyed and no enemy soldier or combat vehicle remains. The war is won.');
+      this.endScreen.show(true, t('Every enemy capital is destroyed and no enemy soldier or combat vehicle remains. The war is won.'));
     }
   }
 
@@ -3252,7 +3283,7 @@ export class Game {
       this.explode(f.x + f.w * (0.5 + 0.3 * Math.cos(a)), f.y + f.h * (0.5 + 0.3 * Math.sin(a)), 0, Math.sqrt(cells) * CELL_SIZE * 0.55, 0.15 + k * 0.18);
     }
     this.sound.play('explosion', e.centerWorld());
-    if (e.owner === this.humanPlayer.id) this.sidebar.notify(`Your ${e.spec.name} was destroyed!`, 5);
+    if (e.owner === this.humanPlayer.id) this.sidebar.notify(t('Your {name} was destroyed!', { name: e.spec.name }), 5);
   }
 
   /** Buildings (and tanks) below half health smoke; below a quarter they also burn. */
@@ -3286,28 +3317,28 @@ export class Game {
     const result = this.production.enqueue(player, kind);
     this.sidebar.notify(
       result === 'ok'
-        ? `Building ${option.name} — ${option.cost} ${CURRENCY}`
+        ? t('Building {name} — {cost} {currency}', { name: option.name, cost: option.cost, currency: CURRENCY })
         : result === 'noCapital'
-          ? 'Your capital is lost — you can no longer buy anything.'
+          ? t('Your capital is lost — you can no longer buy anything.')
         : result === 'full'
-          ? `Vehicle orders are full (${BUILD_LIMIT_VEHICLES}) — one more once an order is done.`
+          ? t('Vehicle orders are full ({max}) — one more once an order is done.', { max: BUILD_LIMIT_VEHICLES })
           : result === 'tech'
-            ? 'Second-tier vehicles need a High-Tech Center.'
+            ? t('Second-tier vehicles need a {name}.', { name: 'High-Tech Center' })
             : result === 'cap'
-            ? `Ground vehicles are at their limit of ${MAX_GROUND_VEHICLES} — aircraft are not limited.`
+            ? t('Ground vehicles are at their limit of {max} — aircraft are not limited.', { max: MAX_GROUND_VEHICLES })
             : result === 'transportCap'
-            ? `Transport aircraft are at their limit of ${MAX_TRANSPORTS}.`
+            ? t('Transport aircraft are at their limit of {max}.', { max: MAX_TRANSPORTS })
             : result === 'noParking'
-            ? 'No free parking spot — build another Airfield or send aircraft out.'
+            ? t('No free parking spot — build another {name} or send aircraft out.', { name: 'Airfield' })
             : result === 'noAirfield'
-              ? 'Aircraft are built at an Airfield — build one first.'
-              : 'Requires a War Factory.',
+              ? t('Aircraft are built at an {name} — build one first.', { name: 'Airfield' })
+              : t('Requires a {name}.', { name: 'War Factory' }),
     );
     this.sidebarTimer = SIDEBAR_REFRESH;
   }
 
   private onVehicleCancel(kind: VehicleKind): void {
-    if (this.production.cancelOne(this.humanPlayer, kind)) this.sidebar.notify('Production cancelled.');
+    if (this.production.cancelOne(this.humanPlayer, kind)) this.sidebar.notify(t('Production cancelled.'));
     this.sidebarTimer = SIDEBAR_REFRESH;
   }
 
@@ -3346,7 +3377,7 @@ export class Game {
         heli.altitude = 0;
         heli.homeId = producer.id;
         heli.heading = this.airfieldGeometry(producer).heading;
-        if (player.isHuman) this.sidebar.notify(`${heli.name} has landed beside the airfield.`);
+        if (player.isHuman) this.sidebar.notify(t('{name} has landed beside the airfield.', { name: heli.name }));
         return heli;
       }
     }
@@ -3373,7 +3404,7 @@ export class Game {
     jet.homeId = airfield.id;
     jet.slot = slot;
     jet.heading = g.heading;
-    if (player.isHuman) this.sidebar.notify(`${jet.name} parked on the airfield.`);
+    if (player.isHuman) this.sidebar.notify(t('{name} parked on the airfield.', { name: jet.name }));
     return jet;
   }
 
@@ -3624,7 +3655,7 @@ export class Game {
       } else path.push(spot);
       unit.follow(path);
     }
-    if (player.isHuman) this.sidebar.notify(`${unit.name} ready.`);
+    if (player.isHuman) this.sidebar.notify(t('{name} ready.', { name: unit.name }));
   }
 
   /** The cell a new vehicle rolls out onto: the free ground right in front of the factory's door (world px centre). */
@@ -3695,28 +3726,28 @@ export class Game {
     const player = this.humanPlayer;
     const option = this.training.optionsFor(player).find((o) => o.tier === tier);
     if (!option) return;
-    if (!this.training.barracksOf(player)) this.sidebar.notify('Requires a Ministry of Defence.');
+    if (!this.training.barracksOf(player)) this.sidebar.notify(t('Requires a {name}.', { name: 'Ministry of Defence' }));
     else {
       const result = this.training.enqueue(player, tier);
       this.sidebar.notify(
         result === 'ok'
-          ? `Training ${option.name} — ${option.cost} ${CURRENCY}`
+          ? t('Training {name} — {cost} {currency}', { name: option.name, cost: option.cost, currency: CURRENCY })
           : result === 'noCapital'
-            ? 'Your capital is lost — you can no longer buy anything.'
+            ? t('Your capital is lost — you can no longer buy anything.')
           : result === 'tech'
-            ? 'Second-tier soldiers need a High-Tech Center.'
+            ? t('Second-tier soldiers need a {name}.', { name: 'High-Tech Center' })
             : result === 'ratio'
-            ? 'Elite soldiers never outnumber the regulars: 2 elite for every 3 regular — train more regular soldiers first.'
+            ? t('Elite soldiers never outnumber the regulars: 2 elite for every 3 regular — train more regular soldiers first.')
             : result === 'cap'
-            ? `Army is at its limit of ${MAX_SOLDIERS} soldiers — train more when some have fallen.`
-            : `Training orders are full (${BUILD_LIMIT_SOLDIERS}) — one more once an order is done.`,
+            ? t('Army is at its limit of {max} soldiers — train more when some have fallen.', { max: MAX_SOLDIERS })
+            : t('Training orders are full ({max}) — one more once an order is done.', { max: BUILD_LIMIT_SOLDIERS }),
       );
     }
     this.sidebarTimer = SIDEBAR_REFRESH;
   }
 
   private onTrainCancel(tier: UnitTier): void {
-    if (this.training.cancelOne(this.humanPlayer, tier)) this.sidebar.notify('Training cancelled.');
+    if (this.training.cancelOne(this.humanPlayer, tier)) this.sidebar.notify(t('Training cancelled.'));
     this.sidebarTimer = SIDEBAR_REFRESH;
   }
 
@@ -3765,7 +3796,7 @@ export class Game {
       // Every slot is taken: the soldier simply stays at the door instead of wandering off.
       unit.parade = null;
     }
-    if (player.isHuman) this.sidebar.notify(`${unit.name} ready.`);
+    if (player.isHuman) this.sidebar.notify(t('{name} ready.', { name: unit.name }));
   }
 
   /**
@@ -3833,7 +3864,7 @@ export class Game {
       for (const u of planes) if (this.aircraft.land(u, b)) ordered++;
       if (ordered > 0) return true;
       if (planes.length > 0) {
-        this.sidebar.notify('No free parking spot on that airfield.', 3);
+        this.sidebar.notify(t('No free parking spot on that airfield.'), 3);
         return true;
       }
     }
@@ -3851,7 +3882,7 @@ export class Game {
       let type: 'enter' | 'repair' | 'capture' | 'lease' | null = null;
       if (u.isEngineer && b instanceof OilDerrick && b.owner !== me.id && b.leasable) {
         if (this.leasesTaken(b.owner) >= OIL_LEASE_MAX) {
-          this.sidebar.notify(`${FACTIONS[b.faction as FactionId].shortName} leases at most ${OIL_LEASE_MAX} derricks at a time.`, 3);
+          this.sidebar.notify(t('{nation} leases at most {max} derricks at a time.', { nation: FACTIONS[b.faction as FactionId].shortName, max: OIL_LEASE_MAX }), 3);
           continue;
         }
         type = 'lease';
@@ -3861,7 +3892,7 @@ export class Game {
         if (u.isEngineer && b.hp < b.maxHp && !b.indestructible) type = 'repair';
         else if (b.canEnter(u)) type = 'enter';
       } else if (u.isEngineer && b.capturable && (b.faction !== 'neutral' || b instanceof NationCapital || (b instanceof OilDerrick && b.antarctic))) {
-        if (this.captureBanned(b)) this.sidebar.notify("Ceasefire: no nation may take over another nation's buildings now.", 3);
+        if (this.captureBanned(b)) this.sidebar.notify(t("Ceasefire: no nation may take over another nation's buildings now."), 3);
         else type = 'capture';
       }
       if (!type || !this.walkToDoor(u, b)) continue;
@@ -3869,7 +3900,7 @@ export class Game {
       ordered++;
     }
     if (ordered === 0 && b.faction === 'neutral' && !(b instanceof NationCapital) && !(b instanceof OilDerrick && b.antarctic) && this.selection.selectedUnitList().some((u) => u instanceof Infantry && u.isEngineer)) {
-      this.sidebar.notify('Neutral buildings cannot be captured or destroyed.');
+      this.sidebar.notify(t('Neutral buildings cannot be captured or destroyed.'));
     }
     // Enemy building and nobody could capture it: armed units attack it instead.
     if (ordered === 0 && b.owner !== me.id && b.owner !== NEUTRAL_OWNER) return this.orderAttack(b);
@@ -4082,7 +4113,7 @@ export class Game {
           u.insideId = b.id;
           u.stop();
           this.selection.selectedUnits.delete(u.id);
-          if (u.owner === this.humanPlayer.id) this.sidebar.notify(`${u.name} entered: ${b.spec.name}. Double-click it to bring them out.`);
+          if (u.owner === this.humanPlayer.id) this.sidebar.notify(t('{unit} entered: {building}. Double-click it to bring them out.', { unit: u.name, building: b.spec.name }));
         }
       } else if (task.type === 'repair') {
         // Repair: the engineer goes inside and works there until the building is back to 100% (see processRepairs).
@@ -4097,25 +4128,25 @@ export class Game {
         // Lease: the engineer signs for the derrick and stays at the door; the derrick pumps for his nation.
         u.task = null;
         if (b instanceof OilDerrick && b.leasable && this.leasesTaken(b.owner) >= OIL_LEASE_MAX) {
-          if (u.owner === this.humanPlayer.id) this.sidebar.notify(`${FACTIONS[b.faction as FactionId].shortName} leases at most ${OIL_LEASE_MAX} derricks at a time.`, 3);
+          if (u.owner === this.humanPlayer.id) this.sidebar.notify(t('{nation} leases at most {max} derricks at a time.', { nation: FACTIONS[b.faction as FactionId].shortName, max: OIL_LEASE_MAX }), 3);
         } else if (b instanceof OilDerrick && b.leasable) {
           const lessor = b.owner;
           const cartel = FACTIONS[b.faction as FactionId].shortName;
           b.lease(u.owner, u.faction as FactionId);
           u.stop();
           if (u.owner === this.humanPlayer.id) {
-            this.sidebar.notify(`Oil derrick leased for ${OIL_LEASE_SECONDS / 60} min: it pumps for you; ${Math.round(OIL_LEASE_CARTEL_SHARE * 100)}% of the money from its oil goes to ${cartel}.`, 6);
+            this.sidebar.notify(t('Oil derrick leased for {minutes} min: it pumps for you; {share}% of the money from its oil goes to {cartel}.', { minutes: OIL_LEASE_SECONDS / 60, share: Math.round(OIL_LEASE_CARTEL_SHARE * 100), cartel }), 6);
           } else if (lessor === this.humanPlayer.id) {
-            this.sidebar.notify(`${FACTIONS[this.players.find((p) => p.id === u.owner)?.faction ?? 'usa'].shortName} leased one of your derricks for ${OIL_LEASE_SECONDS / 60} min.`, 5);
+            this.sidebar.notify(t('{nation} leased one of your derricks for {minutes} min.', { nation: FACTIONS[this.players.find((p) => p.id === u.owner)?.faction ?? 'usa'].shortName, minutes: OIL_LEASE_SECONDS / 60 }), 5);
           }
-        } else if (u.owner === this.humanPlayer.id) this.sidebar.notify('That derrick is already leased.', 3);
+        } else if (u.owner === this.humanPlayer.id) this.sidebar.notify(t('That derrick is already leased.'), 3);
       } else {
         // Capture: the engineer is consumed and the building changes sides.
         const before = b.owner;
         if (b.capture(u.owner, u.faction as FactionId)) {
           this.entities.remove(u.id);
           this.selection.selectedUnits.delete(u.id);
-          if (u.owner === this.humanPlayer.id) this.sidebar.notify(`${b.spec.name} captured!`);
+          if (u.owner === this.humanPlayer.id) this.sidebar.notify(t('{name} captured!', { name: b.spec.name }));
           if (b instanceof NationCapital) this.announceNationCapture(b, before);
           this.razeFlagsAround(b);
         } else u.task = null;
@@ -4233,8 +4264,8 @@ export class Game {
       if (i >= 0) b.garrison.splice(i, 1);
     }
     this.placeOutside(b, out);
-    if (out.length > 0 && why === 'healed' && b.owner === this.humanPlayer.id) this.sidebar.notify(`${out.length} healed and left the ${b.spec.name}.`);
-    else if (out.length > 0) this.sidebar.notify(`${out.length} came out of: ${b.spec.name}.`);
+    if (out.length > 0 && why === 'healed' && b.owner === this.humanPlayer.id) this.sidebar.notify(t('{count} healed and left the {name}.', { count: out.length, name: b.spec.name }));
+    else if (out.length > 0) this.sidebar.notify(t('{count} came out of: {name}.', { count: out.length, name: b.spec.name }));
   }
 
   /** Puts people who leave `b` on free cells in front of its door. */
@@ -4278,14 +4309,14 @@ export class Game {
   private sellBuilding(b: Building): void {
     const price = this.salePrice(b);
     if (price === null) {
-      this.sidebar.notify(`The ${b.spec.name} cannot be sold.`, 3);
+      this.sidebar.notify(t('The {name} cannot be sold.', { name: b.spec.name }), 3);
       return;
     }
     const p = this.players.find((pl) => pl.id === b.owner);
     if (!p) return;
     p.credits += price;
     this.removeBuilding(b);
-    this.sidebar.notify(`${b.spec.name} sold to the Global Monitoring Center: +${price} ${CURRENCY}.`, 3);
+    this.sidebar.notify(t('{name} sold to the Global Monitoring Center: +{price} {currency}.', { name: b.spec.name, price, currency: CURRENCY }), 3);
   }
 
   /** Takes a structure off the map: its people step out, its aircraft move or burn, its cells become free. */
@@ -4310,7 +4341,7 @@ export class Game {
     const p = this.players.find((pl) => pl.id === nation);
     if (!p || p.defeated) return;
     p.credits += MERCY_BONUS;
-    if (p.isHuman) this.sidebar.notify(`Mercy bonus: you let a retreating enemy group go — Global Monitoring Center pays +${MERCY_BONUS} ${CURRENCY}.`, 3);
+    if (p.isHuman) this.sidebar.notify(t('Mercy bonus: you let a retreating enemy group go — Global Monitoring Center pays +{bonus} {currency}.', { bonus: MERCY_BONUS, currency: CURRENCY }), 3);
   }
 
   /** A plain move that takes the unit closer to its own capital is a retreat (enemies may not chase it). */
@@ -4431,7 +4462,7 @@ export class Game {
     // Short-handed trucks only drive within the base: warn when one is sent farther out.
     const inBase = this.entities.buildings().some((b) => b.alive && b.owner === this.humanPlayer.id && distanceTo(world.x, world.y, b) <= TRUCK_HOME_CELLS * CELL_SIZE);
     const parkedTruck = inBase ? undefined : units.find((u) => u instanceof Vehicle && u.isTruck && u.owner === this.humanPlayer.id && u.cargo.length < TRUCK_MIN_RIDERS);
-    if (parkedTruck instanceof Vehicle) this.sidebar.notify(`The truck needs ${TRUCK_MIN_RIDERS}/${TRUCK_SOLDIERS} soldiers aboard to drive outside the base (${parkedTruck.cargo.length} now).`, 3);
+    if (parkedTruck instanceof Vehicle) this.sidebar.notify(t('The truck needs {min}/{max} soldiers aboard to drive outside the base ({now} now).', { min: TRUCK_MIN_RIDERS, max: TRUCK_SOLDIERS, now: parkedTruck.cargo.length }), 3);
     // A new move order ends a repair job (mending, or driving to a repair vehicle).
     for (const u of units) if (u instanceof Vehicle) {
       u.heliRevenge = null;

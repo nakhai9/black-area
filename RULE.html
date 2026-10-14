@@ -26,7 +26,7 @@
 <body>
 <main>
 <img class="logo" src="/logo.png" alt="Black Area" />
-<h1>Black Area — RULE <small>v1.128.0</small></h1>
+<h1>Black Area — RULE <small>v1.131.4</small></h1>
 <p class="lead">Tài liệu luật chơi + kiến trúc code dành cho AI/dev sửa game. Mọi con số gameplay chính xác nằm trong <code>src/constants.ts</code> và <code>src/factions/*.ts</code>. Nếu tài liệu này khác code thì <b>code đúng</b>. <b>Khi đổi luật/số trong code, phải cập nhật file này.</b></p>
 <nav><a href="#s1">Quy tắc làm việc cho AI</a><a href="#s2">Chạy dự án</a><a href="#s3">Kiến trúc thư mục</a><a href="#s4">Thế giới</a><a href="#s5">Kinh tế (dầu)</a><a href="#s6">Công trình (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Quân đội</a><a href="#s8">Chiến đấu</a><a href="#s9">Điều khiển (Game.handleKey, handleInput)</a><a href="#s10">Giới hạn &amp; hiệu năng</a><a href="#s11">Thắng / thua &amp; AI</a><a href="#s12">Công thức sửa thường gặp</a></nav>
 <h2 id="s1">0. Quy tắc làm việc cho AI</h2>
@@ -511,6 +511,24 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
   <li>Màn hình Load game: logo phe thay chữ "LOAD GAME", nút "Start with &lt;phe&gt;" màu phe, nút Main menu nằm bên trái; trước khi vào game không còn hiện sidebar trống và hoa gió ở góc trái dưới (v1.127.0).</li>
   <li>Nút Home (về thủ đô) chỉ chuyển camera về thủ đô, không còn để lại viền focus nét đứt trên nút (v1.127.1).</li>
   <li>Thêm quốc gia tranh chấp <b>Cuba</b> (Havana, El Capitolio), như Anh, Úc, Nhật, Hàn…; đảo Cuba không còn thuộc lãnh thổ USA. Xe phòng không (NOMADS / Buk-M3) trúng máy bay mất <code>MANTIS_HIT_SHARE = 25%</code> máu tối đa mỗi phát. Máy bay chỉ tấn công xe phòng không bằng bom (bomber, hoặc tiêm kích còn bom), không bằng súng; trực thăng không tấn công được. AI luôn giữ hệ thống phòng không ở nhà: tối thiểu <code>AI_AIR_DEFENCE = 2</code> xe phòng không + 1 mỗi <code>AI_AIR_DEFENCE_PER_CITIES = 4</code> Happy City, đứng trên vòng <code>AI_AIR_DEFENCE_RING = 8</code> ô quanh thủ đô, không đi tấn công (v1.128.0).</li>
+  <li>Ngôn ngữ: chọn Tiếng Việt / English ở main menu và trong menu cài đặt (Esc), mặc định tiếng Anh; toàn bộ chữ trong game và hướng dẫn (RULE.html tiếng Việt, RULE.en.html tiếng Anh) theo ngôn ngữ đã chọn. Đổi ngôn ngữ giữa trận: game tự lưu, tải lại trang và vào lại trận (v1.129.0).</li>
+  <li>Ẩn nút Download Desktop ở màn hình chọn phe; trước khi vào game không còn lỗi màn hình đen (v1.129.1).</li>
+  <li>Main menu: không chọn sẵn phe nào; nút Deploy bị khoá đến khi người chơi bấm chọn một phe (hoặc dùng phím mũi tên) (v1.129.2).</li>
+  <li>Main menu: nút Deploy bị ẩn hẳn cho đến khi chọn một phe (v1.129.3).</li>
+  <li>Main menu: nút "Load game" đổi thành "Import saved game" (tiếng Việt: "Nhập bản lưu để chơi tiếp") (v1.129.4).</li>
+  <li>Nút main menu đổi thành "Load saved game" (tiếng Việt: "Tải bản lưu để chơi tiếp") (v1.129.5).</li>
+  <li>Màn hình xác nhận bản lưu: thêm cờ phe nhỏ ở góc phải dưới logo; bỏ câu "Press Start to load the map…" (v1.129.6).</li>
+  <li>Màn hình xác nhận bản lưu: bỏ dòng tên phe + thời gian lưu, chỉ còn logo, cờ và hai nút (v1.129.7).</li>
+  <li>Logo phe + cờ nhỏ góc phải dưới thành một component dùng chung (<code>ui/FactionBadge.ts</code>, cỡ sm/md/lg) cho sidebar, màn hình chọn phe và màn hình xác nhận bản lưu (v1.129.8).</li>
+  <li>Mọi modal (chọn phe, tạm dừng/cài đặt, xác nhận bản lưu, thắng/thua) dùng chung nền, viền và bo góc (biến CSS <code>--modal-*</code>) (v1.129.9).</li>
+  <li>Mọi nút chữ (main menu, modal, sidebar) dùng chung một kiểu: nền xám đậm, viền, bo góc 4px, hover viền vàng (biến CSS <code>--btn-*</code>); nút chính (Deploy / Start) cùng hình dáng, màu phe (v1.130.0).</li>
+  <li>Nút chính thống nhất thành "Start as &lt;phe&gt;" (thay "Deploy as" ở main menu và "Start with" ở màn hình bản lưu); nút Start của màn hình bản lưu không còn được focus sẵn (Enter vẫn bắt đầu) (v1.130.1).</li>
+  <li>Hoa gió không còn thoáng hiện ở góc trái dưới khi tải lại / chuyển màn hình: ẩn sẵn trong index.html, chỉ hiện khi đã nằm trong mini map (v1.130.2).</li>
+  <li>Màn hình chọn phe: khẩu hiệu dưới logo mỗi phe — Mỹ "Make America Great Again", Trung Quốc "Giấc mơ Trung Hoa / Phục hưng dân tộc", Nga "Nước Nga Vĩ Đại / Không bỏ lại người mình", Châu Âu "Take Back Control", Hồi giáo "Hồi giáo là giải pháp" (v1.131.0).</li>
+  <li>Khẩu hiệu phe chuyển từ màn hình chọn phe sang màn hình xác nhận bản lưu (dưới logo + cờ) (v1.131.1).</li>
+  <li>Bỏ khẩu hiệu phe. Màn hình chọn phe xếp thẻ từ Tây sang Đông theo kinh độ thủ đô: USA → Europe → Russia → Islamic → China (phím mũi tên đi theo cùng thứ tự) (v1.131.2).</li>
+  <li>Thẻ phe ở main menu: logo + cờ đặt chính giữa thẻ (v1.131.3).</li>
+  <li>Xoá thư mục <code>resources/</code> (ảnh gốc độ phân giải cao, ~181 MB; game không dùng khi chạy, sprite đã đóng gói sẵn trong <code>public/sprites/</code>) (v1.131.4).</li>
   <li>Tìm đường (A*) là phần tốn nhất: đơn vị attack-move bị chặn chỉ thử tìm lại đường mỗi <code>RESUME_RETRY 1</code> s (đích ở bờ biển khác / không tới được thì huỷ lệnh); mỗi 0.5 s chỉ đổi đường tối đa <code>REPATH_BUDGET 8</code> đơn vị kẹt, hết đường thì dừng.</li>
   <li>Dọn cache mỗi <code>JANITOR_INTERVAL = 180</code> s (ảnh/địa hình không dùng, sổ ghi unit đã chết, sổ thưởng nhân từ của nhóm rút lui không còn ai sống). Chỉ xoá thứ không còn dùng tới, không động vào lính, công trình, tiền hay lệnh đang chạy. Tìm đường A* (<code>Pathfinder.find</code>) mỗi ô chỉ mở rộng 1 lần (bỏ bản sao cũ trong hàng đợi), đọc thẳng mảng của <code>TileMap</code>, hàng đợi ưu tiên dùng typed array dùng lại giữa các lần tìm.</li>
   <li>Art dùng sprite sheet PNG trong <code>public/sprites/</code> (tank, jet/bomber, bom, tên lửa, đạn pháo, lính 8 hướng), vẽ thủ tục khi không có sheet.</li>

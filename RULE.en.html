@@ -1,0 +1,555 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Black Area Rules</title>
+<link rel="icon" href="/favicon.ico" sizes="any" />
+<style>
+  :root { --bg:#fbfaf7; --fg:#1d1f22; --muted:#5d636b; --line:#e2ded6; --code:#f1eee8; --accent:#b4321f; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#16181b; --fg:#e6e3dc; --muted:#9aa0a8; --line:#2c3036; --code:#1f2226; --accent:#ff7a5c; } }
+  body { background:var(--bg); color:var(--fg); font:15px/1.6 system-ui, sans-serif; margin:0; padding:24px 16px 64px; }
+  main { max-width:960px; margin:0 auto; }
+  h1 { font-size:28px; margin:0 0 4px; } h2 { font-size:20px; margin:36px 0 8px; padding-bottom:4px; border-bottom:1px solid var(--line); }
+  h3 { font-size:16px; margin:20px 0 6px; }
+  p.lead { color:var(--muted); margin-top:0; }
+  code { background:var(--code); padding:1px 5px; border-radius:4px; font-size:13px; }
+  pre { background:var(--code); padding:12px; border-radius:6px; overflow-x:auto; font-size:13px; }
+  table { border-collapse:collapse; width:100%; font-size:14px; display:block; overflow-x:auto; }
+  th, td { border:1px solid var(--line); padding:5px 8px; text-align:left; vertical-align:top; }
+  th { background:var(--code); }
+  .warn { border-left:3px solid var(--accent); padding:6px 12px; background:var(--code); }
+  nav a { margin-right:12px; color:var(--accent); }
+  img.logo { display:block; width:160px; height:auto; margin:0 auto 12px; }
+</style>
+</head>
+<body>
+<main>
+<img class="logo" src="/logo.png" alt="Black Area" />
+<h1>Black Area — RULE <small>v1.131.4</small></h1>
+<p class="lead">Game rules + code architecture document for AI/devs modifying the game. All exact gameplay numbers live in <code>src/constants.ts</code> and <code>src/factions/*.ts</code>. If this document differs from the code, <b>the code is right</b>. <b>When changing rules/numbers in code, this file must be updated.</b></p>
+<nav><a href="#s1">Working rules for AI</a><a href="#s2">Running the project</a><a href="#s3">Folder architecture</a><a href="#s4">World</a><a href="#s5">Economy (oil)</a><a href="#s6">Buildings (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Military</a><a href="#s8">Combat</a><a href="#s9">Controls (Game.handleKey, handleInput)</a><a href="#s10">Limits &amp; performance</a><a href="#s11">Victory / defeat &amp; AI</a><a href="#s12">Common edit recipes</a></nav>
+<h2 id="s1">0. Working rules for AI</h2>
+<ul>
+  <li>TypeScript strict. After editing always run <code>npm run typecheck</code>, leave no errors.</li>
+  <li>All gameplay numbers (cost, HP, speed, range, limits) go in <code>src/constants.ts</code>, with JSDoc. Do not hard-code numbers in systems.</li>
+  <li>Differences between factions → <code>src/factions/&lt;phe&gt;.ts</code> (<code>stats</code> multipliers, flags <code>oilCartel</code> / <code>peaceful</code> / <code>leasesOil</code>), avoid branching <code>if (faction === ...)</code> in logic.</li>
+  <li><code>src/types/index.ts</code> contains only types.</li>
+  <li>Keep the surrounding code style: short JSDoc, English, meaningful names.</li>
+  <li>Do not change a unit's on-screen display name when only changing its sprite/internals.</li>
+  <li><b>Ask the user before every <code>git push</code>.</b></li>
+  <li>Version: <code>GAME_VERSION</code> (x.y.z) in <code>src/constants.ts</code>, right below <code>DEMO_MODE</code>. After every change: bug fix / number tweak → bump z; new content / new rule → bump y, reset z to 0; major change that makes old save files unloadable → bump x, reset y and z to 0. Write the same number into the title of RULE.html and README.md.</li>
+  <li>Two coordinate systems: world px (logic, square <code>CELL_SIZE</code> cells) and iso screen (2:1 diamond, <code>ISO_X = 0.5</code>, <code>ISO_Y = 0.25</code>, see <code>core/IsoView.ts</code>).</li>
+</ul>
+<h2 id="s2">1. Running the project</h2>
+<pre>npm install
+npm run dev          # Vite dev server
+npm run typecheck    # tsc --noEmit
+npm run build        # typecheck + vite build
+npm run build:earth  # regenerate public/data/earth.png (scripts/build-earth.mjs)</pre>
+<ul>
+  <li>URL <code>?faction=usa|russia|china|europe|islamic</code> skips the faction picker (<code>src/main.ts</code>).</li>
+  <li><code>DEMO_MODE</code> (constants, read from env <code>VITE_DEMO_MODE=true</code>; <code>DEMO_FACTION</code> from <code>VITE_DEMO_FACTION</code>, default 2. Set in <code>.env.local</code> (not committed, sample in <code>.env.example</code>); missing variable → off, so production builds never enter demo. Changing env requires restarting <code>npm run dev</code>): jumps straight into a solo test match with faction number <code>DEMO_FACTION</code> (1 USA, 2 Russia, 3 China, 4 Europe, 5 Islamic); everything costs <code>DEMO_PRICE = 100</code>, money/oil held at <code>DEMO_CREDITS = 999_999</code>, each unit type starts with <code>DEMO_UNITS_EACH = 2</code>.</li>
+  <li>URL <code>?view=buildings</code>: page showing every building by faction, with a <b>Contested nations</b> group (capitals of the contested nations: North Korea, South Korea, Japan, Australia, Brazil, UK, Canada) (<code>ui/BuildingGallery.ts</code>); <code>?view=units</code>: page showing every soldier, vehicle and aircraft of every faction, drawn with in-game sprites, rotating through directions, with display name and cost / HP / speed / weapon (<code>ui/UnitGallery.ts</code>).</li>
+  <li>Alt+F: toggle fullscreen.</li>
+</ul>
+<h2 id="s3">2. Folder architecture</h2>
+<table>
+<tr><th>Folder / file</th><th>Role</th></tr>
+<tr><td><code>src/main.ts</code></td><td>Boot: pick faction (<code>ui/FactionPicker</code>) or Load game (<code>ui/LoadConfirm</code>), load Earth texture, create <code>Game</code>.</td></tr>
+<tr><td><code>src/core/Game.ts</code></td><td>Composition root (~3260 lines): builds the world (<code>placeOilRows</code>…), wires systems/UI, input (<code>handleInput</code>, <code>handleKey</code>), issuing orders, demolition (<code>processDemolition</code>/<code>detonate</code>), flags (<code>plantFlag</code>), save/load (<code>exportSave</code>/<code>importSave</code>), victory/defeat (<code>evaluateNations</code>).</td></tr>
+<tr><td><code>src/core/</code></td><td><code>Renderer</code>, <code>Camera</code>, <code>InputHandler</code>, <code>GameLoop</code>, <code>EventBus</code>, <code>Effects</code>, <code>IsoView</code>, <code>SaveCodec</code>, <code>Demo</code>, <code>Random</code>, <code>MathUtils</code>.</td></tr>
+<tr><td><code>src/entities/</code></td><td><code>Entity</code> → <code>Building</code> (<code>Capital</code>, <code>Barracks</code>, <code>WarFactory</code>, <code>Hospital</code>, <code>Airfield</code>, <code>TechCenter</code>, <code>OilDerrick</code>, <code>WorldBank</code>, <code>HappyCity</code>, <code>PowerPlant</code>, <code>Flagpole</code>, <code>AlliedBuilding</code>, <code>Bunker</code>) and <code>Unit</code> → <code>Infantry</code>, <code>Vehicle</code>. <code>EntityManager</code>.</td></tr>
+<tr><td><code>src/systems/</code></td><td>Each system implements <code>GameSystem.update(dt)</code>: <code>Combat</code>, <code>AI</code>, <code>Construction</code>, <code>Placement</code>, <code>Training</code>, <code>Vehicle</code>, <code>Aircraft</code>, <code>Economy</code>, <code>OilMarket</code>, <code>Power</code>, <code>Tax</code>, <code>SafeZone</code>, <code>Selection</code>.</td></tr>
+<tr><td><code>src/map/</code></td><td>Real Earth: <code>TileMap</code>, <code>Pathfinder</code>, <code>Biomes</code>, <code>Territories</code>, <code>OilSite</code>, <code>TerrainRenderer</code>, <code>TileTerrain</code>, <code>Trees</code>, <code>WorldGenerator</code>.</td></tr>
+<tr><td><code>src/render/</code></td><td>Art: sprite sheets (<code>TankSheets</code>, <code>AircraftSheets</code>, <code>BombSheets</code>, <code>MissileSheet</code>, <code>ShellSheet</code>, <code>UnitSprites</code> for soldiers), procedural drawing (<code>InfantryArt</code>, <code>VehicleArt</code>, <code>DemolitionArt</code>, <code>sprites/*</code> buildings), <code>SpriteCache</code>, <code>IsoPainter</code>, <code>Flags</code>. PNG images in <code>public/sprites/</code>.</td></tr>
+<tr><td><code>src/ui/</code></td><td><code>Sidebar</code>, <code>Minimap</code>, <code>StatusBar</code>, <code>FactionPicker</code>, <code>PauseMenu</code>, <code>LoadConfirm</code>, <code>EndScreen</code>, <code>NewsToast</code>, <code>BuildingGallery</code>.</td></tr>
+<tr><td><code>src/audio/</code></td><td><code>SoundSystem</code>, <code>MusicSystem</code>.</td></tr>
+<tr><td><code>src/factions/</code></td><td>5 factions + <code>FACTIONS</code>, <code>teamColors(allegiance)</code>.</td></tr>
+</table>
+<h3>Order of one tick (<code>Game.tick</code>, <code>TICK_RATE = 30</code>)</h3>
+<pre>evaluateNations (every 1 s) → update inWater / terrainFactor → entities.update
+→ keepOutOfWater → crushInfantry → processBoarding → separateUnits
+→ repathStuckUnits → giveWay → processTasks → processDemolition → processRepairs
+→ healGarrisons → regenVeterans → janitor (every JANITOR_INTERVAL) → systems[].update</pre>
+<h2 id="s4">3. World</h2>
+<ul>
+  <li>Map = real Earth (4096×2048 texture, <code>WORLD_SCALE = 5.5</code> world px/texel). Atlantic narrowed (<code>ATLANTIC_SQUEEZE</code>): the longitude band -34° → -17° (between the tip of Brazil and Senegal) keeps only 40% of its width when the texture is loaded, so the Americas are about 10° of longitude closer to Europe – Africa; the coastlines of Brazil, West Africa and Europe keep their shape, Iceland and eastern Greenland get narrower. Eastern Pacific narrowed (<code>PACIFIC_SQUEEZE</code>): the longitude band -152° → -125° (between Hawaii and the Americas) keeps only 35% of its width at latitudes -45° → 40° (blending over 7° outside that range), so Hawaii and the whole Pacific to the west shift about 17.5° of longitude closer to the Americas; Alaska, Vancouver Island and Antarctica are unchanged. This band is almost entirely sea (only a few small Polynesian islands like Tahiti, Marquesas get narrower); the empty space at the western map edge is sea. Greenland restored to its true area: each row of Greenland land is narrowed by cos(latitude) around meridian -42° (the equirectangular projection stretches polar regions by 1/cos(latitude)), the excess land becomes sea; the north–south extent is unchanged. Only Greenland is adjusted, Canada / Russia / Antarctica still follow the old projection. Remaining texture width <code>EARTH_TEX_WIDTH</code> ≈ 3980 texels; every longitude ↔ coordinate conversion goes through <code>map/Geo.ts</code> (<code>lonToFrac</code> / <code>fracToLon</code>). <code>MAP_SEED = 20261005</code>.</li>
+  <li><b>Unit cell</b>: a 1×1 grid cell, the common unit of measure for the whole system (pathing, building placement, footprint, flags, distances in cells); size <code>CELL_SIZE = 7</code> world px. In DEMO mode the whole unit-cell grid (both land and sea) is drawn on the map. RA2-style isometric display, camera does not rotate.</li>
+  <li>Tactical zoom <code>ZOOM_MIN 3</code> – <code>ZOOM_MAX 9</code> (step <code>1.12</code>, <code>FOCUS_ZOOM 8</code>); the overview is on the sidebar radar.</li>
+  <li>Capitals at real coordinates (<code>CAPITAL_LOCATIONS</code>): Washington D.C., Moscow, Beijing, Paris, <b>Riyadh</b> (Islamic). Global Monitoring Center (neutral, <code>WorldBank</code>) in Zürich.</li>
+  <li>No building casts a shadow on the ground.</li>
+  <li><b>Compass</b> in the bottom-left corner of the screen (above the Zoom/FPS bar): Font-GIS compass rose icon (Jean-Marc Viglino, CC-BY license, credited in <code>index.html</code>), yellow, lying on the ground in the map's 2:1 isometric projection so directions match the game: <b>N</b> (north) points up-right, <b>E</b> (east) down-right, <b>S</b> (south) down-left, <b>W</b> (west) up-left. Not clickable.</li>
+  <li><b>Capitals not on the coast</b>: when the map is built, each capital (of the 5 factions and of the contested nations) is moved to the spot closest to its real location (within <code>CAPITAL_INLAND_SEARCH = 20</code> cells) where every cell around it within <code>CAPITAL_SEA_CLEARANCE = 4</code> cells is land (more than 3 cells from the sea); if none is found the old placement is kept.</li>
+  <li><b>Contested nations</b> (<code>CONTESTED_NATIONS</code>, entity <code>NationCapital</code>, type <code>nationCapital</code>): North Korea (Pyongyang), South Korea (Seoul), Japan (Tokyo), Australia (Canberra), Brazil (Brasília), <b>UK</b> (London, 10 Downing Street — has left the EU so Great Britain no longer belongs to Europe's territory), <b>Canada</b> (Ottawa, Parliament Hill — Canadian land is split from USA territory; USA keeps the contiguous US + Alaska), <b>Cuba</b> (Havana, El Capitolio — Cuba is not part of USA territory). Independent capitals, initially neutral; cannot be destroyed, only captured by an <b>engineer</b> (from neutral or from the faction holding it). The holding faction receives <code>NATION_PRESENCE_FEE 1200</code> TB every <code>NATION_PRESENCE_PERIOD 120</code>s (military presence fee, via <code>TaxSystem</code>, debt paid first) and may build its own buildings next to that capital (like an Allied Building). Does not count as the faction's own capital when checking defeat. A captured capital still counts as an <b>ally</b> of the holder: shown in the Allies tab, when hovering that row and when hovering the capital on the map with the name "nation + faction" (e.g. "South Korea + Russia", the + marks cooperation; in the Allies tab row it shows the capturing faction's logo + lucide icon <code>Handshake</code> + the captured nation's flag), not counted toward the <code>MAX_ALLIES</code> limit. AI (from 90s, when home is quiet) sends 1 engineer to capture the nearest capital it doesn't hold (across sea: carried by transport plane), and keeps <code>NATION_GARRISON 6</code> soldiers/vehicles garrisoned at each capital it holds (within <code>NATION_GARRISON_CELLS 10</code> cells).</li>
+  <li><b>Antarctic oil</b> (<code>ANTARCTIC_OIL_SITES</code>, <code>OilDerrick.antarctic</code>): 5 ownerless oil derricks spread evenly across Antarctica. Pump under the usual oil rules for the holding faction; cannot be destroyed; engineers of any faction can capture them (from ownerless or from another faction), even if the holding faction leases oil: Antarctic derricks are never leased, engineers always capture. <b>No building of any kind may be built on Antarctica</b> (every cell from <code>ANTARCTIC_ROW</code> = 60°S southward, <code>PlacementSystem.check</code> → reason <code>antarctica</code>), applies to both player and AI. AI treats them as contested targets: sends engineers by transport plane to capture them and leaves garrison troops to defend them (like contested capitals).</li>
+  <li>AI transport planes (<code>AISystem.safeDrop</code>): when carrying troops / engineers far away, choose a landing point within <code>SAFE_DROP_CELLS 24</code> cells of the target that is least covered by other factions' soldiers / vehicles / bunkers.</li>
+  <li>Radar (minimap): neutral / unowned buildings are drawn as <b>triangles</b>; faction buildings are drawn as round dots.</li>
+  <li>Forest slows ground units ×0.78. Water: only special soldiers can swim (<code>SWIM_SPEED_FACTOR 0.6</code>); vehicles do not enter water.</li>
+  <li><b>Mountain ranges</b> (<code>MOUNTAIN_RANGES</code>, <code>WorldGenerator.markMountains</code>, v1.112.0): Himalaya (from Nanga Parbat 8,126 m in the west through Nanda Devi, Dhaulagiri, Everest, Kangchenjunga to Namcha Barwa 7,782 m in the east, v1.115.0), Andes, Rocky, Alps, Altai (blocking Russia – China, running straight west to east along ~49°N, v1.114.0), Ural (blocking European Russia – Siberia), Caucasus (blocking South Russia – West Asia), Pamir + Karakoram (blocking Middle East / South Asia – China) — following real ridge lines. The Turkish Straits are water already on the map. <b>Vesi</b> (fictional, v1.116.0): a straight range from 39.87°N 75.44°E (Pamir) to 47.68°N 82.16°E (western end of Altai), v1.117.0, blocking the route from Russia down to China and vice versa; <b>no passes</b> — ground troops must detour around one of the two ends of the range (pathfinding retries with a large budget <code>DETOUR_EXPANSIONS</code> when the first search does not reach the goal). Where two ranges join, the slopes of the later range do not overwrite the ridge / passes of the earlier range (no gaps). Each range is ~<code>MOUNTAIN_HALF_WIDTH_CELLS = 6</code> cells wide on each side (wavy edges): the <b>ridge</b> in the middle (<code>MOUNTAIN_CREST_CELLS 1.3</code> cells, peaks as high as real NASA elevation, snowy, impassable) and the <b>slopes</b> on both sides (high ground: walkable, buildable — defensive positions). No outer cliff walls. <b>Passes</b>: <code>MOUNTAIN_PASSES = 3</code> passes per range spaced evenly, <code>3</code> cells wide, cutting through the ridge — the only way to cross the mountains; slow going (infantry ×<code>0.6</code>, vehicles ×<code>0.45</code>). High-ground advantage (ground units on slopes): range ×<code>1.2</code>, damage to units below ×<code>1.25</code>; fire from units below deals only ×<code>0.75</code>. Aircraft are unaffected. Applies to AI too. Hovering the mouse over a mountain area (not over a unit / building) shows the range name right above the cursor (<code>Game.mountainTip</code>, <code>Renderer.drawMountainTip</code>, v1.113.0).</li>
+</ul>
+<h3>War / peace cycle (<code>WAR_SECONDS</code>, <code>PEACE_SECONDS</code>, <code>Game.updateWarCycle</code>)</h3>
+<ul>
+<li>Repeats forever: <b>10 minutes of war</b> (fighting, capturing each other) then <b>2.5 minutes of peace</b> (building up your own faction). The match starts with war.</li>
+<li>Peace: no faction can attack another (<code>isHostile</code> = false), all attack orders / locked targets / Crazy Soldier bombs are cancelled, advancing troops stop in place, no capturing other factions' buildings (neutral buildings can still be captured).</li>
+<li><b>Ceasefire zone</b> (v1.118.0, <code>TRUCE_ZONE_CELLS = 5</code>, <code>Game.updateViolators</code>): during the 2.5 minutes of peace, after the first <code>TRUCE_GRACE_SECONDS = 15</code> s to withdraw, every soldier / vehicle / aircraft / flying helicopter within 5 cells of the edge of another faction's building is a <b>ceasefire violator</b>: every other faction may attack it, and it may not fire back. A red "Ceasefire violation" label shows above it; the player is warned (at most once every 10 s). Exceptions: engineers on their way to lease an oil derrick, aircraft parked / taxiing / helicopters landing.</li>
+<li>AI during peace only develops economy, base, army; launches no attacks. AI keeps every unit more than 5 + 2 cells from other factions' buildings (including the destination point): any unit near or about to enter the zone retreats to the capital; troop trucks near the zone unload their troops (<code>AISystem.keepCeasefire</code>).</li>
+<li>The sidebar shows the current phase and time remaining (War / Peace m:ss).</li>
+</ul>
+<h3>Factions</h3>
+<table>
+<tr><th>Faction</th><th>Color</th><th>unitSpeed</th><th>armor</th><th>firepower</th><th>range</th><th>buildSpeed</th><th>cost</th><th>trainDelay</th><th>Capital HP</th><th>Notes</th></tr>
+<tr><td>USA</td><td><code>#2f6fe0</code></td><td>1.25</td><td>0.9</td><td>1.0</td><td>1.05</td><td>1.1</td><td>1.3</td><td>2</td><td>15000</td><td>Has the B-1A Lancer bomber</td></tr>
+<tr><td>Russia</td><td><code>#d22b2b</code></td><td>0.95</td><td>1.1</td><td>1.2</td><td>1.3</td><td>0.95</td><td>1.0</td><td>0</td><td>16500</td><td>Has the Tu-160 bomber</td></tr>
+<tr><td>China</td><td><code>#e8b10a</code></td><td>0.85</td><td>1.3</td><td>1.0</td><td>0.95</td><td>1.2</td><td>0.85</td><td>0</td><td>18000</td><td>No bomber; cheap + fast infantry: <code>infantryCost 0.7</code> (infantry cost ≈ 0.6 × base), <code>infantrySpeed 1.35</code> (infantry speed ≈ 1.15 × base)</td></tr>
+<tr><td>Europe</td><td><code>#8a5cf6</code></td><td>1.05</td><td>1.0</td><td>1.05</td><td>1.1</td><td>1.05</td><td>1.25</td><td>2</td><td>15600</td><td></td></tr>
+<tr><td>Islamic</td><td><code>#1f9d4a</code></td><td>1.0</td><td>1.05</td><td>1.0</td><td>1.0</td><td>1.0</td><td>0.95</td><td>1</td><td>16000</td><td><code>oilCartel</code>, <code>leasesOil</code></td></tr>
+</table>
+<ul>
+  <li>Actual cost = <code>round(giá gốc × cost / 10) × 10</code>; training time + <code>trainDelay</code>; unit HP = <code>maxHp × armor</code>.</li>
+  <li><code>peaceful</code> (currently used by no faction; Islamic now fights): <b>trains no soldiers, produces no vehicles/aircraft</b> (<code>TrainingSystem</code>/<code>VehicleSystem</code> return an empty list).</li>
+  <li>Islamic leases at most <code>OIL_LEASE_MAX = 4</code> derricks at a time (including engineers on their way to lease). Islamic troops do not shoot engineers coming to lease their derricks. All other rules about Islamic derricks are unchanged (no destroying, no capturing, 180 s lease, 30% of the oil money goes to Islamic).</li>
+</ul>
+<h2 id="s5">4. Economy (oil)</h2>
+<ul>
+  <li>Currency <code>TB</code>. Every faction starts with <code>STARTING_CREDITS = 0</code> TB and <code>STARTING_OIL = 20</code> barrels.</li>
+  <li>Buildings/troops are paid for gradually while in progress; when money runs out progress stalls. Building: every <code>BUILD_STEP_SECONDS 4</code> s advances <code>20%</code>.</li>
+  <li>Losing your own capital (<code>capitalLost</code>) → can no longer buy anything (including oil for the power grid).</li>
+</ul>
+<h3>Oil derricks (<code>OilDerrick</code>, pre-placed by <code>Game.placeOilRows</code>)</h3>
+<ul>
+  <li>Number of derricks <code>OIL_DERRICK_COUNT</code>: 2/faction, <b>Islamic 3</b>. At most <code>OIL_ROW_MAX = 4</code> derricks per row.</li>
+  <li>Location: safe land inside own territory (prefer depth ≥ 6 cells, relaxed gradually), far from own capital and enemy capitals; at least <code>OIL_FIELD_SPACING = 40</code> cells from other factions' derricks (20 as a last resort). Only when there's no room inside the country may they go outside.</li>
+  <li><code>OIL_SITES</code>: Islamic field is mandatory at <b>Abu Dhabi</b> (UAE, lon 54.0, lat 23.3, inside territory, radius 16 → 24 → 32 cells); Russian field mandatory in <b>Western Siberia</b> (Samotlor, lon 76.6, lat 61.1), radius 16 → 24 → 32 cells, always inside Russian territory; Chinese field mandatory in <b>Xinjiang</b> (Karamay, lon 84.9, lat 45.6), same radius rule, always inside Chinese territory; US field mandatory in <b>Texas</b> (Permian Basin, near Midland, lon -102.1, lat 31.9), same radius rule, always inside US territory; European field mandatory on the <b>Northern European mainland</b> (central Sweden, lon 15.0, lat 61.2: the widest land area far from sea and lakes), same radius rule, always inside European territory.</li>
+  <li>Output <code>OIL_DERRICK_OUTPUT = 0.08</code> barrels/s per derrick while pumping. Cycle: pump <code>OIL_MINE_SECONDS 180</code> s, rest <code>OIL_REST_SECONDS 60</code> s; derricks are 40 s out of phase.</li>
+  <li>Each field has 1 <code>bankManaged</code> derrick (managed by the Center): still belongs to the faction, cannot be destroyed / captured.</li>
+  <li>Derricks of the <code>leasesOil</code> faction (Islamic) currently <b>cannot be destroyed or captured</b>.</li>
+  <li>Grace period: the player's derricks cannot be attacked until enemy factions have launched <code>DERRICK_GRACE_ATTACKS = 5</code> attack waves on the player's buildings (a new wave = attacking again after ≥ <code>DERRICK_GRACE_GAP = 30</code> s of silence).</li>
+  <li>O key: cycle through derricks.</li>
+</ul>
+<h3>Oil price (<code>systems/OilMarket.ts</code>)</h3>
+<ul>
+  <li>Shared price, starting at <code>OIL_PRICE_START 900</code>, clamped to <code>OIL_PRICE_MIN 360</code> – <code>OIL_PRICE_MAX 2100</code> TB/barrel; re-evaluated every <code>OIL_PRICE_INTERVAL 10</code> s, each time moving <code>OIL_PRICE_EASE 35%</code> of the distance to the target price.</li>
+  <li><code>balancePrice = 900 × wealth × flow × cartelFactor</code>:</li>
+  <li><code>flow = ((OIL_FLOW_REF 3 + bought) / (3 + sold)) ^ 0.5</code> — <code>sold</code> = barrels factions sold to the Center, <code>bought</code> = barrels the Center was forced to sell to the power grid; both fade over <code>OIL_FLOW_MEMORY 90</code> s. Selling a lot → cheaper; grid buying a lot → pricier.</li>
+  <li><code>wealth = ((15000 + tài sản ròng TB/phe) / 15000) ^ 0.3</code> (<code>OIL_WEALTH_*</code>; net worth = money + collateral − debt, only factions not yet eliminated).</li>
+  <li><code>cartelFactor</code> = <code>OIL_POLICIES[policy].price</code> while a cartel faction remains.</li>
+  <li>Target = <code>balancePrice × (1 + mood)</code>; seeded random mood, ±<code>OIL_MOOD_MAX 12%</code>, steps of ±4%, pulled back toward 0 by 15% each time.</li>
+  <li>The price chart keeps the last 30 evaluations (5 minutes).</li>
+</ul>
+<h3>Selling oil</h3>
+<ul>
+  <li>Selling = offering the whole stock minus <code>OIL_RESERVE = 1.0</code> barrel always kept; need ≥ <code>0.5</code> barrels to offer.</li>
+  <li>Amount the Center buys = <code>kho × WB_MAX_SHARE (25%) × (1 − 0.6 × giá / OIL_PRICE_MAX)</code>.</li>
+  <li>Money = <code>round(thùng × giá)</code> via <code>OilMarket.receive()</code>: debt is paid first, the rest goes to the treasury.</li>
+  <li>Rhythm: <code>OIL_SALE_BURST = 6</code> times in a row, then wait <code>OIL_SALE_COOLDOWN = 3</code> s.</li>
+</ul>
+<h3>Oil cartel (Islamic, <code>oilCartel</code>)</h3>
+<table>
+<tr><th>Policy</th><th>Cartel derrick output</th><th>Target price</th></tr>
+<tr><td><code>cut</code> (Cut output)</td><td>×0.5</td><td>×1.35</td></tr>
+<tr><td><code>hold</code> (Hold, default)</td><td>×1</td><td>×1</td></tr>
+<tr><td><code>flood</code> (Flood market)</td><td>×1.6</td><td>×0.7</td></tr>
+</table>
+<p>Policy can be changed at most once / <code>OIL_POLICY_COOLDOWN = 90</code> s. Only effective while the cartel faction has not been eliminated.</p>
+<h3>Leasing derricks (<code>leasesOil</code>)</h3>
+<ul>
+  <li>An Engineer of another faction right-clicks an Islamic derrick → leases it for <code>OIL_LEASE_SECONDS = 180</code> s. During the lease, <b>the derrick belongs to the leasing faction</b> (changes color, changes owner, oil goes to the lessee's stock, counted separately as <code>leasedOil</code>); still cannot be destroyed / captured. An engineer entering a derrick of another enemy faction (not Islamic) <b>captures it outright</b>: the derrick becomes yours. Applies to both player and AI.</li>
+  <li>When selling, the money from leased oil gives <code>OIL_LEASE_CARTEL_SHARE = 30%</code> to the lessor. On expiry the derrick returns to Islamic.</li>
+  <li>Islamic does not shoot engineers on their way to lease its derricks; <b>other factions still attack</b> that engineer if they meet it on the way.</li>
+  <li>AI-controlled factions (other than Islamic) also lease on their own (<code>AISystem.leaseOil</code>): only when the lease is profitable — 180 s of oil × current price × 70% ≥ <code>LEASE_MIN_RETURN 2</code> × the price of one engineer; at most <code>AI_LEASES 2</code> derricks per faction (still within Islamic's <code>OIL_LEASE_MAX 4</code> limit); only derricks within <code>LEASE_RANGE_CELLS 120</code> cells of the engineer, nearest first; no leasing while the capital is under attack. Uses an idle engineer (after building repairs are handled); if none, trains one.</li>
+</ul>
+<h3>Helicopters (<code>heli</code>)</h3>
+<ul>
+  <li>Apache (USA, Europe), Ka-52 (Russia, Islamic), Z-10 (China). Only shoot <b>ground vehicles</b>: do not shoot buildings, soldiers, aircraft.</li>
+  <li>Park anywhere on land like vehicles; carry at most <code>HELI_SOLDIERS = 8</code> soldiers, no vehicles.</li>
+  <li><b>Helicopter self-defense</b>: when parked and shot by soldiers or ground vehicles/tanks → takes off, locks onto the attacker and fights back (exception: may also shoot that <b>soldier</b>; <code>Vehicle.heliRevenge</code>, ends when the fight is over or a new order is given), after the fight flies back to the exact original spot and lands again (a new order cancels the return). Applies to both player and AI.</li>
+</ul>
+<h3>Emergency loans (Global Monitoring Center)</h3>
+<ul>
+  <li>Only when the treasury is &lt; 1 TB, only when the player presses the button (not automatic). No interest.</li>
+  <li><code>collateral = oil × giá + RESALE_SHARE (0.5) × (giá xây công trình × tỉ lệ máu + giá gốc xe)</code> (indestructible buildings excluded).</li>
+  <li><code>credit line = floor(LOAN_TO_VALUE (0.5) × collateral / 100) × 100</code>.</li>
+  <li>Each loan = <code>LOAN_SHARE (25%)</code> of the credit line (≥ <code>LOAN_MIN 1000</code>, not exceeding the line). Added to <code>debt</code>.</li>
+  <li>Debt hits the line → credit frozen until <code>debt ≤ DEBT_RESUME_SHARE (0.5) × line</code>. All income via <code>receive()</code> pays debt first.</li>
+</ul>
+<h3>Other income</h3>
+<ul>
+  <li>Happy City: <code>HAPPY_CITY_TAX 600</code> TB every <code>HAPPY_CITY_TAX_PERIOD 50</code> s, each city has its own timer (<code>TaxSystem</code>). More cities mean higher tax: each other city of the faction adds <code>HAPPY_CITY_TAX_BONUS 0.15</code> × base tax to every city (5 cities: each ×1.6).</li>
+  <li>Mercy bonus: <code>MERCY_BONUS 100</code> TB for letting a retreating enemy group go without chasing (once / group / faction).</li>
+</ul>
+<h3>Power (<code>PowerSystem</code>)</h3>
+<ul>
+  <li>Each building consumes <code>powerDrain</code>/s. The energy unit is the <b>joule (J)</b>, named after physicist James Prescott Joule; power is measured in J/s. A nuclear power plant generates <code>POWER_PLANT_OUTPUT 25</code> J/s (scaled by HP: a plant at 50% HP only generates 12.5 J/s and stores half) by burning oil: <code>POWER_PER_BARREL 1000</code> (0.025 barrels/s at full capacity), stores at most <code>POWER_PLANT_STORAGE 300</code> (new plants start at 0).</li>
+  <li>One plant is enough for 1 set: capital 1 + barracks 1 + hospital 2 + war factory 3 + airfield 4 + tech center 6 + city 8 = 25.</li>
+  <li>Grid drained (consumption &gt; generation, storage empty) → the Center is forced to sell oil at <code>OIL_GRID_MARKUP 1.25 ×</code> the list price; out of money → power outage.</li>
+</ul>
+<h2 id="s6">5. Buildings (<code>ConstructionSystem.BUILD_OPTIONS</code>)</h2>
+<table>
+<tr><th>Building</th><th>In-game name</th><th>Base cost (TB)</th><th>Requires</th><th>Footprint</th><th>HP</th><th>Power</th></tr>
+<tr><td><code>capital</code></td><td>per faction</td><td>— (pre-built)</td><td>—</td><td>5×8</td><td>per faction</td><td>−1</td></tr>
+<tr><td><code>powerPlant</code></td><td>Nuclear Power Plant</td><td>1500</td><td>—</td><td>4×4</td><td>1500</td><td>+25</td></tr>
+<tr><td><code>barracks</code></td><td>Ministry of Defence</td><td>800</td><td>powerPlant</td><td>4×4</td><td>1000</td><td>−1</td></tr>
+<tr><td><code>warFactory</code></td><td>War Factory</td><td>2000</td><td>barracks</td><td>5×4</td><td>1800</td><td>−3</td></tr>
+<tr><td><code>hospital</code></td><td>Hospital</td><td>1200</td><td>barracks</td><td>5×4</td><td>1200</td><td>−2</td></tr>
+<tr><td><code>bunker</code></td><td>Bunker</td><td>800</td><td>barracks</td><td>1×1</td><td>1000</td><td>−1</td></tr>
+<tr><td><code>wall</code></td><td>Wall</td><td>100</td><td>barracks</td><td>1×1</td><td>4000</td><td>0</td></tr>
+<tr><td><code>gate</code></td><td>Nation Gate</td><td>300</td><td>barracks</td><td>4×1</td><td>6000</td><td>0</td></tr>
+<tr><td><code>airfield</code></td><td>Airfield</td><td>2000</td><td>warFactory</td><td>12×8</td><td>1500</td><td>−4</td></tr>
+<tr><td><code>techCenter</code></td><td>High-Tech Center</td><td>8000</td><td>warFactory</td><td>4×4</td><td>2500</td><td>−6</td></tr>
+<tr><td><code>happyCity</code></td><td>Happy City</td><td>8000 (<code>fixedCost</code>, not multiplied by the factor)</td><td>airfield + hospital</td><td>8×8</td><td>4000</td><td>−8</td></tr>
+<tr><td><code>flagpole</code></td><td>Flagpole</td><td>100</td><td>—</td><td>1×1</td><td>300</td><td>0</td></tr>
+<tr><td><code>alliedBuilding</code></td><td>Allied Building</td><td>6000</td><td>—</td><td>4×4</td><td>2000</td><td>0</td></tr>
+<tr><td><code>oilDerrick</code></td><td>Oil Derrick</td><td>— (pre-placed)</td><td>—</td><td>4×4</td><td>1000</td><td>0</td></tr>
+<tr><td><code>WorldBank</code></td><td>Global Monitoring Center</td><td>— (neutral)</td><td>—</td><td>—</td><td>3000, indestructible, uncapturable</td><td>0</td></tr>
+</table>
+<ul>
+  <li>Actual cost = <code>round(giá × cost phe / 10) × 10</code> (except <code>fixedCost</code>).</li>
+  <li>Placement: only on land, in buildable areas, no overlap: no building (including walls, bunkers) may cover any cell in another building's footprint, including the 1-cell border around its shape, not on trees (<code>PlacementSystem</code>, <code>TileMap.placementBlocker</code>).</li>
+  <li>Hospital: holds at most <code>HOSPITAL_CAPACITY 20</code> wounded of the same faction, heals <code>HOSPITAL_HEAL_PER_SECOND 10</code> HP/s. Damaged hospital + wounded engineer ordered inside: the engineer repairs the hospital first, then stays as a patient to be healed.</li>
+  <li>Airfield: <code>PARKING_SLOTS = 9</code> parking slots; number of aircraft (existing + ordered) ≤ 9 × number of airfields. Parked aircraft repair 2% HP every 4 s. Airfield lost: aircraft look for another airfield of the faction; if none remains they crash.</li>
+  <li>High-Tech Center unlocks <code>TECH_TIERS</code> (<code>special</code>, <code>demolition</code>) and <code>transport</code>.</li>
+  <li>Happy City: no limit on quantity.</li>
+  <li>Allied Building (embassy): requires <b>Barracks + War Factory</b> (applies to AI too), at most <code>MAX_ALLIES = 6</code> per faction (existing + under construction), no flag needed; placed like a normal building, next to a planted flag or one of your own buildings (<code>BUILD_RADIUS</code>), on buildable ground. Name: within <code>EMBASSY_CAPITAL_CELLS = 25</code> cells of any capital (faction or contested nation) → "&lt;faction&gt; Embassy in &lt;city&gt;"; farther from every capital → "<b>Pro-&lt;faction&gt; regime</b>" (e.g. "Pro-USA regime"). AI follows the same rules: builds embassies next to flags without an embassy, or next to its own buildings more than 25 cells from a capital.</li>
+  <li>The Allies tab shows: every capital your faction has captured (contested nation capitals + rival faction capitals, as "Capital name (Faction)") and embassies (Allied Building, as "&lt;faction&gt; Embassy in &lt;nearest capital city&gt;", e.g. "USA Embassy in Moscow", or "Pro-&lt;faction&gt; regime" when more than 25 cells from every capital), along with planted flags awaiting construction.</li>
+  <li>Engineers repair from inside the building: each engineer <code>ENGINEER_REPAIR_SHARE 6%</code> of max HP/s, exits at 100%.</li>
+</ul>
+<h3>Function / role of each building</h3>
+<table>
+<tr><th>Building</th><th>Function</th></tr>
+<tr><td><code>capital</code> (capital)</td><td>National headquarters, pre-built at real coordinates. Losing the capital (<code>capitalLost</code>) means nothing more can be bought, including oil for the power grid; losing the capital <b>and</b> all armed troops means elimination. Can be destroyed / captured. H key jumps to it.</td></tr>
+<tr><td><code>powerPlant</code> (Nuclear Power Plant)</td><td>Burns stored oil into power (+25 J/s, stores at most 300 J; scaled by HP). Must be built before barracks. Low power: aircraft cannot take off; building, vehicle and infantry orders still run while there is money (not power-dependent); grid drained → the Center forces oil purchases at ×1.25 price, out of money means power outage (derricks pump at half).</td></tr>
+<tr><td><code>barracks</code> (Ministry of Defence)</td><td>Trains infantry: regular, engineer, squatters (special, demolition also need a High-Tech Center). New soldiers line up in parade formation in front of the building (≤ 2 cells). Unlocks War Factory and Hospital.</td></tr>
+<tr><td><code>warFactory</code></td><td>Produces ground vehicles (currently only <code>tank</code>). Unlocks Airfield and High-Tech Center.</td></tr>
+<tr><td><code>hospital</code></td><td>Takes in at most 20 <b>wounded</b> of the same faction, heals 10 HP/s, they walk out on their own at full HP (double-click to release everyone). Together with Airfield unlocks Happy City.</td></tr>
+<tr><td><code>bunker</code> (Bunker)</td><td>Defensive structure: bought in the <b>Defense</b> tab (not in the Build tab with the main buildings). 1×1 cell, placed at most <code>BUNKER_BUILD_RADIUS 7</code> cells from the edge of one of the faction's buildings (other buildings: 3 cells). Old save files with 2×2 bunkers: on load, each bunker shrinks to 1×1 on one of its four old cells — the first cell (top-left first) within ≤ 7 cells of the edge of another of the faction's buildings; if none qualifies, the cell closest to a faction building is used (<code>Game.shrinkOldBunkers</code>). Pre-drawn images (<code>public/sprites/bunker-west.png</code> for USA / Europe, <code>bunker-east.png</code> for Russia / China / Islamic; built with <code>tools/bunker_sheet.py</code>): 8 gun directions rotating toward the last target fired at, 4 damage levels by HP (&gt;75%, &gt;50%, &gt;25%, rest). When firing: muzzle flash at the muzzle in the currently drawn direction (USA / Europe: turret muzzle; Russia / China / Islamic: firing slit), the bullet uses the <code>bullet.png</code> image (size <code>bunker</code>), machine-gun sound <code>mg</code>. The machine-gun bunker <b>fires on its own</b>, no garrison needed: every 0.25 s it shoots the nearest enemy (soldier or ground vehicle) within 40 px of the bunker's edge, 8 damage (×0.35 vs vehicles); cannot shoot aircraft. AI builds at most 2 around its base once its build plan is complete.</td></tr>
+<tr><td><code>wall</code> (Wall)</td><td>Wall: bought in the <b>Defense</b> tab, 1×1 cell, 100 TB, <code>WALL_HP = 4000</code> HP (very durable, to stop tanks / motorized vehicles / infantry from pushing deep), requires barracks, uses no power. Placed at most <code>WALL_BUILD_RADIUS = 7</code> cells from the edge of one of your buildings. Blocks ground paths (infantry, vehicles), aircraft can fly over. Modern concrete wall block a full cell thick, square stone block, only slightly rounded (corner radius <code>0.08</code> cells, top edge rounded 2 px), faces joining an adjacent block are flat so the whole row is one continuous mass, no dark outline around each block (no more seams between adjacent blocks), always drawn over large buildings when standing in front of them (airfields no longer cover walls), auto-connects to adjacent wall blocks of the same faction: straight, right angle (L), T, cross; placing a wall at most <code>WALL_FILL_GAP = 5</code> empty cells from an existing block in the same row/column auto-fills the empty cells with wall (free); no shadow; color by faction: Russia and China red, Islamic blue, USA/Europe grey concrete. Walls are durable but still destructible (not invulnerable): soldiers / vehicles can destroy them when ordered to attack the wall block directly, aircraft bombs can destroy them too. AI only builds walls and gates <b>when needed</b> (<code>needsWalls</code>): enemy troops near the capital, or one of its buildings was attacked in the last <code>AI_WALL_ALERT_SECONDS = 120</code> s, or there are at least <code>AI_WALL_ENEMY_UNITS = 4</code> enemy soldiers / ground vehicles within <code>AI_WALL_WATCH_CELLS = 60</code> cells of the capital (the last condition is skipped for factions that enemies can only reach by sea, since walls do not stop landings / aircraft); when needed, walls and gates are built even before bunkers, when not needed no money is spent on them. AI builds a ring of walls around the capital <code>AI_WALL_RING = 6</code> cells from its edge, in segments of 8 blocks leaving 6-cell gates (wider than 5 so they do not self-fill). DEMO: all buildings are pre-built (including Defense and Allied Building), buildings are spaced <code>DEMO_SPREAD = 3</code> empty cells apart (the farthest the build radius rule <code>BUILD_RADIUS = 3</code> allows, still checking each type's correct build radius), each building is surrounded by a ring of walls 1 cell away, the south and east sides each get a Nation Gate (vertical on the east side) in the middle, forming a walled yard reachable only through the gates; sides that are too short (under 4 cells between the two corners) leave a 2-cell open gap as before.</td></tr>
+<tr><td><code>gate</code> (Nation Gate)</td><td>National gate: bought in the <b>Defense</b> tab, 4×1 (press <kbd>R</kbd> while placing to rotate to 1×4), <code>GATE_COST = 300</code> TB, <code>GATE_HP = 6000</code> HP, requires barracks, uses no power, placed like walls (at most <code>GATE_BUILD_RADIUS = 7</code> cells from your buildings). The two end cells are gate pillars (42 px tall, nearly twice the 22 px wall so walls do not hide them), blocking paths like walls; the two middle cells are left open as a passage, all infantry / vehicles can pass. Architecture by faction: USA neoclassical white marble gate (columns, pediment, gold seal); Russia two Kremlin-style red brick towers, green spires, red stars, swallowtail crenellated walls; China paifang gate with red-lacquered pillars, green beams, sweeping yellow tile roof; Europe Brandenburg-style golden stone triumphal gate, Doric columns, blue panel with a ring of gold stars; Islamic iwan gate, sandstone towers trimmed with blue tiles, domes, pointed arches. AI: after finishing the wall ring around the capital, places a gate in the middle of each straight 6-cell gap (corner gaps are skipped), then fills the remaining 2 cells on either side of the pillars with wall so the gate is the only way through.</td></tr>
+<tr><td><code>airfield</code></td><td>Produces aircraft (jet, bomber, transport) and is where they park: 9 slots, number of aircraft ≤ 9 × number of airfields. Repairs parked aircraft 2% HP every 4 s, reloads bombs (paid). The sidebar radar only works with an airfield. Airfield lost: aircraft look for another airfield, if none they crash.</td></tr>
+<tr><td><code>techCenter</code> (High-Tech Center)</td><td>While standing: unlocks <code>special</code>, <code>demolition</code> soldiers and the <code>transport</code> aircraft. Losing it pauses orders of these types (no money deducted) until you have one again.</td></tr>
+<tr><td><code>happyCity</code></td><td>Economic investment (the tallest building in the city always flies the owning faction's flag): each city pays 600 TB tax / 50 s (scaled by remaining HP), each city with its own timer. No quantity limit; if captured, the tax goes to the new faction.</td></tr>
+<tr><td><code>flagpole</code></td><td>National flagpole, bought in the <b>Defense</b> tab (with bunkers), no shadow; counts as a faction building (extends the buildable area). A Squatters team planting a flag (select the team then press <b>F</b> or double-click: the flag is planted on the nearest empty cell, any land works) on unowned land creates a flagpole marking that land as yours.</td></tr>
+<tr><td><code>alliedBuilding</code> (Allied Building)</td><td>Two flagpoles at the two front corners: one the owner's national flag, one an <b>allied flag</b> with a black background and the faction logo (<code>public/emblems/<tr><td><code>alliedBuilding</code> (Allied Building)</td><td>lt;phe<tr><td><code>alliedBuilding</code> (Allied Building)</td><td>gt;.png</code>) in the center. Allied headquarters, only built on land flagged by Squatters; at most 3 per faction. Currently only a building (no allied economy yet), shown in the Allies tab.</td></tr>
+<tr><td><code>oilDerrick</code></td><td>Main income source: pumps oil into storage (0.08 barrels/s, pumps 180 s rests 60 s), oil is sold to the Center for TB or burned for power. Pre-placed, cannot be built. Damaged derricks self-heal <code>OIL_DERRICK_REGEN 1%</code> of max HP per second (temporary rule). <code>bankManaged</code> derricks and Islamic derricks cannot be destroyed / captured; Islamic derricks are leased to other factions via engineers.</td></tr>
+<tr><td><code>WorldBank</code> (Global Monitoring Center, Zürich)</td><td>5×5 cells (<code>FOOTPRINT_GMC</code>). Neutral, cannot be destroyed / captured / entered. Buys oil, sets the shared oil price, gives emergency loans, forces oil sales to short power grids, pays the bonus for sparing retreating troops.</td></tr>
+</table>
+<p>Every faction building extends the buildable area around it (<code>BUILD_RADIUS = 3</code> cells, <code>PlacementSystem</code>). Every building (except indestructible types) can be destroyed; enemy engineers can capture it unless it has <code>uncapturable</code>. Selecting a soldier with a task on a building shows a target-lock frame on that building in the task's color: capture yellow, repair green, lease derrick blue, enter white, plant bomb (Crazy Soldier) red. When an M×N building is captured, every flag (<code>flagpole</code>, of any faction) inside the (M+2)×(N+2) area around its base (base expanded by 1 cell on each side) is destroyed (<code>razeFlagsAround</code>).</p>
+<p><b>Mandatory, all factions:</b> new buildings must be at least <code>OIL_DERRICK_CLEARANCE = 4</code> empty cells from the edge of every oil derrick (anyone's) (<code>PlacementSystem</code>, reason <code>nearOil</code>).</p>
+<h2 id="s7">6. Military</h2>
+<h3>Infantry (<code>INFANTRY_BASE</code>, produced at barracks)</h3>
+<table>
+<tr><th>Tier</th><th>Cost</th><th>Train (s)</th><th>HP</th><th>Speed</th><th>Notes</th></tr>
+<tr><td><code>regular</code></td><td>200</td><td>5</td><td>125</td><td>1.4</td><td>Regular soldier, rifle.</td></tr>
+<tr><td><code>special</code></td><td>500</td><td>10</td><td>200</td><td>1.7</td><td>Rifle. Requires Tech Center; can swim. Elite ≤ <code>eliteCap = floor(regular × 2/3)</code>.</td></tr>
+<tr><td><code>engineer</code></td><td>400</td><td>6</td><td>100</td><td>1.3</td><td>Repairs / captures buildings; leases Islamic derricks.</td></tr>
+<tr><td><code>squatters</code></td><td>1400</td><td>12</td><td>320</td><td>1.4</td><td>Flag bearer + escort count as 1. Walk or are carried to unowned land (not Antarctica), select the team then press <b>F</b>: the flag is planted on the empty unit cell nearest the team (within 8 cells; no rock, tree, water, ice, building or other troops), on any land (yours, the enemy's or ownerless), the team disappears. A selected, stationary team shows a "F: plant flag" line above it. Allied Building can still only be built on ownerless land → becomes a <code>Flagpole</code>, the team disappears.</td></tr>
+<tr><td><code>demolition</code></td><td>900</td><td>10</td><td>110</td><td>1.6</td><td>"Crazy Soldier", Islamic only, requires Tech Center.</td></tr>
+</table>
+<p>Crazy Soldier (<code>DEMO_*</code>, <code>Game.processDemolition</code> / <code>detonate</code>): runs to the target, plants a bomb within <code>1.5</code> cells then moves on; reload <code>5</code> s; the bomb explodes after <code>4</code> s. Buildings ≤ 16 cells are destroyed, larger ones lose 40% of max HP; enemy combat units within <code>2.5</code> cells: ≤ 8 all die, &gt; 8 half die (nearest).</p>
+<h3>Vehicles &amp; aircraft (<code>VEHICLE_BASE</code>)</h3>
+<table>
+<tr><th>Type</th><th>Cost</th><th>Train (s)</th><th>HP</th><th>Speed (cells/s)</th><th>Weapon</th><th>Produced at</th><th>Notes</th></tr>
+<tr><td><code>tank</code></td><td>1200</td><td>14</td><td>420</td><td>1.4</td><td>cannon</td><td>War Factory</td><td></td></tr>
+<tr><td><code>jet</code></td><td>1600</td><td>16</td><td>220</td><td>9</td><td>missile + 2 bombs</td><td>Airfield</td><td></td></tr>
+<tr><td><code>heli</code></td><td>1300</td><td>14</td><td>200</td><td>3</td><td>missile ×<code>HELI_FIREPOWER 0.75</code>, only shoots ground vehicles (not buildings, soldiers, aircraft), no bombs</td><td>Airfield</td><td>Combat strength always below the same faction's fighter jet (lower HP, damage; does not shoot aircraft, no bombs).</td></tr>
+<tr><td><code>mantis</code></td><td>3000</td><td>18</td><td>460</td><td>1.1</td><td>missile ×<code>MANTIS_FIREPOWER 3.5</code>, range <code>MANTIS_RANGE_CELLS = 20</code> cells (same for all factions), <b>only shoots enemy aircraft</b> (fighters, bombers, helicopters, transports) as long as they are in the air (altitude in any state within range: flying, taking off, landing, hovering to drop troops, helicopter parked on groundgt; 0) it fires, regardless of whether flying, hovering to attack/drop troops, taking off or landing; aircraft fully parked on the ground are not shot; does not shoot soldiers, vehicles, buildings</td><td>War Factory</td><td>Self-propelled anti-aircraft gun, all factions: USA and Europe "NOMADS", Russia, China, Islamic "Buk-M3". Has HP, takes damage, is destroyed like other vehicles. Fires missiles using the <code>missile-air.png</code> sheet. Sprites <code>public/sprites/sam-nomads.png</code> / <code>sam-buk.png</code> (tools/ground_model_sheet.py, 32 directions); explosion effect from <code>mantis.png</code>. Holds position: does not chase targets on its own, automatically fires at the nearest enemy aircraft in range without orders, needs no reload (fires continuously every tick while aircraft are in range); scans continuously every tick: an aircraft entering range is locked and fired at immediately, no search time; drops the target as soon as it leaves range to switch to another one in range; only moves when ordered (move order or explicit attack order). AI buys in proportion to enemy aircraft (no enemy aircraft → buys none).</td></tr>
+<tr><td colspan="7">Ground combat units (soldiers, vehicles) do not advance on/chase enemies on their own without orders: they only fire at targets already in range; they only move to attack with an explicit attack order or attack-move (both player and AI). Aircraft still chase on their own. Right-clicking target B while the selected aircraft is circling right above B: the click passes through the aircraft and orders an attack on B immediately.</td></tr>
+<tr><td><code>bomber</code></td><td>2600</td><td>22</td><td>380</td><td>10.9</td><td>bomb</td><td>Airfield</td><td>USA B-1A Lancer, Russia Tu-160 only. Only drops bombs when ordered (attack order or attack-move), never on its own; drops 2 bombs each time (<code>BOMBS_PER_DROP</code>).</td></tr>
+<tr><td><code>transport</code></td><td>1400</td><td>14</td><td>260</td><td>5.5</td><td>none</td><td>Airfield, requires Tech Center</td><td></td></tr>
+<tr><td><code>repair</code></td><td>800</td><td>10</td><td>360</td><td>1.0</td><td>none</td><td>War Factory</td><td>Russia BREM-1, USA &amp; Europe M88, China &amp; Islamic Type 99II; repairs own faction's ground vehicles</td></tr>
+</table>
+<p><b>Tanks (all factions):</b> below 50% HP they smoke, below 25% they also burn (<code>Game.smokeFromDamagedBuildings</code>, like buildings). When destroyed: 16-frame explosion sequence <code>public/sprites/tank-blast.png</code> (tools/tank_fx_sheet.py from resources/tank-fx/abrams_fx_ref.png) over a charred wreck, shared by all factions.</p>
+<p><b>Tanks (all factions):</b> rendered from 3D models (tools/tank_model_sheet.py): USA M1A1 Abrams, Europe Leopard 2A4M, Russia T-14 Armata, Islamic Karrar (T-90), China ZTZ-96. Hull and turret are two separate sheets <code>public/sprites/tank-&lt;mẫu&gt;-hull.png</code> / <code>-turret.png</code>; the turret rotates toward the target in combat, otherwise turns with the hull.</p>
+
+<h3>Soldiers &amp; vehicles by faction (<code>src/factions/*.ts</code>)</h3>
+<p>Display names in the game; the info text is translated from the descriptions in code (in-game they are still in English). Only types in use are listed (<code>light</code>, <code>ifv</code> are hidden).</p>
+<h4>USA</h4>
+<table>
+<tr><th>Type</th><th>Name</th><th>Info</th></tr>
+<tr><td>Regular soldier (<code>regular</code>)</td><td><b>GI</b></td><td>Versatile US infantryman — the backbone of the Allied forces.</td></tr>
+<tr><td>Special forces (<code>special</code>)</td><td><b>Ranger</b></td><td>Elite infantry: fast, accurate and very dangerous at close range.</td></tr>
+<tr><td>Engineer (<code>engineer</code>)</td><td><b>Engineer</b></td><td>US Army engineer: repairs buildings and captures enemy buildings.</td></tr>
+<tr><td>Squatters (<code>squatters</code>)</td><td><b>Squatters</b></td><td>US flag bearer and escort soldiers moving together as one unit: walk (or are carried by transport plane) to unowned land and plant the national flag there (select the team then press <b>F</b> or double-click: the flag is planted on the nearest empty cell, any land works) — once the mission is done the whole team disappears.</td></tr>
+<tr><td>Tank (<code>tank</code>)</td><td><b>Abrams</b></td><td>M1 Abrams main battle tank: thick armor, powerful gun.</td></tr>
+<tr><td>Fighter (<code>jet</code>)</td><td><b>F-22</b></td><td>F-22 Raptor stealth air superiority fighter.</td></tr>
+<tr><td>Bomber (<code>bomber</code>)</td><td><b>B-1A Lancer</b></td><td>B-1A Lancer long-range supersonic bomber, USA only: heavy bombs flatten ground troops and buildings; cannot shoot aircraft.</td></tr>
+<tr><td>Transport aircraft (<code>transport</code>)</td><td><b>C-17</b></td><td>Heavy transport aircraft: carries soldiers and vehicles; unarmed.</td></tr>
+<tr><td>Repair vehicle (<code>repair</code>)</td><td><b>M88</b></td><td>M88 armored recovery vehicle: slow, unarmed; click a damaged friendly ground vehicle to drive over and repair it (or select the damaged vehicle then click it) (5% max HP every 2 s).</td></tr>
+</table>
+<h4>Russia</h4>
+<table>
+<tr><th>Type</th><th>Name</th><th>Info</th></tr>
+<tr><td>Regular soldier (<code>regular</code>)</td><td><b>Red Army</b></td><td>Numerous Russian conscripts, good cold endurance.</td></tr>
+<tr><td>Special forces (<code>special</code>)</td><td><b>Spetsnaz</b></td><td>Special forces commandos specializing in sabotage and raids.</td></tr>
+<tr><td>Engineer (<code>engineer</code>)</td><td><b>Engineer</b></td><td>Russian combat engineer: repairs buildings and captures enemy buildings.</td></tr>
+<tr><td>Squatters (<code>squatters</code>)</td><td><b>Squatters</b></td><td>Russian flag bearer and escort soldiers moving together as one unit: walk (or are carried by transport plane) to unowned land and plant the national flag there (select the team then press <b>F</b> or double-click: the flag is planted on the nearest empty cell, any land works) — once the mission is done the whole team disappears.</td></tr>
+<tr><td>Tank (<code>tank</code>)</td><td><b>T-90</b></td><td>T-90 main battle tank, durable and long-ranged.</td></tr>
+<tr><td>Fighter (<code>jet</code>)</td><td><b>Su-57</b></td><td>Su-57 stealth air superiority fighter.</td></tr>
+<tr><td>Bomber (<code>bomber</code>)</td><td><b>Tu-160</b></td><td>Tu-160 supersonic strategic bomber, Russia only: heavy bombs flatten ground troops and buildings; cannot shoot aircraft.</td></tr>
+<tr><td>Transport aircraft (<code>transport</code>)</td><td><b>Il-76</b></td><td>Il-76 military transport aircraft: carries soldiers and vehicles; unarmed.</td></tr>
+<tr><td>Repair vehicle (<code>repair</code>)</td><td><b>BREM-1</b></td><td>BREM-1 armored recovery vehicle, Russia only: slow, unarmed; click a damaged friendly ground vehicle to drive over and repair it (or select the damaged vehicle then click it) (5% max HP every 2 s).</td></tr>
+</table>
+<h4>China</h4>
+<table>
+<tr><th>Type</th><th>Name</th><th>Info</th></tr>
+<tr><td>Regular soldier (<code>regular</code>)</td><td><b>PLA</b></td><td>Disciplined Chinese mainline infantry, cheap and numerous.</td></tr>
+<tr><td>Special forces (<code>special</code>)</td><td><b>Tiger</b></td><td>Elite marine commandos, trained for amphibious assault.</td></tr>
+<tr><td>Engineer (<code>engineer</code>)</td><td><b>Engineer</b></td><td>PLA engineer: repairs buildings and captures enemy buildings.</td></tr>
+<tr><td>Squatters (<code>squatters</code>)</td><td><b>Squatters</b></td><td>PLA flag bearer and escort soldiers moving together as one unit: walk (or are carried by transport plane) to unowned land and plant the national flag there (select the team then press <b>F</b> or double-click: the flag is planted on the nearest empty cell, any land works) — once the mission is done the whole team disappears.</td></tr>
+<tr><td>Tank (<code>tank</code>)</td><td><b>Type 99</b></td><td>Type 99 main battle tank, mass-produced.</td></tr>
+<tr><td>Fighter (<code>jet</code>)</td><td><b>J-31</b></td><td>Shenyang J-31 Gyrfalcon multirole stealth fighter.</td></tr>
+<tr><td>Transport aircraft (<code>transport</code>)</td><td><b>Y-20</b></td><td>Y-20 heavy transport aircraft: carries soldiers and vehicles; unarmed.</td></tr>
+<tr><td>Repair vehicle (<code>repair</code>)</td><td><b>Type 99II</b></td><td>Type 99II armored recovery vehicle: slow, unarmed; click a damaged friendly ground vehicle to drive over and repair it (or select the damaged vehicle then click it) (5% max HP every 2 s).</td></tr>
+</table>
+<h4>Europe</h4>
+<table>
+<tr><th>Type</th><th>Name</th><th>Info</th></tr>
+<tr><td>Regular soldier (<code>regular</code>)</td><td><b>Eurocorps</b></td><td>Combined European infantry, modern equipment.</td></tr>
+<tr><td>Special forces (<code>special</code>)</td><td><b>EU Spec</b></td><td>European special forces — precise long-range marksmen.</td></tr>
+<tr><td>Engineer (<code>engineer</code>)</td><td><b>Engineer</b></td><td>EU engineer: repairs buildings and captures enemy buildings.</td></tr>
+<tr><td>Squatters (<code>squatters</code>)</td><td><b>Squatters</b></td><td>EU flag bearer and escort soldiers moving together as one unit: walk (or are carried by transport plane) to unowned land and plant the national flag there (select the team then press <b>F</b> or double-click: the flag is planted on the nearest empty cell, any land works) — once the mission is done the whole team disappears.</td></tr>
+<tr><td>Tank (<code>tank</code>)</td><td><b>Leopard 2</b></td><td>Leopard 2 main battle tank, accurate and well protected.</td></tr>
+<tr><td>Fighter (<code>jet</code>)</td><td><b>Rafale</b></td><td>Dassault Rafale multirole fighter.</td></tr>
+<tr><td>Transport aircraft (<code>transport</code>)</td><td><b>C-130</b></td><td>C-130 transport aircraft: carries soldiers and vehicles; unarmed.</td></tr>
+<tr><td>Repair vehicle (<code>repair</code>)</td><td><b>M88</b></td><td>M88 armored recovery vehicle: slow, unarmed; click a damaged friendly ground vehicle to drive over and repair it (or select the damaged vehicle then click it) (5% max HP every 2 s).</td></tr>
+</table>
+<h4>Islamic</h4>
+<table>
+<tr><th>Type</th><th>Name</th><th>Info</th></tr>
+<tr><td>Regular soldier (<code>regular</code>)</td><td><b>Basij</b></td><td>Volunteer infantry of the Islamic world, numerous and determined.</td></tr>
+<tr><td>Special forces (<code>special</code>)</td><td><b>Quds Force</b></td><td>Elite Islamic special forces.</td></tr>
+<tr><td>Engineer (<code>engineer</code>)</td><td><b>Engineer</b></td><td>Islamic combat engineer: repairs buildings and captures enemy buildings.</td></tr>
+<tr><td>Squatters (<code>squatters</code>)</td><td><b>Squatters</b></td><td>Islamic flag bearer and escort soldiers moving together as one unit: walk (or are carried by transport plane) to unowned land and plant the national flag there (select the team then press <b>F</b> or double-click: the flag is planted on the nearest empty cell, any land works) — once the mission is done the whole team disappears.</td></tr>
+<tr><td>Crazy Soldier (demolition) (<code>demolition</code>)</td><td><b>Crazy Soldier</b></td><td>Demolition expert, like Crazy Ivan: runs to an enemy building or unit and plants a time bomb. Small buildings are destroyed, large ones lose 40% HP; groups of ≤ 8 combat units all die, larger groups lose half. Requires High-Tech Center.</td></tr>
+<tr><td>Tank (<code>tank</code>)</td><td><b>Karrar</b></td><td>Karrar main battle tank, the heavy armor of the Islamic world.</td></tr>
+<tr><td>Fighter (<code>jet</code>)</td><td><b>Su-35</b></td><td>Su-35 multirole air superiority fighter of the Islamic air force.</td></tr>
+<tr><td>Repair vehicle (<code>repair</code>)</td><td><b>Type 99II</b></td><td>Type 99II armored recovery vehicle: slow, unarmed; click a damaged friendly ground vehicle to drive over and repair it (or select the damaged vehicle then click it) (5% max HP every 2 s).</td></tr>
+</table>
+<h4>Actual cost · HP · training time by faction</h4>
+<p>Computed from <code>INFANTRY_BASE</code> / <code>VEHICLE_BASE</code> × faction multipliers: cost = <code>round(giá × cost / 10) × 10</code>, HP = <code>round(maxHp × armor)</code>, time = base + <code>trainDelay</code>.</p>
+<table>
+<tr><th>Type</th><th>USA</th><th>Russia</th><th>China</th><th>Europe</th><th>Islamic</th></tr>
+<tr><td><code>regular</code></td><td>260 TB · 113 HP · 7s</td><td>200 TB · 138 HP · 5s</td><td>170 TB · 163 HP · 5s</td><td>250 TB · 125 HP · 7s</td><td>190 TB · 131 HP · 6s</td></tr>
+<tr><td><code>special</code></td><td>650 TB · 180 HP · 12s</td><td>500 TB · 220 HP · 10s</td><td>430 TB · 260 HP · 10s</td><td>630 TB · 200 HP · 12s</td><td>480 TB · 210 HP · 11s</td></tr>
+<tr><td><code>engineer</code></td><td>520 TB · 90 HP · 8s</td><td>400 TB · 110 HP · 6s</td><td>340 TB · 130 HP · 6s</td><td>500 TB · 100 HP · 8s</td><td>380 TB · 105 HP · 7s</td></tr>
+<tr><td><code>squatters</code></td><td>1820 TB · 288 HP · 14s</td><td>1400 TB · 352 HP · 12s</td><td>1190 TB · 416 HP · 12s</td><td>1750 TB · 320 HP · 14s</td><td>1330 TB · 336 HP · 13s</td></tr>
+<tr><td><code>demolition</code></td><td>—</td><td>—</td><td>—</td><td>—</td><td>860 TB · 116 HP · 11s</td></tr>
+<tr><td><code>tank</code></td><td>1560 TB · 378 HP · 16s</td><td>1200 TB · 462 HP · 14s</td><td>1020 TB · 546 HP · 14s</td><td>1500 TB · 420 HP · 16s</td><td>1140 TB · 441 HP · 15s</td></tr>
+<tr><td><code>jet</code></td><td>2080 TB · 198 HP · 18s</td><td>1600 TB · 242 HP · 16s</td><td>1360 TB · 286 HP · 16s</td><td>2000 TB · 220 HP · 18s</td><td>1520 TB · 231 HP · 17s</td></tr>
+<tr><td><code>bomber</code></td><td>3380 TB · 342 HP · 24s</td><td>2600 TB · 418 HP · 22s</td><td>—</td><td>—</td><td>—</td></tr>
+<tr><td><code>transport</code></td><td>1820 TB · 234 HP · 16s</td><td>1400 TB · 286 HP · 14s</td><td>1190 TB · 338 HP · 14s</td><td>1750 TB · 260 HP · 16s</td><td>1330 TB · 273 HP · 15s</td></tr>
+<tr><td><code>repair</code></td><td>1040 TB · 324 HP · 12s</td><td>800 TB · 396 HP · 10s</td><td>680 TB · 468 HP · 10s</td><td>1000 TB · 360 HP · 12s</td><td>760 TB · 378 HP · 11s</td></tr>
+</table>
+<h3>Repair vehicle (BREM-1, <code>REPAIR_VEHICLE_*</code>)</h3>
+<ul>
+  <li>Only factions with <code>vehicles.repair</code> in <code>src/factions/*.ts</code> (Russia: BREM-1; USA and Europe: M88; China and Islamic: Type 99II) can produce it, at the War Factory. Unarmed: does not auto-target, does not shoot; AI does not use it to fight.</li>
+  <li>Order 1 (repair vehicle → damaged vehicle): select (box-drag) the repair vehicle, then <b>left-click</b> (or right-click) a damaged, unselected friendly <b>ground</b> vehicle (does not repair soldiers, aircraft, buildings). The repair vehicle drives up next to the target (follows it if the target moves, recomputing the path every <code>REPAIR_VEHICLE_REPATH 1</code> s).</li>
+  <li>Order 2 (damaged vehicle → repair vehicle): select ground vehicles, then left-click (or right-click) an unselected friendly repair vehicle: every <b>damaged</b> vehicle in the group drives to that repair vehicle (full-HP vehicles stay put); the repair vehicle stays in place and repairs every vehicle that has arrived in range at once. If the group has no damaged vehicles, the click just selects the repair vehicle as usual.</li>
+  <li>Outside these two cases, left-click still selects units as before. A notification (toast) appears when the order is given.</li>
+  <li>When the gap between the two hulls is ≤ <code>REPAIR_VEHICLE_RANGE_CELLS 1.2</code> cells: restores <code>REPAIR_VEHICLE_HEAL_SHARE 0.05</code> of the target's max HP every <code>REPAIR_VEHICLE_INTERVAL 2</code> s, playing a crane animation.</li>
+  <li>Stops when the vehicle is fully repaired, either vehicle dies or boards a transport aircraft, it cannot be reached, or when the vehicle receives a new move / boarding order.</li>
+  <li>Sprites: <code>public/sprites/brem1-russia.png</code> (Russia), <code>public/sprites/arv-usa.png</code> (shared by USA and Europe), <code>public/sprites/type90ii-china.png</code> (shared by China and Islamic) — 80 px cells, 16 × 15; per-faction sheet table in <code>render/RepairSheets.ts</code>.</li>
+</ul>
+<h3>Military truck (<code>truck</code>): KamAZ (Russia, China, Islamic), MTVR (USA), Zetros (Europe)</h3>
+<ul>
+  <li>Base cost <code>700</code> TB, <code>9</code> s, <code>240</code> HP, speed <code>2.1</code> (faster than infantry 1.3–1.7 and tanks 1.4); unarmed, land only (cannot cross sea), produced at the War Factory. Sprites rendered from 3D models (tools/ground_model_sheet.py, 32 directions, row 2 is the burnt wreck): <code>public/sprites/truck-kamaz.png</code> (KamAZ-5330), <code>truck-mtvr.png</code> (Oshkosh MTVR), <code>truck-zetros.png</code> (Mercedes-Benz Zetros).</li>
+  <li>Carries <b>at most 8 soldiers</b> (<code>TRUCK_SOLDIERS</code>) to spare them marching fatigue; <b>carries no vehicles of any kind</b> (tanks, other vehicles, aircraft/helicopters).</li>
+  <li>A truck only drives when carrying at least <code>TRUCK_MIN_RIDERS = 6</code>/<code>8</code> soldiers (exception: rolling out of the War Factory to its parking spot). With fewer, the truck stays put, and a move order reports not enough soldiers. AI only boards when 6 soldiers are gathered; a moving truck with fewer than 6 soldiers unloads everyone to walk.</li>
+  <li>Boarding: select soldiers then click the truck (the truck stops and waits). Unloading: select the truck, press <b>U</b> or double left-click the selected vehicle itself (applies to every troop-carrying vehicle/aircraft) — the vehicle stays put, each soldier steps out to an empty adjacent cell. If the truck is destroyed, everything on it is lost too.</li>
+</ul>
+<h3>Infantry marching (fatigue)</h3>
+<ul>
+  <li>Special forces (<code>special</code>): can swim but not more than <code>SWIM_MAX_CELLS = 5</code> cells from land. They shoot enemy soldiers; on meeting enemy ground vehicles (which they do not shoot) they run up and plant a bomb, which explodes after <code>4</code> s and destroys that vehicle outright (only that vehicle). Bomb cooldown <code>5</code> s. Applies to AI too.</li>
+  <li>All soldiers except special forces (<code>special</code>): after walking <code>INFANTRY_MARCH_CELLS = 52 × GROUND_SPEED_SCALE ≈ 68</code> unit cells they stop in place to rest <code>INFANTRY_REST_SECONDS = 35</code> s (showing "Resting Ns" above them), keep their order and then continue — even when on the way to attack. Standing still for <code>INFANTRY_RECOVER_SECONDS = 10</code> s also counts as rested. Riding a truck / transport aircraft causes no fatigue.</li>
+  <li>Bomb-carrying aircraft (B-1A Lancer, Tu-160, fighters) fly slower while carrying bombs: fully loaded they are <code>BOMB_LOAD_SLOWDOWN = 20%</code> slower, getting faster as bombs are dropped, at full speed once empty.</li>
+  <li>Multiple Barracks / War Factories / Airfields: double-click a building and new soldiers / vehicles / aircraft come out of that building.</li>
+  <li>AI: keeps 1 truck per 8 soldiers (max 4); when the target is more than 30 cells away, soldiers near an idle truck (within 25 cells) board, the truck drives to 8 cells from the target and unloads (<code>AISystem.motorize</code> / <code>driveConvoys</code>); across continents transport aircraft are used as before.</li>
+</ul>
+<h3>Movement and pathfinding (<code>map/PathService.ts</code>)</h3>
+<ul>
+  <li>Vehicles only move in the direction of their nose (no sideways sliding): ground vehicles more than ~26° off the next waypoint stop and turn in place before driving; aircraft circle according to their turn radius. Aircraft taxiing on the airfield also turn before taxiing.</li>
+  <li>Move orders for a group: one shared <b>flow field</b> (Dijkstra from the destination) inside an <b>HPA* corridor</b> (16×16-cell clusters connected over land), each unit reads its path from the field; work is split across frames (<code>PATH_BUDGET_MS = 3</code> ms/frame). Paths for a single unit still use direct A*.</li>
+  <li>Formation (like RA2): ground units ordered to move together line up in rows perpendicular to the direction of travel (front row first, later rows behind), on arrival they all face the same direction — never facing each other.</li>
+  <li>Crossings: when the upcoming path segments (4 cells ahead) of two ground units (soldiers, tanks, trucks, ARVs) cross, the unit that reaches the crossing point first goes first; the other stops just before the crossing point and waits its turn (first come, first served), waiting at most <code>CROSSING_MAX_WAIT = 6</code> s (<code>Game.yieldAtCrossings</code>). Aircraft do not stop but fly higher to avoid each other.</li>
+  <li>Queuing: units following in the same direction slow down behind the vehicle/soldier in front (<code>Game.queueInCrowds</code>); vehicles blocking the way move aside on their own (<code>giveWay</code>).</li>
+  <li>Factory exit (War Factory): vehicles only come out when the door cell is clear — if blocked, production halts at "EXIT BLOCKED" (your own vehicles blocking the door are automatically sent to a parking spot). After exiting, vehicles look for a parking spot around the rally point <code>PARKING_RALLY_CELLS = 3</code> cells from the door (spiral scan), never parking on the door's exit lane.</li>
+</ul>
+<h3>Limits</h3>
+<ul>
+  <li>Queued orders (BuildLimit): <code>BUILD_LIMIT_SOLDIERS 15</code>, <code>BUILD_LIMIT_VEHICLES 10</code>.</li>
+  <li><b>Parallel production</b>: every order in each tab runs independently and simultaneously. Buildings (Build / Defense tabs): each building type has its own order slot (<code>ConstructionSystem.slot(player, id)</code>), built simultaneously, each waits to be placed separately when finished. Soldiers / vehicles: every order in the queue is worked on simultaneously, each order pays separately (<code>paidEach</code>); when TB is short, older orders are paid first. War Factory: only 1 vehicle rolls out at a time, the next one waits for the door to clear. Applies to AI too.</li>
+  <li>No troop caps: <code>MAX_SOLDIERS</code>, <code>MAX_GROUND_VEHICLES</code>, <code>MAX_TRANSPORTS</code> = unlimited (AI has no truck cap either). Only limited by money, queues (<code>BUILD_LIMIT_*</code>) and aircraft parking at Airfields. <b>Helicopters take no parking slot</b>: not counted toward Airfield parking, they land anywhere on the ground.</li>
+  <li>Landing: select aircraft then click your own airfield (with free parking) → flies in from the <b>nearer runway end</b> (either end works, <code>AircraftSystem.land</code>); only one aircraft uses the runway at a time, others wait above the approach point. Aircraft returning on their own also pick the nearer end.</li>
+  <li>Target lock (explicit attack order) attacks only that target: locking an airfield → only the airfield takes damage, aircraft parked on it are not hit; locking an aircraft / vehicle / soldier on the airfield → only that target (plus a bomber's cluster bombs on ground units around it), the airfield takes no damage. The locked target is a transport aircraft. Airfield destroyed: aircraft parked on it move to another of the faction's airfields; <b>if the faction has no airfield left, aircraft parked on the airfield are destroyed</b> (aircraft in flight crash as before).</li>
+  <li>Switching airfields: select aircraft (flying or parked at another airfield) then click another of the faction's airfields with free parking → the aircraft fly there, land and change their home airfield to the new one (parked aircraft take off first, following the takeoff rules). Airfield full: reports "No free parking spot".</li>
+  <li>Out of parking: an aircraft returning when every airfield of the faction is full crashes immediately — it may not circle waiting for a new airfield to be built. Home airfield destroyed while the remaining airfields are all full: the aircraft crashes immediately (a full airfield is not adopted as home) (applies to both player and AI).</li>
+  <li>Takeoff: queued in the order commanded (first to taxi, first to fly). If a runway end is congested (an aircraft is already waiting there, or a landing aircraft is taxiing toward it), taxi to the other end and take off in the opposite direction; still only one aircraft uses the runway at a time.</li>
+  <li>Low power: the airfield <b>does not allow takeoff</b> (even landing aircraft given a new order must touch down, park and wait for power), but <b>still allows landing</b>.</li>
+  <li>Clicking (move / attack-move) on your own N×M airfield or within the (N+2)×(M+2) area around it (<code>AIRFIELD_CLICK_MARGIN = 2</code> cells on each side): parked aircraft do not take off, flying aircraft land at that airfield. Only clicks 3 or more cells from the airfield make aircraft take off and fly there.</li>
+  <li>Sound (<code>audio/SoundSystem.ts</code>): gunfire, cannon, explosions; footsteps, vehicle engine + tracks, aircraft engines when moving near the camera. Synthesized with Web Audio by default; each vehicle model has its own engine sound by name (Abrams: gas turbine; T-90/Leopard 2/Type 99/Karrar: diesel; BREM-1/M88/Type 99II: recovery vehicle diesel; fighters; B-1A Lancer/Tu-160; transport aircraft), played only when the vehicle is in frame, loudest at screen center, fading toward the edges. Real recorded files (see <code>public/sounds/README.md</code>): all together in <code>public/sounds/</code>, no subfolders — rifle, smg, mg, sniper, autocannon, tank-cannon, missile, explosion, bomb, foot, board, and vehicle sounds <code>engine-&lt;tên-mẫu&gt;</code> or <code>engine-&lt;loại&gt;</code> (e.g. <code>engine-abrams.mp3</code>, <code>engine-tank.mp3</code>); formats mp3|ogg|wav. Available: rifle, tank-cannon, bomb (used in place of explosion), engine-tank. Long files are cut into short clips starting at a shot (<code>SAMPLE_CLIP</code>); when a gun recording exists, synthesized bursts are no longer layered. Small arms play as bursts (rifle 3, smg 4, mg 5, autocannon 3 rounds), tank cannon 1 sound per shot. During gunfire/explosions the background music drops to 35% (<code>SFX_DUCK</code>) for 0.8 s. Bullet impact points: soldiers ≤ 5% of the soldier's body, tanks ≤ 20% of the tank's hull (<code>BULLET_SIZES</code>).</li>
+</ul>
+<h3>Aircraft &amp; troop speed</h3>
+<ul>
+  <li>Aircraft fly at base speed when near the destination (within <code>AIR_BOOST_NEAR_CELLS 40</code> cells), while taxiing, taking off/landing, circling, crashing and in dogfights. On long flights they speed up gradually, reaching the maximum <code>AIR_SPEED_SCALE</code> ≈ 2.29× from <code>AIR_BOOST_FAR_CELLS 400</code> cells out (the slowest aircraft crosses the map west → east in about <code>AIR_CROSSING_SECONDS 300</code> s (5 minutes), plus a little time for accelerating/decelerating). Escort fighters match the speed of the aircraft they protect.</li>
+  <li>Soldiers and ground vehicles move <code>GROUND_SPEED_SCALE 1.3</code> times their base speed. <code>INFANTRY_MARCH_CELLS</code> is scaled too (35 → 46 cells) so soldiers still rest after the same walking time.</li>
+</ul>
+<h3>Aircraft turbo</h3>
+<ul>
+  <li>Top tab row of the sidebar: <b>Command</b>, <b>Build</b>, <b>Defense</b>, <b>Infantry</b>, <b>Vehicles</b>. The Command page has a second tab row: <b>Alerts</b> (warning-triangle icon, always open by default), <b>Finance</b> (wallet icon: OIL OUTPUT, OIL STOCK, DEBT, DERRICKS, plus the oil price / power price table / price-change timer / oil price chart — formerly in the Rank tab; the Rank tab now only has the ECONOMY and MILITARY tables — the top part now only has Budget, Cartel policy, Power — the Power row shows a lightning icon instead of the word POWER, with a long bar: length = power supplied / power needed (full bar max), the bar sits against the right edge, no numbers (supplied / needed J/s is in the tooltip on hover); green = enough power, orange = short of power but still running (Global Monitoring Center sells the shortfall, no takeoffs), red = blackout, nothing works; the total money is on the same row as the word Budget), <b>Rank</b>, <b>Allies</b> (Allies only shows when you have allies), <b>Controls</b> (keyboard icon: list of keys / actions, formerly the collapsible Controls section at the bottom of the page); clicking a tab shows its content right below the tab row, the top part of the Command page stays the same. Losing all allies while Allies is open switches back to Alerts. The Production tab was removed: the 4 production tabs sit directly on the main row, clicking one opens the production page at that section. Infantry requires Barracks, Vehicles requires War Factory or Airfield (otherwise the tab is dimmed, without icon); tabs, the sidebar open button and the Alerts entry no longer blink to signal news (notifications only show in the Alerts list).</li>
+  <li>The floating action bar to the left of the sidebar (bottom corner) is always shown, shared system-wide, with 3 round icon buttons from top to bottom: <b>Home (H)</b> (house icon, moves the camera to your capital instantly), <b>Turbo (T)</b> (rocket icon), <b>Unload (U)</b> (upload icon, up arrow). When the sidebar is hidden the bar moves against the right edge. Home is always clickable. Buttons are dimmed (disabled) by type / state: Turbo is only enabled when there are aircraft in the air and turbo is fully charged (below the button shows "Ns" while active, "N%" while charging); Unload is only enabled when a troop carrier (transport, helicopter, truck) with troops aboard is selected and not already unloading — fighters, bombers are always dimmed. Pressing T / Turbo: aircraft in flight fly <code>TURBO_MULT 2</code> times faster for <code>TURBO_SECONDS 15</code> s; then it must recharge <code>TURBO_RECHARGE_SECONDS 40</code> s before it can be used again. The Transport section in the Command tab still shows troop count / status, no longer has a button.</li>
+  <li>Applies to every faction: the computer (AI) decides when to use turbo (<code>aiWantsTurbo</code>). Fires immediately: aircraft below 50% HP and hit within the last 2 s → escape. Otherwise only fires when the remaining flight distance is longer than the turbo distance (speed × 15 s, minimum <code>AI_TURBO_CELLS 60</code> cells) and the flight is worth it: going to attack (attack order / attack-move), a transport aircraft carrying troops outbound, a fighter chasing the aircraft it escorts, an aircraft below 60% HP flying back for repair. Empty transports, repositioning flights, or healthy aircraft returning home keep their turbo.</li>
+  <li>Each aircraft has its own turbo (active time and recharge counted per aircraft). The player activates turbo for their own aircraft.</li>
+</ul>
+<h3>Transport aircraft</h3>
+<ul>
+  <li>Image: rendered from 3D models (tools/aircraft_model_sheet.py; FBX/DAE converted to OBJ with tools/model_to_obj.py): USA C-17, Europe C-130J, Russia Il-76, China and Islamic Y-20 (<code>public/sprites/air-&lt;mẫu&gt;.png</code>). Explosion effects unchanged.</li>
+  <li>Bombers are also rendered from 3D models (tools/aircraft_model_sheet.py, 16 directions × 9 rows layout): USA B-1A Lancer (<code>b1-usa.png</code>), Russia Tu-160 (<code>tu160-russia.png</code>).</li>
+  <li>Fighters are also rendered from 3D models, same layout (<code>jet-&lt;phe&gt;.png</code>): USA F-22, Europe Rafale, Russia Su-57, China J-31, Islamic Su-35. .blend files are exported to OBJ by Blender (tools/blend_to_obj.py).</li>
+  <li>Self-propelled anti-aircraft vehicles (<code>mantis</code>) rendered from 3D models (32 directions, row 2 is the burnt wreck): USA and Europe use NOMADS (<code>sam-nomads.png</code>; script tools/ground_model_sheet.py), Russia, China, Islamic use Buk-M3 (<code>sam-buk.png</code>). Display names: NOMADS / Buk-M3; explosion effect taken from <code>mantis.png</code>.</li>
+  <li>Helicopters rendered from 3D models (tools/heli_model_sheet.py, 32 directions × 16 rows, rotor spinning per frame): USA and Europe AH-64 Apache (<code>heli-apache.png</code>), Russia and Islamic Ka-52 (<code>heli-ka52.png</code>), China Z-10 (<code>heli-z10.png</code>, explosion uses <code>heli-z19e-fx.png</code>).</li>
+  <li>Display size of combat vehicles reduced by 5%: tanks and anti-aircraft vehicles (scale 0.175 → 0.166), fighters (10 → 9.5 px), bombers (B-1A 15 → 14.25, Tu-160 16 → 15.2), helicopters (12 → 11.4). Transport aircraft, trucks, repair vehicles unchanged. Only the drawing changes, not the collision radius.</li>
+  <li>Capacity: 12 soldiers; or 8 soldiers + 1 vehicle; or 3 vehicles (<code>TRANSPORT_*</code>). Aircraft explodes → the troops inside die with it.</li>
+  <li>Boarding: select troops, right-click your own transport. Unloading: U / Unload button; troops exit every 0.3 s.</li>
+  <li>Fuel <code>TRANSPORT_FUEL_CELLS</code> = 1.25 × map height (<code>GRID_HEIGHT</code>): a full tank flies the whole north pole → south pole distance plus another 1/4 of it (merging the fuel formerly provided by tanker aircraft). There are no more tanker aircraft: transports only refuel when parked on the ground. Out of fuel in the air → crash.</li>
+  <li>Escort: select fighters, hold <b>Ctrl</b> + left-click your own transport / bomber → the fighters follow <code>GUARD_TRAIL_CELLS 4</code> cells behind its tail; on meeting enemies they switch targets to fight (not chasing farther than <code>GUARD_LEASH_CELLS 14</code> cells), then return to escort. The escorted aircraft touches down (airfield or out in the field) → done, the fighters fly back to base. A new move / attack order cancels the escort.</li>
+  <li>Transport aircraft parked on the ground (at an airfield or landed in the field): refueled to full instantly.</li>
+</ul>
+<h3>Ranks</h3>
+<ul>
+  <li>Veteran / Elite / Elite+ when the value of enemies destroyed reaches 3× / 6× / 9× the unit's cost (<code>RANK_KILL_MULTIPLES</code>). Building value: <code>BUILDING_VALUE</code>.</li>
+  <li>Combat strength by rank (no star / Veteran / Elite / Elite+), applies to all soldiers and vehicles including engineers; Squatters never rank up: damage ×1 / 1.15 / 1.3 / 1.5 (<code>RANK_FIREPOWER</code>), reload time ×1 / 0.9 / 0.8 / 0.7 (<code>RANK_RELOAD</code>), damage taken ×1 / 0.9 / 0.8 / 0.65 (<code>RANK_ARMOR</code>), speed ×1 / 1.05 / 1.1 / 1.15 (<code>RANK_SPEED</code>). Bombs and mines that kill infantry still kill instantly regardless of rank.</li>
+  <li>From Elite (<code>VETERAN_REGEN_RANK 2</code>): self-heals 1% of max HP/s after <code>5</code> s without being hit.</li>
+</ul>
+<h2 id="s8">7. Combat</h2>
+<table>
+<tr><th>Weapon</th><th>Dmg</th><th>Range (px)</th><th>Cooldown</th><th>vsBuilding</th><th>Anti-air</th><th>Splash</th><th>Used by</th></tr>
+<tr><td>rifle</td><td>9</td><td>32</td><td>0.75</td><td>0.4</td><td>no</td><td>0</td><td>all soldiers with guns</td></tr>
+<tr><td>cannon</td><td>60</td><td>50</td><td>1.8</td><td>1.6</td><td>no</td><td>7</td><td>tank</td></tr>
+<tr><td>bomb</td><td>140</td><td>14</td><td>3.2</td><td>2.2</td><td>no</td><td>10</td><td>bomber</td></tr>
+<tr><td>missile</td><td>45</td><td>60</td><td>1.4</td><td>1.3</td><td>yes</td><td>4</td><td>jet</td></tr>
+</table>
+<ul>
+  <li><code>WEAPONS</code> still includes <code>smg</code>, <code>sniper</code>, <code>mg</code>, <code>autocannon</code> in code but no unit currently uses them (the <code>ifv</code>, <code>light</code> vehicles are hidden from <code>AVAILABLE_VEHICLES</code>).</li>
+  <li>Faction multiplier <code>firepower</code> multiplies damage, <code>range</code> multiplies range. Soldiers only fire within <code>INFANTRY_MAX_RANGE_CELLS 3</code> cells.</li>
+  <li>Standing still, enemies are detected within 1.8× range (<code>GUARD_VISION_FACTOR</code>); when shot, counterattack up to 2.2× range.</li>
+  <li>Ground vehicles give up a chase after <code>CHASE_LIMIT_CELLS 5</code> cells, leaving the target alone for <code>8</code> s. Retreating is only protected from factions engaged within the last <code>20</code> s (<code>FIGHT_MEMORY_SECONDS</code>): that faction may not chase, only fire when the retreating unit is in range. <b>Still entangled with the enemy</b>: while at least 1 unit of the retreating group (same retreat order) is within firing range of any unit of that faction, that faction may fight back and chase <b>the whole group</b>; only when the <b>entire</b> group has left that faction's firing range is the group protected (<code>CombatSystem.markEntangled</code> / <code>protectedFrom</code>).</li>
+  <li>Ground vehicles crush enemy soldiers within <code>CRUSH_RADIUS 2.4</code> px. Vehicles/aircraft keep <code>VEHICLE_GAP 2</code> px apart; soldiers keep ≥ <code>UNIT_SPACING 2.2</code> px apart.</li>
+  <li><b>Bombs only deal damage when they explode</b>: <code>BOMB_FALL_SECONDS 0.9</code> s after release.</li>
+  <li>Bomber: <code>BOMBER_BOMBS 6</code> bombs/sortie, drops <code>BOMBS_PER_DROP 2</code>/time. One drop destroys a building, except <code>happyCity</code> and <code>airfield</code> which only lose 50%. Dropped on troops: within 2.5 cells, &lt; 10 units all die, ≥ 10 one third die (nearest). Bomb reload at the airfield: <code>BOMB_COST 800</code>/bomb, every <code>3</code> s.</li>
+  <li>Jet: <code>JET_BOMBS 2</code> bombs, 1 per drop — the only way for a jet to hit buildings (10% max HP); on vehicles 60% max HP, soldiers die. Out of bombs it uses its gun (cannot hit buildings). Reload <code>JET_BOMB_COST 400</code>/bomb.</li>
+  <li>Indestructible buildings (Global Monitoring Center, <code>bankManaged</code> derricks, Islamic derricks) cannot be destroyed.</li>
+</ul>
+<h3>Faction logo on the health bar</h3>
+<ul>
+  <li>The health bar of soldiers / vehicles only shows when that unit is focused (selected, or targeted / under the cursor); unselected it is not shown, even when damaged. Bunkers can be selected / hovered by clicking their cell and show a health bar when focused.</li>
+  <li>All factions: every soldier and every vehicle (including non-combat ones: transports, trucks, repair vehicles…) when selected or focused shows a small faction logo (~9 screen px, <code>public/emblems/&lt;phe&gt;.png</code>) right to the left of the health bar (<code>Renderer.drawUnitHealth</code>).</li>
+</ul>
+<h3>Explosion effects (<code>render/ExplosionSheet.ts</code>)</h3>
+<ul>
+  <li>Destroyed buildings, ground vehicles and aircraft all explode using the image <code>public/sprites/explosion.png</code> (12 frames × 16 variants, chosen randomly; built with <code>tools/explosion_sheet.py</code>): flash → fireball → black smoke rising then dissipating, <code>EXPLOSION_SECONDS 1.8</code> s.</li>
+  <li>Size by area: a W×D building → fireball √(W×D) × 1 cell × <code>1.15</code> wide; buildings ≥ 4 cells explode at 2 extra small points around the base, ≥ 16 cells at 4 extra points. Vehicles / aircraft → 2 × body radius × <code>1.4</code> wide (aircraft explode at their flying altitude). Tanks, trucks, repair vehicles additionally keep their own burnt wreck image.</li>
+</ul>
+<h3>Safe zone (<code>SafeZoneSystem</code>)</h3>
+<ul>
+  <li>The Center opens a <code>5×5</code>-cell green zone for a faction's troops to retreat from an area they can only leave by air; no one may attack inside; the faction's transport lands to carry them home.</li>
+  <li>Opened at most 25 cells from the enemy capital; lasts ≥ 20 s; if not fully evacuated within <code>SAFE_ZONE_LIFETIME 6 phút</code> → all troops still in the zone die.</li>
+</ul>
+<h2 id="s9">8. Controls (<code>Game.handleKey</code>, <code>handleInput</code>)</h2>
+<table>
+<tr><th>Action</th><th>Effect</th></tr>
+<tr><td>Left-click troops / box-drag</td><td>Select; Shift = add/remove</td></tr>
+<tr><td>Double-click troops</td><td>Select all troops of the same type on screen</td></tr>
+<tr><td>Right-click on ground</td><td>Move</td></tr>
+<tr><td>Right-click on enemy / building</td><td>Attack / enter / repair / capture / lease derrick depending on troop type</td></tr>
+<tr><td>Right-click your own transport</td><td>Board the aircraft</td></tr>
+<tr><td>Ctrl + Shift + right-click</td><td>Attack-move</td></tr>
+<tr><td><b>X</b></td><td>Parade formation: blocks of 3 rows × 5 (<code>FORMATION_RANKS</code> × <code>FORMATION_COLS</code>), 1 empty row between blocks, infantry in front vehicles behind, on arrival face the viewer; aircraft ignored</td></tr>
+<tr><td><b>C</b></td><td>Scatter ~3 cells (aircraft ×2)</td></tr>
+<tr><td><b>Z</b></td><td>Waypoint: left-click up to <code>MAX_WAYPOINTS 5</code> points, Z again (or right-click) to go; Esc cancels</td></tr>
+<tr><td>U</td><td>Unload troops from transport</td></tr>
+<tr><td><b>F</b> / double-click</td><td>Squatters: plant the flag on the nearest empty cell (any land works), the team disappears</td></tr>
+<tr><td>R</td><td>Rotate building 90° — only while placing a new building taken from the shop; once built it can no longer be rotated</td></tr>
+<tr><td>H / O / 1–9</td><td>Go to capital / cycle oil derricks / jump to landmark: <b>1</b> is always your own capital, <b>2–5</b> are the capitals of the other 4 factions in <code>FACTION_ORDER</code>, <b>6–9</b> are the Global Monitoring Center and the contested capitals. The faction picker is mouse-only (keys 1–5 no longer work).</td></tr>
+<tr><td>M</td><td>Toggle sound</td></tr>
+<tr><td>Tab</td><td>Hide/show sidebar</td></tr>
+<tr><td>Mouse wheel, <code>+</code> <code>-</code></td><td>Zoom</td></tr>
+<tr><td>W S D / arrows / middle mouse / screen edge</td><td>Scroll camera (A key is reserved for Auto sell)</td></tr>
+<tr><td>A</td><td>Toggle Auto sell (automatic oil selling)</td></tr>
+<tr><td>Hover over an opponent's unit (any type)</td><td>Label above it: faction logo + unit name (inline), no health bar (unless selected) (<code>Renderer.drawEnemyInfo</code>)</td></tr>
+<tr><td>Esc</td><td>Cancel building placement → cancel waypoint → pause</td></tr>
+</table>
+<h3>Save / load</h3>
+<h3>Save file format (durable across all versions)</h3>
+<ul>
+  <li>JSON file: <code>format</code> (<code>"black-area-save"</code>), <code>version</code> (the <b>format</b> version = <code>SAVE_VERSION</code>), <code>gameVersion</code> (the game build that wrote it, for reference only), <code>savedAt</code>, <code>faction</code>, <code>nextEntityId</code>, <code>players[]</code>, <code>entities[]</code> (<code>{cls, data}</code>), <code>systems{}</code>, <code>game{}</code>, <code>camera</code>. References: <code>{$e:id}</code> entity, <code>{$p:id}</code> player, <code>{$o:id}</code> shop item, <code>{$m}</code> Map, <code>{$s}</code> Set, <code>{$rng}</code>, <code>{$n}</code> special number.</li>
+  <li><b>Loading never trusts the file to be complete:</b> every entity, system, player and child object starts from the current game build's default values, then the saved values are layered on top (<code>mergeDefaults</code>, recursive). State maps (e.g. per-nation AI state) take defaults from the entry with the same key in the new game. So adding new soldiers / buildings / vehicles / rules / fields <b>needs no changes</b> for old saves — new fields get their defaults automatically.</li>
+  <li>Things removed from the game (entity types, vehicle types, shop items) are skipped and their orders refunded; the shop catalog always comes from code (<code>RULE_FIELDS</code>). Unknown fields in a save cause no errors.</li>
+  <li><b>Rules when editing code:</b> (1) new fields must have a default value at declaration / in the constructor; (2) entity constructors other than <code>(owner, faction, centre)</code> must be added to <code>TEMPLATES</code>; (3) only when <b>renaming / moving / changing the meaning</b> of a saved field is a migration needed: add <code>MIGRATIONS[n]</code> (save version n → n+1) in <code>core/SaveCodec.ts</code> and bump <code>SAVE_VERSION</code>. Saves in a format newer than the game are rejected.</li>
+</ul>
+<ul>
+  <li>Pause menu (Esc): Continue, Quit game, <b>Save game</b>, music volume. No Load here.</li>
+  <li><b>Load game</b> is on the faction picker screen. After choosing a file, the <b>LOAD GAME</b> modal appears before the map is built, with <b>Start</b> / <b>Main menu</b> buttons.</li>
+  <li><code>.json</code> file (<code>core/SaveCodec.ts</code>, <code>SAVE_FORMAT = 'black-area-save'</code>, <code>SAVE_VERSION = 2</code>; v1 saves from before 1.9.0 have their coordinates automatically converted to the new map via longitude / latitude); the map is not saved but rebuilt from <code>MAP_SEED</code>.</li>
+  <li>Old save compatibility: each entity is created fresh by its constructor (new fields get defaults) then the saved fields are layered on top; removed troop types (e.g. helicopters) are skipped; the shop catalog (<code>RULE_FIELDS</code>: <code>options</code>) always comes from current code so new buildings / troops can be bought normally; orders for removed items are cancelled and refunded (<code>Game.dropRemovedOrders</code>). Saves with a <code>version</code> newer than the game are rejected.</li>
+</ul>
+<h2 id="s10">9. Limits &amp; performance</h2>
+<ul>
+  <li>Ground (<code>TileTerrain</code>) is drawn in 16×16-cell chunks; each chunk costs ~15–35 ms so it is drawn <b>a few pixel rows per frame</b> within a <code>BUILD_BUDGET_MS 4</code> ms budget (at least <code>MIN_ROWS_PER_FRAME 16</code> rows), unfinished chunks show a blurred base image — no more stutter when panning the camera after troops (v1.118.0).</li>
+  <li>Aircraft on their way back to the airfield (approaching the runway) that receive a new attack / move order cancel the landing and follow the order (<code>AircraftSystem.approach</code>, v1.118.0).</li>
+  <li>Ceasefire zone checks (<code>Game.updateViolators</code>, <code>AISystem.keepCeasefire</code>) use the building index grid <code>StructureIndex</code> (16×16 cells) instead of scanning every building (including walls) for each soldier — no more stutter during the 4 minutes of peace; AI no longer re-issues retreat orders to soldiers already standing at the capital (v1.118.1).</li>
+  <li>Large detour pathfinding (<code>PathService.find</code>, 600,000 steps, since v1.116.0) caused hitches on every move / chase order: it is now skipped when the destination is on a different landmass, a destination that just failed is not retried for 5 s, and it runs at most once every 250 ms (v1.118.2).</li>
+  <li>Repathing stuck soldiers (<code>Game.repathStuckUnits</code>): at most 2 every 0.1 s instead of 8 crammed into 1 frame every 0.5 s; a unit that twice in a row fails to path to the same destination stops, instead of retrying forever (previously one stuck tank made the screen hitch 4 times/second) (v1.118.3).</li>
+  <li>Peace-time countdown clock (04:00 → 00:00) in the bottom-right corner, below the Home / Turbo / Unload buttons; hidden when peace ends (<code>Sidebar.setPeaceTimer</code>, v1.119.0).</li>
+  <li>AI prioritizes oil using engineers: (1) capture ownerless oil derricks (Antarctica, counted as x0.4 closer than contested capitals), (2) lease oil derricks, (3) capture rivals' oil derricks within 70 cells (1 engineer at a time, only during war). AI armies put oil derricks at the bottom of the attack list (weight 1.5 instead of 0.45) (v1.120.0).</li>
+  <li>The "Mayday" warning only plays for your own aircraft when about to crash (low HP in the air) or shot down in the air; aircraft destroyed while parked on the ground no longer trigger it (v1.120.1).</li>
+  <li>The compass rose moved to the bottom-left corner of the mini map, with North pointing straight up like the mini map (v1.121.0).</li>
+  <li>Mountains: soldiers and ground vehicles never stand/walk on ridges (only through trails); peaks are drawn by depth so they hide units standing behind them. Box-selecting a group containing a transport vehicle/aircraft/helicopter and then left-clicking that vehicle itself: the other units board, the vehicle stays selected, anyone who doesn't fit stays outside and remains selected (v1.122.0).</li>
+  <li>Allied Building can only be built once you have Barracks + War Factory; AI follows this rule too (v1.123.0).</li>
+  <li>The mini map draws mountain ranges as reddish-brown curves along the ridge lines on the map, to show which areas have mountains (v1.124.0).</li>
+  <li>Trucks short of soldiers (under 6/8, including empty trucks) can still drive inside the base: when the destination is at most <code>TRUCK_HOME_CELLS = 20</code> cells from one of your buildings; farther out they still need 6 soldiers. Applies to AI too (v1.125.0).</li>
+  <li>Cycle: war 10 minutes (previously 6), peace 2.5 minutes (previously 4) (v1.126.0).</li>
+  <li>Load game screen: faction logo replaces the text "LOAD GAME", a "Start with &lt;faction&gt;" button in the faction color, the Main menu button on the left; before entering the game the empty sidebar and compass rose in the bottom-left corner are no longer shown (v1.127.0).</li>
+  <li>The Home button (go to capital) only moves the camera to the capital, no longer leaving a dashed focus outline on the button (v1.127.1).</li>
+  <li>Added contested nation <b>Cuba</b> (Havana, El Capitolio), like the UK, Australia, Japan, Korea…; the island of Cuba no longer belongs to USA territory. Anti-aircraft vehicles (NOMADS / Buk-M3) hitting aircraft take <code>MANTIS_HIT_SHARE = 25%</code> of max HP per shot. Aircraft can only attack anti-aircraft vehicles with bombs (bombers, or fighters with bombs left), not with guns; helicopters cannot attack them. AI always keeps an air defense system at home: at least <code>AI_AIR_DEFENCE = 2</code> anti-aircraft vehicles + 1 per <code>AI_AIR_DEFENCE_PER_CITIES = 4</code> Happy Cities, standing on a ring <code>AI_AIR_DEFENCE_RING = 8</code> cells around the capital, not going on attacks (v1.128.0).</li>
+  <li>Language: pick English / Tiếng Việt in the main menu and in the settings menu (Esc), English by default; all in-game text and the guide (RULE.html Vietnamese, RULE.en.html English) follow the chosen language. Switching mid-game saves the game, reloads the page and resumes it (v1.129.0).</li>
+  <li>Download Desktop button hidden on the faction picker; fixed the black screen on start (v1.129.1).</li>
+  <li>Main menu: no side is preselected; Deploy stays disabled until the player picks a side (click or arrow keys) (v1.129.2).</li>
+  <li>Main menu: the Deploy button is hidden until a side is picked (v1.129.3).</li>
+  <li>Main menu: the "Load game" button is now "Import saved game" (v1.129.4).</li>
+  <li>Main menu button renamed to "Load saved game" (v1.129.5).</li>
+  <li>Saved-game confirm screen: small faction flag at the bottom-right of the emblem; the "Press Start to load the map…" sentence is gone (v1.129.6).</li>
+  <li>Saved-game confirm screen: the faction name + save time line is gone; only the emblem, flag and the two buttons remain (v1.129.7).</li>
+  <li>Faction emblem + small flag at its lower right is now one shared component (<code>ui/FactionBadge.ts</code>, sizes sm/md/lg) used by the sidebar, the faction picker and the saved-game confirm screen (v1.129.8).</li>
+  <li>All modals (faction picker, pause/settings, saved-game confirm, victory/game over) share one background, border and corner radius (CSS variables <code>--modal-*</code>) (v1.129.9).</li>
+  <li>All text buttons (main menu, modals, sidebar) share one look: dark grey fill, border, 4px corners, gold border on hover (CSS variables <code>--btn-*</code>); the main action (Deploy / Start) has the same shape in the nation's colour (v1.130.0).</li>
+  <li>The main action is now "Start as &lt;faction&gt;" everywhere (replacing "Deploy as" on the main menu and "Start with" on the saved-game screen); the saved-game Start button is no longer focused on open (Enter still starts) (v1.130.1).</li>
+  <li>The compass no longer flashes in the bottom-left corner on reloads / screen changes: hidden in index.html, shown only once inside the minimap (v1.130.2).</li>
+  <li>Faction picker: a slogan under each nation's emblem — USA "Make America Great Again", China "The Chinese Dream / National Rejuvenation", Russia "Great Russia / We Leave No One of Ours Behind", Europe "Take Back Control", Islamic world "Islam Is the Solution" (v1.131.0).</li>
+  <li>The faction slogan moved from the faction picker to the saved-game confirm screen (under the emblem + flag) (v1.131.1).</li>
+  <li>Faction slogans removed. The faction picker orders its cards west to east by capital longitude: USA → Europe → Russia → Islamic → China (arrow keys follow the same order) (v1.131.2).</li>
+  <li>Main menu faction cards: emblem + flag centred on the card (v1.131.3).</li>
+  <li>Removed the <code>resources/</code> folder (high-resolution source renders, ~181 MB; not used at runtime, the packed sprites live in <code>public/sprites/</code>) (v1.131.4).</li>
+  <li>Pathfinding (A*) is the most expensive part: blocked attack-move units only retry pathing every <code>RESUME_RETRY 1</code> s (destination on another shore / unreachable cancels the order); every 0.5 s at most <code>REPATH_BUDGET 8</code> stuck units are repathed, if no path they stop.</li>
+  <li>Cache cleanup every <code>JANITOR_INTERVAL = 180</code> s (unused images/terrain, records of dead units, mercy bonus records of retreating groups with no survivors). Only removes things no longer used, never touches soldiers, buildings, money or running orders. A* pathfinding (<code>Pathfinder.find</code>) expands each cell only once (dropping stale copies in the queue), reads <code>TileMap</code> arrays directly, the priority queue uses typed arrays reused between searches.</li>
+  <li>Art uses PNG sprite sheets in <code>public/sprites/</code> (tank, jet/bomber, bombs, missiles, shells, 8-direction soldiers), procedural drawing when there is no sheet.</li>
+</ul>
+<h2 id="s11">10. Victory / defeat &amp; AI</h2>
+<ul>
+  <li>A faction is eliminated when it has no capital <b>and</b> no armed soldiers/vehicles left. The player loses when eliminated; wins when every other faction is eliminated.</li>
+  <li>AI (<code>systems/AISystem.ts</code>): thinks every <code>1.5</code> s; <code>BUILD_PLAN</code>: powerPlant → barracks → warFactory → hospital → airfield → techCenter; then Happy Cities continuously (at most <code>MAX_CITIES 30</code>, 1 extra bunker per 3 cities); barracks and vehicle factory run in parallel non-stop when there is spare money; every <code>RIVAL_PERIOD 60</code> s picks a faction as main rival (another AI or the player: nearest, weaker army, richer) and concentrates attacks on it (<code>RIVAL_FOCUS 0.55</code>); every other AI that already picked the same faction as rival makes it less attractive (score ×(1 + <code>RIVAL_PILE_UP 0.6</code> × number of such AIs)), so AIs split up to fight every faction, including each other, instead of all piling onto one faction (the player); a faction (AI or player) can be picked as rival by at most <code>MAX_ATTACKERS 2</code> AIs at once, and attack waves only target the chosen rival's buildings (only when none remain do they attack another faction), plant flags/Allied Buildings when conditions are met (<code>CLAIM_*</code>); defends within 38 cells of the capital; own oil derrick damaged → at most <code>DERRICK_DEFENDERS 6</code> nearest troops (within <code>DERRICK_HELP_CELLS 70</code> cells, able to hit the target) attack the enemy nearest the derrick (within <code>DERRICK_THREAT_CELLS 14</code> cells); engineers repair every damaged building (below 98%, after 3 s without being shot); repair vehicles (ARV) go repair the most heavily damaged ground vehicle nearby (within 60 cells); wounded soldiers (below 85%) run to the nearest hospital with free beds; claims land from <code>CLAIM_FROM 120</code> s, choosing ownerless land closest to the rival (≥ 18 cells from enemy buildings) — on the same continent Squatters walk there, on another continent (cannot swim across) they fly by transport aircraft; first attack wave after <code>210</code> s then every <code>110</code> s.</li>
+</ul>
+<h2 id="s12">11. Common edit recipes</h2>
+<table>
+<tr><th>Want to</th><th>Edit in</th></tr>
+<tr><td>Change cost/HP/speed/range</td><td><code>src/constants.ts</code></td></tr>
+<tr><td>Add/re-enable a vehicle type (<code>ifv</code>, <code>light</code> currently hidden)</td><td><code>VehicleKind</code> (types) → <code>VEHICLE_BASE</code>, <code>VEHICLE_WEAPON</code>, <code>AVAILABLE_VEHICLES</code> (+ <code>TECH_VEHICLES</code> if needed) → name in <code>factions/*.ts</code> → art <code>render/VehicleArt.ts</code> or sprite sheet</td></tr>
+<tr><td>Add a building</td><td><code>BuildingType</code> → class in <code>entities/</code> → sprite <code>render/sprites/</code> + <code>sprites/index.ts</code> → <code>BUILD_OPTIONS</code> → <code>BUILDING_VALUE</code> → AI <code>BUILD_PLAN</code> → register in <code>ENTITY_CLASSES</code></td></tr>
+<tr><td>Add an entity class (so it can be saved)</td><td>Register in <code>ENTITY_CLASSES</code> (<code>core/SaveCodec.ts</code>); system state saved as plain objects (e.g. <code>AIState</code>) must fill in new fields itself when loading old saves (see <code>AISystem.fillMissing</code>); if the constructor differs from <code>(owner, faction, centre)</code> add it to <code>TEMPLATES</code>; changing the saved data structure → bump <code>SAVE_VERSION</code></td></tr>
+<tr><td>Add a faction</td><td><code>FactionId</code> → new file in <code>factions/</code> → <code>FACTIONS</code>, <code>FACTION_ORDER</code>, <code>CAPITAL_LOCATIONS</code>, <code>OIL_DERRICK_COUNT</code> (+ <code>OIL_SITES</code> if any), <code>TERRITORIES</code> (<code>map/Territories.ts</code>), capital sprite</td></tr>
+<tr><td>Hotkeys</td><td><code>Game.handleKey</code> + the table in section 8</td></tr>
+<tr><td>AI behavior</td><td><code>AISystem.ts</code> (constants at the top of the file)</td></tr>
+</table>
+<p class="warn">After every rule change: run <code>npm run typecheck</code>, update <code>RULE.html</code>, and ask the user before pushing.</p>
+</main>
+</body>
+</html>
