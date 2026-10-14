@@ -39,6 +39,7 @@ export const BUILDING_ART: Readonly<Record<string, BuildingArt>> = {
   'nation:brazil': createNationCapitalArt('brazil'),
   'nation:unitedKingdom': createNationCapitalArt('unitedKingdom'),
   'nation:canada': createNationCapitalArt('canada'),
+  'nation:cuba': createNationCapitalArt('cuba'),
   // Oil derricks in each nation's team colour.
   'oil:usa': createOilDerrickArt(FACTIONS.usa.colors),
   'oil:russia': createOilDerrickArt(FACTIONS.russia.colors),

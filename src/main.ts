@@ -125,6 +125,7 @@ async function boot(): Promise<void> {
     setProgress(100);
     await nextPaint();
     loading.remove();
+    document.body.classList.remove('pregame');
     game.start();
 
     // `?landmark=1..5&zoom=2` opens the game focused somewhere.

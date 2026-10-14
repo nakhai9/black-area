@@ -14,14 +14,19 @@ export function confirmLoadedGame(info: { faction: FactionId; savedAt: string },
   const card = document.createElement('div');
   card.className = 'end-card';
   card.style.setProperty('--end-color', '#f5c542'); // same as the pause menu
-  const title = document.createElement('h1');
-  title.textContent = 'LOAD GAME';
+  // The saved nation's emblem stands in for a title.
+  const title = document.createElement('img');
+  title.className = 'lc-emblem';
+  title.src = `${import.meta.env.BASE_URL}emblems/${info.faction}.png`;
+  title.alt = f.name;
   const text = document.createElement('p');
   const when = new Date(info.savedAt);
   text.textContent = `${f.name} — saved ${Number.isNaN(when.getTime()) ? info.savedAt : when.toLocaleString()}. Press Start to load the map and continue the war.`;
   const start = document.createElement('button');
   start.type = 'button';
-  start.textContent = 'Start';
+  start.textContent = `Start with ${f.name}`;
+  start.className = 'lc-start';
+  start.style.setProperty('--faction-color', f.colors.primary);
   const back = document.createElement('button');
   back.type = 'button';
   back.textContent = 'Main menu';
@@ -30,7 +35,7 @@ export function confirmLoadedGame(info: { faction: FactionId; savedAt: string },
   back.addEventListener('click', () => window.location.assign(window.location.pathname));
   const actions = document.createElement('div');
   actions.className = 'pause-actions';
-  actions.append(start, back);
+  actions.append(back, start); // Main menu on the left
   card.append(title, text, actions);
   root.append(card);
   parent.append(root);

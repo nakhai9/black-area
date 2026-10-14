@@ -1,4 +1,4 @@
-import { AI_BUNKERS, AI_WALL_ALERT_SECONDS, AI_WALL_ENEMY_UNITS, AI_WALL_GAP, AI_WALL_WATCH_CELLS, AI_WALL_RING, AI_WALL_SEGMENT, BUNKER_RANGE, CELL_SIZE, INFANTRY_BASE, INFANTRY_MARCH_CELLS, EMBASSY_CAPITAL_CELLS, MAX_ALLIES, NATION_GARRISON, NATION_GARRISON_CELLS, NEUTRAL_OWNER, OIL_DERRICK_OUTPUT, OIL_LEASE_CARTEL_SHARE, OIL_LEASE_SECONDS, TECH_VEHICLES, TRUCE_ZONE_CELLS, TRUCK_MIN_RIDERS, TRUCK_SOLDIERS } from '../constants';
+import { AI_AIR_DEFENCE, AI_AIR_DEFENCE_PER_CITIES, AI_AIR_DEFENCE_RING, AI_BUNKERS, AI_WALL_ALERT_SECONDS, AI_WALL_ENEMY_UNITS, AI_WALL_GAP, AI_WALL_WATCH_CELLS, AI_WALL_RING, AI_WALL_SEGMENT, BUNKER_RANGE, CELL_SIZE, INFANTRY_BASE, INFANTRY_MARCH_CELLS, EMBASSY_CAPITAL_CELLS, MAX_ALLIES, NATION_GARRISON, NATION_GARRISON_CELLS, NEUTRAL_OWNER, OIL_DERRICK_OUTPUT, OIL_LEASE_CARTEL_SHARE, OIL_LEASE_SECONDS, TECH_VEHICLES, TRUCE_ZONE_CELLS, TRUCK_MIN_RIDERS, TRUCK_SOLDIERS } from '../constants';
 import { FACTIONS } from '../factions';
 import { StructureIndex } from './StructureIndex';
 import { OilDerrick } from '../entities/OilDerrick';
@@ -872,6 +872,12 @@ export class AISystem implements GameSystem {
           production.enqueue(p, 'truck');
           return;
         }
+        // Air defence: every nation keeps its own air-defence vehicles at home against air raids.
+        const mantis = (f.vehicles.get('mantis') ?? 0) + q.items.filter((k) => k === 'mantis').length;
+        if (able('mantis') && mantis < this.airDefenceWanted(p)) {
+          production.enqueue(p, 'mantis');
+          return;
+        }
         // Pick the kind furthest below its wanted share of the fleet.
         const weights = this.fleetWeights(p, st, f, vehicleCount);
         let total = 0;
@@ -1043,7 +1049,7 @@ export class AISystem implements GameSystem {
 
   private army(p: PlayerState, st: AIState, capital: Building): void {
     const all = this.host.entities.fieldMovers();
-    const army = all.filter(
+    let army = all.filter(
       (u) =>
         u.owner === p.id &&
         u.weapon !== null &&
@@ -1055,6 +1061,14 @@ export class AISystem implements GameSystem {
     );
     if (army.length === 0) return;
     const home = capital.centerWorld();
+    // Home air defence: up to airDefenceWanted air-defence vehicles stay round the capital and never join the attack.
+    const flak = army.filter((u) => u instanceof Vehicle && u.type === 'mantis').slice(0, this.airDefenceWanted(p));
+    if (flak.length > 0) {
+      this.placeAirDefence(flak, home);
+      const kept = new Set(flak);
+      army = army.filter((u) => !kept.has(u));
+      if (army.length === 0) return;
+    }
     const guard = this.pickGuard(st, army, home);
     const defenders = this.defendDerricks(p, st, army, all);
     const stationed = this.holdNations(p, st, army.filter((u) => !st.guard.has(u.id) && !defenders.has(u.id)), all, home);
@@ -1070,6 +1084,22 @@ export class AISystem implements GameSystem {
       return;
     }
     this.advance(p, st, strike);
+  }
+
+  /** Air-defence vehicles the nation keeps at home (AI_AIR_DEFENCE, more as its cities grow). */
+  private airDefenceWanted(p: PlayerState): number {
+    return AI_AIR_DEFENCE + Math.floor(this.cities(p) / AI_AIR_DEFENCE_PER_CITIES);
+  }
+
+  /** Spreads the home air-defence vehicles evenly on a ring round the capital; one already near its spot stays. */
+  private placeAirDefence(flak: readonly Unit[], home: WorldPoint): void {
+    const r = AI_AIR_DEFENCE_RING * CELL_SIZE;
+    flak.forEach((u, i) => {
+      const a = (i / flak.length) * Math.PI * 2 + 0.4;
+      const spot = { x: home.x + Math.cos(a) * r, y: home.y + Math.sin(a) * r };
+      if (u.moving || Math.hypot(u.px - spot.x, u.py - spot.y) < CELL_SIZE * 4) return;
+      this.host.orderMoveUnits([u], spot);
+    });
   }
 
   /**

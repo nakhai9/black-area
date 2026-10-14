@@ -131,6 +131,24 @@ const FLAG_PAINTERS: Record<ContestedNationId, (ctx: CanvasRenderingContext2D, w
     ctx.fill();
     ctx.fillRect(w / 2 - 1, h * 0.6, 2, h * 0.25);
   },
+  cuba(ctx, w, h) {
+    // Five blue and white stripes, a red triangle at the hoist with a white star.
+    for (let i = 0; i < 5; i++) {
+      ctx.fillStyle = i % 2 === 0 ? '#002a8f' : '#ffffff';
+      ctx.fillRect(0, (i * h) / 5, w, h / 5 + 1);
+    }
+    ctx.fillStyle = '#cf142b';
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(w * 0.43, h / 2);
+    ctx.lineTo(0, h);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    starPath(ctx, w * 0.15, h / 2, h * 0.16);
+    ctx.fill();
+  },
 };
 
 const flagTextures = new Map<ContestedNationId, HTMLCanvasElement>();
@@ -363,6 +381,38 @@ const PALACES: Record<ContestedNationId, { height: number; draw: (p: IsoPainter)
       }
       p.pyramid(1.78, 2.35, 0.44, 0.44, 86, 30, COPPER);
       p.pole(2.0, 2.57, 116, 8, '#d8d8d8');
+    },
+  },
+  // El Capitolio, Havana: a long white-limestone neoclassical hall on a raised terrace, a columned portico up a wide
+  // stair in the middle, and the tall drum and dome over it, lantern on top; royal palms on the lawn.
+  cuba: {
+    height: 96,
+    draw: (p) => {
+      const STONE = '#ece6d6';
+      const DOME = '#d9d2bf';
+      p.topRect(0.1, 0.1, 3.9, 3.9, 3, '#6f9a45');
+      p.box(0.3, 0.8, 3.4, 1.8, 3, 5, '#cfc8b4');
+      // The two wings and the central block.
+      p.box(0.4, 0.95, 3.2, 1.5, 8, 16, STONE, { top: '#d9d3c2' });
+      facade(p, 'left', 0.4, 0.95, 3.2, 1.5, 8, 16, { cols: 24, floors: 2, glass: '#3a3f46', frame: '#f6f2e8', bandColor: '#c4bca6', seed: 151 });
+      facade(p, 'right', 0.4, 0.95, 3.2, 1.5, 8, 16, { cols: 10, floors: 2, glass: '#3a3f46', frame: '#f6f2e8', bandColor: '#b5ad97', seed: 152 });
+      // Portico: columns over the stair, a pediment on top.
+      p.colonnade('left', 1.45, 2.45, 1.1, 0.35, 8, 16, 6, STONE, '#f4efe2');
+      p.box(1.45, 2.45, 1.1, 0.35, 24, 3, STONE);
+      p.gableRoofV(1.45, 2.45, 1.1, 0.35, 27, 5, '#f4efe2', '#cfc8b4');
+      p.polygon([[1.5, 2.8, 8], [2.5, 2.8, 8], [2.5, 3.5, 3], [1.5, 3.5, 3]], '#e3ddcc');
+      // Drum, dome and lantern.
+      p.cylinder(2.0, 1.7, 0.55, 24, 22, STONE, 16);
+      p.cylinder(2.0, 1.7, 0.5, 46, 4, '#e2dccb');
+      p.dome(2.0, 1.7, 0.5, 50, 26, DOME);
+      p.cylinder(2.0, 1.7, 0.1, 76, 8, STONE, 6);
+      p.dome(2.0, 1.7, 0.1, 84, 4, DOME);
+      p.pole(2.0, 1.7, 88, 6, '#c9b46a');
+      // Royal palms on the lawn.
+      for (const [u, v] of [[0.35, 3.3], [0.9, 3.6], [3.1, 3.6], [3.65, 3.3]] as const) {
+        p.pole(u, v, 3, 22, '#9c9488');
+        p.dome(u, v, 0.18, 24, 5, '#3f7a34');
+      }
     },
   },
 };

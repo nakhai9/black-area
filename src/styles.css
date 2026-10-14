@@ -1481,6 +1481,29 @@ body.sidebar-hidden .air-tools {
   color: #ffe08a;
 }
 
+/* Before the game is built (picker, load confirm, loading bar): no empty sidebar and no stray compass. */
+body.pregame #sidebar,
+body.pregame #compass {
+  visibility: hidden; /* keeps its layout, so the sidebar measures right while it is built */
+}
+/* Load confirm: the nation's emblem as title, Start in the nation's colour. */
+.lc-emblem {
+  display: block;
+  height: 96px;
+  margin: 0 auto 12px;
+}
+.end-card button.lc-start {
+  background: var(--faction-color);
+  border-color: var(--faction-color);
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+}
+.end-card button.lc-start:hover {
+  filter: brightness(1.15);
+  background: var(--faction-color);
+  color: #fff;
+}
+
 /* ------------------------------------------------------------- compass (bottom-left corner of the minimap) */
 /* The minimap is drawn north-up, so the compass is too (N straight up). */
 #compass {
@@ -1498,4 +1521,10 @@ body.sidebar-hidden .air-tools {
   width: 100%;
   height: 100%;
   display: block;
+}
+
+/* Action bar tools act on click only: no focus ring left behind. */
+.air-tool:focus,
+.air-tool:focus-visible {
+  outline: none;
 }

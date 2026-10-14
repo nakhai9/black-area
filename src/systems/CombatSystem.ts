@@ -1,5 +1,5 @@
 import { movesRight } from '../core/IsoView';
-import { BOMB_FALL_SECONDS, HIGH_GROUND_DAMAGE, HIGH_GROUND_RANGE, LOW_GROUND_DAMAGE, BUNKER_COOLDOWN, BUNKER_DAMAGE, BUNKER_RANGE, BUNKER_VS_VEHICLE, JET_BOMB_VS_STRUCTURE, JET_BOMB_VS_VEHICLE, ACQUIRE_PERIOD, RANK_FIREPOWER, RANK_RELOAD, BOMB_GROUP_RADIUS_CELLS, BOMB_GROUP_SIZE, BOMB_TOUGH_DAMAGE, BOMB_TOUGH_STRUCTURES, BOMBS_PER_DROP, CELL_SIZE, CHASE_GIVE_UP_SECONDS, CHASE_LIMIT_CELLS, CHASE_PERIOD, FIGHT_MEMORY_SECONDS, GUARD_VISION_FACTOR, NEUTRAL_OWNER, RETALIATE_RANGE_FACTOR, WEAPONS } from '../constants';
+import { BOMB_FALL_SECONDS, HIGH_GROUND_DAMAGE, HIGH_GROUND_RANGE, LOW_GROUND_DAMAGE, BUNKER_COOLDOWN, BUNKER_DAMAGE, BUNKER_RANGE, BUNKER_VS_VEHICLE, MANTIS_HIT_SHARE, JET_BOMB_VS_STRUCTURE, JET_BOMB_VS_VEHICLE, ACQUIRE_PERIOD, RANK_FIREPOWER, RANK_RELOAD, BOMB_GROUP_RADIUS_CELLS, BOMB_GROUP_SIZE, BOMB_TOUGH_DAMAGE, BOMB_TOUGH_STRUCTURES, BOMBS_PER_DROP, CELL_SIZE, CHASE_GIVE_UP_SECONDS, CHASE_LIMIT_CELLS, CHASE_PERIOD, FIGHT_MEMORY_SECONDS, GUARD_VISION_FACTOR, NEUTRAL_OWNER, RETALIATE_RANGE_FACTOR, WEAPONS } from '../constants';
 import { Building } from '../entities/Building';
 import { Bunker } from '../entities/Bunker';
 import type { Entity } from '../entities/Entity';
@@ -62,6 +62,9 @@ export function canTarget(shooter: Unit, target: Entity): boolean {
   const w = shooter.weapon;
   if (!w || !isHostile(shooter, target)) return false;
   if (shooter.unarmedTransport) return false; // transports never attack anything
+  // An air-defence vehicle is hit from the air by bombs only, never by an aircraft's guns (a helicopter has none).
+  if (shooter instanceof Vehicle && shooter.aircraft && target instanceof Vehicle && target.type === 'mantis')
+    return shooter.type === 'bomber' || (shooter.type === 'jet' && shooter.bombs > 0);
   // Attack helicopters hunt ground vehicles only: no structures, soldiers or aircraft.
   // Exception (self-defence): the ground attacker that shot it while it stood landed, soldier or vehicle.
   if (shooter instanceof Vehicle && shooter.isHeli) return (target instanceof Vehicle && !target.aircraft) || (shooter.heliRevenge === target.id && target instanceof Unit && !target.flies);
@@ -475,7 +478,9 @@ export class CombatSystem implements GameSystem {
       this.hooks.onFire(s, t, { ...w, kind: 'bomb' }, impact);
       return;
     }
-    const dmg = w.damage * RANK_FIREPOWER[s.rank] * (t instanceof Building ? w.vsBuilding : 1) * this.heightFactor(s, t);
+    // Air-defence missile on an aircraft: a quarter of its full health per hit.
+    const flak = s instanceof Vehicle && s.type === 'mantis' && t instanceof Vehicle && t.aircraft;
+    const dmg = flak ? t.maxHp * MANTIS_HIT_SHARE : w.damage * RANK_FIREPOWER[s.rank] * (t instanceof Building ? w.vsBuilding : 1) * this.heightFactor(s, t);
     t.damage(dmg);
     t.lastAttackerId = s.id;
     t.lastAttackedAt = this.time;

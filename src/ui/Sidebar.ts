@@ -436,7 +436,12 @@ export class Sidebar {
       b.className = 'air-tool';
       b.title = title;
       b.append(createElement(icon, { width: 20, height: 20, 'stroke-width': 2, 'aria-hidden': 'true' }));
-      b.addEventListener('click', onClick);
+      // A click only acts (camera home, turbo…): the button never keeps the focus, so no focus ring is left on it.
+      b.addEventListener('pointerdown', (e) => e.preventDefault());
+      b.addEventListener('click', () => {
+        b.blur();
+        onClick();
+      });
       b.addEventListener('contextmenu', (e) => e.preventDefault());
       this.airTools.append(b);
       return b;

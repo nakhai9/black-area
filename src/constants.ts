@@ -26,14 +26,14 @@ export const DEMO_FACTION = Number(import.meta.env.VITE_DEMO_FACTION) || 2;
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "1.125.0";
+export const GAME_VERSION = "1.128.0";
 
 /** An Allied Building within this many cells of any capital is an embassy; farther out it is a "Pro-<nation> regime". */
 export const EMBASSY_CAPITAL_CELLS = 25;
 
 /** War / ceasefire cycle: WAR_SECONDS of war between the nations, then PEACE_SECONDS of peace to build up, over and over. */
-export const WAR_SECONDS = 6 * 60;
-export const PEACE_SECONDS = 4 * 60;
+export const WAR_SECONDS = 10 * 60;
+export const PEACE_SECONDS = 2.5 * 60;
 /**
  * Ceasefire zone: during the peace, a unit (soldier, vehicle, aircraft) within TRUCE_ZONE_CELLS of the edge of another
  * nation's structure breaks the ceasefire: every other nation may destroy it and it may not fight back. Units have
@@ -531,6 +531,13 @@ export const HELI_FIREPOWER = 0.75;
 /** Air-defence vehicle (`mantis`): its missile hits this many times as hard as the base missile, and reaches MANTIS_RANGE_CELLS cells for every nation (no faction range bonus); aircraft only. */
 export const MANTIS_FIREPOWER = 3.5;
 export const MANTIS_RANGE_CELLS = 20;
+/** Every missile of the air-defence vehicle that hits an aircraft takes this share of the aircraft's full health. */
+export const MANTIS_HIT_SHARE = 0.25;
+/** AI air defence: at least this many air-defence vehicles at home, plus one for every AI_AIR_DEFENCE_PER_CITIES Happy Cities. */
+export const AI_AIR_DEFENCE = 2;
+export const AI_AIR_DEFENCE_PER_CITIES = 4;
+/** …standing on a ring this many cells round the capital. */
+export const AI_AIR_DEFENCE_RING = 8;
 export const JET_BOMB_VS_STRUCTURE = 0.1;
 export const JET_BOMB_VS_VEHICLE = 0.6;
 /** A fighter's bomb costs this much to load (a bomber's costs BOMB_COST). */
@@ -694,7 +701,8 @@ export type ContestedNationId =
   | "australia"
   | "brazil"
   | "unitedKingdom"
-  | "canada";
+  | "canada"
+  | "cuba";
 export interface ContestedNation {
   name: string;
   /** Name of the capital building shown in game. */
@@ -740,6 +748,12 @@ export const CONTESTED_NATIONS: Readonly<
     name: "Canada",
     capital: "Parliament Hill",
     site: { lon: -75.7, lat: 45.42, name: "Ottawa" },
+  },
+  // Cuba: an island nation of its own, off the tip of Florida (not part of the USA's territory).
+  cuba: {
+    name: "Cuba",
+    capital: "El Capitolio",
+    site: { lon: -82.36, lat: 23.13, name: "Havana" },
   },
 };
 export const NATION_PRESENCE_FEE = 1200;
