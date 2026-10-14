@@ -238,7 +238,7 @@ const SCATTER_CELLS = 3;
 const FOCUS_OFFSET_Y = 6;
 
 /** Most units re-routed per stuck-unit pass (every 0.5 s); each re-route is a path search. */
-const REPATH_BUDGET = 8;
+const REPATH_BUDGET = 2;
 
 /**
  * Composition root: loads the Earth, builds the world, wires systems/UI
@@ -594,7 +594,7 @@ export class Game {
   }
 
   /** Game fields never written back from a save (screen / input state). */
-  private static readonly UNSAVED = ['systems', 'paths', 'paused', 'ended', 'dom', 'lastCursor', 'mouseWorld', 'ghost', 'placing', 'placingRotated', 'waypoints', 'moveMarker', 'pathPeekId', 'lastBuildingClick'];
+  private static readonly UNSAVED = ['systems', 'paths', 'paused', 'ended', 'dom', 'lastCursor', 'mouseWorld', 'ghost', 'placing', 'placingRotated', 'waypoints', 'moveMarker', 'pathPeekId', 'lastBuildingClick', 'shortRepaths'];
 
   /**
    * Everything needed to continue this game later, as plain JSON-ready data: players, every entity, the state of
@@ -3520,12 +3520,16 @@ export class Game {
     }
   }
 
+  /** Units whose last re-route fell short of its goal (see repathStuckUnits). */
+  private readonly shortRepaths = new WeakMap<Unit, { key: number; count: number }>();
+
   /** Units that have been stuck for a while, or whose next waypoint became blocked, plan a new route. */
   private repathStuckUnits(dt: number): void {
     this.repathTimer -= dt;
     if (this.repathTimer > 0) return;
-    this.repathTimer = 0.5;
-    // Path searches are dear: at most REPATH_BUDGET units per pass; the rest keep their flag and go next pass.
+    this.repathTimer = 0.1;
+    // Path searches are dear: at most REPATH_BUDGET units per pass (a few every tenth of a second, never a burst in one
+    // frame); the rest keep their flag and go next pass.
     let budget = REPATH_BUDGET;
     for (const u of this.entities.fieldMovers()) {
       if (budget <= 0) break;
@@ -3550,6 +3554,19 @@ export class Game {
         continue;
       }
       const last = path[path.length - 1];
+      // The route falls short of the goal (walled in, cut off): one more try is allowed; falling short again for the
+      // same goal, the unit stops instead of searching again every pass (each search is a frame hitch).
+      const lc = last ? this.map.cellAt(last.x, last.y) : null;
+      if (lc && (lc.x !== goal.x || lc.y !== goal.y)) {
+        const key = goal.y * this.map.width + goal.x;
+        const prev = this.shortRepaths.get(u);
+        if (prev && prev.key === key && prev.count >= 1) {
+          this.shortRepaths.delete(u);
+          u.stop();
+          continue;
+        }
+        this.shortRepaths.set(u, { key, count: (prev?.key === key ? prev.count : 0) + 1 });
+      } else this.shortRepaths.delete(u);
       if (last && goal.x === cell.x && goal.y === cell.y) {
         last.x = dest.x;
         last.y = dest.y;
