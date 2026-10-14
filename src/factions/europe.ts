@@ -8,7 +8,7 @@ export const EUROPE: FactionConfig = {
   shortName: 'Europe',
   leader: { title: 'Commission President', name: 'Ursula von der Leyen' },
   doctrine: t('Economic power and coalition: strong income, advanced air defence and balanced forces.'),
-  colors: { primary: '#8a5cf6', light: '#c9b5ff', dark: '#3b237a' },
+  colors: { primary: '#6532d6', light: '#a487ec', dark: '#28155e' },
   stats: { unitSpeed: 1.05, armor: 1.0, firepower: 1.05, range: 1.1, buildSpeed: 1.05, cost: 1.25, trainDelay: 2 },
   capital: {
     name: 'EU Headquarters',
