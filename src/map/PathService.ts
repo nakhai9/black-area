@@ -24,6 +24,10 @@ export const PATH_BUDGET_MS = 3;
 const SHORT_ROUTE = CLUSTER * 2;
 /** Flow-field cells settled per slice before the job yields to the frame. */
 const FIELD_SLICE = 1500;
+/** At most one big detour search per this many ms. */
+const DETOUR_GAP_MS = 250;
+/** A goal the detour search failed on is not tried again for this long. */
+const DETOUR_RETRY_MS = 5000;
 const SQRT2 = Math.SQRT2;
 const TREE_COST = 1.6;
 const DIRS: readonly [number, number, number][] = [
@@ -56,6 +60,9 @@ export class PathService {
   private readonly stamp: Uint32Array;
   private run = 0;
   private readonly jobs: Generator<void, void, void>[] = [];
+  /** Goals (cell index) the big detour search recently failed to reach, until when (performance.now ms). */
+  private readonly detourFailed = new Map<number, number>();
+  private lastDetour = -Infinity;
 
   constructor(
     private readonly map: TileMap,
@@ -177,7 +184,19 @@ export class PathService {
     const sx = Math.floor(start.x / CELL_SIZE);
     const sy = Math.floor(start.y / CELL_SIZE);
     if (Math.max(Math.abs(sx - goal.x), Math.abs(sy - goal.y)) < SHORT_ROUTE || !this.pathfinder.passable(goal.x, goal.y, swim)) return path;
+    // The big search is slow (a frame hitch): never on another landmass (no walking route at all), never again for a
+    // goal it just failed on, and at most one per DETOUR_GAP_MS (chases and group orders would otherwise stack them).
+    if (!swim && !this.pathfinder.sameLandmass(sx, sy, goal.x, goal.y)) return path;
+    const now = performance.now();
+    const key = this.map.index(goal.x, goal.y);
+    if ((this.detourFailed.get(key) ?? 0) > now || now - this.lastDetour < DETOUR_GAP_MS) return path;
+    this.lastDetour = now;
     const detour = this.pathfinder.find(start, goal, swim, null, DETOUR_EXPANSIONS);
+    const dEnd = detour[detour.length - 1];
+    if (!dEnd || Math.floor(dEnd.x / CELL_SIZE) !== goal.x || Math.floor(dEnd.y / CELL_SIZE) !== goal.y) {
+      if (this.detourFailed.size > 256) this.detourFailed.clear();
+      this.detourFailed.set(key, now + DETOUR_RETRY_MS);
+    }
     return detour.length > 0 ? detour : path;
   }
 
