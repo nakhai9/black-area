@@ -26,8 +26,6 @@ import {
   DEMO_FUSE_SECONDS,
   DRONE_DAMAGE_SHARE,
   DRONE_STRIKE_CELLS,
-  DRONE_PAIR,
-  DRONE_PAIR_GAP_CELLS,
   DEMO_GROUP_RADIUS_CELLS,
   DEMO_GROUP_SIZE,
   DEMO_LARGE_DAMAGE,
@@ -3791,15 +3789,6 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
   }
 
   private spawnVehicle(player: PlayerState, kind: VehicleKind, producer: Building): void {
-    if (kind === 'drone') {
-      // A drone order is a pair: the second trails the first (see processDrones).
-      const lead = this.spawnAircraft(player, kind, producer);
-      for (let i = 1; lead && i < DRONE_PAIR; i++) {
-        const wing = this.spawnAircraft(player, kind, producer);
-        if (wing) wing.leadId = lead.id;
-      }
-      return;
-    }
     if (isAircraftKind(kind)) {
       this.spawnAircraft(player, kind, producer);
       return;
@@ -4235,27 +4224,13 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
   }
 
   /**
-   * Kamikaze drones (B-767). The second drone of a pair trails its lead DRONE_PAIR_GAP_CELLS behind and shares its
-   * target. A diving drone homes on the structure's centre (its target stays locked: attackTarget) and, once over its
+   * Kamikaze drones (B-767). A diving drone homes on the structure's centre (its target stays locked: attackTarget) and, once over its
    * edge, strikes it for DRONE_DAMAGE_SHARE of its max health and is destroyed. A target that is gone or no longer
    * hostile calls the dive off.
    */
   private processDrones(): void {
     for (const d of this.entities.vehicles()) {
       if (!d.isDrone || !d.alive) continue;
-      const lead = d.leadId === null ? null : this.entities.get(d.leadId);
-      if (lead instanceof Vehicle && lead.alive) {
-        if (lead.flight !== 'parked' && lead.moving) {
-          d.diveTargetId = lead.diveTargetId;
-          d.attackTarget = lead.diveTargetId;
-          const gap = DRONE_PAIR_GAP_CELLS * CELL_SIZE;
-          if (d.flight === 'parked' || Math.hypot(lead.px - d.px, lead.py - d.py) > gap) {
-            d.follow([{ x: lead.px - Math.cos(lead.heading) * gap, y: lead.py - Math.sin(lead.heading) * gap }]);
-            continue;
-          }
-          if (lead.diveTargetId === null) continue;
-        }
-      } else d.leadId = null; // its lead is gone: it flies on its own
       if (d.diveTargetId === null) continue;
       const b = this.entities.get(d.diveTargetId);
       const ok = (b instanceof Building && b.spec.type !== 'oilDerrick') || (b instanceof Unit && !b.flies && b.visible);

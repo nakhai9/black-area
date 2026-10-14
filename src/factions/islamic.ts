@@ -127,7 +127,7 @@ export const ISLAMIC: FactionConfig = {
     },
     drone: {
       name: "B-767",
-      description: t("B-767 kamikaze drones, built in pairs at the Airfield and parked there; cheaper than the fighter. Unarmed: order them onto an enemy structure (never an oil derrick), ground vehicle or soldier (it stays locked as their target; aircraft in the air, such as fighters and helicopters, cannot be targeted) and they fly there, the second 3 cells behind the first, and each dives into it — a structure or vehicle loses 50% of its max health, a soldier dies — and is destroyed. They can fire the turbo like any aircraft. Only fighters and air-defence vehicles can shoot them down."),
+      description: t("B-767 kamikaze drone, built at the Airfield and parked there; cheaper than the fighter. Unarmed: order them onto an enemy structure (never an oil derrick), ground vehicle or soldier (it stays locked as their target; aircraft in the air, such as fighters and helicopters, cannot be targeted) and they fly there, the second 3 cells behind the first, and each dives into it — a structure or vehicle loses 50% of its max health, a soldier dies — and is destroyed. They can fire the turbo like any aircraft. Only fighters and air-defence vehicles can shoot them down."),
     },
     repair: {
       name: "Type 99II",

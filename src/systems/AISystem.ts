@@ -1071,7 +1071,7 @@ export class AISystem implements GameSystem {
   // ------------------------------------------------------------------ army
 
   /**
-   * Idle kamikaze drone pairs (B-767) dive at the enemy's most valuable target, by tier (DRONE_PRIORITY): money-making
+   * Idle kamikaze drones (B-767) dive at the enemy's most valuable target, by tier (DRONE_PRIORITY): money-making
    * structures > the capital > military structures > civil structures > groups of vehicles and soldiers together > groups of vehicles >
    * groups of soldiers > a lone vehicle > a lone soldier. Within a tier: the bigger group, then
    * the nearest to home. Every enemy nation is weighed together (the rival first within a tier), so pairs either pile onto
@@ -1079,7 +1079,7 @@ export class AISystem implements GameSystem {
    */
   private sendDrones(p: PlayerState, st: AIState, capital: Building): void {
     const mine = this.host.entities.vehicles().filter((v) => v.owner === p.id && v.alive && v.isDrone);
-    const idle = mine.filter((v) => v.leadId === null && v.diveTargetId === null);
+    const idle = mine.filter((v) => v.diveTargetId === null);
     const first = idle[0];
     if (!first) return;
     const taken = new Set(mine.map((v) => v.diveTargetId).filter((id): id is number => id !== null));

@@ -261,8 +261,6 @@ export class Vehicle extends Unit {
 
   /** Kamikaze drone only: id of the enemy structure it is diving at, or null. */
   diveTargetId: number | null = null;
-  /** Kamikaze drone, second of a pair: id of the lead drone it trails DRONE_PAIR_GAP_CELLS behind, or null. */
-  leadId: number | null = null;
 
   get isTruck(): boolean {
     return this.type === 'truck';

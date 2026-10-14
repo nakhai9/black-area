@@ -1,5 +1,5 @@
 import { demoPrice } from '../core/Demo';
-import { AVAILABLE_VEHICLES, DRONE_PAIR, BUILD_LIMIT_VEHICLES, MAX_GROUND_VEHICLES, MAX_TRANSPORTS, TECH_VEHICLES, VEHICLE_BASE, needsAirfield } from '../constants';
+import { AVAILABLE_VEHICLES, BUILD_LIMIT_VEHICLES, MAX_GROUND_VEHICLES, MAX_TRANSPORTS, TECH_VEHICLES, VEHICLE_BASE, needsAirfield } from '../constants';
 import type { Building } from '../entities/Building';
 import type { EntityManager } from '../entities/EntityManager';
 import { FACTIONS } from '../factions';
@@ -121,7 +121,7 @@ export class VehicleSystem implements GameSystem {
    */
   /** Free parking spots (helicopters take none: they land wherever they like). */
   parkingFree(player: PlayerState): number {
-    const ordered = this.queue(player).items.reduce((n, k) => n + (k === 'drone' ? DRONE_PAIR : needsAirfield(k) && k !== 'heli' ? 1 : 0), 0);
+    const ordered = this.queue(player).items.reduce((n, k) => n + (needsAirfield(k) && k !== 'heli' ? 1 : 0), 0);
     return this.parkingCapacity(player) - this.aircraftOwned(player) - ordered;
   }
 
