@@ -928,12 +928,12 @@ export class Sidebar {
   /** Last seen queue count and progress per soldier / vehicle cameo: a count that drops from (nearly) done means one came out. */
   private readonly lastMade = new Map<string, { count: number; progress: number }>();
 
-  /** A soldier or vehicle just came out: its cameo (and its tab) flash green once, then stop. */
-  private flashIfDone(key: string, el: HTMLElement, tab: 'infantry' | 'vehicles', count: number, progress: number): void {
+  /** A soldier or vehicle just came out: only its tab flashes green once, then stops. */
+  private flashIfDone(key: string, tab: 'infantry' | 'vehicles', count: number, progress: number): void {
     const before = this.lastMade.get(key);
     this.lastMade.set(key, { count, progress });
     if (!before || count >= before.count || before.progress < 0.9) return;
-    for (const target of [el, this.tabButtons.get(tab)]) {
+    for (const target of [this.tabButtons.get(tab)]) {
       if (!target) continue;
       target.classList.remove('sb-done');
       void target.offsetWidth; // restart the animation if it is still running
@@ -950,7 +950,7 @@ export class Sidebar {
       // Every order trains at once: each cameo shows its own most advanced soldier.
       const training = count > 0;
       const progress = model.unitProgress(option.tier);
-      this.flashIfDone(`u:${option.tier}`, c.el, 'infantry', count, progress);
+      this.flashIfDone(`u:${option.tier}`, 'infantry', count, progress);
       setData(c.el, 'state', training ? q.state : 'idle');
       const atLimit = model.army.queued >= model.army.limit && count === 0;
       const noTech = TECH_TIERS.includes(option.tier) && !model.owned.has('techCenter');
@@ -984,7 +984,7 @@ export class Sidebar {
       // Every order is built at once: each cameo shows its own most advanced machine.
       const producing = count > 0;
       const progress = model.vehicleProgress(option.kind);
-      this.flashIfDone(`v:${option.kind}`, c.el, 'vehicles', count, progress);
+      this.flashIfDone(`v:${option.kind}`, 'vehicles', count, progress);
       setData(c.el, 'state', producing ? q.state : 'idle');
       const atLimit = model.vehicleQueued >= BUILD_LIMIT_VEHICLES && count === 0;
       const noTech = TECH_VEHICLES.includes(option.kind) && !model.owned.has('techCenter');

@@ -671,7 +671,9 @@ kbd {
   color: #ffe08a;
   background: linear-gradient(transparent, rgba(0, 0, 0, 0.7));
 }
-.sb-cameo[data-state='ready'] .sb-cameo-state,
+.sb-cameo[data-state='ready'] .sb-cameo-state {
+  color: #7dff8a;
+}
 .sb-cameo[data-state='placing'] .sb-cameo-state {
   color: #7dff8a;
   animation: sb-blink 0.9s steps(2, start) infinite;
@@ -708,8 +710,9 @@ kbd {
     box-shadow: 0 0 0 1px rgba(125, 255, 138, 0.35);
   }
 }
+/* A finished structure: steady green border on its cell (no blinking); only the tab blinks. */
 .sb-cameo[data-state='ready'] {
-  animation: sb-cameo-glow 0.8s ease-in-out infinite;
+  box-shadow: 0 0 0 2px #7dff8a;
 }
 /* A finished structure waits to be placed: its Build / Defense tab and the sidebar opener keep blinking green. */
 .sb-attention {
@@ -1630,4 +1633,12 @@ button,
 .sb-main-tabs button,
 .sb-tabs button {
   font-weight: 600;
+}
+
+/* Get a loan: yellow background while a loan is available. */
+.sb-sell.sb-loan:not(:disabled),
+.sb-sell.sb-loan:hover:not(:disabled) {
+  background: linear-gradient(#ffd84a, #e0a800);
+  border-color: #ffe08a;
+  color: #2a1e00;
 }
