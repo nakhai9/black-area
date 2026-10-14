@@ -3180,8 +3180,9 @@ export class Game {
       }
       this.entities.remove(e.id);
       const vehicle = e instanceof Vehicle;
-      // One of my aircraft shot down / crashed: the pilot's distress call.
-      if (vehicle && e.aircraft && !e.maydaySent && e.owner === this.humanPlayer.id) this.sound.mayday();
+      // One of my aircraft shot down / crashed in the air: the pilot's distress call (never for another nation's
+      // aircraft, nor for one destroyed standing on the ground).
+      if (vehicle && e.aircraft && !e.maydaySent && e.altitude > 1 && e.owner === this.humanPlayer.id) this.sound.mayday();
       if (e instanceof Infantry && !e.inWater && hasSoldierDeath(e.profile.look)) {
         this.effects.add({ kind: 'soldierDeath', ...this.fx(e.px, e.py), age: 0, ttl: SOLDIER_DEATH_SECONDS, look: e.profile.look, heading: e.heading });
         return;
