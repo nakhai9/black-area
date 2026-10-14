@@ -1,5 +1,5 @@
 import { movesRight } from '../core/IsoView';
-import { BOMB_FALL_SECONDS, HIGH_GROUND_DAMAGE, HIGH_GROUND_RANGE, LOW_GROUND_DAMAGE, BUNKER_COOLDOWN, BUNKER_DAMAGE, BUNKER_RANGE, BUNKER_VS_VEHICLE, MANTIS_HIT_SHARE, MANTIS_RANGE_CELLS, MANTIS_RANK_BONUS, MANTIS_EVADE_CELLS, HELI_VS_MANTIS_SHARE, JET_BOMB_VS_STRUCTURE, JET_BOMB_VS_VEHICLE, ACQUIRE_PERIOD, RANK_FIREPOWER, RANK_RELOAD, BOMB_GROUP_RADIUS_CELLS, BOMB_GROUP_SIZE, BOMB_TOUGH_DAMAGE, BOMB_TOUGH_STRUCTURES, BOMBS_PER_DROP, CELL_SIZE, CHASE_GIVE_UP_SECONDS, CHASE_LIMIT_CELLS, CHASE_PERIOD, FIGHT_MEMORY_SECONDS, GUARD_VISION_FACTOR, NEUTRAL_OWNER, RETALIATE_RANGE_FACTOR, WEAPONS, FIGHTER_DRONE_ALERT } from '../constants';
+import { BOMB_FALL_SECONDS, HIGH_GROUND_DAMAGE, HIGH_GROUND_RANGE, LOW_GROUND_DAMAGE, BUNKER_COOLDOWN, BUNKER_DAMAGE, BUNKER_RANGE, BUNKER_VS_VEHICLE, MANTIS_HIT_SHARE, MANTIS_RANGE_CELLS, MANTIS_RANK_BONUS, MANTIS_EVADE_CELLS, HELI_VS_MANTIS_SHARE, JET_VS_MANTIS_SHARE, MANTIS_VS_JET_SHARE, MANTIS_VS_HELI_SHARE, JET_BOMB_VS_STRUCTURE, JET_BOMB_VS_VEHICLE, ACQUIRE_PERIOD, RANK_FIREPOWER, RANK_RELOAD, BOMB_GROUP_RADIUS_CELLS, BOMB_GROUP_SIZE, BOMB_TOUGH_DAMAGE, BOMB_TOUGH_STRUCTURES, BOMBS_PER_DROP, CELL_SIZE, CHASE_GIVE_UP_SECONDS, CHASE_LIMIT_CELLS, CHASE_PERIOD, FIGHT_MEMORY_SECONDS, GUARD_VISION_FACTOR, NEUTRAL_OWNER, RETALIATE_RANGE_FACTOR, WEAPONS, FIGHTER_DRONE_ALERT } from '../constants';
 import { Building } from '../entities/Building';
 import { Bunker } from '../entities/Bunker';
 import type { Entity } from '../entities/Entity';
@@ -495,7 +495,9 @@ export class CombatSystem implements GameSystem {
       return;
     }
     if (!t.alive) return;
-    t.damage(t instanceof Building ? t.maxHp * JET_BOMB_VS_STRUCTURE : t instanceof Vehicle ? t.maxHp * JET_BOMB_VS_VEHICLE : Infinity); // a soldier: dead, veteran or not
+    // On an air-defence vehicle a fighter's bomb takes JET_VS_MANTIS_SHARE of its full health.
+    const vsVehicle = t instanceof Vehicle && t.type === 'mantis' ? JET_VS_MANTIS_SHARE : JET_BOMB_VS_VEHICLE;
+    t.damage(t instanceof Building ? t.maxHp * JET_BOMB_VS_STRUCTURE : t instanceof Vehicle ? t.maxHp * vsVehicle : Infinity); // a soldier: dead, veteran or not
     t.lastAttackerId = s.id;
     t.lastAttackedAt = this.time;
   }
@@ -543,11 +545,13 @@ export class CombatSystem implements GameSystem {
       this.hooks.onFire(s, t, { ...w, kind: 'bomb' }, impact);
       return;
     }
-    // Air-defence missile on an aircraft: MANTIS_HIT_SHARE of its full health per hit, +MANTIS_RANK_BONUS per veteran star.
+    // Air-defence missile on an aircraft: MANTIS_HIT_SHARE of its full health per hit (MANTIS_VS_JET_SHARE on a
+    // fighter, MANTIS_VS_HELI_SHARE on a helicopter), +MANTIS_RANK_BONUS per veteran star.
     const flak = s instanceof Vehicle && s.type === 'mantis' && t instanceof Vehicle && t.aircraft;
+    const flakShare = !(t instanceof Vehicle) ? MANTIS_HIT_SHARE : t.type === 'jet' ? MANTIS_VS_JET_SHARE : t.isHeli ? MANTIS_VS_HELI_SHARE : MANTIS_HIT_SHARE;
     // Attack helicopter on an air-defence vehicle: HELI_VS_MANTIS_SHARE of its full health per hit.
     const heliOnFlak = s instanceof Vehicle && s.isHeli && t instanceof Vehicle && t.type === 'mantis';
-    const dmg = flak ? t.maxHp * MANTIS_HIT_SHARE * (1 + MANTIS_RANK_BONUS * s.rank) : heliOnFlak ? t.maxHp * HELI_VS_MANTIS_SHARE : w.damage * RANK_FIREPOWER[s.rank] * (t instanceof Building ? w.vsBuilding : 1) * this.heightFactor(s, t);
+    const dmg = flak ? t.maxHp * flakShare * (1 + MANTIS_RANK_BONUS * s.rank) : heliOnFlak ? t.maxHp * HELI_VS_MANTIS_SHARE : w.damage * RANK_FIREPOWER[s.rank] * (t instanceof Building ? w.vsBuilding : 1) * this.heightFactor(s, t);
     t.damage(dmg);
     t.lastAttackerId = s.id;
     t.lastAttackedAt = this.time;
