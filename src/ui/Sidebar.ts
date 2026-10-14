@@ -418,6 +418,9 @@ export class Sidebar {
     this.powerFill = q('.sb-power-fill');
     this.message = q('.sb-msg');
     this.radarPanel = q('.sb-radar');
+    // The compass sits in the minimap's bottom-left corner (the minimap is drawn north-up).
+    const compass = document.getElementById('compass');
+    if (compass) this.radarPanel.append(compass);
     this.alertList = q('.sb-alert-list');
     this.alertEmpty = q('.sb-alert-empty');
     this.transportPanel = q('.sb-transport');

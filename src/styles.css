@@ -1481,19 +1481,18 @@ body.sidebar-hidden .air-tools {
   color: #ffe08a;
 }
 
-/* ------------------------------------------------------------- compass (bottom left, above the status bar) */
-/* Laid flat on the isometric ground: the icon's east (+x) goes to the screen's down-right and its south (+y) to the
-   down-left, the same 2:1 projection as the map (HALF_TW = 2 × HALF_TH), so N points to the map's north (up-right). */
+/* ------------------------------------------------------------- compass (bottom-left corner of the minimap) */
+/* The minimap is drawn north-up, so the compass is too (N straight up). */
 #compass {
   position: absolute;
-  left: 18px;
-  bottom: 30px;
-  width: 120px;
-  height: 120px;
+  left: 6px;
+  bottom: 6px;
+  width: 40px;
+  height: 40px;
+  z-index: 1;
   color: #ffe08a;
   filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.85));
   pointer-events: none;
-  transform: matrix(0.7071, 0.3536, -0.7071, 0.3536, 0, 0);
 }
 #compass svg {
   width: 100%;
