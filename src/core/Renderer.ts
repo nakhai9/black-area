@@ -713,7 +713,7 @@ export class Renderer {
     const iso = u instanceof Vehicle;
     const t = f.target;
     if (f.kind === 'attack' && (!t || !t.alive)) return;
-    if (t && t.alive && (f.kind === 'attack' || t instanceof Vehicle)) {
+    if (t && t.alive && (f.kind === 'attack' || t instanceof Vehicle || 'centerWorld' in t)) {
       if ('centerWorld' in t) {
         const c = (t as Building).centerWorld();
         end = iso ? worldToIso(c.x, c.y) : c;

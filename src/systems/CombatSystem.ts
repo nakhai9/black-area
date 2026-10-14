@@ -1,5 +1,5 @@
 import { movesRight } from '../core/IsoView';
-import { BOMB_FALL_SECONDS, HIGH_GROUND_DAMAGE, HIGH_GROUND_RANGE, LOW_GROUND_DAMAGE, BUNKER_COOLDOWN, BUNKER_DAMAGE, BUNKER_RANGE, BUNKER_VS_VEHICLE, MANTIS_HIT_SHARE, MANTIS_RANGE_CELLS, MANTIS_RANK_BONUS, HELI_VS_MANTIS_SHARE, JET_BOMB_VS_STRUCTURE, JET_BOMB_VS_VEHICLE, ACQUIRE_PERIOD, RANK_FIREPOWER, RANK_RELOAD, BOMB_GROUP_RADIUS_CELLS, BOMB_GROUP_SIZE, BOMB_TOUGH_DAMAGE, BOMB_TOUGH_STRUCTURES, BOMBS_PER_DROP, CELL_SIZE, CHASE_GIVE_UP_SECONDS, CHASE_LIMIT_CELLS, CHASE_PERIOD, FIGHT_MEMORY_SECONDS, GUARD_VISION_FACTOR, NEUTRAL_OWNER, RETALIATE_RANGE_FACTOR, WEAPONS, FIGHTER_DRONE_ALERT } from '../constants';
+import { BOMB_FALL_SECONDS, HIGH_GROUND_DAMAGE, HIGH_GROUND_RANGE, LOW_GROUND_DAMAGE, BUNKER_COOLDOWN, BUNKER_DAMAGE, BUNKER_RANGE, BUNKER_VS_VEHICLE, MANTIS_HIT_SHARE, MANTIS_RANGE_CELLS, MANTIS_RANK_BONUS, MANTIS_EVADE_CELLS, HELI_VS_MANTIS_SHARE, JET_BOMB_VS_STRUCTURE, JET_BOMB_VS_VEHICLE, ACQUIRE_PERIOD, RANK_FIREPOWER, RANK_RELOAD, BOMB_GROUP_RADIUS_CELLS, BOMB_GROUP_SIZE, BOMB_TOUGH_DAMAGE, BOMB_TOUGH_STRUCTURES, BOMBS_PER_DROP, CELL_SIZE, CHASE_GIVE_UP_SECONDS, CHASE_LIMIT_CELLS, CHASE_PERIOD, FIGHT_MEMORY_SECONDS, GUARD_VISION_FACTOR, NEUTRAL_OWNER, RETALIATE_RANGE_FACTOR, WEAPONS, FIGHTER_DRONE_ALERT } from '../constants';
 import { Building } from '../entities/Building';
 import { Bunker } from '../entities/Bunker';
 import type { Entity } from '../entities/Entity';
@@ -211,7 +211,10 @@ export class CombatSystem implements GameSystem {
     const w = s.weapon;
     if (!w) return;
     // Air-defence vehicle: every veteran star adds one cell of range (its own weapon copy, set from the current rank).
-    if (s instanceof Vehicle && s.type === 'mantis') w.range = (MANTIS_RANGE_CELLS + s.rank) * CELL_SIZE;
+    if (s instanceof Vehicle && s.type === 'mantis') {
+      w.range = (MANTIS_RANGE_CELLS + s.rank) * CELL_SIZE;
+      if (this.mantisUnderFire(s, w)) return;
+    }
     // Out of bombs: a bomber is done and flies home at once to rearm; a fighter sent against a structure (which
     // only bombs can hit) does the same, otherwise it keeps fighting with its guns.
     const bombingOrder = s.attackTarget !== null && this.entities.get(s.attackTarget) instanceof Building;
@@ -324,6 +327,39 @@ export class CombatSystem implements GameSystem {
     const plainFlight = s.flies && s.moving && !s.chasing && !(s instanceof Vehicle && (s.returningHome || s.guardId !== null));
     const mayChase = s.chasing || (s.flies && !plainFlight) || s.attackTarget !== null || s.attackMove !== null;
     if (mayChase) this.chase(s, target, w);
+  }
+
+  /**
+   * Idle air-defence vehicle just hit (no orders, standing still): an aircraft it can shoot but that is out of range is
+   * driven at until in range; anything it cannot shoot back (ground units, a grounded aircraft) makes it pull back
+   * MANTIS_EVADE_CELLS away from the attacker. Returns true when it moved this tick (player and AI alike).
+   */
+  private mantisUnderFire(s: Vehicle, w: WeaponSpec): boolean {
+    if (s.moving || s.attackTarget !== null || s.attackMove !== null || s.lastAttackerId === null) return false;
+    if (this.time - s.lastAttackedAt > 1) return false;
+    const a = this.entities.get(s.lastAttackerId);
+    if (!a || !a.alive || !isHostile(s, a) || !(a instanceof Unit)) return false;
+    const d = distanceTo(s.px, s.py, a);
+    if (this.canHit(s, w, a)) {
+      if (d <= w.range) return false; // in range: the normal sweep shoots it
+      this.chase(s, a, w);
+      return true;
+    }
+    if ((this.chaseAt.get(s.id) ?? 0) > this.time) return true;
+    this.chaseAt.set(s.id, this.time + CHASE_PERIOD);
+    const dx = s.px - a.px;
+    const dy = s.py - a.py;
+    const len = Math.hypot(dx, dy) || 1;
+    const to = this.pathfinder.nearestPassable(
+      Math.floor((s.px + (dx / len) * MANTIS_EVADE_CELLS * CELL_SIZE) / CELL_SIZE),
+      Math.floor((s.py + (dy / len) * MANTIS_EVADE_CELLS * CELL_SIZE) / CELL_SIZE),
+      6,
+      undefined,
+      s.swims,
+    );
+    if (!to) return false;
+    s.follow(this.pathfinder.find({ x: s.px, y: s.py }, to, s.swims));
+    return true;
   }
 
   private currentTarget(s: Unit): Entity | undefined {

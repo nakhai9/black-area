@@ -27,7 +27,7 @@ export const DEMO_FACTION = Number(import.meta.env.VITE_DEMO_FACTION) || 2;
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "1.145.1";
+export const GAME_VERSION = "1.146.0";
 
 /** An Allied Building within this many cells of any capital is an embassy; farther out it is a "Pro-<nation> regime". */
 export const EMBASSY_CAPITAL_CELLS = 25;
@@ -671,6 +671,8 @@ export const MANTIS_FIREPOWER = 3.5 / 3;
 export const MANTIS_RANGE_CELLS = 14;
 /** Air-defence vehicle: every veteran star adds this share to its missile damage (and one cell of range). */
 export const MANTIS_RANK_BONUS = 0.05;
+/** Idle air-defence vehicle hit by something it cannot shoot back: it pulls back this many cells away from the attacker. */
+export const MANTIS_EVADE_CELLS = 6;
 /** Every missile of the air-defence vehicle that hits an aircraft takes this share of the aircraft's full health. */
 export const MANTIS_HIT_SHARE = 0.25 / 3;
 /** Every hit of an attack helicopter on an air-defence vehicle takes this share of the vehicle's full health. */

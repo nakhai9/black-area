@@ -558,7 +558,10 @@ export class Game {
     this.bus.on('camera:focus', (p) => {
       if (!this.paused) this.camera.centerOn(p.x, p.y);
     });
-    this.bus.on('selection:changed', () => (this.sidebarTimer = SIDEBAR_REFRESH));
+    this.bus.on('selection:changed', () => {
+      this.sidebarTimer = SIDEBAR_REFRESH;
+      this.showSelectedRoutes();
+    });
     new ResizeObserver(() => this.renderer.resize()).observe(dom.canvas);
 
     if (demo) {
@@ -1208,6 +1211,20 @@ export class Game {
     if (walkers.length > 0) this.orderMove(target, [...walkers], false);
     this.markRetreat(walkers);
     if (stranded.length > 0) this.sendToSafeZone(stranded);
+  }
+
+  /**
+   * Units just selected (click, double click, box) that are on the move show their route again: a green line to where
+   * they are going, or to the structure / unit they are heading for.
+   */
+  private showSelectedRoutes(): void {
+    for (const u of this.selection.selectedUnitList()) {
+      if (u.owner !== this.humanPlayer.id || !u.moving) continue;
+      const aimed = [u.attackTarget, u.boardTarget].map((id) => (id === null ? undefined : this.entities.get(id))).find((e) => e && e.alive);
+      const prior = u.orderFlash?.target;
+      const target = aimed ?? (prior && prior.alive ? prior : null);
+      u.orderFlash = { kind: 'move', at: this.time, target };
+    }
   }
 
   /** These units fall back as one group (one mercy bonus for the whole group). */
