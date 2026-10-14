@@ -26,7 +26,7 @@
 <body>
 <main>
 <img class="logo" src="/logo.png" alt="Black Area" />
-<h1>Black Area — RULE <small>v1.144.1</small></h1>
+<h1>Black Area — RULE <small>v1.145.1</small></h1>
 <p class="lead">Tài liệu luật chơi + kiến trúc code dành cho AI/dev sửa game. Mọi con số gameplay chính xác nằm trong <code>src/constants.ts</code> và <code>src/factions/*.ts</code>. Nếu tài liệu này khác code thì <b>code đúng</b>. <b>Khi đổi luật/số trong code, phải cập nhật file này.</b></p>
 <nav><a href="#s1">Quy tắc làm việc cho AI</a><a href="#s2">Chạy dự án</a><a href="#s3">Kiến trúc thư mục</a><a href="#s4">Thế giới</a><a href="#s5">Kinh tế (dầu)</a><a href="#s6">Công trình (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Quân đội</a><a href="#s8">Chiến đấu</a><a href="#s9">Điều khiển (Game.handleKey, handleInput)</a><a href="#s10">Giới hạn &amp; hiệu năng</a><a href="#s11">Thắng / thua &amp; AI</a><a href="#s12">Công thức sửa thường gặp</a></nav>
 <h2 id="s1">0. Quy tắc làm việc cho AI</h2>
@@ -564,6 +564,12 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
   <li>Tiêm kích tự bắn hạ drone địch đang lao vào phe mình khi thấy nguy hiểm (người chơi lẫn AI) (v1.143.4).</li>
   <li>Drone B-767: bỏ bay theo cặp, mỗi lệnh sản xuất ra 1 chiếc; sprite thu nhỏ bằng tiêm kích (v1.144.0).</li>
   <li>Sidebar: nút Vay nợ nền vàng khi vay được; lính/phương tiện xong chỉ chớp tab; công trình xong viền xanh cố định trên ô, tab chớp đến khi đặt (v1.144.1).</li>
+  <li>Xe phòng không tự hành (NOMADS / Buk-M3): sát thương còn 1/3 (mỗi tên lửa trúng lấy 1/12 máu tối đa máy bay), tầm bắn 20 → 17 ô (v1.144.2).</li>
+  <li>Xe phòng không tự hành: tiêm kích chỉ diệt được bằng bom (không dùng súng); trực thăng giờ tấn công được, mỗi phát trúng mất <code>HELI_VS_MANTIS_SHARE = 5%</code> máu tối đa (v1.144.3).</li>
+  <li>Màn hình tải: thanh tiến trình khớp đúng với số %, không còn bị đứng giữa chừng (v1.144.4).</li>
+  <li>Xe phòng không tự hành: tầm bắn 17 → 14 ô (v1.144.5).</li>
+  <li>Xe phòng không tự hành lên sao: mỗi sao +1 ô tầm bắn (14 → 15/16/17) và sát thương nhân theo <code>RANK_FIREPOWER</code> (×1.15 / ×1.3 / ×1.5) (v1.145.0).</li>
+  <li>Xe phòng không tự hành: mỗi sao chỉ tăng <code>MANTIS_RANK_BONUS = 5%</code> sát thương (×1.05 / ×1.10 / ×1.15), thay cho RANK_FIREPOWER (v1.145.1).</li>
   <li>Tìm đường (A*) là phần tốn nhất: đơn vị attack-move bị chặn chỉ thử tìm lại đường mỗi <code>RESUME_RETRY 1</code> s (đích ở bờ biển khác / không tới được thì huỷ lệnh); mỗi 0.5 s chỉ đổi đường tối đa <code>REPATH_BUDGET 8</code> đơn vị kẹt, hết đường thì dừng.</li>
   <li>Dọn cache mỗi <code>JANITOR_INTERVAL = 180</code> s (ảnh/địa hình không dùng, sổ ghi unit đã chết, sổ thưởng nhân từ của nhóm rút lui không còn ai sống). Chỉ xoá thứ không còn dùng tới, không động vào lính, công trình, tiền hay lệnh đang chạy. Tìm đường A* (<code>Pathfinder.find</code>) mỗi ô chỉ mở rộng 1 lần (bỏ bản sao cũ trong hàng đợi), đọc thẳng mảng của <code>TileMap</code>, hàng đợi ưu tiên dùng typed array dùng lại giữa các lần tìm.</li>
   <li>Art dùng sprite sheet PNG trong <code>public/sprites/</code> (tank, jet/bomber, bom, tên lửa, đạn pháo, lính 8 hướng), vẽ thủ tục khi không có sheet.</li>

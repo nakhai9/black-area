@@ -1,5 +1,5 @@
 import { movesRight } from '../core/IsoView';
-import { BOMB_FALL_SECONDS, HIGH_GROUND_DAMAGE, HIGH_GROUND_RANGE, LOW_GROUND_DAMAGE, BUNKER_COOLDOWN, BUNKER_DAMAGE, BUNKER_RANGE, BUNKER_VS_VEHICLE, MANTIS_HIT_SHARE, JET_BOMB_VS_STRUCTURE, JET_BOMB_VS_VEHICLE, ACQUIRE_PERIOD, RANK_FIREPOWER, RANK_RELOAD, BOMB_GROUP_RADIUS_CELLS, BOMB_GROUP_SIZE, BOMB_TOUGH_DAMAGE, BOMB_TOUGH_STRUCTURES, BOMBS_PER_DROP, CELL_SIZE, CHASE_GIVE_UP_SECONDS, CHASE_LIMIT_CELLS, CHASE_PERIOD, FIGHT_MEMORY_SECONDS, GUARD_VISION_FACTOR, NEUTRAL_OWNER, RETALIATE_RANGE_FACTOR, WEAPONS, FIGHTER_DRONE_ALERT } from '../constants';
+import { BOMB_FALL_SECONDS, HIGH_GROUND_DAMAGE, HIGH_GROUND_RANGE, LOW_GROUND_DAMAGE, BUNKER_COOLDOWN, BUNKER_DAMAGE, BUNKER_RANGE, BUNKER_VS_VEHICLE, MANTIS_HIT_SHARE, MANTIS_RANGE_CELLS, MANTIS_RANK_BONUS, HELI_VS_MANTIS_SHARE, JET_BOMB_VS_STRUCTURE, JET_BOMB_VS_VEHICLE, ACQUIRE_PERIOD, RANK_FIREPOWER, RANK_RELOAD, BOMB_GROUP_RADIUS_CELLS, BOMB_GROUP_SIZE, BOMB_TOUGH_DAMAGE, BOMB_TOUGH_STRUCTURES, BOMBS_PER_DROP, CELL_SIZE, CHASE_GIVE_UP_SECONDS, CHASE_LIMIT_CELLS, CHASE_PERIOD, FIGHT_MEMORY_SECONDS, GUARD_VISION_FACTOR, NEUTRAL_OWNER, RETALIATE_RANGE_FACTOR, WEAPONS, FIGHTER_DRONE_ALERT } from '../constants';
 import { Building } from '../entities/Building';
 import { Bunker } from '../entities/Bunker';
 import type { Entity } from '../entities/Entity';
@@ -62,9 +62,10 @@ export function canTarget(shooter: Unit, target: Entity): boolean {
   const w = shooter.weapon;
   if (!w || !isHostile(shooter, target)) return false;
   if (shooter.unarmedTransport) return false; // transports never attack anything
-  // An air-defence vehicle is hit from the air by bombs only, never by an aircraft's guns (a helicopter has none).
+  // An air-defence vehicle is hit from the air by bombs (bomber, fighter with a bomb left; never a fighter's guns)
+  // or by an attack helicopter (HELI_VS_MANTIS_SHARE of its health per hit).
   if (shooter instanceof Vehicle && shooter.aircraft && target instanceof Vehicle && target.type === 'mantis')
-    return shooter.type === 'bomber' || (shooter.type === 'jet' && shooter.bombs > 0);
+    return shooter.type === 'bomber' || shooter.isHeli || (shooter.type === 'jet' && shooter.bombs > 0);
   // Attack helicopters hunt ground vehicles only: no structures, soldiers or aircraft.
   // Exception (self-defence): the ground attacker that shot it while it stood landed, soldier or vehicle.
   if (shooter instanceof Vehicle && shooter.isHeli) return (target instanceof Vehicle && !target.aircraft) || (shooter.heliRevenge === target.id && target instanceof Unit && !target.flies);
@@ -209,6 +210,8 @@ export class CombatSystem implements GameSystem {
   private think(s: Unit, grid: Map<number, Unit[]>): void {
     const w = s.weapon;
     if (!w) return;
+    // Air-defence vehicle: every veteran star adds one cell of range (its own weapon copy, set from the current rank).
+    if (s instanceof Vehicle && s.type === 'mantis') w.range = (MANTIS_RANGE_CELLS + s.rank) * CELL_SIZE;
     // Out of bombs: a bomber is done and flies home at once to rearm; a fighter sent against a structure (which
     // only bombs can hit) does the same, otherwise it keeps fighting with its guns.
     const bombingOrder = s.attackTarget !== null && this.entities.get(s.attackTarget) instanceof Building;
@@ -504,9 +507,11 @@ export class CombatSystem implements GameSystem {
       this.hooks.onFire(s, t, { ...w, kind: 'bomb' }, impact);
       return;
     }
-    // Air-defence missile on an aircraft: a quarter of its full health per hit.
+    // Air-defence missile on an aircraft: MANTIS_HIT_SHARE of its full health per hit, +MANTIS_RANK_BONUS per veteran star.
     const flak = s instanceof Vehicle && s.type === 'mantis' && t instanceof Vehicle && t.aircraft;
-    const dmg = flak ? t.maxHp * MANTIS_HIT_SHARE : w.damage * RANK_FIREPOWER[s.rank] * (t instanceof Building ? w.vsBuilding : 1) * this.heightFactor(s, t);
+    // Attack helicopter on an air-defence vehicle: HELI_VS_MANTIS_SHARE of its full health per hit.
+    const heliOnFlak = s instanceof Vehicle && s.isHeli && t instanceof Vehicle && t.type === 'mantis';
+    const dmg = flak ? t.maxHp * MANTIS_HIT_SHARE * (1 + MANTIS_RANK_BONUS * s.rank) : heliOnFlak ? t.maxHp * HELI_VS_MANTIS_SHARE : w.damage * RANK_FIREPOWER[s.rank] * (t instanceof Building ? w.vsBuilding : 1) * this.heightFactor(s, t);
     t.damage(dmg);
     t.lastAttackerId = s.id;
     t.lastAttackedAt = this.time;
