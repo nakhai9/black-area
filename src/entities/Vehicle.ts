@@ -139,9 +139,11 @@ export class Vehicle extends Unit {
   readonly cargo: Unit[] = [];
   /** Truck: rolling out of the War Factory to its parking spot (allowed to drive empty). */
   parking = false;
-  /** Army truck: may it drive now? Only with TRUCK_MIN_RIDERS soldiers aboard, or while leaving the factory. */
+  /** Truck: it heads for (or stands on) a spot inside its own base (TRUCK_HOME_CELLS), set by the game each tick. */
+  atHome = false;
+  /** Army truck: may it drive now? Only with TRUCK_MIN_RIDERS soldiers aboard, inside its own base, or while leaving the factory. */
   get truckMayDrive(): boolean {
-    if (!this.isTruck || this.cargo.length >= TRUCK_MIN_RIDERS) return true;
+    if (!this.isTruck || this.cargo.length >= TRUCK_MIN_RIDERS || this.atHome) return true;
     if (this.parking && this.moving) return true;
     this.parking = false;
     return false;

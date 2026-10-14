@@ -168,6 +168,7 @@ export const BUILD_OPTIONS: readonly BuildOption[] = [
     // Seat of an ally (embassy / Pro-<nation> regime): built like any structure, next to an own flag or building, no cap.
     id: 'alliedBuilding',
     name: 'Allied Building',
+    requires: ['barracks', 'warFactory'],
     cost: ALLIED_BUILDING_COST,
     footprint: FOOTPRINT_SMALL,
     spriteKey: (f) => `alliedBuilding:${f}`,

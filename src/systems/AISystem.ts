@@ -503,7 +503,10 @@ export class AISystem implements GameSystem {
       if (bunkers < AI_BUNKERS + Math.floor(this.cities(p) / 3)) next = BUILD_OPTIONS.find((o) => o.id === 'bunker');
     }
     // A claim flag stands on new land without its ally yet: raise the Allied Building next to it.
-    if (!next && threat === 0 && this.embassyAnchors(p, capital).length > 0 && this.host.alliesOf(p) < MAX_ALLIES) next = BUILD_OPTIONS.find((o) => o.id === 'alliedBuilding');
+    if (!next && threat === 0 && this.embassyAnchors(p, capital).length > 0 && this.host.alliesOf(p) < MAX_ALLIES) {
+      const allied = BUILD_OPTIONS.find((o) => o.id === 'alliedBuilding');
+      if (allied && missingRequirement(allied, owned) === null) next = allied;
+    }
     // Forward base: a Barracks and a War Factory next to each Allied Building, so troops come out on the new land.
     if (!next && threat === 0) {
       for (const id of FORWARD_TYPES) {

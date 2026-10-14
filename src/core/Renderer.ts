@@ -25,7 +25,7 @@ import { drawTankDeath, drawTankSheet } from '../render/TankSheets';
 import { drawCraftDeath } from '../render/CraftSheets';
 import { FACTIONS, teamColors } from '../factions';
 import { NationCapital } from '../entities/NationCapital';
-import type { TerrainRenderer } from '../map/TerrainRenderer';
+import type { Peak, TerrainRenderer } from '../map/TerrainRenderer';
 import { createCanvas, get2d } from '../render/Canvas';
 import { withAlpha } from '../render/Color';
 import { IsoPainter } from '../render/IsoPainter';
@@ -174,7 +174,8 @@ export class Renderer {
   /** Per-frame scratch lists, reused so drawing a frame allocates no new arrays. */
   private readonly visibleBuildings: Building[] = [];
   private readonly visibleUnits: Unit[] = [];
-  private readonly drawables: (Building | Unit)[] = [];
+  private readonly drawables: (Building | Unit | Peak)[] = [];
+  private readonly visiblePeaks: Peak[] = [];
   private readonly focusedIds = new Set<number>();
   private readonly unitDepth = new Map<number, number>();
   private dpr = 1;
@@ -247,7 +248,8 @@ export class Renderer {
     // DEMO: the whole grid of unit cells (ô đơn vị) over land and sea, to see exactly where everything stands.
     if (demoActive) this.drawCellGrid(view);
     this.upright();
-    this.terrain.drawMountains(ctx, view, camera.zoom);
+    // Passes now; the peaks join the depth-sorted pass below (a soldier behind a peak is hidden by it).
+    this.terrain.drawMountains(ctx, view, camera.zoom, this.visiblePeaks);
     this.terrain.drawTrees(ctx, view, camera.zoom);
 
     this.ground();
@@ -287,15 +289,18 @@ export class Renderer {
     drawables.length = 0;
     for (const b of sorted) drawables.push(b);
     for (const u of units) if (!u.flies) drawables.push(u);
+    for (const p of this.visiblePeaks) drawables.push(p);
     // A unit beside a big structure is ordered against the structure's edges, not its centre:
     // in front of the near edge it is drawn after it, behind the far edge before it.
     const unitDepth = this.unitDepth;
     unitDepth.clear();
     for (const u of units) if (!u.flies) unitDepth.set(u.id, this.depthNear(u, sorted));
-    const depthOf = (d: Building | Unit): number => (d.kind === 'building' ? d.depth : (unitDepth.get(d.id) ?? d.depth));
+    const depthOf = (d: Building | Unit | Peak): number =>
+      'ridge' in d ? (d.x + d.y) / CELL_SIZE : d.kind === 'building' ? d.depth : (unitDepth.get(d.id) ?? d.depth);
     drawables.sort((a, b) => depthOf(a) - depthOf(b));
     for (const d of drawables) {
-      if (d.kind === 'building') this.drawBuilding(d, scene.time);
+      if ('ridge' in d) this.terrain.drawPeak(ctx, d);
+      else if (d.kind === 'building') this.drawBuilding(d, scene.time);
       else this.drawUnit(d);
     }
     // Order lines go over the structures (a route across a base must not vanish under it), under the aircraft.

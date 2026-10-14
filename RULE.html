@@ -26,7 +26,7 @@
 <body>
 <main>
 <img class="logo" src="/logo.png" alt="Black Area" />
-<h1>Black Area — RULE <small>v1.121.0</small></h1>
+<h1>Black Area — RULE <small>v1.125.0</small></h1>
 <p class="lead">Tài liệu luật chơi + kiến trúc code dành cho AI/dev sửa game. Mọi con số gameplay chính xác nằm trong <code>src/constants.ts</code> và <code>src/factions/*.ts</code>. Nếu tài liệu này khác code thì <b>code đúng</b>. <b>Khi đổi luật/số trong code, phải cập nhật file này.</b></p>
 <nav><a href="#s1">Quy tắc làm việc cho AI</a><a href="#s2">Chạy dự án</a><a href="#s3">Kiến trúc thư mục</a><a href="#s4">Thế giới</a><a href="#s5">Kinh tế (dầu)</a><a href="#s6">Công trình (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Quân đội</a><a href="#s8">Chiến đấu</a><a href="#s9">Điều khiển (Game.handleKey, handleInput)</a><a href="#s10">Giới hạn &amp; hiệu năng</a><a href="#s11">Thắng / thua &amp; AI</a><a href="#s12">Công thức sửa thường gặp</a></nav>
 <h2 id="s1">0. Quy tắc làm việc cho AI</h2>
@@ -210,7 +210,7 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
   <li>Airfield: <code>PARKING_SLOTS = 9</code> chỗ đỗ; số máy bay (có + đặt) ≤ 9 × số airfield. Máy bay đỗ sửa 2% HP mỗi 4 s. Mất airfield: máy bay tìm airfield khác của phe; không còn cái nào thì rơi.</li>
   <li>High-Tech Center mở <code>TECH_TIERS</code> (<code>special</code>, <code>demolition</code>) và <code>transport</code>.</li>
   <li>Happy City: không giới hạn số lượng.</li>
-  <li>Allied Building (đại sứ quán): xây thoải mái, mỗi phe tối đa <code>MAX_ALLIES = 6</code> (đang có + đang xây), không cần cờ; đặt như công trình thường, cạnh cờ đã cắm hoặc công trình của phe mình (<code>BUILD_RADIUS</code>), trên bề mặt xây được. Tên: trong <code>EMBASSY_CAPITAL_CELLS = 25</code> ô quanh bất kỳ thủ đô nào (phe hoặc quốc gia tranh chấp) → "&lt;phe&gt; Embassy in &lt;thành phố&gt;"; xa hơn mọi thủ đô → "<b>Pro-&lt;phe&gt; regime</b>" (ví dụ "Pro-USA regime"). AI theo cùng luật: xây đại sứ quán cạnh cờ chưa có đại sứ quán, hoặc cạnh công trình của mình cách thủ đô &gt; 25 ô.</li>
+  <li>Allied Building (đại sứ quán): cần có <b>Barracks + War Factory</b> (áp dụng cả AI), mỗi phe tối đa <code>MAX_ALLIES = 6</code> (đang có + đang xây), không cần cờ; đặt như công trình thường, cạnh cờ đã cắm hoặc công trình của phe mình (<code>BUILD_RADIUS</code>), trên bề mặt xây được. Tên: trong <code>EMBASSY_CAPITAL_CELLS = 25</code> ô quanh bất kỳ thủ đô nào (phe hoặc quốc gia tranh chấp) → "&lt;phe&gt; Embassy in &lt;thành phố&gt;"; xa hơn mọi thủ đô → "<b>Pro-&lt;phe&gt; regime</b>" (ví dụ "Pro-USA regime"). AI theo cùng luật: xây đại sứ quán cạnh cờ chưa có đại sứ quán, hoặc cạnh công trình của mình cách thủ đô &gt; 25 ô.</li>
   <li>Tab Allies hiện: tất cả thủ đô phe mình đã chiếm (thủ đô quốc gia tranh chấp + thủ đô phe đối thủ, dạng "Tên thủ đô (Phe)") và các đại sứ quán (Allied Building, dạng "&lt;phe&gt; Embassy in &lt;thành phố thủ đô gần nhất&gt;", ví dụ "USA Embassy in Moscow", hoặc "Pro-&lt;phe&gt; regime" khi xa mọi thủ đô &gt; 25 ô), cùng cờ cắm chờ xây.</li>
   <li>Engineer sửa từ trong nhà: mỗi kỹ sư <code>ENGINEER_REPAIR_SHARE 6%</code> máu tối đa/s, tới 100% thì ra.</li>
 </ul>
@@ -503,6 +503,10 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
   <li>AI ưu tiên dầu bằng kỹ sư: (1) chiếm giếng dầu vô chủ (Nam Cực, tính gần hơn x0,4 so với thủ đô tranh chấp), (2) thuê giếng dầu, (3) chiếm giếng dầu của đối thủ trong 70 ô (mỗi lúc 1 kỹ sư, chỉ khi chiến tranh). Quân đội AI để giếng dầu xuống cuối danh sách tấn công (trọng số 1,5 thay vì 0,45) (v1.120.0).</li>
   <li>Cảnh báo "Mayday" chỉ phát cho máy bay phe mình khi sắp rơi (máu thấp trên không) hoặc bị bắn rơi trên không; máy bay bị phá khi đang đậu dưới đất không còn phát (v1.120.1).</li>
   <li>Hoa gió (la bàn) chuyển vào góc trái dưới của mini map, hướng Bắc thẳng lên như mini map (v1.121.0).</li>
+  <li>Núi: lính và xe mặt đất không bao giờ đứng/đi trên sống núi (chỉ qua lối mòn); đỉnh núi được vẽ theo chiều sâu nên che khuất đơn vị đứng sau. Quét chọn nhóm có xe/máy bay/trực thăng vận tải rồi bấm chuột trái vào chính phương tiện đó: các đơn vị khác lên xe, phương tiện vẫn được chọn, ai không vừa chỗ ở lại ngoài và vẫn được chọn (v1.122.0).</li>
+  <li>Allied Building (nhà đồng minh) chỉ xây được khi đã có Barracks (nhà lính) + War Factory (nhà xe); AI cũng theo luật này (v1.123.0).</li>
+  <li>Mini map vẽ các dãy núi thành đường cong màu nâu đỏ theo đường sống núi trên bản đồ, để biết khu nào có núi (v1.124.0).</li>
+  <li>Xe tải thiếu lính (dưới 6/8, kể cả xe trống) vẫn chạy được trong căn cứ: khi điểm đến cách công trình của mình tối đa <code>TRUCK_HOME_CELLS = 20</code> ô; ra xa hơn thì vẫn cần đủ 6 lính. Áp dụng cả AI (v1.125.0).</li>
   <li>Tìm đường (A*) là phần tốn nhất: đơn vị attack-move bị chặn chỉ thử tìm lại đường mỗi <code>RESUME_RETRY 1</code> s (đích ở bờ biển khác / không tới được thì huỷ lệnh); mỗi 0.5 s chỉ đổi đường tối đa <code>REPATH_BUDGET 8</code> đơn vị kẹt, hết đường thì dừng.</li>
   <li>Dọn cache mỗi <code>JANITOR_INTERVAL = 180</code> s (ảnh/địa hình không dùng, sổ ghi unit đã chết, sổ thưởng nhân từ của nhóm rút lui không còn ai sống). Chỉ xoá thứ không còn dùng tới, không động vào lính, công trình, tiền hay lệnh đang chạy. Tìm đường A* (<code>Pathfinder.find</code>) mỗi ô chỉ mở rộng 1 lần (bỏ bản sao cũ trong hàng đợi), đọc thẳng mảng của <code>TileMap</code>, hàng đợi ưu tiên dùng typed array dùng lại giữa các lần tìm.</li>
   <li>Art dùng sprite sheet PNG trong <code>public/sprites/</code> (tank, jet/bomber, bom, tên lửa, đạn pháo, lính 8 hướng), vẽ thủ tục khi không có sheet.</li>

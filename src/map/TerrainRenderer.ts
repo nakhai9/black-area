@@ -60,7 +60,7 @@ const PEAK_MIN_M = 2500;
 /** Snow from this height up (more of the peak is white the higher it is). */
 const PEAK_SNOW_M = 3200;
 
-interface Peak {
+export interface Peak {
   x: number;
   y: number;
   ridge: { x: number; y: number }[];
@@ -187,22 +187,17 @@ export class TerrainRenderer {
    * Mountain ranges stand upright on the iso ground, back to front. Crest peaks are rough silhouettes, west face in shadow and east face lit (light from
    * the north-east), rock shading into snow up high; passes are worn earth slopes. Call with the "iso space" transform active.
    */
-  drawMountains(ctx: CanvasRenderingContext2D, view: Rect, zoom: number): void {
+  drawMountains(ctx: CanvasRenderingContext2D, view: Rect, zoom: number, peaksOut: Peak[]): void {
+    peaksOut.length = 0;
     if (zoom < PEAK_MIN_ZOOM) return;
     const m = CELL_SIZE * 6;
-    const items: { d: number; peak: Peak | null; cx: number; cy: number; kind: number }[] = [];
     for (let by = Math.floor((view.y - m) / PEAK_BUCKET); by <= Math.floor((view.y + view.h + m) / PEAK_BUCKET); by++) {
       for (let bx = Math.floor((view.x - m) / PEAK_BUCKET); bx <= Math.floor((view.x + view.w + m) / PEAK_BUCKET); bx++) {
         const key = by * 100000 + bx;
-        for (const p of this.peaks.get(key) ?? []) items.push({ d: p.x + p.y, peak: p, cx: 0, cy: 0, kind: 0 });
-        for (const r of this.rocks.get(key) ?? []) items.push({ d: (r.cx + r.cy + 1) * CELL_SIZE, peak: null, cx: r.cx, cy: r.cy, kind: r.kind });
+        for (const p of this.peaks.get(key) ?? []) peaksOut.push(p);
+        // Slopes lie flat on the ground: under everything else.
+        for (const r of this.rocks.get(key) ?? []) if (r.kind === MOUNTAIN_PASS) this.drawPass(ctx, r.cx, r.cy);
       }
-    }
-    // Slopes lie flat on the ground: under everything else.
-    for (const it of items) if (it.kind === MOUNTAIN_PASS) this.drawPass(ctx, it.cx, it.cy);
-    items.sort((a, b) => a.d - b.d);
-    for (const it of items) {
-      if (it.peak) this.drawPeak(ctx, it.peak);
     }
   }
 
@@ -221,7 +216,7 @@ export class TerrainRenderer {
     ctx.fill();
   }
 
-  private drawPeak(ctx: CanvasRenderingContext2D, p: Peak): void {
+  drawPeak(ctx: CanvasRenderingContext2D, p: Peak): void {
     const o = worldToIso(p.x, p.y);
     const pts = p.ridge;
     const top = pts[p.split]!;

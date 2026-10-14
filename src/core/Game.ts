@@ -89,6 +89,7 @@ import {
   MAX_ALLIES,
   GAME_VERSION,
   TRUCK_MIN_RIDERS,
+  TRUCK_HOME_CELLS,
   MOUNTAIN_PASS,
   TRUCE_GRACE_SECONDS,
   TRUCE_ZONE_CELLS,
@@ -1514,10 +1515,10 @@ export class Game {
 
   /** Can any of the selected units climb into transport `t` right now (RA2 Enter cursor)? */
   private canBoardSelected(t: Vehicle): boolean {
-    if (!t.isCarrier || t.owner !== this.humanPlayer.id || this.selection.selectedUnits.has(t.id)) return false;
+    if (!t.isCarrier || t.owner !== this.humanPlayer.id) return false;
     const usable = t.boardable || t.flight === 'airborne' || t.flight === 'approach' || (t.flight === 'unloading' && t.pickup);
     if (!usable) return false;
-    return this.selection.selectedUnitList().some((u) => u !== t && t.accepts(u) && (u instanceof Vehicle ? t.fitsWith(0, 1) : t.fitsWith(1, 0)));
+    return this.selection.selectedUnitList().some((u) => u !== t && !u.aircraft && t.accepts(u) && (u instanceof Vehicle ? t.fitsWith(0, 1) : t.fitsWith(1, 0)));
   }
 
   /**
@@ -1771,13 +1772,17 @@ export class Game {
   /**
    * No vehicle (aircraft included, once on the ground) and no ordinary soldier ever stands or drives in water — only
    * watercraft / swimmers may: a unit that has stepped into a water cell (a path corner, a shove…) is put back on its
-   * last dry spot and plans a new route. Aircraft may only cross water in the air.
+   * last dry spot and plans a new route. Aircraft may only cross water in the air. The same holds for mountain crests:
+   * a ground unit never steps onto one (no walking or driving through a range except by its passes).
    */
   private keepOutOfWater(): void {
     if (this.lastDry.size > 4000) this.lastDry.clear();
     for (const u of this.entities.fieldMovers()) {
-      if (u.flies || u.swims || (u instanceof Vehicle && u.altitude > 0)) continue;
-      if (!this.map.isWater(Math.floor(u.px / CELL_SIZE), Math.floor(u.py / CELL_SIZE))) {
+      if (u.flies || (u instanceof Vehicle && u.altitude > 0)) continue;
+      const cx = Math.floor(u.px / CELL_SIZE);
+      const cy = Math.floor(u.py / CELL_SIZE);
+      // Mountain crests are rock walls for every ground unit (swimmers too): only the passes lead across a range.
+      if (!this.map.isRockWall(cx, cy) && (u.swims || !this.map.isWater(cx, cy))) {
         // Update the stored point in place: no new object per unit per tick.
         const dry = this.lastDry.get(u.id);
         if (dry) {
@@ -1793,6 +1798,18 @@ export class Game {
       u.x = back.x / CELL_SIZE;
       u.y = back.y / CELL_SIZE;
       u.needsRepath = true;
+    }
+  }
+
+  /** Trucks short of riders may still drive around their own base: flags those heading for a spot near an own building. */
+  private markTrucksAtHome(): void {
+    const reach = TRUCK_HOME_CELLS * CELL_SIZE;
+    let mine: Building[] | null = null;
+    for (const t of this.entities.vehicles()) {
+      if (!t.isTruck || !t.alive || t.cargo.length >= TRUCK_MIN_RIDERS) continue;
+      mine ??= this.entities.buildings().filter((b) => b.alive);
+      const at = t.destination ?? { x: t.px, y: t.py };
+      t.atHome = mine.some((b) => b.owner === t.owner && distanceTo(at.x, at.y, b) <= reach);
     }
   }
 
@@ -1831,6 +1848,7 @@ export class Game {
     this.entities.update(dt);
     this.motionSound();
     this.keepOutOfWater();
+    this.markTrucksAtHome();
     this.crushInfantry();
     this.processBoarding();
     this.processTruckUnloading(dt);
@@ -2363,6 +2381,12 @@ export class Game {
       // Clicking on (or right next to) one of the selected units is a move order there, not a re-selection:
       // a group, or an aircraft circling overhead, can then be sent anywhere without the click hitting itself.
       if (unit && unit.owner === me && this.selection.selectedUnits.has(unit.id)) {
+        // A selected transport clicked while other selected units could ride it: they climb aboard (the transport
+        // and whoever does not fit stay selected).
+        if (unit instanceof Vehicle && this.canBoardSelected(unit)) {
+          const riders = selected.filter((u) => u !== unit && !u.aircraft);
+          if (this.orderBoard(unit, riders)) return;
+        }
         this.orderMove(world);
         return;
       }
@@ -4404,8 +4428,10 @@ export class Game {
   private orderMove(world: WorldPoint, units: Unit[] = this.selection.selectedUnitList(), evacuate = true): void {
     units = this.keepAircraftAtAirfield(units, world);
     if (!this.map.cellAt(world.x, world.y) || units.length === 0) return;
-    const parkedTruck = units.find((u) => u instanceof Vehicle && u.isTruck && u.owner === this.humanPlayer.id && u.cargo.length < TRUCK_MIN_RIDERS);
-    if (parkedTruck instanceof Vehicle) this.sidebar.notify(`The truck needs ${TRUCK_MIN_RIDERS}/${TRUCK_SOLDIERS} soldiers aboard to drive (${parkedTruck.cargo.length} now).`, 3);
+    // Short-handed trucks only drive within the base: warn when one is sent farther out.
+    const inBase = this.entities.buildings().some((b) => b.alive && b.owner === this.humanPlayer.id && distanceTo(world.x, world.y, b) <= TRUCK_HOME_CELLS * CELL_SIZE);
+    const parkedTruck = inBase ? undefined : units.find((u) => u instanceof Vehicle && u.isTruck && u.owner === this.humanPlayer.id && u.cargo.length < TRUCK_MIN_RIDERS);
+    if (parkedTruck instanceof Vehicle) this.sidebar.notify(`The truck needs ${TRUCK_MIN_RIDERS}/${TRUCK_SOLDIERS} soldiers aboard to drive outside the base (${parkedTruck.cargo.length} now).`, 3);
     // A new move order ends a repair job (mending, or driving to a repair vehicle).
     for (const u of units) if (u instanceof Vehicle) {
       u.heliRevenge = null;

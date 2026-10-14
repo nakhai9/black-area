@@ -1,8 +1,9 @@
-import { NEUTRAL_OWNER } from '../constants';
+import { MOUNTAIN_RANGES, NEUTRAL_OWNER } from '../constants';
 import type { Camera } from '../core/Camera';
 import type { Building } from '../entities/Building';
 import type { Unit } from '../entities/Unit';
 import { teamColors } from '../factions';
+import { geoToWorld } from '../map/Geo';
 import type { TerrainRenderer } from '../map/TerrainRenderer';
 import { createCanvas, get2d } from '../render/Canvas';
 import type { WorldPoint } from '../types';
@@ -65,6 +66,25 @@ export class Minimap {
       t.width * this.scale * this.dpr,
       t.height * this.scale * this.dpr,
     );
+    // Mountain ranges: a smooth reddish-brown curve along each crest line, so the radar shows where the mountains are.
+    ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    ctx.strokeStyle = 'rgba(150,62,38,0.9)';
+    ctx.lineWidth = 2.2;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    for (const range of MOUNTAIN_RANGES) {
+      const pts = range.points.map(([lon, lat]) => this.toMinimap(geoToWorld({ lon, lat })));
+      ctx.beginPath();
+      ctx.moveTo(pts[0]!.x, pts[0]!.y);
+      for (let k = 1; k < pts.length - 1; k++) {
+        const mx = (pts[k]!.x + pts[k + 1]!.x) / 2;
+        const my = (pts[k]!.y + pts[k + 1]!.y) / 2;
+        ctx.quadraticCurveTo(pts[k]!.x, pts[k]!.y, mx, my);
+      }
+      const last = pts[pts.length - 1]!;
+      ctx.lineTo(last.x, last.y);
+      ctx.stroke();
+    }
     this.base = canvas;
   }
 
