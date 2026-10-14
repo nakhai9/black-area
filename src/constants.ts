@@ -27,7 +27,7 @@ export const DEMO_FACTION = Number(import.meta.env.VITE_DEMO_FACTION) || 2;
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "1.147.2";
+export const GAME_VERSION = "1.147.3";
 
 /** An Allied Building within this many cells of any capital is an embassy; farther out it is a "Pro-<nation> regime". */
 export const EMBASSY_CAPITAL_CELLS = 25;
@@ -683,6 +683,8 @@ export const JET_VS_MANTIS_SHARE = 1 / 3;
 export const MANTIS_VS_JET_SHARE = 1 / 4;
 /** Every missile of the air-defence vehicle that hits a helicopter takes this share of the helicopter's full health. */
 export const MANTIS_VS_HELI_SHARE = 1 / 3;
+/** Air-defence vehicle: seconds between two missiles (longer than a missile's flight, so no missile chases a dead aircraft). */
+export const MANTIS_RELOAD = 0.5;
 /** AI air defence: at least this many air-defence vehicles at home, plus one for every AI_AIR_DEFENCE_PER_CITIES Happy Cities. */
 export const AI_AIR_DEFENCE = 2;
 export const AI_AIR_DEFENCE_PER_CITIES = 4;

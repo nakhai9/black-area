@@ -1,5 +1,5 @@
 import { movesRight } from '../core/IsoView';
-import { BOMB_FALL_SECONDS, HIGH_GROUND_DAMAGE, HIGH_GROUND_RANGE, LOW_GROUND_DAMAGE, BUNKER_COOLDOWN, BUNKER_DAMAGE, BUNKER_RANGE, BUNKER_VS_VEHICLE, MANTIS_HIT_SHARE, MANTIS_RANGE_CELLS, MANTIS_RANK_BONUS, MANTIS_EVADE_CELLS, HELI_VS_MANTIS_SHARE, JET_VS_MANTIS_SHARE, MANTIS_VS_JET_SHARE, MANTIS_VS_HELI_SHARE, JET_BOMB_VS_STRUCTURE, JET_BOMB_VS_VEHICLE, ACQUIRE_PERIOD, RANK_FIREPOWER, RANK_RELOAD, BOMB_GROUP_RADIUS_CELLS, BOMB_GROUP_SIZE, BOMB_TOUGH_DAMAGE, BOMB_TOUGH_STRUCTURES, BOMBS_PER_DROP, CELL_SIZE, CHASE_GIVE_UP_SECONDS, CHASE_LIMIT_CELLS, CHASE_PERIOD, FIGHT_MEMORY_SECONDS, GUARD_VISION_FACTOR, NEUTRAL_OWNER, RETALIATE_RANGE_FACTOR, WEAPONS, FIGHTER_DRONE_ALERT } from '../constants';
+import { BOMB_FALL_SECONDS, HIGH_GROUND_DAMAGE, HIGH_GROUND_RANGE, LOW_GROUND_DAMAGE, BUNKER_COOLDOWN, BUNKER_DAMAGE, BUNKER_RANGE, BUNKER_VS_VEHICLE, MANTIS_HIT_SHARE, MANTIS_RANGE_CELLS, MANTIS_RANK_BONUS, MANTIS_EVADE_CELLS, HELI_VS_MANTIS_SHARE, JET_VS_MANTIS_SHARE, MANTIS_VS_JET_SHARE, MANTIS_VS_HELI_SHARE, MANTIS_RELOAD, JET_BOMB_VS_STRUCTURE, JET_BOMB_VS_VEHICLE, ACQUIRE_PERIOD, RANK_FIREPOWER, RANK_RELOAD, BOMB_GROUP_RADIUS_CELLS, BOMB_GROUP_SIZE, BOMB_TOUGH_DAMAGE, BOMB_TOUGH_STRUCTURES, BOMBS_PER_DROP, CELL_SIZE, CHASE_GIVE_UP_SECONDS, CHASE_LIMIT_CELLS, CHASE_PERIOD, FIGHT_MEMORY_SECONDS, GUARD_VISION_FACTOR, NEUTRAL_OWNER, RETALIATE_RANGE_FACTOR, WEAPONS, FIGHTER_DRONE_ALERT } from '../constants';
 import { Building } from '../entities/Building';
 import { Bunker } from '../entities/Bunker';
 import type { Entity } from '../entities/Entity';
@@ -62,6 +62,8 @@ export function canTarget(shooter: Unit, target: Entity): boolean {
   const w = shooter.weapon;
   if (!w || !isHostile(shooter, target)) return false;
   if (shooter.unarmedTransport) return false; // transports never attack anything
+  // An aircraft already going down (out of fuel, no airfield) is as good as dead: nobody wastes shots on it.
+  if (target instanceof Vehicle && target.flight === 'crashing') return false;
   // An air-defence vehicle is hit from the air by bombs (bomber, fighter with a bomb left; never a fighter's guns)
   // or by an attack helicopter (HELI_VS_MANTIS_SHARE of its health per hit).
   if (shooter instanceof Vehicle && shooter.aircraft && target instanceof Vehicle && target.type === 'mantis')
@@ -524,8 +526,9 @@ export class CombatSystem implements GameSystem {
   }
 
   private fire(s: Unit, t: Entity, w: WeaponSpec): void {
-    // The air-defence vehicle needs no reload: it fires without pause while an aircraft is in range.
-    s.cooldown = s instanceof Vehicle && s.type === 'mantis' ? 0 : w.cooldown * RANK_RELOAD[s.rank];
+    // The air-defence vehicle reloads in MANTIS_RELOAD (one missile at a time, so it never keeps firing at an aircraft it
+    // has already brought down).
+    s.cooldown = s instanceof Vehicle && s.type === 'mantis' ? MANTIS_RELOAD : w.cooldown * RANK_RELOAD[s.rank];
     s.fightingWith.set(t.owner, this.time);
     if (t instanceof Unit) t.fightingWith.set(s.owner, this.time);
     const impact = this.impactPoint(t);
