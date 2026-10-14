@@ -207,6 +207,8 @@ export abstract class Unit extends Entity {
    * unit got no other order meanwhile.
    */
   pathTicket = 0;
+  /** A group route is being planned for it in the background (attack-move resumes wait for it instead of searching). */
+  routePending = false;
   /** Speed share allowed by traffic this tick (queueing behind a slower unit ahead); 1 = free road. */
   crowdFactor = 1;
   /** Seconds it has been waiting at a crossing for another unit to go by. */
@@ -227,6 +229,7 @@ export abstract class Unit extends Entity {
   /** Replaces the current orders with a new path (world px waypoints). */
   follow(path: readonly WorldPoint[], keepFacing = false): void {
     this.pathTicket++;
+    this.routePending = false;
     this.path = [...path];
     if (!keepFacing) this.faceOnArrival = null;
     this.destination = path.length > 0 ? (path[path.length - 1] ?? null) : null;
@@ -236,6 +239,7 @@ export abstract class Unit extends Entity {
 
   stop(): void {
     this.pathTicket++;
+    this.routePending = false;
     this.blockedFor = 0;
     this.path = [];
     this.destination = null;

@@ -1,5 +1,5 @@
 import { demoPrice } from '../core/Demo';
-import { BUILD_LIMIT_SOLDIERS, MAX_SOLDIERS, INFANTRY_BASE, TECH_TIERS, eliteCap } from '../constants';
+import { BUILD_LIMIT_SOLDIERS, MAX_SOLDIERS, INFANTRY_BASE, INFANTRY_TRAIN_FACTOR, TECH_TIERS, eliteCap } from '../constants';
 import type { Building } from '../entities/Building';
 import type { EntityManager } from '../entities/EntityManager';
 import { FACTIONS } from '../factions';
@@ -27,7 +27,7 @@ function trainOptions(faction: FactionId): TrainOption[] {
     name: profile.name,
     description: profile.description,
     cost: demoPrice(Math.round((INFANTRY_BASE[tier].cost * f.stats.cost * (f.stats.infantryCost ?? 1)) / 10) * 10),
-    trainSeconds: INFANTRY_BASE[tier].trainSeconds + f.stats.trainDelay,
+    trainSeconds: (INFANTRY_BASE[tier].trainSeconds + f.stats.trainDelay) * INFANTRY_TRAIN_FACTOR,
   }));
 }
 

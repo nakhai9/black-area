@@ -249,7 +249,11 @@ const SCATTER_CELLS = 3;
 const FOCUS_OFFSET_Y = 6;
 
 /** Most units re-routed per stuck-unit pass (every 0.5 s); each re-route is a path search. */
-const REPATH_BUDGET = 2;
+const REPATH_BUDGET = 1;
+/** Above this many units on the field, separateUnits runs 2 relaxation passes a tick instead of 6. */
+const SEPARATE_CROWD = 200;
+/** Attack-move groups of at least this many ground units get their routes from one shared, time-sliced flow field. */
+const GROUP_ROUTE_MIN = 4;
 
 /**
  * Composition root: loads the Earth, builds the world, wires systems/UI
@@ -479,6 +483,8 @@ export class Game {
       onSpare: (nation, fugitive) => this.payMercyBonus(nation, fugitive),
       safeAt: (x, y) => this.safeZones.isSafe(x, y),
       shielded: (t) => t instanceof Building && this.isShielded(t),
+      powerShort: (owner) => this.players.find((p) => p.id === owner)?.powerShort ?? false,
+      findPath: (start, goal, swim) => this.paths.find(start, goal, swim),
     });
     this.ai = new AISystem(
       this.players.filter((p) => !p.isHuman),
@@ -1307,6 +1313,11 @@ export class Game {
   orderAttackMove(units: readonly Unit[], target: WorldPoint): void {
     units = this.keepAircraftAtAirfield(units, target);
     const spacing = Math.max(UNIT_SPACING * 1.15, Math.max(0, ...units.map((u) => u.radius)) * 2.1);
+    // A bigger group shares one time-sliced flow field (PathService.groupJob) instead of one A* each in this frame:
+    // AI armies of dozens re-ordered at once used to freeze the game for up to a second late in a war.
+    const grouped = units.filter((u) => !u.aircraft && !(u instanceof Vehicle && u.isTransport)).length >= GROUP_ROUTE_MIN;
+    const walkers: { unit: Unit; goal: WorldPoint; cell: GridPoint; ticket: number }[] = [];
+    const swimmers: typeof walkers = [];
     units.forEach((u, k) => {
       if (u instanceof Vehicle) {
         u.heliHome = null;
@@ -1342,8 +1353,27 @@ export class Game {
         u.attackMove = null;
         return;
       }
-      if (goal) u.follow(this.paths.find({ x: u.px, y: u.py }, goal, u.swims));
+      if (!goal) return;
+      if (grouped) {
+        if (u.moving) u.pathTicket++;
+        else u.stop();
+        u.routePending = true;
+        (u.swims ? swimmers : walkers).push({ unit: u, goal: { x: (goal.x + 0.5) * CELL_SIZE, y: (goal.y + 0.5) * CELL_SIZE }, cell: goal, ticket: u.pathTicket });
+        return;
+      }
+      u.follow(this.paths.find({ x: u.px, y: u.py }, goal, u.swims));
     });
+    for (const members of [walkers, swimmers]) {
+      const lead = members[0];
+      if (!lead) continue;
+      this.paths.schedule(
+        this.paths.groupJob(members, lead.cell, lead.unit.swims, (m, path) => {
+          const mm = m as (typeof members)[number];
+          if (!mm.unit.alive || mm.unit.pathTicket !== mm.ticket) return; // given another order meanwhile
+          mm.unit.follow(path);
+        }),
+      );
+    }
   }
 
   /** Whether a new building may be placed (used by the Phase 2 build menu and AI). */
@@ -2148,8 +2178,10 @@ export class Game {
 
   /** Pushes overlapping soldiers apart (never into water, unless they swim, or buildings). */
   private separateUnits(): void {
-    // Several relaxation passes so a crowd of vehicles ends up fully apart, not just mostly.
-    for (let pass = 0; pass < 6; pass++) if (!this.separatePass()) break;
+    // Several relaxation passes so a crowd of vehicles ends up fully apart, not just mostly. Late-game wars field
+    // hundreds of units in tight crowds that never fully settle: fewer passes there (the rest is done next tick).
+    const passes = this.entities.fieldMovers().length > SEPARATE_CROWD ? 2 : 6;
+    for (let pass = 0; pass < passes; pass++) if (!this.separatePass()) break;
   }
 
   /** One pass of pushing overlapping units apart; false when nothing overlapped. */
@@ -4174,9 +4206,13 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
         let best: Vehicle | null = null;
         let bestD = reach;
         for (const v of this.entities.vehicles()) {
+          // Distance first (cheap): most vehicles are far away.
+          const ox = v.px - u.px;
+          const oy = v.py - u.py;
+          if (ox * ox + oy * oy >= bestD * bestD) continue;
           if (!v.alive || v.flies || !v.visible || !isHostile(u, v) || this.safeZones.isSafe(v.px, v.py)) continue;
           if (this.charges.some((c) => c.targetId === v.id)) continue; // already ticking
-          const d = Math.hypot(v.px - u.px, v.py - u.py);
+          const d = Math.hypot(ox, oy);
           if (d < bestD) {
             best = v;
             bestD = d;

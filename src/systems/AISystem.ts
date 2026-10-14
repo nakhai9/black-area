@@ -304,6 +304,28 @@ export class AISystem implements GameSystem {
     private readonly host: AIHost,
   ) {
     players.forEach((p, i) => this.addState(p, i));
+    this.claimCandidates(); // built while the game loads, not as a hitch in the middle of a war
+  }
+
+  /** Sample cells (CLAIM_SAMPLE grid) whose claim footprint is not on water or ice: those never change. Packed y*W+x. */
+  private claimCells: Int32Array | null = null;
+
+  private claimCandidates(): Int32Array {
+    if (this.claimCells) return this.claimCells;
+    const map = this.host.map;
+    const out: number[] = [];
+    const dry = (x: number, y: number): boolean => {
+      const t = map.typeAt(x, y);
+      return t !== undefined && t !== 'water' && t !== 'snow';
+    };
+    for (let y = 2; y < map.height - 8; y += CLAIM_SAMPLE) {
+      for (let x = 2; x < map.width - 8; x += CLAIM_SAMPLE) {
+        let ok = dry(x + 5, y + 5);
+        for (let ty = y - 1; ok && ty < y + 6; ty++) for (let tx = x - 1; ok && tx < x + 6; tx++) ok = dry(tx, ty);
+        if (ok) out.push(y * map.width + x);
+      }
+    }
+    return (this.claimCells = Int32Array.from(out));
   }
 
   private addState(p: PlayerState, i: number): AIState {
@@ -710,30 +732,94 @@ export class AISystem implements GameSystem {
     const economy = enemy.filter((b) => ECONOMY_TYPES.has(b.spec.type));
     const claims = buildings.filter((b) => (b.spec.type === 'flagpole' || b.spec.type === 'alliedBuilding') && isClaimable(map, b.x, b.y));
     const home = { x: capital.x + capital.w / 2, y: capital.y + capital.d / 2 };
+    // Nearest-structure lookups through a coarse bucket grid: the whole-map scan times every enemy structure grew
+    // with the war and froze the game for a tenth of a second late on.
+    const nearestOf = this.nearestFinder(enemy, map.width, map.height);
+    const nearestEconomy = this.nearestFinder(economy, map.width, map.height);
     let best: GridPoint | null = null;
     let bestScore = Infinity;
-    for (let y = 2; y < map.height - 8; y += CLAIM_SAMPLE) {
-      for (let x = 2; x < map.width - 8; x += CLAIM_SAMPLE) {
-        if (!isClaimable(map, x, y)) continue;
-        // Room for the flag and the Allied Building beside it, all on unclaimed land.
-        if (!map.isAreaBuildable(x - 1, y - 1, 7, 7) || !isClaimable(map, x + 5, y + 5)) continue;
-        let nearEnemy = Infinity;
-        for (const b of enemy) nearEnemy = Math.min(nearEnemy, Math.hypot(b.x - x, b.y - y));
-        if (nearEnemy < CLAIM_ENEMY_GAP) continue;
-        if (claims.some((b) => Math.hypot(b.x - x, b.y - y) < CLAIM_SPACING)) continue;
-        let nearEconomy = Infinity;
-        for (const b of economy) nearEconomy = Math.min(nearEconomy, Math.hypot(b.x - x, b.y - y));
-        if (!Number.isFinite(nearEconomy)) nearEconomy = nearEnemy;
-        // As close to a rival as the rules allow (its structures and above all its economy are threatened), the trip
-        // only a small tie-breaker; a little randomness so every AI plays differently.
-        const score = nearEnemy + 0.5 * nearEconomy + 0.1 * Math.hypot(x - home.x, y - home.y) + st.rng() * 6;
-        if (score < bestScore) {
-          bestScore = score;
-          best = { x, y };
-        }
+    // Only the sample cells on dry land (precomputed); the cheap tests first, the 7×7 footprint check last.
+    for (const i of this.claimCandidates()) {
+      const x = i % map.width;
+      const y = (i / map.width) | 0;
+      if (!isClaimable(map, x, y) || !isClaimable(map, x + 5, y + 5)) continue;
+      const nearEnemy = nearestOf(x, y);
+      if (nearEnemy < CLAIM_ENEMY_GAP) continue;
+      if (claims.some((b) => Math.hypot(b.x - x, b.y - y) < CLAIM_SPACING)) continue;
+      // Room for the flag and the Allied Building beside it, all on unclaimed land.
+      if (!map.isAreaBuildable(x - 1, y - 1, 7, 7)) continue;
+      let nearEconomy = nearestEconomy(x, y);
+      if (!Number.isFinite(nearEconomy)) nearEconomy = nearEnemy;
+      // As close to a rival as the rules allow (its structures and above all its economy are threatened), the trip
+      // only a small tie-breaker; a little randomness so every AI plays differently.
+      const score = nearEnemy + 0.5 * nearEconomy + 0.1 * Math.hypot(x - home.x, y - home.y) + st.rng() * 6;
+      if (score < bestScore) {
+        bestScore = score;
+        best = { x, y };
       }
     }
     return best;
+  }
+
+  /**
+   * Distance (cells) from (x, y) to the nearest of `list` (its top-left cell), Infinity when empty. Exact, but cheap
+   * for many queries: structures are bucketed (B cells), and every bucket keeps the short list of structures that can
+   * be the nearest to any point inside it (built on first use).
+   */
+  private nearestFinder(list: readonly Building[], width: number, height: number): (x: number, y: number) => number {
+    const B = 32;
+    const cols = Math.ceil(width / B);
+    const rows = Math.ceil(height / B);
+    const buckets = new Map<number, Building[]>();
+    for (const b of list) {
+      const k = Math.min(rows - 1, Math.max(0, Math.floor(b.y / B))) * cols + Math.min(cols - 1, Math.max(0, Math.floor(b.x / B)));
+      const arr = buckets.get(k);
+      if (arr) arr.push(b);
+      else buckets.set(k, [b]);
+    }
+    const maxR = Math.max(cols, rows);
+    /** Calls `visit` for every structure in the buckets on ring r around (cx, cy). */
+    const ring = (cx: number, cy: number, r: number, visit: (b: Building) => void): void => {
+      for (let dy = -r; dy <= r; dy++) {
+        const by = cy + dy;
+        if (by < 0 || by >= rows) continue;
+        const edge = Math.abs(dy) === r;
+        for (let dx = -r; dx <= r; dx += edge ? 1 : 2 * r || 1) {
+          const bx = cx + dx;
+          if (bx < 0 || bx >= cols) continue;
+          const arr = buckets.get(by * cols + bx);
+          if (arr) for (const b of arr) visit(b);
+        }
+      }
+    };
+    const shortlist = new Map<number, Building[]>();
+    const shortlistOf = (cx: number, cy: number): Building[] => {
+      const key = cy * cols + cx;
+      const known = shortlist.get(key);
+      if (known) return known;
+      const mx = (cx + 0.5) * B;
+      const my = (cy + 0.5) * B;
+      // Nearest to the bucket centre first; whatever is nearest to some point of the bucket lies within that + its diagonal.
+      let dc = Infinity;
+      for (let r = 0; r <= maxR && dc > (r - 1) * B; r++) ring(cx, cy, r, (b) => (dc = Math.min(dc, Math.hypot(b.x - mx, b.y - my))));
+      const reach = dc + B * Math.SQRT2;
+      const out: Building[] = [];
+      for (let r = 0; r <= maxR && (r - 1) * B <= reach; r++) {
+        ring(cx, cy, r, (b) => {
+          if (Math.hypot(b.x - mx, b.y - my) <= reach) out.push(b);
+        });
+      }
+      shortlist.set(key, out);
+      return out;
+    };
+    return (x, y) => {
+      if (list.length === 0) return Infinity;
+      const cx = Math.min(cols - 1, Math.max(0, Math.floor(x / B)));
+      const cy = Math.min(rows - 1, Math.max(0, Math.floor(y / B)));
+      let best = Infinity;
+      for (const b of shortlistOf(cx, cy)) best = Math.min(best, Math.hypot(b.x - x, b.y - y));
+      return best;
+    };
   }
 
   /**
@@ -1439,7 +1525,9 @@ export class AISystem implements GameSystem {
       }
       const t = threat;
       if (t) {
-        const responders = kept.filter((u) => canTarget(u, t) && dist(u) < radius * 3 && u.combatTarget === null);
+        // Ones already on their way to it are left alone (a fresh order every think would re-plan all their routes).
+        const onIt = (u: Unit): boolean => u.moving && u.attackMove !== null && Math.hypot(u.attackMove.x - t.px, u.attackMove.y - t.py) < CELL_SIZE * 8;
+        const responders = kept.filter((u) => canTarget(u, t) && dist(u) < radius * 3 && u.combatTarget === null && !onIt(u));
         if (responders.length > 0) this.host.orderAttackMove(responders, { x: t.px, y: t.py });
       }
       const away = kept.filter((u) => !u.moving && u.attackMove === null && u.combatTarget === null && dist(u) > radius);

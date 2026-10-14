@@ -8,7 +8,7 @@ import { Infantry } from '../entities/Infantry';
 import { Unit } from '../entities/Unit';
 import { Vehicle } from '../entities/Vehicle';
 import type { Pathfinder } from '../map/Pathfinder';
-import type { WeaponSpec, WorldPoint } from '../types';
+import type { GridPoint, WeaponSpec, WorldPoint } from '../types';
 import type { GameSystem } from './GameSystem';
 
 export interface CombatHooks {
@@ -24,6 +24,10 @@ export interface CombatHooks {
   safeAt(x: number, y: number): boolean;
   /** Structure that may not be attacked right now (the player's derricks during their grace period). */
   shielded(target: Entity): boolean;
+  /** Is this nation's grid short of power (weak or blackout)? Its air-defence vehicles then lose their radar signal. */
+  powerShort(owner: number): boolean;
+  /** Route planner with the shared caches (an unreachable goal is not flooded again and again). */
+  findPath(start: WorldPoint, goal: GridPoint, swim: boolean): WorldPoint[];
 }
 
 /** Two entities are enemies when they belong to different nations (neutral ones are never targets). */
@@ -214,6 +218,13 @@ export class CombatSystem implements GameSystem {
     if (!w) return;
     // Air-defence vehicle: every veteran star adds one cell of range (its own weapon copy, set from the current rank).
     if (s instanceof Vehicle && s.type === 'mantis') {
+      // It runs on the radar signal: with the nation's power weak it is frozen at once (no moving, no firing).
+      if (this.hooks.powerShort(s.owner)) {
+        if (s.moving) s.stop();
+        s.combatTarget = null;
+        s.engaged = false;
+        return;
+      }
       w.range = (MANTIS_RANGE_CELLS + s.rank) * CELL_SIZE;
       if (this.mantisUnderFire(s, w)) return;
     }
@@ -641,7 +652,7 @@ export class CombatSystem implements GameSystem {
   /** After a fight, an attack-moving unit carries on to its destination. */
   private resumeAttackMove(s: Unit): void {
     const dest = s.attackMove;
-    if (!dest || s.moving) return;
+    if (!dest || s.moving || s.routePending) return;
     if (Math.hypot(dest.x - s.px, dest.y - s.py) < CELL_SIZE * 2) {
       s.attackMove = null;
       return;
@@ -661,7 +672,7 @@ export class CombatSystem implements GameSystem {
       s.attackMove = null;
       return;
     }
-    const path = this.pathfinder.find({ x: s.px, y: s.py }, cell, s.swims);
+    const path = this.hooks.findPath({ x: s.px, y: s.py }, cell, s.swims);
     // Already as close as it can get: the order is done (instead of searching again and again on the spot).
     if (path.length <= 1) {
       s.attackMove = null;

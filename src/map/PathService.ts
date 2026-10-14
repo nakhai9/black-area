@@ -25,9 +25,13 @@ const SHORT_ROUTE = CLUSTER * 2;
 /** Flow-field cells settled per slice before the job yields to the frame. */
 const FIELD_SLICE = 1500;
 /** At most one big detour search per this many ms. */
-const DETOUR_GAP_MS = 250;
+const DETOUR_GAP_MS = 1000;
 /** A goal the detour search failed on is not tried again for this long. */
-const DETOUR_RETRY_MS = 5000;
+const DETOUR_RETRY_MS = 30000;
+/** A goal a full search just failed to reach (walled in, cut off) is searched with only MISS_EXPANSIONS for this long. */
+const MISS_RETRY_MS = 3000;
+/** Search budget toward a goal that recently could not be reached: enough for a partial route its way, far cheaper. */
+const MISS_EXPANSIONS = 3000;
 const SQRT2 = Math.SQRT2;
 const TREE_COST = 1.6;
 const DIRS: readonly [number, number, number][] = [
@@ -62,6 +66,8 @@ export class PathService {
   private readonly jobs: Generator<void, void, void>[] = [];
   /** Goals (cell index) the big detour search recently failed to reach, until when (performance.now ms). */
   private readonly detourFailed = new Map<number, number>();
+  /** `start cluster:goal cell` → time (performance.now) until which that search gets only MISS_EXPANSIONS. */
+  private readonly missed = new Map<string, number>();
   private lastDetour = -Infinity;
 
   constructor(
@@ -176,27 +182,41 @@ export class PathService {
    * whole map.
    */
   find(start: WorldPoint, goal: GridPoint, swim = false): WorldPoint[] {
-    const path = this.pathfinder.find(start, goal, swim);
+    if (!this.map.inBounds(goal.x, goal.y)) return [];
+    const key = this.map.index(goal.x, goal.y);
+    const now = performance.now();
+    // Many units keep asking for the same unreachable goal (stuck repaths, attack-move resumes, AI re-orders): every full
+    // search floods the whole budget, so for a while a goal that just failed gets only a short partial search.
+    const missKey = `${this.clusterOf(Math.floor(start.x / CELL_SIZE), Math.floor(start.y / CELL_SIZE))}:${key}`;
+    const missedRecently = (this.missed.get(missKey) ?? 0) > now;
+    const path = this.pathfinder.find(start, goal, swim, null, missedRecently ? MISS_EXPANSIONS : undefined);
     // The search gave up short of the goal (e.g. a mountain wall in the way, the route goes far round its end):
     // try once more with a much bigger budget. Still short (truly unreachable): the partial route is kept.
     const end = path[path.length - 1];
-    if (end && Math.floor(end.x / CELL_SIZE) === goal.x && Math.floor(end.y / CELL_SIZE) === goal.y) return path;
+    if (end && Math.floor(end.x / CELL_SIZE) === goal.x && Math.floor(end.y / CELL_SIZE) === goal.y) {
+      if (missedRecently) this.missed.delete(missKey);
+      return path;
+    }
+    if (missedRecently) return path;
+    if (this.missed.size > 1024) this.missed.clear();
+    this.missed.set(missKey, now + MISS_RETRY_MS);
     const sx = Math.floor(start.x / CELL_SIZE);
     const sy = Math.floor(start.y / CELL_SIZE);
     if (Math.max(Math.abs(sx - goal.x), Math.abs(sy - goal.y)) < SHORT_ROUTE || !this.pathfinder.passable(goal.x, goal.y, swim)) return path;
     // The big search is slow (a frame hitch): never on another landmass (no walking route at all), never again for a
     // goal it just failed on, and at most one per DETOUR_GAP_MS (chases and group orders would otherwise stack them).
     if (!swim && !this.pathfinder.sameLandmass(sx, sy, goal.x, goal.y)) return path;
-    const now = performance.now();
-    const key = this.map.index(goal.x, goal.y);
     if ((this.detourFailed.get(key) ?? 0) > now || now - this.lastDetour < DETOUR_GAP_MS) return path;
     this.lastDetour = now;
-    const detour = this.pathfinder.find(start, goal, swim, null, DETOUR_EXPANSIONS);
+    // The long way round is searched only inside the cluster corridor to the goal (a few % of the planet instead of a
+    // flood of up to DETOUR_EXPANSIONS cells, which froze the game for a quarter of a second in big late-game wars).
+    const corridor = swim ? null : this.corridor([{ x: sx, y: sy }], goal, swim);
+    const detour = swim || corridor ? this.pathfinder.find(start, goal, swim, corridor, DETOUR_EXPANSIONS / 10) : [];
     const dEnd = detour[detour.length - 1];
     if (!dEnd || Math.floor(dEnd.x / CELL_SIZE) !== goal.x || Math.floor(dEnd.y / CELL_SIZE) !== goal.y) {
       if (this.detourFailed.size > 256) this.detourFailed.clear();
       this.detourFailed.set(key, now + DETOUR_RETRY_MS);
-    }
+    } else this.missed.delete(missKey); // reachable after all (the long way round): later searches get the full budget
     return detour.length > 0 ? detour : path;
   }
 
