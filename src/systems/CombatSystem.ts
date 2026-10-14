@@ -1,5 +1,5 @@
 import { movesRight } from '../core/IsoView';
-import { BOMB_FALL_SECONDS, HIGH_GROUND_DAMAGE, HIGH_GROUND_RANGE, LOW_GROUND_DAMAGE, BUNKER_COOLDOWN, BUNKER_DAMAGE, BUNKER_RANGE, BUNKER_VS_VEHICLE, MANTIS_HIT_SHARE, JET_BOMB_VS_STRUCTURE, JET_BOMB_VS_VEHICLE, ACQUIRE_PERIOD, RANK_FIREPOWER, RANK_RELOAD, BOMB_GROUP_RADIUS_CELLS, BOMB_GROUP_SIZE, BOMB_TOUGH_DAMAGE, BOMB_TOUGH_STRUCTURES, BOMBS_PER_DROP, CELL_SIZE, CHASE_GIVE_UP_SECONDS, CHASE_LIMIT_CELLS, CHASE_PERIOD, FIGHT_MEMORY_SECONDS, GUARD_VISION_FACTOR, NEUTRAL_OWNER, RETALIATE_RANGE_FACTOR, WEAPONS } from '../constants';
+import { BOMB_FALL_SECONDS, HIGH_GROUND_DAMAGE, HIGH_GROUND_RANGE, LOW_GROUND_DAMAGE, BUNKER_COOLDOWN, BUNKER_DAMAGE, BUNKER_RANGE, BUNKER_VS_VEHICLE, MANTIS_HIT_SHARE, JET_BOMB_VS_STRUCTURE, JET_BOMB_VS_VEHICLE, ACQUIRE_PERIOD, RANK_FIREPOWER, RANK_RELOAD, BOMB_GROUP_RADIUS_CELLS, BOMB_GROUP_SIZE, BOMB_TOUGH_DAMAGE, BOMB_TOUGH_STRUCTURES, BOMBS_PER_DROP, CELL_SIZE, CHASE_GIVE_UP_SECONDS, CHASE_LIMIT_CELLS, CHASE_PERIOD, FIGHT_MEMORY_SECONDS, GUARD_VISION_FACTOR, NEUTRAL_OWNER, RETALIATE_RANGE_FACTOR, WEAPONS, FIGHTER_DRONE_ALERT } from '../constants';
 import { Building } from '../entities/Building';
 import { Bunker } from '../entities/Bunker';
 import type { Entity } from '../entities/Entity';
@@ -251,6 +251,12 @@ export class CombatSystem implements GameSystem {
       else target = ordered;
     }
 
+    // A fighter without an explicit order goes after an enemy kamikaze drone diving at its own nation first (danger).
+    if (s instanceof Vehicle && s.type === 'jet' && s.attackTarget === null) {
+      const drone = this.dangerousDrone(s, w);
+      if (drone) target = drone;
+    }
+
     // Auto targets are dropped when they walk too far away. An air-defence vehicle drops an aircraft as soon as it leaves its range,
     // so it is always free to engage whatever is in range.
     // Ground units without an attack order (explicit target or attack-move) hold their ground too: they shoot what is in
@@ -342,6 +348,26 @@ export class CombatSystem implements GameSystem {
    * Nearest enemy soldier, vehicle or aircraft in sight; an attacker that hit us counts too. Structures are never
    * picked here: a unit only attacks a building when it has been ordered to focus on it (attackTarget).
    */
+  /**
+   * Nearest enemy kamikaze drone in the air, diving at a structure or unit of `s`'s nation, within
+   * FIGHTER_DRONE_ALERT × its weapon range: a fighter sees it as a danger and shoots it down before anything else.
+   */
+  private dangerousDrone(s: Vehicle, w: WeaponSpec): Vehicle | undefined {
+    let best: Vehicle | undefined;
+    let bestD = w.range * FIGHTER_DRONE_ALERT;
+    for (const d of this.entities.vehicles()) {
+      if (!d.isDrone || !d.alive || !d.flies || d.diveTargetId === null || !isHostile(s, d) || !this.canHit(s, w, d)) continue;
+      const aim = this.entities.get(d.diveTargetId);
+      if (!aim || aim.owner !== s.owner) continue;
+      const dist = Math.hypot(d.px - s.px, d.py - s.py);
+      if (dist < bestD) {
+        best = d;
+        bestD = dist;
+      }
+    }
+    return best;
+  }
+
   private acquire(s: Unit, w: WeaponSpec, grid: Map<number, Unit[]>): Entity | undefined {
     const cx = Math.floor(s.px / HASH);
     const cy = Math.floor(s.py / HASH);

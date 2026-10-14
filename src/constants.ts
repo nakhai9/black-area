@@ -27,7 +27,7 @@ export const DEMO_FACTION = Number(import.meta.env.VITE_DEMO_FACTION) || 2;
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "1.143.3";
+export const GAME_VERSION = "1.143.4";
 
 /** An Allied Building within this many cells of any capital is an embassy; farther out it is a "Pro-<nation> regime". */
 export const EMBASSY_CAPITAL_CELLS = 25;
@@ -628,6 +628,9 @@ export const DRONE_DAMAGE_SHARE = 0.5;
 /** One drone order delivers this many drones (two parking spots); the second flies this many cells behind the first. */
 export const DRONE_PAIR = 2;
 export const DRONE_PAIR_GAP_CELLS = 3;
+/** A fighter (player's or AI's) without an attack order shoots down an enemy drone diving at its own nation as a danger,
+ * before any other target, once the drone is within this many times its weapon range. */
+export const FIGHTER_DRONE_ALERT = 3;
 /** How close (cells) to the structure's edge the drone must get to strike it. */
 export const DRONE_STRIKE_CELLS = 0.4;
 
