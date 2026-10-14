@@ -24,6 +24,10 @@ import {
   FORMATION_COLS,
   FORMATION_RANKS,
   DEMO_FUSE_SECONDS,
+  DRONE_DAMAGE_SHARE,
+  DRONE_STRIKE_CELLS,
+  DRONE_PAIR,
+  DRONE_PAIR_GAP_CELLS,
   DEMO_GROUP_RADIUS_CELLS,
   DEMO_GROUP_SIZE,
   DEMO_LARGE_DAMAGE,
@@ -1225,7 +1229,7 @@ export class Game {
     const cell = this.pathfinder.nearestPassable(goal.x, goal.y, 10);
     if (!cell) return [];
     return units.filter(
-      (u) => !u.aircraft && !u.swims && !this.pathfinder.sameLandmass(Math.floor(u.px / CELL_SIZE), Math.floor(u.py / CELL_SIZE), cell.x, cell.y),
+      (u) => !u.aircraft && !u.flies && !u.swims && !this.pathfinder.sameLandmass(Math.floor(u.px / CELL_SIZE), Math.floor(u.py / CELL_SIZE), cell.x, cell.y),
     );
   }
 
@@ -2034,6 +2038,7 @@ export class Game {
     this.giveWay(dt);
     this.processTasks();
     this.processDemolition(dt);
+    this.processDrones();
     this.processRepairs(dt);
     this.processMends(dt);
     this.processFactoryRepairs(dt);
@@ -3786,6 +3791,15 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
   }
 
   private spawnVehicle(player: PlayerState, kind: VehicleKind, producer: Building): void {
+    if (kind === 'drone') {
+      // A drone order is a pair: the second trails the first (see processDrones).
+      const lead = this.spawnAircraft(player, kind, producer);
+      for (let i = 1; lead && i < DRONE_PAIR; i++) {
+        const wing = this.spawnAircraft(player, kind, producer);
+        if (wing) wing.leadId = lead.id;
+      }
+      return;
+    }
     if (isAircraftKind(kind)) {
       this.spawnAircraft(player, kind, producer);
       return;
@@ -4085,8 +4099,17 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       u.orderFlash = { kind: 'attack', at: this.time, target };
       this.runAt(u, target);
     }
+    // Kamikaze drones (B-767) dive into an enemy structure.
+    // Any enemy ground target: a structure (oil derricks excepted), a soldier or a ground vehicle — never an aircraft in the air.
+    const drones = (target instanceof Building && target.spec.type !== 'oilDerrick') || (target instanceof Unit && !target.flies) ? this.selection.selectedUnitList().filter((u): u is Vehicle => u instanceof Vehicle && u.isDrone && u.alive && isHostile(u, target)) : [];
+    for (const d of drones) {
+      d.diveTargetId = target.id;
+      d.attackTarget = target.id;
+      d.orderFlash = { kind: 'attack', at: this.time, target };
+      d.follow([this.diveAim(target)]);
+    }
     const attackers = this.selection.selectedUnitList().filter((u) => canTarget(u, target));
-    if (attackers.length === 0) return sappers.length > 0;
+    if (attackers.length === 0) return sappers.length > 0 || drones.length > 0;
     for (const u of attackers) {
       if (u instanceof Vehicle) u.guardId = null;
       u.combatTarget = null; // a new order drops whatever it was locked on
@@ -4196,6 +4219,70 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       if (c.fuse > 0) continue;
       this.charges.splice(i, 1);
       this.detonate(c, target);
+    }
+  }
+
+  /** Sends a kamikaze drone (B-767) to dive into enemy structure `b` (player order or AI). */
+  launchDrone(d: Vehicle, b: Entity): void {
+    d.diveTargetId = b.id;
+    d.attackTarget = b.id;
+    d.follow([this.diveAim(b)]);
+  }
+
+  /** Where a diving drone aims: a structure's centre, or the unit itself. */
+  private diveAim(e: Entity): WorldPoint {
+    return e instanceof Building ? e.centerWorld() : { x: (e as Unit).px, y: (e as Unit).py };
+  }
+
+  /**
+   * Kamikaze drones (B-767). The second drone of a pair trails its lead DRONE_PAIR_GAP_CELLS behind and shares its
+   * target. A diving drone homes on the structure's centre (its target stays locked: attackTarget) and, once over its
+   * edge, strikes it for DRONE_DAMAGE_SHARE of its max health and is destroyed. A target that is gone or no longer
+   * hostile calls the dive off.
+   */
+  private processDrones(): void {
+    for (const d of this.entities.vehicles()) {
+      if (!d.isDrone || !d.alive) continue;
+      const lead = d.leadId === null ? null : this.entities.get(d.leadId);
+      if (lead instanceof Vehicle && lead.alive) {
+        if (lead.flight !== 'parked' && lead.moving) {
+          d.diveTargetId = lead.diveTargetId;
+          d.attackTarget = lead.diveTargetId;
+          const gap = DRONE_PAIR_GAP_CELLS * CELL_SIZE;
+          if (d.flight === 'parked' || Math.hypot(lead.px - d.px, lead.py - d.py) > gap) {
+            d.follow([{ x: lead.px - Math.cos(lead.heading) * gap, y: lead.py - Math.sin(lead.heading) * gap }]);
+            continue;
+          }
+          if (lead.diveTargetId === null) continue;
+        }
+      } else d.leadId = null; // its lead is gone: it flies on its own
+      if (d.diveTargetId === null) continue;
+      const b = this.entities.get(d.diveTargetId);
+      const ok = (b instanceof Building && b.spec.type !== 'oilDerrick') || (b instanceof Unit && !b.flies && b.visible);
+      if (!b || !ok || !b.alive || !isHostile(d, b) || inTruce()) {
+        d.diveTargetId = null;
+        d.attackTarget = null;
+        continue;
+      }
+      d.attackTarget = b.id;
+      if (distanceTo(d.px, d.py, b) > DRONE_STRIKE_CELLS * CELL_SIZE || !d.flies) {
+        // A unit drives on: re-aim at it every tick.
+        if (!d.moving || b instanceof Unit) d.follow([this.diveAim(b)]);
+        continue;
+      }
+      const aim = this.diveAim(b);
+      if (!(b instanceof Building && b.indestructible) && !this.safeZones.isSafe(aim.x, aim.y)) {
+        // Structures and vehicles lose DRONE_DAMAGE_SHARE of their max health; a soldier is killed.
+        b.damage(b instanceof Infantry ? Infinity : b.maxHp * DRONE_DAMAGE_SHARE);
+        b.lastAttackerId = d.id;
+        b.lastAttackedAt = this.time;
+      }
+      const p = this.fx(d.px, d.py, d.altitude);
+      this.effects.add({ kind: 'demoBlast', x: p.x, y: p.y, age: 0, ttl: 0.8 });
+      this.sound.play('explosion', { x: d.px, y: d.py });
+      d.diveTargetId = null;
+      d.attackTarget = null;
+      d.damage(Infinity);
     }
   }
 
@@ -4676,10 +4763,13 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       u.retreating = this.isRetreat(u, world);
       u.retreatGroup = group;
       u.sparedBy.clear();
-      const off = u.aircraft ? spiralOffset(k, spacing) : formationOffset(groundIndex++);
+      // Kamikaze drones fly straight over anything, like aircraft; a move order calls off their dive.
+      const straight = u.aircraft || (u instanceof Vehicle && u.isDrone);
+      if (u instanceof Vehicle) u.diveTargetId = null;
+      const off = straight ? spiralOffset(k, spacing) : formationOffset(groundIndex++);
       let goal = { x: world.x + off.x, y: world.y + off.y };
       let cell = this.map.cellAt(goal.x, goal.y);
-      if (!u.aircraft) {
+      if (!straight) {
         // Park / stand only where nothing is in the way: no other unit, no building, no water.
         const free = this.freeStandSpot(goal, u, units, claimed);
         if (!free) return;
@@ -4688,7 +4778,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
         claimed.push(goal);
       }
       u.orderFlash = { kind: 'move', at: this.time, target: null };
-      if (u.aircraft) {
+      if (straight) {
         u.follow([goal]); // aircraft ignore terrain and fly straight (parked ones take off first)
         return;
       }

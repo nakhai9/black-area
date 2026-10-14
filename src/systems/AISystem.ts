@@ -10,7 +10,7 @@ import type { EntityManager } from '../entities/EntityManager';
 import { Infantry } from '../entities/Infantry';
 import { Vehicle } from '../entities/Vehicle';
 import type { Unit } from '../entities/Unit';
-import { canTarget, inTruce } from './CombatSystem';
+import { canTarget, inTruce, isHostile } from './CombatSystem';
 import type { OilMarket } from './OilMarket';
 import type { Pathfinder } from '../map/Pathfinder';
 import type { TileMap } from '../map/TileMap';
@@ -46,6 +46,8 @@ export interface AIHost {
   orderMend(target: Vehicle, units: readonly Unit[]): boolean;
   /** Soldiers / vehicles walk to a parked transport and climb aboard. */
   orderBoard(t: Vehicle, riders: Unit[]): boolean;
+  /** Sends a kamikaze drone (B-767) to dive into an enemy structure. */
+  launchDrone(d: Vehicle, b: Entity): void;
   /** Plain move (no fighting on the way) — trucks driving a convoy. */
   orderMoveUnits(units: readonly Unit[], target: WorldPoint): void;
   /** A truck lets everyone out where it stands. */
@@ -95,6 +97,25 @@ const SOLDIERS_PER_VEHICLE = 2;
  * Base weight of each combat vehicle in the fleet the AI aims for; train() reshapes it from what the enemy fields
  * (see fleetWeights). Kinds the nation cannot build are simply skipped.
  */
+/** AI drone targets, best first: structures that make money (0), the capital (1), military structures (2), any other
+ * (civil) structure (3); unit groups are tiers 4-8 (see sendDrones). */
+const DRONE_BUILDING_TIER: Partial<Record<BuildingType, number>> = {
+  refinery: 0,
+  bank: 0,
+  happyCity: 0,
+  capital: 1,
+  nationCapital: 1,
+  barracks: 2,
+  warFactory: 2,
+  airfield: 2,
+  techCenter: 2,
+  bunker: 2,
+  wall: 2,
+  gate: 2,
+};
+const DRONE_TIER_CIVIL = 3;
+/** Enemy units within this many cells of each other count as one group for the AI's drones. */
+const DRONE_GROUP_CELLS = 2.5;
 const VEHICLE_WEIGHT: Readonly<Partial<Record<VehicleKind, number>>> = {
   tank: 0.34,
   ifv: 0.12,
@@ -104,6 +125,7 @@ const VEHICLE_WEIGHT: Readonly<Partial<Record<VehicleKind, number>>> = {
   bomber: 0.1,
   repair: 0.04,
   mantis: 0.05,
+  drone: 0.06,
 };
 /** Repairs come first: any structure below this share of its health gets an engineer. */
 const REPAIR_BELOW = 0.98;
@@ -397,6 +419,7 @@ export class AISystem implements GameSystem {
       return;
     }
     this.contestNations(p, st, capital, owned, threat);
+    this.sendDrones(p, st, capital);
     if (st.overseas) this.loadTransports(p, st, capital);
     this.leaseOil(p, owned, threat);
     this.captureOil(p, threat);
@@ -1046,6 +1069,57 @@ export class AISystem implements GameSystem {
   }
 
   // ------------------------------------------------------------------ army
+
+  /**
+   * Idle kamikaze drone pairs (B-767) dive at the enemy's most valuable target, by tier (DRONE_PRIORITY): money-making
+   * structures > the capital > military structures > civil structures > groups of vehicles and soldiers together > groups of vehicles >
+   * groups of soldiers > a lone vehicle > a lone soldier. Within a tier: the bigger group, then
+   * the nearest to home. Every enemy nation is weighed together (the rival first within a tier), so pairs either pile onto
+   * one nation or spread over several, whichever has the better targets; one pair per target.
+   */
+  private sendDrones(p: PlayerState, st: AIState, capital: Building): void {
+    const mine = this.host.entities.vehicles().filter((v) => v.owner === p.id && v.alive && v.isDrone);
+    const idle = mine.filter((v) => v.leadId === null && v.diveTargetId === null);
+    const first = idle[0];
+    if (!first) return;
+    const taken = new Set(mine.map((v) => v.diveTargetId).filter((id): id is number => id !== null));
+    const home = capital.centerWorld();
+    const enemy = (owner: number): boolean => owner !== p.id && owner !== NEUTRAL_OWNER;
+    const cands: { e: Entity; owner: number; tier: number; size: number; dist: number }[] = [];
+    for (const b of this.host.entities.buildings()) {
+      if (!b.alive || !enemy(b.owner) || b.indestructible || b.spec.type === 'oilDerrick' || this.host.isShielded(b) || !isHostile(first, b)) continue;
+      const c = b.centerWorld();
+      cands.push({ e: b, owner: b.owner, tier: DRONE_BUILDING_TIER[b.spec.type] ?? DRONE_TIER_CIVIL, size: 1, dist: Math.hypot(c.x - home.x, c.y - home.y) });
+    }
+    const ground = this.host.entities.fieldMovers().filter(
+      (u) => u.alive && enemy(u.owner) && !u.flies && u.visible && isHostile(first, u) && !this.host.safeZones.isSafe(u.px, u.py),
+    );
+    const reach = DRONE_GROUP_CELLS * CELL_SIZE;
+    for (const u of ground) {
+      let cars = 0;
+      let men = 0;
+      for (const o of ground) {
+        if (o.owner !== u.owner || Math.hypot(o.px - u.px, o.py - u.py) > reach) continue;
+        if (o instanceof Vehicle) cars++;
+        else men++;
+      }
+      const tier = cars > 0 && men > 0 ? 4 : cars >= 2 ? 5 : men >= 2 ? 6 : cars === 1 ? 7 : 8;
+      cands.push({ e: u, owner: u.owner, tier, size: cars + men, dist: Math.hypot(u.px - home.x, u.py - home.y) });
+    }
+    // The AI weighs every enemy nation at once: within a tier the rival comes first, so the pairs pile onto the rival
+    // while it offers targets that good, and spread to other nations once a better tier is only found there.
+    const pool = cands;
+    const rivalFirst = (c: (typeof cands)[number]): number => (c.owner === st.rival ? 0 : 1);
+    pool.sort((a, b) => a.tier - b.tier || rivalFirst(a) - rivalFirst(b) || b.size - a.size || a.dist - b.dist);
+    let k = 0;
+    for (const d of idle) {
+      while (k < pool.length && taken.has(pool[k]!.e.id)) k++;
+      const c = pool[k];
+      if (!c) return;
+      taken.add(c.e.id);
+      this.host.launchDrone(d, c.e);
+    }
+  }
 
   private army(p: PlayerState, st: AIState, capital: Building): void {
     const all = this.host.entities.fieldMovers();

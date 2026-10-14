@@ -550,7 +550,7 @@ export class Renderer {
     const { ctx } = this;
     const P = worldToIso(u.px, u.py);
     if (u instanceof Vehicle) {
-      if (u.aircraft && drawAircraftSheet(ctx, u, P.x, P.y)) return;
+      if ((u.aircraft || u.isDrone) && drawAircraftSheet(ctx, u, P.x, P.y)) return;
       if (u.type === 'tank' && drawTankSheet(ctx, u, P.x, P.y)) return;
       if (u.type === 'repair' && drawRepairSheet(ctx, u, P.x, P.y)) return;
       if (u.type === 'mantis' && drawMantisSheet(ctx, u, P.x, P.y)) return;

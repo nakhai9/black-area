@@ -10,7 +10,8 @@ Models (MODELS): il76 (Russia), c17 (USA), c130j (Europe), y20 (China, Islamic w
 Bombers (layout 'bomber', the AircraftSheets.ts layout): public/sprites/<out>.png, 16 columns of 96 px by 9 rows — 0 parked,
 1-2 flying, 3 ramp (= parked), 4 banked left, 5 banked right, 6-7 crashing, 8 shadow; side-on the aircraft spans 0.74 of a cell.
 b1 (USA, B-1 Lancer), tu160 (Russia, Tu-160); fighters in the same layout: su35 (Islamic world), f22 (USA),
-su57 (Russia), rafale (Europe), j31 (China). .blend downloads need Blender (tools/blend_to_obj.py).
+su57 (Russia), rafale (Europe), j31 (China); the kamikaze drone bis (Islamic world). .blend / .glb downloads need Blender
+(tools/blend_to_obj.py, tools/glb_to_obj.py).
 Usage: python -I tools/aircraft_model_sheet.py <model> <download folder> [--preview out.png]   (run from the repo root)
 """
 import math
@@ -54,6 +55,9 @@ MODELS = {
     'su57': dict(blend='source/su57.blend', layout='bomber', out='jet-russia'),
     'rafale': dict(blend='source/Rafale 2024_8_30 export version.blend', layout='bomber', out='jet-europe'),
     'j31': dict(blend='source/J31 Export version 2024_7_15.blend', layout='bomber', out='jet-china', nose_flip=True),
+    # Kamikaze drone (Islamic world's B-767): the same 16-heading layout, public/sprites/drone-islamic.png.
+    'bis': dict(glb='source/Bis.glb', layout='bomber', out='drone-islamic',
+                force_textures={'material02': 'textures/Bis.jpeg', 'material03': 'textures/Bis.jpeg'}, flip_v=True),
 }
 
 
@@ -65,6 +69,14 @@ def load(folder, cfg):
                                else model_to_obj.dae_meshes(os.path.join(folder, cfg['src'])), out)
         c = dict(obj=out, mtl=os.path.join(tmp, 'model.obj')[:-4] + '.mtl', skip=())
         data = tm.load('', c)
+    elif 'glb' in cfg:
+        # .glb downloads: Blender imports them and exports OBJ through tools/glb_to_obj.py.
+        tmp = tempfile.mkdtemp()
+        out = os.path.join(tmp, 'model.obj')
+        subprocess.run([BLENDER, '--background', '--factory-startup', '--python',
+                        os.path.join(os.path.dirname(os.path.abspath(__file__)), 'glb_to_obj.py'), '--', os.path.join(folder, cfg['glb']), out],
+                       check=True, capture_output=True)
+        data = tm.load('', dict(obj=out, mtl=out[:-4] + '.mtl', skip=()))
     elif 'blend' in cfg:
         # .blend downloads: Blender (BLENDER, or its default install path) exports them through tools/blend_to_obj.py.
         tmp = tempfile.mkdtemp()
@@ -92,6 +104,11 @@ def load(folder, cfg):
                 textures[m] = beside.get(k) or local[k]
     for m, t in cfg.get('force_textures', {}).items():
         textures[m] = os.path.join(folder, t)
+        if cfg.get('flip_v'):
+            # glTF UVs run top-down: hand the sampler the texture upside down.
+            flipped = os.path.join(tempfile.mkdtemp(), os.path.basename(t) + '.png')
+            Image.open(textures[m]).transpose(Image.FLIP_TOP_BOTTOM).save(flipped)
+            textures[m] = flipped
     if 'psd_as' in cfg:
         for m, t in textures.items():
             if t.lower().endswith('.psd'):

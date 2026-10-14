@@ -37,6 +37,8 @@ const SHEETS: Partial<Record<`${FactionId}:${VehicleKind}`, AircraftSheet>> = {
   // National bombers, one nation each (rendered from 3D models by tools/aircraft_model_sheet.py).
   'russia:bomber': sheet('tu160-russia.png', 96, 15.2),
   'usa:bomber': sheet('b1-usa.png', 96, 14.25),
+  // Kamikaze drone (Islamic world's B-767).
+  'islamic:drone': sheet('drone-islamic.png', 96, 9.5 + 20), // 20 px longer than the fighters
 };
 
 /** Turn rate (rad/s) above which an airborne aircraft is drawn banked. */

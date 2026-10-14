@@ -47,6 +47,7 @@ const HANDLING: Readonly<Record<VehicleKind, { accel: number; turn: number; pivo
   repair: { accel: 1.0, turn: 2.0, pivot: true },
   truck: { accel: 0.6, turn: 3.0, pivot: true },
   mantis: { accel: 1.0, turn: 2.0, pivot: true },
+  drone: { accel: 0.4, turn: 3.0, pivot: false },
 };
 
 /** Can `soldiers` soldiers and `vehicles` vehicles travel together in one transport? */
@@ -253,12 +254,22 @@ export class Vehicle extends Unit {
     return this.type === 'heli';
   }
 
+  /** Kamikaze drone: parks on an airfield like a fighter; dives into the structure it is sent at. */
+  get isDrone(): boolean {
+    return this.type === 'drone';
+  }
+
+  /** Kamikaze drone only: id of the enemy structure it is diving at, or null. */
+  diveTargetId: number | null = null;
+  /** Kamikaze drone, second of a pair: id of the lead drone it trails DRONE_PAIR_GAP_CELLS behind, or null. */
+  leadId: number | null = null;
+
   get isTruck(): boolean {
     return this.type === 'truck';
   }
 
   override get canFight(): boolean {
-    if (this.isTransport || this.isRepair || this.isTruck) return false;
+    if (this.isTransport || this.isRepair || this.isTruck || this.isDrone) return false;
     return !this.aircraft ||(this.flight === 'airborne' && this.weapon !== null);
   }
 

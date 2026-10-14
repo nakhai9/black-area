@@ -1,5 +1,5 @@
 import { demoPrice } from '../core/Demo';
-import { AVAILABLE_VEHICLES, BUILD_LIMIT_VEHICLES, MAX_GROUND_VEHICLES, MAX_TRANSPORTS, TECH_VEHICLES, VEHICLE_BASE, needsAirfield } from '../constants';
+import { AVAILABLE_VEHICLES, DRONE_PAIR, BUILD_LIMIT_VEHICLES, MAX_GROUND_VEHICLES, MAX_TRANSPORTS, TECH_VEHICLES, VEHICLE_BASE, needsAirfield } from '../constants';
 import type { Building } from '../entities/Building';
 import type { EntityManager } from '../entities/EntityManager';
 import { FACTIONS } from '../factions';
@@ -21,7 +21,7 @@ export interface VehicleOption {
   needsAirfield: boolean;
 }
 
-const KINDS: readonly VehicleKind[] = ['light', 'tank', 'ifv', 'jet', 'heli', 'bomber', 'transport', 'repair', 'truck', 'mantis'];
+const KINDS: readonly VehicleKind[] = ['light', 'tank', 'ifv', 'jet', 'heli', 'bomber', 'transport', 'repair', 'truck', 'mantis', 'drone'];
 
 function vehicleOptions(faction: FactionId): VehicleOption[] {
   const f = FACTIONS[faction];
@@ -121,7 +121,7 @@ export class VehicleSystem implements GameSystem {
    */
   /** Free parking spots (helicopters take none: they land wherever they like). */
   parkingFree(player: PlayerState): number {
-    const ordered = this.queue(player).items.reduce((n, k) => n + (needsAirfield(k) && k !== 'heli' ? 1 : 0), 0);
+    const ordered = this.queue(player).items.reduce((n, k) => n + (k === 'drone' ? DRONE_PAIR : needsAirfield(k) && k !== 'heli' ? 1 : 0), 0);
     return this.parkingCapacity(player) - this.aircraftOwned(player) - ordered;
   }
 
@@ -143,7 +143,7 @@ export class VehicleSystem implements GameSystem {
     if (TECH_VEHICLES.includes(kind) && !this.hasTech(player)) return 'tech';
     // BuildLimit: only the orders waiting are limited, not the vehicles the nation owns.
     if (!AVAILABLE_VEHICLES.includes(kind) || q.items.length >= BUILD_LIMIT_VEHICLES) return 'full';
-    if (needsAirfield(kind) && kind !== 'heli' && this.parkingFree(player) < (kind === 'transport' ? 2 : 1)) return 'noParking';
+    if (needsAirfield(kind) && kind !== 'heli' && this.parkingFree(player) < (kind === 'transport' || kind === 'drone' ? 2 : 1)) return 'noParking';
     if (!needsAirfield(kind) && this.groundCount(player) >= MAX_GROUND_VEHICLES) return 'cap';
     if (kind === 'transport' && this.transportCount(player) >= MAX_TRANSPORTS) return 'transportCap';
     q.items.push(kind);

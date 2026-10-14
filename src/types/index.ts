@@ -100,7 +100,7 @@ export interface WeaponSpec {
 /** Light car, main battle tank, armoured vehicle (IFV) and fighter aircraft. */
 /** `bomber` is a national special: only nations that list it in their `vehicles` can build it (Russia's Tu-160, the USA's B-1A Lancer). */
 /** `repair` is a national special too: an unarmed armoured recovery vehicle that mends friendly ground vehicles (Russia's BREM-1). */
-export type VehicleKind = 'light' | 'tank' | 'ifv' | 'jet' | 'transport' | 'bomber' | 'repair' | 'truck' | 'heli' | 'mantis';
+export type VehicleKind = 'light' | 'tank' | 'ifv' | 'jet' | 'transport' | 'bomber' | 'repair' | 'truck' | 'heli' | 'mantis' | 'drone';
 
 export interface VehicleProfile {
   name: string;
@@ -149,7 +149,7 @@ export interface FactionConfig {
   /** Ground forces trained at the Barracks. */
   infantry: Readonly<Record<Exclude<UnitTier, 'demolition'>, InfantryProfile>> & { readonly demolition?: InfantryProfile };
   /** Vehicles (War Factory) and aircraft (Airfield). */
-  vehicles: Readonly<Record<Exclude<VehicleKind, 'bomber' | 'repair' | 'truck' | 'transport' | 'heli'>, VehicleProfile>> & {
+  vehicles: Readonly<Record<Exclude<VehicleKind, 'bomber' | 'repair' | 'truck' | 'transport' | 'heli' | 'drone'>, VehicleProfile>> & {
     readonly bomber?: VehicleProfile;
     /** Attack helicopter (built at the Airfield). */
     readonly heli?: VehicleProfile;
@@ -158,6 +158,8 @@ export interface FactionConfig {
     readonly truck?: VehicleProfile;
     /** Transport aircraft: a nation without it flies no airlifts. */
     readonly transport?: VehicleProfile;
+    /** Kamikaze drone (the Islamic world's B-767): dives into an enemy structure. */
+    readonly drone?: VehicleProfile;
   };
   /** Leads the world oil cartel (like OPEC in real life): sets a production policy that moves the global oil price. */
   oilCartel?: boolean;

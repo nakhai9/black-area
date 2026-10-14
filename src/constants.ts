@@ -27,7 +27,7 @@ export const DEMO_FACTION = Number(import.meta.env.VITE_DEMO_FACTION) || 2;
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "1.139.2";
+export const GAME_VERSION = "1.143.3";
 
 /** An Allied Building within this many cells of any capital is an embassy; farther out it is a "Pro-<nation> regime". */
 export const EMBASSY_CAPITAL_CELLS = 25;
@@ -617,7 +617,19 @@ export const VEHICLE_BASE = {
   /** National army truck (KamAZ: Russia, China, the Islamic world; Oshkosh MTVR: USA; Mercedes-Benz Zetros: Europe), a little bigger than a tank: unarmed, faster than soldiers and tanks, carries
    * TRUCK_SOLDIERS soldiers (no vehicles); ground only. */
   truck: { cost: 700, trainSeconds: 9, maxHp: 240, speed: 2.1, radius: 4.6 },
+  /** National kamikaze drone (the Islamic world's B-767), built in pairs at the Airfield (one order = DRONE_PAIR drones,
+   * DRONE_PAIR_GAP_CELLS apart in flight); unarmed: ordered onto an enemy structure it dives into it (DRONE_*) and is gone.
+   * Cheaper than the fighter. */
+  drone: { cost: 900, trainSeconds: 12, maxHp: 90, speed: 7, radius: 3.0 },
 } as const;
+
+/** Kamikaze drone: the share of a structure's max health its dive takes. */
+export const DRONE_DAMAGE_SHARE = 0.5;
+/** One drone order delivers this many drones (two parking spots); the second flies this many cells behind the first. */
+export const DRONE_PAIR = 2;
+export const DRONE_PAIR_GAP_CELLS = 3;
+/** How close (cells) to the structure's edge the drone must get to strike it. */
+export const DRONE_STRIKE_CELLS = 0.4;
 
 /**
  * Soldiers and ground vehicles move this much faster than their base speed (a little quicker on the bigger map,
@@ -691,7 +703,8 @@ export const isAircraftKind = (kind: VehicleKind): boolean =>
   kind === "jet" ||
   kind === "heli" ||
   kind === "transport" ||
-  kind === "bomber";
+  kind === "bomber" ||
+  kind === "drone";
 
 /** Aircraft are built at, park at and take off from an airfield. */
 export const needsAirfield = (kind: VehicleKind): boolean =>
@@ -729,6 +742,7 @@ export const AVAILABLE_VEHICLES: readonly VehicleKind[] = [
   "repair",
   "truck",
   "mantis",
+  "drone",
 ];
 
 /**

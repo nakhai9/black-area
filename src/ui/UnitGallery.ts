@@ -121,7 +121,7 @@ function draw(card: Card, time: number): void {
   ctx.translate(w / 2, h / 2);
   ctx.imageSmoothingQuality = 'high';
   if (u instanceof Vehicle) {
-    const air = u.aircraft;
+    const air = u.aircraft || u.isDrone;
     const zoom = air ? ZOOM.air : ZOOM.ground;
     ctx.scale(zoom, zoom);
     const y = air ? u.altitude / 2 : 0; // aircraft hover over their ground point: centre the whole picture

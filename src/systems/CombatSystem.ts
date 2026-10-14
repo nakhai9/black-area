@@ -70,7 +70,7 @@ export function canTarget(shooter: Unit, target: Entity): boolean {
   if (shooter instanceof Vehicle && shooter.isHeli) return (target instanceof Vehicle && !target.aircraft) || (shooter.heliRevenge === target.id && target instanceof Unit && !target.flies);
   // Air-defence vehicle (NOMADS / Buk-M3): any enemy aircraft off the ground (altitude > 0), whatever it is doing —
   // cruising, hovering, lifting off, climbing, descending. Never one standing on the ground.
-  if (shooter instanceof Vehicle && shooter.type === 'mantis') return target instanceof Vehicle && target.aircraft && target.altitude > 0;
+  if (shooter instanceof Vehicle && shooter.type === 'mantis') return target instanceof Vehicle && (target.aircraft || target.isDrone) && target.altitude > 0;
   if (target instanceof Unit && target.flies) return shooter.aircraft && w.hitsAir;
   // Special forces never shoot ground vehicles: they plant a bomb on them instead (Game.processDemolition).
   if (shooter instanceof Infantry && shooter.isSpecial && target instanceof Vehicle) return false;
