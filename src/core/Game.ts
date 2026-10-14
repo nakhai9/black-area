@@ -2187,6 +2187,8 @@ export class Game {
     if (this.sidebarTimer >= SIDEBAR_REFRESH) {
       const elapsed = this.sidebarTimer;
       this.sidebarTimer = 0;
+      const phase = this.warPhase();
+      this.sidebar.setPeaceTimer(phase.peace ? phase.left : null);
       if (
         this.autoSellOil &&
         !this.humanPlayer.defeated &&

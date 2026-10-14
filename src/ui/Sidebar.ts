@@ -238,6 +238,8 @@ export class Sidebar {
   private readonly unloadButton: HTMLButtonElement;
   /** Floating action bar left of the sidebar (Home / Turbo / Unload), always shown; each button is disabled when it does not apply. */
   private readonly airTools: HTMLElement;
+  /** Countdown to the end of the peace (mm:ss) under the air tools; hidden during the war. */
+  private readonly peaceTimer: HTMLElement;
   private readonly turboButton: HTMLButtonElement;
   private readonly turboBadge: HTMLElement;
   private readonly alerts: AlertEntry[] = [];
@@ -442,6 +444,11 @@ export class Sidebar {
     this.turboBadge.className = 'air-tool-badge';
     this.turboButton.append(this.turboBadge);
     this.unloadButton = tool(ArrowUpFromLine, 'Unload (U): let the passengers out one by one. In the air the transport first lands on solid ground below it.', () => this.handlers.onUnload());
+    this.peaceTimer = document.createElement('div');
+    this.peaceTimer.className = 'peace-timer';
+    this.peaceTimer.title = 'Ceasefire: time left before the war resumes.';
+    this.peaceTimer.hidden = true;
+    this.airTools.append(this.peaceTimer);
     document.body.append(this.airTools);
     // No browser context menu anywhere on the sidebar (radar, cameos, panels): right-click is a game command.
     root.addEventListener('contextmenu', (e) => e.preventDefault());
@@ -519,6 +526,18 @@ export class Sidebar {
         return li;
       }),
     );
+  }
+
+  /** Shows the seconds left in the peace as mm:ss, or hides the countdown (null) while the war is on. */
+  setPeaceTimer(left: number | null): void {
+    if (left === null) {
+      this.peaceTimer.hidden = true;
+      return;
+    }
+    const s = Math.max(0, Math.ceil(left));
+    const text = `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+    if (this.peaceTimer.textContent !== text) this.peaceTimer.textContent = text;
+    this.peaceTimer.hidden = false;
   }
 
   /** Short EVA-style message under the cameos (e.g. "Construction complete"). */

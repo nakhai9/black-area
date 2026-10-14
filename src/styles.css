@@ -1407,12 +1407,26 @@ kbd {
   z-index: 20;
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 16px;
 }
 body.sidebar-hidden .air-tools {
   right: 8px;
 }
 .air-tools[hidden] {
+  display: none;
+}
+.peace-timer {
+  align-self: center;
+  padding: 3px 8px;
+  border: 1px solid #2f7a3a;
+  border-radius: 3px;
+  background: rgba(8, 12, 16, 0.85);
+  font: bold 14px/1.2 Consolas, 'Cascadia Mono', monospace;
+  color: #b9ffc3;
+  pointer-events: none;
+}
+.peace-timer[hidden] {
   display: none;
 }
 .air-tool {
