@@ -1,4 +1,4 @@
-import { t } from './i18n';
+import { t } from "./i18n";
 import type {
   BuildingType,
   FactionId,
@@ -34,7 +34,7 @@ export const EMBASSY_CAPITAL_CELLS = 25;
 
 /** War / ceasefire cycle: WAR_SECONDS of war between the nations, then PEACE_SECONDS of peace to build up, over and over. */
 export const WAR_SECONDS = 10 * 60;
-export const PEACE_SECONDS = 2.5 * 60;
+export const PEACE_SECONDS = 2 * 60;
 /**
  * Ceasefire zone: during the peace, a unit (soldier, vehicle, aircraft) within TRUCE_ZONE_CELLS of the edge of another
  * nation's structure breaks the ceasefire: every other nation may destroy it and it may not fight back. Units have
@@ -143,8 +143,11 @@ export const FOOTPRINT_WHITE_HOUSE = { w: 5, d: 3 } as const;
 /** Contested-nation capitals: a long, shallow 5 × 3 plot like the White House (art 4 × 2.4 units, drawn 1.25×). */
 export const FOOTPRINT_NATION_CAPITAL = { w: 5, d: 3 } as const;
 /** Plot of a faction's capital. */
-export function capitalFootprint(faction: FactionId): { readonly w: number; readonly d: number } {
-  return faction === 'usa' ? FOOTPRINT_WHITE_HOUSE : FOOTPRINT_CAPITAL;
+export function capitalFootprint(faction: FactionId): {
+  readonly w: number;
+  readonly d: number;
+} {
+  return faction === "usa" ? FOOTPRINT_WHITE_HOUSE : FOOTPRINT_CAPITAL;
 }
 /** Airfield: a long runway + an apron with nine parking spots, 12×8 tiles. */
 export const FOOTPRINT_AIRFIELD = { w: 12, d: 8 } as const;
@@ -315,21 +318,137 @@ export const SWIM_SPEED_FACTOR = 0.6;
  *    (the only way across; slow: MOUNTAIN_PASS_SPEED_*).
  * The band is about MOUNTAIN_HALF_WIDTH_CELLS either side of the crest; its edge wanders naturally.
  */
-export const MOUNTAIN_RANGES: readonly { name: string; points: readonly (readonly [number, number])[]; passes?: number }[] = [
+export const MOUNTAIN_RANGES: readonly {
+  name: string;
+  points: readonly (readonly [number, number])[];
+  passes?: number;
+}[] = [
   // Himalaya: Nanga Parbat (west, by the Indus bend) over Nanda Devi, Dhaulagiri, Everest, Kangchenjunga to Namcha Barwa (east, by the Yarlung Tsangpo bend).
-  { name: 'Himalaya', points: [[74.59, 35.24], [76.0, 34.0], [77.5, 32.8], [79.0, 31.0], [79.97, 30.38], [81.5, 29.8], [83.49, 28.7], [85.5, 28.1], [86.93, 27.99], [88.15, 27.7], [89.5, 27.9], [91.5, 27.95], [93.5, 28.6], [95.06, 29.63]] },
-  { name: 'Andes', points: [[-78.0, 2.0], [-79.0, -2.0], [-77.0, -8.0], [-72.5, -14.0], [-69.0, -17.0], [-68.5, -22.0], [-69.0, -27.0], [-70.0, -33.0], [-71.0, -38.0], [-71.7, -43.0], [-73.0, -48.0]] },
-  { name: 'Rocky Mountains', points: [[-122.0, 55.0], [-118.0, 51.5], [-114.0, 48.0], [-110.5, 44.0], [-107.0, 40.0], [-106.5, 37.0], [-106.0, 33.0]] },
-  { name: 'Alps', points: [[6.5, 44.2], [6.9, 45.8], [8.0, 46.4], [10.0, 46.5], [12.3, 47.0], [14.0, 47.3]] },
-  { name: 'Altai', points: [[82.0, 49.8], [85.0, 49.5], [88.0, 49.6], [91.0, 49.2], [94.0, 49.3], [97.0, 48.9], [100.0, 48.8], [103.0, 48.5]] },
+  {
+    name: "Himalaya",
+    points: [
+      [74.59, 35.24],
+      [76.0, 34.0],
+      [77.5, 32.8],
+      [79.0, 31.0],
+      [79.97, 30.38],
+      [81.5, 29.8],
+      [83.49, 28.7],
+      [85.5, 28.1],
+      [86.93, 27.99],
+      [88.15, 27.7],
+      [89.5, 27.9],
+      [91.5, 27.95],
+      [93.5, 28.6],
+      [95.06, 29.63],
+    ],
+  },
+  {
+    name: "Andes",
+    points: [
+      [-78.0, 2.0],
+      [-79.0, -2.0],
+      [-77.0, -8.0],
+      [-72.5, -14.0],
+      [-69.0, -17.0],
+      [-68.5, -22.0],
+      [-69.0, -27.0],
+      [-70.0, -33.0],
+      [-71.0, -38.0],
+      [-71.7, -43.0],
+      [-73.0, -48.0],
+    ],
+  },
+  {
+    name: "Rocky Mountains",
+    points: [
+      [-122.0, 55.0],
+      [-118.0, 51.5],
+      [-114.0, 48.0],
+      [-110.5, 44.0],
+      [-107.0, 40.0],
+      [-106.5, 37.0],
+      [-106.0, 33.0],
+    ],
+  },
+  {
+    name: "Alps",
+    points: [
+      [6.5, 44.2],
+      [6.9, 45.8],
+      [8.0, 46.4],
+      [10.0, 46.5],
+      [12.3, 47.0],
+      [14.0, 47.3],
+    ],
+  },
+  {
+    name: "Altai",
+    points: [
+      [82.0, 49.8],
+      [85.0, 49.5],
+      [88.0, 49.6],
+      [91.0, 49.2],
+      [94.0, 49.3],
+      [97.0, 48.9],
+      [100.0, 48.8],
+      [103.0, 48.5],
+    ],
+  },
   // Vesi (fictional): one straight wall between Russia / Central Asia and China, from the Pamir (75.44°E 39.87°N) to
   // the Altai's west end (82.16°E 47.68°N). No pass: armies must march round one of its ends.
-  { name: 'Vesi', passes: 0, points: [[75.44, 39.87], [82.16, 47.68]] },
-  { name: 'Ural', points: [[59.5, 68.0], [60.0, 65.0], [59.3, 62.0], [59.2, 59.0], [59.5, 56.0], [58.5, 53.5], [58.8, 51.5]] },
+  {
+    name: "Vesi",
+    passes: 0,
+    points: [
+      [75.44, 39.87],
+      [82.16, 47.68],
+    ],
+  },
+  {
+    name: "Ural",
+    points: [
+      [59.5, 68.0],
+      [60.0, 65.0],
+      [59.3, 62.0],
+      [59.2, 59.0],
+      [59.5, 56.0],
+      [58.5, 53.5],
+      [58.8, 51.5],
+    ],
+  },
   // Pamir ("Roof of the World") and Karakoram: the icy wall between West / South Asia and China (Xinjiang).
-  { name: 'Pamir', points: [[69.5, 39.3], [71.5, 39.5], [73.5, 39.4], [74.5, 38.7], [75.1, 37.8], [74.9, 36.9]] },
-  { name: 'Karakoram', points: [[74.5, 36.3], [75.5, 36.0], [76.5, 35.8], [77.5, 35.3], [78.5, 34.7]] },
-  { name: 'Caucasus', points: [[39.5, 43.6], [42.4, 43.3], [44.5, 42.7], [47.0, 41.8], [49.0, 41.0]] },
+  {
+    name: "Pamir",
+    points: [
+      [69.5, 39.3],
+      [71.5, 39.5],
+      [73.5, 39.4],
+      [74.5, 38.7],
+      [75.1, 37.8],
+      [74.9, 36.9],
+    ],
+  },
+  {
+    name: "Karakoram",
+    points: [
+      [74.5, 36.3],
+      [75.5, 36.0],
+      [76.5, 35.8],
+      [77.5, 35.3],
+      [78.5, 34.7],
+    ],
+  },
+  {
+    name: "Caucasus",
+    points: [
+      [39.5, 43.6],
+      [42.4, 43.3],
+      [44.5, 42.7],
+      [47.0, 41.8],
+      [49.0, 41.0],
+    ],
+  },
 ];
 export const MOUNTAIN_HALF_WIDTH_CELLS = 6;
 export const MOUNTAIN_CREST_CELLS = 1.3;
