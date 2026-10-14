@@ -169,6 +169,80 @@ export class TileTerrain {
   }
 
   /** Base colour of terrain `t` at cell position (fx, fy) (cell units, fractional) into this.col. */
+  /**
+   * Land colour at (u, v) inside chunk cell (i, j) of type `t`: where the land type changes (grass / sand / desert /
+   * snow / forest / rock), the colours of the four nearest cells are blended with smoothstep weights, the sample point
+   * wobbled by noise, so borders read as soft, irregular transitions instead of square cell edges. Sea cells count
+   * as `t` here (the coast has its own beach blend).
+   */
+  private landBase(T: Uint8Array, W: number, i: number, j: number, u: number, v: number, t: number, fx: number, fy: number, n1: number, mott: number): void {
+    const c = this.col;
+    const ju = Math.min(0.999, Math.max(0.001, u + (this.noise.noise(fx * 1.3 + 17, fy * 1.3) - 0.5) * 0.7));
+    const jv = Math.min(0.999, Math.max(0.001, v + (this.noise.noise(fx * 1.3, fy * 1.3 + 29) - 0.5) * 0.7));
+    const gx = ju - 0.5;
+    const gy = jv - 0.5;
+    const i0 = gx < 0 ? i - 1 : i;
+    const j0 = gy < 0 ? j - 1 : j;
+    const tx = gx < 0 ? gx + 1 : gx;
+    const ty = gy < 0 ? gy + 1 : gy;
+    const sx = tx * tx * (3 - 2 * tx);
+    const sy = ty * ty * (3 - 2 * ty);
+    const typeAt = (a: number, b: number): number => {
+      const k = T[b * W + a] ?? t;
+      return k === 0 ? t : k;
+    };
+    const k00 = typeAt(i0, j0);
+    const k10 = typeAt(i0 + 1, j0);
+    const k01 = typeAt(i0, j0 + 1);
+    const k11 = typeAt(i0 + 1, j0 + 1);
+    if (k00 === t && k10 === t && k01 === t && k11 === t) {
+      this.base(t, fx, fy, n1, mott);
+      return;
+    }
+    const w = [(1 - sx) * (1 - sy), sx * (1 - sy), (1 - sx) * sy, sx * sy];
+    const ks = [k00, k10, k01, k11];
+    let r = 0;
+    let g = 0;
+    let b = 0;
+    for (let q = 0; q < 4; q++) {
+      const wq = w[q] ?? 0;
+      if (wq <= 0) continue;
+      const kq = ks[q] ?? t;
+      // Same type as an earlier corner: add its weight there (one base() call per type).
+      let dup = false;
+      for (let e = 0; e < q; e++) if (ks[e] === kq) dup = true;
+      if (dup) continue;
+      let wsum = wq;
+      for (let e = q + 1; e < 4; e++) if (ks[e] === kq) wsum += w[e] ?? 0;
+      this.base(kq, fx, fy, n1, mott);
+      r += c[0] * wsum;
+      g += c[1] * wsum;
+      b += c[2] * wsum;
+    }
+    c[0] = r;
+    c[1] = g;
+    c[2] = b;
+  }
+
+  /**
+   * Land share (0 sea … 1 land) at (u, v) inside chunk cell (i, j): the four nearest cell centres' land / sea values,
+   * blended with a smoothstep so the 0.5 contour runs as soft curves and diagonals instead of cell edges.
+   */
+  private landField(T: Uint8Array, W: number, i: number, j: number, u: number, v: number): number {
+    const gx = u - 0.5;
+    const gy = v - 0.5;
+    const i0 = gx < 0 ? i - 1 : i;
+    const j0 = gy < 0 ? j - 1 : j;
+    const tx = gx < 0 ? gx + 1 : gx;
+    const ty = gy < 0 ? gy + 1 : gy;
+    const sx = tx * tx * (3 - 2 * tx);
+    const sy = ty * ty * (3 - 2 * ty);
+    const at = (a: number, b: number): number => ((T[b * W + a] ?? 1) === 0 ? 0 : 1);
+    const top = at(i0, j0) + (at(i0 + 1, j0) - at(i0, j0)) * sx;
+    const bottom = at(i0, j0 + 1) + (at(i0 + 1, j0 + 1) - at(i0, j0 + 1)) * sx;
+    return top + (bottom - top) * sy;
+  }
+
   private base(t: number, fx: number, fy: number, n1: number, mott: number): void {
     const c = this.col;
     let a: RGB;
@@ -330,26 +404,26 @@ export class TileTerrain {
           const fx = cx + u;
           const n1 = hash2((qx * CHUNK_PX + px) >> 1, (qy * CHUNK_PX + py) >> 1, seed + 5);
           const mott = clamp01(this.noise.noise(fx * 0.22, fy * 0.22) * 0.65 + cellVar * 0.35);
-          this.base(t, fx, fy, n1, mott);
-  
-          if (t !== 0) {
+          // Smooth coastline: the shore follows a soft land / sea field interpolated between cell centres (with a
+          // little noise), not the cell edges, so a staircase of cells reads as a rounded, natural coast. The game
+          // grid (what is passable) is unchanged; only the painting differs by up to half a cell.
+          const coastal = (t === 0 || L === 0 || R === 0 || U === 0 || D === 0 || UL === 0 || UR === 0 || DL === 0 || DR === 0) && (t !== 0 || L !== 0 || R !== 0 || U !== 0 || D !== 0 || UL !== 0 || UR !== 0 || DL !== 0 || DR !== 0);
+          const f = coastal ? this.landField(T, W, i, j, u, v) + (this.noise.noise(fx * 1.6, fy * 1.6) - 0.5) * 0.22 : t === 0 ? 0 : 1;
+          const land = f >= 0.5;
+          // A sea cell painted as land takes beach sand; a land cell painted as sea is sea.
+          const lt = t === 0 ? 1 : t;
+          if (land) this.landBase(T, W, i, j, u, v, lt, fx, fy, n1, mott);
+
+          if (land) {
             // ---- land: beach strip / cliff towards the sea, ragged blend into a different land type
-            let dW = 9;
-            if (L === 0) dW = Math.min(dW, u);
-            if (R === 0) dW = Math.min(dW, 1 - u);
-            if (U === 0) dW = Math.min(dW, v);
-            if (D === 0) dW = Math.min(dW, 1 - v);
-            if (L !== 0 && U !== 0 && UL === 0) dW = Math.min(dW, Math.hypot(u, v));
-            if (R !== 0 && U !== 0 && UR === 0) dW = Math.min(dW, Math.hypot(1 - u, v));
-            if (L !== 0 && D !== 0 && DL === 0) dW = Math.min(dW, Math.hypot(u, 1 - v));
-            if (R !== 0 && D !== 0 && DR === 0) dW = Math.min(dW, Math.hypot(1 - u, 1 - v));
+            const dW = coastal ? f - 0.5 : 9; // cells from the (smooth) waterline
             if (dW < 9) {
-              if (t === 5) {
+              if (lt === 5) {
                 const k = smooth(0.2, 0.0, dW);
                 col[0] += (CLIFF[0] - col[0]) * k;
                 col[1] += (CLIFF[1] - col[1]) * k;
                 col[2] += (CLIFF[2] - col[2]) * k;
-              } else if (t !== 6) {
+              } else if (lt !== 6) {
                 const k = smooth(0.42, 0.14, dW + (n1 - 0.5) * 0.08);
                 col[0] += (BEACH[0] - col[0]) * k;
                 col[1] += (BEACH[1] - col[1]) * k;
@@ -360,22 +434,6 @@ export class TileTerrain {
                 col[1] += (WET_SAND[1] - col[1]) * wet;
                 col[2] += (WET_SAND[2] - col[2]) * wet;
               }
-            }
-            // Ragged blend into a different land type next door (first side that qualifies: L, R, U, D).
-            let nt = -1;
-            let dist = 0;
-            if (L !== t && L !== 0 && u <= 0.22 && n1 < (1 - u / 0.22) * 0.5) [nt, dist] = [L, u];
-            else if (R !== t && R !== 0 && 1 - u <= 0.22 && n1 < (1 - (1 - u) / 0.22) * 0.5) [nt, dist] = [R, 1 - u];
-            else if (U !== t && U !== 0 && v <= 0.22 && n1 < (1 - v / 0.22) * 0.5) [nt, dist] = [U, v];
-            else if (D !== t && D !== 0 && 1 - v <= 0.22 && n1 < (1 - (1 - v) / 0.22) * 0.5) [nt, dist] = [D, 1 - v];
-            if (nt >= 0 && dist <= 0.22) {
-              const k0 = col[0];
-              const k1 = col[1];
-              const k2 = col[2];
-              this.base(nt, fx, fy, n1, mott);
-              col[0] = (col[0] + k0 * 0.3) / 1.3;
-              col[1] = (col[1] + k1 * 0.3) / 1.3;
-              col[2] = (col[2] + k2 * 0.3) / 1.3;
             }
             col[0] *= shade;
             col[1] *= shade;
@@ -390,15 +448,7 @@ export class TileTerrain {
             col[0] = (a[0] + (b[0] - a[0]) * k) * (1 + wave);
             col[1] = (a[1] + (b[1] - a[1]) * k) * (1 + wave);
             col[2] = (a[2] + (b[2] - a[2]) * k) * (1 + wave);
-            let dL = 9;
-            if (L !== 0) dL = Math.min(dL, u);
-            if (R !== 0) dL = Math.min(dL, 1 - u);
-            if (U !== 0) dL = Math.min(dL, v);
-            if (D !== 0) dL = Math.min(dL, 1 - v);
-            if (L === 0 && U === 0 && UL !== 0) dL = Math.min(dL, Math.hypot(u, v));
-            if (R === 0 && U === 0 && UR !== 0) dL = Math.min(dL, Math.hypot(1 - u, v));
-            if (L === 0 && D === 0 && DL !== 0) dL = Math.min(dL, Math.hypot(u, 1 - v));
-            if (R === 0 && D === 0 && DR !== 0) dL = Math.min(dL, Math.hypot(1 - u, 1 - v));
+            const dL = coastal ? 0.5 - f : 9; // cells from the (smooth) waterline
             if (dL < 9) {
               const shelf = smooth(0.55, 0.0, dL) * 0.85;
               col[0] += (SEA_COAST[0] - col[0]) * shelf;

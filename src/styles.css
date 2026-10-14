@@ -1614,3 +1614,20 @@ body.pregame .sb-open {
   color: #fff;
   filter: brightness(1.12);
 }
+
+/* Button text weight: 600 everywhere (semi-bold, not bold). */
+button,
+.sb-open,
+.fp-deploy,
+.fp-demo,
+.fp-desktop,
+.fp-guide,
+.fp-load,
+.end-card button,
+.end-card button.lc-start,
+.sb-sell,
+.sb-unload,
+.sb-main-tabs button,
+.sb-tabs button {
+  font-weight: 600;
+}

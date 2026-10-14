@@ -165,14 +165,14 @@ export class TerrainRenderer {
     for (let s = 1; s < steps; s++) {
       const f = s / steps;
       const j = hash2(Math.floor(x) + s, Math.floor(y), this.seed + 40) - 0.5;
-      ridge.push({ x: -half * (1 - f) + j * half * 0.12, y: -tall * Math.pow(f, 1.25) * (0.85 + j * 0.3) });
+      ridge.push({ x: -half * (1 - f) + j * half * 0.08, y: -tall * Math.pow(f, 1.25) * (0.88 + j * 0.2) });
     }
     const split = ridge.length;
     ridge.push({ x: (r - 0.5) * half * 0.3, y: -tall });
     for (let s = steps - 1; s >= 1; s--) {
       const f = s / steps;
       const j = hash2(Math.floor(x) - s, Math.floor(y) + 3, this.seed + 41) - 0.5;
-      ridge.push({ x: half * (1 - f) + j * half * 0.12, y: -tall * Math.pow(f, 1.1) * (0.8 + j * 0.3) });
+      ridge.push({ x: half * (1 - f) + j * half * 0.08, y: -tall * Math.pow(f, 1.1) * (0.84 + j * 0.2) });
     }
     ridge.push({ x: half, y: half * 0.12 });
     const snowAt = m >= PEAK_SNOW_M ? Math.min(0.75, 0.25 + (m - PEAK_SNOW_M) / 9000) : 0;
@@ -230,11 +230,19 @@ export class TerrainRenderer {
     ctx.fill();
     p.shade ??= this.faceGradient(ctx, p, false);
     p.lit ??= this.faceGradient(ctx, p, true);
+    // Soft silhouette: the ridge runs as curves through the midpoints between its shoulders (same path cost as
+    // straight lines, so no extra work per frame).
     const face = (from: number, to: number, fill: CanvasGradient): void => {
       ctx.fillStyle = fill;
       ctx.beginPath();
       ctx.moveTo(foot.x, foot.y);
-      for (let k = from; k <= to; k++) ctx.lineTo(pts[k]!.x, pts[k]!.y);
+      ctx.lineTo(pts[from]!.x, pts[from]!.y);
+      for (let k = from + 1; k < to; k++) {
+        const a = pts[k]!;
+        const b = pts[k + 1]!;
+        ctx.quadraticCurveTo(a.x, a.y, (a.x + b.x) / 2, (a.y + b.y) / 2);
+      }
+      ctx.lineTo(pts[to]!.x, pts[to]!.y);
       ctx.closePath();
       ctx.fill();
     };

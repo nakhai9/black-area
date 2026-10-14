@@ -26,7 +26,7 @@
 <body>
 <main>
 <img class="logo" src="/logo.png" alt="Black Area" />
-<h1>Black Area — RULE <small>v1.137.2</small></h1>
+<h1>Black Area — RULE <small>v1.139.2</small></h1>
 <p class="lead">Tài liệu luật chơi + kiến trúc code dành cho AI/dev sửa game. Mọi con số gameplay chính xác nằm trong <code>src/constants.ts</code> và <code>src/factions/*.ts</code>. Nếu tài liệu này khác code thì <b>code đúng</b>. <b>Khi đổi luật/số trong code, phải cập nhật file này.</b></p>
 <nav><a href="#s1">Quy tắc làm việc cho AI</a><a href="#s2">Chạy dự án</a><a href="#s3">Kiến trúc thư mục</a><a href="#s4">Thế giới</a><a href="#s5">Kinh tế (dầu)</a><a href="#s6">Công trình (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Quân đội</a><a href="#s8">Chiến đấu</a><a href="#s9">Điều khiển (Game.handleKey, handleInput)</a><a href="#s10">Giới hạn &amp; hiệu năng</a><a href="#s11">Thắng / thua &amp; AI</a><a href="#s12">Công thức sửa thường gặp</a></nav>
 <h2 id="s1">0. Quy tắc làm việc cho AI</h2>
@@ -549,6 +549,10 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
   <li>Xe mất máu có 3 cách hồi máu: (1) chọn xe hư rồi click vào War Factory của mình: xe chạy vào cửa, được sửa bên trong (<code>FACTORY_REPAIR_SHARE = 8%</code> máu tối đa mỗi giây), đầy máu thì tự chạy ra bãi đỗ trước cửa; (2) chọn xe sửa (ARV) rồi click chuột phải vào một xe hoặc một xe trong nhóm có xe hư: ARV tự chạy tới sửa, lần lượt hết các xe hư trong <code>REPAIR_GROUP_CELLS = 6</code> ô quanh đó (hư nặng nhất trước); (3) chọn một hoặc nhiều xe rồi click chuột trái vào xe ARV: các xe hư tự chạy tới ARV đó để được sửa. Xe đi qua Nation Gate được vẽ dưới cổng (vòm và tháp cổng che lên xe) (v1.137.0).</li>
   <li>Xe đứng sát tường không còn vẽ đè lên tường: chỉ máy bay đậu trên sân bay mới vẽ đè lên chân đế công trình; thân xe chạm mép ô tường / công trình thì so độ sâu tâm như thường (v1.137.1).</li>
   <li>Thứ tự vẽ: mọi cặp công trình / đơn vị chồng nhau trên màn hình đều có thứ tự rõ ràng (cặp không có quy tắc chân đế thì xếp theo độ sâu tâm như một ràng buộc), nên xe trong sân giữa công trình và tường không còn bị vẽ đè lên tường khi công trình lớn phía sau giữ chậm thứ tự (v1.137.2).</li>
+  <li>Bờ biển vẽ mềm hơn, không còn bậc thang vuông theo ô: đường bờ đi theo trường đất/biển nội suy giữa tâm các ô (smoothstep + nhiễu nhẹ), góc thành đường cong / đường chéo; dải cát và bọt sóng chạy theo đường bờ mới. Lưới chơi (ô nào đi được) không đổi, hình vẽ lệch tối đa nửa ô (v1.138.0).</li>
+  <li>Ranh giới giữa các loại đất (cỏ, cát, sa mạc, tuyết, rừng, đá) vẽ mềm: màu của 4 ô gần nhất trộn theo trọng số smoothstep, điểm lấy mẫu xê dịch theo nhiễu, nên chỗ giao nhau là dải chuyển màu lượn tự nhiên thay vì cạnh ô vuông. Lưới chơi không đổi (v1.139.0).</li>
+  <li>Núi mềm hơn: sống núi vẽ bằng đường cong qua trung điểm các vai núi thay cho đoạn thẳng gãy khúc, độ lởm chởm giảm; không tốn thêm hiệu năng (cùng số lệnh vẽ) (v1.139.1).</li>
+  <li>Chữ trên mọi nút đậm 600 (trước 700) (v1.139.2).</li>
   <li>Tìm đường (A*) là phần tốn nhất: đơn vị attack-move bị chặn chỉ thử tìm lại đường mỗi <code>RESUME_RETRY 1</code> s (đích ở bờ biển khác / không tới được thì huỷ lệnh); mỗi 0.5 s chỉ đổi đường tối đa <code>REPATH_BUDGET 8</code> đơn vị kẹt, hết đường thì dừng.</li>
   <li>Dọn cache mỗi <code>JANITOR_INTERVAL = 180</code> s (ảnh/địa hình không dùng, sổ ghi unit đã chết, sổ thưởng nhân từ của nhóm rút lui không còn ai sống). Chỉ xoá thứ không còn dùng tới, không động vào lính, công trình, tiền hay lệnh đang chạy. Tìm đường A* (<code>Pathfinder.find</code>) mỗi ô chỉ mở rộng 1 lần (bỏ bản sao cũ trong hàng đợi), đọc thẳng mảng của <code>TileMap</code>, hàng đợi ưu tiên dùng typed array dùng lại giữa các lần tìm.</li>
   <li>Art dùng sprite sheet PNG trong <code>public/sprites/</code> (tank, jet/bomber, bom, tên lửa, đạn pháo, lính 8 hướng), vẽ thủ tục khi không có sheet.</li>
