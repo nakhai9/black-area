@@ -213,7 +213,12 @@ const SIEGE_RANGE = 16 * CELL_SIZE;
  * goes for the capital only when nothing else is left. Distance, damage and the nation's personality still
  * reorder the list, so every AI picks its own plan.
  */
-const ECONOMIC_TARGETS: Partial<Record<BuildingType, number>> = { oilDerrick: 0.45, happyCity: 0.5, powerPlant: 0.6 };
+// Derricks are worth more taken than burnt (engineers capture them, see captureOil): the army leaves them for last.
+const ECONOMIC_TARGETS: Partial<Record<BuildingType, number>> = { oilDerrick: 1.5, happyCity: 0.5, powerPlant: 0.6 };
+/** Oil first for the engineers: an unowned derrick counts this much nearer than a contested capital. */
+const FREE_OIL_PULL = 0.4;
+/** captureOil: enemy derricks within this many cells of a free engineer are taken over (one engineer at a time). */
+const OIL_CAPTURE_CELLS = 70;
 const MILITARY_TARGETS: Partial<Record<BuildingType, number>> = { barracks: 0.75, warFactory: 0.8, airfield: 0.85, techCenter: 0.9 };
 /** Any other structure (hospital…). */
 const OTHER_TARGET = 1.1;
@@ -394,6 +399,7 @@ export class AISystem implements GameSystem {
     this.contestNations(p, st, capital, owned, threat);
     if (st.overseas) this.loadTransports(p, st, capital);
     this.leaseOil(p, owned, threat);
+    this.captureOil(p, threat);
     this.healWounded(p);
     this.driveConvoys(st);
     this.evacuate(p, capital);
@@ -1162,6 +1168,29 @@ export class AISystem implements GameSystem {
     if (!this.host.training.queue(p).items.includes('engineer')) this.host.training.enqueue(p, 'engineer');
   }
 
+  /**
+   * Oil, in order: unowned derricks (contestNations), leases (leaseOil), then rivals' derricks — taken over by an
+   * engineer rather than destroyed (the army leaves them for last, see ECONOMIC_TARGETS). A free engineer left over
+   * goes for the nearest capturable enemy derrick it can walk to, one at a time per nation. War time only.
+   */
+  private captureOil(p: PlayerState, threat: number): void {
+    if (threat > 0) return;
+    const units = this.host.entities.fieldUnits();
+    if (units.some((u) => u.owner === p.id && u.task?.type === 'capture' && this.host.entities.get(u.task.buildingId) instanceof OilDerrick)) return;
+    const eng = units.find((u) => u.owner === p.id && u.alive && u.isEngineer && u.task === null && u.insideId === null && !u.moving && u.boardTarget === null);
+    if (!eng) return;
+    const pf = this.host.pathfinder;
+    const ex = Math.floor(eng.px / CELL_SIZE);
+    const ey = Math.floor(eng.py / CELL_SIZE);
+    const targets = this.host.entities
+      .buildings()
+      .filter((b): b is OilDerrick => b instanceof OilDerrick && b.alive && b.owner !== p.id && b.owner !== NEUTRAL_OWNER && !b.spec.uncapturable && !this.host.isShielded(b))
+      .map((b) => ({ b, d: Math.hypot(b.centerWorld().x - eng.px, b.centerWorld().y - eng.py) }))
+      .filter(({ b, d }) => d < OIL_CAPTURE_CELLS * CELL_SIZE && pf.sameLandmass(ex, ey, b.x, b.y + b.d))
+      .sort((a, b) => a.d - b.d);
+    for (const { b } of targets) if (this.host.orderCapture(eng, b)) return;
+  }
+
   /** The guard fights enemies near the capital and otherwise walks back to it. */
   private defend(p: PlayerState, guard: readonly Unit[], home: WorldPoint, all: readonly Unit[]): void {
     // Only threats the guard can actually fight count: an enemy jet over the sea must not send the ground guard
@@ -1209,7 +1238,8 @@ export class AISystem implements GameSystem {
         const w = c.centerWorld();
         // Across the sea counts as twice as far (it needs an airlift); nobody's capital is easier prey.
         const overland = home !== null && pf.sameLandmass(home.x, home.y, cell.x, cell.y);
-        const score = Math.hypot(w.x - homeW.x, w.y - homeW.y) * (overland ? 1 : 2) * (c.owner === NEUTRAL_OWNER ? 0.8 : 1);
+        const freeOil = c instanceof OilDerrick && c.owner === NEUTRAL_OWNER;
+        const score = Math.hypot(w.x - homeW.x, w.y - homeW.y) * (overland ? 1 : 2) * (c.owner === NEUTRAL_OWNER ? 0.8 : 1) * (freeOil ? FREE_OIL_PULL : 1);
         if (score < best) {
           best = score;
           target = c;
