@@ -1,5 +1,6 @@
 import { AI_BUNKERS, AI_WALL_ALERT_SECONDS, AI_WALL_ENEMY_UNITS, AI_WALL_GAP, AI_WALL_WATCH_CELLS, AI_WALL_RING, AI_WALL_SEGMENT, BUNKER_RANGE, CELL_SIZE, INFANTRY_BASE, INFANTRY_MARCH_CELLS, EMBASSY_CAPITAL_CELLS, MAX_ALLIES, NATION_GARRISON, NATION_GARRISON_CELLS, NEUTRAL_OWNER, OIL_DERRICK_OUTPUT, OIL_LEASE_CARTEL_SHARE, OIL_LEASE_SECONDS, TECH_VEHICLES, TRUCE_ZONE_CELLS, TRUCK_MIN_RIDERS, TRUCK_SOLDIERS } from '../constants';
 import { FACTIONS } from '../factions';
+import { StructureIndex } from './StructureIndex';
 import { OilDerrick } from '../entities/OilDerrick';
 import { NationCapital } from '../entities/NationCapital';
 import { Gate } from '../entities/Gate';
@@ -1533,22 +1534,20 @@ export class AISystem implements GameSystem {
    */
   private keepCeasefire(p: PlayerState, st: AIState, capital: Building): void {
     const R = TRUCE_ZONE_CELLS + TRUCE_SAFETY_CELLS;
-    const others = this.host.entities.buildings().filter((b) => b.alive && b.owner !== p.id && b.owner !== NEUTRAL_OWNER);
+    const zones = new StructureIndex(this.host.entities.buildings().filter((b) => b.alive && b.owner !== NEUTRAL_OWNER));
+    const home = capital.centerWorld();
     const near = (u: Unit): boolean => {
       const cx = u.px / CELL_SIZE;
       const cy = u.py / CELL_SIZE;
       // Heading somewhere: the end of its route counts too (never walk into a zone).
       const d = u.destination;
-      const ex = d ? d.x / CELL_SIZE : cx;
-      const ey = d ? d.y / CELL_SIZE : cy;
-      return others.some((b) => {
-        const dist = (x: number, y: number): number => Math.hypot(Math.max(b.x - x, 0, x - (b.x + b.w)), Math.max(b.y - y, 0, y - (b.y + b.d)));
-        return dist(cx, cy) <= R || dist(ex, ey) <= R;
-      });
+      return zones.foreignWithin(p.id, cx, cy, R) || (!!d && zones.foreignWithin(p.id, d.x / CELL_SIZE, d.y / CELL_SIZE, R));
     };
     const out: Unit[] = [];
     for (const u of this.host.entities.fieldMovers()) {
       if (u.owner !== p.id || !u.alive || u.task?.type === 'lease' || u.retreating || u.fixed) continue;
+      // Already standing at the capital: ordering it there again every think only costs a path search.
+      if (!u.moving && Math.hypot(u.px - home.x, u.py - home.y) < 6 * CELL_SIZE) continue;
       if (near(u)) out.push(u);
     }
     for (const [id] of st.convoys) {
@@ -1559,7 +1558,7 @@ export class AISystem implements GameSystem {
         st.convoys.delete(id);
       }
     }
-    if (out.length > 0) this.host.orderRetreat(out, capital.centerWorld());
+    if (out.length > 0) this.host.orderRetreat(out, home);
   }
 
   /** True when the nearest enemy structure cannot be reached by land from the capital. */

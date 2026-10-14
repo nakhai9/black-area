@@ -135,6 +135,7 @@ import { BUILDING_ART } from '../render/sprites';
 import { AIRFIELD_SLOTS, RUNWAY_D, AIRFIELD_SIZE } from '../render/sprites/Airfield';
 import { AircraftSystem, type AirfieldGeometry } from '../systems/AircraftSystem';
 import { AISystem } from '../systems/AISystem';
+import { StructureIndex } from '../systems/StructureIndex';
 import { canTarget, CombatSystem, distanceTo, inTruce, isHostile, setTruce, setViolators } from '../systems/CombatSystem';
 import { MIN_SALE_STOCK, OilMarket } from '../systems/OilMarket';
 import { TaxSystem } from '../systems/TaxSystem';
@@ -1910,7 +1911,7 @@ export class Game {
     if (this.violatorClock > 0) return;
     this.violatorClock = 0.25;
     const ids = new Set<number>();
-    const buildings = this.entities.buildings().filter((b) => b.alive && b.owner !== NEUTRAL_OWNER);
+    const zones = new StructureIndex(this.entities.buildings().filter((b) => b.alive && b.owner !== NEUTRAL_OWNER));
     const R = TRUCE_ZONE_CELLS;
     let mine = 0;
     for (const u of this.entities.fieldMovers()) {
@@ -1918,13 +1919,7 @@ export class Game {
       if (!u.alive || u.owner === NEUTRAL_OWNER || u.task?.type === 'lease' || u.fixed) continue;
       const cx = u.px / CELL_SIZE;
       const cy = u.py / CELL_SIZE;
-      const inside = buildings.some((b) => {
-        if (b.owner === u.owner) return false;
-        const dx = Math.max(b.x - cx, 0, cx - (b.x + b.w));
-        const dy = Math.max(b.y - cy, 0, cy - (b.y + b.d));
-        return dx <= R && dy <= R && Math.hypot(dx, dy) <= R;
-      });
-      if (!inside) continue;
+      if (!zones.foreignWithin(u.owner, cx, cy, R)) continue;
       ids.add(u.id);
       if (u.owner === this.humanPlayer.id) mine++;
     }

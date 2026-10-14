@@ -26,7 +26,7 @@
 <body>
 <main>
 <img class="logo" src="/logo.png" alt="Black Area" />
-<h1>Black Area — RULE <small>v1.118.0</small></h1>
+<h1>Black Area — RULE <small>v1.118.1</small></h1>
 <p class="lead">Tài liệu luật chơi + kiến trúc code dành cho AI/dev sửa game. Mọi con số gameplay chính xác nằm trong <code>src/constants.ts</code> và <code>src/factions/*.ts</code>. Nếu tài liệu này khác code thì <b>code đúng</b>. <b>Khi đổi luật/số trong code, phải cập nhật file này.</b></p>
 <nav><a href="#s1">Quy tắc làm việc cho AI</a><a href="#s2">Chạy dự án</a><a href="#s3">Kiến trúc thư mục</a><a href="#s4">Thế giới</a><a href="#s5">Kinh tế (dầu)</a><a href="#s6">Công trình (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Quân đội</a><a href="#s8">Chiến đấu</a><a href="#s9">Điều khiển (Game.handleKey, handleInput)</a><a href="#s10">Giới hạn &amp; hiệu năng</a><a href="#s11">Thắng / thua &amp; AI</a><a href="#s12">Công thức sửa thường gặp</a></nav>
 <h2 id="s1">0. Quy tắc làm việc cho AI</h2>
@@ -496,6 +496,7 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 <ul>
   <li>Mặt đất (<code>TileTerrain</code>) vẽ theo khối 16×16 ô; mỗi khối tốn ~15–35 ms nên được vẽ <b>từng vài hàng pixel mỗi khung hình</b> trong ngân sách <code>BUILD_BUDGET_MS 4</code> ms (ít nhất <code>MIN_ROWS_PER_FRAME 16</code> hàng), khối chưa xong hiện ảnh nền mờ — không còn giật khi kéo camera theo quân (v1.118.0).</li>
   <li>Máy bay đang trên đường về sân bay (đang tiếp cận đường băng) nhận lệnh đánh / lệnh đi mới thì hủy hạ cánh và làm theo lệnh (<code>AircraftSystem.approach</code>, v1.118.0).</li>
+  <li>Kiểm tra vùng ngừng bắn (<code>Game.updateViolators</code>, <code>AISystem.keepCeasefire</code>) dùng lưới chỉ mục công trình <code>StructureIndex</code> (ô 16×16) thay vì quét mọi công trình (kể cả tường) cho từng lính — hết giật trong 4 phút hòa bình; AI không ra lệnh rút lại cho lính đã đứng ở thủ đô (v1.118.1).</li>
   <li>Tìm đường (A*) là phần tốn nhất: đơn vị attack-move bị chặn chỉ thử tìm lại đường mỗi <code>RESUME_RETRY 1</code> s (đích ở bờ biển khác / không tới được thì huỷ lệnh); mỗi 0.5 s chỉ đổi đường tối đa <code>REPATH_BUDGET 8</code> đơn vị kẹt, hết đường thì dừng.</li>
   <li>Dọn cache mỗi <code>JANITOR_INTERVAL = 180</code> s (ảnh/địa hình không dùng, sổ ghi unit đã chết, sổ thưởng nhân từ của nhóm rút lui không còn ai sống). Chỉ xoá thứ không còn dùng tới, không động vào lính, công trình, tiền hay lệnh đang chạy. Tìm đường A* (<code>Pathfinder.find</code>) mỗi ô chỉ mở rộng 1 lần (bỏ bản sao cũ trong hàng đợi), đọc thẳng mảng của <code>TileMap</code>, hàng đợi ưu tiên dùng typed array dùng lại giữa các lần tìm.</li>
   <li>Art dùng sprite sheet PNG trong <code>public/sprites/</code> (tank, jet/bomber, bom, tên lửa, đạn pháo, lính 8 hướng), vẽ thủ tục khi không có sheet.</li>
