@@ -43,8 +43,7 @@ function secretariat(p: IsoPainter): void {
 /**
  * Global Monitoring Center (Zürich, neutral), inspired by the United Nations Headquarters and laid out symmetrically
  * about the centre of its plot: the Secretariat slab (glass curtain wall, marble ends) rising from a low marble
- * podium with a glazed lobby, a central entrance canopy and steps, two matching pools either side of the approach,
- * and one flag flying in the middle of the roof.
+ * podium filling the whole plot with low office wings either side, a central entrance canopy, and one flag flying in the middle of the roof.
  */
 export const WorldBankArt: BuildingArt = {
   footprint: { w: 4, d: 4 },
@@ -54,19 +53,21 @@ export const WorldBankArt: BuildingArt = {
 
   drawStatic(p) {
     p.box(0, 0, 4, 4, 0, 3, PLAZA);
-    // Central approach and two matching pools.
-    p.topRect(1.6, 2.9, 2.4, 3.95, 3.02, shade(PLAZA, 1.12));
-    p.topRect(0.4, 3.05, 1.4, 3.75, 3.1, '#4c6d7c');
-    p.topRect(2.6, 3.05, 3.6, 3.75, 3.1, '#4c6d7c');
-    // Podium with the glazed lobby all round.
-    p.box(0.5, 1.2, 3.0, 1.6, 3, 6, MARBLE, { top: '#c9c7c0' });
-    p.faceRect('left', 0.5, 1.2, 3.0, 1.6, 3, 6, 0.04, 0.96, 0.12, 0.85, '#3b4f55');
-    p.faceRect('right', 0.5, 1.2, 3.0, 1.6, 3, 6, 0.06, 0.94, 0.12, 0.85, '#34464c');
+    // Podium filling the whole plot, with the glazed lobby all round.
+    p.box(0.02, 0.02, 3.96, 3.96, 3, 6, MARBLE, { top: '#c9c7c0' });
+    p.faceRect('left', 0.02, 0.02, 3.96, 3.96, 3, 6, 0.03, 0.97, 0.12, 0.85, '#3b4f55');
+    p.faceRect('right', 0.02, 0.02, 3.96, 3.96, 3, 6, 0.03, 0.97, 0.12, 0.85, '#34464c');
+    // Low office wings on the podium either side of the slab, front and back.
+    const wing = (v: number): void => {
+      p.box(0.1, v, 3.8, 1.6, 9, 10, MARBLE, { top: '#b9b8b2' });
+      p.faceRect('left', 0.1, v, 3.8, 1.6, 9, 10, 0.02, 0.98, 0.2, 0.8, '#3b4f55');
+      p.faceRect('right', 0.1, v, 3.8, 1.6, 9, 10, 0.02, 0.98, 0.2, 0.8, '#34464c');
+    };
+    wing(0.1);
     secretariat(p);
-    // Entrance canopy and steps on the centre line.
-    p.box(1.55, 2.8, 0.9, 0.3, 8, 1.2, '#f4f2ec');
-    for (const cu of [1.6, 2.4]) p.box(cu - 0.02, 3.05, 0.04, 0.04, 3, 5, '#d0d0cc');
-    for (let k = 0; k < 3; k++) p.box(1.6, 2.8 + k * 0.1, 0.8, 0.1, 3, 1.5 - k * 0.4, '#d8d6cf');
+    wing(2.3);
+    // Entrance canopy on the centre line of the front edge.
+    p.box(1.55, 3.86, 0.9, 0.12, 8, 1.2, '#f4f2ec');
     // The single flag, in the middle of the roof.
     p.pole(FLAG_U, FLAG_V, ROOF_Z, FLAG_POLE);
   },

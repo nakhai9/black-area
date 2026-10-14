@@ -175,10 +175,8 @@ export class Renderer {
   /** Per-frame scratch lists, reused so drawing a frame allocates no new arrays. */
   private readonly visibleBuildings: Building[] = [];
   private readonly visibleUnits: Unit[] = [];
-  private readonly drawables: (Building | Unit | Peak)[] = [];
   private readonly visiblePeaks: Peak[] = [];
   private readonly focusedIds = new Set<number>();
-  private readonly unitDepth = new Map<number, number>();
   private dpr = 1;
   private vignette: CanvasGradient | null = null;
 
@@ -286,19 +284,7 @@ export class Renderer {
     this.upright();
     // Structures under attack by my units: a red border round their cells, under the art.
     for (const f of focus) if (f.entity.kind === 'building' && f.engaged) this.drawTargetBorder(f.entity);
-    const drawables = this.drawables;
-    drawables.length = 0;
-    for (const b of sorted) drawables.push(b);
-    for (const u of units) if (!u.flies) drawables.push(u);
-    for (const p of this.visiblePeaks) drawables.push(p);
-    // A unit beside a big structure is ordered against the structure's edges, not its centre:
-    // in front of the near edge it is drawn after it, behind the far edge before it.
-    const unitDepth = this.unitDepth;
-    unitDepth.clear();
-    for (const u of units) if (!u.flies) unitDepth.set(u.id, this.depthNear(u, sorted));
-    const depthOf = (d: Building | Unit | Peak): number =>
-      'ridge' in d ? (d.x + d.y) / CELL_SIZE : d.kind === 'building' ? d.depth : (unitDepth.get(d.id) ?? d.depth);
-    drawables.sort((a, b) => depthOf(a) - depthOf(b));
+    const drawables = this.orderDrawables(sorted, units, this.visiblePeaks);
     for (const d of drawables) {
       if ('ridge' in d) this.terrain.drawPeak(ctx, d);
       else if (d.kind === 'building') this.drawBuilding(d, scene.time);
@@ -392,22 +378,104 @@ export class Renderer {
     }
   }
 
-  /** Draw depth of a ground unit, adjusted so the ground slab of a nearby structure never covers it. */
-  private depthNear(u: Unit, buildings: readonly Building[]): number {
-    let depth = u.depth;
-    if (u instanceof Vehicle && u.drawDepth !== null && u.fixed) return depth; // on its airfield: already placed
-    const cx = u.px / CELL_SIZE;
-    const cy = u.py / CELL_SIZE;
-    const r = u.radius / CELL_SIZE;
+  /**
+   * Painter's order of structures and ground units by their footprints, not by one centre number each: of two things
+   * that overlap on screen, the one wholly west or north of the other (a smaller x or y edge, cells) is painted first.
+   * Thin pieces against large structures, units in a walled yard between a building and its wall, vehicles beside
+   * long structures all come out right. Pairs with no such rule keep centre-depth order; a cycle (rare) falls back
+   * to it too. Mountain peaks are merged in by depth.
+   */
+  private orderDrawables(buildings: readonly Building[], units: readonly Unit[], peaks: readonly Peak[]): (Building | Unit | Peak)[] {
+    type Node = { d: Building | Unit; depth: number; x0: number; y0: number; x1: number; y1: number; sx0: number; sx1: number; sy0: number; sy1: number; after: number[]; need: number };
+    const nodes: Node[] = [];
     for (const b of buildings) {
-      if (cx < b.x - 3 || cy < b.y - 3 || cx > b.x + b.w + 3 || cy > b.y + b.d + 3) continue;
-      // Behind only when wholly past the far edges; anything else (touching or overlapping the near edges) is in front.
-      const behind = cx + r <= b.x || cy + r <= b.y;
-      const inFront = !behind;
-      if (inFront && depth <= b.depth) depth = b.depth + 0.01;
-      else if (behind && depth >= b.depth) depth = b.depth - 0.01;
+      const r = this.spriteRect(b);
+      nodes.push({ d: b, depth: b.x + b.w / 2 + b.y + b.d / 2, x0: b.x, y0: b.y, x1: b.x + b.w, y1: b.y + b.d, sx0: r.x, sx1: r.x + r.w, sy0: r.y, sy1: r.y + r.h, after: [], need: 0 });
     }
-    return depth;
+    for (const u of units) {
+      if (u.flies) continue;
+      const cx = u.px / CELL_SIZE;
+      const cy = u.py / CELL_SIZE;
+      const r = u.radius / CELL_SIZE;
+      const p = worldToIso(u.px, u.py);
+      const R = u.radius * 2.5 + 4; // generous screen box: hull, turret, barrel
+      // Parked on its airfield: the airfield's slot depth.
+      const depth = u instanceof Vehicle && u.drawDepth !== null && u.fixed ? u.drawDepth : cx + cy;
+      nodes.push({ d: u, depth, x0: cx - r, y0: cy - r, x1: cx + r, y1: cy + r, sx0: p.x - R, sx1: p.x + R, sy0: p.y - R - 24, sy1: p.y + R, after: [], need: 0 });
+    }
+    const n = nodes.length;
+    const EPS = 1e-6;
+    for (let i = 0; i < n; i++) {
+      const a = nodes[i]!;
+      for (let j = i + 1; j < n; j++) {
+        const b = nodes[j]!;
+        if (a.sx1 <= b.sx0 || b.sx1 <= a.sx0 || a.sy1 <= b.sy0 || b.sy1 <= a.sy0) continue; // apart on screen
+        const aBehind = a.x1 <= b.x0 + EPS || a.y1 <= b.y0 + EPS;
+        const bBehind = b.x1 <= a.x0 + EPS || b.y1 <= a.y0 + EPS;
+        if (aBehind === bBehind) {
+          // No footprint rule. An aircraft parked on its airfield is drawn on top of it; a unit passing through a
+          // Nation Gate goes under it (the arch and the towers stay in front of it). Anything else — side by side, or
+          // a hull brushing a wall block / a building's edge — is ordered by centre depth, as an explicit edge too:
+          // left implicit, the sort could emit the pair the wrong way round when other edges hold one of them back.
+          const mixed = a.d.kind === 'building' !== (b.d.kind === 'building');
+          const type = mixed ? ((a.d.kind === 'building' ? a.d : b.d) as Building).spec.type : null;
+          let aFirst: boolean;
+          if (!aBehind && (type === 'airfield' || type === 'gate')) aFirst = (a.d.kind === 'building') !== (type === 'gate');
+          else aFirst = a.depth <= b.depth;
+          if (aFirst) {
+            a.after.push(j);
+            b.need++;
+          } else {
+            b.after.push(i);
+            a.need++;
+          }
+          continue;
+        }
+        if (aBehind) {
+          a.after.push(j);
+          b.need++;
+        } else {
+          b.after.push(i);
+          a.need++;
+        }
+      }
+    }
+    // Kahn's sort, always taking the ready node of smallest centre depth (stable, close to the old order).
+    const out: (Building | Unit | Peak)[] = [];
+    const done = new Uint8Array(n);
+    const ready: number[] = [];
+    for (let i = 0; i < n; i++) if (nodes[i]!.need === 0) ready.push(i);
+    let left = n;
+    while (left > 0) {
+      let pick = -1;
+      if (ready.length > 0) {
+        let best = 0;
+        for (let k = 1; k < ready.length; k++) if (nodes[ready[k]!]!.depth < nodes[ready[best]!]!.depth) best = k;
+        pick = ready[best]!;
+        ready.splice(best, 1);
+      } else {
+        // A cycle: take the shallowest node left.
+        for (let i = 0; i < n; i++) if (!done[i] && (pick < 0 || nodes[i]!.depth < nodes[pick]!.depth)) pick = i;
+      }
+      done[pick] = 1;
+      left--;
+      const node = nodes[pick]!;
+      out.push(node.d);
+      for (const j of node.after) if (!done[j] && --nodes[j]!.need === 0) ready.push(j);
+    }
+    if (peaks.length === 0) return out;
+    // Peaks by centre depth among the rest.
+    const depthOf = (d: Building | Unit | Peak): number => ('ridge' in d ? (d.x + d.y) / CELL_SIZE : d.kind === 'building' ? d.x + d.w / 2 + d.y + d.d / 2 : d.depth);
+    const merged: (Building | Unit | Peak)[] = [];
+    const ps = [...peaks].sort((a, b) => a.x + a.y - (b.x + b.y));
+    let k = 0;
+    for (const d of out) {
+      const dd = depthOf(d);
+      while (k < ps.length && depthOf(ps[k]!) <= dd) merged.push(ps[k++]!);
+      merged.push(d);
+    }
+    while (k < ps.length) merged.push(ps[k++]!);
+    return merged;
   }
 
   private sprite(b: Building): Sprite {

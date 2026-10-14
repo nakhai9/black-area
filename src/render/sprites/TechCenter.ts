@@ -1,3 +1,4 @@
+import { ISLAMIC_GREEN_DOME } from './IslamicPalette';
 import { HALF_TW } from '../../constants';
 import { FACTIONS } from '../../factions';
 import type { FactionId } from '../../types';
@@ -5,9 +6,7 @@ import { shade } from '../Color';
 import type { BuildingArt } from './BuildingArt';
 import { facade, parapet, RA2, roofClutter } from './Ra2Kit';
 
-const PAD = RA2.paving;
 const WHITE = RA2.frame;
-const LAWN = RA2.grass;
 
 /** Per-nation materials: podium/frame stone, glass, crown style. */
 const LOOK: Record<FactionId, { stone: string; glass: string; crown: 'deco' | 'spire' | 'pagoda' | 'mansard' | 'dome' }> = {
@@ -34,29 +33,26 @@ export function createTechCenterArt(faction: FactionId): BuildingArt {
     height: 205,
 
     drawStatic(p) {
-      p.box(0, 0, 4, 4, 0, 2, PAD);
-      p.topRect(0.15, 3.05, 1.15, 3.85, 2, LAWN);
-      p.topRect(2.85, 3.05, 3.85, 3.85, 2, LAWN);
-      p.topRect(1.3, 3.05, 2.7, 3.85, 2, shade(RA2.paving, 1.08));
+      // The podium fills the whole plot: no lawns or forecourt.
+      p.box(0, 0, 4, 4, 0, 2, shade(CONCRETE, 0.8));
 
       // Podium.
-      p.box(0.25, 0.35, 3.5, 2.65, 2, 20, CONCRETE);
-      facade(p, 'left', 0.25, 0.35, 3.5, 2.65, 2, 20, { cols: 18, floors: 3, glass: GLASS, bandColor: shade(CONCRETE, 0.8), seed: 3 });
-      facade(p, 'right', 0.25, 0.35, 3.5, 2.65, 2, 20, { cols: 14, floors: 3, glass: GLASS, bandColor: shade(CONCRETE, 0.8), seed: 4 });
-      p.faceRect('left', 0.25, 0.35, 3.5, 2.65, 2, 20, 0, 1, 0.92, 1, shade(team.primary, 0.75));
-      p.topRect(0.3, 0.4, 3.7, 2.95, 22, RA2.roof);
-      parapet(p, 0.25, 0.35, 3.5, 2.65, 22, shade(CONCRETE, 1.05), 0.06, 2);
-      roofClutter(p, 3.05, 0.45, 0.6, 2.4, 22, 11);
-      roofClutter(p, 0.35, 2.65, 3.3, 0.3, 22, 12);
+      p.box(0.05, 0.05, 3.9, 3.9, 2, 20, CONCRETE);
+      facade(p, 'left', 0.05, 0.05, 3.9, 3.9, 2, 20, { cols: 20, floors: 3, glass: GLASS, bandColor: shade(CONCRETE, 0.8), seed: 3 });
+      facade(p, 'right', 0.05, 0.05, 3.9, 3.9, 2, 20, { cols: 20, floors: 3, glass: GLASS, bandColor: shade(CONCRETE, 0.8), seed: 4 });
+      p.faceRect('left', 0.05, 0.05, 3.9, 3.9, 2, 20, 0, 1, 0.92, 1, shade(team.primary, 0.75));
+      p.topRect(0.1, 0.1, 3.9, 3.9, 22, RA2.roof);
+      parapet(p, 0.05, 0.05, 3.9, 3.9, 22, shade(CONCRETE, 1.05), 0.06, 2);
+      roofClutter(p, 3.15, 0.2, 0.65, 3.0, 22, 11);
+      roofClutter(p, 0.2, 2.85, 2.8, 0.9, 22, 12);
 
       // Entrance: glass lobby under a team-colour canopy on two posts.
-      p.box(1.35, 2.88, 1.3, 0.14, 2, 13, RA2.glassLit);
-      p.box(1.2, 3.0, 1.6, 0.62, 14, 2, team.primary);
-      p.box(1.25, 3.52, 0.08, 0.08, 2, 12, WHITE);
-      p.box(2.67, 3.52, 0.08, 0.08, 2, 12, WHITE);
+      p.faceRect('left', 0.05, 0.05, 3.9, 3.9, 2, 20, 0.33, 0.67, 0, 0.55, RA2.glassLit);
+      p.faceRect('left', 0.05, 0.05, 3.9, 3.9, 2, 20, 0.33, 0.67, 0.55, 0.6, WHITE);
+      p.box(1.25, 3.75, 1.5, 0.25, 13, 1.5, team.primary);
 
       // Name plate on the podium front.
-      p.faceTransform('left', 0.25, 3.0, 2, (ctx) => {
+      p.faceTransform('left', 0.25, 3.95, 2, (ctx) => {
         ctx.fillStyle = 'rgba(8,16,24,0.85)';
         ctx.fillRect(0.55 * HALF_TW, 14, 2.4 * HALF_TW, 7);
         ctx.fillStyle = '#e8f6ff';
@@ -116,9 +112,9 @@ export function createTechCenterArt(faction: FactionId): BuildingArt {
       } else {
         p.box(1.45, 1.25, 1.1, 1.0, cz, 8, CONCRETE);
         p.cylinder(1.5, 1.3, 0.06, cz, 30, CONCRETE);
-        p.dome(1.5, 1.3, 0.08, cz + 30, 5, '#4f8a86');
+        p.dome(1.5, 1.3, 0.08, cz + 30, 5, ISLAMIC_GREEN_DOME);
         p.cylinder(2.0, 1.75, 0.38, cz + 8, 6, shade(CONCRETE, 1.05));
-        p.dome(2.0, 1.75, 0.4, cz + 14, 16, '#4f8a86');
+        p.dome(2.0, 1.75, 0.4, cz + 14, 16, ISLAMIC_GREEN_DOME);
         p.pole(2.0, 1.75, cz + 30, 22, '#c8a850');
       }
     },

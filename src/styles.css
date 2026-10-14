@@ -1494,7 +1494,9 @@ body.sidebar-hidden .air-tools {
 
 /* Before the game is built (picker, load confirm, loading bar): no empty sidebar and no stray compass. */
 body.pregame #sidebar,
-body.pregame #compass {
+body.pregame #compass,
+body.pregame .air-tools,
+body.pregame .sb-open {
   visibility: hidden; /* keeps its layout, so the sidebar measures right while it is built */
 }
 /* Load confirm: the nation's emblem as title, Start in the nation's colour. */

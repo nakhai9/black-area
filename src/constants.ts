@@ -27,7 +27,7 @@ export const DEMO_FACTION = Number(import.meta.env.VITE_DEMO_FACTION) || 2;
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "1.131.4";
+export const GAME_VERSION = "1.137.2";
 
 /** An Allied Building within this many cells of any capital is an embassy; farther out it is a "Pro-<nation> regime". */
 export const EMBASSY_CAPITAL_CELLS = 25;
@@ -134,11 +134,18 @@ export const FOOTPRINT_FLAGPOLE = { w: 1, d: 1 } as const;
 /** Bunker: a small pillbox filling one cell. */
 export const FOOTPRINT_BUNKER = { w: 1, d: 1 } as const;
 /**
- * Capitals sit on a 5 × 8 plot: the palace itself on roughly 5 × 5, and the nation's ceremonial approach
- * (the Mall, Red Square, the outer courtyard, the esplanade) on the 5 × 3 in front of it. The art is
- * authored in 4 × 6.4 units and drawn 1.25× to fill the plot.
+ * Capitals sit on a 5 × 5 plot: the palace itself only, with no ceremonial forecourt in front of it.
+ * The art is authored in 4 × 4 units and drawn 1.25× to fill the plot.
  */
-export const FOOTPRINT_CAPITAL = { w: 5, d: 8 } as const;
+export const FOOTPRINT_CAPITAL = { w: 5, d: 5 } as const;
+/** The White House is a long, shallow block: 5 wide × 3 deep (art authored in 4 × 2.4 units, drawn 1.25×). */
+export const FOOTPRINT_WHITE_HOUSE = { w: 5, d: 3 } as const;
+/** Contested-nation capitals: a long, shallow 5 × 3 plot like the White House (art 4 × 2.4 units, drawn 1.25×). */
+export const FOOTPRINT_NATION_CAPITAL = { w: 5, d: 3 } as const;
+/** Plot of a faction's capital. */
+export function capitalFootprint(faction: FactionId): { readonly w: number; readonly d: number } {
+  return faction === 'usa' ? FOOTPRINT_WHITE_HOUSE : FOOTPRINT_CAPITAL;
+}
 /** Airfield: a long runway + an apron with nine parking spots, 12×8 tiles. */
 export const FOOTPRINT_AIRFIELD = { w: 12, d: 8 } as const;
 /** Happy City: a whole city block, 8×8 tiles. */
@@ -616,6 +623,18 @@ export const REPAIR_VEHICLE_INTERVAL = 2;
 export const REPAIR_VEHICLE_RANGE_CELLS = 1.2;
 /** Seconds between re-plans of the route while following a target that drives off. */
 export const REPAIR_VEHICLE_REPATH = 1;
+/**
+ * A repair vehicle ordered onto one vehicle of a group (right-click) mends every damaged ground vehicle within this
+ * many cells of that spot, the worst first, one after the other.
+ */
+export const REPAIR_GROUP_CELLS = 6;
+/**
+ * War Factory workshop: a damaged ground vehicle sent onto its own War Factory drives in through the door, is
+ * repaired inside at FACTORY_REPAIR_SHARE of its max HP per second, and drives out again when whole.
+ */
+export const FACTORY_REPAIR_SHARE = 0.08;
+/** How close (cells) to the factory door a vehicle must come to drive in. */
+export const FACTORY_REPAIR_REACH_CELLS = 1.5;
 
 /**
  * Transport aircraft load: soldiers only → 12; soldiers + a vehicle → 8 soldiers and 1 vehicle;

@@ -45,6 +45,9 @@ import {
   REPAIR_VEHICLE_INTERVAL,
   REPAIR_VEHICLE_RANGE_CELLS,
   REPAIR_VEHICLE_REPATH,
+  REPAIR_GROUP_CELLS,
+  FACTORY_REPAIR_SHARE,
+  FACTORY_REPAIR_REACH_CELLS,
   VETERAN_REGEN_PER_SECOND,
   VETERAN_REGEN_RANK,
   UNIT_SPACING,
@@ -76,6 +79,8 @@ import {
   STARTING_OIL,
   WORLD_BANK_LOCATION,
   CONTESTED_NATIONS,
+  capitalFootprint,
+  FOOTPRINT_NATION_CAPITAL,
   FOOTPRINT_GMC,
   type ContestedNationId,
   NATION_PRESENCE_FEE,
@@ -673,6 +678,11 @@ export class Game {
     for (const [e, s] of shells) codec.fillEntity(e, s);
     // Saves from before 1.51.0 carry the Global Monitoring Center's old 4 × 4 footprint in its spec: it is 5 × 5 now.
     for (const [e] of shells) if (e instanceof WorldBank) (e.spec as { footprint: { w: number; d: number } }).footprint = FOOTPRINT_GMC;
+    // Older saves carry the capitals' 5 × 8 footprint (palace + forecourt): the palace kept the back 5 × 5, so the
+    // corner stays put and only the forecourt is dropped.
+    for (const [e] of shells) if (e instanceof Capital) (e.spec as { footprint: { w: number; d: number } }).footprint = capitalFootprint(e.faction as FactionId);
+    // Older saves carry the contested capitals' 4 × 4 footprint: they are 5 × 3 now.
+    for (const [e] of shells) if (e instanceof NationCapital) (e.spec as { footprint: { w: number; d: number } }).footprint = FOOTPRINT_NATION_CAPITAL;
     for (const [e] of shells) this.entities.add(e);
     this.shrinkOldBunkers();
     for (const b of this.entities.buildings()) if (b.alive) this.occupyBuilding(b);
@@ -1592,6 +1602,8 @@ export class Game {
       if (u instanceof Vehicle) {
         u.repairTargetId = null;
         u.seekRepairId = null;
+        u.depotId = null;
+        u.mendArea = null;
       }
       u.follow(this.paths.find({ x: u.px, y: u.py }, cell, u.swims));
       sent++;
@@ -1645,15 +1657,19 @@ export class Game {
    * Repair vehicles among `units` (never `target` itself) are sent to mend `target`, a friendly ground vehicle.
    * False when none of them is a repair vehicle, or the target is not something they repair (aircraft).
    */
-  orderMend(target: Vehicle, units: readonly Unit[]): boolean {
-    if (!target.alive || target.aircraft) return false;
-    const menders = units.filter((u): u is Vehicle => u instanceof Vehicle && u.isRepair && u !== target && u.owner === target.owner);
+  orderMend(clicked: Vehicle, units: readonly Unit[]): boolean {
+    if (!clicked.alive || clicked.aircraft) return false;
+    const menders = units.filter((u): u is Vehicle => u instanceof Vehicle && u.isRepair && u !== clicked && u.owner === clicked.owner);
     if (menders.length === 0) return false;
-    if (target.hp >= target.maxHp) {
-      if (target.owner === this.humanPlayer.id) this.sidebar.notify(t('The {name} needs no repair.', { name: target.name }));
+    // Clicked on one vehicle of a group: the worst damaged vehicle round it is mended first, then the others.
+    const area = { x: clicked.px, y: clicked.py };
+    const target = clicked.hp < clicked.maxHp ? clicked : this.worstDamagedNear(area, clicked.owner, menders);
+    if (!target) {
+      if (clicked.owner === this.humanPlayer.id) this.sidebar.notify(t('The {name} needs no repair.', { name: clicked.name }));
       return true;
     }
     for (const v of menders) {
+      v.mendArea = area;
       v.repairTargetId = target.id;
       v.mendClock = 0;
       v.mendRepathAt = -Infinity;
@@ -1666,6 +1682,132 @@ export class Game {
     }
     if (target.owner === this.humanPlayer.id) this.moveMarker = { x: target.px, y: target.py, at: this.time };
     return true;
+  }
+
+  /** The most damaged own ground vehicle within REPAIR_GROUP_CELLS of `at` (repair vehicles in `skip` excluded), or null. */
+  private worstDamagedNear(at: WorldPoint, owner: number, skip: readonly Unit[]): Vehicle | null {
+    let best: Vehicle | null = null;
+    for (const v of this.entities.vehicles()) {
+      if (!v.alive || v.owner !== owner || v.aircraft || v.insideId !== null || v.hp >= v.maxHp || skip.includes(v)) continue;
+      if (Math.hypot(v.px - at.x, v.py - at.y) > REPAIR_GROUP_CELLS * CELL_SIZE) continue;
+      if (!best || v.hp / v.maxHp < best.hp / best.maxHp) best = v;
+    }
+    return best;
+  }
+
+  /**
+   * Damaged ground vehicles among the selection drive into their own War Factory (`b`) to be repaired inside.
+   * True when the order was handled (vehicles sent, or none of the selected vehicles needed it).
+   */
+  private orderFactoryRepair(b: Building, units: readonly Unit[]): boolean {
+    const cars = units.filter((u): u is Vehicle => u instanceof Vehicle && u.alive && !u.aircraft && u.owner === b.owner && u.insideId === null);
+    if (cars.length === 0) return false;
+    const damaged = cars.filter((v) => v.hp < v.maxHp);
+    if (damaged.length === 0) {
+      this.sidebar.notify(t('No selected vehicle needs repair.'), 3);
+      return true;
+    }
+    for (const v of damaged) {
+      v.depotId = b.id;
+      v.depotRepathAt = -Infinity;
+      v.repairTargetId = null;
+      v.seekRepairId = null;
+      v.boardTarget = null;
+      v.attackTarget = null;
+      v.attackMove = null;
+      v.task = null;
+      v.parade = null;
+      v.orderFlash = { kind: 'move', at: this.time, target: null };
+    }
+    const first = damaged[0];
+    this.sidebar.notify(
+      damaged.length === 1 && first
+        ? t('The {name} is heading to the War Factory for repair.', { name: first.name })
+        : t('{count} vehicles are heading to the War Factory for repair.', { count: damaged.length }),
+    );
+    this.moveMarker = { ...this.doorPoint(b), at: this.time };
+    return true;
+  }
+
+  /**
+   * War Factory workshop: vehicles sent there drive up to the door and in (hidden inside), are repaired at
+   * FACTORY_REPAIR_SHARE of their max HP per second, then drive out to a parking spot in front when whole.
+   */
+  private processFactoryRepairs(dt: number): void {
+    for (const v of this.entities.vehicles()) {
+      if (v.depotId === null) continue;
+      const b = this.entities.get(v.depotId);
+      const inside = v.insideId !== null && v.insideId === v.depotId;
+      if (!v.alive || !(b instanceof Building) || !b.alive || b.owner !== v.owner || b.spec.type !== 'warFactory') {
+        if (inside) this.leaveFactory(v, b instanceof Building ? b : null);
+        v.depotId = null;
+        continue;
+      }
+      if (inside) {
+        v.hp = Math.min(v.maxHp, v.hp + v.maxHp * FACTORY_REPAIR_SHARE * dt);
+        if (v.hp >= v.maxHp && this.factoryExitClear(b)) {
+          this.leaveFactory(v, b);
+          if (v.owner === this.humanPlayer.id) this.sidebar.notify(t('The {name} is repaired.', { name: v.name }), 3);
+        }
+        continue;
+      }
+      if (v.hp >= v.maxHp) {
+        v.depotId = null;
+        continue;
+      }
+      const door = this.factoryExit(b);
+      if (!door) {
+        v.depotId = null;
+        continue;
+      }
+      if (Math.hypot(door.x - v.px, door.y - v.py) <= FACTORY_REPAIR_REACH_CELLS * CELL_SIZE + v.radius) {
+        // Drives in through the door.
+        v.stop();
+        v.insideId = b.id;
+        this.selection.selectedUnits.delete(v.id);
+        this.hatch(v.px, v.py);
+        continue;
+      }
+      if (this.time - v.depotRepathAt < (v.moving ? 2 : 1)) continue;
+      v.depotRepathAt = this.time;
+      const cell = this.map.cellAt(door.x, door.y);
+      const path = cell ? this.paths.find({ x: v.px, y: v.py }, cell) : [];
+      if (path.length === 0) {
+        v.depotId = null; // cannot get there
+        continue;
+      }
+      const last = path[path.length - 1];
+      if (last) {
+        last.x = door.x;
+        last.y = door.y;
+      }
+      v.follow(path);
+    }
+  }
+
+  /** A repaired vehicle drives out of the War Factory door and on to a parking spot in front of it. */
+  private leaveFactory(v: Vehicle, b: Building | null): void {
+    v.insideId = null;
+    v.depotId = null;
+    const exit = b ? this.factoryExit(b) : null;
+    if (!b || !exit) return;
+    v.px = exit.x;
+    v.py = exit.y;
+    v.x = exit.x / CELL_SIZE;
+    v.y = exit.y / CELL_SIZE;
+    v.heading = Math.PI / 2;
+    this.lastDry.set(v.id, { x: v.px, y: v.py });
+    const spot = this.parkingSpot(b, v);
+    const cell = spot ? this.map.cellAt(spot.x, spot.y) : null;
+    if (spot && cell) {
+      const path = this.paths.find({ x: v.px, y: v.py }, cell);
+      const last = path[path.length - 1];
+      if (last) {
+        last.x = spot.x;
+        last.y = spot.y;
+      } else path.push(spot);
+      v.follow(path);
+    }
   }
 
   /**
@@ -1760,7 +1902,16 @@ export class Game {
       if (v.repairTargetId === null) continue;
       const t = this.entities.get(v.repairTargetId);
       if (!v.alive || v.insideId !== null || !(t instanceof Vehicle) || !t.alive || t.aircraft || t.insideId !== null || t.owner !== v.owner || t.hp >= t.maxHp) {
+        // Sent to a group: on to the next damaged vehicle there.
+        const next = v.alive && v.insideId === null && v.mendArea ? this.worstDamagedNear(v.mendArea, v.owner, [v]) : null;
+        if (next) {
+          v.repairTargetId = next.id;
+          v.mendClock = 0;
+          v.mendRepathAt = -Infinity;
+          continue;
+        }
         v.repairTargetId = null;
+        v.mendArea = null;
         if (v.alive && v.insideId === null && v.moving) v.stop();
         continue;
       }
@@ -1885,6 +2036,7 @@ export class Game {
     this.processDemolition(dt);
     this.processRepairs(dt);
     this.processMends(dt);
+    this.processFactoryRepairs(dt);
     this.processPatients(dt);
     this.healGarrisons(dt);
     this.regenVeterans(dt);
@@ -3868,6 +4020,8 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
         return true;
       }
     }
+    // Damaged vehicles selected + click on an own War Factory: they drive in to be repaired.
+    if (b.owner === me.id && b.spec.type === 'warFactory' && this.orderFactoryRepair(b, this.selection.selectedUnitList())) return true;
     for (const u of this.selection.selectedUnitList()) {
       if (!(u instanceof Infantry)) continue; // only people enter, repair or capture
       if (u.isDemolition && b.owner !== me.id && isHostile(u, b)) {
@@ -4432,16 +4586,12 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
 
   private freeStandSpot(goal: WorldPoint, u: Unit, group: readonly Unit[], claimed: readonly WorldPoint[]): WorldPoint | null {
     const others = this.entities.fieldMovers().filter((m) => m !== u && m.alive && !m.flies && !group.includes(m));
-    const step = Math.max(u.radius * 2.1, UNIT_SPACING);
-    for (let k = 0; k < 200; k++) {
-      const off = spiralOffset(k, step);
+    // The clicked point itself first, then the nearest points around it (a fine grid, nearest first): the unit ends
+    // up as close to the click as its hull allows, never a few cells off.
+    for (const off of STAND_OFFSETS) {
       const p = { x: goal.x + off.x, y: goal.y + off.y };
       const cell = this.map.cellAt(p.x, p.y);
       if (!cell || !this.pathfinder.passable(cell.x, cell.y, u.swims)) continue;
-      if (k > 0) {
-        p.x = (cell.x + 0.5) * CELL_SIZE; // away from the click: stand on the middle of a cell
-        p.y = (cell.y + 0.5) * CELL_SIZE;
-      }
       // The whole hull must fit: no part of it may hang over a building, water or the map edge.
       if (!this.hullFits(p, u)) continue;
       // Stationary units hold their ground; a moving one counts by where it is heading.
@@ -4469,6 +4619,8 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       u.heliHome = null; // a new order: no going back to where it was scrambled from
       u.repairTargetId = null;
       u.seekRepairId = null;
+      u.mendArea = null;
+      if (u.insideId === null) u.depotId = null; // one already inside the workshop finishes its repair
     }
     // Falling back home across the sea: the stranded ones head for a safe zone to be flown out.
     if (evacuate) {
@@ -4502,7 +4654,10 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     const formationOffset = (k: number): WorldPoint => {
       const row = Math.floor(k / cols);
       const inRow = Math.min(cols, ground.length - row * cols);
-      const across = ((k % cols) - (inRow - 1) / 2) * spacing;
+      // One slot of the front row lies exactly on the click (its middle one; left of middle for an even row), and the
+      // first unit (the closest to the click) takes it.
+      const mid = Math.floor((inRow - 1) / 2);
+      const across = (((k % cols) + mid) % inRow - mid) * spacing;
       const back = row * spacing;
       return { x: -Math.sin(facing) * across - Math.cos(facing) * back, y: Math.cos(facing) * across - Math.sin(facing) * back };
     };
@@ -4524,13 +4679,6 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       const off = u.aircraft ? spiralOffset(k, spacing) : formationOffset(groundIndex++);
       let goal = { x: world.x + off.x, y: world.y + off.y };
       let cell = this.map.cellAt(goal.x, goal.y);
-      if (!u.aircraft && (!cell || !this.pathfinder.passable(cell.x, cell.y, u.swims))) {
-        // Spot not standable: use the nearest standable cell centre instead.
-        const near = this.pathfinder.nearestPassable(cell?.x ?? 0, cell?.y ?? 0, 10, undefined, u.swims);
-        if (!near) return;
-        cell = near;
-        goal = { x: (near.x + 0.5) * CELL_SIZE, y: (near.y + 0.5) * CELL_SIZE };
-      }
       if (!u.aircraft) {
         // Park / stand only where nothing is in the way: no other unit, no building, no water.
         const free = this.freeStandSpot(goal, u, units, claimed);
@@ -4684,6 +4832,16 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     if (select) this.selection.select(id);
   }
 }
+
+/** Offsets (world px) tried round a stand spot: a grid of STAND_STEP px out to STAND_REACH px, nearest first. */
+const STAND_STEP = 1.75;
+const STAND_REACH = 12 * 7;
+const STAND_OFFSETS: readonly WorldPoint[] = (() => {
+  const out: WorldPoint[] = [];
+  const n = Math.ceil(STAND_REACH / STAND_STEP);
+  for (let j = -n; j <= n; j++) for (let i = -n; i <= n; i++) if (Math.hypot(i, j) * STAND_STEP <= STAND_REACH) out.push({ x: i * STAND_STEP, y: j * STAND_STEP });
+  return out.sort((a, b) => Math.hypot(a.x, a.y) - Math.hypot(b.x, b.y));
+})();
 
 /** k-th point of a sunflower spiral (k = 0 is the centre), `spacing` px apart. */
 function spiralOffset(k: number, spacing: number): { x: number; y: number } {

@@ -1,3 +1,4 @@
+import { ISLAMIC_GREEN } from './IslamicPalette';
 import type { FactionId } from '../../types';
 import { shade } from '../Color';
 import { drawFlagOnPole, drawNationalPole } from '../Flags';
@@ -39,7 +40,7 @@ const PLAZAS: Record<FactionId, Plaza> = {
     top: 6.8,
     podium: (p) => {
       step(p, 0, 0, 2, '#9c9a90');
-      p.topRect(0.04, 0.04, 0.96, 0.96, 2, '#5d7a35');
+      p.topRect(0.04, 0.04, 0.96, 0.96, 2, '#a6a397');
       step(p, 0.18, 2, 1.6, '#b2aea2');
       step(p, 0.28, 3.6, 1.6, '#bfbbae');
       step(p, 0.36, 5.2, 1.6, '#cbc6b8');
@@ -119,15 +120,14 @@ const PLAZAS: Record<FactionId, Plaza> = {
       }
     },
   },
-  // Islamic: sand-stone plinth wrapped in a band of turquoise tile, with a small fountain bowl in front.
+  // Islamic: sand-stone plinth wrapped in a band of green tile, filling the whole cell.
   islamic: {
     top: 6,
     podium: (p) => {
       step(p, 0, 0, 2, '#cdb98e');
       p.topRect(0.04, 0.04, 0.96, 0.96, 2, '#cdb994');
-      step(p, 0.22, 2, 2, '#3a8a94');
+      step(p, 0.12, 2, 2, ISLAMIC_GREEN);
       step(p, 0.3, 4, 2, '#cdb994');
-      p.cylinder(0.78, 0.78, 0.1, 2, 1.2, '#1d6f86');
     },
   },
 };

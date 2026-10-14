@@ -1,3 +1,4 @@
+import { ISLAMIC_GREEN, ISLAMIC_GREEN_DOME } from './IslamicPalette';
 import { FACTIONS } from '../../factions';
 import type { FactionColors, FactionId } from '../../types';
 import { shade } from '../Color';
@@ -5,11 +6,9 @@ import { drawFlagOnPole, drawNationalPole } from '../Flags';
 import { type IsoPainter, LIGHT, type Vec3 } from '../IsoPainter';
 import type { BuildingArt } from './BuildingArt';
 import { iwan } from './GrandMosque';
-import { RA2, crate, facade, parapet, roofClutter, sandbags } from './Ra2Kit';
+import { RA2, facade, parapet, roofClutter } from './Ra2Kit';
 
 const GLASS = RA2.glass;
-const LAWN = RA2.grass;
-const ASPHALT = RA2.asphalt;
 
 /** Where the national flag pole stands, per design (art units, z = foot of the pole, h = pole height). */
 interface FlagSpot {
@@ -59,17 +58,11 @@ function ring(cu: number, cv: number, r: number, sides: number, turn = 0): [numb
   return out;
 }
 
-/** Small tree. */
-function tree(p: IsoPainter, u: number, v: number): void {
-  p.cylinder(u, v, 0.035, 2, 4, '#6b513a');
-  p.dome(u, v, 0.13, 6, 6, '#4a6630');
-}
-
 /**
- * USA — the Pentagon, filling its plot: a low five-sided limestone block of five concentric rings. Dark slate roofs
- * alternate with the light wells between the rings, ten corridors run out from the central courtyard (lawn,
- * paths and the gazebo), the façades carry five floors of windows, the Mall entrance has its columned portico, and
- * a helipad and parking lots sit in the corners. A corner points to the back so a whole façade faces the camera.
+ * USA — the Pentagon, filling its plot: a low limestone annex fills the whole square around a five-sided block of five
+ * concentric rings. Dark slate roofs alternate with the light wells between the rings, ten corridors run in to the
+ * roofed-over centre, the façades carry floors of windows, and the Mall entrance has its columned portico and door.
+ * A corner points to the back so a whole façade faces the camera. No lawn, parking or helipad on the ground.
  */
 function pentagon(p: IsoPainter, team: FactionColors): void {
   const LIME = '#c9c0a8';
@@ -78,43 +71,37 @@ function pentagon(p: IsoPainter, team: FactionColors): void {
   const CU = 1.5;
   const CV = 1.5;
   const TURN = -Math.PI / 4;
-  const Z = 2;
-  const H = 11;
+  const BASE = 8;
+  const Z = BASE;
+  const H = 7;
   const TOP = Z + H;
   const R = 1.42;
   const at = (r: number): [number, number][] => ring(CU, CV, r, 5, TURN);
   const flat = (r: number, z: number, color: string): void => p.polygon(at(r).map(([u, v]) => [u, v, z] as Vec3), color, null);
 
-  // Grounds: lawn, helipad and parking lots in the corners of the plot.
-  p.box(0, 0, 3, 3, 0, 2, '#9ea3a6');
-  p.topRect(0.04, 0.04, 2.96, 2.96, 2, LAWN);
-  flat(R + 0.1, 2, ASPHALT);
-  p.topRect(0.06, 2.32, 0.66, 2.94, 2, ASPHALT);
-  for (let t = 0.1; t < 0.6; t += 0.1) p.topRect(0.06 + t, 2.4, 0.08 + t, 2.62, 2, '#e9e6dc');
-  p.topRect(2.32, 0.06, 2.94, 0.66, 2, ASPHALT);
-  for (let t = 0.1; t < 0.6; t += 0.1) p.topRect(2.4, 0.06 + t, 2.62, 0.08 + t, 2, '#e9e6dc');
-  // Helipad (front corner).
-  p.cylinder(2.62, 2.62, 0.24, 2, 0.6, '#5d6064');
-  const [hx, hy] = p.project(2.62, 2.62, 2.6);
-  p.ctx.fillStyle = '#f2f2ee';
-  p.ctx.font = '700 5px "Segoe UI", sans-serif';
-  p.ctx.textAlign = 'center';
-  p.ctx.textBaseline = 'middle';
-  p.ctx.fillText('H', hx, hy);
+  // Annex: the whole square plot is a low limestone block, the pentagon rises out of it.
+  p.box(0, 0, 3, 3, 0, 2, shade(LIME, 0.7));
+  p.box(0.03, 0.03, 2.94, 2.94, 2, BASE - 2, LIME, { top: SLATE });
+  facade(p, 'left', 0.03, 0.03, 2.94, 2.94, 2, BASE - 2, { cols: 22, floors: 2, glass: GLASS, frame: '#ece6d6', fill: 0.5, seed: 61 });
+  facade(p, 'right', 0.03, 0.03, 2.94, 2.94, 2, BASE - 2, { cols: 22, floors: 2, glass: GLASS, frame: '#ece6d6', fill: 0.5, seed: 62 });
+  parapet(p, 0.03, 0.03, 2.94, 2.94, BASE, shade(LIME, 1.05), 0.03, 1);
+  // Main door in the middle of the front façade.
+  p.faceRect('left', 0.03, 0.03, 2.94, 2.94, 2, BASE - 2, 0.42, 0.58, 0, 0.8, '#3b3a36');
+  p.faceRect('left', 0.03, 0.03, 2.94, 2.94, 2, BASE - 2, 0.4, 0.6, 0.8, 0.95, team.primary);
 
   // The block.
   const outer = at(R);
   prism(p, outer, Z, H, LIME, SLATE);
 
-  // Five floors of windows on the façades facing the camera.
+  // Floors of windows on the façades facing the camera.
   for (let i = 0; i < 5; i++) {
     const a = outer[i];
     const b = outer[(i + 1) % 5];
     if (!a || !b || b[1] - a[1] - (b[0] - a[0]) <= 0) continue;
     const du = (b[0] - a[0]) * 0.022;
     const dv = (b[1] - a[1]) * 0.022;
-    for (let f = 0; f < 5; f++) {
-      const z0 = Z + 1.2 + f * 1.9;
+    for (let f = 0; f < 3; f++) {
+      const z0 = Z + 1 + f * 2;
       for (let t = 0.04; t < 0.96; t += 0.045) {
         const u = a[0] + (b[0] - a[0]) * t;
         const v = a[1] + (b[1] - a[1]) * t;
@@ -123,12 +110,13 @@ function pentagon(p: IsoPainter, team: FactionColors): void {
     }
   }
 
-  // Roof: five slate rings with light wells between them (E ring outside … A ring inside).
+  // Roof: five slate rings with light wells between them, the centre roofed over.
   for (const r of [1.2, 0.98, 0.76]) {
     flat(r + 0.035, TOP, WELL);
     flat(r - 0.035, TOP, SLATE);
   }
-  // Ten corridors from the courtyard to the outer ring (corners and mid-sides).
+  flat(0.52, TOP, shade(SLATE, 0.9));
+  // Ten corridors from the centre to the outer ring (corners and mid-sides).
   const inner = at(0.52);
   const { ctx } = p;
   ctx.strokeStyle = WELL;
@@ -151,39 +139,16 @@ function pentagon(p: IsoPainter, team: FactionColors): void {
     }
   }
   ctx.stroke();
+  // Central skylight pavilion with a team-colour cap.
+  p.cylinder(CU, CV, 0.18, TOP, 3, '#f3efe4');
+  p.pyramid(CU - 0.12, CV - 0.12, 0.24, 0.24, TOP + 3, 3, team.primary);
 
-  // Central courtyard, seen through the hole in the roof: far inner walls, lawn, cross paths and the gazebo.
-  ctx.save();
-  ctx.beginPath();
-  inner.forEach(([u, v], i) => {
-    const [x, y] = p.project(u, v, TOP);
-    if (i === 0) ctx.moveTo(x, y);
-    else ctx.lineTo(x, y);
-  });
-  ctx.closePath();
-  ctx.clip();
-  p.polygon(inner.map(([u, v]) => [u, v, Z] as Vec3), '#6fa04f', null);
-  p.topRect(CU - 0.03, CV - 0.5, CU + 0.03, CV + 0.5, Z, '#d9d3c1');
-  p.topRect(CU - 0.5, CV - 0.03, CU + 0.5, CV + 0.03, Z, '#d9d3c1');
-  for (let i = 0; i < 5; i++) {
-    const a = inner[i];
-    const b = inner[(i + 1) % 5];
-    if (!a || !b || b[1] - a[1] - (b[0] - a[0]) >= 0) continue;
-    p.polygon([[a[0], a[1], Z], [b[0], b[1], Z], [b[0], b[1], TOP], [a[0], a[1], TOP]] as Vec3[], shade(LIME, 0.8), null);
-  }
-  tree(p, CU - 0.25, CV - 0.05);
-  tree(p, CU + 0.05, CV - 0.28);
-  p.cylinder(CU + 0.06, CV + 0.06, 0.09, Z, 3.5, '#f3efe4');
-  p.pyramid(CU - 0.04, CV - 0.04, 0.2, 0.2, Z + 3.5, 3, team.primary);
-  ctx.restore();
-
-  // Rooftop plant and comms masts on the outer ring.
+  // Rooftop plant on the outer ring and on the annex corners.
   for (const a of at(1.09)) p.box(a[0] - 0.07, a[1] - 0.07, 0.14, 0.14, TOP, 3, '#a9adb2');
+  roofClutter(p, 0.1, 2.3, 0.6, 0.6, BASE, 63);
+  roofClutter(p, 2.3, 0.1, 0.6, 0.6, BASE, 64);
   p.pole(CU - 0.9, CV - 0.2, TOP, 16, '#8a8f96');
   p.pole(CU - 0.2, CV - 0.9, TOP, 12, '#8a8f96');
-  // Guard posts with sandbags at the front lots.
-  sandbags(p, 0.75, 2.75, 1.0, 2.75, 2);
-  sandbags(p, 2.75, 0.75, 2.75, 1.0, 2);
 
   // Mall entrance: columned portico in the middle of the front façade.
   const f0 = outer[2];
@@ -191,10 +156,10 @@ function pentagon(p: IsoPainter, team: FactionColors): void {
   if (f0 && f1) {
     const mu = (f0[0] + f1[0]) / 2;
     const mv = (f0[1] + f1[1]) / 2;
-    p.box(mu - 0.24, mv - 0.06, 0.48, 0.24, Z, 9.5, '#ece6d6', { top: SLATE });
-    p.colonnade('left', mu - 0.22, mv - 0.06, 0.44, 0.24, Z, 8.5, 6, '#f8f5ec', '#76705f');
-    p.colonnade('right', mu - 0.22, mv - 0.06, 0.44, 0.24, Z, 8.5, 3, '#f8f5ec', '#76705f');
-    p.gableRoofV(mu - 0.24, mv - 0.06, 0.48, 0.24, Z + 9.5, 3, '#ece6d6', SLATE);
+    p.box(mu - 0.24, mv - 0.06, 0.48, 0.24, Z, 6.5, '#ece6d6', { top: SLATE });
+    p.colonnade('left', mu - 0.22, mv - 0.06, 0.44, 0.24, Z, 5.5, 6, '#f8f5ec', '#76705f');
+    p.colonnade('right', mu - 0.22, mv - 0.06, 0.44, 0.24, Z, 5.5, 3, '#f8f5ec', '#76705f');
+    p.gableRoofV(mu - 0.24, mv - 0.06, 0.48, 0.24, Z + 6.5, 3, '#ece6d6', SLATE);
   }
 }
 
@@ -202,25 +167,33 @@ function pentagon(p: IsoPainter, team: FactionColors): void {
 function stalinist(p: IsoPainter, team: FactionColors): void {
   const CREAM = '#e3d5b0';
   const TRIM = '#f4ecd6';
-  p.box(0, 0, 3, 3, 0, 2, '#a59f92');
-  p.topRect(0.15, 2.45, 2.85, 2.9, 2, '#bdb6a6');
-  // Long wings.
-  p.box(0.2, 0.3, 2.6, 1.15, 2, 20, CREAM, { top: RA2.roof });
-  p.faceRect('left', 0.2, 0.3, 2.6, 1.15, 2, 20, 0, 1, 0, 0.18, '#8f846c');
-  p.faceRect('right', 0.2, 0.3, 2.6, 1.15, 2, 20, 0, 1, 0, 0.18, '#8f846c');
-  facade(p, 'left', 0.2, 0.3, 2.6, 1.15, 5.6, 16.4, { cols: 18, floors: 4, frame: TRIM, bandColor: '#b9ab88', lit: 0.1, seed: 11 });
-  facade(p, 'right', 0.2, 0.3, 2.6, 1.15, 5.6, 16.4, { cols: 8, floors: 4, frame: TRIM, bandColor: '#a99c7c', lit: 0.1, seed: 12 });
-  p.box(0.18, 0.28, 2.64, 1.19, 22, 2, TRIM);
-  parapet(p, 0.18, 0.28, 2.64, 1.19, 24, '#b9ab88');
-  roofClutter(p, 0.25, 0.35, 0.7, 0.7, 24, 21);
-  roofClutter(p, 2.05, 0.35, 0.7, 0.7, 24, 22);
-  // Central block with a portico of columns.
-  p.box(1.0, 1.0, 1.0, 1.1, 2, 26, CREAM, { top: RA2.roof });
-  facade(p, 'right', 1.0, 1.0, 1.0, 1.1, 4, 22, { cols: 4, floors: 5, frame: TRIM, bandColor: '#a99c7c', seed: 13 });
-  p.colonnade('left', 1.08, 1.75, 0.84, 0.4, 2, 18, 6, TRIM, '#6d6555');
-  p.box(1.05, 1.73, 0.9, 0.44, 20, 3, TRIM);
-  p.box(0.98, 0.98, 1.04, 1.14, 28, 2, TRIM);
-  // Stepped tower, spire and the red star.
+  p.box(0, 0, 3, 3, 0, 2, '#8f846c');
+  // Main block filling the plot, with two front pavilions flanking the portico.
+  const blocks: readonly [number, number, number, number][] = [
+    [0.05, 0.05, 2.9, 2.5],
+    [0.05, 2.55, 1.0, 0.4],
+    [1.95, 2.55, 1.0, 0.4],
+  ];
+  blocks.forEach(([u, v, w, d], k) => {
+    p.box(u, v, w, d, 2, 20, CREAM, { top: RA2.roof });
+    p.faceRect('left', u, v, w, d, 2, 20, 0, 1, 0, 0.18, '#8f846c');
+    p.faceRect('right', u, v, w, d, 2, 20, 0, 1, 0, 0.18, '#8f846c');
+    facade(p, 'left', u, v, w, d, 5.6, 16.4, { cols: Math.max(3, Math.round(w * 7)), floors: 4, frame: TRIM, bandColor: '#b9ab88', lit: 0.1, seed: 11 + k });
+    facade(p, 'right', u, v, w, d, 5.6, 16.4, { cols: Math.max(2, Math.round(d * 7)), floors: 4, frame: TRIM, bandColor: '#a99c7c', lit: 0.1, seed: 14 + k });
+    p.box(u - 0.02, v - 0.02, w + 0.04, d + 0.04, 22, 2, TRIM);
+    parapet(p, u - 0.02, v - 0.02, w + 0.04, d + 0.04, 24, '#b9ab88');
+  });
+  roofClutter(p, 0.15, 0.15, 0.7, 0.7, 24, 21);
+  roofClutter(p, 2.15, 0.15, 0.7, 0.7, 24, 22);
+  roofClutter(p, 0.15, 1.7, 0.6, 0.6, 24, 23);
+  roofClutter(p, 2.25, 1.7, 0.6, 0.6, 24, 24);
+  // Portico of columns at the front, the entrance door behind it.
+  p.faceRect('left', 0.05, 0.05, 2.9, 2.5, 2, 20, 0.43, 0.57, 0, 0.6, '#3a332a');
+  p.colonnade('left', 1.08, 2.55, 0.84, 0.4, 2, 18, 6, TRIM, '#6d6555');
+  p.box(1.05, 2.53, 0.9, 0.44, 20, 3, TRIM);
+  p.faceRect('left', 1.05, 2.53, 0.9, 0.44, 20, 3, 0, 1, 0, 1, shade(team.primary, LIGHT.left + 0.1));
+  // Central raised block, stepped tower, spire and the red star.
+  p.box(0.98, 0.98, 1.04, 1.14, 24, 6, TRIM);
   p.box(1.22, 1.15, 0.56, 0.56, 30, 10, CREAM);
   facade(p, 'left', 1.22, 1.15, 0.56, 0.56, 30, 10, { cols: 3, floors: 1, frame: TRIM, seed: 14 });
   facade(p, 'right', 1.22, 1.15, 0.56, 0.56, 30, 10, { cols: 3, floors: 1, frame: TRIM, seed: 15 });
@@ -236,34 +209,32 @@ function stalinist(p: IsoPainter, team: FactionColors): void {
   }
   p.ctx.closePath();
   p.ctx.fill();
-  sandbags(p, 0.3, 2.55, 0.9, 2.55, 2);
-  sandbags(p, 2.1, 2.55, 2.7, 2.55, 2);
-  crate(p, 2.45, 2.2, 0.16, 2);
-  // Team band over the entrance.
-  p.faceRect('left', 1.05, 1.73, 0.9, 0.44, 20, 3, 0, 1, 0, 1, shade(team.primary, LIGHT.left + 0.1));
 }
 
-/** China — the August 1st Building: broad stepped modern block, golden emblem with the red star, grand forecourt. */
+/** China — the August 1st Building: broad stepped modern block, golden emblem with the red star, no forecourt. */
 function bayi(p: IsoPainter, team: FactionColors): void {
   const STONE = '#d8ccb2';
   const DARK = '#7e7466';
-  p.box(0, 0, 3, 3, 0, 2, '#b3aa98');
-  p.topRect(0.2, 2.2, 2.8, 2.9, 2, '#c7bfae');
-  // Low wings.
-  p.box(0.15, 0.35, 2.7, 1.3, 2, 14, STONE, { top: RA2.roof });
-  facade(p, 'left', 0.15, 0.35, 2.7, 1.3, 2, 14, { cols: 20, floors: 3, frame: '#e6dcc6', bandColor: '#b5a88e', seed: 31 });
-  facade(p, 'right', 0.15, 0.35, 2.7, 1.3, 2, 14, { cols: 9, floors: 3, frame: '#e6dcc6', bandColor: '#a5987e', seed: 32 });
-  parapet(p, 0.15, 0.35, 2.7, 1.3, 16, '#c4b89e', 0.06, 2);
-  roofClutter(p, 0.2, 0.4, 0.55, 1.2, 16, 33);
-  roofClutter(p, 2.25, 0.4, 0.55, 1.2, 16, 34);
-  // Central tower in three steps with vertical window strips.
-  p.box(0.8, 0.5, 1.4, 1.35, 2, 30, STONE, { top: RA2.roof });
-  for (let s = 0.1; s < 0.95; s += 0.12) p.faceRect('left', 0.8, 0.5, 1.4, 1.35, 2, 30, s, s + 0.05, 0.08, 0.92, GLASS);
-  facade(p, 'right', 0.8, 0.5, 1.4, 1.35, 2, 30, { cols: 7, floors: 6, frame: '#e6dcc6', bandColor: '#a5987e', seed: 35 });
-  p.box(0.95, 0.65, 1.1, 1.05, 32, 8, STONE, { top: DARK });
-  p.box(1.1, 0.8, 0.8, 0.75, 40, 6, STONE, { top: DARK });
+  p.box(0, 0, 3, 3, 0, 2, '#9a907e');
+  // Low wings filling the whole plot.
+  p.box(0.05, 0.05, 2.9, 2.9, 2, 14, STONE, { top: RA2.roof });
+  facade(p, 'left', 0.05, 0.05, 2.9, 2.9, 2, 14, { cols: 20, floors: 3, frame: '#e6dcc6', bandColor: '#b5a88e', seed: 31 });
+  facade(p, 'right', 0.05, 0.05, 2.9, 2.9, 2, 14, { cols: 20, floors: 3, frame: '#e6dcc6', bandColor: '#a5987e', seed: 32 });
+  parapet(p, 0.05, 0.05, 2.9, 2.9, 16, '#c4b89e', 0.06, 2);
+  roofClutter(p, 0.12, 0.12, 0.55, 1.2, 16, 33);
+  roofClutter(p, 2.3, 0.12, 0.55, 1.2, 16, 34);
+  roofClutter(p, 0.12, 2.2, 0.55, 0.6, 16, 36);
+  roofClutter(p, 2.3, 2.2, 0.55, 0.6, 16, 37);
+  // Central tower in three steps with vertical window strips, its front on the plot's front edge.
+  p.box(0.8, 0.9, 1.4, 2.05, 2, 30, STONE, { top: RA2.roof });
+  for (let s = 0.1; s < 0.95; s += 0.12) p.faceRect('left', 0.8, 0.9, 1.4, 2.05, 2, 30, s, s + 0.05, 0.3, 0.92, GLASS);
+  facade(p, 'right', 0.8, 0.9, 1.4, 2.05, 2, 30, { cols: 10, floors: 6, frame: '#e6dcc6', bandColor: '#a5987e', seed: 35 });
+  p.box(0.95, 1.05, 1.1, 1.75, 32, 8, STONE, { top: DARK });
+  p.box(1.1, 1.2, 0.8, 1.45, 40, 6, STONE, { top: DARK });
+  // Entrance doors at the foot of the tower.
+  p.faceRect('left', 0.8, 0.9, 1.4, 2.05, 2, 30, 0.3, 0.7, 0, 0.22, '#3a3329');
   // Golden emblem with the red star over the entrance.
-  p.faceTransform('left', 0.8, 1.85, 18, (ctx) => {
+  p.faceTransform('left', 0.8, 2.95, 18, (ctx) => {
     const cx = 0.7 * 1.4 * 32 * 0.5;
     ctx.fillStyle = '#e2b23a';
     ctx.beginPath();
@@ -279,45 +250,47 @@ function bayi(p: IsoPainter, team: FactionColors): void {
     ctx.closePath();
     ctx.fill();
   });
-  // Entrance steps and team-coloured banners.
-  p.box(1.05, 1.85, 0.9, 0.3, 2, 2, '#e8e1d0');
-  for (const u of [0.95, 1.95]) p.faceRect('left', 0.8, 0.5, 1.4, 1.35, 2, 30, (u - 0.8) / 1.4, (u - 0.8) / 1.4 + 0.05, 0.1, 0.55, team.primary);
-  tree(p, 0.35, 2.55);
-  tree(p, 2.65, 2.55);
-  p.pole(1.7, 1.0, 46, 14, '#8a8f96');
-  sandbags(p, 0.6, 2.85, 1.0, 2.85, 2);
-  sandbags(p, 2.0, 2.85, 2.4, 2.85, 2);
+  // Team-coloured banners beside the entrance.
+  for (const u of [0.95, 1.95]) p.faceRect('left', 0.8, 0.9, 1.4, 2.05, 2, 30, (u - 0.8) / 1.4, (u - 0.8) / 1.4 + 0.05, 0.1, 0.55, team.primary);
+  p.pole(1.7, 1.4, 46, 14, '#8a8f96');
 }
 
-/** Europe — glass headquarters with interlaced wings (alliance HQ style) around a green plaza. */
+/** Europe — glass headquarters with interlaced wings (alliance HQ style) rising from a glass podium that fills the plot. */
 function glassHq(p: IsoPainter, team: FactionColors): void {
   const BLUE = '#5f7488';
   const STEEL = '#a6abb0';
-  p.box(0, 0, 3, 3, 0, 2, '#a9aeb2');
-  p.topRect(0.2, 0.2, 2.8, 2.8, 2, LAWN);
+  const PZ = 8;
+  p.box(0, 0, 3, 3, 0, 2, '#7d868e');
+  // Podium filling the plot, with the glazed entrance in the front facade.
+  p.box(0.05, 0.05, 2.9, 2.9, 2, PZ - 2, BLUE, { top: STEEL });
+  facade(p, 'left', 0.05, 0.05, 2.9, 2.9, 2, PZ - 2, { cols: 22, floors: 1, frame: '#c9ccd0', fill: 0.8, band: 0.22, lit: 0.18, seed: 40 });
+  facade(p, 'right', 0.05, 0.05, 2.9, 2.9, 2, PZ - 2, { cols: 22, floors: 1, frame: '#c9ccd0', fill: 0.8, band: 0.22, seed: 41 });
+  p.faceRect('left', 0.05, 0.05, 2.9, 2.9, 2, PZ - 2, 0.4, 0.6, 0, 0.85, RA2.glassLit);
+  p.faceRect('left', 0.05, 0.05, 2.9, 2.9, 2, PZ - 2, 0, 1, 0.88, 1, team.primary);
+  parapet(p, 0.05, 0.05, 2.9, 2.9, PZ, STEEL, 0.04, 1.2);
   // Spine.
-  p.box(0.25, 0.3, 0.55, 2.2, 2, 16, BLUE, { top: STEEL });
-  roofClutter(p, 0.25, 0.3, 0.55, 2.2, 18, 41);
-  // Interlaced wings ("fingers") reaching out of the spine, alternating heights.
+  p.box(0.05, 0.05, 0.55, 2.9, PZ, 16, BLUE, { top: STEEL });
+  roofClutter(p, 0.05, 0.05, 0.55, 2.9, PZ + 16, 41);
+  // Interlaced wings ("fingers") reaching out of the spine to the far edge, alternating heights.
   const wings: readonly [number, number][] = [
-    [0.4, 18],
-    [1.05, 22],
-    [1.7, 18],
+    [0.15, 18],
+    [1.2, 22],
+    [2.25, 18],
   ];
   for (const [v, h] of wings) {
-    p.box(0.8, v, 1.85, 0.4, 2, h, BLUE, { top: STEEL });
-    facade(p, 'left', 0.8, v, 1.85, 0.4, 2, h, { cols: 14, floors: 4, frame: '#c9ccd0', fill: 0.8, band: 0.22, lit: 0.18, seed: 42 + h });
-    facade(p, 'right', 0.8, v, 1.85, 0.4, 2, h, { cols: 3, floors: 4, frame: '#c9ccd0', fill: 0.8, band: 0.22, seed: 43 + h });
-    parapet(p, 0.8, v, 1.85, 0.4, 2 + h, STEEL, 0.04, 1.5);
-    p.box(1.2, v + 0.1, 0.25, 0.2, 2 + h, 3, '#a9adb2');
+    p.box(0.6, v, 2.05, 0.6, PZ, h, BLUE, { top: STEEL });
+    facade(p, 'left', 0.6, v, 2.05, 0.6, PZ, h, { cols: 14, floors: 4, frame: '#c9ccd0', fill: 0.8, band: 0.22, lit: 0.18, seed: 42 + h });
+    facade(p, 'right', 0.6, v, 2.05, 0.6, PZ, h, { cols: 4, floors: 4, frame: '#c9ccd0', fill: 0.8, band: 0.22, seed: 43 + h });
+    parapet(p, 0.6, v, 2.05, 0.6, PZ + h, STEEL, 0.04, 1.5);
+    p.box(1.2, v + 0.15, 0.25, 0.3, PZ + h, 3, '#a9adb2');
     // Curved tip of each wing.
-    p.cylinder(2.65, v + 0.2, 0.2, 2, h, BLUE);
+    p.cylinder(2.65, v + 0.3, 0.3, PZ, h, BLUE);
   }
-  // Ring of member-state flags in team colours along the plaza.
-  for (let i = 0; i < 6; i++) {
-    const u = 0.5 + i * 0.38;
-    p.pole(u, 2.55, 2, 12, '#e6e6e6');
-    p.polygon([[u, 2.55, 14], [u + 0.14, 2.55, 14], [u + 0.14, 2.55, 11], [u, 2.55, 11]] as Vec3[], i % 2 ? team.primary : team.light, null);
+  // Member-state flags in team colours on the podium roof between the wings.
+  for (let i = 0; i < 5; i++) {
+    const u = 0.8 + i * 0.4;
+    p.pole(u, 2.05, PZ, 10, '#e6e6e6');
+    p.polygon([[u, 2.05, PZ + 10], [u + 0.14, 2.05, PZ + 10], [u + 0.14, 2.05, PZ + 7], [u, 2.05, PZ + 7]] as Vec3[], i % 2 ? team.primary : team.light, null);
   }
 }
 
@@ -344,57 +317,46 @@ function fortTower(p: IsoPainter, u: number, v: number, z: number, brick: string
 }
 
 /**
- * Islamic — garrison in a mud-brick desert fortress (an Arg / caravanserai plan): crenellated
- * walls with round corner towers, a drill yard, and the headquarters at the back behind a tiled iwan gateway under a
- * small turquoise dome, a team-coloured banner over the arch.
+ * Islamic — garrison in a mud-brick desert fortress (an Arg plan): one solid crenellated block filling the plot, with
+ * round corner towers, the headquarters keep on top under a small green dome, and a tiled iwan gateway on the front
+ * edge with a team-coloured banner over the arch.
  */
 function islamicFort(p: IsoPainter, team: FactionColors): void {
   const BRICK = '#b59670';
   const TOP = '#c7ab84';
   const Z = 2;
-  p.box(0, 0, 3, 3, 0, Z, '#a8916c');
-  // Drill yard of packed earth with marching lanes.
-  p.topRect(0.45, 1.5, 2.55, 2.6, Z, '#cdb68e');
-  for (const v of [1.75, 2.05, 2.35]) p.topRect(0.6, v, 2.4, v + 0.05, Z + 0.1, '#e8dcc0');
-  sandbags(p, 0.55, 1.55, 0.55, 2.0, Z, '#b49a6a');
-  crate(p, 2.2, 1.55, 0.16, Z);
-  crate(p, 2.3, 1.75, 0.13, Z);
+  const WH = 18;
+  p.box(0, 0, 3, 3, 0, Z, '#8f7a58');
 
-  // Back corner tower, then the rear and side walls.
+  // Back corner tower, then the solid fortress block.
   fortTower(p, 0.3, 0.3, Z, BRICK);
-  p.box(0.3, 0.15, 2.4, 0.3, Z, 18, BRICK, { top: TOP });
-  merlons(p, 0.3, 0.15, 2.4, 0.3, Z + 18, 9, TOP);
-  p.box(0.15, 0.3, 0.3, 2.4, Z, 18, BRICK, { top: TOP });
-  merlons(p, 0.15, 0.3, 0.3, 2.4, Z + 18, 9, TOP);
-  p.faceRect('right', 0.15, 0.3, 0.3, 2.4, Z, 18, 0.1, 0.9, 0.55, 0.6, '#2fa6b8');
+  p.box(0.05, 0.05, 2.9, 2.9, Z, WH, BRICK, { top: TOP });
+  p.windows('left', 0.05, 0.05, 2.9, 2.9, Z, WH, 10, 1, '#2b2219', 0.1, 0.35);
+  p.windows('right', 0.05, 0.05, 2.9, 2.9, Z, WH, 10, 1, '#2b2219', 0.1, 0.35);
+  p.faceRect('left', 0.05, 0.05, 2.9, 2.9, Z, WH, 0.05, 0.95, 0.75, 0.8, ISLAMIC_GREEN);
+  p.faceRect('right', 0.05, 0.05, 2.9, 2.9, Z, WH, 0.05, 0.95, 0.75, 0.8, ISLAMIC_GREEN);
+  merlons(p, 0.3, 0.05, 2.4, 0.2, Z + WH, 9, TOP);
+  merlons(p, 0.05, 0.3, 0.2, 2.4, Z + WH, 9, TOP);
+  merlons(p, 2.75, 0.3, 0.2, 2.4, Z + WH, 9, TOP);
+  merlons(p, 0.3, 2.75, 2.4, 0.2, Z + WH, 9, TOP);
 
-  // Headquarters block with a tiled iwan gateway, small dome and the team banner.
-  p.box(0.55, 0.5, 1.9, 0.9, Z, 26, '#cdb994', { top: TOP });
-  p.windows('left', 0.55, 0.5, 1.9, 0.9, Z, 26, 6, 2, '#2b2219', 0.1, 0.55);
-  p.windows('right', 0.55, 0.5, 1.9, 0.9, Z, 26, 3, 2, '#2b2219', 0.15, 0.55);
-  p.faceRect('left', 0.55, 0.5, 1.9, 0.9, Z, 26, 0, 1, 0.88, 0.96, '#2fa6b8');
-  p.cylinder(1.5, 0.95, 0.32, Z + 26, 5, '#e4d2a8');
-  p.dome(1.5, 0.95, 0.36, Z + 31, 16, '#2fa6b8');
-  p.pole(1.5, 0.95, Z + 47, 5, '#e2b23a');
-  iwan(p, 'left', [1.1, 1.3, 0.8, 0.3, Z, 36]);
-  p.faceRect('left', 1.1, 1.3, 0.8, 0.3, Z, 36, 0.12, 0.88, 0.84, 0.92, team.primary);
+  // Headquarters keep on the roof, with a small dome.
+  const KZ = Z + WH;
+  p.box(0.55, 0.5, 1.9, 1.5, KZ, 12, '#cdb994', { top: TOP });
+  p.windows('left', 0.55, 0.5, 1.9, 1.5, KZ, 12, 6, 1, '#2b2219', 0.2, 0.6);
+  p.windows('right', 0.55, 0.5, 1.9, 1.5, KZ, 12, 4, 1, '#2b2219', 0.2, 0.6);
+  p.faceRect('left', 0.55, 0.5, 1.9, 1.5, KZ, 12, 0, 1, 0.82, 0.92, ISLAMIC_GREEN);
+  p.cylinder(1.5, 1.25, 0.32, KZ + 12, 4, '#e4d2a8');
+  p.dome(1.5, 1.25, 0.36, KZ + 16, 14, ISLAMIC_GREEN_DOME);
+  p.pole(1.5, 1.25, KZ + 30, 5, '#e2b23a');
 
-  // Front corner towers and the far (east) wall.
+  // Side corner towers.
   fortTower(p, 2.7, 0.3, Z, BRICK);
-  p.box(2.55, 0.3, 0.3, 2.4, Z, 18, BRICK, { top: TOP });
-  merlons(p, 2.55, 0.3, 0.3, 2.4, Z + 18, 9, TOP);
-  p.faceRect('right', 2.55, 0.3, 0.3, 2.4, Z, 18, 0.1, 0.9, 0.55, 0.6, '#2fa6b8');
   fortTower(p, 0.3, 2.7, Z, BRICK);
 
-  // Low front wall with an open gate, so the yard and its soldiers stay visible.
-  p.box(0.3, 2.6, 0.75, 0.25, Z, 9, BRICK, { top: TOP });
-  merlons(p, 0.3, 2.6, 0.75, 0.25, Z + 9, 3, TOP);
-  p.box(1.95, 2.6, 0.75, 0.25, Z, 9, BRICK, { top: TOP });
-  merlons(p, 1.95, 2.6, 0.75, 0.25, Z + 9, 3, TOP);
-  for (const u of [1.05, 1.8]) {
-    p.box(u, 2.55, 0.15, 0.35, Z, 16, BRICK, { top: TOP });
-    p.dome(u + 0.075, 2.72, 0.09, Z + 16, 5, '#2fa6b8');
-  }
+  // Tiled iwan gateway on the front edge (the soldiers' door), team banner over the arch.
+  iwan(p, 'left', [1.1, 2.65, 0.8, 0.3, Z, 30]);
+  p.faceRect('left', 1.1, 2.65, 0.8, 0.3, Z, 30, 0.12, 0.88, 0.84, 0.92, team.primary);
   fortTower(p, 2.7, 2.7, Z, BRICK);
 }
 
@@ -406,19 +368,19 @@ const DESIGNS: Record<FactionId, (p: IsoPainter, team: FactionColors) => void> =
   islamic: islamicFort,
 };
 
-/** Flag pole of each design, placed on open ground in front of the building. */
+/** Flag pole of each design, on the roof (no open ground inside the plot). */
 const FLAGS: Record<FactionId, FlagSpot> = {
-  usa: { u: 1.05, v: 2.85, z: 2, h: 30 },
-  russia: { u: 0.4, v: 2.65, z: 2, h: 30 },
-  china: { u: 1.5, v: 2.6, z: 2, h: 34 },
-  europe: { u: 2.7, v: 2.7, z: 2, h: 30 },
-  islamic: { u: 1.5, v: 2.1, z: 2, h: 34 },
+  usa: { u: 0.35, v: 2.65, z: 8, h: 24 },
+  russia: { u: 0.35, v: 2.75, z: 24, h: 22 },
+  china: { u: 0.35, v: 2.65, z: 16, h: 26 },
+  europe: { u: 0.33, v: 2.7, z: 24, h: 20 },
+  islamic: { u: 1.0, v: 1.0, z: 32, h: 18 },
 };
 
 /**
  * Ministry of Defence (the infantry building), drawn in each nation's own architecture: the Pentagon (USA), a
  * Stalinist ministry with a red-star spire (Russia), the August 1st Building (China), a glass alliance
- * headquarters (Europe) and a mud-brick desert fortress (Islamic). The national flag flies in front of each.
+ * headquarters (Europe) and a mud-brick desert fortress (Islamic). The national flag flies on the roof of each; every design fills its plot.
  */
 export function createBarracksArt(faction: FactionId): BuildingArt {
   const team = FACTIONS[faction].colors;

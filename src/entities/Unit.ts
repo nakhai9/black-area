@@ -257,9 +257,11 @@ export abstract class Unit extends Entity {
       return;
     }
     // A vehicle almost on its final spot does not pivot round and round for the last few pixels (pushed about by
-    // its neighbours): it has arrived.
+    // its neighbours): it settles exactly on the point it was sent to, and has arrived.
     const end = this.path.length === 1 ? this.path[0] : undefined;
     if (end && this.drivesForward && this.turnsToMove && Math.hypot(end.x - this.px, end.y - this.py) < this.radius * 0.6) {
+      this.px = end.x;
+      this.py = end.y;
       this.path.length = 0;
       this.destination = null;
     }

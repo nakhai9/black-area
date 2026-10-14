@@ -171,6 +171,12 @@ export class Vehicle extends Unit {
   mendClock = 0;
   /** Repair vehicle only: game time of its last route re-plan while following the target. */
   mendRepathAt = 0;
+  /** Repair vehicle only: centre of the group it was sent to mend (it moves on to the next damaged one there), or null. */
+  mendArea: { x: number; y: number } | null = null;
+  /** Damaged ground vehicle sent into a War Factory for repair (driving there or inside): the factory id, or null. */
+  depotId: number | null = null;
+  /** Game time of its last route re-plan towards that War Factory. */
+  depotRepathAt = 0;
   /** Damaged ground vehicle sent to a repair vehicle: id of that repair vehicle, or null. */
   seekRepairId: number | null = null;
   /** Seconds towards the next repair tick while it is alongside the repair vehicle it was sent to. */

@@ -1,4 +1,4 @@
-import { CONTESTED_NATIONS, type ContestedNationId, FOOTPRINT_SMALL, NATION_PRESENCE_PERIOD, NEUTRAL_OWNER } from '../constants';
+import { CONTESTED_NATIONS, type ContestedNationId, FOOTPRINT_NATION_CAPITAL, NATION_PRESENCE_PERIOD, NEUTRAL_OWNER } from '../constants';
 import { t } from '../i18n';
 import type { WorldPoint } from '../types';
 import { Building } from './Building';
@@ -24,7 +24,7 @@ export class NationCapital extends Building {
     super(NEUTRAL_OWNER, 'neutral', center, {
       type: 'nationCapital',
       name: n.capital,
-      footprint: FOOTPRINT_SMALL,
+      footprint: FOOTPRINT_NATION_CAPITAL,
       maxHp: 5000,
       powerOutput: 0,
       powerDrain: 0,

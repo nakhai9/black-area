@@ -8,29 +8,26 @@ import { drawMosque } from './GrandMosque';
 import { RA2, facade, parapet, roofClutter } from './Ra2Kit';
 
 const PAD = RA2.paving;
-const LAWN = RA2.grass;
-const PATH = '#b9b4a6';
+/** Height of the office wing that fills the whole plot; the main hall and the flags stand on it. */
+const WING_H = 6;
 
-/** Flags at the two front corners of the plot: the owner's national flag, then the ally flag (black, emblem). */
+/**
+ * Two flags side by side along the front edge (on the wing roof), facing each other: the owner's national flag on
+ * the left waving right, the ally flag (black, emblem) on the right waving left (mirrored).
+ */
 const FLAGS: readonly [number, number][] = [
-  [0.35, 3.65],
-  [3.65, 0.35],
+  [0.45, 3.7],
+  [3.55, 3.7],
 ];
 
-/** Plot shared by every nation: paved pad, two lawns and a path to the door. */
-function plot(p: IsoPainter): void {
+/** Plot shared by every nation: a low office wing in the nation's stone covering the whole 4×4 plot edge to edge. */
+function plot(p: IsoPainter, wing: string, seed: number): void {
   p.box(0, 0, 4, 4, 0, 2, PAD);
-  p.topRect(0.15, 3.0, 1.55, 3.85, 2, LAWN);
-  p.topRect(2.45, 3.0, 3.85, 3.85, 2, LAWN);
-  p.topRect(1.6, 3.0, 2.4, 3.95, 2, PATH);
-  // Clipped hedges and lamp posts along the lawns.
-  for (const u of [0.15, 2.45]) p.box(u, 2.92, 1.4, 0.08, 2, 2.5, '#3f5a2a', { edge: null });
-  for (const u of [1.5, 2.5]) {
-    p.pole(u, 3.9, 2, 9, '#3b3f44');
-    const [x, y] = p.project(u, 3.9, 11);
-    p.ctx.fillStyle = '#e8dfb8';
-    p.ctx.fillRect(x - 1, y - 1, 2, 2);
-  }
+  p.box(0.03, 0.03, 3.94, 3.94, 2, WING_H, wing);
+  facade(p, 'left', 0.03, 0.03, 3.94, 3.94, 2, WING_H, { cols: 18, floors: 1, frame: shade(wing, 1.12), bandColor: shade(wing, 0.8), seed });
+  facade(p, 'right', 0.03, 0.03, 3.94, 3.94, 2, WING_H, { cols: 18, floors: 1, frame: shade(wing, 1.12), bandColor: shade(wing, 0.75), seed: seed + 1 });
+  p.topRect(0.07, 0.07, 3.93, 3.93, 2 + WING_H, RA2.roof);
+  parapet(p, 0.03, 0.03, 3.94, 3.94, 2 + WING_H, shade(wing, 0.92), 0.06, 1.5);
 }
 
 /**
@@ -39,10 +36,11 @@ function plot(p: IsoPainter): void {
  *  - Russia: a Stalinist tower in red-brown stone with a spire and red star;
  *  - China: a hall on a white terrace under a red-gold sweeping roof, red columns in front;
  *  - Europe: a glass office block with a blue band and a ring of gold stars;
- *  - Islamic: a grand mosque with a turquoise dome and two minarets.
+ *  - Islamic: a grand mosque with a green dome and two minarets.
  */
-const STYLES: Record<FactionId, { height: number; draw: (p: IsoPainter, team: string) => void }> = {
+const STYLES: Record<FactionId, { height: number; wing: string; draw: (p: IsoPainter, team: string) => void }> = {
   usa: {
+    wing: '#d8d2c2',
     height: 70,
     draw: (p, team) => {
       const W = '#d8d2c2';
@@ -63,6 +61,7 @@ const STYLES: Record<FactionId, { height: number; draw: (p: IsoPainter, team: st
     },
   },
   russia: {
+    wing: '#86604e',
     height: 120,
     draw: (p, team) => {
       const STONE = '#86604e';
@@ -82,6 +81,7 @@ const STYLES: Record<FactionId, { height: number; draw: (p: IsoPainter, team: st
     },
   },
   china: {
+    wing: '#d2ccbd',
     height: 64,
     draw: (p, team) => {
       p.box(0.3, 0.4, 3.4, 2.6, 2, 5, '#d2ccbd');
@@ -94,6 +94,7 @@ const STYLES: Record<FactionId, { height: number; draw: (p: IsoPainter, team: st
     },
   },
   europe: {
+    wing: '#b3b7ba',
     height: 92,
     draw: (p, team) => {
       const GLASS = '#56687a';
@@ -115,12 +116,24 @@ const STYLES: Record<FactionId, { height: number; draw: (p: IsoPainter, team: st
     },
   },
   islamic: {
+    wing: '#cdb994',
     height: 96,
     draw: (p, team) => drawMosque(p, 0, 0.3, 1, 2, team),
   },
 };
 
-/** Allied Building (4×4 tiles) in the leading nation's architecture, with the owner's national flag (`flag`) and its ally flag (black, the nation's emblem) at two corners. */
+/** Draws `draw` mirrored left-right about the pole at (u, v, z): the flag then flies to the pole's left. */
+function mirrored(p: IsoPainter, u: number, v: number, z: number, draw: () => void): void {
+  const [x] = p.project(u, v, z);
+  p.ctx.save();
+  p.ctx.translate(x, 0);
+  p.ctx.scale(-1, 1);
+  p.ctx.translate(-x, 0);
+  draw();
+  p.ctx.restore();
+}
+
+/** Allied Building (4×4 tiles) in the leading nation's architecture, with the owner's national flag (`flag`) and its ally flag (black, the nation's emblem) side by side at the front, facing each other. */
 export function createAlliedBuildingArt(faction: FactionId, flag: FactionId = faction): BuildingArt {
   const team = FACTIONS[faction].colors.primary;
   const style = STYLES[faction];
@@ -129,14 +142,16 @@ export function createAlliedBuildingArt(faction: FactionId, flag: FactionId = fa
     height: Math.max(style.height, 48),
 
     drawStatic(p) {
-      plot(p);
+      plot(p, style.wing, faction.length * 13);
       style.draw(p, team);
-      for (const [u, v] of FLAGS) drawNationalPole(p, flag, u, v, 2, 30);
+      for (const [u, v] of FLAGS) drawNationalPole(p, flag, u, v, 2 + WING_H, 30);
     },
 
     drawAnimated(p, time) {
       FLAGS.forEach(([u, v], i) =>
-        i === 0 ? drawFlagOnPole(p, flag, u, v, 32, time, 0, 15, 9) : drawEmblemFlagOnPole(p, flag, u, v, 32, time, 1.1, 15, 9),
+        i === 0
+          ? drawFlagOnPole(p, flag, u, v, 32 + WING_H, time, 0, 15, 9)
+          : mirrored(p, u, v, 32 + WING_H, () => drawEmblemFlagOnPole(p, flag, u, v, 32 + WING_H, time, 1.1, 15, 9)),
       );
     },
   };

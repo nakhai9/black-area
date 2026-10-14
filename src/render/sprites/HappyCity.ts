@@ -1,3 +1,4 @@
+import { ISLAMIC_GREEN_DOME } from './IslamicPalette';
 import { FACTIONS } from '../../factions';
 import type { FactionId } from '../../types';
 import { shade } from '../Color';
@@ -9,13 +10,9 @@ import { facade, parapet, RA2, rnd as hash, roofClutter } from './Ra2Kit';
 
 const N = 8;
 const ASPHALT = RA2.asphalt;
-const SIDEWALK = RA2.paving;
-const LAWN = RA2.grass;
-const LANE = '#cfc49a';
 const LIT = 'rgba(255,238,160,0.95)';
-/** Road centre lines (tiles): a ring road inside the edge and a cross through the middle. */
-const ROADS = [0.55, 4, 7.45] as const;
-const ROAD_W = 0.5;
+/** Half-width of the thin alleys between buildings (tiles). */
+const ALLEY = 0.03;
 
 /** One thing standing in the city, drawn back to front by `key` (u + v of its front corner). */
 interface Piece {
@@ -59,11 +56,6 @@ const flatRoof = (p: IsoPainter, u: number, v: number, w: number, d: number, top
   p.topRect(u + 0.04, v + 0.04, u + w - 0.04, v + d - 0.04, top, RA2.roof);
   parapet(p, u, v, w, d, top, shade(color, 0.92), 0.06, 2);
   roofClutter(p, u + 0.05, v + 0.05, w - 0.1, d - 0.1, top, seed);
-};
-
-const tree = (p: IsoPainter, u: number, v: number, s = 1): void => {
-  p.cylinder(u, v, 0.05 * s, 2, 4 * s, '#4f3a26');
-  p.dome(u, v, 0.22 * s, 5 * s, 8 * s, '#3e5a2a');
 };
 
 /** Onion dome on a drum: the drum, the striped or plain bulb and a small gold cross. */
@@ -141,8 +133,6 @@ const STYLES: Readonly<Record<FactionId, CityStyle>> = {
       p.pole(1.8, 1.65, 127, 14, '#e8c45a');
       const [x, y] = p.project(1.8, 1.65, 143);
       star(p, x, y, 4.5, '#d42a1e');
-      // Red Square cobbles in front of the cathedral.
-      p.topRect(0.85, 2.55, 3.65, 3.7, 2, '#8d6f62');
       // St Basil's Cathedral: red-brick base, a tall central tent spire and a ring of striped onion domes.
       const BRICK = '#b5462f';
       p.box(1.9, 2.0, 1.55, 1.25, 2, 12, BRICK, { top: '#9c3c28' });
@@ -209,7 +199,7 @@ const STYLES: Readonly<Record<FactionId, CityStyle>> = {
       p.pole(3.0, 2.8, 116, 14, team);
     },
   },
-  // Islamic: a Middle Eastern city — sand-coloured blocks round a mosque with a turquoise dome and minarets.
+  // Islamic: a Middle Eastern city — sand-coloured blocks round a mosque with a green dome and minarets.
   islamic: {
     facades: ['#c2a77c', '#b4996e', '#cdb894', '#a88e66'],
     roof: '#b89e74',
@@ -220,21 +210,21 @@ const STYLES: Readonly<Record<FactionId, CityStyle>> = {
   },
 };
 
-/** Footprints of the ordinary buildings in a block (tiles), filling it with a little gap to the sidewalks. */
+/** Footprints of the ordinary buildings in a block (tiles), filling it edge to edge with only thin alleys. */
 function blockLots(u0: number, v0: number, u1: number, v1: number): { u: number; v: number; w: number; d: number }[] {
   const lots: { u: number; v: number; w: number; d: number }[] = [];
   const nu = 2;
   const nv = 2;
   const lw = (u1 - u0) / nu;
   const ld = (v1 - v0) / nv;
-  for (let i = 0; i < nu; i++) for (let j = 0; j < nv; j++) lots.push({ u: u0 + i * lw + 0.12, v: v0 + j * ld + 0.12, w: lw - 0.24, d: ld - 0.24 });
+  for (let i = 0; i < nu; i++) for (let j = 0; j < nv; j++) lots.push({ u: u0 + i * lw + ALLEY, v: v0 + j * ld + ALLEY, w: lw - 2 * ALLEY, d: ld - 2 * ALLEY });
   return lots;
 }
 
 /**
- * Happy City (8×8 tiles): a crowded, lively city block in the nation's own style. A ring road and a cross of
- * avenues split it into four blocks of towers and parks lined with trees; the back block holds the nation's
- * landmark. Cars drive the avenues and windows light up (animated).
+ * Happy City (8×8 tiles): a crowded, dense city in the nation's own style. Four blocks of towers cover the whole
+ * plot edge to edge, split only by thin alleys; the back block holds the nation's landmark on a low podium that
+ * fills its block. Windows light up (animated).
  */
 export function createHappyCityArt(faction: FactionId): BuildingArt {
   const team = FACTIONS[faction].colors.primary;
@@ -253,36 +243,32 @@ export function createHappyCityArt(faction: FactionId): BuildingArt {
     if (z > flag.z) flag = { u, v, z: z + 14, pole: 14 };
   };
   const blocks: [number, number, number, number][] = [
-    [0.8, 0.8, 3.75, 3.75],
-    [4.25, 0.8, 7.2, 3.75],
-    [0.8, 4.25, 3.75, 7.2],
-    [4.25, 4.25, 7.2, 7.2],
+    [0.02, 0.02, 4, 4],
+    [4, 0.02, 7.98, 4],
+    [0.02, 4, 4, 7.98],
+    [4, 4, 7.98, 7.98],
   ];
   blocks.forEach(([u0, v0, u1, v1], bi) => {
     if (bi === 0) {
-      pieces.push({ key: u1 + v1 - 2, draw: (p) => style.landmark(p, team) });
+      // Landmark block: a low podium of shops filling the whole block, the landmark rising from it.
+      const pu = u0 + ALLEY;
+      const pw = u1 - u0 - 2 * ALLEY;
+      const podium = style.facades[0] ?? '#999';
+      pieces.push({
+        key: u1 + v1 - 2,
+        draw: (p) => {
+          tower(p, pu, pu, pw, pw, 6, podium, 1);
+          flatRoof(p, pu, pu, pw, pw, 8, podium, 11);
+          style.landmark(p, team);
+        },
+      });
       return;
     }
     blockLots(u0, v0, u1, v1).forEach((lot, li) => {
-      const park = (bi === 3 && li === 0) || (bi === 1 && li === 3);
-      if (park) {
-        pieces.push({
-          key: lot.u + lot.v + lot.w + lot.d,
-          draw: (p) => {
-            p.topRect(lot.u, lot.v, lot.u + lot.w, lot.v + lot.d, 2, RA2.grass);
-            p.topRect(lot.u + lot.w * 0.45, lot.v, lot.u + lot.w * 0.55, lot.v + lot.d, 2, RA2.paving);
-            tree(p, lot.u + 0.3, lot.v + 0.3);
-            tree(p, lot.u + lot.w - 0.3, lot.v + 0.35, 0.9);
-            tree(p, lot.u + 0.4, lot.v + lot.d - 0.3, 1.1);
-            tree(p, lot.u + lot.w - 0.35, lot.v + lot.d - 0.35);
-          },
-        });
-        return;
-      }
       const color = style.facades[Math.floor(rnd() * style.facades.length)] ?? '#999';
       if (style.towers === 'russian') {
         if (li === (bi + 1) % 4) {
-          pieces.push({ key: lot.u + lot.v + lot.w + lot.d, draw: (p) => church(p, lot.u + 0.1, lot.v + 0.1, lot.w - 0.2, lot.d - 0.2) });
+          pieces.push({ key: lot.u + lot.v + lot.w + lot.d, draw: (p) => church(p, lot.u, lot.v, lot.w, lot.d) });
           return;
         }
         const tall = 16 + rnd() * (bi === 3 ? 14 : 26);
@@ -310,11 +296,11 @@ export function createHappyCityArt(faction: FactionId): BuildingArt {
             p.box(lot.u + 0.25, lot.v + 0.25, lot.w - 0.5, lot.d - 0.5, top, 5, shade(color, 0.9));
             p.hipRoof(lot.u + 0.22, lot.v + 0.22, lot.w - 0.44, lot.d - 0.44, top + 5, 6, 0.12, style.roof, 2);
           } else if (style.towers === 'panel') {
-            // Sandstone block: crenellated parapet, roof kiosk with a small dome.
+            // Sandstone block: crenellated parapet, roof kiosk with a small green dome.
             flatRoof(p, lot.u, lot.v, lot.w, lot.d, top, color, sd);
             if (hash(sd, 3) < 0.5) {
               p.box(lot.u + lot.w / 2 - 0.15, lot.v + lot.d / 2 - 0.15, 0.3, 0.3, top, 4, shade(color, 1.05));
-              p.dome(lot.u + lot.w / 2, lot.v + lot.d / 2, 0.15, top + 4, 5, '#4f8a86');
+              p.dome(lot.u + lot.w / 2, lot.v + lot.d / 2, 0.15, top + 4, 5, ISLAMIC_GREEN_DOME);
             }
           } else {
             // Manhattan: setback upper storey and plant, a thin team stripe at the cornice.
@@ -332,12 +318,6 @@ export function createHappyCityArt(faction: FactionId): BuildingArt {
       });
     });
   });
-  // Street trees along the avenues.
-  for (let t = 1.1; t < N - 0.6; t += 0.9) {
-    if (Math.abs(t - 4) < 0.5) continue;
-    pieces.push({ key: t + 4.35, draw: (p) => tree(p, t, 4.35, 0.75) });
-    pieces.push({ key: 4.35 + t, draw: (p) => tree(p, 4.35, t, 0.75) });
-  }
   pieces.sort((a, b) => a.key - b.key);
 
   return {
@@ -345,45 +325,14 @@ export function createHappyCityArt(faction: FactionId): BuildingArt {
     height: 220,
 
     drawStatic(p) {
-      p.box(0, 0, N, N, 0, 2, SIDEWALK);
-      p.topRect(0.1, 0.1, N - 0.1, N - 0.1, 2, LAWN);
-      // Roads: ring + cross, with lane markings.
-      for (const c of ROADS) {
-        p.topRect(c - ROAD_W / 2, 0.3, c + ROAD_W / 2, N - 0.3, 2, ASPHALT);
-        p.topRect(0.3, c - ROAD_W / 2, N - 0.3, c + ROAD_W / 2, 2, ASPHALT);
-      }
-      for (const c of ROADS) {
-        for (let t = 0.5; t < N - 0.5; t += 0.5) {
-          p.topRect(c - 0.02, t, c + 0.02, t + 0.22, 2, LANE);
-          p.topRect(t, c - 0.02, t + 0.22, c + 0.02, 2, LANE);
-        }
-      }
+      // Dark alley floor; the buildings cover everything but the thin alleys.
+      p.box(0, 0, N, N, 0, 2, ASPHALT);
       for (const piece of pieces) piece.draw(p);
       if (flag.pole > 0) p.pole(flag.u, flag.v, flag.z - flag.pole, flag.pole, '#e8e8e8');
     },
 
     drawAnimated(p, time) {
       drawFlagOnPole(p, faction, flag.u, flag.v, flag.z, time, 0, 16, 10);
-      // Traffic on the two front ring roads (animated art is drawn over the static towers, so only roads that
-      // nothing stands in front of carry cars), team-coloured buses among them.
-      const road = ROADS[2];
-      for (let i = 0; i < 12; i++) {
-        const dir = i % 2 === 0 ? 1 : -1;
-        const along = (((time * (0.5 + (i % 4) * 0.12) * dir + i * 1.37) % (N - 1)) + (N - 1)) % (N - 1);
-        const pos = 0.5 + along;
-        const side = dir * 0.11;
-        const color = i % 5 === 0 ? team : ['#e8e8e8', '#d23b2b', '#2b5bd2', '#f2c230', '#2b2b2b'][i % 5] ?? '#ddd';
-        const len = i % 5 === 0 ? 0.32 : 0.18;
-        if (i % 2 === 0) p.box(pos, road + side - 0.06, len, 0.12, 2, 2.2, color);
-        else p.box(road + side - 0.06, pos, 0.12, len, 2, 2.2, color);
-      }
-      // Crowds on the sidewalks.
-      p.ctx.fillStyle = 'rgba(40,40,40,0.8)';
-      for (let i = 0; i < 20; i++) {
-        const t = 0.5 + ((((time * 0.15 * (i % 2 ? 1 : -1) + i * 0.61) % (N - 1)) + (N - 1)) % (N - 1));
-        const [x, y] = i % 2 ? p.project(t, road - 0.32, 2) : p.project(road - 0.32, t, 2);
-        p.ctx.fillRect(x - 0.4, y - 1.6, 0.8, 1.6);
-      }
       // Lit windows on the landmark block.
       const [lu, lv, lw, ld, lh] = style.lit;
       for (let i = 0; i < 6; i++) {
