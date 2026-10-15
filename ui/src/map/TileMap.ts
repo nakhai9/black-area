@@ -144,13 +144,24 @@ export class TileMap {
           continue;
         }
         if (t === 'water') return 'water';
-        if (t === 'snow') return 'ice';
-        const m = this.mountain[this.index(tx, ty)];
-        if (m !== 0 && m !== MOUNTAIN_LEDGE) return 'mountain';
+        // Snow (and hollows) are fine to build on; Antarctica is ruled out separately (PlacementSystem).
+        // Mountains and their rocks are not: no cell of the range (crest, pass, ledge with its foothill rocks) nor
+        // a cell next to one (the rock art reaches about a cell beyond its own).
+        if (this.nearMountain(tx, ty)) return 'mountain';
         if (!ignoreTrees && this.hasTrees(tx, ty)) return 'trees';
       }
     }
     return null;
+  }
+
+  /** Is (x, y) a mountain cell (any code) or next to one? */
+  private nearMountain(x: number, y: number): boolean {
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        if (this.inBounds(x + dx, y + dy) && this.mountain[this.index(x + dx, y + dy)] !== 0) return true;
+      }
+    }
+    return false;
   }
 
   isAreaBuildable(x: number, y: number, w: number, d: number, naval = false, ignoreTrees = false): boolean {
