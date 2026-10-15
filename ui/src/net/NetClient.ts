@@ -1,7 +1,15 @@
 import type { FactionId } from '../types';
 
-/** Multiplayer server address (server/ folder). Set VITE_SERVER_URL in .env.local / on the host, e.g. wss://black-area-server.onrender.com */
-export const SERVER_URL = import.meta.env.VITE_SERVER_URL || 'ws://localhost:8787';
+/** Deployed multiplayer server (server/ folder on Render). */
+const PRODUCTION_SERVER_URL = 'https://black-area.onrender.com';
+
+/**
+ * Multiplayer server address: VITE_GAME_SERVER_API if set (http(s):// or ws(s)://), else the local server in dev
+ * and the Render one in a build. http(s) is turned into the matching ws(s) for the WebSocket.
+ */
+export const SERVER_URL = (import.meta.env.VITE_GAME_SERVER_API || (import.meta.env.DEV ? 'http://localhost:8787' : PRODUCTION_SERVER_URL))
+  .trim()
+  .replace(/^http/, 'ws');
 
 export interface RoomPlayer {
   id: string;

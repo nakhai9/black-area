@@ -4,7 +4,7 @@
 
 <h1 align="center">Black Area</h1>
 
-<p align="center"><sub>Phiên bản 2.0.0</sub></p>
+<p align="center"><sub>Phiên bản 2.0.2</sub></p>
 
 <p align="center"><b><a href="https://black-area.vercel.app">▶ CHƠI NGAY: black-area.vercel.app</a></b></p>
 
@@ -107,4 +107,4 @@ npm run server:dev   # máy chủ phòng chơi (server/, cổng 8787 hoặc PORT
 | `ui/` | Game (Vite + TypeScript) |
 | `server/` | Máy chủ phòng chơi nhiều người (Node + WebSocket) |
 
-Thêm thư viện cho một phần: `npm install <gói> -w ui` hoặc `-w server`. Game kết nối máy chủ qua `VITE_SERVER_URL` (mặc định `ws://localhost:8787`). Triển khai: máy chủ lên Render bằng `render.yaml`, game lên Vercel bằng `vercel.json`.
+Thêm thư viện cho một phần: `npm install <gói> -w ui` hoặc `-w server`. Game kết nối máy chủ qua `VITE_GAME_SERVER_API` (ví dụ `https://black-area.onrender.com`; không đặt thì dùng `http://localhost:8787` khi dev và `https://black-area.onrender.com` khi build). Triển khai: máy chủ lên Render bằng `render.yaml`, game lên Vercel bằng `vercel.json`.
