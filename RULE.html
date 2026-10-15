@@ -26,7 +26,7 @@
 <body>
 <main>
 <img class="logo" src="/logo.png" alt="Black Area" />
-<h1>Black Area — RULE <small>v1.151.0</small></h1>
+<h1>Black Area — RULE <small>v1.152.0</small></h1>
 <p class="lead">Tài liệu luật chơi + kiến trúc code dành cho AI/dev sửa game. Mọi con số gameplay chính xác nằm trong <code>src/constants.ts</code> và <code>src/factions/*.ts</code>. Nếu tài liệu này khác code thì <b>code đúng</b>. <b>Khi đổi luật/số trong code, phải cập nhật file này.</b></p>
 <nav><a href="#s1">Quy tắc làm việc cho AI</a><a href="#s2">Chạy dự án</a><a href="#s3">Kiến trúc thư mục</a><a href="#s4">Thế giới</a><a href="#s5">Kinh tế (dầu)</a><a href="#s6">Công trình (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Quân đội</a><a href="#s8">Chiến đấu</a><a href="#s9">Điều khiển (Game.handleKey, handleInput)</a><a href="#s10">Giới hạn &amp; hiệu năng</a><a href="#s11">Thắng / thua &amp; AI</a><a href="#s12">Công thức sửa thường gặp</a></nav>
 <h2 id="s1">0. Quy tắc làm việc cho AI</h2>
@@ -161,9 +161,9 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 </ul>
 <h3>Trực thăng (<code>heli</code>)</h3>
 <ul>
-  <li>Apache (Mỹ, Âu), Ka-52 (Nga, Hồi), Z-10 (Trung). Chỉ bắn <b>xe / phương tiện mặt đất</b>: không bắn công trình, lính, máy bay.</li>
+  <li>Apache (Mỹ, Âu), Ka-52 (Nga, Hồi), Z-10 (Trung). Bắn <b>lính và mọi phương tiện mặt đất</b> (v1.152.0); không bắn công trình, máy bay. Sát thương mỗi phát = missile 45 × <code>HELI_FIREPOWER 0.75</code> ≈ 34, hồi 1.4 s (~24/s), luôn yếu hơn pháo tank (60, hồi 1.8 s, ~33/s).</li>
   <li>Đậu ở bất kỳ đâu trên đất liền như xe; chở tối đa <code>HELI_SOLDIERS = 8</code> lính, không chở xe.</li>
-  <li><b>Phòng vệ trực thăng</b>: đang đậu mà bị lính hoặc xe/tank mặt đất bắn → bay lên, khóa mục tiêu kẻ vừa bắn và đánh trả (ngoại lệ: được bắn cả <b>lính</b> đó; <code>Vehicle.heliRevenge</code>, hết khi xong trận hoặc có lệnh mới), đánh xong bay về đúng chỗ cũ và đáp lại (lệnh mới thì bỏ việc quay về). Áp dụng cho cả người chơi và AI.</li>
+  <li><b>Phòng vệ trực thăng</b>: đang đậu mà bị lính hoặc xe/tank mặt đất bắn → bay lên, khóa mục tiêu kẻ vừa bắn và đánh trả (<code>Vehicle.heliRevenge</code>, hết khi xong trận hoặc có lệnh mới), đánh xong bay về đúng chỗ cũ và đáp lại (lệnh mới thì bỏ việc quay về). Áp dụng cho cả người chơi và AI.</li>
 </ul>
 <h3>Vay khẩn cấp (Global Monitoring Center)</h3>
 <ul>
@@ -578,6 +578,8 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
   <li>Huấn luyện lính chậm gấp đôi: thời gian = (<code>trainSeconds</code> + <code>trainDelay</code>) × <code>INFANTRY_TRAIN_FACTOR = 2</code>. Xe phòng không tự hành chạy nhờ tín hiệu radar: điện quốc gia yếu hoặc mất điện (<code>powerShort</code>) là bất động ngay, không di chuyển, không bắn (người chơi và AI) (v1.148.0).</li>
   <li>Tìm đường (A*) là phần tốn nhất: đơn vị attack-move bị chặn chỉ thử tìm lại đường mỗi <code>RESUME_RETRY 1</code> s (đích ở bờ biển khác / không tới được thì huỷ lệnh); mỗi 0.1 s chỉ đổi đường tối đa <code>REPATH_BUDGET 1</code> đơn vị kẹt, hết đường thì dừng.</li>
   <li>Chống lag cuối game (v1.149.0): (1) <code>PathService.find</code> nhớ đích vừa tìm không tới (theo cụm xuất phát) trong <code>MISS_RETRY_MS 3000</code> ms, lần sau chỉ tìm <code>MISS_EXPANSIONS 3000</code> ô; (2) tìm đường vòng chỉ chạy trong hành lang cụm (HPA*), ngân sách <code>DETOUR_EXPANSIONS / 10</code>, tối đa 1 lần / <code>DETOUR_GAP_MS 1000</code> ms, đích thất bại nghỉ <code>DETOUR_RETRY_MS 30000</code> ms; (3) attack-move nhóm ≥ <code>GROUP_ROUTE_MIN 4</code> lính mặt đất dùng chung flow field chia nhỏ theo frame (<code>groupJob</code>), đơn vị chờ đường (<code>routePending</code>) không tự tìm lại; (4) attack-move tiếp tục (<code>resumeAttackMove</code>) đi qua cache của <code>PathService</code>; (5) quá <code>SEPARATE_CROWD 200</code> đơn vị trên sân thì tách đơn vị 2 lượt/tick thay vì 6; (6) AI chọn chỗ cắm cờ (<code>pickClaimSite</code>) tra công trình gần nhất bằng lưới ô 32; AI giữ thủ đô không ra lệnh lại cho lính đang đi tới mục tiêu.</li>
+  <li>Nút Home / Turbo / Unload (v1.151.1): canh phải sát thanh bên, không bị đẩy vào giữa khi bộ đếm hòa bình rộng hơn.</li>
+  <li>Trực thăng (v1.152.0): bắn được cả lính lẫn mọi phương tiện mặt đất (<code>canTarget</code>), áp dụng cho người chơi và AI; sát thương vẫn dưới tank (<code>HELI_FIREPOWER</code>).</li>
   <li>Bỏ tải (v1.151.0): xe tải / máy bay chở quân chỉ cho người xuống khi đã dừng hẳn (<code>Unit.atRest</code>: hết đường đi và hết đà lăn; máy bay phải chạm đất). Hộ tống tiêm kích: đối tượng mặt đất được bảo vệ đến khi chết hoặc tiêm kích nhận lệnh mới. Bộ đếm hòa bình hiện "Thời gian hòa bình còn lại mm:ss".</li>
   <li>Radar báo bị đánh (v1.150.0): lính/xe/công trình của người chơi trúng đòn trong <code>RADAR_ALERT_SECONDS 2</code> s (<code>lastAttackedAt</code>) có vòng đỏ nhấp nháy trên minimap (<code>Minimap.render</code>), các điểm gần nhau &lt; 10 px gộp một vòng; hết bị đánh hoặc bị phá thì vòng tắt.</li>
   <li>Dọn cache mỗi <code>JANITOR_INTERVAL = 180</code> s (ảnh/địa hình không dùng, sổ ghi unit đã chết, sổ thưởng nhân từ của nhóm rút lui không còn ai sống). Chỉ xoá thứ không còn dùng tới, không động vào lính, công trình, tiền hay lệnh đang chạy. Tìm đường A* (<code>Pathfinder.find</code>) mỗi ô chỉ mở rộng 1 lần (bỏ bản sao cũ trong hàng đợi), đọc thẳng mảng của <code>TileMap</code>, hàng đợi ưu tiên dùng typed array dùng lại giữa các lần tìm.</li>

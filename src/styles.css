@@ -1421,7 +1421,7 @@ kbd {
   z-index: 20;
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-end; /* icons hug the sidebar even when the peace timer is wider */
   gap: 16px;
 }
 body.sidebar-hidden .air-tools {
@@ -1431,7 +1431,7 @@ body.sidebar-hidden .air-tools {
   display: none;
 }
 .peace-timer {
-  align-self: center;
+  align-self: flex-end;
   padding: 3px 8px;
   border: 1px solid #2f7a3a;
   border-radius: 3px;
