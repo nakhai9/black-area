@@ -5,6 +5,6 @@ interface ImportMetaEnv {
   readonly VITE_DEMO_MODE?: string;
   /** Demo nation number 1–5 (see DEMO_FACTION in constants.ts). */
   readonly VITE_DEMO_FACTION?: string;
-  /** Multiplayer server WebSocket URL (see src/net/NetClient.ts). */
-  readonly VITE_SERVER_URL?: string;
+  /** Multiplayer server address, http(s):// or ws(s):// (see src/net/NetClient.ts). */
+  readonly VITE_GAME_SERVER_API?: string;
 }

@@ -1,13 +1,14 @@
 {
   "name": "black-area-server",
   "private": true,
-  "version": "2.0.0",
+  "version": "2.0.2",
   "type": "module",
   "main": "src/index.js",
   "engines": {
     "node": ">=18"
   },
   "scripts": {
+    "build": "node --check src/index.js && node --check src/rooms.js",
     "start": "node src/index.js",
     "dev": "node --watch src/index.js"
   },
