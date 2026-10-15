@@ -143,4 +143,5 @@ export default {
   'The {name} is heading to the War Factory for repair.': '{name} đang về nhà máy xe để sửa chữa.',
   '{count} vehicles are heading to the War Factory for repair.': '{count} xe đang về nhà máy xe để sửa chữa.',
   'The {name} is repaired.': '{name} đã được sửa xong.',
+  '{name} has left the match and is defeated.': '{name} đã rời trận và bị tính là thua.',
 } satisfies Record<string, string>;

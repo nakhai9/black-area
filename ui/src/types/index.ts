@@ -176,6 +176,8 @@ export interface PlayerState {
   name: string;
   faction: FactionId;
   isHuman: boolean;
+  /** Multiplayer room without this nation: nobody plays it, its capital stands as an occupiable one (NationCapital). */
+  absent?: boolean;
   /** Treasury in TB. */
   credits: number;
   /** Oil in stock (barrels): pumped by the derricks, sold to the Global Monitoring Center for TB. */

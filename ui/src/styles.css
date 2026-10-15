@@ -1643,3 +1643,220 @@ button,
   border-color: #ffe08a;
   color: #2a1e00;
 }
+
+/* ------------------------------------------------------------- multiplayer lobby (MultiplayerLobby) */
+.fp-footer .fp-mp,
+.fp-mp + .fp-load {
+  margin-left: 8px;
+}
+.mp-modal {
+  --team: #6fbf4a;
+}
+.mp-modal:not(:has(.mp-grid)) {
+  width: min(560px, 100%);
+}
+.mp-modal h2 {
+  margin: 0 0 8px;
+  font-size: 15px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #d8dde2;
+}
+.mp-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 12px;
+  font-size: 12px;
+  color: #9aa6b1;
+}
+.mp-field input,
+.mp-field select {
+  padding: 8px 10px;
+  font: 600 15px/1.2 inherit;
+  font-family: inherit;
+  color: #e8eef4;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid #5a646d;
+  border-radius: 4px;
+}
+.mp-code-input {
+  text-transform: uppercase;
+  letter-spacing: 3px;
+}
+.mp-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid #3a434b;
+  margin-bottom: 14px;
+}
+.mp-tab {
+  padding: 10px 18px;
+  font: 700 14px/1 inherit;
+  font-family: inherit;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #9aa6b1;
+  background: transparent;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -1px;
+  cursor: pointer;
+}
+.mp-tab:hover {
+  color: #d8dde2;
+}
+.mp-tab.on {
+  color: #fff;
+  border-bottom-color: var(--team);
+}
+.mp-panel[hidden] {
+  display: none;
+}
+.mp-panel .fp-deploy {
+  margin-left: 0;
+  width: 100%;
+}
+.mp-grid {
+  margin-bottom: 8px;
+}
+.mp-grid .fp-card.mp-taken {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.mp-grid .fp-card.mp-taken:hover {
+  transform: none;
+}
+.mp-card-owner {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  max-width: 60%;
+  padding: 2px 6px;
+  overflow: hidden;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  background: var(--team);
+  border-radius: 3px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mp-roomhead {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+  font-weight: 700;
+  color: #e8eef4;
+}
+.mp-codebox b {
+  font-family: Consolas, 'Cascadia Mono', monospace;
+  font-size: 18px;
+  letter-spacing: 3px;
+  color: #b9ffc3;
+  user-select: all;
+}
+.mp-players {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+}
+.mp-players li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border-bottom: 1px solid #2a3138;
+  color: #d8dde2;
+}
+.mp-players li.me {
+  background: rgba(111, 191, 74, 0.08);
+}
+.mp-player {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mp-nation {
+  color: #9aa6b1;
+}
+.mp-ready {
+  min-width: 90px;
+  text-align: right;
+  font-size: 12px;
+  color: #c98a8a;
+}
+.mp-ready.on {
+  color: #b9ffc3;
+}
+.mp-note {
+  color: #d8dde2;
+}
+.mp-error {
+  min-height: 1.2em;
+  margin: 8px 0 0;
+  color: #ff9a9a;
+  font-size: 13px;
+}
+.mp-players li.mp-empty {
+  color: #6b7680;
+  font-style: italic;
+}
+
+/* Multiplayer loading sync: everyone's progress under the bar (main.ts waitForPlayers). */
+.ld-players {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+  min-width: 260px;
+  font-size: 13px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.ld-players li {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 3px 0;
+  color: #9aa6b1;
+}
+.ld-players li.done {
+  color: #b9ffc3;
+}
+.mp-toast {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  z-index: 1000;
+  max-width: calc(100vw - 32px);
+  padding: 10px 18px;
+  transform: translateX(-50%);
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  border-radius: 4px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+  animation: mp-toast-in 0.18s ease-out;
+  transition: opacity 0.4s;
+}
+.mp-toast.ok {
+  background: #2f6a1e;
+  border: 1px solid #6fbf4a;
+}
+.mp-toast.fail {
+  background: #7a2424;
+  border: 1px solid #d96060;
+}
+.mp-toast.out {
+  opacity: 0;
+}
+@keyframes mp-toast-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -10px);
+  }
+}

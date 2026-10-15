@@ -1,10 +1,10 @@
 <p align="center">
-  <a href="https://black-area.vercel.app"><img src="public/logo.png" alt="Black Area" width="220"></a>
+  <a href="https://black-area.vercel.app"><img src="ui/public/logo.png" alt="Black Area" width="220"></a>
 </p>
 
 <h1 align="center">Black Area</h1>
 
-<p align="center"><sub>Phiên bản 1.152.0</sub></p>
+<p align="center"><sub>Phiên bản 2.0.0</sub></p>
 
 <p align="center"><b><a href="https://black-area.vercel.app">▶ CHƠI NGAY: black-area.vercel.app</a></b></p>
 
@@ -33,11 +33,11 @@ Lý do thật ra rất đơn giản. Trật tự cũ được dựng lên khi ch
 Không ai tuyên chiến. Người ta chỉ lặng lẽ xé bỏ từng hiệp ước, rút khỏi từng liên minh cũ. Đến cuối năm, thế giới không còn một trung tâm, mà có năm.
 
 <p align="center">
-  <img src="public/emblems/usa.png" alt="USA" height="72">
-  <img src="public/emblems/russia.png" alt="Russia" height="72">
-  <img src="public/emblems/china.png" alt="China" height="72">
-  <img src="public/emblems/europe.png" alt="Europe" height="72">
-  <img src="public/emblems/islamic.png" alt="Islamic Union" height="72">
+  <img src="ui/public/emblems/usa.png" alt="USA" height="72">
+  <img src="ui/public/emblems/russia.png" alt="Russia" height="72">
+  <img src="ui/public/emblems/china.png" alt="China" height="72">
+  <img src="ui/public/emblems/europe.png" alt="Europe" height="72">
+  <img src="ui/public/emblems/islamic.png" alt="Islamic Union" height="72">
 </p>
 
 **Washington** muốn một thế giới của thị trường tự do, nơi dầu thuộc về ai trả giá cao nhất. Họ đánh nhanh, đánh xa, đánh chính xác, và khi lời nói không còn tác dụng, những chiếc B-1A Lancer cất cánh để xóa sổ cả một căn cứ.
@@ -89,3 +89,22 @@ Chỉ một kẻ còn đứng cuối cùng sẽ quyết định Trái Đất cò
 <p align="center"><b>Black Area. Cuộc chiến giành lấy Trái Đất bắt đầu.</b></p>
 
 <p align="center"><a href="https://black-area.vercel.app"><b>▶ black-area.vercel.app</b></a></p>
+
+---
+
+### Chạy dự án
+
+Dự án dùng **npm workspaces**: `ui/` và `server/` dùng chung một `node_modules` và một `package-lock.json` ở thư mục gốc. Chỉ cần cài một lần ở thư mục gốc:
+
+```
+npm install
+npm run dev          # game (ui/, Vite)
+npm run server:dev   # máy chủ phòng chơi (server/, cổng 8787 hoặc PORT)
+```
+
+| Thư mục | Nội dung |
+|---|---|
+| `ui/` | Game (Vite + TypeScript) |
+| `server/` | Máy chủ phòng chơi nhiều người (Node + WebSocket) |
+
+Thêm thư viện cho một phần: `npm install <gói> -w ui` hoặc `-w server`. Game kết nối máy chủ qua `VITE_SERVER_URL` (mặc định `ws://localhost:8787`). Triển khai: máy chủ lên Render bằng `render.yaml`, game lên Vercel bằng `vercel.json`.
