@@ -1,3 +1,5 @@
+import { type IconNode, Globe, ScreenShareOff, Volume2, createElement } from 'lucide';
+import { setEdgeLock, settings } from '../core/Settings';
 import { type Lang, languageSelect, t } from '../i18n';
 
 /** Key in sessionStorage: set when the page reloads only to switch the language, so the save loads without asking. */
@@ -58,7 +60,7 @@ export class PauseMenu {
     card.className = 'end-card';
     card.style.setProperty('--end-color', '#f5c542');
     const title = document.createElement('h1');
-    title.textContent = t('PAUSED');
+    title.textContent = t('SETTINGS');
     const text = document.createElement('p');
     text.textContent = t('The game is paused. Press Esc or Continue to resume.');
     const volume = document.createElement('label');
@@ -81,6 +83,32 @@ export class PauseMenu {
       showVolume();
     });
     volume.append(volumeText, slider);
+    // Screen lock: stop scrolling when the mouse leaves the browser window.
+    const lock = document.createElement('label');
+    lock.className = 'pause-check';
+    const lockBox = document.createElement('input');
+    lockBox.type = 'checkbox';
+    lockBox.checked = settings.edgeLock;
+    lockBox.addEventListener('change', () => setEdgeLock(lockBox.checked));
+    const lockText = document.createElement('span');
+    lockText.textContent = t('Stop scrolling the screen when the mouse leaves the browser window');
+    lock.append(lockBox, lockText);
+    // Settings, one per line: icon, then its control.
+    const row = (icon: IconNode, title: string, control: HTMLElement): HTMLDivElement => {
+      const r = document.createElement('div');
+      r.className = 'pause-setting';
+      r.title = title;
+      const i = createElement(icon, { width: 20, height: 20, 'stroke-width': 2, 'aria-hidden': 'true' });
+      r.append(i, control);
+      return r;
+    };
+    const settingsBox = document.createElement('div');
+    settingsBox.className = 'pause-settings';
+    settingsBox.append(
+      row(ScreenShareOff, t('Screen lock'), lock),
+      row(Volume2, t('Volume'), volume),
+      row(Globe, t('Language'), languageSelect((lang) => saves.onLanguage(lang))),
+    );
     const resume = document.createElement('button');
     resume.type = 'button';
     resume.textContent = t('Continue');
@@ -98,7 +126,7 @@ export class PauseMenu {
     const actions = document.createElement('div');
     actions.className = 'pause-actions';
     actions.append(resume, save, quit);
-    card.append(title, text, volume, languageSelect((lang) => saves.onLanguage(lang)), actions);
+    card.append(title, text, settingsBox, actions);
     this.root.append(card);
     parent.append(this.root);
   }

@@ -618,6 +618,9 @@ export class Game {
       onHome: () => {
         if (!this.paused) this.focusOwnCapital();
       },
+      onSettings: () => {
+        if (!this.paused && !this.ended) this.togglePause();
+      },
       onVehicle: (option) => this.issue({ k: 'vehicle', kind: option.kind }),
       onVehicleCancel: (option) => this.issue({ k: 'vehicleCancel', kind: option.kind }),
       vehiclePreview: (option) => vehiclePortrait(human.faction, option.kind),
@@ -2890,7 +2893,7 @@ export class Game {
       }
     }
 
-    // Keyboard + edge scrolling (edge scrolling stops once the cursor leaves the window).
+    // Keyboard + edge scrolling (edge keeps scrolling after the cursor leaves the window).
     let dx = 0;
     let dy = 0;
     if (input.isKeyDown('ArrowLeft')) dx -= 1;

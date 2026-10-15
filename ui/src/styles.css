@@ -1857,3 +1857,46 @@ button,
     transform: translate(-50%, -10px);
   }
 }
+
+/* ------------------------------------------------------------- pause menu settings (icon + control per line) */
+.pause-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0 0 18px;
+  text-align: left;
+}
+.pause-setting {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.pause-setting > svg {
+  flex: none;
+  color: #f5c542;
+}
+.pause-setting > label {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+}
+.pause-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  cursor: pointer;
+}
+.pause-check input {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  accent-color: #f5c542;
+}
+.pause-setting .lang-select {
+  justify-content: flex-start;
+  margin: 0;
+}
+.pause-setting .pause-volume {
+  margin: 0;
+}

@@ -1,4 +1,4 @@
-import { type IconNode, ArrowUpFromLine, Clock, House, Handshake, TriangleAlert, Wallet, Info, Keyboard, Droplet, Hammer, LogIn, LogOut, Minus, PersonStanding, Radar, Rocket, Shield, TrendingDown, TrendingUp, Trophy, Truck, Zap, createElement } from 'lucide';
+import { type IconNode, Settings, ArrowUpFromLine, Clock, House, Handshake, TriangleAlert, Wallet, Info, Keyboard, Droplet, Hammer, LogIn, LogOut, Minus, PersonStanding, Radar, Rocket, Shield, TrendingDown, TrendingUp, Trophy, Truck, Zap, createElement } from 'lucide';
 import { BUILD_LIMIT_VEHICLES, CURRENCY, MAX_ALLIES, OIL_GRID_MARKUP, OIL_POLICIES, POWER_PER_BARREL, TECH_TIERS, TECH_VEHICLES, isAircraftKind } from '../constants';
 import { FACTIONS } from '../factions';
 import { getFlagTexture } from '../render/Flags';
@@ -184,6 +184,8 @@ export interface SidebarHandlers {
   onTurbo: () => void;
   /** The Home button of the action bar (same as the H key): camera to the own capital. */
   onHome: () => void;
+  /** Settings button: opens the pause menu (screen lock, volume, language). */
+  onSettings: () => void;
   /** An alert in the alert section was clicked: look at where it happened. */
   onAlert: (at: WorldPoint) => void;
 }
@@ -455,6 +457,7 @@ export class Sidebar {
     this.turboBadge.className = 'air-tool-badge';
     this.turboButton.append(this.turboBadge);
     this.unloadButton = tool(ArrowUpFromLine, t('Unload (U): let the passengers out one by one. In the air the transport first lands on solid ground below it.'), () => this.handlers.onUnload());
+    tool(Settings, t('Settings: screen lock, volume, language (pause menu, Esc).'), () => this.handlers.onSettings());
     this.peaceTimer = document.createElement('div');
     this.peaceTimer.className = 'peace-timer';
     this.peaceTimer.title = t('Ceasefire: time left before the war resumes.');
