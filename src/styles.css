@@ -1439,6 +1439,7 @@ body.sidebar-hidden .air-tools {
   font: bold 14px/1.2 Consolas, 'Cascadia Mono', monospace;
   color: #b9ffc3;
   pointer-events: none;
+  white-space: nowrap;
 }
 .peace-timer[hidden] {
   display: none;

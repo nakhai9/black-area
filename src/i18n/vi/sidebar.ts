@@ -57,6 +57,7 @@ export default {
   "Home (H): jump the camera to your capital.": "Căn cứ (H): đưa camera về thủ đô của bạn.",
   "Turbo (T): the selected aircraft fly much faster for a while, then the turbo has to recharge before it can be used again.": "Tăng tốc (T): máy bay đang chọn bay nhanh hơn nhiều trong một lúc, sau đó phải nạp lại mới dùng tiếp được.",
   "Unload (U): let the passengers out one by one. In the air the transport first lands on solid ground below it.": "Dỡ quân (U): thả từng hành khách ra. Nếu đang bay, máy bay vận tải sẽ hạ cánh xuống nền đất bên dưới trước.",
+  "Peace time left": "Thời gian hòa bình còn lại",
   "Ceasefire: time left before the war resumes.": "Ngừng bắn: thời gian còn lại trước khi chiến sự tiếp diễn.",
   "Show sidebar (Tab)": "Hiện thanh bên (Tab)",
   "Show sidebar": "Hiện thanh bên",

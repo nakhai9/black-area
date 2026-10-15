@@ -545,7 +545,7 @@ export class Sidebar {
       return;
     }
     const s = Math.max(0, Math.ceil(left));
-    const text = `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+    const text = `${t('Peace time left')} ${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
     if (this.peaceTimer.textContent !== text) this.peaceTimer.textContent = text;
     this.peaceTimer.hidden = false;
   }

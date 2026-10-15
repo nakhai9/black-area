@@ -164,7 +164,7 @@ export class Vehicle extends Unit {
   fuel = 1;
   /** Aircraft: the pilot has already called mayday (going down, or badly hit in the air). */
   maydaySent = false;
-  /** Fighter only: own transport / bomber it flies guard on (GUARD_TRAIL_CELLS behind it), or null. */
+  /** Fighter only: own unit (any but buildings / mantis) it flies guard on (GUARD_TRAIL_CELLS behind it), or null. */
   guardId: number | null = null;
   /** Repair vehicle only: id of the friendly ground vehicle it was ordered to mend, or null. */
   repairTargetId: number | null = null;

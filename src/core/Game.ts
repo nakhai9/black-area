@@ -1501,6 +1501,11 @@ export class Game {
         continue;
       }
       if (t.moving) t.stop();
+      // Still rolling: the riders wait until the truck has come to a full stop.
+      if (!t.atRest) {
+        t.ejectClock = Math.max(t.ejectClock, 0);
+        continue;
+      }
       t.ejectClock -= dt;
       if (t.ejectClock > 0) continue;
       t.ejectClock = TRUCK_EJECT_STEP;
@@ -2521,9 +2526,9 @@ export class Game {
             } else if (ev.ctrl && ev.shift) this.rightClick(world, true);
             else if (!this.peekPath(world)) this.selection.clearAll();
           } else if (ev.ctrl && !ev.shift) {
-            // Fighters selected + Ctrl+click on one of my transports / bombers: they fly guard on it.
+            // Fighters selected + Ctrl+click on one of my units (not self-propelled air defence): they fly guard on it.
             const ward = this.selection.pickUnit(world);
-            if (ward instanceof Vehicle && ward.owner === this.humanPlayer.id && this.orderGuard(ward, this.selection.selectedUnitList())) break;
+            if (ward && ward.owner === this.humanPlayer.id && this.orderGuard(ward, this.selection.selectedUnitList())) break;
             // Ctrl+click on one of my structures: sell it to the Global Monitoring Center.
             const b = this.selection.pick(world);
             if (b && b.owner === this.humanPlayer.id) this.sellBuilding(b);
@@ -2708,11 +2713,11 @@ export class Game {
   }
 
   /**
-   * Fighters escort one of my transports / bombers: they keep GUARD_TRAIL_CELLS behind it and fight any
-   * enemy that comes near (AircraftSystem). A new move / attack order ends the escort.
+   * Fighters escort one of my units (soldiers, vehicles, aircraft — not the self-propelled air defence): they keep
+   * GUARD_TRAIL_CELLS behind it and fight any enemy that comes near (AircraftSystem). A new move / attack order ends the escort.
    */
-  private orderGuard(ward: Vehicle, selected: readonly Unit[]): boolean {
-    if (!ward.alive || !ward.aircraft || !(ward.isTransport || ward.type === 'bomber')) return false;
+  private orderGuard(ward: Unit, selected: readonly Unit[]): boolean {
+    if (!ward.alive || (ward instanceof Vehicle && ward.type === 'mantis')) return false;
     if (this.selection.selectedUnits.has(ward.id)) return false;
     const fighters = selected.filter((u): u is Vehicle => u instanceof Vehicle && u.aircraft && u.type === 'jet' && u.alive);
     if (fighters.length === 0) return false;
@@ -2724,7 +2729,7 @@ export class Game {
       f.follow([{ x: ward.px, y: ward.py }]);
       f.orderFlash = { kind: 'move', at: this.time, target: null };
     }
-    this.sidebar.notify(fighters.length === 1 ? t('Fighter escorting the {name}.', { name: ward.name }) : t('{count} fighters escorting the {name}.', { count: fighters.length, name: ward.name }));
+    this.sidebar.notify(fighters.length === 1 ? t('Fighter escorting the {name}.', { name: (ward as Vehicle).name }) : t('{count} fighters escorting the {name}.', { count: fighters.length, name: (ward as Vehicle).name }));
     return true;
   }
 

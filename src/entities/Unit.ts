@@ -191,6 +191,11 @@ export abstract class Unit extends Entity {
     return this.path.length > 0;
   }
 
+  /** Fully stopped: no route left and no rolling momentum (carriers only unload at rest). */
+  get atRest(): boolean {
+    return this.path.length === 0 && this.speedRatio <= 0;
+  }
+
   /** Isometric: larger x + y = in front. Compares with Building.depth (cells). */
   get depth(): number {
     return (this.px + this.py) / CELL_SIZE;

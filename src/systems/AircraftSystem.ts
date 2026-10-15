@@ -806,13 +806,15 @@ export class AircraftSystem implements GameSystem {
       v.boostFloor = 1;
       return false;
     }
+    // Any of my units (a soldier has no altitude / fieldSpeed: only read when `aircraft`).
     const w = this.entities.get(v.guardId) as Vehicle | undefined;
     if (!w || !w.alive || w.owner !== v.owner) {
       v.guardId = null;
       return false;
     }
     // The ward is down on the ground (its apron or the field): mission done, the fighter flies home.
-    const grounded = w.altitude <= 0 && w.flight !== 'airborne' && w.flight !== 'approach';
+    // A ground ward (soldier, tank…) is guarded until it dies or the fighter gets a new order.
+    const grounded = w.aircraft && w.altitude <= 0 && w.flight !== 'airborne' && w.flight !== 'approach';
     if (!grounded) this.guardLaunched.add(v.id);
     else if (this.guardLaunched.has(v.id)) {
       this.guardLaunched.delete(v.id);
@@ -827,7 +829,7 @@ export class AircraftSystem implements GameSystem {
     v.idleFor = 0;
     v.returningHome = false;
     // Keeps pace with the ward's long-haul boost (a little faster, to catch up).
-    v.boostFloor = (w.speed / Math.max(0.01, w.fieldSpeed)) * 1.15;
+    v.boostFloor = w.aircraft ? (w.speed / Math.max(0.01, w.fieldSpeed)) * 1.15 : 1;
     const away = Math.hypot(v.px - w.px, v.py - w.py);
     if (v.combatTarget !== null || v.attackTarget !== null) {
       if (away <= GUARD_LEASH_CELLS * CELL_SIZE) {
@@ -1010,6 +1012,8 @@ export class AircraftSystem implements GameSystem {
   /** One passenger out every EJECT_STEP seconds; true while more are waiting to get out (and there is room). */
   private eject(v: Vehicle, dt: number): boolean {
     v.ejecting = true;
+    // Nobody jumps out of a machine that is still moving or off the ground: it must stand still first.
+    if (v.moving || v.altitude > 0) return true;
     v.ejectClock -= dt;
     if (v.ejectClock > 0) return true;
     v.ejectClock = EJECT_STEP;
