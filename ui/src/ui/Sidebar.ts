@@ -7,9 +7,9 @@ import { nationFlag } from '../render/sprites/NationCapital';
 import { isFactionNation, type NationId } from '../entities/NationCapital';
 import { type BuildOption, type QueueSlot, buildCost, missingRequirement } from '../systems/ConstructionSystem';
 import { MIN_SALE_STOCK } from '../systems/OilMarket';
-import type { ArmyCount, TrainOption, TrainingQueue } from '../systems/TrainingSystem';
-import type { VehicleOption, VehicleQueue } from '../systems/VehicleSystem';
-import type { BuildingType, FactionId, OilPolicy, PlayerState, UnitTier, VehicleKind, WorldPoint } from '../types';
+import type { ArmyCount, TrainKey, TrainOption, TrainingQueue } from '../systems/TrainingSystem';
+import type { VehicleKey, VehicleOption, VehicleQueue } from '../systems/VehicleSystem';
+import type { BuildingType, FactionId, OilPolicy, PlayerState, WorldPoint } from '../types';
 import type { CarrierState } from '../entities/Vehicle';
 import { t } from '../i18n';
 
@@ -130,8 +130,13 @@ export interface SidebarModel {
   placing: boolean;
   placingId: string | null;
   /** 0..1 progress of the most advanced order of each soldier / vehicle (all orders are produced in parallel). */
-  unitProgress: (tier: UnitTier) => number;
-  vehicleProgress: (kind: VehicleKind) => number;
+  unitProgress: (key: TrainKey) => number;
+  vehicleProgress: (key: VehicleKey) => number;
+  /** Soldiers / machines on sale now (own, then those of captured foreign structures). */
+  trainOptions: readonly TrainOption[];
+  vehicleOptions: readonly VehicleOption[];
+  /** Is this structure on sale now (another nation's design needs that nation's captured capital)? */
+  buildAvailable: (option: BuildOption) => boolean;
   training: TrainingQueue;
   vehicleQueue: VehicleQueue;
   /** Types of the player's living buildings (drives the tech tree). */
@@ -279,8 +284,8 @@ export class Sidebar {
     root: HTMLElement,
     player: PlayerState,
     private readonly options: readonly BuildOption[],
-    private readonly trainOptions: readonly TrainOption[],
-    private readonly vehicleOptions: readonly VehicleOption[],
+    private trainOptions: readonly TrainOption[],
+    private vehicleOptions: readonly VehicleOption[],
     private readonly handlers: SidebarHandlers,
   ) {
     const faction = FACTIONS[player.faction];
@@ -656,6 +661,7 @@ export class Sidebar {
     this.opener.classList.toggle('sb-attention', awaiting);
     // The page you are not looking at calls for attention: green when something can be built / placed / unlocked,
     // red while a fresh alert (an attack) is showing.
+    this.refreshForeignCameos(model);
     this.updateVehicleCameos(model);
     this.updateUnitCameos(model);
 
@@ -663,6 +669,8 @@ export class Sidebar {
       const c = this.cameos.get(option.id);
       if (!c) continue;
       const queue = model.buildSlot(option.id);
+      // Another nation's structures show only while its capital is held (or one is still on order).
+      c.el.hidden = !model.buildAvailable(option) && queue.state === 'idle';
       const state = queue.state;
       const mine = state !== 'idle';
       const placingThis = model.placingId === option.id;
@@ -945,16 +953,39 @@ export class Sidebar {
     }
   }
 
+  /** A foreign Ministry of Defence / War Factory / Airfield was captured or lost: the cameo rows follow. */
+  private refreshForeignCameos(model: SidebarModel): void {
+    const keys = (list: readonly { key: string }[]): string => list.map((o) => o.key).join(',');
+    if (keys(model.trainOptions) !== keys(this.trainOptions)) {
+      this.trainOptions = model.trainOptions;
+      const panel = this.panels.get('infantry');
+      if (panel) {
+        for (const c of this.unitCameos.values()) c.el.remove();
+        this.unitCameos.clear();
+        this.buildUnitCameos(panel);
+      }
+    }
+    if (keys(model.vehicleOptions) !== keys(this.vehicleOptions)) {
+      this.vehicleOptions = model.vehicleOptions;
+      const panel = this.panels.get('vehicles');
+      if (panel) {
+        for (const c of this.vehicleCameos.values()) c.el.remove();
+        this.vehicleCameos.clear();
+        this.buildVehicleCameos(panel);
+      }
+    }
+  }
+
   private updateUnitCameos(model: SidebarModel): void {
     const q = model.training;
     for (const option of this.trainOptions) {
-      const c = this.unitCameos.get(option.tier);
+      const c = this.unitCameos.get(option.key);
       if (!c) continue;
-      const count = q.items.filter((t) => t === option.tier).length;
+      const count = q.items.filter((t) => t === option.key).length;
       // Every order trains at once: each cameo shows its own most advanced soldier.
       const training = count > 0;
-      const progress = model.unitProgress(option.tier);
-      this.flashIfDone(`u:${option.tier}`, 'infantry', count, progress);
+      const progress = model.unitProgress(option.key);
+      this.flashIfDone(`u:${option.key}`, 'infantry', count, progress);
       setData(c.el, 'state', training ? q.state : 'idle');
       const atLimit = model.army.queued >= model.army.limit && count === 0;
       const noTech = TECH_TIERS.includes(option.tier) && !model.owned.has('techCenter');
@@ -981,14 +1012,14 @@ export class Sidebar {
   private updateVehicleCameos(model: SidebarModel): void {
     const q = model.vehicleQueue;
     for (const option of this.vehicleOptions) {
-      const c = this.vehicleCameos.get(option.kind);
+      const c = this.vehicleCameos.get(option.key);
       if (!c) continue;
       const have = option.needsAirfield ? model.hasAirfield : model.hasWarFactory;
-      const count = q.items.filter((k) => k === option.kind).length;
+      const count = q.items.filter((k) => k === option.key).length;
       // Every order is built at once: each cameo shows its own most advanced machine.
       const producing = count > 0;
-      const progress = model.vehicleProgress(option.kind);
-      this.flashIfDone(`v:${option.kind}`, 'vehicles', count, progress);
+      const progress = model.vehicleProgress(option.key);
+      this.flashIfDone(`v:${option.key}`, 'vehicles', count, progress);
       setData(c.el, 'state', producing ? q.state : 'idle');
       const atLimit = model.vehicleQueued >= BUILD_LIMIT_VEHICLES && count === 0;
       const noTech = TECH_VEHICLES.includes(option.kind) && !model.owned.has('techCenter');
@@ -1027,7 +1058,7 @@ export class Sidebar {
       const el = document.createElement('button');
       el.type = 'button';
       el.className = 'sb-cameo';
-      el.title = `${option.name} — ${option.cost} ${CURRENCY}, ${option.trainSeconds} s. ${option.description} ${t('Click to build, right-click to cancel.')}`;
+      el.title = `${this.foreignName(option)} — ${option.cost} ${CURRENCY}, ${option.trainSeconds} s. ${option.description} ${t('Click to build, right-click to cancel.')}`;
       el.innerHTML = `
         <canvas width="128" height="96"></canvas>
         <span class="sb-cameo-wipe"></span>
@@ -1037,7 +1068,7 @@ export class Sidebar {
         <span class="sb-cameo-state"></span>`;
       const canvas = el.querySelector('canvas');
       if (canvas) drawPreview(canvas, this.handlers.vehiclePreview(option));
-      addInfoIcon(el, option.name);
+      addInfoIcon(el, this.foreignName(option));
       el.addEventListener('click', () => this.handlers.onVehicle(option));
       el.addEventListener('contextmenu', (e) => {
         e.preventDefault();
@@ -1047,7 +1078,7 @@ export class Sidebar {
       const wipe = el.querySelector<HTMLElement>('.sb-cameo-wipe');
       const state = el.querySelector<HTMLElement>('.sb-cameo-state');
       const badge = el.querySelector<HTMLElement>('.sb-cameo-badge') ?? undefined;
-      if (wipe && state) this.vehicleCameos.set(option.kind, { el, wipe, state, badge });
+      if (wipe && state) this.vehicleCameos.set(option.key, { el, wipe, state, badge });
     }
   }
 
@@ -1056,7 +1087,7 @@ export class Sidebar {
       const el = document.createElement('button');
       el.type = 'button';
       el.className = 'sb-cameo';
-      el.title = `${option.name} — ${option.cost} ${CURRENCY}, ${option.trainSeconds} s. ${option.description} ${t('Click to train, right-click to cancel.')}`;
+      el.title = `${this.foreignName(option)} — ${option.cost} ${CURRENCY}, ${option.trainSeconds} s. ${option.description} ${t('Click to train, right-click to cancel.')}`;
       el.innerHTML = `
         <canvas width="128" height="96"></canvas>
         <span class="sb-cameo-wipe"></span>
@@ -1066,7 +1097,7 @@ export class Sidebar {
         <span class="sb-cameo-state"></span>`;
       const canvas = el.querySelector('canvas');
       if (canvas) drawPreview(canvas, this.handlers.trainPreview(option));
-      addInfoIcon(el, option.name);
+      addInfoIcon(el, this.foreignName(option));
       el.addEventListener('click', () => this.handlers.onTrain(option));
       el.addEventListener('contextmenu', (e) => {
         e.preventDefault();
@@ -1076,8 +1107,13 @@ export class Sidebar {
       const wipe = el.querySelector<HTMLElement>('.sb-cameo-wipe');
       const state = el.querySelector<HTMLElement>('.sb-cameo-state');
       const badge = el.querySelector<HTMLElement>('.sb-cameo-badge') ?? undefined;
-      if (wipe && state) this.unitCameos.set(option.tier, { el, wipe, state, badge });
+      if (wipe && state) this.unitCameos.set(option.key, { el, wipe, state, badge });
     }
+  }
+
+  /** Name on a cameo; another nation's design carries that nation's name. */
+  private foreignName(option: { name: string; faction: FactionId }): string {
+    return option.faction === this.faction ? option.name : `${option.name} (${FACTIONS[option.faction].shortName})`;
   }
 
   private buildTabs(nav: HTMLElement): void {
@@ -1110,7 +1146,7 @@ export class Sidebar {
       el.title =
         option.id === 'alliedBuilding'
           ? t('{nation} Embassy', { nation: FACTIONS[this.faction].shortName })
-          : `${option.name} — ${buildCost(option, this.faction)} ${CURRENCY}. ${t('Click to build, right-click to cancel.')}`;
+          : `${option.foreign ? this.foreignName({ name: option.name, faction: option.foreign }) : option.name} — ${buildCost(option, this.faction)} ${CURRENCY}. ${t('Click to build, right-click to cancel.')}`;
       el.innerHTML = `
         <canvas width="128" height="96"></canvas>
         <span class="sb-cameo-wipe"></span>

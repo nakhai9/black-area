@@ -40,8 +40,13 @@ import type { BuildingType, FactionId, PlayerState } from '../types';
 import type { GameSystem } from './GameSystem';
 
 /** A structure that can be produced from the sidebar's Build tab. */
+type BaseBuildId = 'powerPlant' | 'barracks' | 'warFactory' | 'airfield' | 'techCenter' | 'happyCity' | 'flagpole' | 'alliedBuilding' | 'bunker' | 'wall' | 'gate';
+
 export interface BuildOption {
-  id: 'powerPlant' | 'barracks' | 'warFactory' | 'airfield' | 'techCenter' | 'happyCity' | 'flagpole' | 'alliedBuilding' | 'bunker' | 'wall' | 'gate';
+  /** `base@faction` for another nation's design (on sale while that nation's capital is held). */
+  id: BaseBuildId | `${BaseBuildId}@${FactionId}`;
+  /** Another nation's design: offered only to the holder of that nation's captured capital. */
+  foreign?: FactionId;
   name: string;
   /** Tech tree: these buildings must already stand (power plant → barracks → war factory → airfield → happy city). */
   requires?: BuildingType | readonly BuildingType[];
@@ -59,7 +64,7 @@ const center = (x: number, y: number, f: { w: number; d: number }) => ({
   y: (y + f.d / 2) * CELL_SIZE,
 });
 
-export const BUILD_OPTIONS: readonly BuildOption[] = [
+const OWN_OPTIONS: readonly BuildOption[] = [
   {
     id: 'powerPlant',
     name: 'Nuclear Power Plant',
@@ -165,6 +170,30 @@ export const BUILD_OPTIONS: readonly BuildOption[] = [
   },
 ];
 
+/** Structures that make or power a nation's army: a captured capital lets its holder build that nation's version. */
+const FOREIGN_BUILDS: ReadonlySet<string> = new Set(['powerPlant', 'barracks', 'warFactory', 'airfield', 'techCenter']);
+
+/**
+ * Every structure for sale: each nation's own, then another nation's version of FOREIGN_BUILDS (built to that
+ * nation's design and stats, so a foreign Ministry of Defence / War Factory / Airfield makes that nation's units).
+ */
+export const BUILD_OPTIONS: readonly BuildOption[] = [
+  ...OWN_OPTIONS,
+  ...(Object.keys(FACTIONS) as FactionId[]).flatMap((nation) =>
+    OWN_OPTIONS.filter((o) => FOREIGN_BUILDS.has(o.id)).map((o): BuildOption => ({
+      ...o,
+      id: `${o.id as BaseBuildId}@${nation}`,
+      foreign: nation,
+      create: (owner, faction, x, y) => {
+        const b = o.create(owner, nation, x, y);
+        b.originFaction = nation;
+        b.capture(owner, faction);
+        return b;
+      },
+    })),
+  ),
+];
+
 /** First prerequisite of `option` the nation does not own yet (null = it may be built). */
 export function missingRequirement(option: BuildOption, owned: ReadonlySet<BuildingType>): BuildingType | null {
   const list: readonly BuildingType[] = option.requires === undefined ? [] : typeof option.requires === 'string' ? [option.requires] : option.requires;
@@ -174,7 +203,7 @@ export function missingRequirement(option: BuildOption, owned: ReadonlySet<Build
 /** Price of a structure for a nation (faction cost multiplier applied, like soldiers and vehicles). */
 export function buildCost(option: BuildOption, faction: FactionId): number {
   if (option.fixedCost) return demoPrice(option.cost);
-  return demoPrice(Math.round((option.cost * FACTIONS[faction].stats.cost) / 10) * 10);
+  return demoPrice(Math.round((option.cost * FACTIONS[option.foreign ?? faction].stats.cost) / 10) * 10);
 }
 
 export type QueueState = 'idle' | 'building' | 'onHold' | 'noPower' | 'ready';

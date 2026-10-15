@@ -878,7 +878,7 @@ export class Renderer {
     ctx.stroke();
     if (strong) {
       const name = 'name' in u ? String((u as { name: string }).name) : t('Enemy');
-      const text = `${name} · ${FACTIONS[u.faction as keyof typeof FACTIONS]?.shortName ?? u.faction}`;
+      const text = `${name} · ${FACTIONS[u.banner as keyof typeof FACTIONS]?.shortName ?? u.banner}`;
       ctx.font = `600 ${11 * k}px "Segoe UI", system-ui, sans-serif`;
       const w = ctx.measureText(text).width + 10 * k;
       const h = 15 * k;
@@ -926,7 +926,7 @@ export class Renderer {
     const lift = u.flies && 'altitude' in u ? Number((u as { altitude: number }).altitude) : 0;
     const top = P.y - lift - Math.max(u.bodyHeight, 2) - 1.6 - (u.rank > 0 ? 3.6 : 0);
     const text = 'name' in u ? String((u as { name: string }).name) : t('Enemy');
-    const img = u.faction !== 'neutral' ? emblemImage(u.faction as FactionId) : null;
+    const img = u.banner !== 'neutral' ? emblemImage(u.banner as FactionId) : null;
     ctx.save();
     ctx.font = `600 ${11 * k}px "Segoe UI", system-ui, sans-serif`;
     const s = 11 * k;
@@ -940,7 +940,7 @@ export class Renderer {
     const y = top - 1.5 - h;
     ctx.fillStyle = 'rgba(8,12,16,0.85)';
     ctx.fillRect(x, y, w, h);
-    ctx.fillStyle = teamColors(u.faction).primary;
+    ctx.fillStyle = teamColors(u.banner).primary;
     ctx.fillRect(x, y + h - 2 * k, w, 2 * k);
     if (img) ctx.drawImage(img, x + 5 * k, y + (h - k) / 2 - ih / 2, iw, ih);
     ctx.fillStyle = '#f2f5f8';
@@ -1051,8 +1051,8 @@ export class Renderer {
     ctx.fillRect(x - k, y - k, w + 2 * k, 0.4 + 2 * k);
     ctx.fillStyle = ratio > 0.5 ? '#3fdc4a' : ratio > 0.25 ? '#f0d23a' : '#e8452f';
     ctx.fillRect(x, y, w * ratio, 0.4);
-    if (focused && u.faction !== 'neutral') {
-      const img = emblemImage(u.faction as FactionId);
+    if (focused && u.banner !== 'neutral') {
+      const img = emblemImage(u.banner as FactionId);
       if (img) {
         const s = Math.max(1.6, 9 * k); // small: about 9 screen px, never below 1.6 iso px
         const iw = (s * img.naturalWidth) / Math.max(img.naturalWidth, img.naturalHeight);

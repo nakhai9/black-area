@@ -16,6 +16,8 @@ export class Building extends Entity {
   /** Engineers inside repairing it (they walk out at 100%, and die with it if it is destroyed meanwhile). */
   readonly crew: Infantry[] = [];
   private spriteKeyOverride: string | null = null;
+  /** Nation whose design it is, when that differs from its current faction (set on its first capture; null = `faction`). */
+  originFaction: Allegiance | null = null;
 
   constructor(
     owner: number,
@@ -43,6 +45,11 @@ export class Building extends Entity {
     return this.spec.indestructible === true;
   }
 
+  /** Nation that designed it: a captured Barracks / War Factory / Airfield still makes that nation's units. */
+  get origin(): Allegiance {
+    return this.originFaction ?? this.faction;
+  }
+
   get capturable(): boolean {
     return this.spec.uncapturable !== true;
   }
@@ -53,6 +60,7 @@ export class Building extends Entity {
    */
   capture(owner: number, faction: FactionId): boolean {
     if (!this.capturable || !this.alive) return false;
+    this.originFaction ??= this.faction;
     this.changeHands(owner, faction);
     return true;
   }

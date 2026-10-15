@@ -177,8 +177,9 @@ import { Bunker } from '../entities/Bunker';
 import { PowerSystem } from '../systems/PowerSystem';
 import { SAFE_ZONE_SIZE, type SafeZone, SafeZoneSystem } from '../systems/SafeZoneSystem';
 import { SelectionSystem } from '../systems/SelectionSystem';
-import { TrainingSystem } from '../systems/TrainingSystem';
-import { VehicleSystem } from '../systems/VehicleSystem';
+import { type TrainKey, TrainingSystem } from '../systems/TrainingSystem';
+import { takenNations } from '../systems/Foreign';
+import { type VehicleKey, VehicleSystem } from '../systems/VehicleSystem';
 import type { BuildingType, FactionId, GameEvents, GridPoint, OilPolicy, PlayerState, UnitTier, VehicleKind, WeaponSpec, WorldPoint } from '../types';
 import { HASH_EVERY_TURNS, type Lockstep, type Turn } from '../net/Lockstep';
 import { Minimap } from '../ui/Minimap';
@@ -228,8 +229,8 @@ export type GameCommand = (
   | { k: 'minimap'; w: WorldPoint }
   | { k: 'place'; opt: string; x: number; y: number; rot: boolean }
   | { k: 'build' | 'buildCancel'; opt: string }
-  | { k: 'train' | 'trainCancel'; tier: UnitTier }
-  | { k: 'vehicle' | 'vehicleCancel'; kind: VehicleKind }
+  | { k: 'train' | 'trainCancel'; tier: TrainKey }
+  | { k: 'vehicle' | 'vehicleCancel'; kind: VehicleKey }
   | { k: 'policy'; policy: OilPolicy }
   | { k: 'sellOil' | 'autoSell' | 'loan' | 'unload' | 'turbo' }
   /** Server-sent: that player left the match. */
@@ -505,14 +506,14 @@ export class Game {
     }
     // Label the landmasses now, behind the loading screen, not on the first order of the game (~130 ms).
     this.pathfinder.sameLandmass(0, 0, 0, 0);
-    this.training = new TrainingSystem(this.players, this.entities, (player, tier, barracks) =>
-      this.spawnSoldier(player, tier, barracks),
+    this.training = new TrainingSystem(this.players, this.entities, (player, tier, barracks, faction) =>
+      this.spawnSoldier(player, tier, barracks, faction),
     );
     // Income is credited before construction spends it within the same tick.
     this.production = new VehicleSystem(
       this.players,
       this.entities,
-      (player, kind, producer) => this.spawnVehicle(player, kind, producer),
+      (player, kind, producer, faction) => this.spawnVehicle(player, kind, producer, faction),
       (producer) => this.factoryExitClear(producer),
     );
     // The sound system (and its music) already runs since the faction picker; now it hears from the camera.
@@ -609,9 +610,9 @@ export class Game {
         this.issue({ k: 'buildCancel', opt: option.id });
       },
       preview: (option) => (option.id === 'bunker' ? bunkerPreview(human.faction) : null) ?? this.sprites.get(option.spriteKey(human.faction)).canvas,
-      onTrain: (option) => this.issue({ k: 'train', tier: option.tier }),
-      onTrainCancel: (option) => this.issue({ k: 'trainCancel', tier: option.tier }),
-      trainPreview: (option) => soldierPortrait(human.faction, option.tier),
+      onTrain: (option) => this.issue({ k: 'train', tier: option.key }),
+      onTrainCancel: (option) => this.issue({ k: 'trainCancel', tier: option.key }),
+      trainPreview: (option) => soldierPortrait(option.faction, option.tier),
       onAlert: (at) => {
         if (!this.paused) this.camera.centerOn(at.x, at.y);
       },
@@ -627,9 +628,9 @@ export class Game {
       onSettings: () => {
         if (!this.paused && !this.ended) this.togglePause();
       },
-      onVehicle: (option) => this.issue({ k: 'vehicle', kind: option.kind }),
-      onVehicleCancel: (option) => this.issue({ k: 'vehicleCancel', kind: option.kind }),
-      vehiclePreview: (option) => vehiclePortrait(human.faction, option.kind),
+      onVehicle: (option) => this.issue({ k: 'vehicle', kind: option.key }),
+      onVehicleCancel: (option) => this.issue({ k: 'vehicleCancel', kind: option.key }),
+      vehiclePreview: (option) => vehiclePortrait(option.faction, option.kind),
     });
     this.minimap = new Minimap(
       this.sidebar.minimapCanvas,
@@ -840,7 +841,7 @@ export class Game {
         Object.assign(slot, { option: null, state: 'idle', progress: 0, paid: 0 });
       }
       const vq = this.production.queue(p);
-      const kinds = new Set(this.production.optionsFor(p).map((o) => o.kind));
+      const kinds = new Set(this.production.optionsFor(p).map((o) => o.key));
       if (vq.items[0] !== undefined && !kinds.has(vq.items[0])) {
         p.credits += Math.floor(vq.paid);
         vq.paid = 0;
@@ -850,7 +851,7 @@ export class Game {
       vq.items = vq.items.filter((k) => kinds.has(k));
       if (vq.items.length === 0) vq.state = 'idle';
       const tq = this.training.queue(p);
-      const tiers = new Set(this.training.optionsFor(p).map((o) => o.tier));
+      const tiers = new Set(this.training.optionsFor(p).map((o) => o.key));
       if (tq.items[0] !== undefined && !tiers.has(tq.items[0])) {
         p.credits += Math.floor(tq.paid);
         tq.paid = 0;
@@ -2836,6 +2837,9 @@ export class Game {
           placingId: this.placing?.id ?? null,
           unitProgress: (tier) => this.training.progressOf(this.humanPlayer, tier),
           vehicleProgress: (kind) => this.production.progressOf(this.humanPlayer, kind),
+          trainOptions: this.training.optionsFor(this.humanPlayer),
+          vehicleOptions: this.production.optionsFor(this.humanPlayer),
+          buildAvailable: (option) => this.buildAvailable(this.humanPlayer, option),
           training: this.training.queue(this.humanPlayer),
           vehicleQueue: this.production.queue(this.humanPlayer),
           owned: (this.ownedCache = this.ownedTypes()),
@@ -3394,10 +3398,16 @@ export class Game {
   // ------------------------------------------------------------------ construction
 
   /** Cameo left-click: start building, or pick up a finished structure to place it. */
+  /** Another nation's design is on sale only while its capital, taken by an engineer, is held. */
+  private buildAvailable(player: PlayerState, option: BuildOption): boolean {
+    return !option.foreign || takenNations(this.entities, player, 'capital').includes(option.foreign);
+  }
+
   private onBuildClick(option: BuildOption): void {
     const player = this.humanPlayer;
     const slot = this.construction.slot(player, option.id);
     if (slot.state === 'idle') {
+      if (!this.buildAvailable(player, option)) return;
       if (option.id === 'alliedBuilding' && this.alliesOf(player) >= MAX_ALLIES) {
         this.sidebar.notify(t('A nation has at most {max} embassies.', { max: MAX_ALLIES }));
         return;
@@ -3940,10 +3950,10 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
 
   // ------------------------------------------------------------------ vehicles & aircraft
 
-  private onVehicleClick(kind: VehicleKind): void {
+  private onVehicleClick(kind: VehicleKey): void {
     // (aircraft need a free parking spot on an airfield)
     const player = this.humanPlayer;
-    const option = this.production.optionsFor(player).find((o) => o.kind === kind);
+    const option = this.production.optionsFor(player).find((o) => o.key === kind);
     if (!option) return;
     const result = this.production.enqueue(player, kind);
     this.sidebar.notify(
@@ -3968,7 +3978,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     this.sidebarTimer = SIDEBAR_REFRESH;
   }
 
-  private onVehicleCancel(kind: VehicleKind): void {
+  private onVehicleCancel(kind: VehicleKey): void {
     if (this.production.cancelOne(this.humanPlayer, kind)) this.sidebar.notify(t('Production cancelled.'));
     this.sidebarTimer = SIDEBAR_REFRESH;
   }
@@ -3996,14 +4006,14 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
   }
 
   /** A new aircraft (fighter or transport) appears parked on a free spot of its airfield's apron. */
-  private spawnAircraft(player: PlayerState, kind: VehicleKind, producer: Building, prefer = -1): Vehicle | null {
+  private spawnAircraft(player: PlayerState, kind: VehicleKind, producer: Building, prefer = -1, faction: FactionId = player.faction as FactionId): Vehicle | null {
     // A helicopter takes no parking spot: it sets down on open ground beside its airfield, like a vehicle rolling out.
     if (kind === 'heli') {
       const f = producer.footprintWorld();
-      const probe = new Vehicle(player.id, player.faction as FactionId, kind, { x: f.x + f.w + CELL_SIZE, y: f.y + f.h / 2 });
+      const probe = new Vehicle(player.id, faction, kind, { x: f.x + f.w + CELL_SIZE, y: f.y + f.h / 2 });
       const spot = this.landingSpot(probe.px, probe.py, probe) ?? this.landingSpot(f.x - CELL_SIZE, f.y + f.h / 2, probe);
       if (spot) {
-        const heli = this.entities.add(new Vehicle(player.id, player.faction as FactionId, kind, spot));
+        const heli = this.entities.add(new Vehicle(player.id, faction, kind, spot));
         heli.flight = 'landed';
         heli.altitude = 0;
         heli.homeId = producer.id;
@@ -4029,7 +4039,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     const g = this.airfieldGeometry(airfield);
     const spot = g.slots[slot];
     if (!spot) return null;
-    const jet = this.entities.add(new Vehicle(player.id, player.faction as FactionId, kind, spot));
+    const jet = this.entities.add(new Vehicle(player.id, faction, kind, spot));
     jet.flight = 'parked';
     jet.altitude = 0;
     jet.homeId = airfield.id;
@@ -4274,15 +4284,18 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     }
   }
 
-  private spawnVehicle(player: PlayerState, kind: VehicleKind, producer: Building): void {
+  private spawnVehicle(player: PlayerState, kind: VehicleKind, producer: Building, faction: FactionId = player.faction as FactionId): void {
     if (isAircraftKind(kind)) {
-      this.spawnAircraft(player, kind, producer);
+      const craft = this.spawnAircraft(player, kind, producer, -1, faction);
+      // Another nation's aircraft (captured Airfield): its design, its new owner's colours.
+      if (craft && faction !== player.faction) craft.ownerFaction = player.faction;
       return;
     }
     // Land vehicles roll out of the War Factory's exit cell and drive on to a parking spot (see parkingSpot).
     const exit = this.factoryExit(producer);
     if (!exit) return;
-    const unit = this.entities.add(new Vehicle(player.id, player.faction as FactionId, kind, exit));
+    const unit = this.entities.add(new Vehicle(player.id, faction, kind, exit));
+    if (faction !== player.faction) unit.ownerFaction = player.faction;
     unit.heading = Math.PI / 2;
     unit.parking = true;
     const spot = this.parkingSpot(producer, unit);
@@ -4363,9 +4376,9 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
 
   // ------------------------------------------------------------------ infantry
 
-  private onTrainClick(tier: UnitTier): void {
+  private onTrainClick(tier: TrainKey): void {
     const player = this.humanPlayer;
-    const option = this.training.optionsFor(player).find((o) => o.tier === tier);
+    const option = this.training.optionsFor(player).find((o) => o.key === tier);
     if (!option) return;
     if (!this.training.barracksOf(player)) this.sidebar.notify(t('Requires a {name}.', { name: 'Ministry of Defence' }));
     else {
@@ -4387,23 +4400,25 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     this.sidebarTimer = SIDEBAR_REFRESH;
   }
 
-  private onTrainCancel(tier: UnitTier): void {
+  private onTrainCancel(tier: TrainKey): void {
     if (this.training.cancelOne(this.humanPlayer, tier)) this.sidebar.notify(t('Training cancelled.'));
     this.sidebarTimer = SIDEBAR_REFRESH;
   }
 
   /** A trained soldier walks out of the barracks' front door to a free rally cell. */
-  private spawnSoldier(player: PlayerState, tier: UnitTier, barracks: Building): void {
+  private spawnSoldier(player: PlayerState, tier: UnitTier, barracks: Building, faction: FactionId = player.faction as FactionId): void {
     const doorX = barracks.x + Math.floor(barracks.w / 2);
     const doorY = barracks.y + barracks.d;
     const exit = this.pathfinder.nearestPassable(doorX, doorY, PARADE_MAX_CELLS);
     if (!exit) return;
     const unit = this.entities.add(
-      new Infantry(player.id, player.faction as FactionId, tier, {
+      new Infantry(player.id, faction, tier, {
         x: (exit.x + 0.5) * CELL_SIZE,
         y: (exit.y + 0.2) * CELL_SIZE,
       }),
     );
+    // Another nation's soldier (captured Ministry of Defence): its design, its new owner's colours.
+    if (faction !== player.faction) unit.ownerFaction = player.faction;
     // Parade ground: soldiers march to the next free slot of a neat grid around the barracks, never
     // farther than PARADE_MAX_CELLS cells from its walls (the slots nearest the door fill first).
     const used = new Set(
@@ -4875,7 +4890,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       } else {
         // Capture: the engineer is consumed and the building changes sides.
         const before = b.owner;
-        if (b.capture(u.owner, u.faction as FactionId)) {
+        if (b.capture(u.owner, u.banner as FactionId)) {
           this.entities.remove(u.id);
           this.selection.selectedUnits.delete(u.id);
           if (u.owner === this.humanPlayer.id) this.sidebar.notify(t('{name} captured!', { name: b.spec.name }));

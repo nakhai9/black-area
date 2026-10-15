@@ -5,10 +5,18 @@ import type { EntityManager } from '../entities/EntityManager';
 import { FACTIONS } from '../factions';
 import type { FactionId, PlayerState, UnitTier } from '../types';
 import type { GameSystem } from './GameSystem';
+import { type ForeignKey, splitKey, takenNations } from './Foreign';
+
+/** A soldier order: `tier` (own nation) or `tier@faction` (from a captured foreign Ministry of Defence). */
+export type TrainKey = ForeignKey<UnitTier>;
 
 /** A trainable soldier as offered on the Infantry tab. */
 export interface TrainOption {
+  /** Order key: the tier, or `tier@faction` for another nation's soldier. */
+  key: TrainKey;
   tier: UnitTier;
+  /** Nation that designed (and trains) the soldier. */
+  faction: FactionId;
   name: string;
   description: string;
   cost: number;
@@ -16,19 +24,29 @@ export interface TrainOption {
 }
 
 /** Faction-specific infantry options (cost scaled by the faction's cost multiplier). */
-function trainOptions(faction: FactionId): TrainOption[] {
+function trainOptions(faction: FactionId, foreign = false): TrainOption[] {
   const f = FACTIONS[faction];
   if (f.peaceful) return [];
   return (['regular', 'special', 'engineer', 'demolition', 'squatters'] as const).flatMap((tier) => {
     const profile = f.infantry[tier];
     return profile ? [{ tier, profile }] : [];
   }).map(({ tier, profile }) => ({
+    key: foreign ? (`${tier}@${faction}` as TrainKey) : tier,
     tier,
+    faction,
     name: profile.name,
     description: profile.description,
     cost: demoPrice(Math.round((INFANTRY_BASE[tier].cost * f.stats.cost * (f.stats.infantryCost ?? 1)) / 10) * 10),
     trainSeconds: (INFANTRY_BASE[tier].trainSeconds + f.stats.trainDelay) * INFANTRY_TRAIN_FACTOR,
   }));
+}
+
+/** Another nation's soldiers, as offered to whoever holds one of its Ministries of Defence. */
+const FOREIGN = new Map<FactionId, TrainOption[]>();
+function foreignOptions(faction: FactionId): TrainOption[] {
+  let list = FOREIGN.get(faction);
+  if (!list) FOREIGN.set(faction, (list = trainOptions(faction, true)));
+  return list;
 }
 
 export type TrainingState = 'idle' | 'training' | 'onHold' | 'noBarracks';
@@ -48,7 +66,7 @@ export interface ArmyCount {
 
 export interface TrainingQueue {
   /** Soldiers on order: every one of them trains at the same time (parallel production). */
-  items: UnitTier[];
+  items: TrainKey[];
   /** TB paid so far for each order (same index as `items`). */
   paidEach: number[];
   state: TrainingState;
@@ -77,7 +95,7 @@ export class TrainingSystem implements GameSystem {
   constructor(
     private readonly players: readonly PlayerState[],
     private readonly entities: EntityManager,
-    private readonly spawn: (player: PlayerState, tier: UnitTier, barracks: Building) => void,
+    private readonly spawn: (player: PlayerState, tier: UnitTier, barracks: Building, faction: FactionId) => void,
   ) {
     for (const p of players) {
       this.queues.set(p.id, { items: [], paidEach: [], state: 'idle', progress: 0, paid: 0 });
@@ -92,8 +110,11 @@ export class TrainingSystem implements GameSystem {
     return q;
   }
 
+  /** Own soldiers, then those of every nation whose Ministry of Defence the player has captured. */
   optionsFor(player: PlayerState): TrainOption[] {
-    return this.options.get(player.id) ?? [];
+    const own = this.options.get(player.id) ?? [];
+    const taken = takenNations(this.entities, player, 'barracks');
+    return taken.length === 0 || own.length === 0 ? own : [...own, ...taken.flatMap((f) => foreignOptions(f))];
   }
 
   /** First living Barracks of the player (soldiers exit there). */
@@ -119,7 +140,7 @@ export class TrainingSystem implements GameSystem {
     };
     for (const u of this.entities.units()) if (u.owner === player.id && u.alive) count(u.tier);
     const items = this.queue(player).items;
-    for (const t of items) count(t);
+    for (const t of items) count(splitKey(t).base);
     return { queued: items.length, limit: BUILD_LIMIT_SOLDIERS, regular, special, specialCap: eliteCap(regular) };
   }
 
@@ -127,18 +148,19 @@ export class TrainingSystem implements GameSystem {
    * Adds an order for any soldier type. Only the number of waiting orders is limited (BuildLimit): a new one is
    * accepted as soon as an earlier order has been completed, however many soldiers the nation already has.
    */
-  enqueue(player: PlayerState, tier: UnitTier): EnqueueResult {
+  enqueue(player: PlayerState, key: TrainKey): EnqueueResult {
     const q = this.queue(player);
+    const tier = splitKey(key).base;
     if (player.capitalLost) return 'noCapital';
     if (FACTIONS[player.faction].peaceful) return 'full';
-    if (!this.barracksOf(player)) return 'noBarracks';
+    if (!this.barracksOf(player) || !this.optionsFor(player).some((o) => o.key === key)) return 'noBarracks';
     if (TECH_TIERS.includes(tier) && !this.hasTech(player)) return 'tech';
     if (q.items.length >= BUILD_LIMIT_SOLDIERS) return 'full';
     if (this.soldierCount(player) >= MAX_SOLDIERS) return 'cap';
     const army = this.army(player);
     // Elite soldiers never outnumber the regulars: 2 elite for every 3 regular (alive + already on order).
     if (tier === 'special' && army.special + 1 > army.specialCap) return 'ratio';
-    q.items.push(tier);
+    q.items.push(key);
     q.paidEach.push(0);
     if (q.state === 'idle') q.state = 'training';
     return 'ok';
@@ -151,16 +173,17 @@ export class TrainingSystem implements GameSystem {
     return n;
   }
 
-  /** Removes the last queued soldier of `tier`; refunds if it was the one in training. */
-  cancelOne(player: PlayerState, tier: UnitTier): boolean {
+  /** Removes the last queued soldier of `key`; refunds if it was the one in training. */
+  cancelOne(player: PlayerState, key: TrainKey): boolean {
     const q = this.queue(player);
-    const i = q.items.lastIndexOf(tier);
+    const i = q.items.lastIndexOf(key);
     if (i < 0) return false;
     this.removeAt(player, i);
     // Dropping a regular order may break the 2:3 rule: the newest elite orders that no longer fit go too.
     for (;;) {
       const a = this.army(player);
-      const s = q.items.lastIndexOf('special');
+      let s = q.items.length - 1;
+      while (s >= 0 && splitKey(q.items[s]!).base !== 'special') s--;
       if (a.special <= a.specialCap || s < 0) break;
       this.removeAt(player, s);
     }
@@ -177,14 +200,14 @@ export class TrainingSystem implements GameSystem {
     q.paid = q.paidEach.reduce((s, v) => s + v, 0);
   }
 
-  /** 0..1 progress of the most advanced order of `tier` (0 when none is on order). */
-  progressOf(player: PlayerState, tier: UnitTier): number {
+  /** 0..1 progress of the most advanced order of `key` (0 when none is on order). */
+  progressOf(player: PlayerState, key: TrainKey, options = this.optionsFor(player)): number {
     const q = this.queue(player);
-    const option = this.optionsFor(player).find((o) => o.tier === tier);
+    const option = options.find((o) => o.key === key);
     if (!option) return 0;
     let best = 0;
     q.items.forEach((t, i) => {
-      if (t === tier) best = Math.max(best, (q.paidEach[i] ?? 0) / option.cost);
+      if (t === key) best = Math.max(best, (q.paidEach[i] ?? 0) / option.cost);
     });
     return Math.min(1, best);
   }
@@ -204,16 +227,20 @@ export class TrainingSystem implements GameSystem {
         continue;
       }
       const tech = this.hasTech(p);
+      const options = this.optionsFor(p);
+      // Another nation's soldiers whose captured Ministry of Defence is gone: the order is dropped and refunded.
+      for (let i = q.items.length - 1; i >= 0; i--) if (!options.some((o) => o.key === q.items[i])) this.removeAt(p, i);
       let short = false;
       const done: number[] = [];
       // Every order trains at once; the oldest are paid first when TB runs short.
-      q.items.forEach((tier, i) => {
+      q.items.forEach((key, i) => {
+        const tier = splitKey(key).base;
         // Without a High-Tech Center (destroyed meanwhile) second-tier soldiers wait, unpaid.
         if (TECH_TIERS.includes(tier) && !tech) {
           short = true;
           return;
         }
-        const option = this.optionsFor(p).find((o) => o.tier === tier);
+        const option = options.find((o) => o.key === key);
         if (!option) return;
         const paid = q.paidEach[i] ?? 0;
         const want = Math.min((option.cost / option.trainSeconds) * dt, option.cost - paid);
@@ -224,13 +251,13 @@ export class TrainingSystem implements GameSystem {
         if (q.paidEach[i]! >= option.cost - 1e-6) done.push(i);
       });
       for (const i of done.reverse()) {
-        const tier = q.items[i]!;
+        const { base, faction } = splitKey(q.items[i]!);
         q.items.splice(i, 1);
         q.paidEach.splice(i, 1);
-        this.spawn(p, tier, barracks);
+        this.spawn(p, base, barracks, faction ?? p.faction);
       }
       q.paid = q.paidEach.reduce((s, v) => s + v, 0);
-      q.progress = q.items.reduce((m, t) => Math.max(m, this.progressOf(p, t)), 0);
+      q.progress = q.items.reduce((m, t) => Math.max(m, this.progressOf(p, t, options)), 0);
       q.state = q.items.length === 0 ? 'idle' : short ? 'onHold' : 'training';
     }
   }

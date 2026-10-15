@@ -144,6 +144,13 @@ export abstract class Unit extends Entity {
   ignoreUntil = new Map<number, number>();
   /** Units ordered to fall back together share this number: the mercy bonus is paid once per group, not per unit. */
   retreatGroup = 0;
+  /** Made in a captured foreign Barracks / War Factory / Airfield: the owner's nation (its colours and emblem); null = `faction`. */
+  ownerFaction: Allegiance | null = null;
+
+  /** Nation whose colours and emblem it carries (its owner's), whatever nation designed it. */
+  get banner(): Allegiance {
+    return this.ownerFaction ?? this.faction;
+  }
 
   constructor(owner: number, faction: Allegiance, at: WorldPoint, maxHp: number) {
     super(owner, faction, at.x / CELL_SIZE, at.y / CELL_SIZE, maxHp);

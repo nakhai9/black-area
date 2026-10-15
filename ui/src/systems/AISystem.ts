@@ -948,7 +948,10 @@ export class AISystem implements GameSystem {
         if (owned.has('techCenter') && r.special < r.specialCap && st.rng() < (threat > 0 ? 0.25 : st.overseas ? 0.75 : 0.4)) tier = 'special';
         // National demolition troops (Crazy Soldiers) now and then against a base full of structures.
         else if (tiers.includes('demolition') && threat === 0 && st.rng() < 0.15) tier = 'demolition';
-        if (training.enqueue(p, tier) !== 'ok' && tier !== 'regular') training.enqueue(p, 'regular');
+        // A captured foreign Ministry of Defence: now and then that nation's version of the soldier instead.
+        const foreign = training.optionsFor(p).filter((o) => o.tier === tier && o.faction !== p.faction);
+        const pick = foreign.length > 0 && st.rng() < 0.4 ? foreign[Math.floor(st.rng() * foreign.length)] : undefined;
+        if (!(pick && training.enqueue(p, pick.key) === 'ok') && training.enqueue(p, tier) !== 'ok' && tier !== 'regular') training.enqueue(p, 'regular');
       }
     }
     if (canVehicles && (wantVehicle || threat > 0 || budget > 1200)) {
@@ -998,6 +1001,10 @@ export class AISystem implements GameSystem {
             kind = k;
           }
         }
+        // A captured foreign War Factory / Airfield: now and then that nation's version of the machine instead.
+        const foreign = kind ? options.filter((o) => o.kind === kind && o.faction !== p.faction) : [];
+        const alt = foreign.length > 0 && st.rng() < 0.4 ? foreign[Math.floor(st.rng() * foreign.length)] : undefined;
+        if (alt && production.enqueue(p, alt.key) === 'ok') return;
         // Ground fleet at its cap: airfield aircraft are not, so build one of those.
         if (kind && production.enqueue(p, kind) === 'cap') {
           const air = (['jet', 'heli', 'bomber'] as const).filter(able);
