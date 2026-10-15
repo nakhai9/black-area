@@ -1,29 +1,15 @@
-import {
-  CAPITAL_LOCATIONS,
-  DEMO_MODE,
-  FACTION_ORDER,
-  GAME_VERSION,
-} from "../constants";
+import { DEMO_MODE, GAME_VERSION } from "../constants";
 import { FACTIONS } from "../factions";
-import { factionBadgeHtml } from "./FactionBadge";
-import type { FactionId, FactionStats } from "../types";
+import { CARD_ORDER, factionCardHtml } from "./FactionCard";
+import type { FactionId } from "../types";
 import { pickSaveFile } from "./PauseMenu";
+import { MultiplayerLobby, type MultiplayerStart } from "./MultiplayerLobby";
 import { getLang, languageSelect, setLang, t } from "../i18n";
 // The rules document at the repo root, served (and copied into the build) as a plain file.
 import RULE_URL from "../../RULE.html?url";
 import RULE_EN_URL from "../../RULE.en.html?url";
 
 const STORAGE_KEY = "black-area:faction";
-const SHOWN_STATS: readonly [keyof FactionStats, string][] = [
-  ["unitSpeed", "Mobility"],
-  ["armor", "Armor"],
-  ["firepower", "Firepower"],
-  ["range", "Range"],
-  ["buildSpeed", "Build speed"],
-];
-const STAT_MAX = 1.5;
-/** Cards from west to east, by the longitude of each nation's capital. */
-const CARD_ORDER: readonly FactionId[] = [...FACTION_ORDER].sort((a, b) => CAPITAL_LOCATIONS[a].lon - CAPITAL_LOCATIONS[b].lon);
 
 function remember(id: FactionId): void {
   try {
@@ -61,6 +47,7 @@ export class FactionPicker {
           ${DEMO_MODE ? `<button class="fp-demo" type="button" title="${t("Test game: play alone, the other nations do nothing; everything built, finances off")}">${t("Test")}</button>` : ""}
           <button class="fp-desktop" type="button" hidden title="${t("Download the desktop version")}">${t("Download Desktop")}</button>
           <button class="fp-guide" type="button" title="${t("Open the game rules (RULE.html) in a new tab")}">${t("Guide")}</button>
+          <button class="fp-load fp-mp" type="button" title="${t("Play with friends: create a room or join one by its code")}">${t("Multiplayer")}</button>
           <button class="fp-load" type="button" title="${t("Continue a game saved to a .json file (pause menu → Save game)")}">${t("Load saved game")}</button>
           <button class="fp-deploy" type="button">${t("Start")}</button>
         </footer>
@@ -85,8 +72,11 @@ export class FactionPicker {
     if (demo) demo.hidden = true;
   }
 
-  /** Shows the modal and resolves with the confirmed faction (`demo`: dev-only solo test, no AI opponents). */
-  choose(): Promise<{ faction: FactionId; demo: boolean }> {
+  /**
+   * Shows the modal and resolves with the confirmed faction (`demo`: dev-only solo test, no AI opponents;
+   * `mp`: a multiplayer match started from the lobby, with the nation picked there).
+   */
+  choose(): Promise<{ faction: FactionId; demo: boolean; mp?: MultiplayerStart }> {
     this.host.append(this.root);
     const deploy = this.root.querySelector<HTMLButtonElement>(".fp-deploy");
 
@@ -110,8 +100,21 @@ export class FactionPicker {
       };
       window.addEventListener("keydown", onKey);
       deploy?.addEventListener("click", () => this.selected && confirm(this.selected));
+      this.root.querySelector(".fp-mp")?.addEventListener("click", () => {
+        this.root.hidden = true;
+        window.removeEventListener("keydown", onKey);
+        void new MultiplayerLobby(this.host).open().then((mp) => {
+          if (mp) {
+            this.root.remove();
+            resolve({ faction: mp.faction, demo: false, mp });
+            return;
+          }
+          this.root.hidden = false;
+          window.addEventListener("keydown", onKey);
+        });
+      });
       this.root
-        .querySelector(".fp-load")
+        .querySelector(".fp-load:not(.fp-mp)")
         ?.addEventListener("click", () => pickSaveFile());
       this.root
         .querySelector(".fp-desktop")
@@ -159,19 +162,7 @@ export class FactionPicker {
     card.className = "fp-card";
     card.setAttribute("role", "radio");
     card.style.setProperty("--team", f.colors.primary);
-    const stats = SHOWN_STATS.map(
-      ([k, label]) =>
-        `<li><span>${t(label)}</span><div class="sb-bar"><i style="width:${((f.stats[k] ?? 1) / STAT_MAX) * 100}%"></i></div></li>`,
-    ).join("");
-    card.innerHTML = `
-      <div class="fp-ident">
-        ${factionBadgeHtml(id, "md")}
-      </div>
-      <h2>${f.name}</h2>
-      <div class="fp-capital">${f.capital.name} · ${CAPITAL_LOCATIONS[id].name}</div>
-
-      <ul class="sb-stats fp-stats">${stats}</ul>
-`;
+    card.innerHTML = factionCardHtml(id);
     return card;
   }
 }

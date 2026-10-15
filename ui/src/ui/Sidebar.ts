@@ -1,9 +1,10 @@
 import { type IconNode, ArrowUpFromLine, Clock, House, Handshake, TriangleAlert, Wallet, Info, Keyboard, Droplet, Hammer, LogIn, LogOut, Minus, PersonStanding, Radar, Rocket, Shield, TrendingDown, TrendingUp, Trophy, Truck, Zap, createElement } from 'lucide';
-import { type ContestedNationId, BUILD_LIMIT_VEHICLES, CURRENCY, MAX_ALLIES, OIL_GRID_MARKUP, OIL_POLICIES, POWER_PER_BARREL, TECH_TIERS, TECH_VEHICLES, isAircraftKind } from '../constants';
+import { BUILD_LIMIT_VEHICLES, CURRENCY, MAX_ALLIES, OIL_GRID_MARKUP, OIL_POLICIES, POWER_PER_BARREL, TECH_TIERS, TECH_VEHICLES, isAircraftKind } from '../constants';
 import { FACTIONS } from '../factions';
 import { getFlagTexture } from '../render/Flags';
 import { factionBadgeHtml } from './FactionBadge';
 import { nationFlag } from '../render/sprites/NationCapital';
+import { isFactionNation, type NationId } from '../entities/NationCapital';
 import { type BuildOption, type QueueSlot, buildCost, missingRequirement } from '../systems/ConstructionSystem';
 import { MIN_SALE_STOCK } from '../systems/OilMarket';
 import type { ArmyCount, TrainOption, TrainingQueue } from '../systems/TrainingSystem';
@@ -59,7 +60,7 @@ export interface AllyInfo {
   /** Allied Building: its display name (the nation's embassy in that land). */
   embassy?: string;
   /** Captured capital: the nation taken and the faction holding it (emblem 🤝 flag in the row). */
-  nation?: ContestedNationId;
+  nation?: NationId;
   holder?: FactionId;
   /** Where it stands (latitude / longitude). */
   place: string;
@@ -855,7 +856,7 @@ export class Sidebar {
           const shake = createElement(Handshake, { width: 14, height: 14, 'stroke-width': 2, 'aria-hidden': 'true' });
           shake.style.verticalAlign = '-2px';
           shake.style.margin = '0 4px';
-          name.append(img(`${import.meta.env.BASE_URL}emblems/${a.holder}.png`), shake, img(nationFlag(a.nation).toDataURL()));
+          name.append(img(`${import.meta.env.BASE_URL}emblems/${a.holder}.png`), shake, img(isFactionNation(a.nation) ? getFlagTexture(a.nation).toDataURL() : nationFlag(a.nation).toDataURL()));
           if (hit) name.append(hit);
         } else {
           name.textContent = a.built ? `${a.capital ?? (a.embassy ?? t('Ally {n}', { n }))}${hit}` : t('Claimed land · no ally yet');

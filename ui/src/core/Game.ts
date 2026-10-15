@@ -82,7 +82,6 @@ import {
   WORLD_BANK_LOCATION,
   CONTESTED_NATIONS,
   capitalFootprint,
-  FOOTPRINT_NATION_CAPITAL,
   FOOTPRINT_GMC,
   type ContestedNationId,
   NATION_PRESENCE_FEE,
@@ -110,7 +109,7 @@ import { worldToIso } from './IsoView';
 import { Building } from '../entities/Building';
 import { PLACEMENT_MARGIN } from '../map/TileMap';
 import { Capital } from '../entities/Capital';
-import { NationCapital } from '../entities/NationCapital';
+import { NationCapital, nationInfo } from '../entities/NationCapital';
 import { EntityManager } from '../entities/EntityManager';
 import { SoundSystem } from '../audio/SoundSystem';
 import type { Entity } from '../entities/Entity';
@@ -367,8 +366,9 @@ export class Game {
     earth: Promise<EarthData> = loadEarthData(EARTH_TEXTURE_URL),
     sound: SoundSystem = new SoundSystem(),
     demo = false,
+    present?: readonly FactionId[],
   ): Promise<Game> {
-    return new Game(dom, playerFaction, await earth, sound, demo);
+    return new Game(dom, playerFaction, await earth, sound, demo, present);
   }
 
   private constructor(
@@ -378,21 +378,26 @@ export class Game {
     sound: SoundSystem,
     /** Dev-only DEMO mode: the player tests alone, the other nations' AI never acts. */
     demo = false,
+    /** Multiplayer room: the nations in play; the others are absent and their capitals become occupiable. */
+    present?: readonly FactionId[],
   ) {
     setDemoActive(demo);
     if (demo) dom.sidebar.classList.add('demo');
+    const absent = (f: FactionId): boolean => !!present && f !== playerFaction && !present.includes(f);
     this.players = FACTION_ORDER.map((faction, i) => ({
       id: i + 1,
       name: faction === playerFaction ? 'Commander' : `${FACTIONS[faction].shortName} AI`,
       faction,
       isHuman: faction === playerFaction,
+      // An absent nation is out from the start: no capital, no army, no AI.
+      ...(absent(faction) ? { absent: true } : {}),
       credits: STARTING_CREDITS,
       oil: STARTING_OIL,
       leasedOil: 0,
       debt: 0,
       creditFrozen: false,
-      defeated: false,
-      capitalLost: false,
+      defeated: absent(faction),
+      capitalLost: absent(faction),
       powerProduced: 0,
       powerConsumed: 0,
       powerStored: 0,
@@ -405,7 +410,9 @@ export class Game {
     // Landmarks and oil derricks at real-world locations.
     for (const player of this.players) {
       const f = player.faction;
-      this.landmarks.push(this.entities.add(new Capital(FACTIONS[f], player.id, geoToWorld(CAPITAL_LOCATIONS[f]))));
+      // An absent nation's capital stands neutral, to be taken by an engineer like Japan's or Korea's.
+      if (player.absent) this.landmarks.push(this.entities.add(new NationCapital(f, geoToWorld(CAPITAL_LOCATIONS[f]))));
+      else this.landmarks.push(this.entities.add(new Capital(FACTIONS[f], player.id, geoToWorld(CAPITAL_LOCATIONS[f]))));
     }
     // The Global Monitoring Center is neutral: shared by every nation, never destroyed or occupied.
     this.landmarks.push(this.entities.add(new WorldBank(geoToWorld(WORLD_BANK_LOCATION))));
@@ -693,7 +700,7 @@ export class Game {
     // corner stays put and only the forecourt is dropped.
     for (const [e] of shells) if (e instanceof Capital) (e.spec as { footprint: { w: number; d: number } }).footprint = capitalFootprint(e.faction as FactionId);
     // Older saves carry the contested capitals' 4 × 4 footprint: they are 5 × 3 now.
-    for (const [e] of shells) if (e instanceof NationCapital) (e.spec as { footprint: { w: number; d: number } }).footprint = FOOTPRINT_NATION_CAPITAL;
+    for (const [e] of shells) if (e instanceof NationCapital) (e.spec as { footprint: { w: number; d: number } }).footprint = nationInfo(e.nation).footprint;
     for (const [e] of shells) this.entities.add(e);
     this.shrinkOldBunkers();
     for (const b of this.entities.buildings()) if (b.alive) this.occupyBuilding(b);
@@ -1125,7 +1132,7 @@ export class Game {
     for (const b of this.landmarks) {
       const city =
         b instanceof NationCapital
-          ? CONTESTED_NATIONS[b.nation].site.name
+          ? b.city
           : b.spec.type === 'capital'
             ? FACTIONS[b.spec.spriteKey.replace(/^capital:/, '') as FactionId].capital.city
             : null;
@@ -1167,7 +1174,7 @@ export class Game {
 
   /** BREAKING NEWS: a contested nation's capital changed hands. */
   private announceNationCapture(b: NationCapital, before: number): void {
-    const nation = CONTESTED_NATIONS[b.nation].name;
+    const nation = nationInfo(b.nation).name;
     const name = (id: number): string => {
       const p = this.players.find((pl) => pl.id === id);
       return !p ? t('nobody') : p.isHuman ? 'You' : FACTIONS[p.faction].name;
@@ -1379,6 +1386,34 @@ export class Game {
   /** Whether a new building may be placed (used by the Phase 2 build menu and AI). */
   canPlace(req: PlacementRequest): PlacementResult {
     return this.placement.check(req);
+  }
+
+  /**
+   * Multiplayer: the player of `faction` left the match (quit, closed the page, lost the connection). The nation counts
+   * as beaten at once: its army and structures leave the map, its capital (if it still holds it) stands neutral like
+   * Japan's or Korea's, and the news says so. The last nation standing wins (evaluateNations).
+   */
+  nationLeft(faction: FactionId): void {
+    const p = this.players.find((pl) => pl.faction === faction);
+    if (!p || p.isHuman || p.defeated) return;
+    p.defeated = true;
+    p.capitalLost = true;
+    for (const b of this.entities.buildings().filter((e) => e.owner === p.id)) {
+      const own = b.spec.type === 'capital' && b.spec.spriteKey === `capital:${faction}`;
+      this.removeBuilding(b);
+      if (!own) continue;
+      const i = this.landmarks.indexOf(b);
+      const seat = this.entities.add(new NationCapital(faction, geoToWorld(CAPITAL_LOCATIONS[faction])));
+      this.occupyBuilding(seat);
+      if (i >= 0) this.landmarks[i] = seat;
+      else this.landmarks.push(seat);
+    }
+    for (const u of this.entities.units().filter((e) => e.owner === p.id)) {
+      this.selection.selectedUnits.delete(u.id);
+      this.entities.remove(u.id);
+    }
+    this.news.show(t('BREAKING NEWS'), t('{name} has left the match and is defeated.', { name: FACTIONS[faction].name }));
+    this.evaluateNations();
   }
 
   /**
@@ -3330,7 +3365,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       this.militarySnapshotAt = this.time;
     }
     const price = this.oilMarket.price;
-    return this.players.map((p) => ({
+    return this.players.filter((p) => !p.absent).map((p) => ({
       playerId: p.id,
       faction: p.faction as FactionId,
       name: FACTIONS[p.faction].name,

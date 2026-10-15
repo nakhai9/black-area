@@ -1,0 +1,8 @@
+services:
+  - type: web
+    name: black-area-server
+    runtime: node
+    buildCommand: npm install -w server
+    startCommand: npm start -w server
+    healthCheckPath: /
+    plan: free

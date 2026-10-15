@@ -16,8 +16,8 @@ import { TechCenter } from '../entities/TechCenter';
 import { Vehicle } from '../entities/Vehicle';
 import { WarFactory } from '../entities/WarFactory';
 import { WorldBank } from '../entities/WorldBank';
-import { NationCapital } from '../entities/NationCapital';
-import { CELL_SIZE, type ContestedNationId, VEHICLE_BASE } from '../constants';
+import { NationCapital, type NationId } from '../entities/NationCapital';
+import { CELL_SIZE, VEHICLE_BASE } from '../constants';
 import { geoToWorld } from '../map/Geo';
 import { FACTIONS } from '../factions';
 import { BUILD_OPTIONS } from '../systems/ConstructionSystem';
@@ -63,7 +63,7 @@ const ENTITY_CLASSES: Readonly<Record<string, abstract new (...args: never[]) =>
 const TEMPLATES: Readonly<Record<string, (d: Record<string, unknown>, at: WorldPoint) => Entity>> = {
   Capital: (d, at) => new Capital(FACTIONS[d.faction as FactionId], d.owner as number, at),
   WorldBank: (_d, at) => new WorldBank(at),
-  NationCapital: (d, at) => new NationCapital(d.nation as ContestedNationId, at),
+  NationCapital: (d, at) => new NationCapital(d.nation as NationId, at),
   // A leased-out derrick is built as its leasing nation's (its protection follows that nation); the saved fields then hand it to the lessee.
   OilDerrick: (d, at) =>
     new OilDerrick((d.lessor ?? d.owner) as number, (d.lessorFaction ?? d.faction) as FactionId, at, (d.rowIndex as number) ?? 0, d.bankManaged === true, d.antarctic === true),
