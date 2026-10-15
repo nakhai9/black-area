@@ -31,7 +31,8 @@ export type ServerMessage =
   | { t: 'hello'; id: string }
   | { t: 'room'; room: RoomView | null }
   | { t: 'start'; seed: number; room: RoomView }
-  | { t: 'cmd'; from: string; tick: number; data: unknown }
+  | { t: 'turn'; n: number; cmds: { f: FactionId; c: unknown }[] }
+  | { t: 'desync'; n: number }
   | { t: 'error'; message: string }
   | { t: 'loading'; players: { id: string; pct: number; loaded: boolean }[] }
   | { t: 'go' }
@@ -45,7 +46,8 @@ type ClientMessage =
   | { t: 'faction'; faction: FactionId }
   | { t: 'ready'; ready: boolean }
   | { t: 'start' }
-  | { t: 'cmd'; tick: number; data: unknown }
+  | { t: 'cmd'; data: unknown }
+  | { t: 'hash'; n: number; h: number }
   | { t: 'leave' };
 
 /** One WebSocket to the multiplayer server; messages go to `onMessage`. */

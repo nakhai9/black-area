@@ -69,6 +69,13 @@ export class PathService {
   /** `start cluster:goal cell` → time (performance.now) until which that search gets only MISS_EXPANSIONS. */
   private readonly missed = new Map<string, number>();
   private lastDetour = -Infinity;
+  /**
+   * Clock (ms) for the retry timers. Wall clock by default; a multiplayer match sets the game clock instead, so every
+   * machine makes the same routing decisions at the same moment.
+   */
+  clock: () => number = () => performance.now();
+  /** Multiplayer: route work per tick is counted in job steps instead of ms, so it is the same on every machine. */
+  stepBudget: number | null = null;
 
   constructor(
     private readonly map: TileMap,
@@ -184,7 +191,7 @@ export class PathService {
   find(start: WorldPoint, goal: GridPoint, swim = false): WorldPoint[] {
     if (!this.map.inBounds(goal.x, goal.y)) return [];
     const key = this.map.index(goal.x, goal.y);
-    const now = performance.now();
+    const now = this.clock();
     // Many units keep asking for the same unreachable goal (stuck repaths, attack-move resumes, AI re-orders): every full
     // search floods the whole budget, so for a while a goal that just failed gets only a short partial search.
     const missKey = `${this.clusterOf(Math.floor(start.x / CELL_SIZE), Math.floor(start.y / CELL_SIZE))}:${key}`;
@@ -229,6 +236,13 @@ export class PathService {
 
   /** Runs queued route work for at most PATH_BUDGET_MS (always at least one step, so nothing starves). */
   update(): void {
+    if (this.stepBudget !== null) {
+      for (let steps = 0; steps < this.stepBudget && this.jobs.length > 0; steps++) {
+        const job = this.jobs[0];
+        if (!job || job.next().done) this.jobs.shift();
+      }
+      return;
+    }
     const until = performance.now() + PATH_BUDGET_MS;
     let first = true;
     while (this.jobs.length > 0 && (first || performance.now() < until)) {

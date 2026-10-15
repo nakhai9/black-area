@@ -30,7 +30,7 @@ import type { Peak, TerrainRenderer } from '../map/TerrainRenderer';
 import { createCanvas, get2d } from '../render/Canvas';
 import { withAlpha } from '../render/Color';
 import { IsoPainter } from '../render/IsoPainter';
-import type { Sprite, SpriteCache } from '../render/SpriteCache';
+import { type Sprite, type SpriteCache, spriteRaster } from '../render/SpriteCache';
 import type { FactionId, Rect } from '../types';
 import type { Camera } from './Camera';
 import { drawBombBlast, drawBombFall } from '../render/BombSheets';
@@ -508,7 +508,7 @@ export class Renderer {
     if (!sheet) {
       ctx.save();
       ctx.translate(c.x, c.y);
-      ctx.drawImage(s.canvas, -s.centerX * k, -s.centerY * k, s.width * k, s.height * k);
+      ctx.drawImage(spriteRaster(s, k * this.camera.zoom * this.dpr), -s.centerX * k, -s.centerY * k, s.width * k, s.height * k);
       ctx.restore();
     }
     if (rise < 1) {
@@ -1272,7 +1272,7 @@ export class Renderer {
     const c = worldToIso(fx + fw / 2, fy + fh / 2);
     ctx.globalAlpha = g.ok ? 0.75 : 0.45;
     if (!(g.spriteKey.startsWith('bunker:') && drawBunkerGhost(ctx, g.faction as FactionId, c.x, c.y))) {
-      ctx.drawImage(s.canvas, c.x - s.centerX * scale, c.y - s.centerY * scale, s.width * scale, s.height * scale);
+      ctx.drawImage(spriteRaster(s, scale * this.camera.zoom * this.dpr), c.x - s.centerX * scale, c.y - s.centerY * scale, s.width * scale, s.height * scale);
     }
     ctx.globalAlpha = 1;
 

@@ -24,6 +24,7 @@ import type { SaveFile } from './core/SaveCodec';
 import { LANGUAGE_RELOAD_KEY, PENDING_SAVE_KEY } from './ui/PauseMenu';
 import { confirmLoadedGame } from './ui/LoadConfirm';
 import type { MultiplayerStart } from './ui/MultiplayerLobby';
+import { Lockstep } from './net/Lockstep';
 import { FACTIONS } from './factions';
 
 function byId<T extends HTMLElement>(id: string): T {
@@ -178,8 +179,8 @@ async function boot(): Promise<void> {
       earth,
       sound,
       demo,
-      // Multiplayer: only the room's nations play; the others' capitals stand as occupiable ones.
-      mp?.room.players.map((p) => p.faction),
+      // Multiplayer: only the room's nations play (all by people); the others' capitals stand as occupiable ones.
+      mp ? { present: mp.room.players.map((p) => p.faction), seed: mp.seed } : undefined,
     );
     if (pending) game.importSave(pending);
     setProgress(100);
@@ -189,10 +190,15 @@ async function boot(): Promise<void> {
       // A player who leaves (while loading or in the match) loses: their nation is taken off the map.
       const onLeft = (f: FactionId): void => game.nationLeft(f);
       leftEarly.forEach(onLeft);
+      // From the start the match runs in lockstep: every order goes through the server's turns.
+      const lockstep = new Lockstep(mp.net);
+      game.attachLockstep(lockstep);
       await waitForPlayers(mp, onLeft);
       mp.net.onMessage = (msg) => {
-        if (msg.t === 'left') onLeft(msg.faction);
+        if (msg.t === 'turn') lockstep.push(msg);
+        else if (msg.t === 'desync') game.warnDesync();
       };
+      mp.net.onClose = () => game.warnDisconnected();
     }
     loading.remove();
     document.body.classList.remove('pregame');

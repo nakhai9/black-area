@@ -302,6 +302,8 @@ export class AISystem implements GameSystem {
   constructor(
     private readonly players: readonly PlayerState[],
     private readonly host: AIHost,
+    /** Multiplayer: shared seed, so every machine gives each AI the same personality; solo games pick at random. */
+    private readonly seed: number | null = null,
   ) {
     players.forEach((p, i) => this.addState(p, i));
     this.claimCandidates(); // built while the game loads, not as a hitch in the middle of a war
@@ -329,7 +331,7 @@ export class AISystem implements GameSystem {
   }
 
   private addState(p: PlayerState, i: number): AIState {
-    const rng = mulberry32(1000 + p.id * 77 + Math.floor(Math.random() * 1e6));
+    const rng = mulberry32(1000 + p.id * 77 + (this.seed ?? Math.floor(Math.random() * 1e6)));
     const style = PERSONALITIES[Math.floor(rng() * PERSONALITIES.length)] ?? PERSONALITIES[2];
     const st: AIState = {
       nextThink: 2 + i * 0.5,

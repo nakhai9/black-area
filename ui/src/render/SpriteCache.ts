@@ -35,6 +35,32 @@ export interface Sprite {
   readonly mirrored: boolean;
   /** Alpha channel at raster resolution, for pixel-perfect picking. */
   readonly alpha: Uint8Array;
+  /** Halved copies (mip levels: 1×, 0.5× of the logical size…), made on first use. */
+  mips?: HTMLCanvasElement[];
+}
+
+/**
+ * The raster of `s` best suited to draw it at `screenPerPx` screen pixels per logical pixel: the smallest mip level
+ * still at least that sharp. A big raster shrunk a lot in one go shimmers and looks rough (the browser only samples
+ * a few of its pixels); halving it step by step first keeps the edges and surfaces smooth.
+ */
+export function spriteRaster(s: Sprite, screenPerPx: number): HTMLCanvasElement {
+  let level = s.canvas;
+  let density = RASTER_SCALE;
+  for (let i = 0; density / 2 >= screenPerPx && i < 3; i++) {
+    s.mips ??= [];
+    let next = s.mips[i];
+    if (!next) {
+      const { canvas, ctx } = createCanvas(Math.max(1, Math.round(level.width / 2)), Math.max(1, Math.round(level.height / 2)));
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(level, 0, 0, canvas.width, canvas.height);
+      s.mips[i] = next = canvas;
+    }
+    level = next;
+    density /= 2;
+  }
+  return level;
 }
 
 /**

@@ -29,8 +29,8 @@ export function applyRa2Finish(ctx: CanvasRenderingContext2D, w: number, h: numb
       r = (r - 128) * 1.08 + 122;
       g = (g - 128) * 1.08 + 122;
       b = (b - 128) * 1.08 + 120;
-      // Two-octave grain: per pixel and per 2×2 block (raster is 2× so blocks read as texture, not noise).
-      const n = (hash(x, y) - 0.5) * 14 + (hash(x >> 1, y >> 1) - 0.5) * 12;
+      // Two-octave grain, kept faint: strong per-pixel noise made surfaces look rough once shrunk to screen size.
+      const n = (hash(x, y) - 0.5) * 5 + (hash(x >> 1, y >> 1) - 0.5) * 5;
       d[i] = r + n;
       d[i + 1] = g + n;
       d[i + 2] = b + n;

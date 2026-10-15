@@ -99,6 +99,7 @@ export default {
   'Leave room': 'Rời phòng',
   'Room not found': 'Sai tên phòng hoặc mã phòng',
   You: 'Bạn',
+  'Out of sync with the other players: this match may differ between machines.': 'Lệch đồng bộ với người chơi khác: trận này có thể khác nhau giữa các máy.',
   'Room "{name}" created — code {code}.': 'Đã tạo phòng "{name}" — mã {code}.',
   'Joined room "{name}".': 'Đã vào phòng "{name}".',
   'Could not create the room': 'Tạo phòng thất bại',

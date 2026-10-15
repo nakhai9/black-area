@@ -60,6 +60,7 @@ import {
   CURRENCY,
   EARTH_TEXTURE_URL,
   FACTION_ORDER,
+  TICK_RATE,
   FOCUS_ZOOM,
   GRID_HEIGHT,
   GRID_WIDTH,
@@ -176,6 +177,7 @@ import { SelectionSystem } from '../systems/SelectionSystem';
 import { TrainingSystem } from '../systems/TrainingSystem';
 import { VehicleSystem } from '../systems/VehicleSystem';
 import type { BuildingType, FactionId, GameEvents, GridPoint, OilPolicy, PlayerState, UnitTier, VehicleKind, WeaponSpec, WorldPoint } from '../types';
+import { HASH_EVERY_TURNS, type Lockstep, type Turn } from '../net/Lockstep';
 import { Minimap } from '../ui/Minimap';
 import { sweepUnitSprites, unitSpriteBytes } from '../render/UnitSprites';
 import { type AircraftInfo, type TransportInfo, type RankRow, type AllyInfo, Sidebar } from '../ui/Sidebar';
@@ -203,6 +205,37 @@ export interface GameDom {
 }
 
 const SIDEBAR_REFRESH = 0.2;
+/** Multiplayer: route-planning job steps per tick (instead of a time budget), the same on every machine. */
+const MP_PATH_STEPS = 12;
+
+/**
+ * Everything a player orders. A solo game runs it at once; in multiplayer it goes through the lockstep turns so every
+ * machine runs it at the same tick. `sel` / `sb`: the player's selected units / structure when they gave it;
+ * `pu` / `pb`: the unit / structure they clicked, picked on their own screen.
+ */
+export type GameCommand = (
+  | { k: 'left'; w: WorldPoint; shift: boolean; dbl: boolean; bdbl: boolean }
+  | { k: 'right'; w: WorldPoint; am: boolean }
+  | { k: 'guard'; ward: number }
+  | { k: 'sellBuilding'; b: number }
+  | { k: 'key'; code: 'KeyF' | 'KeyU' | 'KeyT' | 'KeyX' | 'KeyC' }
+  | { k: 'waypoints'; pts: WorldPoint[] }
+  | { k: 'minimap'; w: WorldPoint }
+  | { k: 'place'; opt: string; x: number; y: number; rot: boolean }
+  | { k: 'build' | 'buildCancel'; opt: string }
+  | { k: 'train' | 'trainCancel'; tier: UnitTier }
+  | { k: 'vehicle' | 'vehicleCancel'; kind: VehicleKind }
+  | { k: 'policy'; policy: OilPolicy }
+  | { k: 'sellOil' | 'autoSell' | 'loan' | 'unload' | 'turbo' }
+  /** Server-sent: that player left the match. */
+  | { k: 'leftMatch' }
+) & { sel?: number[]; sb?: number | null; pu?: number | null; pb?: number | null };
+
+/** Multiplayer setup handed to the game: the nations in the room (all played by people) and the shared seed. */
+export interface MultiplayerSetup {
+  present: readonly FactionId[];
+  seed: number;
+}
 
 /** Player-facing explanation of why a footprint cannot be placed. */
 const BLOCK_REASONS: Readonly<Record<string, string>> = {
@@ -301,9 +334,12 @@ export class Game {
   /** Retreat groups (see Unit.retreatGroup) and the "group:nation" pairs already paid the mercy bonus. */
   private nextRetreatGroup = 1;
   private readonly mercyPaid = new Set<string>();
-  /** Attacks launched on the player's structures so far, and when each enemy nation last hit one of them. */
-  private attacksOnPlayer = 0;
-  private readonly lastHitOnPlayer = new Map<number, number>();
+  /**
+   * Derrick grace, per nation played by a person: attacks launched on its structures so far (owner id -> count), and
+   * when each enemy nation last hit one of them ("target:attacker" -> game time).
+   */
+  private graceHits: Record<number, number> = {};
+  private readonly lastHitOnPlayer = new Map<string, number>();
   /** Computer-controlled nations. */
   readonly ai: AISystem;
   readonly effects = new EffectsLayer();
@@ -353,8 +389,17 @@ export class Game {
   private militarySnapshot: Map<number, number> | null = null;
   private militarySnapshotAt = 0;
   private sidebarTimer = SIDEBAR_REFRESH; // refresh on the first frame
-  /** Auto sell toggle: offer the oil stock whenever the market allows a sale. */
-  private autoSellOil = false;
+  /** Auto sell on, per player id: their oil stock is offered whenever the market allows a sale. */
+  private readonly autoSellers = new Set<number>();
+  private autoSellClock = 0;
+  /** Id of the player at this screen (in multiplayer the other people play on their own machines). */
+  private readonly localId: number;
+  /** While a command runs: the player who gave it (humanPlayer is that player meanwhile). */
+  private actorId: number | null = null;
+  /** Multiplayer lockstep link (null in a solo game). */
+  private lockstep: Lockstep | null = null;
+  /** Multiplayer: the server found this machine's game no longer matches the others' (warned once). */
+  private desyncWarned = false;
 
   /**
    * Builds the game for the chosen faction. Pass an already-started Earth
@@ -366,9 +411,9 @@ export class Game {
     earth: Promise<EarthData> = loadEarthData(EARTH_TEXTURE_URL),
     sound: SoundSystem = new SoundSystem(),
     demo = false,
-    present?: readonly FactionId[],
+    mp?: MultiplayerSetup,
   ): Promise<Game> {
-    return new Game(dom, playerFaction, await earth, sound, demo, present);
+    return new Game(dom, playerFaction, await earth, sound, demo, mp);
   }
 
   private constructor(
@@ -378,17 +423,19 @@ export class Game {
     sound: SoundSystem,
     /** Dev-only DEMO mode: the player tests alone, the other nations' AI never acts. */
     demo = false,
-    /** Multiplayer room: the nations in play; the others are absent and their capitals become occupiable. */
-    present?: readonly FactionId[],
+    /** Multiplayer room: the nations in play (all played by people); the others are absent, their capitals occupiable. */
+    mp?: MultiplayerSetup,
   ) {
+    const present = mp?.present;
     setDemoActive(demo);
     if (demo) dom.sidebar.classList.add('demo');
     const absent = (f: FactionId): boolean => !!present && f !== playerFaction && !present.includes(f);
     this.players = FACTION_ORDER.map((faction, i) => ({
       id: i + 1,
-      name: faction === playerFaction ? 'Commander' : `${FACTIONS[faction].shortName} AI`,
+      name: faction === playerFaction ? 'Commander' : present?.includes(faction) ? FACTIONS[faction].shortName : `${FACTIONS[faction].shortName} AI`,
       faction,
-      isHuman: faction === playerFaction,
+      // Multiplayer: every nation in the room is played by a person (no AI); solo: only this screen's.
+      isHuman: faction === playerFaction || !!present?.includes(faction),
       // An absent nation is out from the start: no capital, no army, no AI.
       ...(absent(faction) ? { absent: true } : {}),
       credits: STARTING_CREDITS,
@@ -406,6 +453,8 @@ export class Game {
       powerSupply: 0,
       powerShort: false,
     }));
+
+    this.localId = this.players.find((p) => p.faction === playerFaction)!.id;
 
     // Landmarks and oil derricks at real-world locations.
     for (const player of this.players) {
@@ -443,6 +492,11 @@ export class Game {
     this.construction = new ConstructionSystem(this.players);
     this.pathfinder = new Pathfinder(this.map);
     this.paths = new PathService(this.map, this.pathfinder);
+    if (mp) {
+      // Multiplayer: route work runs on the game clock and a fixed step budget, the same on every machine.
+      this.paths.clock = () => this.time * 1000;
+      this.paths.stepBudget = MP_PATH_STEPS;
+    }
     // Label the landmasses now, behind the loading screen, not on the first order of the game (~130 ms).
     this.pathfinder.sameLandmass(0, 0, 0, 0);
     this.training = new TrainingSystem(this.players, this.entities, (player, tier, barracks) =>
@@ -464,8 +518,9 @@ export class Game {
     this.aircraft = new AircraftSystem(this.entities, (b) => this.airfieldGeometry(b), {
       landingSpot: (x, y, self) => this.landingSpot(x, y, self),
       unloadOne: (t) => this.unloadOne(t),
-      selected: (v) => this.selection.selectedUnits.has(v.id),
-      computer: (owner) => owner !== this.humanPlayer.id,
+      // Multiplayer: selections live on each machine only, so they never steer the shared game.
+      selected: (v) => !this.lockstep && this.selection.selectedUnits.has(v.id),
+      computer: (owner) => !this.players.find((p) => p.id === owner)?.isHuman,
       powered: (owner) => !this.players.find((p) => p.id === owner)?.powerShort,
       mayday: (v) => {
         if (v.owner === this.humanPlayer.id) this.sound.mayday();
@@ -496,6 +551,7 @@ export class Game {
     this.ai = new AISystem(
       this.players.filter((p) => !p.isHuman),
       this,
+      mp?.seed ?? null,
     );
     this.systems = [
       new PowerSystem(this.players, this.entities, this.oilMarket),
@@ -506,10 +562,10 @@ export class Game {
         this.entities,
         this.oilMarket,
         (player, _city, amount) => {
-          if (player.isHuman) this.sidebar.notify(t('Happy City taxes: +{amount} {currency}.', { amount, currency: CURRENCY }), 3);
+          if (player.id === this.localId) this.sidebar.notify(t('Happy City taxes: +{amount} {currency}.', { amount, currency: CURRENCY }), 3);
         },
         (player, capital) => {
-          if (player.isHuman) this.sidebar.notify(t('Military presence fee ({city}): +{fee} {currency}.', { city: capital.city, fee: NATION_PRESENCE_FEE, currency: CURRENCY }), 3);
+          if (player.id === this.localId) this.sidebar.notify(t('Military presence fee ({city}): +{fee} {currency}.', { city: capital.city, fee: NATION_PRESENCE_FEE, currency: CURRENCY }), 3);
         },
       ),
       this.construction,
@@ -537,26 +593,33 @@ export class Game {
     // UI.
     const human = this.humanPlayer;
     this.sidebar = new Sidebar(dom.sidebar, human, BUILD_OPTIONS, this.training.optionsFor(human), this.production.optionsFor(human), {
-      onBuild: (option) => this.onBuildClick(option),
-      onCancel: (option) => this.onBuildCancel(option),
+      onBuild: (option) => {
+        // A finished structure is positioned on this screen; anything else is an order.
+        if (this.construction.slot(this.humanPlayer, option.id).state === 'ready') this.onBuildClick(option);
+        else this.issue({ k: 'build', opt: option.id });
+      },
+      onCancel: (option) => {
+        if (this.placing?.id === option.id) this.stopPlacing();
+        this.issue({ k: 'buildCancel', opt: option.id });
+      },
       preview: (option) => (option.id === 'bunker' ? bunkerPreview(human.faction) : null) ?? this.sprites.get(option.spriteKey(human.faction)).canvas,
-      onTrain: (option) => this.onTrainClick(option.tier),
-      onTrainCancel: (option) => this.onTrainCancel(option.tier),
+      onTrain: (option) => this.issue({ k: 'train', tier: option.tier }),
+      onTrainCancel: (option) => this.issue({ k: 'trainCancel', tier: option.tier }),
       trainPreview: (option) => soldierPortrait(human.faction, option.tier),
       onAlert: (at) => {
         if (!this.paused) this.camera.centerOn(at.x, at.y);
       },
-      onSellOil: () => this.sellOil(),
-      onToggleAutoSell: () => this.toggleAutoSell(),
-      onLoan: () => this.takeLoan(),
-      onOilPolicy: (policy) => this.setOilPolicy(policy),
-      onUnload: () => this.unloadSelectedTransport(),
-      onTurbo: () => this.turboSelected(),
+      onSellOil: () => this.issue({ k: 'sellOil' }),
+      onToggleAutoSell: () => this.issue({ k: 'autoSell' }),
+      onLoan: () => this.issue({ k: 'loan' }),
+      onOilPolicy: (policy) => this.issue({ k: 'policy', policy }),
+      onUnload: () => this.issue({ k: 'unload' }),
+      onTurbo: () => this.issue({ k: 'turbo' }),
       onHome: () => {
         if (!this.paused) this.focusOwnCapital();
       },
-      onVehicle: (option) => this.onVehicleClick(option.kind),
-      onVehicleCancel: (option) => this.onVehicleCancel(option.kind),
+      onVehicle: (option) => this.issue({ k: 'vehicle', kind: option.kind }),
+      onVehicleCancel: (option) => this.issue({ k: 'vehicleCancel', kind: option.kind }),
       vehiclePreview: (option) => vehiclePortrait(human.faction, option.kind),
     });
     this.minimap = new Minimap(
@@ -591,8 +654,10 @@ export class Game {
     );
   }
 
+  /** The player at this screen, or, while a command runs, the player who gave it. */
   get humanPlayer(): PlayerState {
-    const p = this.players.find((pl) => pl.isHuman);
+    const id = this.actorId ?? this.localId;
+    const p = this.players.find((pl) => pl.id === id);
     if (!p) throw new Error('No human player configured');
     return p;
   }
@@ -621,7 +686,7 @@ export class Game {
   }
 
   /** Game fields never written back from a save (screen / input state). */
-  private static readonly UNSAVED = ['systems', 'paths', 'paused', 'ended', 'dom', 'lastCursor', 'mouseWorld', 'ghost', 'placing', 'placingRotated', 'waypoints', 'moveMarker', 'pathPeekId', 'lastBuildingClick', 'shortRepaths'];
+  private static readonly UNSAVED = ['systems', 'paths', 'paused', 'ended', 'dom', 'lastCursor', 'mouseWorld', 'ghost', 'placing', 'placingRotated', 'waypoints', 'moveMarker', 'pathPeekId', 'lastBuildingClick', 'shortRepaths', 'localId', 'actorId', 'lockstep', 'desyncWarned'];
 
   /**
    * Everything needed to continue this game later, as plain JSON-ready data: players, every entity, the state of
@@ -713,6 +778,10 @@ export class Game {
       if (part) codec.restore(part, data);
     }
     codec.restore(this, save.game);
+    // Saves from before 2.2.0 kept the derrick grace and auto sell for the one human player only.
+    const old = save.game as { attacksOnPlayer?: unknown; autoSellOil?: unknown };
+    if (typeof old.attacksOnPlayer === 'number') this.graceHits[this.localId] = old.attacksOnPlayer;
+    if (old.autoSellOil === true) this.autoSellers.add(this.localId);
     this.addMissingSites(freshSites);
     this.dropRemovedOrders();
     // Visual effects are not saved, except ticking charges, which draw their own.
@@ -1177,7 +1246,7 @@ export class Game {
     const nation = nationInfo(b.nation).name;
     const name = (id: number): string => {
       const p = this.players.find((pl) => pl.id === id);
-      return !p ? t('nobody') : p.isHuman ? 'You' : FACTIONS[p.faction].name;
+      return !p ? t('nobody') : p.id === this.localId ? 'You' : FACTIONS[p.faction].name;
     };
     const taker = name(b.owner);
     const prev = before === NEUTRAL_OWNER ? null : name(before);
@@ -1395,7 +1464,7 @@ export class Game {
    */
   nationLeft(faction: FactionId): void {
     const p = this.players.find((pl) => pl.faction === faction);
-    if (!p || p.isHuman || p.defeated) return;
+    if (!p || p.id === this.localId || p.defeated) return;
     p.defeated = true;
     p.capitalLost = true;
     for (const b of this.entities.buildings().filter((e) => e.owner === p.id)) {
@@ -2080,11 +2149,31 @@ export class Game {
   }
 
   /** Fixed-rate simulation step. */
+  /**
+   * One fixed step of the game. Multiplayer: only once the server's next turn is here (its commands run first, on
+   * every machine at the same tick); a machine behind the others plays a few ticks per frame to catch up.
+   */
   private tick(dt: number): void {
-    if (this.ended || this.paused) {
+    const ls = this.lockstep;
+    if (!ls) {
+      this.simTick(dt);
+      return;
+    }
+    const runs = ls.backlog > 2 ? 4 : 1;
+    for (let i = 0; i < runs; i++) {
+      if (!ls.nextTick((turn) => this.applyTurn(turn))) return;
+      this.simTick(dt);
+    }
+  }
+
+  private simTick(dt: number): void {
+    // A multiplayer match never pauses (the menu opens, the war goes on).
+    if (this.ended || (this.paused && !this.lockstep)) {
       this.sound.motion({ foot: 0, engines: new Map() });
       return;
     }
+    // Game clock: advances with the simulation only, so it is the same on every machine.
+    this.time += dt;
     // Where every unit stood before this tick: frames between two ticks draw it part-way (see drawInterpolated).
     for (const u of this.entities.fieldMovers()) {
       const p = this.prevPos.get(u);
@@ -2136,6 +2225,210 @@ export class Game {
       this.collectGarbage();
     }
     for (const s of this.systems) s.update(dt);
+    this.autoSellClock += dt;
+    if (this.autoSellClock >= SIDEBAR_REFRESH) {
+      this.autoSellClock = 0;
+      for (const id of this.autoSellers) {
+        const p = this.players.find((pl) => pl.id === id);
+        if (!p || p.defeated || this.oilMarket.sellable(p) < MIN_SALE_STOCK || this.oilMarket.waitSeconds(p) !== 0) continue;
+        this.asActor(id, () => this.sellOil(true));
+      }
+    }
+  }
+
+  /** Multiplayer: a turn from the server: a fingerprint now and then, then every player's commands in order. */
+  private applyTurn(turn: Turn): void {
+    if (turn.n % HASH_EVERY_TURNS === 0) this.lockstep?.hash(turn.n, this.stateHash());
+    for (const { f, c } of turn.cmds) {
+      const p = this.players.find((pl) => pl.faction === f);
+      if (p) this.execute(p.id, c as GameCommand);
+    }
+  }
+
+  /** Fingerprint of the game state (units, structures, treasuries): machines in sync give the same number. */
+  private stateHash(): number {
+    let h = Math.round(this.time * 30) | 0;
+    const mix = (v: number): void => {
+      h = (Math.imul(h, 31) + (v | 0)) | 0;
+    };
+    for (const e of this.entities.all()) {
+      mix(e.id);
+      mix(e.owner);
+      mix(Math.round(e.hp));
+      if (e instanceof Unit) {
+        mix(Math.round(e.px * 8));
+        mix(Math.round(e.py * 8));
+      }
+    }
+    for (const p of this.players) mix(Math.round(p.credits));
+    return h;
+  }
+
+  /** Multiplayer: plays from now on through the server's turns. */
+  attachLockstep(ls: Lockstep): void {
+    this.lockstep = ls;
+  }
+
+  /** Multiplayer: the server found the machines' games no longer match. */
+  warnDesync(): void {
+    if (this.desyncWarned) return;
+    this.desyncWarned = true;
+    this.sidebar.notify(t('Out of sync with the other players: this match may differ between machines.'), 8);
+  }
+
+  /** Multiplayer: the connection to the server is gone; the match can no longer go on. */
+  warnDisconnected(): void {
+    this.sidebar.notify(t('Disconnected from the multiplayer server'), 10);
+  }
+
+  /** Runs `fn` as player `id` (humanPlayer is that player); another player's messages are not shown here. */
+  private asActor<T>(id: number, fn: () => T): T {
+    const prev = this.actorId;
+    const quiet = id !== this.localId;
+    const sb = this.sidebar as unknown as Record<string, unknown>;
+    this.actorId = id;
+    if (quiet) {
+      sb.notify = () => undefined;
+      sb.alert = () => undefined;
+    }
+    try {
+      return fn();
+    } finally {
+      this.actorId = prev;
+      if (quiet) {
+        delete sb.notify;
+        delete sb.alert;
+      }
+    }
+  }
+
+  /** An order of this screen's player: at once in a solo game, through the server's turns in multiplayer. */
+  private issue(cmd: GameCommand): void {
+    cmd.sel = [...this.selection.selectedUnits];
+    cmd.sb = this.selection.selectedId;
+    if (this.lockstep) this.lockstep.send(cmd);
+    else this.execute(this.localId, cmd);
+  }
+
+  /**
+   * Runs a player's command with that player's own selection and clicks. This screen keeps its own selection when
+   * the command is someone else's; for its own, it takes the selection the command leaves.
+   */
+  private execute(playerId: number, cmd: GameCommand): void {
+    const p = this.players.find((pl) => pl.id === playerId);
+    if (!p) return;
+    if (cmd.k === 'leftMatch') {
+      this.nationLeft(p.faction);
+      return;
+    }
+    if (p.defeated) return;
+    const sel = this.selection;
+    const local = playerId === this.localId;
+    const kept = { units: [...sel.selectedUnits], id: sel.selectedId, marker: this.moveMarker, peek: this.pathPeekId };
+    const ui = { waypoints: this.waypoints, placing: this.placing, rotated: this.placingRotated };
+    sel.selectedUnits.clear();
+    for (const id of cmd.sel ?? []) {
+      const u = this.entities.get(id);
+      if (u instanceof Unit && u.alive && u.owner === playerId) sel.selectedUnits.add(id);
+    }
+    const sb = cmd.sb === undefined || cmd.sb === null ? undefined : this.entities.get(cmd.sb);
+    sel.selectedId = sb instanceof Building && sb.alive ? sb.id : null;
+    sel.forced = { unit: cmd.pu ?? null, building: cmd.pb ?? null };
+    this.waypoints = null;
+    this.placing = null;
+    try {
+      this.asActor(playerId, () => this.runCommand(cmd));
+    } finally {
+      sel.forced = null;
+      this.waypoints = ui.waypoints;
+      this.placing = ui.placing;
+      this.placingRotated = ui.rotated;
+      if (!local) {
+        sel.selectedUnits.clear();
+        for (const id of kept.units) sel.selectedUnits.add(id);
+        sel.selectedId = kept.id;
+        this.moveMarker = kept.marker;
+        this.pathPeekId = kept.peek;
+        this.bus.emit('selection:changed', { entityId: sel.selectedId });
+      }
+    }
+  }
+
+  private runCommand(cmd: GameCommand): void {
+    const me = this.humanPlayer.id;
+    switch (cmd.k) {
+      case 'left':
+        this.leftClick(cmd.w, cmd.shift, cmd.dbl, cmd.bdbl);
+        break;
+      case 'right':
+        this.rightClick(cmd.w, cmd.am);
+        break;
+      case 'guard': {
+        const ward = this.entities.fieldMovers().find((u) => u.id === cmd.ward);
+        if (ward && ward.owner === me) this.orderGuard(ward, this.selection.selectedUnitList());
+        break;
+      }
+      case 'sellBuilding': {
+        const b = this.entities.get(cmd.b);
+        if (b instanceof Building && b.owner === me) this.sellBuilding(b);
+        break;
+      }
+      case 'key':
+        if (cmd.code === 'KeyF') this.plantSelectedFlags();
+        else if (cmd.code === 'KeyU') this.unloadSelectedTransport();
+        else if (cmd.code === 'KeyT') this.turboSelected();
+        else if (cmd.code === 'KeyX') this.formUpSelected();
+        else this.scatterSelected();
+        break;
+      case 'waypoints':
+        this.waypoints = cmd.pts;
+        this.finishWaypoints();
+        break;
+      case 'minimap':
+        if (this.selection.selectedUnits.size > 0 && this.map.cellAt(cmd.w.x, cmd.w.y)) this.orderMove(cmd.w);
+        break;
+      case 'place':
+        this.placeStructure(cmd.opt, cmd.x, cmd.y, cmd.rot);
+        break;
+      case 'build':
+      case 'buildCancel': {
+        const option = BUILD_OPTIONS.find((o) => o.id === cmd.opt);
+        if (!option) break;
+        if (cmd.k === 'build') this.onBuildClick(option);
+        else this.onBuildCancel(option);
+        break;
+      }
+      case 'train':
+        this.onTrainClick(cmd.tier);
+        break;
+      case 'trainCancel':
+        this.onTrainCancel(cmd.tier);
+        break;
+      case 'vehicle':
+        this.onVehicleClick(cmd.kind);
+        break;
+      case 'vehicleCancel':
+        this.onVehicleCancel(cmd.kind);
+        break;
+      case 'policy':
+        this.setOilPolicy(cmd.policy);
+        break;
+      case 'sellOil':
+        this.sellOil();
+        break;
+      case 'autoSell':
+        this.toggleAutoSell();
+        break;
+      case 'loan':
+        this.takeLoan();
+        break;
+      case 'unload':
+        this.unloadSelectedTransport();
+        break;
+      case 'turbo':
+        this.turboSelected();
+        break;
+    }
   }
 
   /** Seconds left in the current war or ceasefire phase, and which one it is. */
@@ -2403,7 +2696,8 @@ export class Game {
   }
 
   private frame(dt: number, alpha = 1): void {
-    this.time += dt;
+    // Drawing clock: the game clock plus how far the frame is into the next tick (smooth between ticks).
+    const drawTime = this.time + alpha / TICK_RATE;
     this.handleInput(dt);
 
     const { mouse } = this.input;
@@ -2432,7 +2726,7 @@ export class Game {
       selectedId: this.selection.selectedId,
       hoveredId: this.selection.hoveredId,
       selectionRect: this.placing ? null : this.input.selectionRect,
-      time: this.time,
+      time: drawTime,
       ghost: this.ghost,
       buildZones: this.placing ? this.buildZones() : [],
       safeZones: this.safeZones.zones.map((z) => ({
@@ -2458,7 +2752,7 @@ export class Game {
     this.minimapTimer += dt;
     if (this.minimapTimer >= 1 / 12) {
       this.minimapTimer = 0;
-      this.minimap.render(buildings, units, this.humanPlayer.id, this.ownedCache.has('airfield'), this.time);
+      this.minimap.render(buildings, units, this.humanPlayer.id, this.ownedCache.has('airfield'), drawTime);
     }
     this.status.update(dt, this.mouseWorld, this.camera.zoom);
 
@@ -2477,13 +2771,6 @@ export class Game {
       this.sidebarTimer = 0;
       const phase = this.warPhase();
       this.sidebar.setPeaceTimer(phase.peace ? phase.left : null);
-      if (
-        this.autoSellOil &&
-        !this.humanPlayer.defeated &&
-        this.oilMarket.sellable(this.humanPlayer) >= MIN_SALE_STOCK &&
-        this.oilMarket.waitSeconds(this.humanPlayer) === 0
-      )
-        this.sellOil(true);
       const own = this.derricks.filter((d) => d.owner === this.humanPlayer.id && d.alive);
       const pumping = own.filter((d) => d.pumping).length;
       this.sidebar.update(
@@ -2497,7 +2784,7 @@ export class Game {
           warPhase: this.warPhase(),
           sellable: this.oilMarket.sellable(this.humanPlayer),
           salesWait: this.oilMarket.waitSeconds(this.humanPlayer),
-          autoSell: this.autoSellOil,
+          autoSell: this.autoSellers.has(this.localId),
           cartel: this.oilMarket.isCartel(this.humanPlayer),
           oilPolicy: this.oilMarket.policy,
           policyWait: this.oilMarket.policyWait(),
@@ -2556,18 +2843,26 @@ export class Game {
           if (ev.button === 'right') {
             // Right-click in waypoint mode: the selection sets off along the route, then is deselected.
             if (this.waypoints) {
-              this.finishWaypoints();
+              this.sendWaypoints();
               this.selection.clearAll();
-            } else if (ev.ctrl && ev.shift) this.rightClick(world, true);
-            else if (!this.peekPath(world)) this.selection.clearAll();
+            } else if (ev.ctrl && ev.shift) {
+              // A selected aircraft circling right over its next target must not swallow the click: it is looked through.
+              const pu = this.selection.pickUnit(world, (u) => u.flies && this.selection.selectedUnits.has(u.id));
+              this.issue({ k: 'right', w: world, am: true, pu: pu?.id ?? null, pb: pu ? null : (this.selection.pick(world)?.id ?? null) });
+            } else if (!this.peekPath(world)) this.selection.clearAll();
           } else if (ev.ctrl && !ev.shift) {
             // Fighters selected + Ctrl+click on one of my units (not self-propelled air defence): they fly guard on it.
+            const me = this.humanPlayer.id;
             const ward = this.selection.pickUnit(world);
-            if (ward && ward.owner === this.humanPlayer.id && this.orderGuard(ward, this.selection.selectedUnitList())) break;
+            const fighters = this.selection.selectedUnitList().some((u) => u instanceof Vehicle && u.aircraft && u.type === 'jet' && u.alive);
+            if (ward && ward.owner === me && fighters && !this.selection.selectedUnits.has(ward.id) && !(ward instanceof Vehicle && ward.type === 'mantis')) {
+              this.issue({ k: 'guard', ward: ward.id });
+              break;
+            }
             // Ctrl+click on one of my structures: sell it to the Global Monitoring Center.
             const b = this.selection.pick(world);
-            if (b && b.owner === this.humanPlayer.id) this.sellBuilding(b);
-          } else this.leftClick(world, ev.shift, ev.double);
+            if (b && b.owner === me) this.issue({ k: 'sellBuilding', b: b.id });
+          } else this.clickOrder(world, ev.shift, ev.double);
           break;
         }
         case 'wheel':
@@ -2626,7 +2921,46 @@ export class Game {
    * With units selected, a click on open ground, an enemy, a transport or a building they can enter gives that order.
    * Anything else clears the selection.
    */
-  private leftClick(world: WorldPoint, shift: boolean, double: boolean): void {
+  /**
+   * A left click on this screen: waypoints are plotted here; anything else becomes an order, with what is under the
+   * cursor picked now (as the player sees it).
+   */
+  private clickOrder(world: WorldPoint, shift: boolean, double: boolean): void {
+    if (this.waypoints && this.selection.selectedUnits.size > 0) {
+      if (this.waypoints.length < MAX_WAYPOINTS && this.map.cellAt(world.x, world.y)) this.waypoints.push(world);
+      else if (this.waypoints.length >= MAX_WAYPOINTS) this.sidebar.notify(t('At most {max} waypoints — press Z or right-click to go.', { max: MAX_WAYPOINTS }));
+      return;
+    }
+    this.waypoints = null;
+    const pu = this.selection.pickUnit(world);
+    const hit = pu ? null : this.selection.pick(world);
+    let bdbl = false;
+    if (hit) {
+      const now = performance.now();
+      bdbl = this.lastBuildingClick?.id === hit.id && now - this.lastBuildingClick.at < 400;
+      this.lastBuildingClick = { id: hit.id, at: now };
+    }
+    // Clicks that only change what is selected stay on this screen (no waiting for the server's next turn).
+    const me = this.humanPlayer.id;
+    const none = this.selection.selectedUnits.size === 0;
+    // (Double-click on a selected loaded carrier lets its riders out: that is an order.)
+    const unloads = double && !shift && pu instanceof Vehicle && pu.isCarrier && pu.cargo.length > 0 && this.selection.selectedUnits.has(pu.id);
+    if (pu && pu.owner === me && !unloads && (none || shift || double)) {
+      if (shift && !double) this.selection.toggleUnit(pu.id);
+      else this.selection.selectUnits([pu.id]);
+      return;
+    }
+    if (none && !(hit && bdbl && hit.owner === me)) {
+      if (hit) {
+        this.selection.selectedUnits.clear();
+        this.selection.select(hit.id);
+      } else if (!shift) this.selection.clearAll();
+      return;
+    }
+    this.issue({ k: 'left', w: world, shift, dbl: double, bdbl, pu: pu?.id ?? null, pb: hit?.id ?? null });
+  }
+
+  private leftClick(world: WorldPoint, shift: boolean, double: boolean, buildingDouble = false): void {
     const me = this.humanPlayer.id;
     const unit = this.selection.pickUnit(world);
     // Double-click on one of my selected carriers (truck or transport aircraft) with riders aboard: they get out
@@ -2685,9 +3019,7 @@ export class Game {
     }
     const hit = unit ? null : this.selection.pick(world);
     if (hit) {
-      const now = performance.now();
-      const dbl = this.lastBuildingClick?.id === hit.id && now - this.lastBuildingClick.at < 400;
-      this.lastBuildingClick = { id: hit.id, at: now };
+      const dbl = buildingDouble;
       if (dbl && hit.owner === me && hit.garrison.length > 0) {
         this.ejectUnits(hit, [...hit.garrison]);
         return;
@@ -2887,8 +3219,11 @@ export class Game {
 
   /** Auto sell on / off (sidebar button or the A key). */
   private toggleAutoSell(): void {
-    this.autoSellOil = !this.autoSellOil;
-    this.sidebar.notify(this.autoSellOil ? t('Auto sell ON: oil is offered to the Global Monitoring Center whenever a sale is allowed.') : t('Auto sell OFF.'), 3);
+    const id = this.humanPlayer.id;
+    const on = !this.autoSellers.has(id);
+    if (on) this.autoSellers.add(id);
+    else this.autoSellers.delete(id);
+    this.sidebar.notify(on ? t('Auto sell ON: oil is offered to the Global Monitoring Center whenever a sale is allowed.') : t('Auto sell OFF.'), 3);
     this.sidebarTimer = SIDEBAR_REFRESH;
   }
 
@@ -2903,7 +3238,7 @@ export class Game {
     }
     switch (code) {
       case 'KeyA':
-        this.toggleAutoSell();
+        this.issue({ k: 'autoSell' });
         break;
       case 'KeyH':
         this.focusOwnCapital();
@@ -2923,7 +3258,11 @@ export class Game {
         this.sidebar.toggle();
         break;
       case 'KeyF':
-        this.plantSelectedFlags();
+      case 'KeyU':
+      case 'KeyT':
+      case 'KeyX':
+      case 'KeyC':
+        if (this.selection.selectedUnits.size > 0) this.issue({ k: 'key', code });
         break;
       case 'KeyR':
         // Only while positioning a new structure: turn it 90° (footprint d × w, art mirrored). Once built it stays put.
@@ -2933,25 +3272,13 @@ export class Game {
           this.sidebar.notify(this.placingRotated ? t('Turned 90°.') : t('Turned back.'), 1.5);
         }
         break;
-      case 'KeyU':
-        this.unloadSelectedTransport();
-        break;
-      case 'KeyT':
-        this.turboSelected();
-        break;
       case 'KeyZ':
         // Z: start plotting a route for the selection; Z again sends it off along the points.
-        if (this.waypoints) this.finishWaypoints();
+        if (this.waypoints) this.sendWaypoints();
         else if (this.selection.selectedUnits.size > 0) {
           this.waypoints = [];
           this.sidebar.notify(t('Waypoint mode: left-click up to {max} points, then Z (or right-click) to go.', { max: MAX_WAYPOINTS }));
         }
-        break;
-      case 'KeyX':
-        this.formUpSelected();
-        break;
-      case 'KeyC':
-        this.scatterSelected();
         break;
       case 'Equal':
       case 'NumpadAdd':
@@ -3106,15 +3433,29 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       this.sidebar.notify(g.reason ?? t('Cannot place here.'));
       return;
     }
+    this.issue({ k: 'place', opt: option.id, x: g.x, y: g.y, rot: g.mirrored });
+    this.stopPlacing();
+  }
+
+  /** Order: put a finished structure down at (x, y), checked again for the player who ordered it. */
+  private placeStructure(optionId: string, x: number, y: number, rotated: boolean): void {
+    const option = BUILD_OPTIONS.find((o) => o.id === optionId);
+    if (!option) return;
     const player = this.humanPlayer;
+    const fp = option.footprint;
+    const w = rotated ? fp.d : fp.w;
+    const d = rotated ? fp.w : fp.d;
+    if (!this.placement.check({ owner: player.id, x, y, w, d, radius: buildRadius(option.id) }).ok) {
+      this.sidebar.notify(t('Cannot place here.'));
+      return;
+    }
     if (!this.construction.takeReady(player, option.id)) return;
-    const b = this.entities.add(option.create(player.id, player.faction, g.x, g.y));
-    b.rotated = g.mirrored;
-    b.moveTo(g.x, g.y);
+    const b = this.entities.add(option.create(player.id, player.faction, x, y));
+    b.rotated = rotated;
+    b.moveTo(x, y);
     b.placedAt = this.time;
     this.occupyBuilding(b);
     if (b instanceof Wall) this.orientWalls(b.x, b.y);
-    this.stopPlacing();
     this.sidebar.notify(t('{name} placed.', { name: option.name }));
     this.sidebarTimer = SIDEBAR_REFRESH;
   }
@@ -3369,7 +3710,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       playerId: p.id,
       faction: p.faction as FactionId,
       name: FACTIONS[p.faction].name,
-      isHuman: p.isHuman,
+      isHuman: p.id === this.localId,
       defeated: p.defeated,
       economy:
         p.oil * price + (structures.get(p.id) ?? 0) + (units.get(p.id) ?? 0) + p.credits + (p.powerStored / POWER_PER_BARREL) * price,
@@ -3422,7 +3763,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     const name = FACTIONS[nation.faction].name;
     const fights = this.hasArmy(nation);
     const vars = { name, capital: capital.spec.name };
-    const text = nation.isHuman
+    const text = nation.id === this.localId
       ? fights ? t('Your capital has fallen — but your army fights on.') : t('Your capital has fallen.')
       : fights ? t("{name}'s capital, {capital}, has fallen — but its army fights on.", vars) : t("{name}'s capital, {capital}, has fallen.", vars);
     this.news.show(t('BREAKING NEWS'), text);
@@ -3440,7 +3781,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       const own = this.entities.buildings().some((b) => b.alive && b.owner === p.id && b.spec.type === 'capital' && b.spec.spriteKey === `capital:${p.faction}`);
       if (own) continue;
       p.capitalLost = true;
-      if (p.isHuman) this.sidebar.notify(t('Your capital is lost — you can no longer buy anything.'), 6);
+      if (p.id === this.localId) this.sidebar.notify(t('Your capital is lost — you can no longer buy anything.'), 6);
     }
     for (const p of this.players) {
       if (p.defeated) continue;
@@ -3448,12 +3789,12 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       if (hasCapital || this.hasArmy(p)) continue;
       p.defeated = true;
       const name = FACTIONS[p.faction].name;
-      this.news.show(t('BREAKING NEWS'), p.isHuman ? t('Your nation has been defeated.') : t('{name} has been defeated — no capital and no army left.', { name }));
+      this.news.show(t('BREAKING NEWS'), p.id === this.localId ? t('Your nation has been defeated.') : t('{name} has been defeated — no capital and no army left.', { name }));
     }
     if (this.humanPlayer.defeated) {
       this.ended = true;
       this.endScreen.show(false, t('Your capital has fallen and you have no soldiers or combat vehicles left.'));
-    } else if (this.players.every((p) => p.isHuman || p.defeated)) {
+    } else if (this.players.every((p) => p.id === this.localId || p.defeated)) {
       this.ended = true;
       this.endScreen.show(true, t('Every enemy capital is destroyed and no enemy soldier or combat vehicle remains. The war is won.'));
     }
@@ -3621,7 +3962,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
         heli.altitude = 0;
         heli.homeId = producer.id;
         heli.heading = this.airfieldGeometry(producer).heading;
-        if (player.isHuman) this.sidebar.notify(t('{name} has landed beside the airfield.', { name: heli.name }));
+        if (player.id === this.localId) this.sidebar.notify(t('{name} has landed beside the airfield.', { name: heli.name }));
         return heli;
       }
     }
@@ -3648,7 +3989,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     jet.homeId = airfield.id;
     jet.slot = slot;
     jet.heading = g.heading;
-    if (player.isHuman) this.sidebar.notify(t('{name} parked on the airfield.', { name: jet.name }));
+    if (player.id === this.localId) this.sidebar.notify(t('{name} parked on the airfield.', { name: jet.name }));
     return jet;
   }
 
@@ -3899,7 +4240,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       } else path.push(spot);
       unit.follow(path);
     }
-    if (player.isHuman) this.sidebar.notify(t('{name} ready.', { name: unit.name }));
+    if (player.id === this.localId) this.sidebar.notify(t('{name} ready.', { name: unit.name }));
   }
 
   /** The cell a new vehicle rolls out onto: the free ground right in front of the factory's door (world px centre). */
@@ -4040,7 +4381,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       // Every slot is taken: the soldier simply stays at the door instead of wandering off.
       unit.parade = null;
     }
-    if (player.isHuman) this.sidebar.notify(t('{name} ready.', { name: unit.name }));
+    if (player.id === this.localId) this.sidebar.notify(t('{name} ready.', { name: unit.name }));
   }
 
   /**
@@ -4592,15 +4933,16 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
 
   /** A nation hitting one of the player's structures after DERRICK_GRACE_GAP s of quiet starts a new attack. */
   private countAttackOnPlayer(s: Unit, t: Entity): void {
-    if (!(t instanceof Building) || t.owner !== this.humanPlayer.id || s.owner === t.owner) return;
-    const last = this.lastHitOnPlayer.get(s.owner);
-    if (last === undefined || this.time - last > DERRICK_GRACE_GAP) this.attacksOnPlayer++;
-    this.lastHitOnPlayer.set(s.owner, this.time);
+    if (!(t instanceof Building) || s.owner === t.owner || !this.players.find((p) => p.id === t.owner)?.isHuman) return;
+    const key = `${t.owner}:${s.owner}`;
+    const last = this.lastHitOnPlayer.get(key);
+    if (last === undefined || this.time - last > DERRICK_GRACE_GAP) this.graceHits[t.owner] = (this.graceHits[t.owner] ?? 0) + 1;
+    this.lastHitOnPlayer.set(key, this.time);
   }
 
   /** The player's oil derricks cannot be attacked during the first DERRICK_GRACE_ATTACKS attacks on the player. */
   isShielded(b: Building): boolean {
-    return b.spec.type === 'oilDerrick' && b.owner === this.humanPlayer.id && this.attacksOnPlayer < DERRICK_GRACE_ATTACKS;
+    return b.spec.type === 'oilDerrick' && !!this.players.find((p) => p.id === b.owner)?.isHuman && (this.graceHits[b.owner] ?? 0) < DERRICK_GRACE_ATTACKS;
   }
 
   /** What the Global Monitoring Center pays for `b` (its build cost × health × RESALE_SHARE); null: cannot be sold. */
@@ -4650,7 +4992,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     const p = this.players.find((pl) => pl.id === nation);
     if (!p || p.defeated) return;
     p.credits += MERCY_BONUS;
-    if (p.isHuman) this.sidebar.notify(t('Mercy bonus: you let a retreating enemy group go — Global Monitoring Center pays +{bonus} {currency}.', { bonus: MERCY_BONUS, currency: CURRENCY }), 3);
+    if (p.id === this.localId) this.sidebar.notify(t('Mercy bonus: you let a retreating enemy group go — Global Monitoring Center pays +{bonus} {currency}.', { bonus: MERCY_BONUS, currency: CURRENCY }), 3);
   }
 
   /** A plain move that takes the unit closer to its own capital is a retreat (enemies may not chase it). */
@@ -4669,8 +5011,15 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       if (this.waypoints.length < MAX_WAYPOINTS) this.waypoints.push(world);
       return true;
     }
-    this.orderMove(world);
+    this.issue({ k: 'minimap', w: world });
     return true;
+  }
+
+  /** Z / right-click in waypoint mode: the plotted route becomes an order (nothing plotted: just cancels). */
+  private sendWaypoints(): void {
+    const pts = this.waypoints;
+    this.waypoints = null;
+    if (pts && pts.length > 0) this.issue({ k: 'waypoints', pts });
   }
 
   /** Ends waypoint mode: the selected units follow the plotted points in order (nothing plotted: just cancels). */

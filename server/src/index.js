@@ -9,13 +9,17 @@
  *   { t: 'start' }                   host only, every slot filled, everyone ready
  *   { t: 'progress', pct }           loading the match: 0–100
  *   { t: 'loaded' }                  this machine is ready to play
- *   { t: 'cmd', tick, data }         in game: relayed to the whole room (lockstep orders)
+ *   { t: 'cmd', data }               in game: an order, played by everyone in the next turn (lockstep)
+ *   { t: 'hash', n, h }              in game: fingerprint of the game state at the start of turn n
  *   { t: 'leave' }
  * Server → client:
- *   { t: 'hello', id }  { t: 'room', room }  { t: 'start', seed, room }  { t: 'cmd', from, tick, data }  { t: 'error', message }
+ *   { t: 'hello', id }  { t: 'room', room }  { t: 'start', seed, room }  { t: 'error', message }
+ *   { t: 'turn', n, cmds: [{ f, c }] }  every TURN_MS: the orders given since the last turn (f: the giver's nation)
+ *   { t: 'desync', n }               machines reported different fingerprints for turn n
  *   { t: 'loading', players: [{ id, pct, loaded }] }  everyone's loading progress
  *   { t: 'go' }                      every machine has loaded: the match begins on all of them at once
- *   { t: 'left', id, faction }       in game: that player left the match (counts as beaten)
+ *   { t: 'left', id, faction }       while loading: that player left (counts as beaten); in game it comes as a
+ *                                    `leftMatch` order in a turn, so every machine takes it at the same tick
  */
 import http from 'node:http';
 import { randomUUID } from 'node:crypto';
@@ -24,6 +28,8 @@ import { addPlayer, cleanCode, cleanName, createRoom, validCode, findRoom, pickF
 
 const PORT = Number(process.env.PORT) || 8787;
 const MAX_MESSAGE_BYTES = 16 * 1024;
+/** Lockstep turn length: each turn is 3 game ticks at 30 ticks/s. */
+const TURN_MS = 100;
 
 const server = http.createServer((req, res) => {
   // Render health check / quick status.
@@ -42,7 +48,27 @@ const pushLoading = (room) =>
 const checkGo = (room) => {
   if (!room.started || room.go || room.players.length === 0 || room.players.some((p) => !p.loaded)) return;
   room.go = true;
+  room.turn = 0;
+  room.pending = [];
+  room.hashes = new Map();
   broadcast(room, { t: 'go' });
+  // The match clock: every TURN_MS everyone gets the same turn with all the orders given meanwhile.
+  room.timer = setInterval(() => {
+    if (!room.players.length) return clearInterval(room.timer);
+    room.turn++;
+    broadcast(room, { t: 'turn', n: room.turn, cmds: room.pending.splice(0) });
+  }, TURN_MS);
+};
+
+/** Fingerprints of turn n from every machine: one that differs means the games have drifted apart. */
+const checkHash = (room, n, h) => {
+  let entry = room.hashes.get(n);
+  if (!entry) room.hashes.set(n, (entry = { h, warned: false }));
+  else if (entry.h !== h && !entry.warned) {
+    entry.warned = true;
+    broadcast(room, { t: 'desync', n });
+  }
+  for (const k of room.hashes.keys()) if (k < n - 100) room.hashes.delete(k);
 };
 
 wss.on('connection', (ws) => {
@@ -64,9 +90,14 @@ wss.on('connection', (ws) => {
     const left = room;
     room = null;
     removePlayer(left, player.id); // the last one out deletes the room (a finished match included)
-    if (!left.players.length) return;
-    // Leaving a started match counts as losing it: every other machine takes that nation off the map.
-    if (left.started) broadcast(left, { t: 'left', id: player.id, faction: player.faction });
+    if (!left.players.length) {
+      clearInterval(left.timer);
+      return;
+    }
+    // Leaving a started match counts as losing it: every other machine takes that nation off the map — in the
+    // match through a turn (same tick everywhere), while loading at once (before anyone's first tick).
+    if (left.go) left.pending.push({ f: player.faction, c: { k: 'leftMatch' } });
+    else if (left.started) broadcast(left, { t: 'left', id: player.id, faction: player.faction });
     pushRoom(left);
     if (left.started) {
       pushLoading(left);
@@ -144,8 +175,13 @@ wss.on('connection', (ws) => {
         return checkGo(room);
       }
       case 'cmd': {
-        if (!room?.started) return;
-        return broadcast(room, { t: 'cmd', from: player.id, tick: msg.tick, data: msg.data });
+        if (!room?.go || !msg.data || typeof msg.data !== 'object' || msg.data.k === 'leftMatch') return;
+        room.pending.push({ f: player.faction, c: msg.data });
+        return;
+      }
+      case 'hash': {
+        if (!room?.go) return;
+        return checkHash(room, Number(msg.n), Number(msg.h));
       }
       case 'leave':
         leave();

@@ -36,6 +36,11 @@ export class SelectionSystem {
   /** Selected soldiers (RA2: units and a building are never selected together). */
   readonly selectedUnits = new Set<number>();
   hoveredUnitId: number | null = null;
+  /**
+   * While a player's command runs: the unit / structure that player clicked, picked on their own screen when they
+   * clicked. Picks then return these instead of looking under the point, so every machine sees the same click.
+   */
+  forced: { unit: number | null; building: number | null } | null = null;
 
   constructor(
     private readonly entities: EntityManager,
@@ -45,6 +50,10 @@ export class SelectionSystem {
 
   /** Front-most building whose sprite has an opaque pixel under `world`. */
   pick(world: WorldPoint): Building | null {
+    if (this.forced) {
+      const b = this.forced.building === null ? undefined : this.entities.get(this.forced.building);
+      return b instanceof Building && b.alive ? b : null;
+    }
     const m = worldToIso(world.x, world.y);
     const list = this.entities.byDepth();
     for (let i = list.length - 1; i >= 0; i--) {
@@ -69,6 +78,11 @@ export class SelectionSystem {
    * counts — a soldier's figure, a vehicle's hull — not the ground around it. Aircraft stay big targets.
    */
   pickUnit(world: WorldPoint, ignore?: (u: Unit) => boolean): Unit | null {
+    if (this.forced) {
+      const id = this.forced.unit;
+      const u = id === null ? undefined : this.entities.fieldMovers().find((m) => m.id === id);
+      return u && u.alive && !ignore?.(u) ? u : null;
+    }
     let best: Unit | null = null;
     let bestY = -Infinity;
     const m = worldToIso(world.x, world.y);

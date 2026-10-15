@@ -105,7 +105,12 @@ export class MultiplayerLobby {
           this.render();
         } else if (msg.t === 'error') {
           if (this.pending) toast(`${this.pending === 'create' ? t('Could not create the room') : t('Could not join the room')}: ${t(msg.message)}`, false);
-          else if (!this.room && msg.message.startsWith('Room closed')) toast(t(msg.message), false);
+          else if (msg.message.startsWith('Room closed')) {
+            // The room sat 5 minutes without starting: the server deleted it — back to the main menu.
+            toast(t(msg.message), false);
+            finish(null);
+            return;
+          }
           this.pending = null;
           this.setError(t(msg.message));
         }
