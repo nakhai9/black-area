@@ -11,8 +11,6 @@ const DRAG_THRESHOLD = 10;
 /** Two left clicks closer than this (ms and screen px) make a double-click. */
 const DOUBLE_CLICK_MS = 500;
 const DOUBLE_CLICK_PX = 10;
-/** When the cursor exits the window this close to an edge, keep scrolling that way. */
-const EXIT_EDGE_MARGIN = 64;
 const PREVENT_DEFAULT_KEYS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'Tab']);
 
 const normalizeRect = (a: { x: number; y: number }, b: { x: number; y: number }): Rect => ({
@@ -27,8 +25,8 @@ const normalizeRect = (a: { x: number; y: number }, b: { x: number; y: number })
  * events, so game logic consumes input at a well-defined point in the frame.
  * Pointer coordinates are CSS pixels relative to the target element.
  *
- * Edge scrolling is tracked against the *window* edges and keeps going after
- * the cursor leaves the browser window, until it comes back.
+ * Edge scrolling is tracked against the *window* edges and stops as soon as
+ * the cursor leaves the browser window.
  */
 export class InputHandler {
   /** `inside` = over the game canvas (not over UI panels). */
@@ -130,10 +128,11 @@ export class InputHandler {
     }
   };
 
-  /** Cursor left the browser window: keep scrolling toward the exit edge. */
-  private readonly onLeaveWindow = (e: MouseEvent): void => {
+  /** Cursor left the browser window: the screen stops scrolling until it comes back. */
+  private readonly onLeaveWindow = (): void => {
     this.mouse.inside = false;
-    this.setEdgeFrom(e.clientX, e.clientY, EXIT_EDGE_MARGIN);
+    this.edge.x = 0;
+    this.edge.y = 0;
   };
 
   private readonly onPointerUp = (e: PointerEvent): void => {

@@ -2890,7 +2890,7 @@ export class Game {
       }
     }
 
-    // Keyboard + edge scrolling (edge keeps scrolling after the cursor leaves the window).
+    // Keyboard + edge scrolling (edge scrolling stops once the cursor leaves the window).
     let dx = 0;
     let dy = 0;
     if (input.isKeyDown('ArrowLeft')) dx -= 1;
