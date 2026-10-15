@@ -59,6 +59,7 @@ const ENGINE_BY_KIND: Readonly<Record<VehicleKind, EngineProfile>> = {
   transport: 'airlifter',
   truck: 'wheeled',
   drone: 'fighter',
+  carrier: 'recovery',
 };
 /** Synthesis recipe per engine: rumble (low-passed noise, pulsed by an LFO), a whine band and a track-clank band. */
 const ENGINE_RECIPES: Readonly<Record<EngineProfile, { rumble: number; pulse: number; depth: number; whine: number; whineGain: number; clank: number; clankGain: number; gain: number }>> = {

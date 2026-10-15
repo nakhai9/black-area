@@ -11,7 +11,7 @@ export class Building extends Entity {
   readonly kind = 'building' as const;
   /** Game time when the player placed it (drives the build-up animation); null for map-authored. */
   placedAt: number | null = null;
-  /** People stationed inside (hospital: patients). */
+  /** People stationed inside. */
   readonly garrison: Infantry[] = [];
   /** Engineers inside repairing it (they walk out at 100%, and die with it if it is destroyed meanwhile). */
   readonly crew: Infantry[] = [];
@@ -62,7 +62,7 @@ export class Building extends Entity {
     this.owner = owner;
     this.faction = faction;
     // Team-coloured structures switch to the new owner's colours.
-    const m = /^(oil|barracks|hospital|airfield|warFactory|techCenter|happyCity|powerPlant|flagpole|bunker|wall|gate):/.exec(this.spec.spriteKey);
+    const m = /^(oil|barracks|airfield|warFactory|techCenter|happyCity|powerPlant|flagpole|bunker|wall|gate):/.exec(this.spec.spriteKey);
     if (m) this.spriteKeyOverride = `${m[1]}:${faction}`;
     // Landmarks keep their design and only hoist the new owner's flag.
     const f = /^(capital|alliedBuilding|nation):(\w+)$/.exec(this.spec.spriteKey);

@@ -1,5 +1,7 @@
-import { CELL_SIZE, ELEVATION_M_PER_UNIT, MOUNTAIN_CREST, MOUNTAIN_PASS, RELIEF_EXAGGERATION, WORLD_SCALE } from '../constants';
-import { worldToIso } from '../core/IsoView';
+import { CELL_SIZE, ELEVATION_M_PER_UNIT, MOUNTAIN_CREST, MOUNTAIN_LEDGE, MOUNTAIN_PASS, RELIEF_EXAGGERATION, WORLD_SCALE } from '../constants';
+import { ROCK_CELL, ROCK_PIECES, ROCK_PIVOT } from '../render/RockSheetData';
+import { setGroundLift, worldToIso } from '../core/IsoView';
+import { GroundLift } from './GroundLift';
 import { lerp, smoothstep } from '../core/MathUtils';
 import { ValueNoise, hash2 } from '../core/Random';
 import { createCanvas } from '../render/Canvas';
@@ -71,7 +73,32 @@ export interface Peak {
   /** Face gradients in the peak's own coordinates, made on first draw. */
   shade: CanvasGradient | null;
   lit: CanvasGradient | null;
+  /** Rock art (rocks.png): sheet column (piece), row (material), iso px per sheet px, mirrored. */
+  piece: number;
+  mat: number;
+  scale: number;
+  flip: boolean;
 }
+
+/**
+ * Mountain rock art (tools/rock_model_sheet.py, from the Stylised Rocks Asset Pack): rows by material, columns by
+ * piece (see CREST_PIECES, LEDGE_PIECES).
+ */
+const ROCK_SHEET = (() => {
+  const i = new Image();
+  i.src = `${import.meta.env.BASE_URL}sprites/rocks.png`;
+  return i;
+})();
+/** Crest: the tall, jagged massifs (sheet columns 0–6). Ledge (foothills): the low, wide rock heaps (7–10). The
+ * squarer massifs and the single pillar rocks of the pack are left out: they read as blocks, not mountains. */
+const CREST_PIECES: readonly number[] = [0, 1, 2, 3, 4, 5, 6];
+const LEDGE_PIECES: readonly number[] = [7, 8, 9, 10];
+const MAT_PLAIN = 0;
+const MAT_MOSSY = 1;
+const MAT_SNOWY = 2;
+const MAT_DESERT = 3;
+/** Share of the mountain ledge (foothill) cells that get a lone rock. */
+const LEDGE_ROCK_SHARE = 0.14;
 
 /** Trees are drawn from this zoom on. */
 const DETAIL_MIN_ZOOM = 2;
@@ -115,7 +142,10 @@ export class TerrainRenderer {
     this.height = earth.height * WORLD_SCALE;
     this.landRgb = new Uint8ClampedArray(this.texW * this.texH * 3);
     this.waterRgb = new Uint8ClampedArray((this.texW / WATER_RES) * (this.texH / WATER_RES) * 3);
-    this.tiles = new TileTerrain(map, earth, seed);
+    const lift = new GroundLift(map);
+    this.tiles = new TileTerrain(map, earth, seed, lift);
+    setGroundLift((x, y) => lift.at(x, y));
+    map.onOccupy = (x, y, w, d) => this.tiles.invalidate(x, y, w, d);
     const { canvas, ctx } = createCanvas(this.texW, this.texH);
     this.canvas = canvas;
     this.paintRelief(ctx, earth, biomes);
@@ -146,17 +176,34 @@ export class TerrainRenderer {
           else this.rocks.set(key, [item]);
           continue;
         }
-        if (code !== MOUNTAIN_CREST) continue;
         const r = hash2(cx, cy, this.seed + 31);
-        if ((cx + cy) % 2 === 1 && r < 0.6) continue;
         const x = (cx + 0.2 + r * 0.6) * CELL_SIZE;
         const y = (cy + 0.2 + hash2(cy, cx, this.seed + 32) * 0.6) * CELL_SIZE;
-        this.addPeak(x, y, Math.max(PEAK_MIN_M, map.heightAt(cx, cy)) * (0.85 + r * 0.3), r);
+        if (code === MOUNTAIN_LEDGE) {
+          // Foothills: a lone rock here and there, small, on the ledge either side of the crest.
+          if (r < 1 - LEDGE_ROCK_SHARE) continue;
+          this.addPeak(x, y, Math.max(600, map.heightAt(cx, cy) * 0.35), hash2(cx + 7, cy, this.seed + 33), true, cx, cy);
+          continue;
+        }
+        if (code !== MOUNTAIN_CREST) continue;
+        // The crest: a rock massif on about every other cell (a checker, thinned a little), big enough to overlap its
+        // neighbours so the range reads as one rugged wall, not a row of separate blocks.
+        if ((cx + cy) % 2 === 1 || r < 0.25) continue;
+        this.addPeak(x, y, Math.max(PEAK_MIN_M, map.heightAt(cx, cy)) * (0.85 + r * 0.3), r, false, cx, cy);
       }
     }
   }
 
-  private addPeak(x: number, y: number, m: number, r: number): void {
+  /** Rock material for cell (cx, cy) at `m` metres: snow up high or on snow, desert rock on sand, moss on green land. */
+  private rockMaterial(cx: number, cy: number, m: number): number {
+    const t = this.map.codeAt(cx, cy);
+    if (t === 6 || m >= PEAK_SNOW_M + (hash2(cx, cy, this.seed + 34) - 0.5) * 600) return MAT_SNOWY;
+    if (t === 4 || t === 1) return MAT_DESERT;
+    if (t === 2 || t === 3) return hash2(cx, cy, this.seed + 35) < 0.7 ? MAT_MOSSY : MAT_PLAIN;
+    return MAT_PLAIN;
+  }
+
+  private addPeak(x: number, y: number, m: number, r: number, small = false, cx = 0, cy = 0): void {
     const tall = PEAK_BASE_PX + m / PEAK_M_PER_PX;
     const half = tall * (0.75 + r * 0.45);
     // A rough ridge: a few shoulders up to the summit and down again, each nudged by a hash (no straight edges).
@@ -177,7 +224,19 @@ export class TerrainRenderer {
     ridge.push({ x: half, y: half * 0.12 });
     const snowAt = m >= PEAK_SNOW_M ? Math.min(0.75, 0.25 + (m - PEAK_SNOW_M) / 9000) : 0;
     const key = Math.floor(y / PEAK_BUCKET) * 100000 + Math.floor(x / PEAK_BUCKET);
-    const peak: Peak = { x, y, ridge, split, snowAt, tall, half, shade: null, lit: null };
+    // Rock art: a massif on the crest (the bigger ones where the mountains are higher), a single rock on the ledge.
+    const pick = hash2(cx * 3 + 1, cy * 5 + 2, this.seed + 36);
+    const set = small ? LEDGE_PIECES : CREST_PIECES;
+    const piece = set[Math.floor(pick * set.length)] ?? 0;
+    const [pieceHalf, pieceTall] = ROCK_PIECES[piece] ?? [40, 60];
+    // Drawn as tall as the old peak (a little taller), its width kept within ~1.6 cells either side.
+    let scale = (tall * (small ? 0.9 : 1.35)) / Math.max(1, pieceTall);
+    scale = Math.min(scale, (CELL_SIZE * (small ? 1.1 : 1.6)) / Math.max(1, pieceHalf));
+    scale = Math.max(scale, (CELL_SIZE * (small ? 0.5 : 0.9)) / Math.max(1, pieceHalf));
+    const peak: Peak = {
+      x, y, ridge, split, snowAt, tall, half, shade: null, lit: null,
+      piece, mat: this.rockMaterial(cx, cy, m), scale, flip: false, // never mirrored: the light must stay on the same side as on everything else
+    };
     const list = this.peaks.get(key);
     if (list) list.push(peak);
     else this.peaks.set(key, [peak]);
@@ -218,6 +277,16 @@ export class TerrainRenderer {
 
   drawPeak(ctx: CanvasRenderingContext2D, p: Peak): void {
     const o = worldToIso(p.x, p.y);
+    if (ROCK_SHEET.complete && ROCK_SHEET.naturalWidth > 0) {
+      // Rock art: the piece's ground point on the peak's foot (mirrored for half of them, for variety).
+      const s = p.scale;
+      ctx.save();
+      ctx.translate(o.x, o.y);
+      if (p.flip) ctx.scale(-1, 1);
+      ctx.drawImage(ROCK_SHEET, p.piece * ROCK_CELL, p.mat * ROCK_CELL, ROCK_CELL, ROCK_CELL, -ROCK_PIVOT[0] * s, -ROCK_PIVOT[1] * s, ROCK_CELL * s, ROCK_CELL * s);
+      ctx.restore();
+      return;
+    }
     const pts = p.ridge;
     const top = pts[p.split]!;
     const foot = { x: top.x * 0.4 + p.half * 0.1, y: p.half * 0.3 };

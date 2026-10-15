@@ -6,7 +6,6 @@ import { createFlagpoleArt } from './Flagpole';
 import { createWallArt } from './Wall';
 import { createGateArt } from './Gate';
 import { createHappyCityArt } from './HappyCity';
-import { createHospitalArt } from './Hospital';
 import { createTechCenterArt } from './TechCenter';
 import { createWarFactoryArt } from './WarFactory';
 import { createBeijingZhongnanhaiArt } from './BeijingZhongnanhai';
@@ -54,12 +53,7 @@ export const BUILDING_ART: Readonly<Record<string, BuildingArt>> = {
   'barracks:china': createBarracksArt('china'),
   'barracks:europe': createBarracksArt('europe'),
   'barracks:islamic': createBarracksArt('islamic'),
-  // Hospital and airfield in each nation's team colour.
-  'hospital:usa': createHospitalArt('usa'),
-  'hospital:russia': createHospitalArt('russia'),
-  'hospital:china': createHospitalArt('china'),
-  'hospital:europe': createHospitalArt('europe'),
-  'hospital:islamic': createHospitalArt('islamic'),
+  // Airfield in each nation's team colour.
   'warFactory:usa': createWarFactoryArt('usa'),
   'warFactory:russia': createWarFactoryArt('russia'),
   'warFactory:china': createWarFactoryArt('china'),

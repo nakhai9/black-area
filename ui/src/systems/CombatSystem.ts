@@ -1,3 +1,4 @@
+import { demoActive } from '../core/Demo';
 import { movesRight } from '../core/IsoView';
 import { BOMB_FALL_SECONDS, HIGH_GROUND_DAMAGE, HIGH_GROUND_RANGE, LOW_GROUND_DAMAGE, BUNKER_COOLDOWN, BUNKER_DAMAGE, BUNKER_RANGE, BUNKER_VS_VEHICLE, MANTIS_HIT_SHARE, MANTIS_RANGE_CELLS, MANTIS_RANK_BONUS, MANTIS_EVADE_CELLS, HELI_VS_MANTIS_SHARE, JET_VS_MANTIS_SHARE, MANTIS_VS_JET_SHARE, MANTIS_VS_HELI_SHARE, MANTIS_RELOAD, JET_BOMB_VS_STRUCTURE, JET_BOMB_VS_VEHICLE, ACQUIRE_PERIOD, RANK_FIREPOWER, RANK_RELOAD, BOMB_GROUP_RADIUS_CELLS, BOMB_GROUP_SIZE, BOMB_TOUGH_DAMAGE, BOMB_TOUGH_STRUCTURES, BOMBS_PER_DROP, CELL_SIZE, CHASE_GIVE_UP_SECONDS, CHASE_LIMIT_CELLS, CHASE_PERIOD, FIGHT_MEMORY_SECONDS, GUARD_VISION_FACTOR, NEUTRAL_OWNER, RETALIATE_RANGE_FACTOR, WEAPONS, FIGHTER_DRONE_ALERT } from '../constants';
 import { Building } from '../entities/Building';
@@ -48,6 +49,14 @@ export function isViolator(id: number): boolean {
   return violators.has(id);
 }
 
+/**
+ * DEMO test games only: force fire. A unit given an explicit attack order on one of its own side's structures or units
+ * (Ctrl+click) shoots it like an enemy.
+ */
+export function forceFire(a: Entity, b: Entity): boolean {
+  return demoActive && a instanceof Unit && a.attackTarget === b.id && a.owner === b.owner && b.alive && !b.indestructible;
+}
+
 export function isHostile(a: Entity, b: Entity): boolean {
   // Ceasefire: nobody fights, except that a unit breaking it may be attacked by every other nation (and cannot hit back).
   if (truce) {
@@ -64,7 +73,7 @@ export function isHostile(a: Entity, b: Entity): boolean {
  */
 export function canTarget(shooter: Unit, target: Entity): boolean {
   const w = shooter.weapon;
-  if (!w || !isHostile(shooter, target)) return false;
+  if (!w || !(isHostile(shooter, target) || forceFire(shooter, target))) return false;
   if (shooter.unarmedTransport) return false; // transports never attack anything
   // An aircraft already going down (out of fuel, no airfield) is as good as dead: nobody wastes shots on it.
   if (target instanceof Vehicle && target.flight === 'crashing') return false;
@@ -267,7 +276,7 @@ export class CombatSystem implements GameSystem {
     // Explicit attack order beats everything else.
     if (s.attackTarget !== null) {
       const ordered = this.entities.get(s.attackTarget);
-      if (!ordered || !ordered.alive || !isHostile(s, ordered) || !this.canHit(s, w, ordered) || this.sheltered(ordered)) s.attackTarget = null;
+      if (!ordered || !ordered.alive || !(isHostile(s, ordered) || forceFire(s, ordered)) || !this.canHit(s, w, ordered) || this.sheltered(ordered)) s.attackTarget = null;
       else target = ordered;
     }
 
@@ -309,13 +318,13 @@ export class CombatSystem implements GameSystem {
     }
 
     const d = distanceTo(s.px, s.py, target);
-    // A retreating enemy may be shot while in range, but never chased.
-    if (target instanceof Unit && this.protectedFrom(s, target) && d > w.range) {
+    // A retreating enemy may be shot while in range, but never chased on a unit's own initiative. An explicit attack
+    // order on it (the player's or the AI's choice) is carried out: the unit goes after it.
+    if (target instanceof Unit && s.attackTarget !== target.id && this.protectedFrom(s, target) && d > w.range) {
       if (!target.sparedBy.has(s.owner)) {
         target.sparedBy.add(s.owner);
         this.hooks.onSpare(s.owner, target);
       }
-      if (s.attackTarget === target.id) s.attackTarget = null;
       s.combatTarget = null;
       s.engaged = false;
       this.resumeAttackMove(s);
@@ -325,8 +334,12 @@ export class CombatSystem implements GameSystem {
     const ty = target instanceof Unit ? target.py : target instanceof Building ? target.centerWorld().y : s.py;
     s.aimHeading = Math.atan2(ty - s.py, tx - s.px);
     if (d <= w.range * this.heightReach(s)) {
-      s.facing = movesRight(tx - s.px, ty - s.py) ? 1 : -1;
-      s.heading = Math.atan2(ty - s.py, tx - s.px);
+      // A unit on its way somewhere (plain move order) shoots on the move: only its gun turns to the target (aimHeading),
+      // the hull keeps steering along its route (turning it to the target every tick pinned it in place).
+      if (!s.moving || s.attackTarget !== null || s.attackMove) {
+        s.facing = movesRight(tx - s.px, ty - s.py) ? 1 : -1;
+        s.heading = Math.atan2(ty - s.py, tx - s.px);
+      }
       // Units on attack orders stand and fight; ones just passing through keep walking and shooting.
       if (s.attackTarget !== null || s.attackMove) s.stop();
       if (s.cooldown <= 0 && this.canHit(s, w, target)) this.fire(s, target, w);

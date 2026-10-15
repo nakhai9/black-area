@@ -27,7 +27,7 @@ export const DEMO_FACTION = Number(import.meta.env.VITE_DEMO_FACTION) || 2;
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "2.3.0";
+export const GAME_VERSION = "2.12.4";
 
 /** An Allied Building within this many cells of any capital is an embassy; farther out it is a "Pro-<nation> regime". */
 export const EMBASSY_CAPITAL_CELLS = 25;
@@ -124,7 +124,7 @@ export const TALLEST_BUILDING_ART = 220;
 /** Aircraft cruise above the roof of the tallest building of any nation, with a margin (iso px). */
 export const CRUISE_ALTITUDE =
   Math.ceil(TALLEST_BUILDING_ART * SPRITE_SCALE) + 6;
-/** Large structures (War Factory, Hospital) occupy 5×4 cells, everything else 4×4 (7 px cells). */
+/** Large structures (War Factory) occupy 5×4 cells, everything else 4×4 (7 px cells). */
 export const FOOTPRINT_LARGE = { w: 5, d: 4 } as const;
 export const FOOTPRINT_SMALL = { w: 4, d: 4 } as const;
 /** The Global Monitoring Center: 5 × 5 cells. */
@@ -194,7 +194,6 @@ export const FLAGPOLE_COST = 100;
  */
 export const ALLIED_BUILDING_COST = 6000;
 export const MAX_ALLIES = 6;
-export const HOSPITAL_COST = 1200;
 /**
  * Bunker (2×2): a self-firing machine-gun pillbox, no garrison needed. Every BUNKER_COOLDOWN seconds it fires at the
  * nearest enemy soldier or ground vehicle within BUNKER_RANGE world px (never at aircraft) for BUNKER_DAMAGE, scaled
@@ -590,6 +589,8 @@ export const GUARD_VISION_FACTOR = 1.8;
  * everything else at the War Factory.
  */
 export const VEHICLE_BASE = {
+  /** Aircraft carrier: sea only, slow, very tough, unarmed (it will carry CARRIER_JETS fighters later). Not built: a fleet of CARRIER_FLEET starts near the capital. */
+  carrier: { cost: 0, trainSeconds: 0, maxHp: 4000, speed: 0.9, radius: 10 },
   light: { cost: 600, trainSeconds: 8, maxHp: 180, speed: 2.4, radius: 3.4 },
   tank: { cost: 1200, trainSeconds: 14, maxHp: 420, speed: 1.4, radius: 4.2 },
   ifv: { cost: 900, trainSeconds: 11, maxHp: 300, speed: 1.8, radius: 4.0 },
@@ -827,9 +828,6 @@ export const WAR_FACTORY_COST = 2000;
  * second until it is back to 100%, then they walk out. Hits keep taking health off meanwhile.
  */
 export const ENGINEER_REPAIR_SHARE = 0.06;
-/** Hospital: HP per second restored to each patient inside, and its capacity. */
-export const HOSPITAL_HEAL_PER_SECOND = 10;
-export const HOSPITAL_CAPACITY = 20;
 
 /** Every nation starts broke; oil derricks are the only source of TB. */
 export const STARTING_CREDITS = 0;
@@ -847,6 +845,11 @@ export const FACTION_ORDER: readonly FactionId[] = [
 ];
 
 // ---------------------------------------------------------------- Landmarks (real coordinates)
+/** Nations with aircraft carriers, and how many start at sea near the capital (only moving for now). */
+export const CARRIER_NATIONS: readonly FactionId[] = ['usa', 'europe', 'china'];
+export const CARRIER_FLEET = 2;
+/** Fighters a carrier can carry on its deck (rule to come). */
+export const CARRIER_JETS = 4;
 export const CAPITAL_LOCATIONS: Readonly<Record<FactionId, NamedSite>> = {
   usa: { lon: -77.04, lat: 38.9, name: "Washington, D.C." },
   russia: { lon: 37.62, lat: 55.75, name: "Moscow" },
@@ -1060,7 +1063,7 @@ export const OIL_REST_SECONDS = 60;
 /**
  * Every structure drains power (units/s, see each entity's powerDrain). Nuclear plants turn the nation's oil
  * stock into energy, counted in joules (J): 0.001 barrel → 1 J, so a plant burning at full rate uses 0.025 bbl/s for 25 J/s.
- * One plant covers exactly one of each: capital 1 + barracks 1 + hospital 2 + war factory 3 + airfield 4 +
+ * One plant covers exactly one of each: capital 1 + barracks 1 + war factory 3 + airfield 4 +
  * tech center 6 + city 8 = 25. Anything beyond that needs another plant (or the nation is short of power). Each plant also stores up to POWER_PLANT_STORAGE; a new plant starts empty (0).
  * When the grid runs dry (drain > generation and storage empty) the Global Monitoring Center is forced to sell the missing
  * oil at OIL_GRID_MARKUP × the posted price; with an empty treasury the nation falls into a blackout (low power).
@@ -1074,7 +1077,6 @@ export const OIL_GRID_MARKUP = 1.25;
 /** Price-equivalent of a destroyed structure, for veteran experience (default 1000). */
 export const BUILDING_VALUE: Readonly<Partial<Record<BuildingType, number>>> = {
   barracks: BARRACKS_COST,
-  hospital: HOSPITAL_COST,
   bunker: BUNKER_COST,
   wall: WALL_COST,
   gate: GATE_COST,

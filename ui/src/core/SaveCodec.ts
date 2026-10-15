@@ -5,7 +5,6 @@ import { Capital } from '../entities/Capital';
 import { Entity } from '../entities/Entity';
 import { Flagpole } from '../entities/Flagpole';
 import { HappyCity } from '../entities/HappyCity';
-import { Hospital } from '../entities/Hospital';
 import { Bunker } from '../entities/Bunker';
 import { Wall } from '../entities/Wall';
 import { Gate } from '../entities/Gate';
@@ -40,7 +39,6 @@ const ENTITY_CLASSES: Readonly<Record<string, abstract new (...args: never[]) =>
   NationCapital,
   Barracks,
   WarFactory,
-  Hospital,
   Airfield,
   TechCenter,
   OilDerrick,

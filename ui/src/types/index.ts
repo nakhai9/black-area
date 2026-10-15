@@ -100,7 +100,7 @@ export interface WeaponSpec {
 /** Light car, main battle tank, armoured vehicle (IFV) and fighter aircraft. */
 /** `bomber` is a national special: only nations that list it in their `vehicles` can build it (Russia's Tu-160, the USA's B-1A Lancer). */
 /** `repair` is a national special too: an unarmed armoured recovery vehicle that mends friendly ground vehicles (Russia's BREM-1). */
-export type VehicleKind = 'light' | 'tank' | 'ifv' | 'jet' | 'transport' | 'bomber' | 'repair' | 'truck' | 'heli' | 'mantis' | 'drone';
+export type VehicleKind = 'light' | 'tank' | 'ifv' | 'jet' | 'transport' | 'bomber' | 'repair' | 'truck' | 'heli' | 'mantis' | 'drone' | 'carrier';
 
 export interface VehicleProfile {
   name: string;
@@ -149,7 +149,7 @@ export interface FactionConfig {
   /** Ground forces trained at the Barracks. */
   infantry: Readonly<Record<Exclude<UnitTier, 'demolition'>, InfantryProfile>> & { readonly demolition?: InfantryProfile };
   /** Vehicles (War Factory) and aircraft (Airfield). */
-  vehicles: Readonly<Record<Exclude<VehicleKind, 'bomber' | 'repair' | 'truck' | 'transport' | 'heli' | 'drone'>, VehicleProfile>> & {
+  vehicles: Readonly<Record<Exclude<VehicleKind, 'bomber' | 'repair' | 'truck' | 'transport' | 'heli' | 'drone' | 'carrier'>, VehicleProfile>> & {
     readonly bomber?: VehicleProfile;
     /** Attack helicopter (built at the Airfield). */
     readonly heli?: VehicleProfile;
@@ -160,6 +160,8 @@ export interface FactionConfig {
     readonly transport?: VehicleProfile;
     /** Kamikaze drone (the Islamic world's B-767): dives into an enemy structure. */
     readonly drone?: VehicleProfile;
+    /** Aircraft carrier (USA, Europe, China): sails the open sea only; not built yet, a fleet starts near the capital. */
+    readonly carrier?: VehicleProfile;
   };
   /** Leads the world oil cartel (like OPEC in real life): sets a production policy that moves the global oil price. */
   oilCartel?: boolean;
@@ -218,7 +220,6 @@ export type BuildingType =
   | 'warFactory'
   | 'refinery'
   | 'bank'
-  | 'hospital'
   | 'warFactory'
   | 'airfield'
   | 'techCenter'
@@ -257,7 +258,7 @@ export interface BuildingSpec {
   uncapturable?: boolean;
   /** Naval structure: must be placed entirely on water (default false = land only). */
   naval?: boolean;
-  /** Can hold people inside (hospital: wounded soldiers). */
+  /** Can hold people inside. */
   garrison?: GarrisonSpec;
 }
 

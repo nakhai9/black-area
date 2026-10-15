@@ -30,6 +30,9 @@ const STEP = DIRS.map((d) => d[2]);
  * cutting). Buildings block; water blocks walkers but not swimmers (special
  * forces); trees only cost more.
  */
+/** Search budget of a sea route (oceans are wide; a ship's order is rare). */
+const NAVAL_EXPANSIONS = 400_000;
+
 export class Pathfinder {
   private readonly g: Float32Array;
   private readonly from: Int32Array;
@@ -283,6 +286,142 @@ export class Pathfinder {
       const cy = Math.round(y0 + dy * t);
       if (!this.passable(cx, cy, swim)) return false;
       if (cx !== px && cy !== py && (!this.passable(px, cy, swim) || !this.passable(cx, py, swim))) return false;
+      px = cx;
+      py = cy;
+    }
+    return true;
+  }
+
+  /** Open water a ship may sail on (any sea or lake cell inside the map). */
+  navigable(x: number, y: number): boolean {
+    return this.map.inBounds(x, y) && this.map.types[this.map.index(x, y)] === 0;
+  }
+
+  /** Nearest navigable cell to (x, y) within `radius` cells (ring by ring), or null. */
+  nearestNavigable(x: number, y: number, radius = 16): GridPoint | null {
+    if (this.navigable(x, y)) return { x, y };
+    for (let r = 1; r <= radius; r++) {
+      let best: GridPoint | null = null;
+      let bestD = Infinity;
+      for (let cy = y - r; cy <= y + r; cy++) {
+        for (let cx = x - r; cx <= x + r; cx++) {
+          if (Math.max(Math.abs(cx - x), Math.abs(cy - y)) !== r || !this.navigable(cx, cy)) continue;
+          const d = Math.hypot(cx - x, cy - y);
+          if (d < bestD) {
+            bestD = d;
+            best = { x: cx, y: cy };
+          }
+        }
+      }
+      if (best) return best;
+    }
+    return null;
+  }
+
+  /**
+   * Sea route for a ship (Unit.naval): A* over water cells only (8 neighbours, no corner cutting over land), a little
+   * greedy (weighted heuristic) so long crossings stay cheap, then string-pulled over open water. If the goal cannot be
+   * reached, the route ends at the closest water cell reached.
+   */
+  findNaval(start: WorldPoint, goal: GridPoint, budget = NAVAL_EXPANSIONS): WorldPoint[] {
+    const { map } = this;
+    const W = map.width;
+    const H = map.height;
+    const sx = Math.floor(start.x / CELL_SIZE);
+    const sy = Math.floor(start.y / CELL_SIZE);
+    if (!map.inBounds(sx, sy) || !map.inBounds(goal.x, goal.y)) return [];
+    const startI = map.index(sx, sy);
+    const goalI = map.index(goal.x, goal.y);
+    const types = map.types;
+    const { g, stamp, closed } = this;
+    const open = this.heap;
+    open.clear();
+    const free = (i: number): boolean => types[i] === 0;
+    const gx = goal.x;
+    const gy = goal.y;
+    const h = (x: number, y: number): number => {
+      const dx = Math.abs(x - gx);
+      const dy = Math.abs(y - gy);
+      return (dx + dy + (SQRT2 - 2) * (dx < dy ? dx : dy)) * 1.4;
+    };
+    const run = ++this.run;
+    this.visit(startI, 0, -1);
+    open.push(startI, h(sx, sy));
+    let best = startI;
+    let bestH = h(sx, sy);
+    let expansions = 0;
+    while (open.size > 0 && expansions < budget) {
+      const cur = open.pop();
+      if (closed[cur] === run) continue;
+      closed[cur] = run;
+      expansions++;
+      if (cur === goalI) {
+        best = cur;
+        break;
+      }
+      const cx = cur % W;
+      const cy = (cur / W) | 0;
+      const hc = h(cx, cy);
+      if (hc < bestH) {
+        bestH = hc;
+        best = cur;
+      }
+      const gc = g[cur] ?? 0;
+      for (let k = 0; k < 8; k++) {
+        const dx = DX[k] ?? 0;
+        const dy = DY[k] ?? 0;
+        const nx = cx + dx;
+        const ny = cy + dy;
+        if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+        const ni = ny * W + nx;
+        if (!free(ni)) continue;
+        if (dx !== 0 && dy !== 0 && (!free(cy * W + nx) || !free(ny * W + cx))) continue;
+        if (closed[ni] === run) continue;
+        const cost = gc + (STEP[k] ?? 1);
+        if (stamp[ni] === run && cost >= (g[ni] ?? Infinity)) continue;
+        this.visit(ni, cost, cur);
+        open.push(ni, cost + h(nx, ny));
+      }
+    }
+    const cells: number[] = [];
+    for (let i = best; i !== -1 && i !== startI; i = this.from[i] ?? -1) cells.push(i);
+    cells.reverse();
+    const pts = cells.map((i) => ({ x: i % W, y: (i / W) | 0 }));
+    // String pulling over water.
+    const out: GridPoint[] = [];
+    let ax = sx;
+    let ay = sy;
+    let i = 0;
+    while (i < pts.length) {
+      let j = Math.min(pts.length - 1, i + 80);
+      while (j > i) {
+        const p = pts[j];
+        if (p && this.seaClear(ax, ay, p.x, p.y)) break;
+        j--;
+      }
+      const keep = pts[j];
+      if (!keep) break;
+      out.push(keep);
+      ax = keep.x;
+      ay = keep.y;
+      i = j + 1;
+    }
+    return out.map((c) => ({ x: (c.x + 0.5) * CELL_SIZE, y: (c.y + 0.5) * CELL_SIZE }));
+  }
+
+  /** Is the straight line between two cell centres open water all the way? */
+  private seaClear(x0: number, y0: number, x1: number, y1: number): boolean {
+    const dx = x1 - x0;
+    const dy = y1 - y0;
+    const steps = Math.ceil(Math.max(Math.abs(dx), Math.abs(dy)) * 2);
+    let px = x0;
+    let py = y0;
+    for (let s = 1; s <= steps; s++) {
+      const t = s / steps;
+      const cx = Math.round(x0 + dx * t);
+      const cy = Math.round(y0 + dy * t);
+      if (!this.navigable(cx, cy)) return false;
+      if (cx !== px && cy !== py && (!this.navigable(px, cy) || !this.navigable(cx, py))) return false;
       px = cx;
       py = cy;
     }

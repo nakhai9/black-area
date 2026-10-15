@@ -13,7 +13,7 @@ import { Infantry } from '../entities/Infantry';
 import type { Unit } from '../entities/Unit';
 import { Vehicle } from '../entities/Vehicle';
 import { SQUASH, drawVehicle } from '../render/VehicleArt';
-import { isoHeading, worldToIso } from './IsoView';
+import { isoHeading, liftAt, worldToIso } from './IsoView';
 import type { Effect } from './Effects';
 import { drawSoldier, drawSoldierDeath, drawsOwnSwim, drawsSquad } from '../render/InfantryArt';
 import { drawCarriedFlag } from '../render/Flags';
@@ -21,6 +21,7 @@ import { drawAircraftSheet } from '../render/AircraftSheets';
 import { drawFlagOnPole, drawNationalPole } from '../render/Flags';
 import { drawRepairDeath, drawRepairSheet } from '../render/RepairSheets';
 import { drawMantisDeath, drawMantisSheet } from '../render/MantisSheet';
+import { drawCarrierSheet } from '../render/CarrierSheet';
 import { drawTruckDeath, drawTruckSheet } from '../render/TruckSheets';
 import { drawTankDeath, drawTankSheet } from '../render/TankSheets';
 import { drawCraftDeath } from '../render/CraftSheets';
@@ -38,6 +39,9 @@ import { drawMissile, drawMissileBlast } from '../render/MissileSheet';
 import { drawShell, drawShellImpact } from '../render/ShellSheet';
 import { drawBullet, drawBulletImpact } from '../render/BulletSheet';
 import { drawCharge, drawDemolitionBlast } from '../render/DemolitionArt';
+
+/** How much stronger a ground vehicle's tilt on a slope is drawn than the ground's lift under it (see drawUnit). */
+const SLOPE_TILT = 2.5;
 
 /** Structure being positioned by the player (cells), with its legality. */
 export interface PlacementGhost {
@@ -544,7 +548,50 @@ export class Renderer {
     }
   }
 
+  /**
+   * Ground vehicles tilt with the raised ground (GroundLift): the picture is turned about the vehicle's ground point
+   * so its nose end rises (or dips) by the difference of the ground's lift under its nose and its tail, drawn
+   * SLOPE_TILT times stronger to read at this scale — climbing a hill looks like climbing.
+   */
   private drawUnit(u: Unit): void {
+    if (!(u instanceof Vehicle) || u.aircraft || u.isDrone || u.naval) {
+      this.drawUnitBody(u);
+      return;
+    }
+    const len = Math.max(2, u.radius * 1.1);
+    const c = Math.cos(u.heading) * len;
+    const s = Math.sin(u.heading) * len;
+    const rise = (liftAt(u.px + c, u.py + s) - liftAt(u.px - c, u.py - s)) * SLOPE_TILT;
+    // Nose minus tail on the flat iso screen.
+    const vx = 2 * (c - s) * ISO_X;
+    const vy = 2 * (c + s) * ISO_Y;
+    const v2 = vx * vx + vy * vy;
+    if (Math.abs(rise) < 0.02 || v2 < 1e-6) {
+      this.drawUnitBody(u);
+      return;
+    }
+    // A turn of the picture, never a squash: nose up = the nose end turns up on screen. Seen nose-on (the vehicle
+    // driving up or down the screen) a tilt would not show, so it fades out with the sideways share of the heading.
+    const side = Math.abs(vx) / Math.sqrt(v2);
+    const angle = Math.max(-0.3, Math.min(0.3, Math.atan2(rise, Math.abs(vx)) * side)) * (vx >= 0 ? -1 : 1);
+    if (Math.abs(angle) < 0.01) {
+      this.drawUnitBody(u);
+      return;
+    }
+    const P = worldToIso(u.px, u.py);
+    const { ctx } = this;
+    ctx.save();
+    ctx.translate(P.x, P.y);
+    ctx.rotate(angle);
+    ctx.translate(-P.x, -P.y);
+    try {
+      this.drawUnitBody(u);
+    } finally {
+      ctx.restore();
+    }
+  }
+
+  private drawUnitBody(u: Unit): void {
     const f = FACTIONS[u.faction as keyof typeof FACTIONS];
     if (!f) return;
     const { ctx } = this;
@@ -554,6 +601,7 @@ export class Renderer {
       if (u.type === 'tank' && drawTankSheet(ctx, u, P.x, P.y)) return;
       if (u.type === 'repair' && drawRepairSheet(ctx, u, P.x, P.y)) return;
       if (u.type === 'mantis' && drawMantisSheet(ctx, u, P.x, P.y)) return;
+      if (u.type === 'carrier' && drawCarrierSheet(ctx, u, P.x, P.y)) return;
       if (u.type === 'truck' && drawTruckSheet(ctx, u, P.x, P.y)) return;
       const heading = isoHeading(u.heading, u.aircraft ? 0.8 : SQUASH);
       // On the iso ground a vehicle's neighbours are half as far apart on screen: ground vehicles are drawn a bit
@@ -678,10 +726,20 @@ export class Renderer {
 
   /** RA2-style selection ring under a unit's feet: a circle on the ground, so an ellipse on screen (ground transform). */
   /** Weapon range of a unit: light green disc with a thin edge (ground transform). */
+  /**
+   * Raised ground in the ground transform: a ring or marker at world (x, y) is moved with the ground there
+   * (lifting by L iso px is −2L world px along x and y).
+   */
+  private lifted(x: number, y: number): { x: number; y: number } {
+    const l = 2 * liftAt(x, y);
+    return { x: x - l, y: y - l };
+  }
+
   private drawRangeCircle(u: Unit, range: number): void {
     const { ctx } = this;
+    const p = this.lifted(u.px, u.py);
     ctx.beginPath();
-    ctx.arc(u.px, u.py, range, 0, Math.PI * 2);
+    ctx.arc(p.x, p.y, range, 0, Math.PI * 2);
     ctx.fillStyle = 'rgba(144,238,144,0.12)';
     ctx.fill();
     ctx.strokeStyle = 'rgba(144,238,144,0.7)';
@@ -693,8 +751,9 @@ export class Renderer {
     const { ctx } = this;
     ctx.strokeStyle = color;
     ctx.lineWidth = 3 / this.camera.zoom;
+    const p = this.lifted(u.px, u.py);
     ctx.beginPath();
-    ctx.arc(u.px, u.py, Math.max(1.8, u.radius * 1.35), 0, Math.PI * 2);
+    ctx.arc(p.x, p.y, Math.max(1.8, u.radius * 1.35), 0, Math.PI * 2);
     ctx.stroke();
   }
 
@@ -784,8 +843,9 @@ export class Renderer {
     ctx.globalAlpha = strong ? 0.75 + 0.25 * pulse : 0.5;
     ctx.strokeStyle = '#ff3b30';
     ctx.lineWidth = (strong ? 4.5 : 3) / this.camera.zoom;
+    const p = this.lifted(u.px, u.py);
     ctx.beginPath();
-    ctx.arc(u.px, u.py, half * 1.1, 0, Math.PI * 2);
+    ctx.arc(p.x, p.y, half * 1.1, 0, Math.PI * 2);
     ctx.stroke();
     ctx.restore();
   }
@@ -1154,9 +1214,10 @@ export class Renderer {
     ctx.restore();
   }
 
-  private drawMoveMarker(m: { x: number; y: number; at: number }, time: number): void {
-    const t = (time - m.at) / MOVE_MARKER_SECONDS;
+  private drawMoveMarker(mark: { x: number; y: number; at: number }, time: number): void {
+    const t = (time - mark.at) / MOVE_MARKER_SECONDS;
     if (t < 0 || t > 1) return;
+    const m = this.lifted(mark.x, mark.y);
     const { ctx } = this;
     // Kept a readable size on screen at any zoom.
     const k = 0.4 * Math.min(1.2, Math.max(0.8, 1 / this.camera.zoom)); // 0.4: kept small and neat

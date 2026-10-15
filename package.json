@@ -1,7 +1,7 @@
 {
   "name": "black-area-root",
   "private": true,
-  "version": "2.3.0",
+  "version": "2.12.4",
   "workspaces": [
     "ui",
     "server"

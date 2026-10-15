@@ -1,6 +1,7 @@
 import { MOUNTAIN_CREST, MOUNTAIN_LEDGE } from '../constants';
 import { CELL_SIZE } from '../constants';
 import type { GridPoint, TerrainType } from '../types';
+import { hillHeight } from './Relief';
 
 export type PlacementBlocker = 'outOfBounds' | 'occupied' | 'water' | 'ice' | 'trees' | 'mountain' | 'needsWater';
 
@@ -68,6 +69,12 @@ export class TileMap {
 
   heightAt(x: number, y: number): number {
     return this.inBounds(x, y) ? this.heights[this.index(x, y)] : 0;
+  }
+
+  /** Real height plus the rolling hills (Relief.hillHeight) on land: the surface units climb and the relief shows. */
+  reliefAt(x: number, y: number): number {
+    const h = this.heightAt(x, y);
+    return h > 0 && this.codeAt(x, y) !== 0 ? h + hillHeight(h, x, y) : h;
   }
 
   isWater(x: number, y: number): boolean {
@@ -179,8 +186,12 @@ export class TileMap {
     return null;
   }
 
+  /** Called after occupy() with the area it changed (the raised ground levels under buildings, see GroundLift). */
+  onOccupy: ((x: number, y: number, w: number, d: number) => void) | null = null;
+
   /** Marks (or clears, with `id = null`) building occupancy over an area. */
   occupy(x: number, y: number, w: number, d: number, id: number | null): void {
+    this.onOccupy?.(x, y, w, d);
     for (let ty = y; ty < y + d; ty++) {
       for (let tx = x; tx < x + w; tx++) {
         if (this.inBounds(tx, ty) && this.inCore(tx, ty, x, y, w, d)) this.occupied[this.index(tx, ty)] = id ?? 0;

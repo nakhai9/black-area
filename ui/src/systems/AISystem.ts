@@ -36,7 +36,7 @@ export interface AIHost {
   /** Puts the finished structure of `player`'s construction queue down at (x, y). */
   placeReady(player: PlayerState, id: BuildOption['id'], x: number, y: number, rotated?: boolean): boolean;
   ownedTypesOf(player: PlayerState): Set<BuildingType>;
-  /** Sends a person into a building (wounded → hospital). */
+  /** Sends a person into a building. */
   orderEnter(u: Infantry, b: Building): void;
   /** Sends an engineer to lease one of the oil cartel's derricks (false if it cannot: limit reached, no path...). */
   orderLease(u: Infantry, b: OilDerrick): boolean;
@@ -71,7 +71,7 @@ export interface AIHost {
 }
 
 /** Order in which an AI nation builds its base. */
-const BUILD_PLAN: readonly BuildOption['id'][] = ['powerPlant', 'barracks', 'warFactory', 'hospital', 'airfield', 'techCenter'];
+const BUILD_PLAN: readonly BuildOption['id'][] = ['powerPlant', 'barracks', 'warFactory', 'airfield', 'techCenter'];
 const THINK_PERIOD = 1.5;
 /** Ceasefire: the AI keeps its units this many cells further out than the zone itself (a safety margin). */
 const TRUCE_SAFETY_CELLS = 2;
@@ -131,10 +131,6 @@ const VEHICLE_WEIGHT: Readonly<Partial<Record<VehicleKind, number>>> = {
 const REPAIR_BELOW = 0.98;
 /** Seconds a structure must go unhit before an engineer is sent inside to repair it. */
 const REPAIR_CALM = 3;
-/** A soldier below this share of its health goes to the nearest hospital. */
-const HEAL_BELOW = 0.85;
-/** Seconds without being hit before a wounded soldier leaves the fight for hospital. */
-const HEAL_CALM = 1.5;
 /** Repair vehicles look for damaged friendly ground vehicles within this many cells. */
 const MEND_SEARCH_CELLS = 60;
 /** Overseas war: transport aircraft kept at home, and the smallest force worth sending across the ocean. */
@@ -242,7 +238,7 @@ const FREE_OIL_PULL = 0.4;
 /** captureOil: enemy derricks within this many cells of a free engineer are taken over (one engineer at a time). */
 const OIL_CAPTURE_CELLS = 70;
 const MILITARY_TARGETS: Partial<Record<BuildingType, number>> = { barracks: 0.75, warFactory: 0.8, airfield: 0.85, techCenter: 0.9 };
-/** Any other structure (hospital…). */
+/** Any other structure. */
 const OTHER_TARGET = 1.1;
 /** Seconds between re-weighing which nation to make war on. */
 const RIVAL_PERIOD = 60;
@@ -290,7 +286,7 @@ interface AIState {
 /**
  * Computer-controlled nations: every AI nation has its own government (its own state, personality and plans)
  * that weighs the situation and makes the best decisions it can for its nation. Each one builds its base in a fixed order
- * (Barracks → War Factory → Hospital → Airfield → High-Tech Center), keeps its training
+ * (Barracks → War Factory → Airfield → High-Tech Center), keeps its training
  * and vehicle queues running with the same rules as the player (5:3 special
  * forces), keeps a third of its army at home as the guard and sends the other two thirds
  * on a non-stop offensive against the closest reachable opponent.
@@ -438,7 +434,6 @@ export class AISystem implements GameSystem {
     // Ceasefire: the nation only builds up (economy, base, army) and launches no attack until the war resumes.
     if (inTruce()) {
       this.leaseOil(p, owned, threat);
-      this.healWounded(p);
       this.keepCeasefire(p, st, capital);
       return;
     }
@@ -447,7 +442,6 @@ export class AISystem implements GameSystem {
     if (st.overseas) this.loadTransports(p, st, capital);
     this.leaseOil(p, owned, threat);
     this.captureOil(p, threat);
-    this.healWounded(p);
     this.driveConvoys(st);
     this.evacuate(p, capital);
     this.army(p, st, capital);
@@ -1122,37 +1116,6 @@ export class AISystem implements GameSystem {
         }
       }
       if (best && this.host.orderMend(best, [r])) taken.add(best.id);
-    }
-  }
-
-  /** Wounded soldiers go to the nearest hospital with a free bed as soon as they are out of the line of fire. */
-  private healWounded(p: PlayerState): void {
-    const hospitals = this.host.entities.buildings().filter((b) => b.owner === p.id && b.alive && b.spec.garrison);
-    if (hospitals.length === 0) return;
-    const heading = new Map<number, number>();
-    for (const u of this.host.entities.fieldUnits()) {
-      if (u.owner === p.id && u.task?.type === 'enter') heading.set(u.task.buildingId, (heading.get(u.task.buildingId) ?? 0) + 1);
-    }
-    for (const u of this.host.entities.fieldUnits()) {
-      if (!(u instanceof Infantry) || u.owner !== p.id || !u.alive || u.task !== null) continue;
-      if (u.hp >= u.maxHp * HEAL_BELOW || this.time - u.lastAttackedAt < HEAL_CALM) continue;
-      let best: Building | null = null;
-      let bestD = Infinity;
-      for (const h of hospitals) {
-        const cap = h.spec.garrison?.capacity ?? 0;
-        if (!h.canEnter(u) || h.garrison.length + (heading.get(h.id) ?? 0) >= cap) continue;
-        const c = h.centerWorld();
-        const d = Math.hypot(c.x - u.px, c.y - u.py);
-        if (d < bestD) {
-          bestD = d;
-          best = h;
-        }
-      }
-      if (!best) continue;
-      u.attackMove = null;
-      u.attackTarget = null;
-      this.host.orderEnter(u, best);
-      heading.set(best.id, (heading.get(best.id) ?? 0) + 1);
     }
   }
 
@@ -1835,7 +1798,6 @@ export class AISystem implements GameSystem {
           u.boardTarget === null &&
           u.attackMove === null &&
           u.combatTarget === null &&
-          u.hp >= u.maxHp * HEAL_BELOW &&
           Math.hypot(u.px - home.x, u.py - home.y) < BASE_RADIUS,
       );
     for (const t of this.homeTransports(p)) {

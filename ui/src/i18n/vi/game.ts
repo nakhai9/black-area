@@ -144,4 +144,6 @@ export default {
   '{count} vehicles are heading to the War Factory for repair.': '{count} xe đang về nhà máy xe để sửa chữa.',
   'The {name} is repaired.': '{name} đã được sửa xong.',
   '{name} has left the match and is defeated.': '{name} đã rời trận và bị tính là thua.',
+  'Force fire: attacking your own {name}.': 'Bắn ép: tấn công {name} của chính mình.',
+  unit: 'đơn vị',
 } satisfies Record<string, string>;

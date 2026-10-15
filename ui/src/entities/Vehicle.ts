@@ -48,6 +48,7 @@ const HANDLING: Readonly<Record<VehicleKind, { accel: number; turn: number; pivo
   truck: { accel: 0.6, turn: 3.0, pivot: true },
   mantis: { accel: 1.0, turn: 2.0, pivot: true },
   drone: { accel: 0.4, turn: 3.0, pivot: false },
+  carrier: { accel: 4, turn: 0.35, pivot: false },
 };
 
 /** Can `soldiers` soldiers and `vehicles` vehicles travel together in one transport? */
@@ -252,6 +253,15 @@ export class Vehicle extends Unit {
   /** Attack helicopter: lands and waits anywhere on open ground, like a vehicle parks; needs no airfield after it is built. */
   get isHeli(): boolean {
     return this.type === 'heli';
+  }
+
+  /** Aircraft carrier: sails the open sea only (never on land). */
+  get isAircraftCarrier(): boolean {
+    return this.type === 'carrier';
+  }
+
+  override get naval(): boolean {
+    return this.type === 'carrier';
   }
 
   /** Kamikaze drone: parks on an airfield like a fighter; dives into the structure it is sent at. */

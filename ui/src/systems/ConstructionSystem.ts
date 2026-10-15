@@ -20,7 +20,6 @@ import {
   HAPPY_CITY_COST,
   FOOTPRINT_LARGE,
   FOOTPRINT_SMALL,
-  HOSPITAL_COST,
   POWER_PLANT_COST,
   WAR_FACTORY_COST,
 } from '../constants';
@@ -28,7 +27,6 @@ import { Airfield } from '../entities/Airfield';
 import { AlliedBuilding } from '../entities/AlliedBuilding';
 import { FACTIONS } from '../factions';
 import { HappyCity } from '../entities/HappyCity';
-import { Hospital } from '../entities/Hospital';
 import { Bunker } from '../entities/Bunker';
 import { PowerPlant } from '../entities/PowerPlant';
 import { TechCenter } from '../entities/TechCenter';
@@ -43,9 +41,9 @@ import type { GameSystem } from './GameSystem';
 
 /** A structure that can be produced from the sidebar's Build tab. */
 export interface BuildOption {
-  id: 'powerPlant' | 'barracks' | 'warFactory' | 'hospital' | 'airfield' | 'techCenter' | 'happyCity' | 'flagpole' | 'alliedBuilding' | 'bunker' | 'wall' | 'gate';
+  id: 'powerPlant' | 'barracks' | 'warFactory' | 'airfield' | 'techCenter' | 'happyCity' | 'flagpole' | 'alliedBuilding' | 'bunker' | 'wall' | 'gate';
   name: string;
-  /** Tech tree: these buildings must already stand (power plant → barracks → war factory/hospital → airfield → happy city). */
+  /** Tech tree: these buildings must already stand (power plant → barracks → war factory → airfield → happy city). */
   requires?: BuildingType | readonly BuildingType[];
   cost: number;
   /** Same price for every nation (the faction cost multiplier is not applied). */
@@ -88,15 +86,6 @@ export const BUILD_OPTIONS: readonly BuildOption[] = [
     footprint: FOOTPRINT_LARGE,
     spriteKey: (f) => `warFactory:${f}`,
     create: (owner, faction, x, y) => new WarFactory(owner, faction, center(x, y, FOOTPRINT_LARGE)),
-  },
-  {
-    id: 'hospital',
-    name: 'Hospital',
-    requires: 'barracks',
-    cost: HOSPITAL_COST,
-    footprint: FOOTPRINT_LARGE,
-    spriteKey: (f) => `hospital:${f}`,
-    create: (owner, faction, x, y) => new Hospital(owner, faction, center(x, y, FOOTPRINT_LARGE)),
   },
   {
     // Self-firing machine-gun pillbox: shoots enemy soldiers and ground vehicles in range on its own.
@@ -149,7 +138,7 @@ export const BUILD_OPTIONS: readonly BuildOption[] = [
   {
     id: 'happyCity',
     name: 'Happy City',
-    requires: ['airfield', 'hospital'],
+    requires: 'airfield',
     cost: HAPPY_CITY_COST,
     fixedCost: true,
     footprint: FOOTPRINT_CITY,

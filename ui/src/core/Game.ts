@@ -1,5 +1,5 @@
 import { BULLET_FLIGHT_SECONDS, BULLET_IMPACT_SECONDS, hasBulletSheet, type BulletSize } from '../render/BulletSheet';
-import { setDemoActive } from './Demo';
+import { demoActive, setDemoActive } from './Demo';
 import {
   DEMO_CREDITS,
   MAX_WAYPOINTS,
@@ -101,6 +101,8 @@ import {
   TRUCE_GRACE_SECONDS,
   TRUCE_ZONE_CELLS,
   MOUNTAIN_RANGES,
+  CARRIER_FLEET,
+  CARRIER_NATIONS,
   MOUNTAIN_PASS_SPEED_INFANTRY,
   MOUNTAIN_PASS_SPEED_VEHICLE,
   TRUCK_SOLDIERS,
@@ -127,6 +129,7 @@ import { TerrainRenderer } from '../map/TerrainRenderer';
 import { Pathfinder } from '../map/Pathfinder';
 import { type GroupMember, PathService } from '../map/PathService';
 import { TileMap } from '../map/TileMap';
+import { FREE_SLOPE, drawnSlope } from '../map/Relief';
 import { computeSafety, findOilRow } from '../map/OilSite';
 import { TERRITORIES } from '../map/Territories';
 import { buildWorld } from '../map/WorldGenerator';
@@ -218,6 +221,8 @@ export type GameCommand = (
   | { k: 'right'; w: WorldPoint; am: boolean }
   | { k: 'guard'; ward: number }
   | { k: 'sellBuilding'; b: number }
+  /** DEMO only: Ctrl+click on one of my own structures / units: the selection fires on it (force fire). */
+  | { k: 'forceAttack'; t: number }
   | { k: 'key'; code: 'KeyF' | 'KeyU' | 'KeyT' | 'KeyX' | 'KeyC' }
   | { k: 'waypoints'; pts: WorldPoint[] }
   | { k: 'minimap'; w: WorldPoint }
@@ -492,6 +497,7 @@ export class Game {
     this.construction = new ConstructionSystem(this.players);
     this.pathfinder = new Pathfinder(this.map);
     this.paths = new PathService(this.map, this.pathfinder);
+    this.spawnCarrierFleets();
     if (mp) {
       // Multiplayer: route work runs on the game clock and a fixed step budget, the same on every machine.
       this.paths.clock = () => this.time * 1000;
@@ -917,7 +923,7 @@ export class Game {
     if (!capital) return;
     const cx = capital.x + Math.floor(capital.w / 2);
     const cy = capital.y + Math.floor(capital.d / 2);
-    const ids = ['powerPlant', 'powerPlant', 'barracks', 'warFactory', 'hospital', 'airfield', 'techCenter', 'alliedBuilding', 'bunker', 'flagpole'];
+    const ids = ['powerPlant', 'powerPlant', 'barracks', 'warFactory', 'airfield', 'techCenter', 'alliedBuilding', 'bunker', 'flagpole'];
     const placed: Building[] = [capital];
     for (const id of ids) {
       const option = BUILD_OPTIONS.find((o) => o.id === id);
@@ -2120,7 +2126,7 @@ export class Game {
       const cx = Math.floor(u.px / CELL_SIZE);
       const cy = Math.floor(u.py / CELL_SIZE);
       // Mountain crests are rock walls for every ground unit (swimmers too): only the passes lead across a range.
-      if (!this.map.isRockWall(cx, cy) && (u.swims || !this.map.isWater(cx, cy))) {
+      if (u.naval ? this.map.isWater(cx, cy) : !this.map.isRockWall(cx, cy) && (u.swims || !this.map.isWater(cx, cy))) {
         // Update the stored point in place: no new object per unit per tick.
         const dry = this.lastDry.get(u.id);
         if (dry) {
@@ -2199,6 +2205,7 @@ export class Game {
       u.inWater = !u.flies && this.map.isWater(cx, cy);
       // Woods slow everybody down; mountain passes (slopes) slow soldiers and vehicles (machines more).
       u.terrainFactor = u.flies ? 1 : this.map.mountain[this.map.index(cx, cy)] === MOUNTAIN_PASS ? (u instanceof Vehicle ? MOUNTAIN_PASS_SPEED_VEHICLE : MOUNTAIN_PASS_SPEED_INFANTRY) : this.map.hasTrees(cx, cy) ? 0.78 : 1;
+      if (!u.flies && !u.inWater) u.terrainFactor *= this.climbFactor(u);
     }
     this.paths.update();
     this.queueInCrowds();
@@ -2220,7 +2227,6 @@ export class Game {
     this.processMends(dt);
     this.processFactoryRepairs(dt);
     this.processPatients(dt);
-    this.healGarrisons(dt);
     this.regenVeterans(dt);
     this.janitorTimer += dt;
     if (this.janitorTimer >= JANITOR_INTERVAL) {
@@ -2371,6 +2377,11 @@ export class Game {
         if (ward && ward.owner === me) this.orderGuard(ward, this.selection.selectedUnitList());
         break;
       }
+      case 'forceAttack': {
+        const target = this.entities.get(cmd.t);
+        if (demoActive && target && target.alive && target.owner === me) this.orderForceAttack(target);
+        break;
+      }
       case 'sellBuilding': {
         const b = this.entities.get(cmd.b);
         if (b instanceof Building && b.owner === me) this.sellBuilding(b);
@@ -2446,6 +2457,30 @@ export class Game {
   }
 
   /** 6 minutes of war, 4 of peace, over and over: at each switch every fight and takeover in progress is called off. */
+  /**
+   * Hills slow the climb: the drawn slope of the relief (TileMap.reliefAt) a little ahead along the way the unit is
+   * going; uphill costs speed (machines more than soldiers), downhill helps a little. Never blocks: every hill can
+   * be driven over, only slowly. Same rule for players and AI.
+   */
+  private climbFactor(u: Unit): number {
+    const next = u.nextWaypoint;
+    if (!next) return 1;
+    const dx = next.x - u.px;
+    const dy = next.y - u.py;
+    const d = Math.hypot(dx, dy);
+    if (d < 0.5) return 1;
+    const step = CELL_SIZE * 0.75;
+    const ax = u.px + (dx / d) * step;
+    const ay = u.py + (dy / d) * step;
+    const h0 = this.map.reliefAt(Math.floor(u.px / CELL_SIZE), Math.floor(u.py / CELL_SIZE));
+    const h1 = this.map.reliefAt(Math.floor(ax / CELL_SIZE), Math.floor(ay / CELL_SIZE));
+    const slope = drawnSlope(h1 - h0, 0.75);
+    if (slope <= 0) return Math.min(1.1, 1 - slope * 0.25);
+    if (slope <= FREE_SLOPE) return 1;
+    const vehicle = u instanceof Vehicle;
+    return Math.max(vehicle ? 0.4 : 0.55, 1 / (1 + (slope - FREE_SLOPE) * (vehicle ? 2.2 : 1.4)));
+  }
+
   private updateWarCycle(dt: number): void {
     this.warClock += dt;
     const { peace } = this.warPhase();
@@ -2854,8 +2889,16 @@ export class Game {
               this.issue({ k: 'right', w: world, am: true, pu: pu?.id ?? null, pb: pu ? null : (this.selection.pick(world)?.id ?? null) });
             } else if (!this.peekPath(world)) this.selection.clearAll();
           } else if (ev.ctrl && !ev.shift) {
-            // Fighters selected + Ctrl+click on one of my units (not self-propelled air defence): they fly guard on it.
             const me = this.humanPlayer.id;
+            // DEMO test game: Ctrl+click on one of my own structures or units attacks it like an enemy (force fire).
+            if (demoActive && this.selection.selectedUnits.size > 0) {
+              const own = this.selection.pickUnit(world) ?? this.selection.pick(world);
+              if (own && own.owner === me && !this.selection.selectedUnits.has(own.id)) {
+                this.issue({ k: 'forceAttack', t: own.id });
+                break;
+              }
+            }
+            // Fighters selected + Ctrl+click on one of my units (not self-propelled air defence): they fly guard on it.
             const ward = this.selection.pickUnit(world);
             const fighters = this.selection.selectedUnitList().some((u) => u instanceof Vehicle && u.aircraft && u.type === 'jet' && u.alive);
             if (ward && ward.owner === me && fighters && !this.selection.selectedUnits.has(ward.id) && !(ward instanceof Vehicle && ward.type === 'mantis')) {
@@ -4180,6 +4223,16 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     for (const u of this.entities.fieldMovers()) {
       if (budget <= 0) break;
       if (!u.moving || u.aircraft || !u.destination) continue;
+      if (u.naval) {
+        if (!u.needsRepath) continue;
+        budget--;
+        const c = this.map.cellAt(u.destination.x, u.destination.y);
+        const goal = c ? this.pathfinder.nearestNavigable(c.x, c.y) : null;
+        const route = goal ? this.pathfinder.findNaval({ x: u.px, y: u.py }, goal) : [];
+        if (route.length === 0) u.stop();
+        else u.follow(route, true);
+        continue;
+      }
       const next = u.waypoints()[0];
       const nextCell = next ? this.map.cellAt(next.x, next.y) : null;
       const blocked = nextCell !== null && !this.pathfinder.passable(nextCell.x, nextCell.y, u.swims);
@@ -4438,7 +4491,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
 
   /**
    * Right-click on a building with soldiers selected:
-   *  - own building that accepts them (hospital ← wounded): enter;
+   *  - own building that accepts them: enter;
    *  - own damaged building + engineers: repair;
    *  - enemy building + engineers: capture it (neutral buildings are immune).
    * Returns true if at least one soldier got an order.
@@ -4477,8 +4530,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
         }
         type = 'lease';
       } else if (b.owner === me.id) {
-        // A damaged structure is repaired first, even a hospital the (wounded) engineer could check into: it is
-        // treated there once the repair is done (see processRepairs).
+        // A damaged structure is repaired first.
         if (u.isEngineer && b.hp < b.maxHp && !b.indestructible) type = 'repair';
         else if (b.canEnter(u)) type = 'enter';
       } else if (u.isEngineer && b.capturable && (b.faction !== 'neutral' || b instanceof NationCapital || (b instanceof OilDerrick && b.antarctic))) {
@@ -4504,6 +4556,33 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     if (!m || !cell) return null;
     const range = MOUNTAIN_RANGES[(this.map.mountainRange[this.map.index(cell.x, cell.y)] ?? 0) - 1];
     return range ? { name: range.name, x: m.x, y: m.y } : null;
+  }
+
+  /** DEMO force fire: every selected armed unit that could hurt `target` were it an enemy is ordered to attack it. */
+  private orderForceAttack(target: Entity): void {
+    let ordered = 0;
+    for (const u of this.selection.selectedUnitList()) {
+      if (!u.weapon || u === target) continue;
+      const before = { attackTarget: u.attackTarget, attackMove: u.attackMove };
+      u.attackTarget = target.id; // force fire is checked against the order itself (CombatSystem.forceFire)
+      if (!canTarget(u, target)) {
+        u.attackTarget = before.attackTarget;
+        continue;
+      }
+      if (u instanceof Vehicle) u.guardId = null;
+      u.combatTarget = null;
+      u.engaged = false;
+      u.chasing = false;
+      u.attackMove = null;
+      u.task = null;
+      u.parade = null;
+      u.orderFlash = { kind: 'attack', at: this.time, target };
+      ordered++;
+    }
+    if (ordered === 0) return;
+    const at = target instanceof Building ? target.centerWorld() : { x: (target as Unit).px, y: (target as Unit).py };
+    this.moveMarker = { x: at.x, y: at.y, at: this.time };
+    this.sidebar.notify(t('Force fire: attacking your own {name}.', { name: target instanceof Building ? target.spec.name : ((target as { name?: string }).name ?? t('unit')) }), 2);
   }
 
   /** Every selected armed unit that can hurt `target` is ordered to attack it. */
@@ -4841,14 +4920,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       if (b.crew.length === 0 || !b.alive) continue;
       b.hp = Math.min(b.maxHp, b.hp + b.maxHp * ENGINEER_REPAIR_SHARE * b.crew.length * dt);
       if (b.hp < b.maxHp) continue;
-      // Repaired hospital: wounded engineers stay on as patients; the rest walk out.
-      const crew = b.crew.splice(0);
-      const out: Infantry[] = [];
-      for (const c of crew) {
-        if (b.canEnter(c)) b.garrison.push(c);
-        else out.push(c);
-      }
-      this.placeOutside(b, out);
+      this.placeOutside(b, b.crew.splice(0));
     }
   }
 
@@ -4892,21 +4964,6 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       if (!u.alive || u.hp >= u.maxHp || u.rank < VETERAN_REGEN_RANK) continue;
       if (this.time - u.lastAttackedAt < VETERAN_REGEN_CALM) continue;
       u.hp = Math.min(u.maxHp, u.hp + u.maxHp * VETERAN_REGEN_PER_SECOND * dt);
-    }
-  }
-
-  /** Patients inside a hospital recover health over time. */
-  private healGarrisons(dt: number): void {
-    for (const b of this.entities.buildings()) {
-      const heal = b.spec.garrison?.healPerSecond;
-      if (!heal) continue;
-      const healed: Infantry[] = [];
-      for (const u of b.garrison) {
-        u.hp = Math.min(u.maxHp, u.hp + heal * dt);
-        if (u.hp >= u.maxHp) healed.push(u);
-      }
-      // Patients walk out on their own as soon as they are fully healed.
-      if (healed.length > 0) this.ejectUnits(b, healed, 'healed');
     }
   }
 
@@ -5113,9 +5170,87 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     return null;
   }
 
+  /**
+   * New game: each carrier nation (CARRIER_NATIONS) starts with CARRIER_FLEET aircraft carriers on open sea near its
+   * capital (the nearest water with room round it), bows pointing out to sea. They only sail for now.
+   */
+  private spawnCarrierFleets(): void {
+    for (const p of this.players) {
+      const f = p.faction as FactionId;
+      if (p.absent || !CARRIER_NATIONS.includes(f)) continue;
+      const home = geoToWorld(CAPITAL_LOCATIONS[f]);
+      const c = this.map.cellAt(home.x, home.y);
+      const sea = c ? this.openSeaNear(c.x, c.y, 5) : null;
+      if (!sea) continue;
+      const out = Math.atan2(sea.y - c!.y, sea.x - c!.x);
+      for (let k = 0; k < CARRIER_FLEET; k++) {
+        const a = out + Math.PI / 2;
+        const side = (k - (CARRIER_FLEET - 1) / 2) * 5;
+        const spot = this.pathfinder.nearestNavigable(Math.round(sea.x + Math.cos(a) * side), Math.round(sea.y + Math.sin(a) * side), 8) ?? sea;
+        const ship = this.entities.add(new Vehicle(p.id, f, 'carrier', { x: (spot.x + 0.5) * CELL_SIZE, y: (spot.y + 0.5) * CELL_SIZE }));
+        ship.heading = out;
+      }
+    }
+  }
+
+  /** Nearest water cell to (x, y) with open water `room` cells round it every way (ring search), or null. */
+  private openSeaNear(x: number, y: number, room: number): GridPoint | null {
+    const open = (cx: number, cy: number): boolean => {
+      for (let j = -room; j <= room; j++) for (let i = -room; i <= room; i++) if (!this.pathfinder.navigable(cx + i, cy + j)) return false;
+      return true;
+    };
+    const ok = (cx: number, cy: number): boolean => this.pathfinder.navigable(cx, cy) && open(cx, cy);
+    if (ok(x, y)) return { x, y };
+    for (let r = 1; r <= 400; r++) {
+      // The ring's top and bottom rows, then its left and right columns.
+      for (let cx = x - r; cx <= x + r; cx++) {
+        if (ok(cx, y - r)) return { x: cx, y: y - r };
+        if (ok(cx, y + r)) return { x: cx, y: y + r };
+      }
+      for (let cy = y - r + 1; cy <= y + r - 1; cy++) {
+        if (ok(x - r, cy)) return { x: x - r, y: cy };
+        if (ok(x + r, cy)) return { x: x + r, y: cy };
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Ships (Unit.naval) sent to `world`: each takes a spot of a loose ring round it on open water (the nearest water
+   * when the click is on land) and sails there by a sea route (Pathfinder.findNaval).
+   */
+  private orderSail(world: WorldPoint, ships: Unit[]): void {
+    const spacing = Math.max(...ships.map((s) => s.radius)) * 2.6;
+    ships.sort((a, b) => Math.hypot(a.px - world.x, a.py - world.y) - Math.hypot(b.px - world.x, b.py - world.y));
+    ships.forEach((s, k) => {
+      const a = k * 2.4;
+      const r = k === 0 ? 0 : spacing * (1 + Math.floor((k - 1) / 6) * 0.9);
+      const wx = world.x + Math.cos(a) * r;
+      const wy = world.y + Math.sin(a) * r;
+      const cell = this.map.cellAt(wx, wy) ?? this.map.cellAt(world.x, world.y);
+      const goal = cell ? this.pathfinder.nearestNavigable(cell.x, cell.y) : null;
+      s.task = null;
+      s.attackTarget = null;
+      s.attackMove = null;
+      s.combatTarget = null;
+      if (!goal) {
+        s.stop();
+        return;
+      }
+      s.follow(this.pathfinder.findNaval({ x: s.px, y: s.py }, goal));
+      s.orderFlash = { kind: 'move', at: this.time, target: null };
+    });
+  }
+
   private orderMove(world: WorldPoint, units: Unit[] = this.selection.selectedUnitList(), evacuate = true): void {
     units = this.keepAircraftAtAirfield(units, world);
     if (!this.map.cellAt(world.x, world.y) || units.length === 0) return;
+    const ships = units.filter((u) => u.naval);
+    if (ships.length > 0) {
+      this.orderSail(world, ships);
+      units = units.filter((u) => !u.naval);
+      if (units.length === 0) return;
+    }
     // Short-handed trucks only drive within the base: warn when one is sent farther out.
     const inBase = this.entities.buildings().some((b) => b.alive && b.owner === this.humanPlayer.id && distanceTo(world.x, world.y, b) <= TRUCK_HOME_CELLS * CELL_SIZE);
     const parkedTruck = inBase ? undefined : units.find((u) => u instanceof Vehicle && u.isTruck && u.owner === this.humanPlayer.id && u.cargo.length < TRUCK_MIN_RIDERS);

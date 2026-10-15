@@ -1,8 +1,10 @@
 import { CELL_SIZE, WORLD_SCALE } from '../constants';
 import { ValueNoise, hash2 } from '../core/Random';
 import { createCanvas } from '../render/Canvas';
+import { CELL_METRES, RELIEF_LIFT } from './Relief';
 import type { EarthData } from './EarthData';
 import type { TileMap } from './TileMap';
+import type { GroundLift } from './GroundLift';
 
 /**
  * Tile-based ground. The Earth (real land, lakes, elevation and sea depth from NASA / Natural Earth data) has
@@ -14,6 +16,15 @@ import type { TileMap } from './TileMap';
 const CHUNK_CELLS = 16;
 const TILE_PX = 20;
 const CHUNK_PX = CHUNK_CELLS * TILE_PX;
+/**
+ * Raised ground (GroundLift): a chunk is painted flat with PAD extra cells all round, then warped so each pixel
+ * shows the ground point lifted onto it (the lift reaches up to ~1.7 cells, from the neighbours of the chunk).
+ */
+const PAD = 2;
+const SRC_CELLS = CHUNK_CELLS + 2 * PAD;
+const SRC_PX = SRC_CELLS * TILE_PX;
+/** Corners of the lift grid per side. */
+const LV = SRC_CELLS + 1;
 const CACHE_LIMIT = 260;
 /** Time budget per frame for painting new chunks (at least one is always painted). */
 const BUILD_BUDGET_MS = 4;
@@ -58,6 +69,47 @@ const smooth = (a: number, b: number, x: number): number => {
   return t * t * (3 - 2 * t);
 };
 
+// ---- Shaded relief: the real elevation, smoothed between cell centres, lit like a 3D surface.
+/** Light from the upper left of the screen (world −x, a little −y) and fairly high: x, y on the ground, z up. */
+const SUN = (() => {
+  const v = [-0.62, -0.28, 0.73];
+  const n = Math.hypot(v[0]!, v[1]!, v[2]!);
+  return [v[0]! / n, v[1]! / n, v[2]! / n] as const;
+})();
+/** How strongly the lighting changes the ground colour (0: flat, 1: full). */
+const RELIEF_STRENGTH = 0.6;
+/** Snow caps: from SNOW_FROM metres the ground whitens, fully white by SNOW_FULL (a little noise on the line). */
+const SNOW_FROM = 3700;
+const SNOW_FULL = 4700;
+/** Steep slopes show bare rock (slope = rise / run as drawn). */
+const ROCK_SLOPE = 0.55;
+const ROCK_FULL = 1.1;
+const BARE_ROCK = rgb('#8a7c6c');
+const SNOWCAP = rgb('#f1f3f6');
+
+/**
+ * Height (m) and slope (m per cell, along x and y) at a point between cell centres (array coords: cell (i, j) centre at
+ * (i, j)), all three blended bilinearly from the cell centres: the shading is smooth across cells.
+ */
+const between = { h: 0, gx: 0, gy: 0 };
+function sampleRelief(H: Float32Array, GX: Float32Array, GY: Float32Array, W: number, x: number, y: number): void {
+  const cx = x < 0 ? 0 : x > W - 1 ? W - 1 : x;
+  const cy = y < 0 ? 0 : y > W - 1 ? W - 1 : y;
+  const x0 = Math.min(W - 2, Math.floor(cx));
+  const y0 = Math.min(W - 2, Math.floor(cy));
+  const tx = cx - x0;
+  const ty = cy - y0;
+  const i00 = y0 * W + x0;
+  const w00 = (1 - tx) * (1 - ty);
+  const w10 = tx * (1 - ty);
+  const w01 = (1 - tx) * ty;
+  const w11 = tx * ty;
+  const mix = (A: Float32Array): number => A[i00]! * w00 + A[i00 + 1]! * w10 + A[i00 + W]! * w01 + A[i00 + W + 1]! * w11;
+  between.h = mix(H);
+  between.gx = mix(GX);
+  between.gy = mix(GY);
+}
+
 export class TileTerrain {
   /** Painted chunks; `half` is a quarter-size copy used when zoomed out (much cheaper to draw). */
   private readonly cache = new Map<string, { full: HTMLCanvasElement; half: HTMLCanvasElement | null }>();
@@ -67,11 +119,14 @@ export class TileTerrain {
   private readonly col: [number, number, number] = [0, 0, 0];
   /** Chunks being painted, a few rows per frame (see stepBuild). */
   private readonly pending = new Map<string, BuildJob>();
+  /** Painted chunks whose ground changed (a building came or went): still drawn until their repaint is done. */
+  private readonly stale = new Set<string>();
 
   constructor(
     private readonly map: TileMap,
     private readonly earth: EarthData,
     private readonly seed: number,
+    private readonly lift: GroundLift,
   ) {
     this.noise = new ValueNoise(seed + 91);
   }
@@ -101,9 +156,8 @@ export class TileTerrain {
     for (const [qx, qy] of wanted) {
       const key = `${qx},${qy}`;
       let tile = this.cache.get(key);
-      if (tile) {
-        this.cache.delete(key); // refresh LRU position
-      } else if (built === 0 || performance.now() - start < BUILD_BUDGET_MS) {
+      if (tile) this.cache.delete(key); // refresh LRU position
+      if ((!tile || this.stale.has(key)) && (built === 0 || performance.now() - start < BUILD_BUDGET_MS)) {
         // Painting a chunk takes longer than a frame's budget: it is done a few rows at a time over several
         // frames (no hitch while the camera pans); the smooth fallback shows until it is finished.
         let job = this.pending.get(key);
@@ -115,6 +169,7 @@ export class TileTerrain {
         built++;
         if (canvas) {
           this.pending.delete(key);
+          this.stale.delete(key);
           tile = { full: canvas, half: null };
         }
       }
@@ -146,6 +201,25 @@ export class TileTerrain {
   }
 
   /**
+   * The ground of cells (x, y, w, d) changed (a building was placed or removed, so its lift levels): the chunks
+   * whose painting can show those cells are repainted (the old picture stays until the new one is done).
+   */
+  invalidate(x: number, y: number, w: number, d: number): void {
+    const r = PAD + 2;
+    const qx0 = Math.floor((x - r) / CHUNK_CELLS);
+    const qy0 = Math.floor((y - r) / CHUNK_CELLS);
+    const qx1 = Math.floor((x + w + r) / CHUNK_CELLS);
+    const qy1 = Math.floor((y + d + r) / CHUNK_CELLS);
+    for (let qy = qy0; qy <= qy1; qy++) {
+      for (let qx = qx0; qx <= qx1; qx++) {
+        const key = `${qx},${qy}`;
+        this.pending.delete(key);
+        if (this.cache.has(key)) this.stale.add(key);
+      }
+    }
+  }
+
+  /**
    * Drops every painted chunk that was not drawn since the previous sweep — ground the player has panned away
    * from. They are repainted on demand if the camera goes back.
    */
@@ -162,6 +236,7 @@ export class TileTerrain {
         tile.half.height = 0;
       }
       this.cache.delete(key);
+      this.stale.delete(key);
       dropped++;
     }
     this.touched.clear();
@@ -323,15 +398,15 @@ export class TileTerrain {
   /** Sets a chunk up for painting: the terrain codes, heights and sea depths around it, and an empty image. */
   private startBuild(qx: number, qy: number): BuildJob {
     const { map, earth } = this;
-    const W = CHUNK_CELLS + 2;
+    const W = SRC_CELLS + 2;
     const T = new Uint8Array(W * W);
     const H = new Float32Array(W * W);
     for (let j = 0; j < W; j++) {
       for (let i = 0; i < W; i++) {
-        const cx = qx * CHUNK_CELLS + i - 1;
-        const cy = qy * CHUNK_CELLS + j - 1;
+        const cx = qx * CHUNK_CELLS - PAD + i - 1;
+        const cy = qy * CHUNK_CELLS - PAD + j - 1;
         T[j * W + i] = map.codeAt(cx, cy);
-        H[j * W + i] = map.heightAt(cx, cy);
+        H[j * W + i] = map.reliefAt(cx, cy);
       }
     }
     // Sea depth of every cell from the bathymetry of the Earth data (0 shallow … 1 deepest).
@@ -339,17 +414,38 @@ export class TileTerrain {
     for (let j = 0; j < W; j++) {
       for (let i = 0; i < W; i++) {
         if (T[j * W + i] !== 0) continue;
-        const cx = qx * CHUNK_CELLS + i - 1;
-        const cy = qy * CHUNK_CELLS + j - 1;
+        const cx = qx * CHUNK_CELLS - PAD + i - 1;
+        const cy = qy * CHUNK_CELLS - PAD + j - 1;
         const tx = Math.min(earth.width - 1, Math.max(0, Math.floor(((cx + 0.5) * CELL_SIZE) / WORLD_SCALE)));
         const ty = Math.min(earth.height - 1, Math.max(0, Math.floor(((cy + 0.5) * CELL_SIZE) / WORLD_SCALE)));
         depth[j * W + i] = (earth.depth[ty * earth.width + tx] ?? 0) / 255;
       }
     }
 
+    // Slope at every cell centre (central differences, one-sided at the border), for the shaded relief.
+    const GX = new Float32Array(W * W);
+    const GY = new Float32Array(W * W);
+    for (let j = 0; j < W; j++) {
+      for (let i = 0; i < W; i++) {
+        const l = i > 0 ? i - 1 : i;
+        const r = i < W - 1 ? i + 1 : i;
+        const u = j > 0 ? j - 1 : j;
+        const d = j < W - 1 ? j + 1 : j;
+        GX[j * W + i] = (H[j * W + r]! - H[j * W + l]!) / Math.max(1, r - l);
+        GY[j * W + i] = (H[d * W + i]! - H[u * W + i]!) / Math.max(1, d - u);
+      }
+    }
+
+    // Lift (iso px) at the cell corners of the painted area (corner 0 = its top-left).
+    const L = new Float32Array(LV * LV);
+    const vx0 = qx * CHUNK_CELLS - PAD;
+    const vy0 = qy * CHUNK_CELLS - PAD;
+    for (let j = 0; j < LV; j++) for (let i = 0; i < LV; i++) L[j * LV + i] = this.lift.vertex(vx0 + i, vy0 + j);
+
     const { canvas, ctx } = createCanvas(CHUNK_PX, CHUNK_PX);
+    const src = new Uint8ClampedArray(SRC_PX * SRC_PX * 4);
     const img = ctx.createImageData(CHUNK_PX, CHUNK_PX);
-    return { qx, qy, T, H, depth, canvas, ctx, img, row: 0 };
+    return { qx, qy, T, H, GX, GY, depth, L, canvas, ctx, src, img, row: 0, warpRow: 0 };
   }
 
   /**
@@ -358,32 +454,80 @@ export class TileTerrain {
    */
   private stepBuild(job: BuildJob, until: number, minRows: number): HTMLCanvasElement | null {
     let rows = 0;
-    while (job.row < CHUNK_PX && (rows < minRows || performance.now() < until)) {
+    while (job.row < SRC_PX && (rows < minRows || performance.now() < until)) {
       this.paintRow(job, job.row++);
       rows++;
     }
-    if (job.row < CHUNK_PX) return null;
+    while (job.row >= SRC_PX && job.warpRow < CHUNK_PX && (rows < minRows || performance.now() < until)) {
+      this.warpRow(job, job.warpRow++);
+      rows++;
+    }
+    if (job.warpRow < CHUNK_PX) return null;
     job.ctx.putImageData(job.img, 0, 0);
     return job.canvas;
   }
 
+  /**
+   * Output row `oy` of a chunk: every pixel shows the ground point q whose lifted picture lands on it. Lifting by
+   * L iso px moves a point up the screen, i.e. by -2L world px along x and y, so q = p + 2L(q)(1, 1) / CELL_SIZE
+   * cells, found by a few damped fixed-point steps.
+   */
+  private warpRow(job: BuildJob, oy: number): void {
+    const { L, src } = job;
+    const out = job.img.data;
+    const py = PAD + (oy + 0.5) / TILE_PX;
+    const k = 2 / CELL_SIZE;
+    const lift = (x: number, y: number): number => {
+      const cx = x < 0 ? 0 : x > LV - 1.001 ? LV - 1.001 : x;
+      const cy = y < 0 ? 0 : y > LV - 1.001 ? LV - 1.001 : y;
+      const x0 = Math.floor(cx);
+      const y0 = Math.floor(cy);
+      const tx = cx - x0;
+      const ty = cy - y0;
+      const i = y0 * LV + x0;
+      const a = L[i]!;
+      const b = L[i + 1]!;
+      const c = L[i + LV]!;
+      const d = L[i + LV + 1]!;
+      return (a + (b - a) * tx) * (1 - ty) + (c + (d - c) * tx) * ty;
+    };
+    for (let ox = 0; ox < CHUNK_PX; ox++) {
+      const px = PAD + (ox + 0.5) / TILE_PX;
+      let qx = px;
+      let qy = py;
+      for (let n = 0; n < 5; n++) {
+        const s = lift(qx, qy) * k;
+        qx += (px + s - qx) * 0.8;
+        qy += (py + s - qy) * 0.8;
+      }
+      const sx = Math.min(SRC_PX - 1, Math.max(0, Math.floor(qx * TILE_PX)));
+      const sy = Math.min(SRC_PX - 1, Math.max(0, Math.floor(qy * TILE_PX)));
+      const si = (sy * SRC_PX + sx) * 4;
+      const o = (oy * CHUNK_PX + ox) * 4;
+      out[o] = src[si]!;
+      out[o + 1] = src[si + 1]!;
+      out[o + 2] = src[si + 2]!;
+      out[o + 3] = 255;
+    }
+  }
+
   /** One pixel row `py` of a chunk. */
   private paintRow(job: BuildJob, py: number): void {
-    const { qx, qy, T, H, depth } = job;
-    const W = CHUNK_CELLS + 2;
-    const out = job.img.data;
+    const { qx, qy, T, H, GX, GY, depth } = job;
+    const W = SRC_CELLS + 2;
+    const out = job.src;
     const col = this.col;
     const seed = this.seed;
     {
       const j = Math.floor(py / TILE_PX) + 1;
       const v = ((py % TILE_PX) + 0.5) / TILE_PX;
-      const cy = qy * CHUNK_CELLS + j - 1;
+      const cy = qy * CHUNK_CELLS - PAD + j - 1;
       const fy = cy + v;
       // Per tile (constant over its TILE_PX pixels): terrain codes around it and its colour variation.
-      for (let i = 1; i <= CHUNK_CELLS; i++) {
+      for (let i = 1; i <= SRC_CELLS; i++) {
         const here = j * W + i;
         const t = T[here] ?? 0;
-        const cx = qx * CHUNK_CELLS + i - 1;
+        const cx = qx * CHUNK_CELLS - PAD + i - 1;
         const cellVar = hash2(cx, cy, seed + 11);
         const L = T[here - 1] ?? 0;
         const R = T[here + 1] ?? 0;
@@ -393,16 +537,12 @@ export class TileTerrain {
         const UR = T[here - W + 1] ?? 0;
         const DL = T[here + W - 1] ?? 0;
         const DR = T[here + W + 1] ?? 0;
-        // Hill-shading from the real elevation (light from the upper left of the screen = world -x).
-        const gx = (H[here + 1] ?? 0) - (H[here - 1] ?? 0);
-        const gy = (H[here + W] ?? 0) - (H[here - W] ?? 0);
-        const shade = 1 + Math.max(-0.22, Math.min(0.22, gx * 0.00022 + gy * 0.00007)) + Math.min(0.08, ((H[here] ?? 0) / 6000) * 0.1);
         const d01 = depth[here] ?? 0;
         for (let sx = 0; sx < TILE_PX; sx++) {
           const px = (i - 1) * TILE_PX + sx;
           const u = (sx + 0.5) / TILE_PX;
           const fx = cx + u;
-          const n1 = hash2((qx * CHUNK_PX + px) >> 1, (qy * CHUNK_PX + py) >> 1, seed + 5);
+          const n1 = hash2(((qx * CHUNK_CELLS - PAD) * TILE_PX + px) >> 1, ((qy * CHUNK_CELLS - PAD) * TILE_PX + py) >> 1, seed + 5);
           const mott = clamp01(this.noise.noise(fx * 0.22, fy * 0.22) * 0.65 + cellVar * 0.35);
           // Smooth coastline: the shore follows a soft land / sea field interpolated between cell centres (with a
           // little noise), not the cell edges, so a staircase of cells reads as a rounded, natural coast. The game
@@ -435,6 +575,30 @@ export class TileTerrain {
                 col[2] += (WET_SAND[2] - col[2]) * wet;
               }
             }
+            // Shaded relief, per pixel: the height surface (smoothed between cell centres) gets a normal and is lit
+            // by the sun, so ranges and plateaus read as soft 3D slopes instead of flat steps.
+            sampleRelief(H, GX, GY, W, i + u - 0.5, j + v - 0.5);
+            const h0 = between.h;
+            const sx2 = between.gx * (RELIEF_LIFT / CELL_METRES);
+            const sy2 = between.gy * (RELIEF_LIFT / CELL_METRES);
+            const slope = Math.hypot(sx2, sy2);
+            // Bare rock on steep ground, snow caps up high (snow settles less on the steepest faces).
+            const rock = smooth(ROCK_SLOPE, ROCK_FULL, slope) * 0.6;
+            if (rock > 0 && lt !== 0) {
+              col[0] += (BARE_ROCK[0] - col[0]) * rock;
+              col[1] += (BARE_ROCK[1] - col[1]) * rock;
+              col[2] += (BARE_ROCK[2] - col[2]) * rock;
+            }
+            const snow = smooth(SNOW_FROM, SNOW_FULL, h0 + (mott - 0.5) * 500) * (1 - smooth(ROCK_FULL, ROCK_FULL * 1.8, slope) * 0.6);
+            if (snow > 0) {
+              col[0] += (SNOWCAP[0] - col[0]) * snow;
+              col[1] += (SNOWCAP[1] - col[1]) * snow;
+              col[2] += (SNOWCAP[2] - col[2]) * snow;
+            }
+            const nz = 1 / Math.sqrt(1 + sx2 * sx2 + sy2 * sy2);
+            const lit = (-sx2 * SUN[0] - sy2 * SUN[1] + SUN[2]) * nz; // n · sun, n = (−sx, −sy, 1) normalised
+            // Soft: the darkest shaded face keeps ~60 % of its colour, a face turned to the sun gains up to ~25 %.
+            const shade = Math.min(1.25, Math.max(0.6, 1 + (lit / SUN[2] - 1) * RELIEF_STRENGTH));
             col[0] *= shade;
             col[1] *= shade;
             col[2] *= shade;
@@ -461,7 +625,7 @@ export class TileTerrain {
             }
           }
   
-          const o = (py * CHUNK_PX + px) * 4;
+          const o = (py * SRC_PX + px) * 4;
           out[o] = col[0];
           out[o + 1] = col[1];
           out[o + 2] = col[2];
@@ -477,10 +641,19 @@ interface BuildJob {
   qy: number;
   T: Uint8Array;
   H: Float32Array;
+  /** Slope (m per cell) at each cell centre along x / y. */
+  GX: Float32Array;
+  GY: Float32Array;
   depth: Float32Array;
   canvas: HTMLCanvasElement;
   ctx: CanvasRenderingContext2D;
+  /** Lift (iso px) at the LV x LV cell corners of the painted area. */
+  L: Float32Array;
+  /** The flat painting (SRC_PX square, PAD cells wider than the chunk all round), warped into `img`. */
+  src: Uint8ClampedArray;
   img: ImageData;
-  /** Next pixel row to paint. */
+  /** Next pixel row to paint (of `src`). */
   row: number;
+  /** Next output row to warp (of `img`). */
+  warpRow: number;
 }

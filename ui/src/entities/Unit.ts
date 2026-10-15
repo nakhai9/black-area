@@ -158,6 +158,11 @@ export abstract class Unit extends Entity {
     return false;
   }
 
+  /** A ship: moves on open water only (Pathfinder.findNaval), never on land. */
+  get naval(): boolean {
+    return false;
+  }
+
   /** In the air right now: ignores terrain and buildings, moves in straight lines. */
   get flies(): boolean {
     return false;
@@ -199,6 +204,11 @@ export abstract class Unit extends Entity {
   /** Isometric: larger x + y = in front. Compares with Building.depth (cells). */
   get depth(): number {
     return (this.px + this.py) / CELL_SIZE;
+  }
+
+  /** The waypoint it is heading for (null when standing). */
+  get nextWaypoint(): Readonly<{ x: number; y: number }> | null {
+    return this.path[0] ?? null;
   }
 
   /** Multiplier on `speed` right now (e.g. swimming is slower). */
@@ -284,6 +294,8 @@ export abstract class Unit extends Entity {
     if (moving && this.path.length === 1) target = Math.min(1, Math.max(0.3, toEnd / (this.speed * 0.3)));
     if (moving && this.drivesForward && this.turnsToMove) target *= this.rollAlignment();
     else if (moving && this.turnsToMove) target *= this.alignment();
+    // A ship never backs or slides: it slows down while it turns, so it comes about in a tighter circle.
+    else if (moving && this.naval) target *= Math.max(0.3, this.alignment());
     const rate = dt / this.accelTime;
     this.speedRatio += Math.sign(target - this.speedRatio) * Math.min(Math.abs(target - this.speedRatio), rate);
 
@@ -307,7 +319,7 @@ export abstract class Unit extends Entity {
         this.py = next.y;
         budget -= dist;
         this.path.shift();
-      } else if (this.drivesForward && !this.insideTurn(dist, Math.atan2(dy, dx))) {
+      } else if (this.drivesForward && (this.naval || !this.insideTurn(dist, Math.atan2(dy, dx)))) {
         // Along the nose, never sideways: the hull (or airframe) carries the machine, so it follows its heading
         // and curves onto the route as it turns instead of gliding straight at the point.
         this.px += Math.cos(this.heading) * budget;
