@@ -16,7 +16,7 @@ import { SQUASH, drawVehicle } from '../render/VehicleArt';
 import { isoHeading, liftAt, worldToIso } from './IsoView';
 import type { Effect } from './Effects';
 import { drawSoldier, drawSoldierDeath, drawsOwnSwim, drawsSquad } from '../render/InfantryArt';
-import { drawCarriedFlag } from '../render/Flags';
+import { drawCarriedFlag, getFlagTexture } from '../render/Flags';
 import { drawAircraftSheet } from '../render/AircraftSheets';
 import { drawFlagOnPole, drawNationalPole } from '../render/Flags';
 import { drawRepairDeath, drawRepairSheet } from '../render/RepairSheets';
@@ -720,7 +720,7 @@ export class Renderer {
     ].sort((a, b) => a.y - b.y);
     for (const m of men) {
       blitUnit(ctx, sprite(m.bearer), m.x, m.y);
-      if (m.bearer) drawCarriedFlag(ctx, u.faction as FactionId, m.x + 0.9, m.y - 2.6, 4.2, performance.now() / 1000 + u.id);
+      if (m.bearer) drawCarriedFlag(ctx, u.banner as FactionId, m.x + 0.9, m.y - 2.6, 4.2, performance.now() / 1000 + u.id);
     }
   }
 
@@ -1051,7 +1051,18 @@ export class Renderer {
     ctx.fillRect(x - k, y - k, w + 2 * k, 0.4 + 2 * k);
     ctx.fillStyle = ratio > 0.5 ? '#3fdc4a' : ratio > 0.25 ? '#f0d23a' : '#e8452f';
     ctx.fillRect(x, y, w * ratio, 0.4);
-    if (focused && u.banner !== 'neutral') {
+    // Vehicles: the owner's national flag stands straight up above the health bar (no emblem beside it).
+    if (focused && u.banner !== 'neutral' && u instanceof Vehicle) {
+      const tex = getFlagTexture(u.banner);
+      const fh = 7 * k;
+      const fw = (fh * tex.width) / Math.max(1, tex.height);
+      const poleTop = y - k - 11 * k;
+      ctx.fillStyle = '#2a2a2a';
+      ctx.fillRect(P.x - 0.5 * k, poleTop, k, 11 * k);
+      ctx.fillStyle = 'rgba(0,0,0,0.6)';
+      ctx.fillRect(P.x + 0.5 * k - 0.5 * k, poleTop - 0.5 * k, fw + k, fh + k);
+      ctx.drawImage(tex, P.x + 0.5 * k, poleTop, fw, fh);
+    } else if (focused && u.banner !== 'neutral') {
       const img = emblemImage(u.banner as FactionId);
       if (img) {
         const s = Math.max(1.6, 9 * k); // small: about 9 screen px, never below 1.6 iso px

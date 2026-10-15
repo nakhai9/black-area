@@ -263,6 +263,12 @@ const PRESET_SNAP_RADIUS = 2;
 /** Crossing routes are checked this many cells ahead; a unit gives way at most CROSSING_MAX_WAIT s. */
 const CROSSING_LOOKAHEAD_CELLS = 4;
 const CROSSING_MAX_WAIT = 6;
+/** Special forces' bomb on a structure: share of its max health lost (airfield, capital), see detonate. */
+const SPECIAL_BOMB_SHARE = 1 / 2;
+const SPECIAL_BOMB_AIRFIELD = 1 / 3;
+const SPECIAL_BOMB_CAPITAL = 1 / 4;
+/** Two special soldiers' bombs on one structure within this many seconds destroy it (capitals excepted). */
+const SPECIAL_BOMB_PAIR_SECONDS = 20;
 /** Seconds a unit that gave way its longest drives on without giving way again. */
 const CROSSING_PASS_SECONDS = 3;
 /** Cells around an airfield (on top of its own N × M) where a move click keeps its aircraft home; from one more cell out they take off. */
@@ -1454,12 +1460,14 @@ export class Game {
     for (const members of [walkers, swimmers]) {
       const lead = members[0];
       if (!lead) continue;
+      const urgent = this.humanOwned(lead.unit);
       this.paths.schedule(
         this.paths.groupJob(members, lead.cell, lead.unit.swims, (m, path) => {
           const mm = m as (typeof members)[number];
           if (!mm.unit.alive || mm.unit.pathTicket !== mm.ticket) return; // given another order meanwhile
           mm.unit.follow(path);
-        }),
+        }, urgent),
+        urgent,
       );
     }
   }
@@ -3065,6 +3073,13 @@ export class Game {
       }
     }
     if (unit && unit.owner === me) {
+      // Double-click on an aircraft parked on one of my airfields: that airfield is hidden under it, so it counts as
+      // a double-click on the airfield too — new aircraft come out there.
+      const home = double && unit instanceof Vehicle && unit.flight === 'parked' && unit.homeId !== null ? this.entities.get(unit.homeId) : undefined;
+      if (home instanceof Building && home.alive && home.owner === me && home.spec.type === 'airfield') {
+        (this.humanPlayer.primaryBuilding ??= {}).airfield = home.id;
+        this.sidebar.notify(tr('{name}: new units will come out here.', { name: home.spec.name }));
+      }
       if (shift && !double) this.selection.toggleUnit(unit.id);
       else this.selection.selectUnits([unit.id]);
       return;
@@ -4540,8 +4555,8 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     if (b.owner === me.id && b.spec.type === 'warFactory' && this.orderFactoryRepair(b, this.selection.selectedUnitList())) return true;
     for (const u of this.selection.selectedUnitList()) {
       if (!(u instanceof Infantry)) continue; // only people enter, repair or capture
-      if (u.isDemolition && b.owner !== me.id && isHostile(u, b)) {
-        // Crazy Soldier: run up and plant a charge on it.
+      if ((u.isDemolition || (u.isSpecial && !b.indestructible)) && b.owner !== me.id && isHostile(u, b)) {
+        // Crazy Soldier / special forces: run up and plant a charge on it.
         u.charge = { targetId: b.id };
         u.task = null;
         u.attackTarget = null;
@@ -4617,7 +4632,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     // Crazy Soldiers run at a ground target to plant a charge on it.
     const sappers = this.selection.selectedUnitList().filter(
       (u): u is Infantry =>
-        u instanceof Infantry && isHostile(u, target) && !(target instanceof Unit && target.flies) && (u.isDemolition || (u.isSpecial && target instanceof Vehicle)),
+        u instanceof Infantry && isHostile(u, target) && !(target instanceof Unit && target.flies) && (u.isDemolition || (u.isSpecial && (target instanceof Vehicle || (target instanceof Building && !target.indestructible)))),
     );
     for (const u of sappers) {
       u.charge = { targetId: target.id };
@@ -4654,7 +4669,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     return true;
   }
 
-  /** Charges ticking on their targets (Crazy Soldier), with the effect that draws each one. */
+  /** Charges ticking on their targets (Crazy Soldier, special forces), with the effect that draws each one. */
   private readonly charges: { targetId: number; owner: number; planterId: number; x: number; y: number; fuse: number; vehicleOnly?: boolean; fx: Extract<Effect, { kind: 'charge' }> }[] = [];
 
   /** Sends a Crazy Soldier running at `target` (a structure's door, or the unit itself). */
@@ -4708,9 +4723,23 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
             bestD = d;
           }
         }
-        if (best) {
-          u.charge = { targetId: best.id };
-          this.runAt(u, best);
+        // An AI advance (attack-move) with no vehicle near: the special forces go for an enemy structure in reach.
+        let site: Building | null = null;
+        if (!best && u.attackMove !== null && !this.humanOwned(u)) {
+          let siteD = reach;
+          for (const b of this.entities.buildings()) {
+            if (!b.alive || b.indestructible || !isHostile(u, b) || this.safeZones.isSafe(b.centerWorld().x, b.centerWorld().y)) continue;
+            const d = distanceTo(u.px, u.py, b);
+            if (d < siteD && !this.charges.some((c) => c.targetId === b.id)) {
+              site = b;
+              siteD = d;
+            }
+          }
+        }
+        const pick = best ?? site;
+        if (pick) {
+          u.charge = { targetId: pick.id };
+          this.runAt(u, pick);
         }
       }
       if (!(u instanceof Infantry) || !u.charge) continue;
@@ -4812,9 +4841,19 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       o.lastAttackerId = c.planterId;
       o.lastAttackedAt = this.time;
     };
-    // Special forces' bomb: the vehicle it sits on is destroyed, nothing else.
+    // Special forces' bomb: the vehicle it sits on is destroyed, nothing else. On a structure (SPECIAL_BOMB_*): a 1×1
+    // one is destroyed; otherwise it loses half its health (an airfield a third, a capital a quarter), and a second
+    // bomb from another special soldier within SPECIAL_BOMB_PAIR_SECONDS destroys it outright (capitals excepted).
     if (c.vehicleOnly) {
       if (target instanceof Vehicle && target.alive && !target.flies) hit(target, Infinity);
+      if (target instanceof Building && target.alive && !target.indestructible) {
+        const capital = target.spec.type === 'capital';
+        const prev = target.specialBomb;
+        const pair = !capital && prev !== null && prev.planterId !== c.planterId && this.time - prev.at <= SPECIAL_BOMB_PAIR_SECONDS;
+        const share = capital ? SPECIAL_BOMB_CAPITAL : target.spec.type === 'airfield' ? SPECIAL_BOMB_AIRFIELD : SPECIAL_BOMB_SHARE;
+        hit(target, pair || target.w * target.d <= 1 ? Infinity : target.maxHp * share);
+        target.specialBomb = { planterId: c.planterId, at: this.time };
+      }
       const p = this.fx(c.x, c.y, 0);
       this.effects.add({ kind: 'demoBlast', x: p.x, y: p.y, age: 0, ttl: 0.8 });
       this.sound.play('explosion', { x: c.x, y: c.y });
@@ -5269,6 +5308,11 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     });
   }
 
+  /** Unit of a human player (this machine's or, in multiplayer, another's): its orders are routed first. */
+  private humanOwned(u: Unit): boolean {
+    return !!this.players.find((p) => p.id === u.owner)?.isHuman;
+  }
+
   private orderMove(world: WorldPoint, units: Unit[] = this.selection.selectedUnitList(), evacuate = true): void {
     units = this.keepAircraftAtAirfield(units, world);
     if (!this.map.cellAt(world.x, world.y) || units.length === 0) return;
@@ -5391,7 +5435,8 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
           } else path.push(mm.goal);
           mm.unit.follow(path);
           mm.unit.faceOnArrival = mm.facing; // the whole group ends up facing the same way
-        }),
+        }, this.humanOwned(lead.unit)),
+        this.humanOwned(lead.unit),
       );
     }
     this.moveMarker = { x: world.x, y: world.y, at: this.time };

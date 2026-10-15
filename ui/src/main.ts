@@ -185,6 +185,8 @@ async function boot(): Promise<void> {
       mp ? { present: mp.room.players.map((p) => p.faction), seed: mp.seed } : undefined,
     );
     if (pending) game.importSave(pending);
+    // Dev only: the running game, for automated play tests from the browser console.
+    if (import.meta.env.DEV) (window as unknown as { __game?: unknown }).__game = game;
     setProgress(100);
     await nextPaint();
     if (mp) {

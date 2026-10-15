@@ -18,6 +18,8 @@ export class Building extends Entity {
   private spriteKeyOverride: string | null = null;
   /** Nation whose design it is, when that differs from its current faction (set on its first capture; null = `faction`). */
   originFaction: Allegiance | null = null;
+  /** Last special-forces bomb that went off on it (who planted it, game time): a second one from another soldier soon after destroys it. */
+  specialBomb: { planterId: number; at: number } | null = null;
 
   constructor(
     owner: number,

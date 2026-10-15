@@ -16,6 +16,15 @@ import type { TileMap } from './TileMap';
  *  4. Local steering is done by the game (crowd yielding + separation), see Game.yieldInCrowds / separateUnits.
  */
 
+/** A distance field towards one goal (valid where stamp === run). */
+interface FlowField {
+  dist: Float32Array;
+  stamp: Uint32Array;
+  run: number;
+}
+
+/** Milliseconds per frame the players' own orders may take, ahead of everything else. */
+const URGENT_BUDGET_MS = 8;
 /** Cells per cluster side. */
 const CLUSTER = 16;
 /** Milliseconds of route work allowed per frame. */
@@ -50,6 +59,8 @@ export interface GroupMember {
   unit: Unit;
   goal: WorldPoint;
   cell: GridPoint;
+  /** The unit's pathTicket when the order was given (a changed ticket means a newer order replaced it). */
+  ticket?: number;
 }
 
 export class PathService {
@@ -59,11 +70,14 @@ export class PathService {
   private readonly land: Uint8Array;
   /** Dry-land crossing between a cluster and its right (bit 1) / lower (bit 2) neighbour. */
   private readonly links: Uint8Array;
-  /** Flow-field distance per cell (valid where stamp === run). */
-  private readonly dist: Float32Array;
-  private readonly stamp: Uint32Array;
-  private run = 0;
+  /**
+   * Flow fields: one for background route work (AI orders), one for the players' own orders, so a player's order can
+   * run ahead of a long AI job that is half-way through building its field.
+   */
+  private readonly fields: [FlowField, FlowField];
   private readonly jobs: Generator<void, void, void>[] = [];
+  /** The players' own orders: run before any background job, every frame. */
+  private readonly urgent: Generator<void, void, void>[] = [];
   /** Goals (cell index) the big detour search recently failed to reach, until when (performance.now ms). */
   private readonly detourFailed = new Map<number, number>();
   /** `start cluster:goal cell` → time (performance.now) until which that search gets only MISS_EXPANSIONS. */
@@ -85,8 +99,8 @@ export class PathService {
     this.ch = Math.ceil(map.height / CLUSTER);
     this.land = new Uint8Array(this.cw * this.ch);
     this.links = new Uint8Array(this.cw * this.ch);
-    this.dist = new Float32Array(map.width * map.height);
-    this.stamp = new Uint32Array(map.width * map.height);
+    const field = (): FlowField => ({ dist: new Float32Array(map.width * map.height), stamp: new Uint32Array(map.width * map.height), run: 0 });
+    this.fields = [field(), field()];
     this.buildClusters();
   }
 
@@ -229,13 +243,26 @@ export class PathService {
 
   // ------------------------------------------------------------------ layer 2: time-sliced jobs
 
-  /** Queues route work; it runs a little every frame (see update). */
-  schedule(job: Generator<void, void, void>): void {
-    this.jobs.push(job);
+  /** Queues route work; it runs a little every frame (see update). `urgent` (a player's order) runs first. */
+  schedule(job: Generator<void, void, void>, urgent = false): void {
+    (urgent ? this.urgent : this.jobs).push(job);
   }
 
   /** Runs queued route work for at most PATH_BUDGET_MS (always at least one step, so nothing starves). */
   update(): void {
+    // A player's order is planned at once (within URGENT_BUDGET_MS, then carried on next frame), ahead of the queue.
+    if (this.stepBudget !== null) {
+      for (let steps = 0; steps < this.stepBudget * 4 && this.urgent.length > 0; steps++) {
+        const job = this.urgent[0];
+        if (!job || job.next().done) this.urgent.shift();
+      }
+    } else {
+      const stop = performance.now() + URGENT_BUDGET_MS;
+      while (this.urgent.length > 0 && performance.now() < stop) {
+        const job = this.urgent[0];
+        if (!job || job.next().done) this.urgent.shift();
+      }
+    }
     if (this.stepBudget !== null) {
       for (let steps = 0; steps < this.stepBudget && this.jobs.length > 0; steps++) {
         const job = this.jobs[0];
@@ -254,7 +281,7 @@ export class PathService {
 
   /** Units still waiting for a route. */
   get pending(): number {
-    return this.jobs.length;
+    return this.jobs.length + this.urgent.length;
   }
 
   // ------------------------------------------------------------------ layer 3: shared flow field
@@ -264,14 +291,19 @@ export class PathService {
    * then every member reads its route off the field — downhill from its own cell — plus a short last leg to its own
    * slot. `apply` hands each finished route over (the caller checks the order is still current).
    */
-  *groupJob(members: readonly GroupMember[], target: GridPoint, swim: boolean, apply: (m: GroupMember, path: WorldPoint[]) => void): Generator<void, void, void> {
+  *groupJob(members: readonly GroupMember[], target: GridPoint, swim: boolean, apply: (m: GroupMember, path: WorldPoint[]) => void, urgent = false): Generator<void, void, void> {
+    const field = this.fields[urgent ? 1 : 0];
+    // Every member was given another order while this job waited in the queue: nothing left to plan.
+    const stale = (): boolean => members.every((m) => m.ticket !== undefined && (m.unit.pathTicket !== m.ticket || !m.unit.alive));
+    if (stale()) return;
     const starts = members.map((m) => ({ x: Math.floor(m.unit.px / CELL_SIZE), y: Math.floor(m.unit.py / CELL_SIZE) }));
     const corridor = this.corridor(starts, target, swim);
     yield;
-    yield* this.buildField(target, swim, corridor);
+    if (stale()) return;
+    yield* this.buildField(field, target, swim, corridor);
     for (const m of members) {
       const from = { x: Math.floor(m.unit.px / CELL_SIZE), y: Math.floor(m.unit.py / CELL_SIZE) };
-      let cells = this.descend(from);
+      let cells = this.descend(field, from);
       let path: WorldPoint[];
       if (cells) {
         // Last leg from the shared goal to this unit's own slot.
@@ -290,14 +322,14 @@ export class PathService {
   }
 
   /** Dijkstra from `goal` over passable cells (inside the corridor, if any): the distance field, built in slices. */
-  private *buildField(goal: GridPoint, swim: boolean, corridor: Corridor | null): Generator<void, void, void> {
+  private *buildField(f: FlowField, goal: GridPoint, swim: boolean, corridor: Corridor | null): Generator<void, void, void> {
     const { map, pathfinder } = this;
     const W = map.width;
-    this.run++;
+    f.run++;
     const open = new MinHeap();
     const gi = map.index(goal.x, goal.y);
-    this.stamp[gi] = this.run;
-    this.dist[gi] = 0;
+    f.stamp[gi] = f.run;
+    f.dist[gi] = 0;
     open.push(gi, 0);
     const inside = (x: number, y: number): boolean => !corridor || corridor.mask[((y / CLUSTER) | 0) * this.cw + ((x / CLUSTER) | 0)] === 1;
     // Without a corridor (short trip) the field stays local.
@@ -308,7 +340,7 @@ export class PathService {
       const cur = open.pop();
       const cx = cur % W;
       const cy = (cur / W) | 0;
-      const dc = this.dist[cur] ?? 0;
+      const dc = f.dist[cur] ?? 0;
       for (const [dx, dy, step] of DIRS) {
         const nx = cx + dx;
         const ny = cy + dy;
@@ -317,33 +349,33 @@ export class PathService {
         if (dx !== 0 && dy !== 0 && (!pathfinder.passable(cx + dx, cy, swim) || !pathfinder.passable(cx, cy + dy, swim))) continue;
         const ni = ny * W + nx;
         const nd = dc + step * (map.mountain[ny * W + nx] === MOUNTAIN_PASS ? MOUNTAIN_PATH_COST : map.hasTrees(nx, ny) ? TREE_COST : 1);
-        if (this.stamp[ni] === this.run && nd >= (this.dist[ni] ?? Infinity)) continue;
-        this.stamp[ni] = this.run;
-        this.dist[ni] = nd;
+        if (f.stamp[ni] === f.run && nd >= (f.dist[ni] ?? Infinity)) continue;
+        f.stamp[ni] = f.run;
+        f.dist[ni] = nd;
         open.push(ni, nd);
       }
     }
   }
 
   /** Cells from `from` down the field to its goal (not including `from`), or null when `from` is not on the field. */
-  private descend(from: GridPoint): GridPoint[] | null {
+  private descend(f: FlowField, from: GridPoint): GridPoint[] | null {
     const W = this.map.width;
     let i = from.y * W + from.x;
-    if (this.stamp[i] !== this.run) return null;
+    if (f.stamp[i] !== f.run) return null;
     const out: GridPoint[] = [];
-    for (let guard = 0; guard < 20000 && (this.dist[i] ?? 0) > 0; guard++) {
+    for (let guard = 0; guard < 20000 && (f.dist[i] ?? 0) > 0; guard++) {
       const x = i % W;
       const y = (i / W) | 0;
       let best = i;
-      let bestD = this.dist[i] ?? 0;
+      let bestD = f.dist[i] ?? 0;
       for (const [dx, dy] of DIRS) {
         const nx = x + dx;
         const ny = y + dy;
         if (!this.map.inBounds(nx, ny)) continue;
         const ni = ny * W + nx;
-        if (this.stamp[ni] !== this.run) continue;
-        if (dx !== 0 && dy !== 0 && (this.stamp[y * W + nx] !== this.run || this.stamp[ny * W + x] !== this.run)) continue;
-        const d = this.dist[ni] ?? Infinity;
+        if (f.stamp[ni] !== f.run) continue;
+        if (dx !== 0 && dy !== 0 && (f.stamp[y * W + nx] !== f.run || f.stamp[ny * W + x] !== f.run)) continue;
+        const d = f.dist[ni] ?? Infinity;
         if (d < bestD) {
           bestD = d;
           best = ni;
