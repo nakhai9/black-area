@@ -1,4 +1,7 @@
 import { MOUNTAIN_RANGES, NEUTRAL_OWNER } from '../constants';
+
+/** Seconds after the last hit during which a radar alert ring stays on an own unit / building. */
+const RADAR_ALERT_SECONDS = 2;
 import type { Camera } from '../core/Camera';
 import type { Building } from '../entities/Building';
 import type { Unit } from '../entities/Unit';
@@ -92,7 +95,7 @@ export class Minimap {
    * Draws the radar. Without an Airfield only your own and neutral things
    * show; with one (it runs the radar), enemy units and buildings appear too.
    */
-  render(buildings: readonly Building[], units: readonly Unit[], viewerOwner: number, seesEnemies: boolean): void {
+  render(buildings: readonly Building[], units: readonly Unit[], viewerOwner: number, seesEnemies: boolean, time = 0): void {
     const shown = (owner: number): boolean => seesEnemies || owner === viewerOwner || owner === NEUTRAL_OWNER;
     if (!this.base) return;
     const { ctx } = this;
@@ -125,6 +128,32 @@ export class Minimap {
       const c = this.toMinimap({ x: u.px, y: u.py });
       ctx.fillStyle = teamColors(u.faction).primary;
       ctx.fillRect(c.x - 1, c.y - 1, 2, 2);
+    }
+
+    // Under-attack alert: a pulsing red ring around each own unit / building hit in the last RADAR_ALERT_SECONDS.
+    // Things that stopped being hit, or died (no longer in the lists), lose their ring.
+    const hits: WorldPoint[] = [];
+    for (const b of buildings) if (b.owner === viewerOwner && time - b.lastAttackedAt < RADAR_ALERT_SECONDS) hits.push(this.toMinimap(b.centerWorld()));
+    for (const u of units) if (u.owner === viewerOwner && time - u.lastAttackedAt < RADAR_ALERT_SECONDS) hits.push(this.toMinimap({ x: u.px, y: u.py }));
+    if (hits.length) {
+      // Merge hits closer than 10 px into one ring so a big fight shows one circle, not dozens.
+      const rings: { x: number; y: number; n: number }[] = [];
+      for (const h of hits) {
+        const r = rings.find((g) => Math.hypot(g.x / g.n - h.x, g.y / g.n - h.y) < 10);
+        if (r) {
+          r.x += h.x;
+          r.y += h.y;
+          r.n++;
+        } else rings.push({ x: h.x, y: h.y, n: 1 });
+      }
+      const pulse = (Math.sin(time * 8) + 1) / 2;
+      ctx.strokeStyle = `rgba(255,40,40,${0.55 + 0.45 * pulse})`;
+      ctx.lineWidth = 1.6;
+      for (const g of rings) {
+        ctx.beginPath();
+        ctx.arc(g.x / g.n, g.y / g.n, 6 + 3 * pulse, 0, Math.PI * 2);
+        ctx.stroke();
+      }
     }
 
     // The isometric view covers a diamond-like quadrilateral of the map.

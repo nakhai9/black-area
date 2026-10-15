@@ -2418,7 +2418,7 @@ export class Game {
     this.minimapTimer += dt;
     if (this.minimapTimer >= 1 / 12) {
       this.minimapTimer = 0;
-      this.minimap.render(buildings, units, this.humanPlayer.id, this.ownedCache.has('airfield'));
+      this.minimap.render(buildings, units, this.humanPlayer.id, this.ownedCache.has('airfield'), this.time);
     }
     this.status.update(dt, this.mouseWorld, this.camera.zoom);
 
