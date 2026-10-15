@@ -263,6 +263,8 @@ const PRESET_SNAP_RADIUS = 2;
 /** Crossing routes are checked this many cells ahead; a unit gives way at most CROSSING_MAX_WAIT s. */
 const CROSSING_LOOKAHEAD_CELLS = 4;
 const CROSSING_MAX_WAIT = 6;
+/** Seconds a unit that gave way its longest drives on without giving way again. */
+const CROSSING_PASS_SECONDS = 3;
 /** Cells around an airfield (on top of its own N × M) where a move click keeps its aircraft home; from one more cell out they take off. */
 const AIRFIELD_CLICK_MARGIN = 2;
 /** New vehicles park around a rally point this many cells out in front of the War Factory's door. */
@@ -4061,6 +4063,8 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     const key = (x: number, y: number): number => x * 100003 + y;
     for (const u of movers) {
       u.crowdFactor = 1;
+      // Under fire nobody sits down to rest: a tired soldier who is being shot at still runs.
+      if (u.restLeft > 0 && this.time - u.lastAttackedAt < 1) u.restLeft = 0;
       if (u.flies || !u.alive) continue;
       const k = key(Math.floor(u.px / bucket), Math.floor(u.py / bucket));
       const list = grid.get(k);
@@ -4080,7 +4084,8 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       let factor = 1;
       for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
         for (const o of grid.get(key(bx + dx, by + dy)) ?? []) {
-          if (o === u || !o.moving) continue;
+          // Nobody queues politely behind an enemy.
+          if (o === u || !o.moving || isHostile(u, o)) continue;
           const rx = o.px - u.px;
           const ry = o.py - u.py;
           const along = rx * fx + ry * fy;
@@ -4133,7 +4138,8 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       const by = Math.floor(a.py / bucket);
       for (let gy = -1; gy <= 1; gy++) for (let gx = -1; gx <= 1; gx++) {
         for (const b of grid.get(key(bx + gx, by + gy)) ?? []) {
-          if (b.id <= a.id) continue;
+          // Enemies never give way to each other: a unit falling back does not stop to let the foe go by.
+          if (b.id <= a.id || isHostile(a, b)) continue;
           const lb = leg.get(b.id);
           if (!lb) continue;
           // Where do the two stretches cross? (a + s·da = b + t·db)
@@ -4149,7 +4155,8 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
           const ta = Math.max(0, s) / Math.max(0.1, a.speed);
           const tb = Math.max(0, t) / Math.max(0.1, b.speed);
           const [first, second, dist] = ta < tb || (ta === tb && a.id < b.id) ? [a, b, t] : [b, a, s];
-          if (second.crossingWait > CROSSING_MAX_WAIT || first.crossingWait > 0) continue;
+          // A unit that already waited its longest (or is passing after that, crossingWait < 0) drives on.
+          if (second.crossingWait > CROSSING_MAX_WAIT || second.crossingWait < 0 || first.crossingWait > 0) continue;
           // Only once it is about to enter the crossing: it stops just before it.
           if (dist > clear + 2 && dist > second.radius * 2 + 3) continue;
           second.crowdFactor = 0;
@@ -4157,7 +4164,12 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
         }
       }
     }
-    for (const u of this.entities.fieldMovers()) u.crossingWait = waiting.has(u.id) ? u.crossingWait + dt : 0;
+    // After its longest wait a unit gets CROSSING_PASS_SECONDS to drive through (no wait-go-wait loop at the same crossing).
+    for (const u of this.entities.fieldMovers()) {
+      if (waiting.has(u.id)) u.crossingWait += dt;
+      else if (u.crossingWait > CROSSING_MAX_WAIT) u.crossingWait = -CROSSING_PASS_SECONDS;
+      else u.crossingWait = u.crossingWait < 0 ? Math.min(0, u.crossingWait + dt) : 0;
+    }
   }
 
   /**
@@ -4170,7 +4182,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     this.yieldTimer = 0.25;
     const movers = this.entities.fieldMovers();
     const ground = movers.filter((m): m is Vehicle => m instanceof Vehicle && m.alive && !m.flies && !m.fixed);
-    const idle = ground.filter((m) => !m.moving && m.attackTarget === null && m.task === null);
+    const idle = ground.filter((m) => !m.moving && !m.routePending && m.attackTarget === null && m.task === null);
     if (idle.length === 0) return;
     for (const v of ground) {
       if (!v.moving) continue;
@@ -4679,7 +4691,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     const look = Math.floor(this.time * 2) !== Math.floor((this.time - dt) * 2);
     for (const u of this.entities.fieldUnits()) {
       // Special forces meet an enemy ground vehicle: they go and plant a bomb on it (they shoot soldiers only).
-      if (look && u instanceof Infantry && u.isSpecial && !u.charge && u.visible && u.task === null && u.boardTarget === null && (!u.moving || u.attackMove !== null) && this.time >= u.chargeReadyAt) {
+      if (look && u instanceof Infantry && u.isSpecial && !u.charge && u.visible && u.task === null && u.boardTarget === null && !u.routePending && (!u.moving || u.attackMove !== null) && this.time >= u.chargeReadyAt) {
         const reach = (u.weapon?.range ?? CELL_SIZE * 5) * GUARD_VISION_FACTOR;
         let best: Vehicle | null = null;
         let bestD = reach;
@@ -5320,6 +5332,8 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     };
     let groundIndex = 0;
     units.forEach((u, k) => {
+      // Running after an enemy (a chase, an attack order or an advance): that route leads into the fight, not away.
+      const fighting = u.chasing || u.attackTarget !== null || u.attackMove !== null;
       u.parade = null; // leaves the parade ground
       u.task = null;
       if (u instanceof Infantry) u.charge = null;
@@ -5341,9 +5355,9 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       let cell = this.map.cellAt(goal.x, goal.y);
       if (!straight) {
         // Park / stand only where nothing is in the way: no other unit, no building, no water.
+        // No clear spot there: it still goes, to the clicked point itself (an order is never silently dropped).
         const free = this.freeStandSpot(goal, u, units, claimed);
-        if (!free) return;
-        goal = free;
+        if (free) goal = free;
         cell = this.map.cellAt(goal.x, goal.y);
         claimed.push(goal);
       }
@@ -5355,8 +5369,11 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       if (!cell) return;
       // Its route comes from the group's shared flow field a few frames later. A unit already walking keeps going
       // until then (no stop-and-go on every new click); only routes from older orders are cancelled.
-      if (u.moving) u.pathTicket++;
+      // A unit that was fighting stops at once instead of running on towards the enemy while it waits.
+      if (u.moving && !fighting) u.pathTicket++;
       else u.stop();
+      // Waiting for its route: nothing else (pulling over, an automatic bomb run) may take the unit over meanwhile.
+      u.routePending = true;
       (u.swims ? swimmers : walkers).push({ unit: u, goal, cell, ticket: u.pathTicket, facing });
     });
     for (const members of [walkers, swimmers]) {

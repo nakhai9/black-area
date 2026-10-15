@@ -4,7 +4,7 @@ import type { Allegiance, WeaponSpec, WorldPoint } from '../types';
 import { Entity } from './Entity';
 
 /** Seconds a unit stays blocked (re-routes included) before it gives up and stops. */
-const BLOCKED_GIVE_UP = 4;
+const BLOCKED_GIVE_UP = 12;
 
 /** A standing order with a building as its target. */
 export interface UnitTask {
@@ -425,7 +425,8 @@ export abstract class Unit extends Entity {
     const blocked = moved < expected * 0.2;
     this.stuckFor = blocked ? this.stuckFor + dt : Math.max(0, this.stuckFor - dt * 2);
     this.blockedFor = blocked ? this.blockedFor + dt : Math.max(0, this.blockedFor - dt * 2);
-    // Something stands in the way and re-routing did not help: stop where it is instead of pushing on.
+    // Something stands in the way and re-routing did not help: stop where it is instead of pushing on. Only a truly
+    // walled-in unit gets there: being jostled (a crowd, a fight) asks for new routes first, the order is kept.
     if (this.blockedFor > BLOCKED_GIVE_UP) {
       this.stop();
       this.stuckFor = 0;
