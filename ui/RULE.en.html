@@ -26,7 +26,7 @@
 <body>
 <main>
 <img class="logo" src="/logo.png" alt="Black Area" />
-<h1>Black Area — RULE <small>v2.1.0</small></h1>
+<h1>Black Area — RULE <small>v2.1.1</small></h1>
 <p class="lead">Game rules + code architecture document for AI/devs modifying the game. All exact gameplay numbers live in <code>src/constants.ts</code> and <code>src/factions/*.ts</code>. If this document differs from the code, <b>the code is right</b>. <b>When changing rules/numbers in code, this file must be updated.</b></p>
 <nav><a href="#s1">Working rules for AI</a><a href="#s2">Running the project</a><a href="#s3">Folder architecture</a><a href="#s4">World</a><a href="#s5">Economy (oil)</a><a href="#s6">Buildings (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Military</a><a href="#s8">Combat</a><a href="#s9">Controls (Game.handleKey, handleInput)</a><a href="#s10">Limits &amp; performance</a><a href="#s11">Victory / defeat &amp; AI</a><a href="#s12">Common edit recipes</a></nav>
 <h2 id="s1">0. Working rules for AI</h2>
@@ -576,6 +576,7 @@ npm run build:earth  # regenerate public/data/earth.png (scripts/build-earth.mjs
   <li>v2.0.2: the multiplayer server address comes from <code>VITE_GAME_SERVER_API</code> (http(s):// is turned into ws(s)://); unset, dev uses <code>http://localhost:8787</code> and a build uses <code>https://black-area.onrender.com</code>.</li>
   <li>v2.0.3: <code>package-lock.json</code> regenerated from scratch so it lists every OS's native packages (<code>@rollup/rollup-linux-x64-gnu</code>, <code>@esbuild/linux-x64</code>…); before, it only had the Windows ones and the Vercel (Linux) build failed with rollup <code>MODULE_NOT_FOUND</code>.</li>
   <li>v2.1.0: the Multiplayer screen uses the main menu colours (Create / Join match the Start button), the open tab is yellow. Player names are unique in a room (ignoring case): joining with a name already there gives "Name already taken in this room".</li>
+  <li>v2.1.1: the "Multiplayer" button and title now read "Play with your friends".</li>
   <li>Pathfinding (A*) is the most expensive part: blocked attack-move units only retry pathing every <code>RESUME_RETRY 1</code> s (destination on another shore / unreachable cancels the order); every 0.5 s at most <code>REPATH_BUDGET 8</code> stuck units are repathed, if no path they stop.</li>
   <li>Cache cleanup every <code>JANITOR_INTERVAL = 180</code> s (unused images/terrain, records of dead units, mercy bonus records of retreating groups with no survivors). Only removes things no longer used, never touches soldiers, buildings, money or running orders. A* pathfinding (<code>Pathfinder.find</code>) expands each cell only once (dropping stale copies in the queue), reads <code>TileMap</code> arrays directly, the priority queue uses typed arrays reused between searches.</li>
   <li>Art uses PNG sprite sheets in <code>public/sprites/</code> (tank, jet/bomber, bombs, missiles, shells, 8-direction soldiers), procedural drawing when there is no sheet.</li>

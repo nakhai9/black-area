@@ -47,7 +47,7 @@ export class FactionPicker {
           ${DEMO_MODE ? `<button class="fp-demo" type="button" title="${t("Test game: play alone, the other nations do nothing; everything built, finances off")}">${t("Test")}</button>` : ""}
           <button class="fp-desktop" type="button" hidden title="${t("Download the desktop version")}">${t("Download Desktop")}</button>
           <button class="fp-guide" type="button" title="${t("Open the game rules (RULE.html) in a new tab")}">${t("Guide")}</button>
-          <button class="fp-load fp-mp" type="button" title="${t("Play with friends: create a room or join one by its code")}">${t("Multiplayer")}</button>
+          <button class="fp-load fp-mp" type="button" title="${t("Play with friends: create a room or join one by its code")}">${t("Play with your friends")}</button>
           <button class="fp-load" type="button" title="${t("Continue a game saved to a .json file (pause menu → Save game)")}">${t("Load saved game")}</button>
           <button class="fp-deploy" type="button">${t("Start")}</button>
         </footer>
