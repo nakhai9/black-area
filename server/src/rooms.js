@@ -51,6 +51,9 @@ export function findRoom(code) {
 export function addPlayer(room, player) {
   if (room.started) return 'Room already in game';
   if (room.players.length >= room.slots) return 'Room is full';
+  // Names are unique in a room (ignoring case), so everyone can tell the players apart.
+  const name = player.name.toLowerCase();
+  if (room.players.some((p) => p.name.toLowerCase() === name)) return 'Name already taken in this room';
   const taken = new Set(room.players.map((p) => p.faction));
   player.faction = FACTIONS.find((f) => !taken.has(f));
   player.ready = false;

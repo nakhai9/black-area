@@ -107,6 +107,7 @@ export default {
   '4–6 letters or digits (empty: random)': '4–6 chữ hoặc số (để trống: tự tạo)',
   'Room code must be 4–6 letters or digits': 'Mã phòng phải gồm 4–6 chữ hoặc số',
   'Room code already in use': 'Mã phòng đã có người dùng',
+  'Name already taken in this room': 'Tên này đã có người dùng trong phòng',
   'Room closed: not started within 5 minutes': 'Phòng đã bị xóa: quá 5 phút chưa bắt đầu',
   'Waiting for the other players…': 'Đang chờ các người chơi khác tải xong…',
   'Room is full': 'Phòng đã đủ người',

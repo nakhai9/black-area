@@ -1649,9 +1649,6 @@ button,
 .fp-mp + .fp-load {
   margin-left: 8px;
 }
-.mp-modal {
-  --team: #6fbf4a;
-}
 .mp-modal:not(:has(.mp-grid)) {
   width: min(560px, 100%);
 }
@@ -1707,8 +1704,8 @@ button,
   color: #d8dde2;
 }
 .mp-tab.on {
-  color: #fff;
-  border-bottom-color: var(--team);
+  color: #f5c542;
+  border-bottom-color: #f5c542;
 }
 .mp-panel[hidden] {
   display: none;
