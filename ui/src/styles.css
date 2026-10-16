@@ -835,6 +835,7 @@ kbd {
 }
 .sb-radar.offline canvas {
   filter: blur(6px) brightness(0.55) saturate(0.5);
+  cursor: not-allowed;
 }
 .sb-radar.offline::after {
   content: 'RADAR OFFLINE · build an Airfield';

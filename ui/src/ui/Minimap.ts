@@ -38,13 +38,15 @@ export class Minimap {
     // Right button: the camera goes there. Left button: the selected units go there (no selection: the camera goes).
     canvas.addEventListener('contextmenu', (e) => e.preventDefault());
     canvas.addEventListener('pointerdown', (e) => {
+      // Radar offline (no Airfield): the map cannot be clicked at all — no orders, no camera jumps.
+      if (!this.online) return;
       if (e.button === 0 && this.onPick(this.toWorld(e))) return;
       if (e.button !== 0 && e.button !== 2) return;
       this.dragging = true;
       canvas.setPointerCapture(e.pointerId);
       this.navigate(e);
     });
-    canvas.addEventListener('pointermove', (e) => this.dragging && this.navigate(e));
+    canvas.addEventListener('pointermove', (e) => this.dragging && this.online && this.navigate(e));
     canvas.addEventListener('pointerup', () => (this.dragging = false));
     new ResizeObserver(() => this.resize()).observe(canvas);
     this.resize();
@@ -97,7 +99,13 @@ export class Minimap {
    * Draws the radar. Without an Airfield only your own and neutral things
    * show; with one (it runs the radar), enemy units and buildings appear too.
    */
+  /** Radar online (an Airfield is owned): only then can the map be clicked. */
+  private online = false;
+
   render(buildings: readonly Building[], units: readonly Unit[], viewerOwner: number, seesEnemies: boolean, time = 0): void {
+    // The Airfield runs the radar: without one it is offline and takes no clicks.
+    this.online = seesEnemies;
+    if (!this.online) this.dragging = false;
     const shown = (owner: number): boolean => seesEnemies || owner === viewerOwner || owner === NEUTRAL_OWNER;
     if (!this.base) return;
     const { ctx } = this;
