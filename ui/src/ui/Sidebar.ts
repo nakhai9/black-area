@@ -1153,7 +1153,7 @@ export class Sidebar {
     for (const option of this.options) {
       const el = document.createElement('button');
       el.type = 'button';
-      el.className = 'sb-cameo';
+      el.className = 'sb-cameo sb-cameo-structure';
       // The Allied Building is the nation's embassy in that land.
       el.title =
         option.id === 'alliedBuilding'
@@ -1165,7 +1165,7 @@ export class Sidebar {
         <span class="sb-cameo-info"></span>
         <span class="sb-cameo-state"></span>`;
       const canvas = el.querySelector('canvas');
-      if (canvas) drawPreview(canvas, this.handlers.preview(option));
+      if (canvas) drawPreview(canvas, this.handlers.preview(option), '#ffffff');
       addInfoIcon(el, option.name);
       if (option.foreign) this.addForeignFlag(el, option.foreign);
       el.addEventListener('click', () => this.handlers.onBuild(option));
@@ -1241,13 +1241,14 @@ function addInfoIcon(el: HTMLElement, name: string): void {
 }
 
 /** Fits a sprite canvas into the cameo picture. */
-function drawPreview(target: HTMLCanvasElement, sprite: HTMLCanvasElement): void {
+/** `background`: a flat fill (structure cameos are on white); soldiers and vehicles keep the dark gradient. */
+function drawPreview(target: HTMLCanvasElement, sprite: HTMLCanvasElement, background?: string): void {
   const ctx = target.getContext('2d');
   if (!ctx) return;
   const g = ctx.createLinearGradient(0, 0, 0, target.height);
   g.addColorStop(0, '#2a3440');
   g.addColorStop(1, '#151b21');
-  ctx.fillStyle = g;
+  ctx.fillStyle = background ?? g;
   ctx.fillRect(0, 0, target.width, target.height);
   const k = Math.min(target.width / sprite.width, target.height / sprite.height) * 0.95;
   const w = sprite.width * k;

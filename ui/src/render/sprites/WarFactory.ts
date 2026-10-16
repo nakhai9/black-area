@@ -4,22 +4,17 @@ import type { FactionId } from '../../types';
 import { shade } from '../Color';
 import { drawFlagOnPole, drawNationalPole } from '../Flags';
 import type { BuildingArt } from './BuildingArt';
+import { roofStar } from './PowerPlant';
 import { RA2, roofClutter } from './Ra2Kit';
+import { FACTORY_DESIGNS } from './WarFactoryNations';
 
 const DOOR = '#262a2f';
 
-/** Per-nation materials: Allied grey-blue steel, Soviet olive/red concrete, Islamic sandstone. */
-function materials(faction: FactionId): { wall: string; roof: string; steel: string; plinth: string } {
-  switch (faction) {
-    case 'russia':
-    case 'china':
-      return { wall: '#8a8a6c', roof: '#5a4a3e', steel: '#6c6e62', plinth: '#6e5a4a' };
-    case 'islamic':
-      return { wall: '#c2ab84', roof: '#7a6a52', steel: '#8a8072', plinth: '#9a845e' };
-    default:
-      return { wall: '#a3abb3', roof: RA2.roof, steel: RA2.steel, plinth: '#6f7880' };
-  }
-}
+/** USA materials: Allied grey-blue steel (the other nations: WarFactoryNations). */
+const WALL = '#a3abb3';
+const ROOF = RA2.roof;
+const STEEL = RA2.steel;
+const PLINTH = '#6f7880';
 
 /** Flags on the front roof corners. */
 const FLAGS: readonly [number, number][] = [
@@ -40,12 +35,18 @@ const STACKS: readonly [number, number][] = [
  */
 export function createWarFactoryArt(faction: FactionId): BuildingArt {
   const team = FACTIONS[faction].colors;
-  const { wall: WALL, roof: ROOF, steel: STEEL, plinth: PLINTH } = materials(faction);
   return {
     footprint: { w: 5, d: 4 },
     height: 74,
 
     drawStatic(p) {
+      // Every nation but the USA has its own architecture (WarFactoryNations).
+      const own = FACTORY_DESIGNS[faction];
+      if (own) {
+        own.draw(p, team);
+        for (const [u, v, z] of own.flags) drawNationalPole(p, faction, u, v, z, 22);
+        return;
+      }
       // The whole plot is the assembly hall: no apron, test pad or yard.
       const U = 0.05;
       const V = 0.05;
@@ -91,11 +92,11 @@ export function createWarFactoryArt(faction: FactionId): BuildingArt {
         }
       });
 
-      // Three sawtooth gable roofs (symmetric about u = 2.5).
-      const bay = W / 3;
-      for (let i = 0; i < 3; i++) p.gableRoofV(U + i * bay, V, bay, D, 22, 7, WALL, ROOF);
-      // Roof vents along each ridge.
-      for (let i = 0; i < 3; i++) for (const v of [0.8, 1.6, 2.4, 3.2]) p.box(U + (i + 0.5) * bay - 0.08, v - 0.08, 0.16, 0.16, 28, 2.5, shade(STEEL, 0.9));
+      // Flat steel roof with a great white star in a blue disc.
+      p.box(U, V, W, D, 20, 2, shade(WALL, 0.9));
+      p.topRect(U + 0.1, V + 0.1, U + W - 0.1, V + D - 0.1, 22.01, ROOF);
+      p.cylinder(2.5, 2, 1.1, 22, 0.6, team.primary);
+      roofStar(p, 2.5, 2, 22.7, 0.95, '#ffffff');
       roofClutter(p, 0.2, 0.15, 0.5, 0.5, 22, 7);
       // Rooftop gantry crane spanning the hall at each end (mirror images).
       for (const u of [0.25, 4.6]) {
@@ -117,6 +118,17 @@ export function createWarFactoryArt(faction: FactionId): BuildingArt {
     drawAnimated(p, time) {
       const on = Math.sin(time * 3) > 0;
       p.ctx.fillStyle = on ? '#ffb25a' : '#7a5530';
+      const own = FACTORY_DESIGNS[faction];
+      if (own) {
+        for (const [u, v, z] of own.lights) {
+          const [x, y] = p.project(u, v, z);
+          p.ctx.beginPath();
+          p.ctx.arc(x, y, 1.1, 0, Math.PI * 2);
+          p.ctx.fill();
+        }
+        own.flags.forEach(([u, v, z], i) => drawFlagOnPole(p, faction, u, v, z + 22, time, i * 1.2, 15, 9));
+        return;
+      }
       for (const [u, v] of STACKS) {
         const [x, y] = p.project(u, v, 43);
         p.ctx.beginPath();
