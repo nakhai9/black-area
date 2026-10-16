@@ -17,6 +17,74 @@ export interface FactoryDesign {
 
 const DOOR = '#262a2f';
 
+/**
+ * Tower crane standing at (u, v) from height z: lattice mast `h` px tall in the crane yellow, operator cab, a jib
+ * reaching `reach` tiles along `dir` (+1 = +u, -1 = -u) with trolley, cable and hook, and a counter-jib with
+ * its concrete counterweight. Exported for every War Factory (the USA one too).
+ */
+export function towerCrane(p: IsoPainter, u: number, v: number, z: number, h: number, reach: number, dir: 1 | -1, color = '#e0b23a'): void {
+  const { ctx } = p;
+  const m = 0.11; // half mast width (tiles)
+  const steel = shade(color, 0.7);
+  const line = (a: [number, number], b: [number, number], c: string, w = 0.45): void => {
+    ctx.strokeStyle = c;
+    ctx.lineWidth = w;
+    ctx.beginPath();
+    ctx.moveTo(a[0], a[1]);
+    ctx.lineTo(b[0], b[1]);
+    ctx.stroke();
+  };
+  // Footing.
+  p.box(u - 0.2, v - 0.2, 0.4, 0.4, z, 2, '#8a8a84');
+  // Mast: four corner chords with zig-zag bracing on the two visible faces.
+  const top = z + h;
+  const corners: [number, number][] = [[u - m, v + m], [u + m, v + m], [u + m, v - m]];
+  for (const [cu, cv] of corners) line(p.project(cu, cv, z + 2), p.project(cu, cv, top), color, 0.7);
+  const bays = Math.max(4, Math.round(h / 5));
+  for (let k = 0; k < bays; k++) {
+    const z0 = z + 2 + ((top - z - 2) * k) / bays;
+    const z1 = z + 2 + ((top - z - 2) * (k + 1)) / bays;
+    line(p.project(u - m, v + m, z0), p.project(u + m, v + m, z1), steel);
+    line(p.project(u + m, v + m, z0), p.project(u + m, v - m, z1), steel);
+    line(p.project(u - m, v + m, z1), p.project(u + m, v + m, z1), steel, 0.35);
+  }
+  // Slewing unit and cab.
+  p.box(u - 0.16, v - 0.16, 0.32, 0.32, top, 3, shade(color, 0.9));
+  p.box(u - 0.05 + dir * 0.1, v + 0.12, 0.22, 0.2, top - 4, 5, '#d8dce0');
+  p.faceRect('left', u - 0.05 + dir * 0.1, v + 0.12, 0.22, 0.2, top - 4, 5, 0.1, 0.9, 0.35, 0.9, '#5a7a96');
+  // Jib and counter-jib (a flat lattice girder).
+  const jz = top + 3;
+  const tip = u + dir * reach;
+  const back = u - dir * reach * 0.35;
+  p.box(Math.min(u, tip), v - 0.05, Math.abs(tip - u), 0.1, jz, 1.4, color, { edge: null });
+  p.box(Math.min(u, back), v - 0.05, Math.abs(back - u), 0.1, jz, 1.4, color, { edge: null });
+  const panels = Math.max(3, Math.round(reach * 4));
+  for (let k = 0; k < panels; k++) {
+    const a = u + (dir * reach * k) / panels;
+    const b = u + (dir * reach * (k + 1)) / panels;
+    line(p.project(a, v, jz + 1.4), p.project(b, v, jz + 3.6), steel, 0.35);
+    line(p.project(b, v, jz + 3.6), p.project(b, v, jz + 1.4), steel, 0.35);
+  }
+  line(p.project(u, v, jz + 3.6), p.project(tip, v, jz + 3.6), color, 0.5);
+  // Apex and tie bars.
+  line(p.project(u, v, jz), p.project(u, v, jz + 10), color, 0.8);
+  line(p.project(u, v, jz + 10), p.project(tip, v, jz + 3.6), steel, 0.4);
+  line(p.project(u, v, jz + 10), p.project(back, v, jz + 1.4), steel, 0.4);
+  p.box(back - (dir > 0 ? 0 : 0.3), v - 0.12, 0.3, 0.24, jz - 3, 4, '#9a9890');
+  // Trolley, cable and hook block.
+  const tu = u + dir * reach * 0.62;
+  p.box(tu - 0.08, v - 0.08, 0.16, 0.16, jz - 1, 1.2, '#3a3a3a', { edge: null });
+  const hz = Math.max(z + 6, jz - 18);
+  line(p.project(tu, v, jz - 1), p.project(tu, v, hz + 2), '#2a2a2a', 0.35);
+  p.box(tu - 0.06, v - 0.06, 0.12, 0.12, hz, 2.2, '#d84a2a', { edge: null });
+  // Warning light on the apex.
+  const [lx, ly] = p.project(u, v, jz + 10.5);
+  ctx.fillStyle = '#ff3b30';
+  ctx.beginPath();
+  ctx.arc(lx, ly, 0.7, 0, Math.PI * 2);
+  ctx.fill();
+}
+
 /** Roller doors on the front (left) face of a hall: `count` bays, `t1` = door height share of the wall. */
 function rollerDoors(p: IsoPainter, u: number, v: number, w: number, d: number, z: number, h: number, count: number, t1: number, frame: string): void {
   for (let i = 0; i < count; i++) {
@@ -74,6 +142,7 @@ const RUSSIA: FactoryDesign = {
       ctx.fill();
     });
     roofStar(p, 2.5, 3.42, 44.1, 0.4, team.primary);
+    towerCrane(p, 0.45, 0.45, 2, 56, 1.9, 1);
   },
 };
 
@@ -108,6 +177,7 @@ const CHINA: FactoryDesign = {
       p.hipRoof(u, 2.6, 0.8, 1.3, 29, 9, 0.18, TILE, 3);
       p.box(u + 0.3, 3.15, 0.2, 0.2, 38, 4, team.primary);
     }
+    towerCrane(p, 4.6, 0.35, 3, 52, 1.8, -1, '#d8a62a');
   },
 };
 
@@ -196,6 +266,7 @@ const EUROPE: FactoryDesign = {
     });
     p.box(1.75, 3.15, 1.5, 0.85, 34, 1.5, TRIM);
     p.hipRoof(1.8, 3.2, 1.4, 0.75, 35.5, 8, 0.05, SLATE);
+    towerCrane(p, 4.65, 0.35, 2, 54, 1.9, -1, '#e8c23a');
   },
 };
 
@@ -256,6 +327,7 @@ const ISLAMIC: FactoryDesign = {
     p.pole(2.5, 2.0, 54, 6, '#e8c860');
     tower(0, 3.3);
     tower(4.3, 3.3);
+    towerCrane(p, 3.6, 0.6, 22, 34, 1.6, -1, '#d4a83a');
   },
 };
 

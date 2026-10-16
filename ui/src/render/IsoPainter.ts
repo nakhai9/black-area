@@ -69,10 +69,28 @@ export class IsoPainter {
     );
   }
 
-  /** Axis-aligned box: origin (u, v, z), size (w, d) tiles × h pixels. */
+  /** Vertical screen gradient up a wall: darker at the foot (ambient occlusion), brighter under the eaves. */
+  private wallPaint(color: string, light: number, x: number, yFoot: number, yTop: number): Paint {
+    const g = this.ctx.createLinearGradient(x, yFoot, x, yTop);
+    g.addColorStop(0, shade(color, light * 0.74));
+    g.addColorStop(0.18, shade(color, light * 0.92));
+    g.addColorStop(1, shade(color, light * 1.07));
+    return g;
+  }
+
+  /**
+   * Axis-aligned box: origin (u, v, z), size (w, d) tiles × h pixels. Unless a face colour is given, its walls are
+   * shaded like real material: occlusion at the foot, light under the top, a lit top face and bevel highlights on
+   * the edges facing the light — the solid, thick look of a rendered model.
+   */
   box(u: number, v: number, w: number, d: number, z: number, h: number, color: string, style: BoxStyle = {}): void {
     const z1 = z + h;
     const edge = style.edge === undefined ? EDGE : style.edge;
+    const tall = h >= 3;
+    const [lx, ly0] = this.project(u + w / 2, v + d, z);
+    const [, ly1] = this.project(u + w / 2, v + d, z1);
+    const [rx, ry0] = this.project(u + w, v + d / 2, z);
+    const [, ry1] = this.project(u + w, v + d / 2, z1);
     this.polygon(
       [
         [u, v + d, z],
@@ -80,7 +98,7 @@ export class IsoPainter {
         [u + w, v + d, z1],
         [u, v + d, z1],
       ],
-      style.left ?? shade(color, LIGHT.left),
+      style.left ?? (tall ? this.wallPaint(color, LIGHT.left, lx, ly0, ly1) : shade(color, LIGHT.left)),
       edge,
     );
     this.polygon(
@@ -90,9 +108,18 @@ export class IsoPainter {
         [u + w, v + d, z1],
         [u + w, v, z1],
       ],
-      style.right ?? shade(color, LIGHT.right),
+      style.right ?? (tall ? this.wallPaint(color, LIGHT.right, rx, ry0, ry1) : shade(color, LIGHT.right)),
       edge,
     );
+    let top: Paint = style.top ?? shade(color, LIGHT.top);
+    if (!style.top) {
+      const [bx, by] = this.project(u, v, z1);
+      const [fx, fy] = this.project(u + w, v + d, z1);
+      const g = this.ctx.createLinearGradient(bx, by, fx, fy);
+      g.addColorStop(0, shade(color, 0.94));
+      g.addColorStop(1, shade(color, 1.08));
+      top = g;
+    }
     this.polygon(
       [
         [u, v, z1],
@@ -100,9 +127,27 @@ export class IsoPainter {
         [u + w, v + d, z1],
         [u, v + d, z1],
       ],
-      style.top ?? shade(color, LIGHT.top),
+      top,
       edge,
     );
+    if (style.edge !== null && tall) {
+      // Bevel: light catches the front corner and the top edges.
+      const { ctx } = this;
+      const a = this.project(u, v + d, z1);
+      const c = this.project(u + w, v + d, z1);
+      const e = this.project(u + w, v, z1);
+      const f = this.project(u + w, v + d, z);
+      ctx.strokeStyle = 'rgba(255,250,235,0.32)';
+      ctx.lineWidth = 0.6;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(a[0], a[1]);
+      ctx.lineTo(c[0], c[1]);
+      ctx.lineTo(e[0], e[1]);
+      ctx.moveTo(c[0], c[1]);
+      ctx.lineTo(f[0], f[1]);
+      ctx.stroke();
+    }
   }
 
   /**
@@ -369,6 +414,32 @@ export class IsoPainter {
       ctx.closePath();
       ctx.fillStyle = shade(color, light);
       ctx.fill();
+      // Tile courses running parallel to the eave, darker towards the eave (real roofing, not a flat plane).
+      const ra = rest[rest.length - 1]!;
+      const rb = rest[0]!;
+      ctx.save();
+      ctx.clip();
+      const courses = Math.max(4, Math.round(h / 1.6));
+      ctx.lineWidth = 0.45;
+      for (let k = 1; k < courses; k++) {
+        const t = k / courses;
+        const p0 = this.project(a[0] + (ra[0] - a[0]) * t, a[1] + (ra[1] - a[1]) * t, a[2] + (ra[2] - a[2]) * t - curl * (1 - t));
+        const p1 = this.project(b[0] + (rb[0] - b[0]) * t, b[1] + (rb[1] - b[1]) * t, b[2] + (rb[2] - b[2]) * t - curl * (1 - t));
+        ctx.strokeStyle = `rgba(0,0,0,${0.22 - t * 0.12})`;
+        ctx.beginPath();
+        ctx.moveTo(p0[0], p0[1]);
+        ctx.lineTo(p1[0], p1[1]);
+        ctx.stroke();
+      }
+      ctx.restore();
+      ctx.beginPath();
+      ctx.moveTo(ax, ay);
+      ctx.quadraticCurveTo(mx, my, bx, by);
+      for (const p of rest) {
+        const [x, y] = this.project(p[0], p[1], p[2]);
+        ctx.lineTo(x, y);
+      }
+      ctx.closePath();
       ctx.strokeStyle = shade(color, 0.45);
       ctx.lineWidth = 0.8;
       ctx.stroke();

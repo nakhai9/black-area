@@ -6,7 +6,7 @@ import { drawFlagOnPole, drawNationalPole } from '../Flags';
 import type { BuildingArt } from './BuildingArt';
 import { roofStar } from './PowerPlant';
 import { RA2, roofClutter } from './Ra2Kit';
-import { FACTORY_DESIGNS } from './WarFactoryNations';
+import { FACTORY_DESIGNS, towerCrane } from './WarFactoryNations';
 
 const DOOR = '#262a2f';
 
@@ -112,6 +112,7 @@ export function createWarFactoryArt(faction: FactionId): BuildingArt {
         p.cylinder(u, v, 0.12, 40, 1.5, '#4a4a4a');
       }
 
+      towerCrane(p, 2.6, 0.45, 22, 34, 1.8, -1);
       for (const [u, v] of FLAGS) drawNationalPole(p, faction, u, v, FLAG_BASE, 22);
     },
 
