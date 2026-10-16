@@ -27,7 +27,7 @@ export const DEMO_FACTION = Number(import.meta.env.VITE_DEMO_FACTION) || 2;
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "2.26.5";
+export const GAME_VERSION = "2.27.3";
 
 /** An Allied Building within this many cells of any capital is an embassy; farther out it is a "Pro-<nation> regime". */
 export const EMBASSY_CAPITAL_CELLS = 25;
@@ -856,13 +856,14 @@ export const VEHICLE_PRICE: Readonly<Record<FactionId, Partial<Record<VehicleKin
   russia: { tank: 1140, heli: 1300, mantis: 3000, jet: 3050, transport: 870, bomber: 5200 },
   china: { tank: 1200, heli: 1260, mantis: 3000, jet: 3420, transport: 1550 },
   europe: { tank: 1780, heli: 1920, mantis: 2680, jet: 3940, transport: 1230 },
-  islamic: { tank: 760, heli: 1300, mantis: 3000, jet: 3600 },
+  // The B-767 kamikaze drone is cheap: the Islamic world fields it in numbers.
+  islamic: { tank: 760, heli: 1300, mantis: 3000, jet: 3600, drone: 500 },
 };
 
 /**
- * National strength scale (0–10) per arm: land (ground vehicles), air (aircraft) and sea (ships). A machine's health
- * and firepower are base × score ÷ STRENGTH_REF (9 = the base stats); this replaces the nation's armor / firepower
- * factors for vehicles (soldiers keep them).
+ * National strength scale (0–10) per arm — land: soldiers, tanks, air defence and every ground vehicle; air: fighters,
+ * bombers, helicopters, transport aircraft, drones; sea: aircraft carriers. Health and firepower are base × score ÷
+ * STRENGTH_REF (9 = the base stats); this replaces the nation's armor / firepower factors.
  */
 export const STRENGTH_REF = 9;
 export const NATION_STRENGTH: Readonly<Record<FactionId, { land: number; air: number; sea: number }>> = {

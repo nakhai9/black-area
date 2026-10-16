@@ -26,7 +26,7 @@
 <body>
 <main>
 <img class="logo" src="/logo.png" alt="Black Area" />
-<h1>Black Area — RULE <small>v2.26.5</small></h1>
+<h1>Black Area — RULE <small>v2.27.3</small></h1>
 <p class="lead">Tài liệu luật chơi + kiến trúc code dành cho AI/dev sửa game. Mọi con số gameplay chính xác nằm trong <code>src/constants.ts</code> và <code>src/factions/*.ts</code>. Nếu tài liệu này khác code thì <b>code đúng</b>. <b>Khi đổi luật/số trong code, phải cập nhật file này.</b></p>
 <nav><a href="#s1">Quy tắc làm việc cho AI</a><a href="#s2">Chạy dự án</a><a href="#s3">Kiến trúc thư mục</a><a href="#s4">Thế giới</a><a href="#s5">Kinh tế (dầu)</a><a href="#s6">Công trình (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Quân đội</a><a href="#s8">Chiến đấu</a><a href="#s9">Điều khiển (Game.handleKey, handleInput)</a><a href="#s10">Giới hạn &amp; hiệu năng</a><a href="#s11">Thắng / thua &amp; AI</a><a href="#s12">Công thức sửa thường gặp</a></nav>
 <h2 id="s1">0. Quy tắc làm việc cho AI</h2>
@@ -644,6 +644,10 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
   <li>v2.26.2: <b>sân bay</b> đắt hơn: <code>AIRFIELD_COST</code> 2000 → <b>4000</b> (× hệ số giá phe: Mỹ 5200, châu Âu 5000, Nga 4000, Hồi giáo 3800, Trung Quốc 3400).</li>
   <li>v2.26.4: <b>sân bay</b> đắt hơn nữa: <code>AIRFIELD_COST</code> 4000 → <b>6000</b> (Mỹ 7800, châu Âu 7500, Nga 6000, Hồi giáo 5700, Trung Quốc 5100).</li>
   <li>v2.26.5: <b>Happy City</b> đắt hơn: <code>HAPPY_CITY_COST</code> 8000 → <b>12000</b> (giá cố định mọi phe); thuế 600 TB / 50 s nên hoàn vốn sau ~17 phút (trước ~11 phút).</li>
+  <li>v2.27.0: thang sức mạnh <code>NATION_STRENGTH</code> áp cho cả <b>lính</b>: <b>Lục</b> = lính + xe tăng + phòng không + mọi xe mặt đất; <b>Không</b> = tiêm kích, ném bom, trực thăng, máy bay vận tải (và drone); <b>Hải</b> = tàu sân bay. Máu và hoả lực = gốc × điểm ÷ 9, thay hẳn hệ số giáp / hoả lực của phe (tầm bắn, tốc độ, giá vẫn theo phe).</li>
+  <li>v2.27.1: <b>drone cảm tử B-767</b> (Hồi giáo) rẻ: 860 → <b>500</b> TB. AI Hồi giáo cực thích drone và lính cảm tử: tỉ trọng drone trong xe AI đặt 0,06 → <b>0,3</b>; lính cảm tử (Crazy Soldier) được huấn luyện 40% lượt (20% khi đang bị tấn công), trước 15% và chỉ lúc yên bình.</li>
+  <li>v2.27.2: thứ tự mục tiêu drone AI: <b>công trình kiếm tiền</b> (Happy City, ngân hàng, nhà máy lọc dầu) → <b>quân sự</b> (nhà lính, xưởng, sân bay, TT công nghệ, lô cốt, tường, cổng) → <b>dân sự</b> (còn lại) → <b>thủ đô</b> → nhóm quân. Drone <b>không bao giờ</b> tấn công giếng dầu.</li>
+  <li>v2.27.3: <b>thủ đô các nước độc lập</b> (Nhật, Hàn, Triều Tiên, Úc, Brazil, Anh, Canada, Cuba — <code>nationCapital</code>) <b>không bị tấn công</b>: không quân nào nhắm bắn, ném bom hay lao drone vào được (<code>canTarget</code>), chỉ kỹ sư chiếm được. Thủ đô 5 phe vẫn đánh được.</li>
   <li>Bỏ tải (v1.151.0): xe tải / máy bay chở quân chỉ cho người xuống khi đã dừng hẳn (<code>Unit.atRest</code>: hết đường đi và hết đà lăn; máy bay phải chạm đất). Hộ tống tiêm kích: đối tượng mặt đất được bảo vệ đến khi chết hoặc tiêm kích nhận lệnh mới. Bộ đếm hòa bình hiện "Thời gian hòa bình còn lại mm:ss".</li>
   <li>Radar báo bị đánh (v1.150.0): lính/xe/công trình của người chơi trúng đòn trong <code>RADAR_ALERT_SECONDS 2</code> s (<code>lastAttackedAt</code>) có vòng đỏ nhấp nháy trên minimap (<code>Minimap.render</code>), các điểm gần nhau &lt; 10 px gộp một vòng; hết bị đánh hoặc bị phá thì vòng tắt.</li>
   <li>Dọn cache mỗi <code>JANITOR_INTERVAL = 180</code> s (ảnh/địa hình không dùng, sổ ghi unit đã chết, sổ thưởng nhân từ của nhóm rút lui không còn ai sống). Chỉ xoá thứ không còn dùng tới, không động vào lính, công trình, tiền hay lệnh đang chạy. Tìm đường A* (<code>Pathfinder.find</code>) mỗi ô chỉ mở rộng 1 lần (bỏ bản sao cũ trong hàng đợi), đọc thẳng mảng của <code>TileMap</code>, hàng đợi ưu tiên dùng typed array dùng lại giữa các lần tìm.</li>

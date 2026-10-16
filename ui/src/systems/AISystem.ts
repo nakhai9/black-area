@@ -97,23 +97,23 @@ const SOLDIERS_PER_VEHICLE = 2;
  * Base weight of each combat vehicle in the fleet the AI aims for; train() reshapes it from what the enemy fields
  * (see fleetWeights). Kinds the nation cannot build are simply skipped.
  */
-/** AI drone targets, best first: structures that make money (0), the capital (1), military structures (2), any other
- * (civil) structure (3); unit groups are tiers 4-8 (see sendDrones). */
+/** AI drone targets, best first: structures that make money (0), military structures (1), any other (civil) structure
+ * (2), the capital (3); unit groups are tiers 4-8 (see sendDrones). Oil derricks and independent nations' capitals
+ * are never a drone target. */
 const DRONE_BUILDING_TIER: Partial<Record<BuildingType, number>> = {
   refinery: 0,
   bank: 0,
   happyCity: 0,
-  capital: 1,
-  nationCapital: 1,
-  barracks: 2,
-  warFactory: 2,
-  airfield: 2,
-  techCenter: 2,
-  bunker: 2,
-  wall: 2,
-  gate: 2,
+  barracks: 1,
+  warFactory: 1,
+  airfield: 1,
+  techCenter: 1,
+  bunker: 1,
+  wall: 1,
+  gate: 1,
+  capital: 3,
 };
-const DRONE_TIER_CIVIL = 3;
+const DRONE_TIER_CIVIL = 2;
 /** Enemy units within this many cells of each other count as one group for the AI's drones. */
 const DRONE_GROUP_CELLS = 2.5;
 const VEHICLE_WEIGHT: Readonly<Partial<Record<VehicleKind, number>>> = {
@@ -125,7 +125,8 @@ const VEHICLE_WEIGHT: Readonly<Partial<Record<VehicleKind, number>>> = {
   bomber: 0.1,
   repair: 0.04,
   mantis: 0.05,
-  drone: 0.06,
+  // Only the Islamic world has the drone: it loves it, so it is a big share of what that AI builds.
+  drone: 0.3,
 };
 /** Repairs come first: any structure below this share of its health gets an engineer. */
 const REPAIR_BELOW = 0.98;
@@ -956,8 +957,8 @@ export class AISystem implements GameSystem {
         let tier: UnitTier = 'regular';
         const tiers = training.optionsFor(p).map((o) => o.tier);
         if (owned.has('techCenter') && r.special < r.specialCap && st.rng() < (threat > 0 ? 0.25 : st.overseas ? 0.75 : 0.4)) tier = 'special';
-        // National demolition troops (Crazy Soldiers) now and then against a base full of structures.
-        else if (tiers.includes('demolition') && threat === 0 && st.rng() < 0.15) tier = 'demolition';
+        // National demolition troops (Crazy Soldiers): the Islamic AI's favourite, often trained (less while under attack).
+        else if (tiers.includes('demolition') && st.rng() < (threat > 0 ? 0.2 : 0.4)) tier = 'demolition';
         // A captured foreign Ministry of Defence: now and then that nation's version of the soldier instead.
         const foreign = training.optionsFor(p).filter((o) => o.tier === tier && o.faction !== p.faction);
         const pick = foreign.length > 0 && st.rng() < 0.4 ? foreign[Math.floor(st.rng() * foreign.length)] : undefined;
@@ -1139,8 +1140,8 @@ export class AISystem implements GameSystem {
   // ------------------------------------------------------------------ army
 
   /**
-   * Idle kamikaze drones (B-767) dive at the enemy's most valuable target, by tier (DRONE_PRIORITY): money-making
-   * structures > the capital > military structures > civil structures > groups of vehicles and soldiers together > groups of vehicles >
+   * Idle kamikaze drones (B-767) dive at the enemy's most valuable target, by tier (DRONE_BUILDING_TIER): money-making
+   * structures > military structures > civil structures > the capital (never an oil derrick) > groups of vehicles and soldiers together > groups of vehicles >
    * groups of soldiers > a lone vehicle > a lone soldier. Within a tier: the bigger group, then
    * the nearest to home. Every enemy nation is weighed together (the rival first within a tier), so pairs either pile onto
    * one nation or spread over several, whichever has the better targets; one pair per target.

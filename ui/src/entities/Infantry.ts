@@ -1,4 +1,4 @@
-import { CELL_SIZE, GROUND_SPEED_SCALE, INFANTRY_BASE, INFANTRY_MARCH_CELLS, INFANTRY_MAX_RANGE_CELLS, INFANTRY_RECOVER_SECONDS, INFANTRY_REST_SECONDS, SWIM_SPEED_FACTOR, WEAPONS } from '../constants';
+import { CELL_SIZE, GROUND_SPEED_SCALE, INFANTRY_BASE, INFANTRY_MARCH_CELLS, INFANTRY_MAX_RANGE_CELLS, INFANTRY_RECOVER_SECONDS, INFANTRY_REST_SECONDS, SWIM_SPEED_FACTOR, WEAPONS, NATION_STRENGTH, STRENGTH_REF } from '../constants';
 import { FACTIONS } from '../factions';
 import type { FactionId, InfantryProfile, UnitTier, WorldPoint } from '../types';
 import { Unit } from './Unit';
@@ -30,7 +30,9 @@ export class Infantry extends Unit {
   ) {
     const f = FACTIONS[faction];
     const base = INFANTRY_BASE[tier];
-    super(owner, faction, at, Math.round(base.maxHp * f.stats.armor));
+    // Land arm of NATION_STRENGTH: soldiers, tanks, air defence and every ground vehicle share one score.
+    const strength = NATION_STRENGTH[faction].land / STRENGTH_REF;
+    super(owner, faction, at, Math.round(base.maxHp * strength));
     this.profile = f.infantry[tier] ?? f.infantry.regular;
     this.speed = base.speed * f.stats.unitSpeed * (f.stats.infantrySpeed ?? 1) * CELL_SIZE * GROUND_SPEED_SCALE;
     this.value = Math.round((base.cost * f.stats.cost * (f.stats.infantryCost ?? 1)) / 10) * 10;
@@ -43,7 +45,7 @@ export class Infantry extends Unit {
     const w = this.profile.look.weapon;
     if (w === 'rifle' || w === 'smg' || w === 'sniper') {
       const spec = WEAPONS[w];
-      this.weapon = { ...spec, damage: spec.damage * f.stats.firepower, range: Math.min(spec.range * f.stats.range, INFANTRY_MAX_RANGE_CELLS * CELL_SIZE) };
+      this.weapon = { ...spec, damage: spec.damage * strength, range: Math.min(spec.range * f.stats.range, INFANTRY_MAX_RANGE_CELLS * CELL_SIZE) };
     }
   }
 

@@ -4732,7 +4732,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     if (b.owner === me.id && b.spec.type === 'warFactory' && this.orderFactoryRepair(b, this.selection.selectedUnitList())) return true;
     for (const u of this.selection.selectedUnitList()) {
       if (!(u instanceof Infantry)) continue; // only people enter, repair or capture
-      if ((u.isDemolition || (u.isSpecial && !b.indestructible)) && b.owner !== me.id && isHostile(u, b)) {
+      if ((u.isDemolition || (u.isSpecial && !b.indestructible)) && b.spec.type !== 'nationCapital' && b.owner !== me.id && isHostile(u, b)) {
         // Crazy Soldier / special forces: run up and plant a charge on it.
         u.charge = { targetId: b.id };
         u.task = null;
@@ -4821,7 +4821,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     }
     // Kamikaze drones (B-767) dive into an enemy structure.
     // Any enemy ground target: a structure (oil derricks excepted), a soldier or a ground vehicle — never an aircraft in the air.
-    const drones = (target instanceof Building && target.spec.type !== 'oilDerrick') || (target instanceof Unit && !target.flies) ? this.selection.selectedUnitList().filter((u): u is Vehicle => u instanceof Vehicle && u.isDrone && u.alive && isHostile(u, target)) : [];
+    const drones = (target instanceof Building && target.spec.type !== 'oilDerrick' && target.spec.type !== 'nationCapital') || (target instanceof Unit && !target.flies) ? this.selection.selectedUnitList().filter((u): u is Vehicle => u instanceof Vehicle && u.isDrone && u.alive && isHostile(u, target)) : [];
     for (const d of drones) {
       d.diveTargetId = target.id;
       d.attackTarget = target.id;

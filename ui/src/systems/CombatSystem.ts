@@ -75,6 +75,8 @@ export function canTarget(shooter: Unit, target: Entity): boolean {
   const w = shooter.weapon;
   if (!w || !(isHostile(shooter, target) || forceFire(shooter, target))) return false;
   if (shooter.unarmedTransport) return false; // transports never attack anything
+  // An independent nation's capital (Japan, Korea, Cuba…) may never be attacked, only taken by an engineer.
+  if (target instanceof Building && target.spec.type === 'nationCapital') return false;
   // An aircraft already going down (out of fuel, no airfield) is as good as dead: nobody wastes shots on it.
   if (target instanceof Vehicle && target.flight === 'crashing') return false;
   // An air-defence vehicle is hit from the air by bombs (bomber, fighter with a bomb left; never a fighter's guns)

@@ -26,7 +26,7 @@
 <body>
 <main>
 <img class="logo" src="/logo.png" alt="Black Area" />
-<h1>Black Area — RULE <small>v2.26.5</small></h1>
+<h1>Black Area — RULE <small>v2.27.3</small></h1>
 <p class="lead">Game rules + code architecture document for AI/devs modifying the game. All exact gameplay numbers live in <code>src/constants.ts</code> and <code>src/factions/*.ts</code>. If this document differs from the code, <b>the code is right</b>. <b>When changing rules/numbers in code, this file must be updated.</b></p>
 <nav><a href="#s1">Working rules for AI</a><a href="#s2">Running the project</a><a href="#s3">Folder architecture</a><a href="#s4">World</a><a href="#s5">Economy (oil)</a><a href="#s6">Buildings (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Military</a><a href="#s8">Combat</a><a href="#s9">Controls (Game.handleKey, handleInput)</a><a href="#s10">Limits &amp; performance</a><a href="#s11">Victory / defeat &amp; AI</a><a href="#s12">Common edit recipes</a></nav>
 <h2 id="s1">0. Working rules for AI</h2>
@@ -627,6 +627,10 @@ npm run build:earth  # regenerate public/data/earth.png (scripts/build-earth.mjs
   <li>v2.26.2: the <b>Airfield</b> costs more: <code>AIRFIELD_COST</code> 2000 → <b>4000</b> (× nation cost factor: USA 5200, Europe 5000, Russia 4000, Islamic 3800, China 3400).</li>
   <li>v2.26.4: the <b>Airfield</b> costs more again: <code>AIRFIELD_COST</code> 4000 → <b>6000</b> (USA 7800, Europe 7500, Russia 6000, Islamic 5700, China 5100).</li>
   <li>v2.26.5: <b>Happy City</b> costs more: <code>HAPPY_CITY_COST</code> 8000 → <b>12000</b> (fixed for every nation); at 600 TB tax / 50 s it pays for itself after ~17 min (was ~11).</li>
+  <li>v2.27.0: the <code>NATION_STRENGTH</code> scale now covers <b>soldiers</b> too: <b>Land</b> = soldiers + tanks + air defence + every ground vehicle; <b>Air</b> = fighters, bombers, helicopters, transport aircraft (and drones); <b>Sea</b> = aircraft carriers. Health and firepower = base × score ÷ 9, fully replacing the nation armor / firepower factors (range, speed and prices stay per nation).</li>
+  <li>v2.27.1: the Islamic <b>B-767 kamikaze drone</b> is cheap: 860 → <b>500</b> TB. The Islamic AI loves drones and suicide troops: drone share of its vehicle orders 0.06 → <b>0.3</b>; Crazy Soldiers on 40% of its training picks (20% under attack), was 15% and only in peace.</li>
+  <li>v2.27.2: AI drone target order: <b>money-making structures</b> (Happy City, bank, refinery) → <b>military</b> (barracks, factory, airfield, tech centre, bunker, wall, gate) → <b>civil</b> (the rest) → <b>capital</b> → troop groups. Drones <b>never</b> hit oil derricks.</li>
+  <li>v2.27.3: <b>independent nations' capitals</b> (Japan, both Koreas, Australia, Brazil, UK, Canada, Cuba — <code>nationCapital</code>) <b>cannot be attacked</b>: no unit shoots, bombs or dives a drone at them (<code>canTarget</code>); only an engineer can take one. The five factions' capitals can still be attacked.</li>
   <li>Pathfinding (A*) is the most expensive part: blocked attack-move units only retry pathing every <code>RESUME_RETRY 1</code> s (destination on another shore / unreachable cancels the order); every 0.5 s at most <code>REPATH_BUDGET 8</code> stuck units are repathed, if no path they stop.</li>
   <li>Cache cleanup every <code>JANITOR_INTERVAL = 180</code> s (unused images/terrain, records of dead units, mercy bonus records of retreating groups with no survivors). Only removes things no longer used, never touches soldiers, buildings, money or running orders. A* pathfinding (<code>Pathfinder.find</code>) expands each cell only once (dropping stale copies in the queue), reads <code>TileMap</code> arrays directly, the priority queue uses typed arrays reused between searches.</li>
   <li>Art uses PNG sprite sheets in <code>public/sprites/</code> (tank, jet/bomber, bombs, missiles, shells, 8-direction soldiers), procedural drawing when there is no sheet.</li>
