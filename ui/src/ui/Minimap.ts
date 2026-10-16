@@ -1,7 +1,9 @@
 import { MOUNTAIN_RANGES, NEUTRAL_OWNER } from '../constants';
 
 /** Seconds after the last hit during which a radar alert ring stays on an own unit / building. */
-const RADAR_ALERT_SECONDS = 2;
+const RADAR_ALERT_SECONDS = 5;
+/** Radius (minimap px) of the red circle round a place under attack; hits closer than this share one circle. */
+const RADAR_ALERT_RADIUS = 14;
 import type { Camera } from '../core/Camera';
 import type { Building } from '../entities/Building';
 import type { Unit } from '../entities/Unit';
@@ -139,19 +141,23 @@ export class Minimap {
       // Merge hits closer than 10 px into one ring so a big fight shows one circle, not dozens.
       const rings: { x: number; y: number; n: number }[] = [];
       for (const h of hits) {
-        const r = rings.find((g) => Math.hypot(g.x / g.n - h.x, g.y / g.n - h.y) < 10);
+        const r = rings.find((g) => Math.hypot(g.x / g.n - h.x, g.y / g.n - h.y) < RADAR_ALERT_RADIUS);
         if (r) {
           r.x += h.x;
           r.y += h.y;
           r.n++;
         } else rings.push({ x: h.x, y: h.y, n: 1 });
       }
-      const pulse = (Math.sin(time * 8) + 1) / 2;
-      ctx.strokeStyle = `rgba(255,40,40,${0.55 + 0.45 * pulse})`;
-      ctx.lineWidth = 1.6;
+      // A wide red circle round the area: faint red fill, a thick pulsing rim.
+      const pulse = (Math.sin(time * 6) + 1) / 2;
       for (const g of rings) {
+        const r = RADAR_ALERT_RADIUS + 3 * pulse;
         ctx.beginPath();
-        ctx.arc(g.x / g.n, g.y / g.n, 6 + 3 * pulse, 0, Math.PI * 2);
+        ctx.arc(g.x / g.n, g.y / g.n, r, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(255,30,30,${0.12 + 0.1 * pulse})`;
+        ctx.fill();
+        ctx.strokeStyle = `rgba(255,40,40,${0.6 + 0.4 * pulse})`;
+        ctx.lineWidth = 2.2;
         ctx.stroke();
       }
     }
