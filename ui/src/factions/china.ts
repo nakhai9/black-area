@@ -86,7 +86,7 @@ export const CHINA: FactionConfig = {
     },
   },
   vehicles: {
-    carrier: { name: "Type 004", description: t("Type 004 nuclear aircraft carrier: sails the open sea only. Can carry 4 fighters on its deck (coming later); for now it can only move.") },
+    carrier: { name: "Type 004", description: t("Type 004 nuclear aircraft carrier: sails the open sea only. Carries up to 4 fighters on its deck (right-click it with fighters selected); they sink with it.") },
     light: {
       name: "Dongfeng Scout",
       description: t("Chinese light reconnaissance vehicle."),

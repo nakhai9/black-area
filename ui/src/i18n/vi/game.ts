@@ -125,6 +125,7 @@ export default {
   'Training orders are full ({max}) — one more once an order is done.': 'Hàng chờ huấn luyện đã đầy ({max}) — đặt thêm khi một đơn hoàn tất.',
   'Training cancelled.': 'Đã hủy huấn luyện.',
   'No free parking spot on that airfield.': 'Sân bay đó đã hết chỗ đỗ.',
+  'The carrier deck is full ({max} fighters at most).': 'Boong tàu sân bay đã đầy (tối đa {max} tiêm kích).',
   '{nation} leases at most {max} derricks at a time.': '{nation} chỉ cho thuê tối đa {max} giếng dầu cùng lúc.',
   'Ceasefire: no nation may take over another nation\'s buildings now.': 'Ngừng bắn: hiện không quốc gia nào được chiếm công trình của quốc gia khác.',
   'Neutral buildings cannot be captured or destroyed.': 'Công trình trung lập không thể bị chiếm hay phá hủy.',

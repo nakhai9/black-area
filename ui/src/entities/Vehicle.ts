@@ -109,6 +109,12 @@ export class Vehicle extends Unit {
   /** Helicopter self-defence: the ground soldier / tank that shot it while landed; it may fire back at this one (soldier included). */
   heliRevenge: number | null = null;
   slot = -1;
+  /** Fighter on an aircraft carrier's deck (the carrier's id): it rides along with the ship and goes down with it. */
+  deckId: number | null = null;
+  /** Fighter on its way to land on this aircraft carrier (id), or null. */
+  deckTarget: number | null = null;
+  /** Carrier the fighter last flew off: it lands back there (room permitting) instead of on an airfield. */
+  homeCarrierId: number | null = null;
   /** Comes in to land from the runway's far end (flying against the take-off direction). */
   landReverse = false;
   /** Takes off from the runway's far end (against the usual direction) because the near end is jammed. */

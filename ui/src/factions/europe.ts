@@ -40,7 +40,7 @@ export const EUROPE: FactionConfig = {
     },
   },
   vehicles: {
-    carrier: { name: "HMS Queen Elizabeth (R08)", description: t("Queen Elizabeth-class aircraft carrier: sails the open sea only. Can carry 4 fighters on its deck (coming later); for now it can only move.") },
+    carrier: { name: "HMS Queen Elizabeth (R08)", description: t("Queen Elizabeth-class aircraft carrier: sails the open sea only. Carries up to 4 fighters on its deck (right-click it with fighters selected); they sink with it.") },
     light: { name: "VBL Scout", description: t("Light armoured European reconnaissance vehicle.") },
     tank: { name: "Leopard 2", description: t("Leopard 2 main battle tank, precise and well protected.") },
     ifv: { name: "Puma", description: t("Puma armoured fighting vehicle, modern and fast.") },

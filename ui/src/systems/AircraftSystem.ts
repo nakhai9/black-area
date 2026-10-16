@@ -1,4 +1,4 @@
-import { BOMB_COST, BOMB_LOAD_SECONDS, JET_BOMB_COST, CELL_SIZE, TURBO_RECHARGE_SECONDS, TURBO_SECONDS, TRANSPORT_FUEL_CELLS } from '../constants';
+import { BOMB_COST, BOMB_LOAD_SECONDS, CARRIER_JETS, JET_BOMB_COST, CELL_SIZE, TURBO_RECHARGE_SECONDS, TURBO_SECONDS, TRANSPORT_FUEL_CELLS } from '../constants';
 import type { Building } from '../entities/Building';
 import type { EntityManager } from '../entities/EntityManager';
 import { CRUISE_ALTITUDE, type Vehicle } from '../entities/Vehicle';
@@ -148,6 +148,11 @@ export class AircraftSystem implements GameSystem {
       if (v.turboLeft > 0) v.turboLeft = Math.max(0, v.turboLeft - dt);
       else if (v.turboCharge < 1) v.turboCharge = Math.min(1, v.turboCharge + dt / TURBO_RECHARGE_SECONDS);
       if (prev && v.hp < prev.hp) this.hitAt.set(v.id, this.clock);
+      // On an aircraft carrier's deck: it rides with the ship (and goes down with it).
+      if (v.deckId !== null) {
+        this.onDeck(v, dt);
+        continue;
+      }
       if (v.turboReady && v.flight === 'airborne' && this.hooks.computer(v.owner) && this.aiWantsTurbo(v)) this.turbo(v);
       // Badly hit in the air: the pilot calls mayday before the aircraft falls.
       if (!v.maydaySent && v.altitude > 0 && v.hp <= v.maxHp * MAYDAY_HP) this.callMayday(v);
@@ -370,8 +375,12 @@ export class AircraftSystem implements GameSystem {
       this.heliAirborne(v, dt);
       return;
     }
-    // Lost its airfield: any other airfield of the nation will do; with none left the aircraft falls.
+    // Heading for a carrier's deck: it follows the ship until it is over it, then sets down.
+    if (v.deckTarget !== null && this.flyToDeck(v)) return;
+    // Lost its airfield: any other airfield of the nation will do, else a carrier with room; with neither it falls.
     if (!this.home(v) && !this.adoptHome(v)) {
+      const ship = this.carrierToLand(v, true);
+      if (ship && this.landOnCarrier(v, ship)) return;
       this.startCrash(v);
       return;
     }
@@ -412,6 +421,9 @@ export class AircraftSystem implements GameSystem {
       return;
     }
     this.orbits.delete(v.id);
+    // A fighter that flew off a carrier lands back on it while there is room.
+    const ship = this.carrierToLand(v, false);
+    if (ship && this.landOnCarrier(v, ship)) return;
     let home = this.home(v);
     if (!home) return; // no airfield left: circle where it is
     // No spot left on its apron: it parks at whichever airfield of the nation still has room.
@@ -468,6 +480,142 @@ export class AircraftSystem implements GameSystem {
     this.pickRunwayEnd(v, airfield);
     v.follow([this.approachFor(v, airfield).point]);
     return true;
+  }
+
+  // ------------------------------------------------------------------ aircraft carrier deck
+
+  /** The living aircraft carrier `id` of the aircraft's owner, or null. */
+  private carrierById(v: Vehicle, id: number | null): Vehicle | null {
+    const e = id === null ? undefined : this.entities.get(id);
+    return e && e.alive && e.owner === v.owner && (e as Vehicle).type === 'carrier' ? (e as Vehicle) : null;
+  }
+
+  /** Fighters on the deck of `ship` or on their way to it, other than `v`. */
+  private deckLoad(ship: Vehicle, v: Vehicle | null): number {
+    let n = 0;
+    for (const o of this.entities.vehicles()) if (o !== v && o.alive && (o.deckId === ship.id || o.deckTarget === ship.id)) n++;
+    return n;
+  }
+
+  /** May fighter `v` land on `ship`? Only fighters, own carriers, at most CARRIER_JETS on a deck. */
+  deckRoom(v: Vehicle, ship: Vehicle): boolean {
+    return v.type === 'jet' && v.alive && ship.alive && ship.type === 'carrier' && ship.owner === v.owner && this.deckLoad(ship, v) < CARRIER_JETS;
+  }
+
+  /** Carrier a fighter lands on: the one it flew off (room permitting), or with `any` the nearest own carrier with room. */
+  private carrierToLand(v: Vehicle, any: boolean): Vehicle | null {
+    if (v.type !== 'jet') return null;
+    const own = this.carrierById(v, v.homeCarrierId);
+    if (own && this.deckRoom(v, own)) return own;
+    if (!any) return null;
+    let best: Vehicle | null = null;
+    let bestD = Infinity;
+    for (const o of this.entities.vehicles()) {
+      if (o.type !== 'carrier' || !this.deckRoom(v, o)) continue;
+      const d = Math.hypot(o.px - v.px, o.py - v.py);
+      if (d < bestD) {
+        bestD = d;
+        best = o;
+      }
+    }
+    return best;
+  }
+
+  /** Fighter ordered to land on `ship` (player or AI): it flies to the ship and sets down on its deck. False when full. */
+  landOnCarrier(v: Vehicle, ship: Vehicle): boolean {
+    if (!this.deckRoom(v, ship) || v.deckId === ship.id) return false;
+    if (v.flight !== 'airborne' && v.flight !== 'approach' && v.flight !== 'parked') return false;
+    this.leaveQueue(v);
+    this.orbits.delete(v.id);
+    v.transferTo = null;
+    v.attackTarget = null;
+    v.attackMove = null;
+    v.combatTarget = null;
+    v.guardId = null;
+    v.mission = null;
+    v.scramble = 0;
+    v.deckTarget = ship.id;
+    v.returningHome = true;
+    if (v.flight === 'approach') v.flight = 'airborne';
+    // Parked (an apron or another deck): the order makes it take off first.
+    v.follow([{ x: ship.px, y: ship.py }]);
+    return true;
+  }
+
+  /** On the way to a carrier's deck; false when that trip is over (ship gone or full, or a new order given). */
+  private flyToDeck(v: Vehicle): boolean {
+    const ship = this.carrierById(v, v.deckTarget);
+    if (!ship || !this.deckRoom(v, ship)) {
+      v.deckTarget = null;
+      return false;
+    }
+    const pts = v.waypoints();
+    const last = pts[pts.length - 1];
+    const off = last ? Math.hypot(last.x - ship.px, last.y - ship.py) : 0;
+    if (v.attackTarget !== null || v.attackMove !== null || (v.moving && off > 4 * CELL_SIZE)) {
+      v.deckTarget = null; // a new order
+      v.returningHome = false;
+      return false;
+    }
+    if (Math.hypot(ship.px - v.px, ship.py - v.py) < 1.5 * CELL_SIZE) {
+      v.stop();
+      v.deckTarget = null;
+      v.deckId = ship.id;
+      v.homeCarrierId = ship.id;
+      v.slot = -1;
+      v.flight = 'parked';
+      v.altitude = 0;
+      v.returningHome = false;
+      v.idleFor = 0;
+      v.combatTarget = null;
+      return true;
+    }
+    // The ship sails on: the course is set again whenever it has moved more than a cell.
+    if (!v.moving || off > CELL_SIZE) v.follow([{ x: ship.px, y: ship.py }]);
+    return true;
+  }
+
+  /** Parked on a carrier's deck: rides with the ship, is repaired and rearmed, and flies straight off on an order. */
+  private onDeck(v: Vehicle, dt: number): void {
+    const ship = this.carrierById(v, v.deckId);
+    if (!ship) {
+      // The ship is gone: everything on its deck sinks with it.
+      v.deckId = null;
+      v.hp = 0;
+      return;
+    }
+    v.flight = 'parked';
+    v.altitude = 0;
+    v.slot = -1;
+    const mates = this.entities.vehicles().filter((o) => o.alive && o.deckId === ship.id).sort((a, b) => a.id - b.id);
+    const along = (mates.indexOf(v) - (CARRIER_JETS - 1) / 2) * 4;
+    this.place(v, ship.px + Math.cos(ship.heading) * along, ship.py + Math.sin(ship.heading) * along);
+    v.heading = ship.heading;
+    v.facing = Math.cos(ship.heading) < 0 ? -1 : 1;
+    v.drawDepth = ship.depth + 0.02;
+    if (v.maxBombs > 0) this.rearm(v, dt);
+    if (v.hp < v.maxHp) {
+      v.repairClock += dt;
+      while (v.repairClock >= REPAIR_INTERVAL) {
+        v.repairClock -= REPAIR_INTERVAL;
+        v.hp = Math.min(v.maxHp, v.hp + v.maxHp * REPAIR_FRACTION);
+      }
+    } else v.repairClock = 0;
+    if (v.mission && !v.moving) {
+      v.follow(v.mission);
+      v.mission = null;
+    }
+    if (!v.moving && v.attackTarget === null && v.attackMove === null) return;
+    // Catapult launch: straight into the air, no runway needed.
+    this.stashOrders(v);
+    v.deckId = null;
+    v.homeCarrierId = ship.id;
+    v.drawDepth = null;
+    v.flight = 'airborne';
+    v.altitude = CRUISE_ALTITUDE;
+    v.idleFor = 0;
+    if (v.mission) v.follow(v.mission);
+    v.mission = null;
   }
 
   /** Lands from the runway end nearer to the aircraft. */
@@ -913,6 +1061,12 @@ export class AircraftSystem implements GameSystem {
 
   /** Transport at its drop-off point: glides down, unloads everyone, lifts off again and heads home. */
   private unloading(v: Vehicle, dt: number): void {
+    // Over the sea (or still short of its spot): it flies on to the solid ground it picked first, at full height,
+    // and only then glides down — a transport never sets down on the water.
+    if (v.dropSpot && v.phaseTime === 0 && Math.hypot(v.dropSpot.x - v.px, v.dropSpot.y - v.py) > 1) {
+      this.moveTo(v, v.dropSpot, Math.max(10, v.speed), dt);
+      return;
+    }
     v.phaseTime += dt;
     const t = v.phaseTime;
     if (v.dropSpot && t < DESCEND_SECONDS) this.moveTo(v, v.dropSpot, 10, dt);

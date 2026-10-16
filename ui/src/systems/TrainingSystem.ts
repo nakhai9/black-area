@@ -114,7 +114,10 @@ export class TrainingSystem implements GameSystem {
   optionsFor(player: PlayerState): TrainOption[] {
     const own = this.options.get(player.id) ?? [];
     const taken = takenNations(this.entities, player, 'barracks');
-    return taken.length === 0 || own.length === 0 ? own : [...own, ...taken.flatMap((f) => foreignOptions(f))];
+    if (taken.length === 0 || own.length === 0) return own;
+    // One design per soldier type only: the own nation's, else the first captured nation's (no duplicates in the shop).
+    const seen = new Set(own.map((o) => o.tier));
+    return [...own, ...taken.flatMap((f) => foreignOptions(f)).filter((o) => !seen.has(o.tier) && (seen.add(o.tier), true))];
   }
 
   /** First living Barracks of the player (soldiers exit there). */

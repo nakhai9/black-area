@@ -102,6 +102,7 @@ import {
   TRUCE_ZONE_CELLS,
   MOUNTAIN_RANGES,
   CARRIER_FLEET,
+  CARRIER_JETS,
   CARRIER_NATIONS,
   MOUNTAIN_PASS_SPEED_INFANTRY,
   MOUNTAIN_PASS_SPEED_VEHICLE,
@@ -296,6 +297,8 @@ const FOCUS_OFFSET_Y = 6;
 
 /** Most units re-routed per stuck-unit pass (every 0.5 s); each re-route is a path search. */
 const REPATH_BUDGET = 1;
+/** Two ships (long hulls) are pushed this many times their radii apart. */
+const SHIP_GAP_SCALE = 1.8;
 /** Above this many units on the field, separateUnits runs 2 relaxation passes a tick instead of 6. */
 const SEPARATE_CROWD = 200;
 /** Attack-move groups of at least this many ground units get their routes from one shared, time-sliced flow field. */
@@ -2573,7 +2576,7 @@ export class Game {
     if (units.length < 2) return false;
     // A bucket must be at least as wide as the largest contact gap, or overlapping pairs two buckets apart are missed.
     let maxR = 0;
-    for (const u of units) maxR = Math.max(maxR, u.radius);
+    for (const u of units) maxR = Math.max(maxR, u.radius * (u.naval ? SHIP_GAP_SCALE : 1));
     const bucket = Math.max(8, maxR * 2);
     // The hash and its bucket arrays are reused from pass to pass and tick to tick (no garbage at 30 Hz × 6 passes).
     const grid = this.sepGrid;
@@ -2603,7 +2606,8 @@ export class Game {
           for (const b of cell) {
             if (b.id <= a.id || a.flies !== b.flies) continue;
             // Vehicles and aircraft hold a little clear air between their hulls; soldiers still close up.
-            const gap = a.radius + b.radius + (a instanceof Vehicle && b instanceof Vehicle ? VEHICLE_GAP : 0);
+            // Ships are long hulls: two of them keep SHIP_GAP_SCALE times their radii apart, so they never sail over each other.
+            const gap = a.naval && b.naval ? (a.radius + b.radius) * SHIP_GAP_SCALE : a.radius + b.radius + (a instanceof Vehicle && b instanceof Vehicle ? VEHICLE_GAP : 0);
             let vx = b.px - a.px;
             let vy = b.py - a.py;
             // Cheap squared test first; the square root only for pairs that really touch.
@@ -2635,7 +2639,8 @@ export class Game {
     const ny = u.py + dy;
     const cx = Math.floor(nx / CELL_SIZE);
     const cy = Math.floor(ny / CELL_SIZE);
-    if (u.flies || this.pathfinder.passable(cx, cy, u.swims)) {
+    // A ship is pushed over water only (so two ships crossing paths shove each other apart instead of overlapping).
+    if (u.flies || (u.naval ? this.map.isWater(cx, cy) : this.pathfinder.passable(cx, cy, u.swims))) {
       u.px = nx;
       u.py = ny;
       return true;
@@ -2773,6 +2778,7 @@ export class Game {
     this.drawInterpolated(units, alpha, () => this.renderer.render({
       buildings,
       selectedId: this.selection.selectedId,
+      localOwner: this.localId,
       hoveredId: this.selection.hoveredId,
       selectionRect: this.placing ? null : this.input.selectionRect,
       time: drawTime,
@@ -3131,6 +3137,16 @@ export class Game {
       this.orderHumanAttackMove(selected, world);
       return;
     }
+    // Fighters selected + right-click on one of my aircraft carriers: they land on its deck (CARRIER_JETS at most).
+    if (unit instanceof Vehicle && unit.isAircraftCarrier && unit.owner === me) {
+      const jets = selected.filter((u): u is Vehicle => u instanceof Vehicle && u.type === 'jet');
+      if (jets.length > 0) {
+        let n = 0;
+        for (const j of jets) if (this.aircraft.landOnCarrier(j, unit)) n++;
+        if (n < jets.length) this.sidebar.notify(t('The carrier deck is full ({max} fighters at most).', { max: CARRIER_JETS }), 3);
+        return;
+      }
+    }
     // Repair vehicles selected + right-click on one of my damaged ground vehicles: they drive up and mend it.
     if (unit instanceof Vehicle && unit.owner === me && (this.orderRepairClick(unit, selected) || this.orderMend(unit, selected))) return;
     // Soldiers / vehicles selected + right-click on one of my parked transports: they climb aboard.
@@ -3415,9 +3431,16 @@ export class Game {
   // ------------------------------------------------------------------ construction
 
   /** Cameo left-click: start building, or pick up a finished structure to place it. */
-  /** Another nation's design is on sale only while its capital, taken by an engineer, is held. */
+  /**
+   * One design per structure in the shop: another nation's version is on sale only while its capital, taken by an
+   * engineer, is held, and only when the nation has no version of its own (every nation has its own of each
+   * FOREIGN_BUILDS structure today, so no duplicate cameos appear).
+   */
   private buildAvailable(player: PlayerState, option: BuildOption): boolean {
-    return !option.foreign || takenNations(this.entities, player, 'capital').includes(option.foreign);
+    if (!option.foreign) return true;
+    const base = option.id.split('@')[0];
+    if (BUILD_OPTIONS.some((o) => !o.foreign && o.id === base)) return false;
+    return takenNations(this.entities, player, 'capital').includes(option.foreign);
   }
 
   private onBuildClick(option: BuildOption): void {
@@ -3890,6 +3913,13 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
           this.entities.remove(c.id);
         }
         e.cargo.length = 0;
+      }
+      // An aircraft carrier sinks with every fighter on its deck.
+      if (e instanceof Vehicle && e.isAircraftCarrier) {
+        for (const j of this.entities.vehicles().filter((o) => o.deckId === e.id)) {
+          this.selection.selectedUnits.delete(j.id);
+          this.entities.remove(j.id);
+        }
       }
       this.entities.remove(e.id);
       const vehicle = e instanceof Vehicle;

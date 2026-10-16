@@ -70,6 +70,8 @@ export interface FocusTarget {
 export interface RenderScene {
   readonly buildings: readonly Building[];
   readonly selectedId: number | null;
+  /** This machine's player: its soldiers and vehicles always fly their flag over their heads. */
+  readonly localOwner?: number;
   readonly hoveredId: number | null;
   /** Screen-space drag rectangle (box selection), if any. */
   readonly selectionRect: Rect | null;
@@ -312,6 +314,7 @@ export class Renderer {
     for (const u of units) {
       const focused = selUnits.has(u.id) || focus.some((f) => f.entity === u);
       if (focused && (u.id !== scene.enemyInfoId || selUnits.has(u.id))) this.drawUnitHealth(u, true);
+      if ((focused && u.id !== scene.enemyInfoId) || u.owner === scene.localOwner || selUnits.has(u.id)) this.drawUnitFlag(u);
     }
     // The fuel gauge shows only while the transport is out on a sortie; parked or taxiing at home it is idle (hidden).
     for (const u of units) if (u instanceof Vehicle && u.maxBombs > 0) this.drawBombs(u);
@@ -978,13 +981,18 @@ export class Renderer {
   private drawRank(u: Unit): void {
     const { ctx } = this;
     const lift = (u as { altitude?: number }).altitude ?? 0;
-    const size = 2.6; // world px per chevron (24 icon units)
-    const sc = size / 24;
-    let P = worldToIso(u.px, u.py);
-    let top = P.y - lift - u.bodyHeight - 1.4 - 3.4;
+    void lift;
+    // In the box left of the flag and health bar (see plate): the chevrons stacked to fill its height.
+    const box = this.plate(u);
+    let size = Math.min(2.6, box.side / (0.62 + 0.34 * (u.rank - 1)));
+    let sc = size / 24;
+    let P = { x: box.rankX + box.side / 2, y: 0 };
+    let top = box.top + (u.rank - 1) * size * 0.34;
     if (u instanceof Vehicle && u.maxBombs > 0) {
       // The stack ends level with the bottom of the bomb bars, just left of them.
       const r = bombRow(u);
+      size = 2.6;
+      sc = size / 24;
       P = { x: r.x0 - 0.4 - size / 2, y: P.y };
       top = r.y + r.h - size * 0.65;
     }
@@ -1037,40 +1045,44 @@ export class Renderer {
   }
 
   /** Health bar over a unit; every selected / focused soldier or vehicle also shows its nation's emblem, small, left of it. */
-  private drawUnitHealth(u: Unit, focused = false): void {
-    const { ctx } = this;
-    const k = 1 / this.camera.zoom;
+  /**
+   * Plate over a unit's head: health bar (bottom row), the flag of its owner's nation just above it (top row, left
+   * aligned), and the rank chevrons in a box to the left of both rows.
+   */
+  private plate(u: Unit): { x: number; y: number; w: number; flagH: number; flagW: number; rankX: number; top: number; side: number } {
     const P = worldToIso(u.px, u.py);
     const w = Math.max(2.4, u.radius * 1.6);
-    const x = P.x - w / 2;
-    // An airborne unit is drawn `altitude` px above its ground point: the bar rides along, never under it.
+    // An airborne unit is drawn `altitude` px above its ground point: the plate rides along, never under it.
     const lift = (u as { altitude?: number }).altitude ?? 0;
     const y = P.y - lift - u.bodyHeight - 2.4;
+    const x = P.x - w / 2;
+    const flagH = 1;
+    const flagW = flagH * 1.6;
+    const top = y - 0.45 - flagH;
+    const side = y + 0.4 - top;
+    return { x, y, w, flagH, flagW, rankX: x - 0.45 - side, top, side };
+  }
+
+  private drawUnitHealth(u: Unit, _focused = false): void {
+    const { ctx } = this;
+    const k = 1 / this.camera.zoom;
+    const { x, y, w } = this.plate(u);
     const ratio = u.hpRatio;
     ctx.fillStyle = 'rgba(0,0,0,0.75)';
     ctx.fillRect(x - k, y - k, w + 2 * k, 0.4 + 2 * k);
     ctx.fillStyle = ratio > 0.5 ? '#3fdc4a' : ratio > 0.25 ? '#f0d23a' : '#e8452f';
     ctx.fillRect(x, y, w * ratio, 0.4);
-    // Vehicles: the owner's national flag stands straight up above the health bar (no emblem beside it).
-    if (focused && u.banner !== 'neutral' && u instanceof Vehicle) {
-      const tex = getFlagTexture(u.banner);
-      const fh = 7 * k;
-      const fw = (fh * tex.width) / Math.max(1, tex.height);
-      const poleTop = y - k - 11 * k;
-      ctx.fillStyle = '#2a2a2a';
-      ctx.fillRect(P.x - 0.5 * k, poleTop, k, 11 * k);
-      ctx.fillStyle = 'rgba(0,0,0,0.6)';
-      ctx.fillRect(P.x + 0.5 * k - 0.5 * k, poleTop - 0.5 * k, fw + k, fh + k);
-      ctx.drawImage(tex, P.x + 0.5 * k, poleTop, fw, fh);
-    } else if (focused && u.banner !== 'neutral') {
-      const img = emblemImage(u.banner as FactionId);
-      if (img) {
-        const s = Math.max(1.6, 9 * k); // small: about 9 screen px, never below 1.6 iso px
-        const iw = (s * img.naturalWidth) / Math.max(img.naturalWidth, img.naturalHeight);
-        const ih = (s * img.naturalHeight) / Math.max(img.naturalWidth, img.naturalHeight);
-        ctx.drawImage(img, x - k - 1.5 * k - iw, y + 0.2 - ih / 2, iw, ih);
-      }
-    }
+  }
+
+  /** The owner's national flag on the plate's top row (see plate). */
+  private drawUnitFlag(u: Unit): void {
+    if (u.banner === 'neutral') return;
+    const { ctx } = this;
+    const k = 1 / this.camera.zoom;
+    const { x, flagH, flagW, top } = this.plate(u);
+    ctx.fillStyle = 'rgba(0,0,0,0.75)';
+    ctx.fillRect(x - k, top - k, flagW + 2 * k, flagH + 2 * k);
+    ctx.drawImage(getFlagTexture(u.banner), x, top, flagW, flagH);
   }
 
   /** Transport fuel gauge: a black bar just above the health bar, shrinking as the tank empties. */

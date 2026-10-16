@@ -115,7 +115,9 @@ export class VehicleSystem implements GameSystem {
     const foreign = [...new Set([...ground, ...air])].sort().flatMap((f) =>
       foreignOptions(f).filter((o) => (o.needsAirfield ? air : ground).includes(f)),
     );
-    return [...own, ...foreign];
+    // One design per kind only: the own nation's, else the first captured nation's (no duplicate cameos in the shop).
+    const seen = new Set(own.map((o) => o.kind));
+    return [...own, ...foreign.filter((o) => !seen.has(o.kind) && (seen.add(o.kind), true))];
   }
 
   /** First living building of `type` owned by the player. */

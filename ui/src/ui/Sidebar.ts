@@ -1069,6 +1069,7 @@ export class Sidebar {
       const canvas = el.querySelector('canvas');
       if (canvas) drawPreview(canvas, this.handlers.vehiclePreview(option));
       addInfoIcon(el, this.foreignName(option));
+      this.addForeignFlag(el, option.faction);
       el.addEventListener('click', () => this.handlers.onVehicle(option));
       el.addEventListener('contextmenu', (e) => {
         e.preventDefault();
@@ -1098,6 +1099,7 @@ export class Sidebar {
       const canvas = el.querySelector('canvas');
       if (canvas) drawPreview(canvas, this.handlers.trainPreview(option));
       addInfoIcon(el, this.foreignName(option));
+      this.addForeignFlag(el, option.faction);
       el.addEventListener('click', () => this.handlers.onTrain(option));
       el.addEventListener('contextmenu', (e) => {
         e.preventDefault();
@@ -1109,6 +1111,16 @@ export class Sidebar {
       const badge = el.querySelector<HTMLElement>('.sb-cameo-badge') ?? undefined;
       if (wipe && state) this.unitCameos.set(option.key, { el, wipe, state, badge });
     }
+  }
+
+  /** Another nation's design: its flag on the cameo (own designs carry none). */
+  private addForeignFlag(el: HTMLElement, faction: FactionId): void {
+    if (faction === this.faction) return;
+    const img = document.createElement('img');
+    img.className = 'sb-cameo-flag';
+    img.alt = FACTIONS[faction].shortName;
+    img.src = this.flagUrl(faction);
+    el.append(img);
   }
 
   /** Name on a cameo; another nation's design carries that nation's name. */
@@ -1155,6 +1167,7 @@ export class Sidebar {
       const canvas = el.querySelector('canvas');
       if (canvas) drawPreview(canvas, this.handlers.preview(option));
       addInfoIcon(el, option.name);
+      if (option.foreign) this.addForeignFlag(el, option.foreign);
       el.addEventListener('click', () => this.handlers.onBuild(option));
       el.addEventListener('contextmenu', (e) => {
         e.preventDefault();

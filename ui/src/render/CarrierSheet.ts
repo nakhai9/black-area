@@ -42,7 +42,8 @@ function column(heading: number): number {
   const c = Math.cos(heading);
   const s = Math.sin(heading);
   const a = Math.atan2((c - s) * ISO_X, -(c + s) * ISO_Y);
-  return ((Math.round((a / (Math.PI * 2)) * DIRS) % DIRS) + DIRS) % DIRS;
+  // The sheets were rendered with the model's bow pointing the opposite way: half a turn more puts the bow forward.
+  return ((Math.round((a / (Math.PI * 2)) * DIRS + DIRS / 2) % DIRS) + DIRS) % DIRS;
 }
 
 /** Draws a carrier with its waterline centre at (x, y) in iso px. Returns false when its sheet is not loaded. */

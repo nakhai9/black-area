@@ -27,7 +27,7 @@ export const DEMO_FACTION = Number(import.meta.env.VITE_DEMO_FACTION) || 2;
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "2.14.0";
+export const GAME_VERSION = "2.15.0";
 
 /** An Allied Building within this many cells of any capital is an embassy; farther out it is a "Pro-<nation> regime". */
 export const EMBASSY_CAPITAL_CELLS = 25;
@@ -589,7 +589,7 @@ export const GUARD_VISION_FACTOR = 1.8;
  * everything else at the War Factory.
  */
 export const VEHICLE_BASE = {
-  /** Aircraft carrier: sea only, slow, very tough, unarmed (it will carry CARRIER_JETS fighters later). Not built: a fleet of CARRIER_FLEET starts near the capital. */
+  /** Aircraft carrier: sea only, slow, very tough, unarmed, carries up to CARRIER_JETS fighters on its deck (AircraftSystem.onDeck). Not built: a fleet of CARRIER_FLEET starts near the capital. */
   carrier: { cost: 0, trainSeconds: 0, maxHp: 4000, speed: 0.9, radius: 10 },
   light: { cost: 600, trainSeconds: 8, maxHp: 180, speed: 2.4, radius: 3.4 },
   tank: { cost: 1200, trainSeconds: 14, maxHp: 420, speed: 1.4, radius: 4.2 },
@@ -848,7 +848,7 @@ export const FACTION_ORDER: readonly FactionId[] = [
 /** Nations with aircraft carriers, and how many start at sea near the capital (only moving for now). */
 export const CARRIER_NATIONS: readonly FactionId[] = ['usa', 'europe', 'china'];
 export const CARRIER_FLEET = 2;
-/** Fighters a carrier can carry on its deck (rule to come). */
+/** Fighters a carrier can carry on its deck. */
 export const CARRIER_JETS = 4;
 export const CAPITAL_LOCATIONS: Readonly<Record<FactionId, NamedSite>> = {
   usa: { lon: -77.04, lat: 38.9, name: "Washington, D.C." },

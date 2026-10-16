@@ -745,6 +745,17 @@ kbd {
   border-radius: 8px;
   pointer-events: none;
 }
+.sb-cameo-flag {
+  /* Another nation's design in the shop: that nation's flag in the bottom-left corner. */
+  position: absolute;
+  bottom: 5px;
+  left: 5px;
+  width: 22px;
+  height: 14px;
+  object-fit: cover;
+  border: 1px solid rgba(0, 0, 0, 0.7);
+  pointer-events: none;
+}
 .sb-cameo-badge[hidden] {
   display: none;
 }
