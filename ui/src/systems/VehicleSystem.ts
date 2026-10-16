@@ -170,7 +170,6 @@ export class VehicleSystem implements GameSystem {
   }
 
   enqueue(player: PlayerState, key: VehicleKey): VehicleEnqueueResult {
-    if (player.capitalLost) return 'noCapital';
     if (FACTIONS[player.faction].peaceful) return 'full';
     const q = this.queue(player);
     const kind = splitKey(key).base;
@@ -269,7 +268,7 @@ export class VehicleSystem implements GameSystem {
         if (!option) return;
         const paid = q.paidEach[i] ?? 0;
         const want = Math.min((option.cost / option.trainSeconds) * dt, option.cost - paid);
-        const pay = p.capitalLost ? 0 : Math.max(0, Math.min(want, p.credits));
+        const pay = Math.max(0, Math.min(want, p.credits));
         p.credits -= pay;
         q.paidEach[i] = paid + pay;
         if (pay < want - 1e-6) short = true;

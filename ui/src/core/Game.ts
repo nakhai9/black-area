@@ -223,9 +223,10 @@ export type GameCommand = (
   | { k: 'right'; w: WorldPoint; am: boolean }
   | { k: 'guard'; ward: number }
   | { k: 'sellBuilding'; b: number }
+  | { k: 'rally'; b: number; x: number; y: number; clear: boolean }
   /** DEMO only: Ctrl+click on one of my own structures / units: the selection fires on it (force fire). */
   | { k: 'forceAttack'; t: number }
-  | { k: 'key'; code: 'KeyF' | 'KeyU' | 'KeyT' | 'KeyX' | 'KeyC' }
+  | { k: 'key'; code: 'KeyF' | 'KeyU' | 'KeyT' | 'KeyX' | 'KeyG' }
   | { k: 'waypoints'; pts: WorldPoint[] }
   | { k: 'minimap'; w: WorldPoint }
   | { k: 'place'; opt: string; x: number; y: number; rot: boolean }
@@ -299,6 +300,12 @@ const FOCUS_OFFSET_Y = 6;
 const REPATH_BUDGET = 1;
 /** Two ships (long hulls) are pushed this many times their radii apart. */
 const SHIP_GAP_SCALE = 1.8;
+/** Structures that can still raise an army (a nation holding one is not yet beaten). */
+const PRODUCERS: ReadonlySet<string> = new Set(['barracks', 'warFactory', 'airfield']);
+/** A structure under attack raises a fresh alert toast at most this often (s). */
+const BUILDING_ALERT_SECONDS = 10;
+/** Structures that take a rally point (right-click with the building selected). */
+const RALLY_TYPES: ReadonlySet<string> = new Set(['barracks', 'warFactory', 'airfield']);
 /** Above this many units on the field, separateUnits runs 2 relaxation passes a tick instead of 6. */
 const SEPARATE_CROWD = 200;
 /** Attack-move groups of at least this many ground units get their routes from one shared, time-sliced flow field. */
@@ -545,7 +552,7 @@ export class Game {
       },
       pay: (owner, amount) => {
         const p = this.players.find((pl) => pl.id === owner);
-        if (!p || p.capitalLost || p.credits < amount) return false;
+        if (!p || p.credits < amount) return false;
         p.credits -= amount;
         return true;
       },
@@ -915,6 +922,40 @@ export class Game {
   // ------------------------------------------------------------------ API used by the AI (see AIHost)
 
   /** Puts the finished structure of `player`'s queue down at (x, y); false if the spot is illegal. */
+  /** My selected Barracks / War Factory / Airfield (the one a rally point is set for), or null. */
+  private rallyProducer(): Building | null {
+    if (this.selection.selectedUnits.size > 0 || this.selection.selectedId === null) return null;
+    const sel = this.entities.get(this.selection.selectedId);
+    return sel instanceof Building && sel.alive && sel.owner === this.humanPlayer.id && RALLY_TYPES.has(sel.spec.type) ? sel : null;
+  }
+
+  /** Right-click on my selected producer itself: its rally point is removed (true when the click was used). */
+  private clearRally(world: WorldPoint): boolean {
+    const sel = this.rallyProducer();
+    if (!sel || !sel.rally || this.selection.pick(world)?.id !== sel.id) return false;
+    return this.setRally(world, true);
+  }
+
+  /**
+   * RA2 rally point: my selected Barracks / War Factory / Airfield + left-click on open ground = where everything it
+   * turns out goes from now on, also after it is deselected (until set again or cleared). True when used.
+   */
+  private setRally(world: WorldPoint, clear: boolean): boolean {
+    const sel = this.rallyProducer();
+    if (!sel || !this.map.cellAt(world.x, world.y)) return false;
+    this.issue({ k: 'rally', b: sel.id, x: world.x, y: world.y, clear });
+    this.sidebar.notify(clear ? t('Rally point cleared.') : t('Rally point set.'), 1.5);
+    if (!clear) this.moveMarker = { x: world.x, y: world.y, at: this.time };
+    return true;
+  }
+
+  /** Selected own producer with a rally point: the line from its door to the point. */
+  private rallyLine(): { from: WorldPoint; to: WorldPoint } | null {
+    const b = this.selection.selectedId === null ? undefined : this.entities.get(this.selection.selectedId);
+    if (!(b instanceof Building) || !b.alive || b.owner !== this.humanPlayer.id || !b.rally) return null;
+    return { from: b.centerWorld(), to: b.rally };
+  }
+
   /** Route being plotted in waypoint mode, starting at the selection's centre (null when not plotting). */
   private waypointPlan(): WorldPoint[] | null {
     if (!this.waypoints) return null;
@@ -1491,6 +1532,7 @@ export class Game {
     p.defeated = true;
     p.capitalLost = true;
     for (const b of this.entities.buildings().filter((e) => e.owner === p.id)) {
+      if (b instanceof OilDerrick) continue; // handed over below (dissolveNation)
       const own = b.spec.type === 'capital' && b.spec.spriteKey === `capital:${faction}`;
       this.removeBuilding(b);
       if (!own) continue;
@@ -1504,6 +1546,7 @@ export class Game {
       this.selection.selectedUnits.delete(u.id);
       this.entities.remove(u.id);
     }
+    this.dissolveNation(p);
     this.news.show(t('BREAKING NEWS'), t('{name} has left the match and is defeated.', { name: FACTIONS[faction].name }));
     this.evaluateNations();
   }
@@ -1518,7 +1561,7 @@ export class Game {
     const rank = (f: string): number => (f === mine ? -1 : FACTION_ORDER.indexOf(f as FactionId));
     const capitals = this.landmarks.filter((b) => b.spec.type === 'capital').sort((a, b) => rank(home(a)) - rank(home(b)));
     const b = [...capitals, ...this.landmarks.filter((l) => l.spec.type !== 'capital')][index];
-    if (b) this.focusBuilding(b.id, true);
+    if (b) this.focusBuilding(b.id);
   }
 
   // ------------------------------------------------------------------ experience, crushing, transports
@@ -2232,6 +2275,7 @@ export class Game {
     this.processBoarding();
     this.processTruckUnloading(dt);
     this.separateUnits();
+    this.watchBuildingHits();
     this.repathStuckUnits(dt);
     this.giveWay(dt);
     this.processTasks();
@@ -2396,6 +2440,11 @@ export class Game {
         if (demoActive && target && target.alive && target.owner === me) this.orderForceAttack(target);
         break;
       }
+      case 'rally': {
+        const b = this.entities.get(cmd.b);
+        if (b instanceof Building && b.owner === me && RALLY_TYPES.has(b.spec.type)) b.rally = cmd.clear ? null : { x: cmd.x, y: cmd.y };
+        break;
+      }
       case 'sellBuilding': {
         const b = this.entities.get(cmd.b);
         if (b instanceof Building && b.owner === me) this.sellBuilding(b);
@@ -2405,8 +2454,8 @@ export class Game {
         if (cmd.code === 'KeyF') this.plantSelectedFlags();
         else if (cmd.code === 'KeyU') this.unloadSelectedTransport();
         else if (cmd.code === 'KeyT') this.turboSelected();
-        else if (cmd.code === 'KeyX') this.formUpSelected();
-        else this.scatterSelected();
+        else if (cmd.code === 'KeyG') this.formUpSelected();
+        else this.scatterSelected(); // KeyX
         break;
       case 'waypoints':
         this.waypoints = cmd.pts;
@@ -2796,6 +2845,7 @@ export class Game {
       moveMarker: this.moveMarker,
       pathPeekId: this.pathPeekId,
       waypointPlan: this.waypointPlan(),
+      rallyLine: this.rallyLine(),
       flagHints: this.flagHints(),
       enemyInfoId: !this.placing && hoverUnit instanceof Unit && hoverUnit.owner !== this.humanPlayer.id ? hoverUnit.id : null,
       mountainTip: this.placing || hovering ? null : this.mountainTip(),
@@ -2862,6 +2912,7 @@ export class Game {
           hasWarFactory: this.production.producerOf(this.humanPlayer, 'warFactory') !== null,
           hasAirfield: this.production.producerOf(this.humanPlayer, 'airfield') !== null,
           hasBarracks: this.training.barracksOf(this.humanPlayer) !== null,
+          capitalLost: this.humanPlayer.capitalLost,
           army: this.training.army(this.humanPlayer),
           vehicleQueued: this.production.queue(this.humanPlayer).items.length,
           parkingFree: this.production.parkingFree(this.humanPlayer),
@@ -2907,7 +2958,7 @@ export class Game {
               // A selected aircraft circling right over its next target must not swallow the click: it is looked through.
               const pu = this.selection.pickUnit(world, (u) => u.flies && this.selection.selectedUnits.has(u.id));
               this.issue({ k: 'right', w: world, am: true, pu: pu?.id ?? null, pb: pu ? null : (this.selection.pick(world)?.id ?? null) });
-            } else if (!this.peekPath(world)) this.selection.clearAll();
+            } else if (!this.clearRally(world) && !this.peekPath(world)) this.selection.clearAll();
           } else if (ev.ctrl && !ev.shift) {
             const me = this.humanPlayer.id;
             // DEMO test game: Ctrl+click on one of my own structures or units attacks it like an enemy (force fire).
@@ -3020,7 +3071,7 @@ export class Game {
       if (hit) {
         this.selection.selectedUnits.clear();
         this.selection.select(hit.id);
-      } else if (!shift) this.selection.clearAll();
+      } else if (!shift && !this.setRally(world, false)) this.selection.clearAll();
       return;
     }
     this.issue({ k: 'left', w: world, shift, dbl: double, bdbl, pu: pu?.id ?? null, pb: hit?.id ?? null });
@@ -3343,9 +3394,13 @@ export class Game {
       case 'KeyF':
       case 'KeyU':
       case 'KeyT':
-      case 'KeyX':
-      case 'KeyC':
+      case 'KeyX': // scatter
+      case 'KeyG': // parade formation
         if (this.selection.selectedUnits.size > 0) this.issue({ k: 'key', code });
+        break;
+      case 'KeyC':
+        // The camera jumps to the next structure in the world.
+        this.tourNextBuilding();
         break;
       case 'KeyR':
         // Only while positioning a new structure: turn it 90° (footprint d × w, art mirrored). Once built it stays put.
@@ -3460,7 +3515,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
         return;
       }
       if (!this.construction.start(player, option)) {
-        if (player.capitalLost) this.sidebar.notify(t('Your capital is lost — you can no longer buy anything.'));
+        if (player.capitalLost) this.sidebar.notify(t('Your capital is lost — you can no longer build any structure.'));
         return;
       }
       this.sidebar.notify(t('Building {name} — {cost} {currency}', { name: option.name, cost: buildCost(option, player.faction), currency: CURRENCY }));
@@ -3750,7 +3805,31 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
   /** Throttled "under attack" alerts for everything the player owns. */
   private readonly alertAt = new Map<string, number>();
   private janitorTimer = 0;
+  /** Health of my structures last tick: any loss (shot, bomb, missile, drone, demolition charge, splash) alerts. */
+  private readonly buildingHp = new Map<number, number>();
+  private watchBuildingHits(): void {
+    const me = this.humanPlayer.id;
+    const seen = new Set<number>();
+    for (const b of this.entities.buildings()) {
+      if (b.owner !== me || !b.alive) continue;
+      seen.add(b.id);
+      const prev = this.buildingHp.get(b.id);
+      this.buildingHp.set(b.id, b.hp);
+      if (prev === undefined || b.hp >= prev) continue;
+      const by = b.lastAttackerId === null ? undefined : this.entities.get(b.lastAttackerId);
+      if (by && by.owner === me) continue; // own fire (demo force-attack)
+      // One toast per structure every BUILDING_ALERT_SECONDS while the attack goes on.
+      const key = `hit:${b.id}`;
+      if (this.time - (this.alertAt.get(key) ?? -99) < BUILDING_ALERT_SECONDS) continue;
+      this.alertAt.set(key, this.time);
+      this.sidebar.alert(`${b.spec.name} is under attack!`, b.centerWorld());
+    }
+    for (const id of this.buildingHp.keys()) if (!seen.has(id)) this.buildingHp.delete(id);
+  }
+
   private alertUnderAttack(t: Entity, attacker: Entity): void {
+    // Structures: watchBuildingHits (every kind of damage, one toast per structure).
+    if (t instanceof Building) return;
     if (t.owner !== this.humanPlayer.id || attacker.owner === t.owner) return;
     const isBuilding = t instanceof Building;
     const key = isBuilding ? `b:${t.spec.type}` : `u:${t instanceof Vehicle ? t.type : 'soldier'}`;
@@ -3852,6 +3931,31 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     );
   }
 
+  /**
+   * A nation is beaten: every structure it holds disappears, except its oil derricks — a leased one goes back to the
+   * nation that leased it out, all others to the Global Monitoring Center, which pumps them for the world market
+   * (OilMarket: the extra supply and a shock to the market mood move the price).
+   */
+  private dissolveNation(p: PlayerState): void {
+    let derricks = 0;
+    for (const b of this.entities.buildings().filter((e) => e.alive)) {
+      if (b instanceof OilDerrick && (b.owner === p.id || b.trueOwner === p.id)) {
+        const lessor = b.lessee === p.id && b.lessor !== null ? this.players.find((o) => o.id === b.lessor && !o.defeated) : undefined;
+        if (lessor) b.handOver(lessor.id, lessor.faction, false);
+        else {
+          b.handOver(NEUTRAL_OWNER, 'neutral', true);
+          derricks++;
+        }
+        continue;
+      }
+      if (b.owner === p.id) this.removeBuilding(b);
+    }
+    if (derricks > 0) {
+      this.oilMarket.takeOver(derricks);
+      this.news.show(t('BREAKING NEWS'), t("The Global Monitoring Center takes over {n} of {name}'s oil derricks — the oil market is in turmoil.", { n: derricks, name: FACTIONS[p.faction].name }));
+    }
+  }
+
   /** A capital fell: BREAKING NEWS. The nation is only beaten once it has no soldiers or combat vehicles left either. */
   private defeatNation(capital: Building): void {
     const nation = this.players.find((p) => p.id === capital.owner);
@@ -3870,26 +3974,30 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
    * the game when defeated; the player wins once every other nation is defeated.
    */
   private evaluateNations(): void {
-    // A nation whose own capital is destroyed or captured can no longer buy anything (a captured enemy capital
+    // A nation whose own capital is destroyed or captured can no longer buy structures (a captured enemy capital
     // does not count as its own).
     for (const p of this.players) {
       if (p.capitalLost) continue;
       const own = this.entities.buildings().some((b) => b.alive && b.owner === p.id && b.spec.type === 'capital' && b.spec.spriteKey === `capital:${p.faction}`);
       if (own) continue;
       p.capitalLost = true;
-      if (p.id === this.localId) this.sidebar.notify(t('Your capital is lost — you can no longer buy anything.'), 6);
+      if (p.id === this.localId) this.sidebar.notify(t('Your capital is lost — you can no longer build any structure.'), 6);
     }
     for (const p of this.players) {
       if (p.defeated) continue;
+      // Beaten only with nothing left to fight or rebuild with: no capital, no combat force, and no Barracks /
+      // War Factory / Airfield (with money left those could still raise a new army).
       const hasCapital = this.entities.buildings().some((b) => b.owner === p.id && b.alive && b.spec.type === 'capital');
-      if (hasCapital || this.hasArmy(p)) continue;
+      const producer = this.entities.buildings().some((b) => b.owner === p.id && b.alive && PRODUCERS.has(b.spec.type));
+      if (hasCapital || producer || this.hasArmy(p)) continue;
       p.defeated = true;
+      this.dissolveNation(p);
       const name = FACTIONS[p.faction].name;
-      this.news.show(t('BREAKING NEWS'), p.id === this.localId ? t('Your nation has been defeated.') : t('{name} has been defeated — no capital and no army left.', { name }));
+      this.news.show(t('BREAKING NEWS'), p.id === this.localId ? t('Your nation has been defeated.') : t('{name} has been defeated — no capital, no army and no barracks or factory left.', { name }));
     }
     if (this.humanPlayer.defeated) {
       this.ended = true;
-      this.endScreen.show(false, t('Your capital has fallen and you have no soldiers or combat vehicles left.'));
+      this.endScreen.show(false, t('Your capital has fallen and you have no combat force, barracks or factory left.'));
     } else if (this.players.every((p) => p.id === this.localId || p.defeated)) {
       this.ended = true;
       this.endScreen.show(true, t('Every enemy capital is destroyed and no enemy soldier or combat vehicle remains. The war is won.'));
@@ -4007,7 +4115,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       result === 'ok'
         ? t('Building {name} — {cost} {currency}', { name: option.name, cost: option.cost, currency: CURRENCY })
         : result === 'noCapital'
-          ? t('Your capital is lost — you can no longer buy anything.')
+          ? t('Your capital is lost — you can no longer build any structure.')
         : result === 'full'
           ? t('Vehicle orders are full ({max}) — one more once an order is done.', { max: BUILD_LIMIT_VEHICLES })
           : result === 'tech'
@@ -4341,11 +4449,34 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     }
   }
 
+  /** A new unit leaves for its producer's rally point (true), or there is none (false). */
+  private toRally(unit: Unit, producer: Building): boolean {
+    const r = producer.rally;
+    if (!r) return false;
+    if (unit instanceof Vehicle && unit.aircraft) {
+      unit.follow([{ x: r.x, y: r.y }]); // takes off and flies there
+      return true;
+    }
+    const cell = this.map.cellAt(r.x, r.y);
+    const goal = cell && (this.pathfinder.passable(cell.x, cell.y, unit.swims) ? cell : this.pathfinder.nearestPassable(cell.x, cell.y, 6, undefined, unit.swims));
+    if (!goal) return false;
+    const path = this.paths.find({ x: unit.px, y: unit.py }, goal, unit.swims);
+    const last = path[path.length - 1];
+    if (last && cell && goal.x === cell.x && goal.y === cell.y) {
+      last.x = r.x;
+      last.y = r.y;
+    }
+    unit.parade = null;
+    unit.follow(path);
+    return true;
+  }
+
   private spawnVehicle(player: PlayerState, kind: VehicleKind, producer: Building, faction: FactionId = player.faction as FactionId): void {
     if (isAircraftKind(kind)) {
       const craft = this.spawnAircraft(player, kind, producer, -1, faction);
       // Another nation's aircraft (captured Airfield): its design, its new owner's colours.
       if (craft && faction !== player.faction) craft.ownerFaction = player.faction;
+      if (craft) this.toRally(craft, producer);
       return;
     }
     // Land vehicles roll out of the War Factory's exit cell and drive on to a parking spot (see parkingSpot).
@@ -4354,6 +4485,10 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     const unit = this.entities.add(new Vehicle(player.id, faction, kind, exit));
     if (faction !== player.faction) unit.ownerFaction = player.faction;
     unit.heading = Math.PI / 2;
+    if (this.toRally(unit, producer)) {
+      if (player.id === this.localId) this.sidebar.notify(t('{name} ready.', { name: unit.name }));
+      return;
+    }
     unit.parking = true;
     const spot = this.parkingSpot(producer, unit);
     const cell = spot ? this.map.cellAt(spot.x, spot.y) : null;
@@ -4444,7 +4579,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
         result === 'ok'
           ? t('Training {name} — {cost} {currency}', { name: option.name, cost: option.cost, currency: CURRENCY })
           : result === 'noCapital'
-            ? t('Your capital is lost — you can no longer buy anything.')
+            ? t('Your capital is lost — you can no longer build any structure.')
           : result === 'tech'
             ? t('Second-tier soldiers need a {name}.', { name: 'High-Tech Center' })
             : result === 'ratio'
@@ -4476,6 +4611,10 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     );
     // Another nation's soldier (captured Ministry of Defence): its design, its new owner's colours.
     if (faction !== player.faction) unit.ownerFaction = player.faction;
+    if (this.toRally(unit, barracks)) {
+      if (player.id === this.localId) this.sidebar.notify(t('{name} ready.', { name: unit.name }));
+      return;
+    }
     // Parade ground: soldiers march to the next free slot of a neat grid around the barracks, never
     // farther than PARADE_MAX_CELLS cells from its walls (the slots nearest the door fill first).
     const used = new Set(
@@ -4559,6 +4698,20 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     u.parade = null;
     u.follow(path);
     return true;
+  }
+
+  /** Id of the structure the camera tour (C) showed last. */
+  private tourId = -1;
+
+  /** Camera tour: centres on the next living structure anywhere in the world (by id, wrapping), oil derricks excluded. */
+  private tourNextBuilding(): void {
+    const all = this.entities.buildings().filter((b) => b.alive && b.spec.type !== 'oilDerrick').sort((a, b) => a.id - b.id);
+    if (all.length === 0) return;
+    const next = all.find((b) => b.id > this.tourId) ?? all[0]!;
+    this.tourId = next.id;
+    const c = next.centerWorld();
+    this.camera.centerOn(c.x, c.y);
+    this.sidebar.notify(`${next.spec.name} (${all.indexOf(next) + 1}/${all.length})`, 1.5);
   }
 
   /**
@@ -5567,21 +5720,20 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     if (own.length === 0) return;
     const i = own.findIndex((d) => d.id === this.selection.selectedId);
     const next = own[(i + 1) % own.length];
-    if (next) this.focusBuilding(next.id, true);
+    if (next) this.focusBuilding(next.id);
   }
 
   private focusOwnCapital(): void {
     const own = this.landmarks.find((b) => b.owner === this.humanPlayer.id && b.spec.type === 'capital');
-    if (own) this.focusBuilding(own.id, false);
+    if (own) this.focusBuilding(own.id);
   }
 
-  private focusBuilding(id: number, select: boolean): void {
+  /** Moves the camera over a structure (capital, derrick, landmark…): no zoom change, nothing selected. */
+  private focusBuilding(id: number): void {
     const e = this.entities.get(id);
     if (!(e instanceof Building)) return;
     const c = e.centerWorld();
-    this.camera.setZoom(FOCUS_ZOOM);
     this.bus.emit('camera:focus', { x: c.x, y: c.y - FOCUS_OFFSET_Y });
-    if (select) this.selection.select(id);
   }
 }
 

@@ -82,6 +82,22 @@ export class OilDerrick extends Building {
     this.changeHands(player, faction);
   }
 
+  /** Owned by the Global Monitoring Center (taken over from a defeated nation): it pumps for the world market. */
+  centerOwned = false;
+
+  /**
+   * A nation fell: the derrick goes to `owner` for good (a lessor taking its derrick back, or NEUTRAL_OWNER / 'neutral'
+   * = the Global Monitoring Center), any lease ended.
+   */
+  handOver(owner: number, faction: Allegiance, toCenter: boolean): void {
+    this.lessee = null;
+    this.leaseLeft = 0;
+    this.lessor = null;
+    this.lessorFaction = null;
+    this.centerOwned = toCenter;
+    this.changeHands(owner, faction as FactionId);
+  }
+
   /** The nation that owns it for good (the leasing nation while it is leased out). */
   get trueOwner(): number {
     return this.lessor ?? this.owner;

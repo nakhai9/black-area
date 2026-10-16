@@ -26,7 +26,7 @@
 <body>
 <main>
 <img class="logo" src="/logo.png" alt="Black Area" />
-<h1>Black Area — RULE <small>v2.19.1</small></h1>
+<h1>Black Area — RULE <small>v2.25.1</small></h1>
 <p class="lead">Tài liệu luật chơi + kiến trúc code dành cho AI/dev sửa game. Mọi con số gameplay chính xác nằm trong <code>src/constants.ts</code> và <code>src/factions/*.ts</code>. Nếu tài liệu này khác code thì <b>code đúng</b>. <b>Khi đổi luật/số trong code, phải cập nhật file này.</b></p>
 <nav><a href="#s1">Quy tắc làm việc cho AI</a><a href="#s2">Chạy dự án</a><a href="#s3">Kiến trúc thư mục</a><a href="#s4">Thế giới</a><a href="#s5">Kinh tế (dầu)</a><a href="#s6">Công trình (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Quân đội</a><a href="#s8">Chiến đấu</a><a href="#s9">Điều khiển (Game.handleKey, handleInput)</a><a href="#s10">Giới hạn &amp; hiệu năng</a><a href="#s11">Thắng / thua &amp; AI</a><a href="#s12">Công thức sửa thường gặp</a></nav>
 <h2 id="s1">0. Quy tắc làm việc cho AI</h2>
@@ -114,7 +114,7 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 <ul>
   <li>Tiền tệ <code>TB</code>. Mọi phe bắt đầu <code>STARTING_CREDITS = 0</code> TB và <code>STARTING_OIL = 20</code> thùng.</li>
   <li>Công trình/quân được trả tiền dần trong lúc làm; hết tiền thì tiến độ đứng. Xây: mỗi <code>BUILD_STEP_SECONDS 4</code> s tiến <code>20%</code>.</li>
-  <li>Mất thủ đô của chính mình (<code>capitalLost</code>) → không mua được gì nữa (kể cả dầu cho lưới điện).</li>
+  <li>Mất thủ đô của chính mình (<code>capitalLost</code>) = mất chính phủ → <b>không xây được công trình nào nữa</b> (ô công trình trong cửa hàng thành ô trống), không mua dầu cho lưới điện; nhà lính / xưởng còn sống vẫn sản xuất bình thường nếu còn tiền.</li>
 </ul>
 <h3>Giếng dầu (<code>OilDerrick</code>, đặt sẵn bởi <code>Game.placeOilRows</code>)</h3>
 <ul>
@@ -215,7 +215,7 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 <h3>Chức năng / nhiệm vụ từng công trình</h3>
 <table>
 <tr><th>Công trình</th><th>Chức năng</th></tr>
-<tr><td><code>capital</code> (thủ đô)</td><td>Trụ sở quốc gia, có sẵn ở toạ độ thật. Mất thủ đô (<code>capitalLost</code>) thì không mua được gì nữa, kể cả dầu cho lưới điện; mất thủ đô <b>và</b> hết quân có vũ khí thì bị loại. Phá / chiếm được. Phím H nhảy về.</td></tr>
+<tr><td><code>capital</code> (thủ đô)</td><td>Trụ sở quốc gia, có sẵn ở toạ độ thật. Mất thủ đô (<code>capitalLost</code>) thì không xây được công trình nào nữa, không mua dầu cho lưới điện; bị loại khi mất thủ đô <b>và</b> hết quân có vũ khí <b>và</b> hết nhà lính / xưởng xe / sân bay. Phá / chiếm được. Phím H nhảy về.</td></tr>
 <tr><td><code>powerPlant</code> (Nuclear Power Plant)</td><td>Đốt dầu trong kho thành điện (+25 J/s, trữ tối đa 300 J; giảm theo máu). Bắt buộc xây trước barracks. Thiếu điện: máy bay không cất cánh; đơn công trình, xe, lính vẫn chạy khi còn tiền (không phụ thuộc điện); lưới cạn → Center ép mua dầu giá ×1.25, hết tiền thì mất điện (giếng bơm còn một nửa).</td></tr>
 <tr><td><code>barracks</code> (Ministry of Defence)</td><td>Luyện bộ binh: regular, engineer, squatters (special, demolition cần thêm High-Tech Center). Lính mới đứng hàng duyệt binh trước nhà (≤ 2 ô). Mở khoá War Factory.</td></tr>
 <tr><td><code>warFactory</code></td><td>Sản xuất xe mặt đất (hiện chỉ <code>tank</code>). Mở khoá Airfield và High-Tech Center.</td></tr>
@@ -461,8 +461,10 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 <tr><td>Chuột phải vào địch / công trình</td><td>Tấn công / vào / sửa / chiếm / thuê giếng tuỳ quân</td></tr>
 <tr><td>Chuột phải vào transport của mình</td><td>Lên máy bay</td></tr>
 <tr><td>Ctrl + Shift + chuột phải</td><td>Attack-move</td></tr>
-<tr><td><b>X</b></td><td>Đội hình duyệt binh: khối 3 hàng × 5 (<code>FORMATION_RANKS</code> × <code>FORMATION_COLS</code>), 1 hàng trống giữa các khối, lính trước xe sau, tới nơi quay về phía người xem; máy bay bỏ qua</td></tr>
-<tr><td><b>C</b></td><td>Tản ra (scatter) ~3 ô (máy bay ×2)</td></tr>
+<tr><td><b>G</b></td><td>Đội hình duyệt binh: khối 3 hàng × 5 (<code>FORMATION_RANKS</code> × <code>FORMATION_COLS</code>), 1 hàng trống giữa các khối, lính trước xe sau, tới nơi quay về phía người xem; máy bay bỏ qua</td></tr>
+<tr><td><b>Chuột trái</b> lên đất trống (đang chọn nhà lính / xưởng xe / sân bay của mình)</td><td>Đặt <b>điểm tập kết</b> (<code>Building.rally</code>): từ đó về sau quân mới ra từ nhà đó tự đi tới điểm này, kể cả khi đã bỏ chọn / đang làm việc khác (máy bay cất cánh bay tới). Chuột phải vào chính công trình = xoá. Khi chọn công trình hiện đường nét đứt vàng có mũi tên và vòng tròn tại điểm</td></tr>
+<tr><td><b>X</b></td><td>Tản ra (scatter) ~3 ô (máy bay ×2)</td></tr>
+<tr><td><b>C</b></td><td>Camera nhảy lần lượt tới từng công trình trên toàn thế giới (trừ giếng dầu)</td></tr>
 <tr><td><b>Z</b></td><td>Waypoint: trái-click tối đa <code>MAX_WAYPOINTS 5</code> điểm, Z lần nữa (hoặc chuột phải) để đi; Esc huỷ</td></tr>
 <tr><td>U</td><td>Thả quân khỏi transport</td></tr>
 <tr><td><b>F</b> / double-click</td><td>Squatters: cắm cờ vào ô trống gần nhất (đất nào cũng được), đội biến mất</td></tr>
@@ -625,6 +627,15 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
   <li>v2.18.1: <b>Nhà máy xe châu Âu</b> thiết kế lại: xưởng kiểu Belle Époque, tường đá vôi sáng cửa sổ vòm, mái mansard đá đen có cửa mái và giếng trời kính, 4 cửa vòm, 2 lầu góc mái vòm, lầu giữa có trán tường tam giác, đồng hồ và vòng 12 sao vàng trên nền màu phe.</li>
   <li>v2.19.0: <b>Mọi công trình</b> trông như mô hình 3D dựng hình thật (<code>IsoPainter.box</code>, <code>hipRoof</code>): tường có chuyển sắc theo chiều cao (tối ở chân như bóng tiếp đất, sáng dần dưới mái), mặt mái có chuyển sắc, cạnh trước và mép trên có viền sáng vát; mái ngói có hàng ngói song song mép mái, đậm dần về phía mép.</li>
   <li>v2.19.1: mọi <b>Nhà máy xe</b> (5 phe) có <b>cần cẩu tháp</b> (<code>towerCrane</code>): thân giàn thép có giằng chéo, ca-bin, cần với có xe con, cáp và móc, đối trọng bê tông, đèn đỏ trên đỉnh; màu vàng cần cẩu hơi khác nhau theo phe.</li>
+  <li>v2.20.0: <b>phím C</b> khi không chọn quân: camera nhảy lần lượt tới từng công trình trên toàn thế giới (mọi phe, trừ giếng dầu), theo thứ tự, hết thì quay lại đầu; góc màn hình báo tên và số thứ tự (vd. 3/120). Đang chọn quân thì C vẫn là tản ra.</li>
+  <li>v2.21.0: đổi phím: <b>X</b> = tản quân, <b>G</b> = đội hình duyệt binh (trước là X), <b>C</b> = luôn là camera đi qua từng công trình trên thế giới (trừ giếng dầu), kể cả khi đang chọn quân.</li>
+  <li>v2.22.0: <b>luật xử thua mới</b>: chỉ thua khi mất cả thủ đô, toàn bộ lực lượng chiến đấu và mọi nhà lính / xưởng xe / sân bay. Mất thủ đô = mất chính phủ: không xây công trình nào nữa (ô công trình thành ô trống), nhưng nhà lính / xưởng còn sống vẫn sản xuất nếu còn tiền. Mất hết nhà lính / xưởng / sân bay thì ô lính / xe / máy bay tương ứng thành ô trống (placeholder). Áp dụng cho cả người chơi và AI.</li>
+  <li>v2.23.0: <b>phe thua</b>: mọi công trình của phe đó biến mất, <b>trừ giếng dầu</b> — giếng đang cho thuê trả về phe cho thuê, còn lại thuộc <b>Trung tâm Giám sát Toàn cầu</b> (<code>OilDerrick.centerOwned</code>, màu trung lập). Trung tâm bơm dầu từ các giếng này bán thẳng ra thị trường (thêm cung → giá Trung tâm niêm yết giảm theo số giếng nắm giữ, <code>OilMarket.centerOutput</code>); lúc tiếp quản thị trường bị sốc: tâm lý giá nhảy ngẫu nhiên tới ±2×<code>OIL_MOOD_MAX</code> và niêm yết giá mới ngay (<code>OilMarket.takeOver</code>), có tin BREAKING NEWS. Áp dụng cả khi người chơi rời trận (multiplayer).</li>
+  <li>v2.23.1: nhảy camera tới công trình / thủ đô (phím H, O, danh sách thủ đô & địa danh, phím C) <b>chỉ di chuyển camera</b>: không đổi mức zoom, không chọn công trình (<code>Game.focusBuilding</code>).</li>
+  <li>v2.24.0: <b>điểm tập kết</b> kiểu RA2: chọn nhà lính / xưởng xe / sân bay của mình, chuột phải lên bản đồ → quân mới sản xuất ra từ nhà đó lập tức đi tới điểm đó (thay cho chỗ đứng / bãi đỗ mặc định); máy bay cất cánh bay tới. Chuột phải vào chính công trình để xoá. Khi chọn công trình có điểm tập kết: đường nét đứt vàng có mũi tên từ công trình tới vòng tròn tại điểm.</li>
+  <li>v2.24.1: điểm tập kết đặt bằng <b>chuột trái</b> (chọn nhà lính / xưởng / sân bay rồi click trái lên đất trống); điểm được giữ mãi, người chơi làm việc khác thì quân mới vẫn đi theo đường tập kết. Chuột phải vào chính công trình để xoá; chuột phải chỗ khác vẫn là bỏ chọn.</li>
+  <li>v2.25.0: bỏ tab <b>Cảnh báo</b> (đỏ) trong sidebar; cảnh báo ("… đang bị tấn công!") giờ hiện như <b>toast</b> giống BREAKING NEWS nhưng thay chữ bằng <b>icon cảnh báo</b>, ở <b>góc trên bên phải</b> màn chơi (sát sidebar; sidebar ẩn thì sát mép phải), tối đa 4 cái, tự mất sau 8 s; bấm vào toast để camera tới chỗ đó (<code>AlertToast</code>). Trang Chỉ huy mở sẵn tab Tài chính.</li>
+  <li>v2.25.1: <b>công trình bị tấn công</b> cũng hiện toast cảnh báo, với mọi kiểu sát thương (đạn, pháo, tên lửa, bom, drone cảm tử, bom đặc nhiệm, sát thương lan): mỗi công trình tối đa 1 toast / <code>BUILDING_ALERT_SECONDS 10</code> s khi còn bị đánh; bấm toast để camera tới đó (<code>Game.watchBuildingHits</code>).</li>
   <li>Bỏ tải (v1.151.0): xe tải / máy bay chở quân chỉ cho người xuống khi đã dừng hẳn (<code>Unit.atRest</code>: hết đường đi và hết đà lăn; máy bay phải chạm đất). Hộ tống tiêm kích: đối tượng mặt đất được bảo vệ đến khi chết hoặc tiêm kích nhận lệnh mới. Bộ đếm hòa bình hiện "Thời gian hòa bình còn lại mm:ss".</li>
   <li>Radar báo bị đánh (v1.150.0): lính/xe/công trình của người chơi trúng đòn trong <code>RADAR_ALERT_SECONDS 2</code> s (<code>lastAttackedAt</code>) có vòng đỏ nhấp nháy trên minimap (<code>Minimap.render</code>), các điểm gần nhau &lt; 10 px gộp một vòng; hết bị đánh hoặc bị phá thì vòng tắt.</li>
   <li>Dọn cache mỗi <code>JANITOR_INTERVAL = 180</code> s (ảnh/địa hình không dùng, sổ ghi unit đã chết, sổ thưởng nhân từ của nhóm rút lui không còn ai sống). Chỉ xoá thứ không còn dùng tới, không động vào lính, công trình, tiền hay lệnh đang chạy. Tìm đường A* (<code>Pathfinder.find</code>) mỗi ô chỉ mở rộng 1 lần (bỏ bản sao cũ trong hàng đợi), đọc thẳng mảng của <code>TileMap</code>, hàng đợi ưu tiên dùng typed array dùng lại giữa các lần tìm.</li>
@@ -632,7 +643,7 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 </ul>
 <h2 id="s11">10. Thắng / thua &amp; AI</h2>
 <ul>
-  <li>Phe bị loại khi không còn thủ đô <b>và</b> không còn lính/xe có vũ khí. Người chơi thua khi bị loại; thắng khi mọi phe khác bị loại.</li>
+  <li><b>Luật xử thua</b>: phe bị loại khi mất <b>cả</b> thủ đô, toàn bộ lực lượng chiến đấu (lính/xe có vũ khí) <b>và</b> mọi nhà sản xuất (nhà lính, xưởng xe, sân bay) — còn nhà sản xuất thì còn tiền vẫn gây dựng lại được quân. Mất hết nhà lính → ô lính trong cửa hàng thành ô trống (placeholder); mất hết xưởng xe → ô xe mặt đất thành ô trống; mất hết sân bay → ô máy bay thành ô trống. AI theo cùng luật: mất thủ đô vẫn huấn luyện quân và đánh tiếp từ nhà sản xuất còn lại. Người chơi thua khi bị loại; thắng khi mọi phe khác bị loại.</li>
   <li>AI (<code>systems/AISystem.ts</code>): nghĩ mỗi <code>1.5</code> s; <code>BUILD_PLAN</code>: powerPlant → barracks → warFactory → airfield → techCenter; sau đó Happy City liên tục (tối đa <code>MAX_CITIES 30</code>, bunker thêm 1 mỗi 3 thành phố); doanh trại và nhà máy xe chạy song song không nghỉ khi dư tiền; mỗi <code>RIVAL_PERIOD 60</code> s chọn một phe làm đối thủ chính (AI khác hoặc người chơi: gần nhất, quân yếu hơn, giàu hơn) và dồn tấn công vào phe đó (<code>RIVAL_FOCUS 0.55</code>); mỗi AI khác đã chọn cùng một phe làm đối thủ khiến phe đó kém hấp dẫn hơn (điểm ×(1 + <code>RIVAL_PILE_UP 0.6</code> × số AI đó)), nên các AI chia nhau đánh mọi phe, kể cả đánh nhau, thay vì dồn hết vào một phe (người chơi); một phe (AI hay người chơi) bị tối đa <code>MAX_ATTACKERS 2</code> AI chọn làm đối thủ cùng lúc, và đợt tấn công chỉ nhắm công trình của đối thủ đã chọn (hết thì mới đánh phe khác), cắm cờ/Allied Building khi đủ điều kiện (<code>CLAIM_*</code>); phòng thủ trong 38 ô quanh thủ đô; giếng dầu của mình mất máu → tối đa <code>DERRICK_DEFENDERS 6</code> quân gần nhất (trong <code>DERRICK_HELP_CELLS 70</code> ô, đánh được mục tiêu) tấn công kẻ địch gần giếng nhất (trong <code>DERRICK_THREAT_CELLS 14</code> ô); engineer sửa mọi công trình mất máu (dưới 98%, sau 3 s không bị bắn); xe sửa (ARV) tự tới sửa xe mặt đất hư nặng nhất gần đó (trong 60 ô); mở đất từ <code>CLAIM_FROM 120</code> s, chọn đất vô chủ gần đối thủ nhất (cách công trình địch ≥ 18 ô) — cùng lục địa thì Squatters đi bộ tới, khác lục địa (không bơi qua được) thì bay bằng máy bay vận tải; đợt tấn công đầu sau <code>210</code> s rồi mỗi <code>110</code> s.</li>
 </ul>
 <h2 id="s12">11. Công thức sửa thường gặp</h2>

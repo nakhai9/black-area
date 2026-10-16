@@ -417,8 +417,18 @@ export class AISystem implements GameSystem {
 
   private think(p: PlayerState, st: AIState): void {
     const capital = this.host.entities.buildings().find((b) => b.owner === p.id && b.alive && b.spec.type === 'capital');
-    if (!capital || p.defeated) return;
+    if (p.defeated) return;
     const owned = this.host.ownedTypesOf(p);
+    if (!capital) {
+      // Government gone: no more structures, but a surviving Barracks / War Factory / Airfield still raises troops
+      // with the money left, and the army keeps fighting from there (same rule as the player).
+      const anchor = this.host.entities.buildings().find((b) => b.owner === p.id && b.alive && (b.spec.type === 'barracks' || b.spec.type === 'warFactory' || b.spec.type === 'airfield'));
+      if (!anchor) return;
+      this.sellOil(p, st);
+      this.train(p, st, owned, this.threat(p, anchor));
+      if (!inTruce()) this.army(p, st, anchor);
+      return;
+    }
     const threat = this.threat(p, capital);
     if (this.time >= st.nextRival) {
       st.nextRival = this.time + RIVAL_PERIOD;

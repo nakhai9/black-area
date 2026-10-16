@@ -154,7 +154,6 @@ export class TrainingSystem implements GameSystem {
   enqueue(player: PlayerState, key: TrainKey): EnqueueResult {
     const q = this.queue(player);
     const tier = splitKey(key).base;
-    if (player.capitalLost) return 'noCapital';
     if (FACTIONS[player.faction].peaceful) return 'full';
     if (!this.barracksOf(player) || !this.optionsFor(player).some((o) => o.key === key)) return 'noBarracks';
     if (TECH_TIERS.includes(tier) && !this.hasTech(player)) return 'tech';
@@ -247,7 +246,7 @@ export class TrainingSystem implements GameSystem {
         if (!option) return;
         const paid = q.paidEach[i] ?? 0;
         const want = Math.min((option.cost / option.trainSeconds) * dt, option.cost - paid);
-        const pay = p.capitalLost ? 0 : Math.max(0, Math.min(want, p.credits));
+        const pay = Math.max(0, Math.min(want, p.credits));
         p.credits -= pay;
         q.paidEach[i] = paid + pay;
         if (pay < want - 1e-6) short = true;

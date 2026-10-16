@@ -5,6 +5,7 @@ import {
   LOAN_SHARE,
   LOAN_TO_VALUE,
   MAP_SEED,
+  NEUTRAL_OWNER,
   RESALE_SHARE,
   VEHICLE_BASE,
   OIL_FLOW_MEMORY,
@@ -30,6 +31,7 @@ import {
 } from '../constants';
 import { mulberry32 } from '../core/Random';
 import type { EntityManager } from '../entities/EntityManager';
+import { OilDerrick } from '../entities/OilDerrick';
 import { FACTIONS } from '../factions';
 import type { FactionId, OilPolicy, PlayerState } from '../types';
 import { BUILD_OPTIONS, buildCost } from './ConstructionSystem';
@@ -90,10 +92,29 @@ export class OilMarket implements GameSystem {
     return Math.max(0, this.clock);
   }
 
+  /**
+   * The Center took over `derricks` oil derricks of a beaten nation: the market is shaken at once (a random jolt of
+   * the mood up to OIL_MOOD_MAX either way, repriced now); from then on their oil reaches the market (see update).
+   */
+  takeOver(derricks: number): void {
+    if (derricks <= 0) return;
+    this.mood = Math.max(-OIL_MOOD_MAX * 2, Math.min(OIL_MOOD_MAX * 2, this.mood + (this.rng() * 2 - 1) * OIL_MOOD_MAX * 2));
+    this.clock = 0;
+  }
+
+  /** Barrels per second the Center pumps from the derricks it took over (sold straight onto the world market). */
+  centerOutput(): number {
+    let rate = 0;
+    for (const b of this.entities.buildings()) if (b instanceof OilDerrick && b.alive && b.centerOwned && b.owner === NEUTRAL_OWNER) rate += b.income;
+    return rate;
+  }
+
   update(dt: number): void {
     this.now += dt;
     const fade = Math.exp(-dt / OIL_FLOW_MEMORY);
     this.sold *= fade;
+    // The Center's own derricks add their oil to the supply: the more it holds, the lower the price it sets.
+    this.sold += this.centerOutput() * dt;
     this.bought *= fade;
     this.clock -= dt;
     while (this.clock <= 0) {

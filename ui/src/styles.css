@@ -634,6 +634,16 @@ kbd {
   filter: grayscale(0.8) brightness(0.6);
   cursor: not-allowed;
 }
+.sb-cameo.sb-placeholder {
+  /* Lost producer / capital: the item has left the shop, only an empty hatched cell remains. */
+  background: repeating-linear-gradient(45deg, #1b2229 0 6px, #151b21 6px 12px);
+  border-style: dashed;
+  filter: none;
+  cursor: default;
+}
+.sb-cameo.sb-placeholder > * {
+  visibility: hidden;
+}
 .sb-cameo-wipe {
   position: absolute;
   inset: 0;
@@ -963,6 +973,35 @@ kbd {
   color: #f2f5f8;
   font-size: 13px;
   line-height: 1.35;
+}
+.alert-stack {
+  /* Alerts: top-right corner (the news stays top-left). */
+  left: auto;
+  /* Top-right of the game view: just left of the sidebar (at the screen edge while it is hidden). */
+  right: calc(var(--sidebar-w) + 12px);
+  justify-items: end;
+}
+body.sidebar-hidden .alert-stack {
+  right: 12px;
+}
+.alert-toast {
+  padding: 0;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  pointer-events: auto;
+  border-left-width: 1px;
+  border-right-width: 6px;
+  animation-name: alert-in;
+}
+.alert-toast.leaving {
+  transform: translateX(24px);
+}
+@keyframes alert-in {
+  from {
+    opacity: 0;
+    transform: translateX(40px);
+  }
 }
 @keyframes news-in {
   from {

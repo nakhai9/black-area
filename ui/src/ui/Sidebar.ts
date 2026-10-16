@@ -1,4 +1,5 @@
-import { type IconNode, Settings, ArrowUpFromLine, Clock, House, Handshake, TriangleAlert, Wallet, Info, Keyboard, Droplet, Hammer, LogIn, LogOut, Minus, PersonStanding, Radar, Rocket, Shield, TrendingDown, TrendingUp, Trophy, Truck, Zap, createElement } from 'lucide';
+import { AlertToast } from './NewsToast';
+import { type IconNode, Settings, ArrowUpFromLine, Clock, House, Handshake, Wallet, Info, Keyboard, Droplet, Hammer, LogIn, LogOut, Minus, PersonStanding, Radar, Rocket, Shield, TrendingDown, TrendingUp, Trophy, Truck, Zap, createElement } from 'lucide';
 import { BUILD_LIMIT_VEHICLES, CURRENCY, MAX_ALLIES, OIL_GRID_MARKUP, OIL_POLICIES, POWER_PER_BARREL, TECH_TIERS, TECH_VEHICLES, isAircraftKind } from '../constants';
 import { FACTIONS } from '../factions';
 import { getFlagTexture } from '../render/Flags';
@@ -48,7 +49,7 @@ type TabId = 'build' | 'defense' | 'infantry' | 'vehicles';
 /** Sidebar pages: the command centre (budget, oil, alerts), production (build, train) and the world ranking with oil & power prices. */
 type ViewId = 'command' | 'production';
 /** Tabs of the row above the alerts on the Command page: what shows under it. */
-type InfoId = 'alerts' | 'finance' | 'rank' | 'allies' | 'controls';
+type InfoId = 'finance' | 'rank' | 'allies' | 'controls';
 
 /** One of the player's allies (Allied Building) or a claim flag still waiting for its ally, for the Allies tab. */
 export interface AllyInfo {
@@ -146,6 +147,8 @@ export interface SidebarModel {
   hasAirfield: boolean;
   /** Infantry can only be trained while the nation owns a Barracks. */
   hasBarracks: boolean;
+  /** The nation's own capital is gone: no structure may be bought (the build cameos turn to placeholders). */
+  capitalLost: boolean;
   army: ArmyCount;
   /** Vehicle orders waiting (limit: BUILD_LIMIT_VEHICLES). */
   vehicleQueued: number;
@@ -195,17 +198,6 @@ export interface SidebarHandlers {
   onAlert: (at: WorldPoint) => void;
 }
 
-/** One line of the alert section. */
-interface AlertEntry {
-  text: string;
-  at: WorldPoint;
-  /** performance.now() when it was raised. */
-  born: number;
-}
-
-const MAX_ALERTS = 4;
-/** An alert is shown for this many seconds, then it goes away. */
-const ALERT_SECONDS = 10;
 
 type Cameo = { el: HTMLElement; wipe: HTMLElement; state: HTMLElement; badge?: HTMLElement };
 
@@ -238,8 +230,6 @@ export class Sidebar {
   private trendKey = 0;
   private readonly message: HTMLElement;
   private readonly radarPanel: HTMLElement;
-  private readonly alertList: HTMLElement;
-  private readonly alertEmpty: HTMLElement;
   private readonly transportPanel: HTMLElement;
   private readonly transportName: HTMLElement;
   private readonly transportSoldiers: HTMLElement;
@@ -252,14 +242,15 @@ export class Sidebar {
   private readonly peaceTimer: HTMLElement;
   private readonly turboButton: HTMLButtonElement;
   private readonly turboBadge: HTMLElement;
-  private readonly alerts: AlertEntry[] = [];
+  /** Alerts ("X is under attack!") pop up as toasts in the top-right corner. */
+  private readonly alertToasts = new AlertToast((at) => this.handlers.onAlert(at));
   private readonly faction: FactionId;
   private readonly mainTabs = new Map<ViewId, HTMLButtonElement>();
   private readonly views = new Map<ViewId, HTMLElement>();
   private activeView: ViewId = 'command';
   private readonly infoTabs = new Map<InfoId, HTMLButtonElement>();
   private readonly infoPanes = new Map<InfoId, HTMLElement>();
-  private activeInfo: InfoId = 'alerts';
+  private activeInfo: InfoId = 'finance';
   private rankEconomy!: HTMLElement;
   private rankMilitary!: HTMLElement;
   private lastRanking: readonly RankRow[] = [];
@@ -278,7 +269,6 @@ export class Sidebar {
   private readonly panels = new Map<TabId, HTMLElement>();
   private activeTab: TabId = 'build';
   private messageTimer = 0;
-  private alertClock = 0;
 
   constructor(
     root: HTMLElement,
@@ -335,11 +325,7 @@ export class Sidebar {
         <div class="sb-oil">${t('STATUS ')}<span class="sb-transport-state"></span></div>
       </section>
       <nav class="sb-main-tabs sb-page-links" aria-label="${t('Alerts, rank and allies')}"></nav>
-      <section class="sb-panel sb-alerts" data-info="alerts" aria-live="polite" aria-label="${t('Alerts')}">
-        <ul class="sb-alert-list"></ul>
-        <div class="sb-alert-empty">${t('All quiet.')}</div>
-      </section>
-      <div class="sb-info" data-info="finance" hidden>
+      <div class="sb-info" data-info="finance">
         <section class="sb-panel sb-finance">
           <h3>${t('Finance')}</h3>
           <div class="sb-oil">${t('OIL OUTPUT ')}<span class="sb-income"></span></div>
@@ -431,8 +417,6 @@ export class Sidebar {
       this.radarPanel.append(compass);
       compass.hidden = false; // hidden in index.html so it never shows loose in the page corner (before the CSS loads)
     }
-    this.alertList = q('.sb-alert-list');
-    this.alertEmpty = q('.sb-alert-empty');
     this.transportPanel = q('.sb-transport');
     this.transportName = q('.sb-transport-name');
     this.transportSoldiers = q('.sb-transport-soldiers');
@@ -474,7 +458,7 @@ export class Sidebar {
     this.buildMainTabs(q('.sb-main-tabs'), q('.sb-page-links'));
     this.views.set('command', q('[data-page=command]'));
     this.views.set('production', q('[data-page=production]'));
-    for (const id of ['alerts', 'finance', 'rank', 'allies', 'controls'] as const) this.infoPanes.set(id, q(`[data-info=${id}]`));
+    for (const id of ['finance', 'rank', 'allies', 'controls'] as const) this.infoPanes.set(id, q(`[data-info=${id}]`));
     this.allyList = q('.sb-ally-list');
     this.allyCount = q('.sb-allies-count');
     this.powerPrice = q('.sb-power-price');
@@ -519,32 +503,9 @@ export class Sidebar {
     document.body.classList.toggle('sidebar-hidden');
   }
 
-  /** Adds an alert ("X is under attack!") to the alert section; clicking it shows where it happened. */
+  /** An alert ("X is under attack!"): a toast in the top-right corner; clicking it shows where it happened. */
   alert(text: string, at: WorldPoint): void {
-    this.alerts.unshift({ text, at, born: performance.now() });
-    this.alerts.length = Math.min(this.alerts.length, MAX_ALERTS);
-    this.renderAlerts();
-  }
-
-  private renderAlerts(): void {
-    const now = performance.now();
-    this.alertEmpty.hidden = this.alerts.length > 0;
-    this.alertList.replaceChildren(
-      ...this.alerts.map((a) => {
-        const secs = Math.floor((now - a.born) / 1000);
-        const li = document.createElement('li');
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = secs < 4 ? 'sb-alert fresh' : 'sb-alert';
-        btn.innerHTML = `<span class="sb-alert-text"></span><span class="sb-alert-age">${secs < 60 ? `${secs} s` : `${Math.floor(secs / 60)} m`}</span>`;
-        const label = btn.querySelector('.sb-alert-text');
-        if (label) label.textContent = a.text;
-        btn.title = t('Click to look at it');
-        btn.addEventListener('click', () => this.handlers.onAlert(a.at));
-        li.append(btn);
-        return li;
-      }),
-    );
+    this.alertToasts.show(text, at);
   }
 
   /** Shows the seconds left in the peace as mm:ss, or hides the countdown (null) while the war is on. */
@@ -644,13 +605,17 @@ export class Sidebar {
     // Infantry tab: locked without a Barracks, blinks when it first becomes available.
     const infantryTab = this.tabButtons.get('infantry');
     if (infantryTab) {
-      infantryTab.disabled = !model.hasBarracks;
-      infantryTab.title = model.hasBarracks ? t('Infantry') : '';
-      infantryTab.classList.toggle('no-icon', !model.hasBarracks);
+      // Once opened it stays open: after the last Barracks is lost its cameos show as empty placeholders.
+      if (model.hasBarracks) this.hadBarracks = true;
+      const open = this.hadBarracks;
+      infantryTab.disabled = !open;
+      infantryTab.title = open ? t('Infantry') : '';
+      infantryTab.classList.toggle('no-icon', !open);
     }
-    if (!model.hasBarracks && this.activeTab === 'infantry') this.switchTab('build');
+    if (!this.hadBarracks && this.activeTab === 'infantry') this.switchTab('build');
     // Vehicles tab: unlocked by a War Factory (ground vehicles) or an Airfield (aircraft); blinks until opened.
-    const canMake = model.hasWarFactory || model.hasAirfield;
+    if (model.hasWarFactory || model.hasAirfield) this.hadFactory = true;
+    const canMake = this.hadFactory;
     const vehicleTab = this.tabButtons.get('vehicles');
     if (vehicleTab) {
       vehicleTab.disabled = !canMake;
@@ -676,7 +641,10 @@ export class Sidebar {
       const placingThis = model.placingId === option.id;
       setData(c.el, 'state', placingThis ? 'placing' : state);
       const missing = missingRequirement(option, model.owned);
-      const locked = missing !== null && !mine;
+      // Capital lost = government gone: no structure can be bought any more, only placeholders remain.
+      const gone = model.capitalLost && !mine;
+      const locked = (missing !== null && !mine) || gone;
+      c.el.classList.toggle('sb-placeholder', gone);
       c.el.classList.toggle('locked', locked);
       (c.el as HTMLButtonElement).disabled = locked;
       // RA2 clock wipe: the dark sector shrinks as the build progresses.
@@ -701,16 +669,6 @@ export class Sidebar {
       );
     }
 
-    if (this.alerts.length > 0) {
-      this.alertClock += dt;
-      if (this.alertClock >= 1) {
-        this.alertClock = 0;
-        const now = performance.now();
-        const fresh = this.alerts.filter((a) => now - a.born < ALERT_SECONDS * 1000);
-        this.alerts.splice(0, this.alerts.length, ...fresh);
-        this.renderAlerts();
-      }
-    }
     if (this.messageTimer > 0) {
       this.messageTimer -= dt;
       if (this.messageTimer <= 0) this.message.textContent = '';
@@ -735,7 +693,6 @@ export class Sidebar {
     nav.append(command);
     this.mainTabs.set('command', command);
     const infos: readonly { id: InfoId; label: string; icon: IconNode }[] = [
-      { id: 'alerts', label: 'Alerts', icon: TriangleAlert },
       { id: 'finance', label: 'Finance', icon: Wallet },
       { id: 'rank', label: 'Rank', icon: Trophy },
       { id: 'allies', label: 'Allies', icon: Handshake },
@@ -834,7 +791,7 @@ export class Sidebar {
     if (tab) {
       const show = allies.some((a) => a.built);
       tab.hidden = !show;
-      if (!show && this.activeInfo === 'allies') this.switchInfo('alerts');
+      if (!show && this.activeInfo === 'allies') this.switchInfo('finance');
     }
     const key = allies.map((a) => `${a.id}:${a.built}:${Math.ceil((a.hp / a.maxHp) * 20)}:${a.underAttack}`).join('|');
     if (key === this.allyKey) return;
@@ -976,6 +933,10 @@ export class Sidebar {
     }
   }
 
+  /** Infantry / vehicle tab was unlocked once (it then stays open, with placeholders when the producers are lost). */
+  private hadBarracks = false;
+  private hadFactory = false;
+
   private updateUnitCameos(model: SidebarModel): void {
     const q = model.training;
     for (const option of this.trainOptions) {
@@ -991,6 +952,8 @@ export class Sidebar {
       const noTech = TECH_TIERS.includes(option.tier) && !model.owned.has('techCenter');
       const overElite = option.tier === 'special' && model.army.special >= model.army.specialCap && count === 0;
       const locked = !model.hasBarracks || atLimit || noTech || overElite;
+      // Every Barracks lost: the soldiers leave the shop, their cells stay as empty placeholders.
+      c.el.classList.toggle('sb-placeholder', !model.hasBarracks && !training);
       c.el.classList.toggle('locked', locked);
       (c.el as HTMLButtonElement).disabled = locked;
       if (c.badge) {
@@ -1025,6 +988,8 @@ export class Sidebar {
       const noTech = TECH_VEHICLES.includes(option.kind) && !model.owned.has('techCenter');
       const noParking = isAircraftKind(option.kind) && option.kind !== 'heli' && model.parkingFree <= 0 && count === 0;
       const locked = !have || atLimit || noTech || noParking;
+      // No War Factory (ground) / Airfield (aircraft) left: the machine leaves the shop, an empty placeholder remains.
+      c.el.classList.toggle('sb-placeholder', !have && !producing);
       c.el.classList.toggle('locked', locked);
       (c.el as HTMLButtonElement).disabled = locked;
       if (c.badge) {

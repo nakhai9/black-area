@@ -52,6 +52,9 @@ export class Building extends Entity {
     return this.originFaction ?? this.faction;
   }
 
+  /** Rally point (world px) of a Barracks / War Factory / Airfield: everything it turns out heads there. */
+  rally: { x: number; y: number } | null = null;
+
   get capturable(): boolean {
     return this.spec.uncapturable !== true;
   }

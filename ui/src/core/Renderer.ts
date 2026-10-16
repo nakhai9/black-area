@@ -97,6 +97,8 @@ export interface RenderScene {
   readonly pathPeekId?: number | null;
   /** Waypoint mode: the route being plotted (first point = the selection, then the clicked points). */
   readonly waypointPlan?: readonly { x: number; y: number }[] | null;
+  /** Selected producer's rally point: a line with an arrow from the building to a flag at the point. */
+  readonly rallyLine?: { from: { x: number; y: number }; to: { x: number; y: number } } | null;
   /** Selected Squatters teams standing still: a "F: plant flag" hint above their heads. */
   readonly flagHints?: ReadonlySet<number>;
   /** An opponent's unit under the cursor: its info card is drawn above its head. */
@@ -284,6 +286,7 @@ export class Renderer {
     if (hovered && !selUnits.has(hovered.id)) this.drawUnitRing(hovered, 'rgba(255,255,255,0.6)');
     if (scene.moveMarker) this.drawMoveMarker(scene.moveMarker, scene.time);
     if (scene.waypointPlan) this.drawWaypointPlan(scene.waypointPlan);
+    if (scene.rallyLine) this.drawRallyLine(scene.rallyLine.from, scene.rallyLine.to);
     const focus = scene.focus ?? [];
     for (const f of focus) if (f.entity.kind !== 'building' && !f.airLock) this.drawFocusRing(f.entity, f.strong, scene.time);
 
@@ -1211,6 +1214,51 @@ export class Renderer {
   }
 
   /** Shrinking green rings where a move order was given. */
+  /** RA2 rally point: a dashed yellow line from the producer with an arrowhead, and a small flag at the point. */
+  private drawRallyLine(from: { x: number; y: number }, to: { x: number; y: number }): void {
+    const { ctx } = this;
+    const k = 1 / this.camera.zoom;
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    const len = Math.hypot(dx, dy);
+    if (len < 1) return;
+    const ux = dx / len;
+    const uy = dy / len;
+    ctx.save();
+    ctx.lineWidth = 2.6 * k;
+    ctx.strokeStyle = 'rgba(0,0,0,0.6)';
+    ctx.beginPath();
+    ctx.moveTo(from.x, from.y);
+    ctx.lineTo(to.x, to.y);
+    ctx.stroke();
+    ctx.lineWidth = 1.4 * k;
+    ctx.strokeStyle = '#ffd23a';
+    ctx.setLineDash([5 * k, 3 * k]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    // Arrowhead just short of the point.
+    const a = 7 * k;
+    const tx = to.x - ux * 2 * k;
+    const ty = to.y - uy * 2 * k;
+    ctx.fillStyle = '#ffd23a';
+    ctx.strokeStyle = '#3a2a00';
+    ctx.lineWidth = 0.8 * k;
+    ctx.beginPath();
+    ctx.moveTo(tx, ty);
+    ctx.lineTo(tx - ux * a - uy * a * 0.5, ty - uy * a + ux * a * 0.5);
+    ctx.lineTo(tx - ux * a + uy * a * 0.5, ty - uy * a - ux * a * 0.5);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    // Ring marking the spot.
+    ctx.strokeStyle = '#ffd23a';
+    ctx.lineWidth = 1.2 * k;
+    ctx.beginPath();
+    ctx.arc(to.x, to.y, 5 * k, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
   /** RA2 waypoint route: a light-blue dashed line through the points, with a small square on each. */
   private drawWaypointPlan(points: readonly { x: number; y: number }[]): void {
     if (points.length < 2) return;
