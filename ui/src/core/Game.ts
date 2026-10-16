@@ -3486,15 +3486,9 @@ export class Game {
   // ------------------------------------------------------------------ construction
 
   /** Cameo left-click: start building, or pick up a finished structure to place it. */
-  /**
-   * One design per structure in the shop: another nation's version is on sale only while its capital, taken by an
-   * engineer, is held, and only when the nation has no version of its own (every nation has its own of each
-   * FOREIGN_BUILDS structure today, so no duplicate cameos appear).
-   */
+  /** Another nation's design is on sale only while its capital, taken by an engineer, is held. */
   private buildAvailable(player: PlayerState, option: BuildOption): boolean {
     if (!option.foreign) return true;
-    const base = option.id.split('@')[0];
-    if (BUILD_OPTIONS.some((o) => !o.foreign && o.id === base)) return false;
     return takenNations(this.entities, player, 'capital').includes(option.foreign);
   }
 

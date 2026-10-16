@@ -770,6 +770,10 @@ kbd {
   border: 1px solid rgba(0, 0, 0, 0.7);
   pointer-events: none;
 }
+.sb-cameo[hidden] {
+  /* .sb-cameo sets display: block, which would otherwise override the hidden attribute (foreign designs showed). */
+  display: none;
+}
 .sb-cameo-badge[hidden] {
   display: none;
 }
