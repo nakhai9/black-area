@@ -26,7 +26,7 @@
 <body>
 <main>
 <img class="logo" src="/logo.png" alt="Black Area" />
-<h1>Black Area — RULE <small>v2.25.4</small></h1>
+<h1>Black Area — RULE <small>v2.26.5</small></h1>
 <p class="lead">Tài liệu luật chơi + kiến trúc code dành cho AI/dev sửa game. Mọi con số gameplay chính xác nằm trong <code>src/constants.ts</code> và <code>src/factions/*.ts</code>. Nếu tài liệu này khác code thì <b>code đúng</b>. <b>Khi đổi luật/số trong code, phải cập nhật file này.</b></p>
 <nav><a href="#s1">Quy tắc làm việc cho AI</a><a href="#s2">Chạy dự án</a><a href="#s3">Kiến trúc thư mục</a><a href="#s4">Thế giới</a><a href="#s5">Kinh tế (dầu)</a><a href="#s6">Công trình (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Quân đội</a><a href="#s8">Chiến đấu</a><a href="#s9">Điều khiển (Game.handleKey, handleInput)</a><a href="#s10">Giới hạn &amp; hiệu năng</a><a href="#s11">Thắng / thua &amp; AI</a><a href="#s12">Công thức sửa thường gặp</a></nav>
 <h2 id="s1">0. Quy tắc làm việc cho AI</h2>
@@ -194,9 +194,9 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 <tr><td><code>bunker</code></td><td>Bunker</td><td>800</td><td>barracks</td><td>1×1</td><td>1000</td><td>−1</td></tr>
 <tr><td><code>wall</code></td><td>Wall</td><td>100</td><td>barracks</td><td>1×1</td><td>4000</td><td>0</td></tr>
 <tr><td><code>gate</code></td><td>Nation Gate</td><td>300</td><td>barracks</td><td>4×1</td><td>6000</td><td>0</td></tr>
-<tr><td><code>airfield</code></td><td>Airfield</td><td>2000</td><td>warFactory</td><td>12×8</td><td>1500</td><td>−4</td></tr>
+<tr><td><code>airfield</code></td><td>Airfield</td><td>6000</td><td>warFactory</td><td>12×8</td><td>1500</td><td>−4</td></tr>
 <tr><td><code>techCenter</code></td><td>High-Tech Center</td><td>8000</td><td>warFactory</td><td>4×4</td><td>2500</td><td>−6</td></tr>
-<tr><td><code>happyCity</code></td><td>Happy City</td><td>8000 (<code>fixedCost</code>, không nhân hệ số)</td><td>airfield</td><td>8×8</td><td>4000</td><td>−8</td></tr>
+<tr><td><code>happyCity</code></td><td>Happy City</td><td>12000 (<code>fixedCost</code>, không nhân hệ số)</td><td>airfield</td><td>8×8</td><td>4000</td><td>−8</td></tr>
 <tr><td><code>flagpole</code></td><td>Flagpole</td><td>100</td><td>—</td><td>1×1</td><td>300</td><td>0</td></tr>
 <tr><td><code>alliedBuilding</code></td><td>Allied Building</td><td>6000</td><td>—</td><td>4×4</td><td>2000</td><td>0</td></tr>
 <tr><td><code>oilDerrick</code></td><td>Oil Derrick</td><td>— (đặt sẵn)</td><td>—</td><td>4×4</td><td>1000</td><td>0</td></tr>
@@ -639,6 +639,11 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
   <li>v2.25.2: sửa cửa hàng hiện <b>mọi công trình của mọi phe</b>: ô công trình bị <code>display: block</code> đè thuộc tính <code>hidden</code> nên không ẩn được. Giờ công trình phe khác chỉ hiện khi đang giữ thủ đô của phe đó (kỹ sư chiếm được).</li>
   <li>v2.25.3: minimap: chỗ đang bị tấn công được khoanh bằng <b>hình tròn đỏ rộng</b> (bán kính <code>RADAR_ALERT_RADIUS 14</code> px, nền đỏ mờ, viền đỏ dày nhấp nháy), giữ <code>RADAR_ALERT_SECONDS 5</code> s sau đòn cuối (trước: vòng nhỏ 6 px, 2 s); các điểm gần nhau &lt; 14 px gộp một vòng.</li>
   <li>v2.25.4: <b>radar offline</b> (chưa có sân bay): minimap <b>không bấm được</b> — chuột trái / phải không ra lệnh, không di chuyển camera, không kéo được (<code>Minimap.online</code>).</li>
+  <li>v2.26.0: <b>giá xe / máy bay theo từng mẫu</b> (<code>VEHICLE_PRICE</code>): giá gốc × √(giá thật của mẫu ÷ giá thật trung vị cùng loại), vd. Leopard 2 1780, Abrams 1610, T-90 1140, Karrar 760 (xe nhẹ và xe chiến đấu bộ binh đã bỏ khỏi game, không có giá); F-22 2130, Su-57 1100. Loại không có trong bảng (xe tải, xe sửa, drone) giữ giá gốc × hệ số giá phe. <b>Thang sức mạnh theo phe</b> (<code>NATION_STRENGTH</code>, Lục / Không / Hải: Mỹ 9/10/10, châu Âu 8,5/9/8,5, Nga 9,5/9/8, Trung Quốc 9/9/9, Hồi giáo 7,5/7/6,5): máu và hoả lực xe = gốc × điểm ÷ 9 (thay hệ số giáp / hoả lực của phe cho xe; lính giữ nguyên).</li>
+  <li>v2.26.1: tăng giá <b>tiêm kích</b> (F-22 4250, Rafale 3940, Su-35 3600, J-31 3420, Su-57 3050) và <b>máy bay ném bom</b> (B-1A, Tu-160 5200) để luôn đắt hơn xe phòng không (≤ 3000).</li>
+  <li>v2.26.2: <b>sân bay</b> đắt hơn: <code>AIRFIELD_COST</code> 2000 → <b>4000</b> (× hệ số giá phe: Mỹ 5200, châu Âu 5000, Nga 4000, Hồi giáo 3800, Trung Quốc 3400).</li>
+  <li>v2.26.4: <b>sân bay</b> đắt hơn nữa: <code>AIRFIELD_COST</code> 4000 → <b>6000</b> (Mỹ 7800, châu Âu 7500, Nga 6000, Hồi giáo 5700, Trung Quốc 5100).</li>
+  <li>v2.26.5: <b>Happy City</b> đắt hơn: <code>HAPPY_CITY_COST</code> 8000 → <b>12000</b> (giá cố định mọi phe); thuế 600 TB / 50 s nên hoàn vốn sau ~17 phút (trước ~11 phút).</li>
   <li>Bỏ tải (v1.151.0): xe tải / máy bay chở quân chỉ cho người xuống khi đã dừng hẳn (<code>Unit.atRest</code>: hết đường đi và hết đà lăn; máy bay phải chạm đất). Hộ tống tiêm kích: đối tượng mặt đất được bảo vệ đến khi chết hoặc tiêm kích nhận lệnh mới. Bộ đếm hòa bình hiện "Thời gian hòa bình còn lại mm:ss".</li>
   <li>Radar báo bị đánh (v1.150.0): lính/xe/công trình của người chơi trúng đòn trong <code>RADAR_ALERT_SECONDS 2</code> s (<code>lastAttackedAt</code>) có vòng đỏ nhấp nháy trên minimap (<code>Minimap.render</code>), các điểm gần nhau &lt; 10 px gộp một vòng; hết bị đánh hoặc bị phá thì vòng tắt.</li>
   <li>Dọn cache mỗi <code>JANITOR_INTERVAL = 180</code> s (ảnh/địa hình không dùng, sổ ghi unit đã chết, sổ thưởng nhân từ của nhóm rút lui không còn ai sống). Chỉ xoá thứ không còn dùng tới, không động vào lính, công trình, tiền hay lệnh đang chạy. Tìm đường A* (<code>Pathfinder.find</code>) mỗi ô chỉ mở rộng 1 lần (bỏ bản sao cũ trong hàng đợi), đọc thẳng mảng của <code>TileMap</code>, hàng đợi ưu tiên dùng typed array dùng lại giữa các lần tìm.</li>

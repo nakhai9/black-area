@@ -32,7 +32,7 @@ export type Flight = 'parked' | 'taxi' | 'takeoff' | 'airborne' | 'approach' | '
 export type CarrierState = 'idle' | 'loading' | 'carrying' | 'unloading';
 
 /** Cruise height of an aircraft above the ground (world px, drawn offset). */
-import { TURBO_MULT, AIR_BOOST_FAR_CELLS, AIR_BOOST_NEAR_CELLS, AIR_SPEED_SCALE, GROUND_SPEED_SCALE, BOMBER_BOMBS, BOMB_LOAD_SLOWDOWN, CRUISE_ALTITUDE, JET_BOMBS, TRUCK_MIN_RIDERS, TRUCK_SOLDIERS } from '../constants';
+import { NATION_STRENGTH, STRENGTH_REF, VEHICLE_PRICE, TURBO_MULT, AIR_BOOST_FAR_CELLS, AIR_BOOST_NEAR_CELLS, AIR_SPEED_SCALE, GROUND_SPEED_SCALE, BOMBER_BOMBS, BOMB_LOAD_SLOWDOWN, CRUISE_ALTITUDE, JET_BOMBS, TRUCK_MIN_RIDERS, TRUCK_SOLDIERS } from '../constants';
 export { CRUISE_ALTITUDE };
 
 /** Handling per vehicle kind: seconds to full speed, turn rate (rad/s), whether it must face where it drives. */
@@ -56,6 +56,18 @@ function transportFits(soldiers: number, vehicles: number): boolean {
   if (vehicles === 0) return soldiers <= TRANSPORT_SOLDIERS;
   if (vehicles === 1) return soldiers <= TRANSPORT_MIXED_SOLDIERS;
   return vehicles <= TRANSPORT_VEHICLES && soldiers === 0;
+}
+
+/** Price (TB) of a nation's machine: its own entry in VEHICLE_PRICE, else VEHICLE_BASE cost × the nation's cost factor. */
+export function vehiclePrice(faction: FactionId, kind: VehicleKind): number {
+  return VEHICLE_PRICE[faction][kind] ?? Math.round((VEHICLE_BASE[kind].cost * FACTIONS[faction].stats.cost) / 10) * 10;
+}
+
+/** Health / firepower factor of a nation's machine from NATION_STRENGTH (ships: sea, aircraft: air, else land). */
+export function vehicleStrength(faction: FactionId, kind: VehicleKind): number {
+  const s = NATION_STRENGTH[faction];
+  const score = kind === 'carrier' ? s.sea : isAircraftKind(kind) ? s.air : s.land;
+  return score / STRENGTH_REF;
 }
 
 /** A land vehicle (light car, tank, armoured vehicle) or an aircraft (fighter, transport). */
@@ -204,19 +216,20 @@ export class Vehicle extends Unit {
   ) {
     const f = FACTIONS[faction];
     const base = VEHICLE_BASE[type];
-    super(owner, faction, at, Math.round(base.maxHp * f.stats.armor));
+    const strength = vehicleStrength(faction, type);
+    super(owner, faction, at, Math.round(base.maxHp * strength));
     this.profile = f.vehicles[type] ?? { name: type, description: '' };
     // Aircraft get their long-haul boost in flight (cruiseBoost); ground vehicles move GROUND_SPEED_SCALE faster.
     this.baseSpeed = base.speed * f.stats.unitSpeed * CELL_SIZE * (isAircraftKind(type) ? 1 : GROUND_SPEED_SCALE);
     this.radius = base.radius;
-    this.value = Math.round((base.cost * f.stats.cost) / 10) * 10;
+    this.value = vehiclePrice(faction, type);
     // Aircraft art is flat seen from above: its bars and marks sit just over the fuselage, not high above it.
     this.bodyHeight = isAircraftKind(type) ? 2.2 : 1.8;
     const weapon = VEHICLE_WEAPON[type];
     if (weapon) {
       const spec = WEAPONS[weapon];
       const power = type === 'heli' ? HELI_FIREPOWER : type === 'mantis' ? MANTIS_FIREPOWER : 1;
-      this.weapon = { ...spec, damage: spec.damage * f.stats.firepower * power, range: type === 'mantis' ? MANTIS_RANGE_CELLS * CELL_SIZE : spec.range * f.stats.range };
+      this.weapon = { ...spec, damage: spec.damage * strength * power, range: type === 'mantis' ? MANTIS_RANGE_CELLS * CELL_SIZE : spec.range * f.stats.range };
     }
     this.bombs = this.maxBombs;
     const h = HANDLING[type];

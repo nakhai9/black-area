@@ -7,7 +7,6 @@ import {
   MAP_SEED,
   NEUTRAL_OWNER,
   RESALE_SHARE,
-  VEHICLE_BASE,
   OIL_FLOW_MEMORY,
   OIL_FLOW_REF,
   OIL_FLOW_WEIGHT,
@@ -32,6 +31,7 @@ import {
 import { mulberry32 } from '../core/Random';
 import type { EntityManager } from '../entities/EntityManager';
 import { OilDerrick } from '../entities/OilDerrick';
+import { vehiclePrice } from '../entities/Vehicle';
 import { FACTIONS } from '../factions';
 import type { FactionId, OilPolicy, PlayerState } from '../types';
 import { BUILD_OPTIONS, buildCost } from './ConstructionSystem';
@@ -242,7 +242,7 @@ export class OilMarket implements GameSystem {
       const option = BUILD_OPTIONS.find((o) => o.id === b.spec.type);
       if (option) assets += buildCost(option, b.faction as FactionId) * (b.hp / b.maxHp);
     }
-    for (const v of this.entities.vehicles()) if (v.owner === player.id && v.alive) assets += VEHICLE_BASE[v.type].cost;
+    for (const v of this.entities.vehicles()) if (v.owner === player.id && v.alive) assets += vehiclePrice(v.faction as FactionId, v.type);
     return Math.max(0, player.oil) * this.price + RESALE_SHARE * assets;
   }
 

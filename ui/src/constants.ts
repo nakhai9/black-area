@@ -27,7 +27,7 @@ export const DEMO_FACTION = Number(import.meta.env.VITE_DEMO_FACTION) || 2;
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "2.25.4";
+export const GAME_VERSION = "2.26.5";
 
 /** An Allied Building within this many cells of any capital is an embassy; farther out it is a "Pro-<nation> regime". */
 export const EMBASSY_CAPITAL_CELLS = 25;
@@ -243,7 +243,8 @@ export const GATE_COST = 300;
 export const GATE_HP = 6000;
 export const GATE_BUILD_RADIUS = WALL_BUILD_RADIUS;
 export const FOOTPRINT_GATE = { w: 4, d: 1 } as const;
-export const AIRFIELD_COST = 2000;
+/** Dearer than a War Factory: it runs the radar and fields aircraft that cost 3000–5200 each. */
+export const AIRFIELD_COST = 6000;
 /** High-Tech Center (a high-rise): base price; it unlocks the second-tier soldiers and vehicles. */
 export const TECH_CENTER_COST = 8000;
 /** Second-tier units that need a High-Tech Center: special-forces soldiers and the armoured fighting vehicle. */
@@ -253,7 +254,7 @@ export const TECH_VEHICLES: readonly VehicleKind[] = ["ifv", "transport"];
  * Happy City: no limit on how many a nation builds; fixed price (no faction cost multiplier). Every city pays
  * HAPPY_CITY_TAX TB of taxes into its nation's budget every HAPPY_CITY_TAX_PERIOD seconds, each on its own clock.
  */
-export const HAPPY_CITY_COST = 8000;
+export const HAPPY_CITY_COST = 12000;
 export const HAPPY_CITY_TAX = 600;
 export const HAPPY_CITY_TAX_PERIOD = 50;
 /** Every other Happy City of the nation raises each city's tax by this share of HAPPY_CITY_TAX (5 cities: ×1.6 each). */
@@ -843,6 +844,34 @@ export const FACTION_ORDER: readonly FactionId[] = [
   "europe",
   "islamic",
 ];
+
+// ---------------------------------------------------------------- Unit prices & national strength
+/**
+ * Price (TB) of each nation's own machine, set per vehicle: base price × √(its real unit cost ÷ the median real
+ * cost of that kind), so a dear model (Leopard 2, F-22, C-17) costs more than a cheap one (Karrar, Su-57, Il-76) without wrecking the economy. Fighters (√ softened to the 0.3 power, from 3600) and bombers
+ * (5200) always cost more than any air-defence vehicle (≤ 3000). Kinds not listed here: VEHICLE_BASE cost × the nation's cost factor.
+ */
+export const VEHICLE_PRICE: Readonly<Record<FactionId, Partial<Record<VehicleKind, number>>>> = {
+  usa: { tank: 1610, heli: 1920, mantis: 2680, jet: 4250, transport: 2260, bomber: 5200 },
+  russia: { tank: 1140, heli: 1300, mantis: 3000, jet: 3050, transport: 870, bomber: 5200 },
+  china: { tank: 1200, heli: 1260, mantis: 3000, jet: 3420, transport: 1550 },
+  europe: { tank: 1780, heli: 1920, mantis: 2680, jet: 3940, transport: 1230 },
+  islamic: { tank: 760, heli: 1300, mantis: 3000, jet: 3600 },
+};
+
+/**
+ * National strength scale (0–10) per arm: land (ground vehicles), air (aircraft) and sea (ships). A machine's health
+ * and firepower are base × score ÷ STRENGTH_REF (9 = the base stats); this replaces the nation's armor / firepower
+ * factors for vehicles (soldiers keep them).
+ */
+export const STRENGTH_REF = 9;
+export const NATION_STRENGTH: Readonly<Record<FactionId, { land: number; air: number; sea: number }>> = {
+  usa: { land: 9.0, air: 10.0, sea: 10.0 },
+  europe: { land: 8.5, air: 9.0, sea: 8.5 },
+  russia: { land: 9.5, air: 9.0, sea: 8.0 },
+  china: { land: 9.0, air: 9.0, sea: 9.0 },
+  islamic: { land: 7.5, air: 7.0, sea: 6.5 },
+};
 
 // ---------------------------------------------------------------- Landmarks (real coordinates)
 /** Nations with aircraft carriers, and how many start at sea near the capital (only moving for now). */

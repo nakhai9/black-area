@@ -26,7 +26,7 @@
 <body>
 <main>
 <img class="logo" src="/logo.png" alt="Black Area" />
-<h1>Black Area — RULE <small>v2.25.4</small></h1>
+<h1>Black Area — RULE <small>v2.26.5</small></h1>
 <p class="lead">Game rules + code architecture document for AI/devs modifying the game. All exact gameplay numbers live in <code>src/constants.ts</code> and <code>src/factions/*.ts</code>. If this document differs from the code, <b>the code is right</b>. <b>When changing rules/numbers in code, this file must be updated.</b></p>
 <nav><a href="#s1">Working rules for AI</a><a href="#s2">Running the project</a><a href="#s3">Folder architecture</a><a href="#s4">World</a><a href="#s5">Economy (oil)</a><a href="#s6">Buildings (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Military</a><a href="#s8">Combat</a><a href="#s9">Controls (Game.handleKey, handleInput)</a><a href="#s10">Limits &amp; performance</a><a href="#s11">Victory / defeat &amp; AI</a><a href="#s12">Common edit recipes</a></nav>
 <h2 id="s1">0. Working rules for AI</h2>
@@ -194,9 +194,9 @@ npm run build:earth  # regenerate public/data/earth.png (scripts/build-earth.mjs
 <tr><td><code>bunker</code></td><td>Bunker</td><td>800</td><td>barracks</td><td>1×1</td><td>1000</td><td>−1</td></tr>
 <tr><td><code>wall</code></td><td>Wall</td><td>100</td><td>barracks</td><td>1×1</td><td>4000</td><td>0</td></tr>
 <tr><td><code>gate</code></td><td>Nation Gate</td><td>300</td><td>barracks</td><td>4×1</td><td>6000</td><td>0</td></tr>
-<tr><td><code>airfield</code></td><td>Airfield</td><td>2000</td><td>warFactory</td><td>12×8</td><td>1500</td><td>−4</td></tr>
+<tr><td><code>airfield</code></td><td>Airfield</td><td>6000</td><td>warFactory</td><td>12×8</td><td>1500</td><td>−4</td></tr>
 <tr><td><code>techCenter</code></td><td>High-Tech Center</td><td>8000</td><td>warFactory</td><td>4×4</td><td>2500</td><td>−6</td></tr>
-<tr><td><code>happyCity</code></td><td>Happy City</td><td>8000 (<code>fixedCost</code>, not multiplied by the factor)</td><td>airfield</td><td>8×8</td><td>4000</td><td>−8</td></tr>
+<tr><td><code>happyCity</code></td><td>Happy City</td><td>12000 (<code>fixedCost</code>, not multiplied by the factor)</td><td>airfield</td><td>8×8</td><td>4000</td><td>−8</td></tr>
 <tr><td><code>flagpole</code></td><td>Flagpole</td><td>100</td><td>—</td><td>1×1</td><td>300</td><td>0</td></tr>
 <tr><td><code>alliedBuilding</code></td><td>Allied Building</td><td>6000</td><td>—</td><td>4×4</td><td>2000</td><td>0</td></tr>
 <tr><td><code>oilDerrick</code></td><td>Oil Derrick</td><td>— (pre-placed)</td><td>—</td><td>4×4</td><td>1000</td><td>0</td></tr>
@@ -622,6 +622,11 @@ npm run build:earth  # regenerate public/data/earth.png (scripts/build-earth.mjs
   <li>v2.25.2: fix the shop showing <b>every nation's structures</b>: the cameo's <code>display: block</code> overrode the <code>hidden</code> attribute. Another nation's structures now show only while you hold its capital (taken by an engineer).</li>
   <li>v2.25.3: minimap: places under attack are circled by a <b>wide red circle</b> (radius <code>RADAR_ALERT_RADIUS 14</code> px, faint red fill, thick pulsing rim), kept <code>RADAR_ALERT_SECONDS 5</code> s after the last hit (was a small 6 px ring, 2 s); hits closer than 14 px share one circle.</li>
   <li>v2.25.4: <b>radar offline</b> (no Airfield): the minimap <b>takes no clicks</b> — no orders, no camera jumps, no dragging (<code>Minimap.online</code>).</li>
+  <li>v2.26.0: <b>vehicle / aircraft prices per model</b> (<code>VEHICLE_PRICE</code>): base price × √(the model's real cost ÷ the median real cost of its kind), e.g. Leopard 2 1780, Abrams 1610, T-90 1140, Karrar 760 (light vehicles and IFVs are out of the game, no price); F-22 2130, Su-57 1100. Kinds not in the table (truck, repair, drone) keep base × nation cost factor. <b>National strength scale</b> (<code>NATION_STRENGTH</code>, Land / Air / Sea: USA 9/10/10, Europe 8.5/9/8.5, Russia 9.5/9/8, China 9/9/9, Islamic 7.5/7/6.5): vehicle health and firepower = base × score ÷ 9 (replaces the nation armor / firepower factors for vehicles; soldiers unchanged).</li>
+  <li>v2.26.1: <b>fighters</b> (F-22 4250, Rafale 3940, Su-35 3600, J-31 3420, Su-57 3050) and <b>bombers</b> (B-1A, Tu-160 5200) cost more, always above any air-defence vehicle (≤ 3000).</li>
+  <li>v2.26.2: the <b>Airfield</b> costs more: <code>AIRFIELD_COST</code> 2000 → <b>4000</b> (× nation cost factor: USA 5200, Europe 5000, Russia 4000, Islamic 3800, China 3400).</li>
+  <li>v2.26.4: the <b>Airfield</b> costs more again: <code>AIRFIELD_COST</code> 4000 → <b>6000</b> (USA 7800, Europe 7500, Russia 6000, Islamic 5700, China 5100).</li>
+  <li>v2.26.5: <b>Happy City</b> costs more: <code>HAPPY_CITY_COST</code> 8000 → <b>12000</b> (fixed for every nation); at 600 TB tax / 50 s it pays for itself after ~17 min (was ~11).</li>
   <li>Pathfinding (A*) is the most expensive part: blocked attack-move units only retry pathing every <code>RESUME_RETRY 1</code> s (destination on another shore / unreachable cancels the order); every 0.5 s at most <code>REPATH_BUDGET 8</code> stuck units are repathed, if no path they stop.</li>
   <li>Cache cleanup every <code>JANITOR_INTERVAL = 180</code> s (unused images/terrain, records of dead units, mercy bonus records of retreating groups with no survivors). Only removes things no longer used, never touches soldiers, buildings, money or running orders. A* pathfinding (<code>Pathfinder.find</code>) expands each cell only once (dropping stale copies in the queue), reads <code>TileMap</code> arrays directly, the priority queue uses typed arrays reused between searches.</li>
   <li>Art uses PNG sprite sheets in <code>public/sprites/</code> (tank, jet/bomber, bombs, missiles, shells, 8-direction soldiers), procedural drawing when there is no sheet.</li>

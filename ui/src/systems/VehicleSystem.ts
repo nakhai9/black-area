@@ -8,6 +8,7 @@ import { PARKING_SLOTS } from './AircraftSystem';
 import type { GameSystem } from './GameSystem';
 import { fixPaidEach } from './TrainingSystem';
 import { type ForeignKey, splitKey, takenNations } from './Foreign';
+import { vehiclePrice } from '../entities/Vehicle';
 
 /** A vehicle order: `kind` (own nation) or `kind@faction` (from a captured foreign War Factory / Airfield). */
 export type VehicleKey = ForeignKey<VehicleKind>;
@@ -41,7 +42,7 @@ function vehicleOptions(faction: FactionId, foreign = false): VehicleOption[] {
     faction,
     name: f.vehicles[kind as keyof typeof f.vehicles]?.name ?? kind,
     description: f.vehicles[kind as keyof typeof f.vehicles]?.description ?? '',
-    cost: demoPrice(Math.round((VEHICLE_BASE[kind].cost * f.stats.cost) / 10) * 10),
+    cost: demoPrice(vehiclePrice(faction, kind)),
     trainSeconds: VEHICLE_BASE[kind].trainSeconds + f.stats.trainDelay,
     requires: needsAirfield(kind) ? 'airfield' : 'warFactory',
     needsAirfield: needsAirfield(kind),
