@@ -446,6 +446,7 @@ export class AISystem implements GameSystem {
     this.claimLand(p, st, capital, owned, threat);
     // Ceasefire: the nation only builds up (economy, base, army) and launches no attack until the war resumes.
     if (inTruce()) {
+      this.contestNations(p, st, capital, owned, threat);
       this.leaseOil(p, owned, threat);
       this.keepCeasefire(p, st, capital);
       return;
@@ -1415,23 +1416,25 @@ export class AISystem implements GameSystem {
   /**
    * Contested prizes (CONTESTED_NATIONS capitals, ANTARCTIC_OIL_SITES derricks): the nation goes after the nearest one it does not hold, one at a time,
    * with a dedicated engineer - on foot when it is on the same landmass, otherwise flown in by transport. With no
-   * free engineer it trains one. Never while the home front is under attack.
+   * free engineer it trains one. Unowned prizes are always fair game (also during a ceasefire and while the home
+   * front is under attack - one engineer is cheap); a prize held by another nation only in war time, home quiet.
    */
   private contestNations(p: PlayerState, st: AIState, capital: Building, owned: Set<BuildingType>, threat: number): void {
     const caps = this.host.entities.buildings().filter((b) => isPrize(b) && b.alive);
     const pf = this.host.pathfinder;
     const cellOf = (b: Building): GridPoint | null => pf.nearestPassable(b.x + Math.floor(b.w / 2), b.y + b.d, 10);
-    let target = caps.find((c) => c.id === st.nationTarget && c.owner !== p.id) ?? null;
+    const allowed = (c: Building): boolean => c.owner !== p.id && (c.owner === NEUTRAL_OWNER || (threat === 0 && !inTruce()));
+    let target = caps.find((c) => c.id === st.nationTarget && c.owner !== p.id && (c.owner === NEUTRAL_OWNER || !inTruce())) ?? null;
     if (!target) {
       st.nationTarget = null;
-      if (threat > 0 || this.time < NATION_FROM) return;
+      if (this.time < NATION_FROM) return;
       const home = cellOf(capital);
       const homeW = capital.centerWorld();
       // Order of prizes: Antarctic oil derricks first, then the independent capitals (occupation), richer ones first.
       let best = Infinity;
       let bestTier = Infinity;
       for (const c of caps) {
-        if (c.owner === p.id) continue;
+        if (!allowed(c)) continue;
         const cell = cellOf(c);
         if (!cell) continue;
         const w = c.centerWorld();
