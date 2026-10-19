@@ -27,7 +27,7 @@ export const DEMO_FACTION = Number(import.meta.env.VITE_DEMO_FACTION) || 2;
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "2.34.0";
+export const GAME_VERSION = "2.38.4";
 
 /** An Allied Building within this many cells of any capital is an embassy; farther out it is a "Pro-<nation> regime". */
 export const EMBASSY_CAPITAL_CELLS = 25;
@@ -127,6 +127,12 @@ export const CRUISE_ALTITUDE =
 /** Large structures (War Factory) occupy 5×4 cells, everything else 4×4 (7 px cells). */
 export const FOOTPRINT_LARGE = { w: 5, d: 4 } as const;
 export const FOOTPRINT_SMALL = { w: 4, d: 4 } as const;
+/** Ministry of Defence (barracks) plot: 5 × 3 cells; the USA's Pentagon stands on 4 × 4 (barracksFootprint). */
+export const FOOTPRINT_BARRACKS = { w: 5, d: 3 } as const;
+export const FOOTPRINT_PENTAGON = { w: 4, d: 4 } as const;
+export function barracksFootprint(design: string): { readonly w: number; readonly d: number } {
+  return design === 'usa' ? FOOTPRINT_PENTAGON : FOOTPRINT_BARRACKS;
+}
 /** The Global Monitoring Center: 5 × 5 cells. */
 export const FOOTPRINT_GMC = { w: 5, d: 5 } as const;
 /** Flagpole: exactly one cell. */

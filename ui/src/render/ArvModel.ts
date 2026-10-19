@@ -16,15 +16,15 @@ export const ARV_CELL = 80;
 const RES = 3;
 const DIRS = 32;
 /** Cell px per model unit along the ground axes, and per unit of height. */
-const K = 0.6;
-const KZ = 0.75;
+export const K = 0.6;
+export const KZ = 0.75;
 /** Light from the upper right of the screen (world x, y, up). */
 const LIGHT = norm([0.35, -0.55, 0.76]);
 /** The camera looks down the (−1, −1, −h) direction: faces turned towards (1, 1, h) are visible. */
 const VIEW = norm([1, 1, 1.25]);
 
-type V3 = [number, number, number];
-type P2 = [number, number];
+export type V3 = [number, number, number];
+export type P2 = [number, number];
 
 function norm(v: readonly number[]): V3 {
   const l = Math.hypot(v[0]!, v[1]!, v[2]!) || 1;
@@ -68,7 +68,7 @@ interface Poly {
   bias?: number;
 }
 
-class Mesh {
+export class Mesh {
   readonly polys: Poly[] = [];
   readonly sparks: V3[] = [];
 
@@ -122,12 +122,12 @@ class Mesh {
 }
 
 /** Regular n-gon of radius r. */
-const disc = (r: number, n = 12): P2[] => Array.from({ length: n }, (_, i) => [Math.cos((i / n) * Math.PI * 2) * r, Math.sin((i / n) * Math.PI * 2) * r] as P2);
+export const disc = (r: number, n = 12): P2[] => Array.from({ length: n }, (_, i) => [Math.cos((i / n) * Math.PI * 2) * r, Math.sin((i / n) * Math.PI * 2) * r] as P2);
 /** Rectangle w × t with its corners cut by k. */
-const chamfer = (w: number, t: number, k: number): P2[] => [
+export const chamfer = (w: number, t: number, k: number): P2[] => [
   [-w / 2 + k, -t / 2], [w / 2 - k, -t / 2], [w / 2, -t / 2 + k], [w / 2, t / 2 - k], [w / 2 - k, t / 2], [-w / 2 + k, t / 2], [-w / 2, t / 2 - k], [-w / 2, -t / 2 + k],
 ];
-const star = (cx: number, cy: number, r: number): P2[] =>
+export const star = (cx: number, cy: number, r: number): P2[] =>
   Array.from({ length: 10 }, (_, i) => {
     const a = Math.PI / 2 + (i * Math.PI) / 5;
     const rr = i % 2 ? r * 0.4 : r;
@@ -390,7 +390,7 @@ export function arvHeading(d: number): number {
 }
 
 /** Draws the mesh at world heading `h`, ground centre (cx, cy); as its ground shadow when `shadow`. */
-function draw(ctx: CanvasRenderingContext2D, mesh: Mesh, h: number, cx: number, cy: number, shadow: boolean, flames: boolean): void {
+export function drawMesh(ctx: CanvasRenderingContext2D, mesh: Mesh, h: number, cx: number, cy: number, shadow: boolean, flames: boolean): void {
   const c = Math.cos(h);
   const s = Math.sin(h);
   const world = (p: V3): V3 => [p[0] * c - p[1] * s, p[0] * s + p[1] * c, p[2]];
@@ -503,7 +503,7 @@ export function arvCell(faction: FactionId, cell: ArvCell): HTMLCanvasElement {
   if (cell.kind === 'blast') blast(ctx, cell.frame, mid, mid);
   else {
     const pose: ArvPose = cell.kind === 'work' ? { kind: 'work', frame: cell.frame } : cell.kind === 'wreck' ? { kind: 'wreck' } : { kind: 'drive', frame: cell.kind === 'drive' ? cell.frame : 0 };
-    draw(ctx, build(L, pose), arvHeading(cell.dir), mid, mid, cell.kind === 'shadow', cell.kind === 'wreck');
+    drawMesh(ctx, build(L, pose), arvHeading(cell.dir), mid, mid, cell.kind === 'shadow', cell.kind === 'wreck');
   }
   cells.set(key, canvas);
   return canvas;

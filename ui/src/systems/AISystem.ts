@@ -16,7 +16,7 @@ import type { Pathfinder } from '../map/Pathfinder';
 import type { TileMap } from '../map/TileMap';
 import { mulberry32 } from '../core/Random';
 import type { BuildingType, GridPoint, PlayerState, UnitTier, VehicleKind, WorldPoint } from '../types';
-import { BUILD_OPTIONS, type BuildOption, type ConstructionSystem, buildCost, missingRequirement } from './ConstructionSystem';
+import { BUILD_OPTIONS, type BuildOption, type ConstructionSystem, buildCost, footprintOf, missingRequirement } from './ConstructionSystem';
 import type { GameSystem } from './GameSystem';
 import { type PlacementSystem, buildRadius, isClaimable } from './PlacementSystem';
 import type { SafeZone, SafeZoneSystem } from './SafeZoneSystem';
@@ -619,7 +619,7 @@ export class AISystem implements GameSystem {
 
   /** Legal spot for the Allied Building beside one of the nation's embassy anchors (closest to it). */
   private findAlliedSite(p: PlayerState, option: BuildOption, capital: Building): GridPoint | null {
-    const { w, d } = option.footprint;
+    const { w, d } = footprintOf(option, p.faction as Parameters<typeof footprintOf>[1]);
     for (const flag of this.embassyAnchors(p, capital)) {
       let best: GridPoint | null = null;
       let bestD = Infinity;
@@ -911,7 +911,7 @@ export class AISystem implements GameSystem {
 
   /** A legal spot near the capital (preferring close ones, with some randomness). */
   private findSite(p: PlayerState, st: AIState, capital: Building, option: BuildOption): GridPoint | null {
-    const { w, d } = option.footprint;
+    const { w, d } = footprintOf(option, p.faction as Parameters<typeof footprintOf>[1]);
     const found: { x: number; y: number; dist: number }[] = [];
     for (let dy = -22; dy <= 22; dy++) {
       for (let dx = -26; dx <= 26; dx++) {

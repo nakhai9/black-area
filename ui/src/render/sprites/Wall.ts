@@ -40,8 +40,8 @@ type Rect = [number, number, number, number];
  * line reads as one long T-wall and corners / T-junctions meet in the middle. A block with no neighbour, or joined on
  * one side only, still runs straight through the cell (its open end pulled in by END_INSET). `grow` widens it (cap).
  */
-function slab(mask: number, grow = 0): Rect[] {
-  const h = THICK / 2 + grow;
+function slab(mask: number, grow = 0, thick = THICK): Rect[] {
+  const h = thick / 2 + grow;
   const lo = 0.5 - h;
   const hi = 0.5 + h;
   let m = mask;
@@ -79,7 +79,31 @@ function fillAt(p: IsoPainter, rects: readonly Rect[], z: number, color: string)
  * `mask` (WALL_N | WALL_E | WALL_S | WALL_W) marks the sides joined to neighbouring blocks: the slab runs on to those
  * edges, so a wall line is one unbroken slab and corners / junctions meet in the cell's middle.
  */
+/**
+ * Great Wall crenels: along both long edges of every plan rectangle, merlons (raised blocks) with gaps between them,
+ * as on the Great Wall's battlements.
+ */
+function battlements(rects: readonly Rect[]): Rect[] {
+  const out: Rect[] = [];
+  const W = 0.07; // merlon thickness across the wall
+  const STEP = 0.2;
+  const LEN = 0.12;
+  for (const [u0, v0, u1, v1] of rects) {
+    const alongU = u1 - u0 >= v1 - v0;
+    const len = alongU ? u1 - u0 : v1 - v0;
+    const n = Math.max(1, Math.round(len / STEP));
+    for (let i = 0; i < n; i++) {
+      const a = (alongU ? u0 : v0) + (i + 0.5) * (len / n) - LEN / 2;
+      const b = a + LEN;
+      if (alongU) out.push([a, v0, b, v0 + W], [a, v1 - W, b, v1]);
+      else out.push([u0, a, u0 + W, b], [u1 - W, a, u1, b]);
+    }
+  }
+  return out;
+}
+
 export function createWallArt(faction: FactionId, mask = 0): BuildingArt {
+  if (faction === 'china') return greatWall(mask);
   const c = TINT[faction];
   const top = CAP_TINT[faction] ?? c;
   const body = slab(mask);
@@ -95,6 +119,39 @@ export function createWallArt(faction: FactionId, mask = 0): BuildingArt {
       // Cap: a little wider than the slab, lighter, its top lightest.
       for (let z = straight; z <= WALL_H; z += 0.5) fillAt(p, cap, z, shade(top, 0.95 + (0.1 * (z - straight)) / CAP_H));
       fillAt(p, cap, WALL_H, shade(top, 1.2));
+    },
+  };
+}
+
+/**
+ * China's wall block in the manner of the Great Wall: a thick body of grey stone with brick courses, a paved walkway on
+ * top and crenellated battlements (merlons and gaps) along both of its edges.
+ */
+function greatWall(mask: number): BuildingArt {
+  const STONE = '#8f8a80';
+  const BRICK = '#a49c8e';
+  const PAVE = '#b8b1a2';
+  const thick = 0.5;
+  const body = slab(mask, 0, thick);
+  const top = slab(mask, 0.03, thick);
+  // The middle square is where the arms meet: no merlons across the walkway there.
+  const crenels = battlements(top.length > 1 ? top.slice(1) : top);
+  const H = WALL_H - 4;
+  return {
+    footprint: { w: 1, d: 1 },
+    height: H + 10,
+    noRim: true,
+    drawStatic(p) {
+      // Stone base, then brick courses (a darker mortar line every few px), the walkway on top.
+      for (let z = 0; z <= H; z += 0.5) {
+        const course = z > 8 && Math.round(z * 2) % 6 === 0;
+        fillAt(p, body, z, course ? shade(BRICK, 0.7) : shade(z <= 8 ? STONE : BRICK, 0.7 + (0.22 * z) / H));
+      }
+      for (let z = H; z <= H + 1.5; z += 0.5) fillAt(p, top, z, shade(BRICK, 0.95));
+      fillAt(p, top, H + 1.5, PAVE);
+      // Battlements: merlons with gaps along both edges of the walkway.
+      for (let z = H + 1.5; z <= H + 6; z += 0.5) fillAt(p, crenels, z, shade(BRICK, 0.85 + (0.15 * (z - H)) / 6));
+      fillAt(p, crenels, H + 6, shade(BRICK, 1.15));
     },
   };
 }

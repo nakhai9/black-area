@@ -155,7 +155,7 @@ import { EndScreen } from '../ui/EndScreen';
 import { LANGUAGE_RELOAD_KEY, PENDING_SAVE_KEY, PauseMenu } from '../ui/PauseMenu';
 import { type Lang, setLang, t } from '../i18n';
 import { NewsToast } from '../ui/NewsToast';
-import { BUILD_OPTIONS, type BuildOption, ConstructionSystem, type QueueState, buildCost, missingRequirement } from '../systems/ConstructionSystem';
+import { BUILD_OPTIONS, type BuildOption, ConstructionSystem, footprintOf, type QueueState, buildCost, missingRequirement } from '../systems/ConstructionSystem';
 import { EconomySystem } from '../systems/EconomySystem';
 
 /** An ally hit within this many seconds shows as under attack in the Allies tab. */
@@ -981,7 +981,7 @@ export class Game {
     for (const id of ids) {
       const option = BUILD_OPTIONS.find((o) => o.id === id);
       if (!option) continue;
-      const { w, d } = option.footprint;
+      const { w, d } = footprintOf(option, this.humanPlayer.faction as FactionId);
       // Spread out: every structure keeps DEMO_SPREAD free cells to the others (room for both wall rings and a way
       // between them), yet stands within its own build radius of the base, the same rule a player has to follow.
       const gapTo = (x: number, y: number, o: Building): number =>
@@ -1109,8 +1109,9 @@ export class Game {
     const slot = this.construction.slot(player, id);
     const option = slot.option;
     if (!option || slot.state !== 'ready') return false;
-    const w = rotated ? option.footprint.d : option.footprint.w;
-    const d = rotated ? option.footprint.w : option.footprint.d;
+    const ofp = footprintOf(option, player.faction as FactionId);
+    const w = rotated ? ofp.d : ofp.w;
+    const d = rotated ? ofp.w : ofp.d;
     if (!this.placement.check({ owner: player.id, x, y, w, d, radius: buildRadius(option.id) }).ok) return false;
     if (!this.construction.takeReady(player, option.id)) return false;
     const b = this.entities.add(option.create(player.id, player.faction, x, y));
@@ -3631,7 +3632,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       this.ghost = null;
       return;
     }
-    const fp = this.placing.footprint;
+    const fp = footprintOf(this.placing, this.humanPlayer.faction as FactionId);
     const w = this.placingRotated ? fp.d : fp.w;
     const d = this.placingRotated ? fp.w : fp.d;
     const x = Math.floor(this.mouseWorld.x / CELL_SIZE - w / 2 + 0.5);
@@ -3668,7 +3669,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     const option = BUILD_OPTIONS.find((o) => o.id === optionId);
     if (!option) return;
     const player = this.humanPlayer;
-    const fp = option.footprint;
+    const fp = footprintOf(option, player.faction as FactionId);
     const w = rotated ? fp.d : fp.w;
     const d = rotated ? fp.w : fp.d;
     if (!this.placement.check({ owner: player.id, x, y, w, d, radius: buildRadius(option.id) }).ok) {

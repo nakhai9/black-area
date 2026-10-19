@@ -4,7 +4,7 @@ import { factionBadge } from './FactionBadge';
 import type { FactionId } from '../types';
 
 /**
- * Shown when a saved game was picked, before anything is generated: which save, a "Start" button (Enter too)
+ * Shown when a saved game was picked, before anything is generated: which save, a "Continue" button (Enter too)
  * that goes on to build the map and load the save into it, and a "Main menu" button back to the faction picker.
  */
 export function confirmLoadedGame(info: { faction: FactionId; savedAt: string }, parent: HTMLElement = document.body): Promise<void> {
@@ -20,7 +20,7 @@ export function confirmLoadedGame(info: { faction: FactionId; savedAt: string },
   const title = factionBadge(info.faction, 'lg');
   const start = document.createElement('button');
   start.type = 'button';
-  start.textContent = t('Start as {name}', { name: f.shortName });
+  start.textContent = t('Continue'); // carries on the saved game
   start.className = 'lc-start';
   start.style.setProperty('--faction-color', f.colors.primary);
   const back = document.createElement('button');

@@ -4,7 +4,7 @@ import { FACTIONS } from '../../factions';
 import type { FactionId } from '../../types';
 import { shade } from '../Color';
 import type { BuildingArt } from './BuildingArt';
-import type { IsoPainter } from '../IsoPainter';
+import type { IsoPainter, Vec3 } from '../IsoPainter';
 import { roofStar } from './PowerPlant';
 import { facade, parapet, RA2 } from './Ra2Kit';
 
@@ -34,7 +34,7 @@ const BEACON: Record<FactionId, [number, number, number]> = {
   usa: [2.0, 1.8, 200],
   russia: [2.0, 1.85, 196],
   china: [2.0, 1.85, 196],
-  europe: [2.0, 1.85, 168],
+  europe: [1.6, 2.1, 158],
   islamic: [2.0, 1.85, 198],
 };
 
@@ -88,7 +88,7 @@ function podium(p: IsoPainter, stone: string, glass: string, team: string, h = 2
  *  - USA: Art Deco limestone tower with setbacks and a needle mast (Empire State style);
  *  - Russia: Stalinist "Seven Sisters" high-rise: corner wings, central stepped tower, gilded spire and red star;
  *  - China: tiered pagoda tower (Jin Mao style): tapering glass tiers under curled red eaves, golden finial;
- *  - Europe: rounded glass tower (Gherkin style): stacked bulging cylinders with team-colour bands and a glass cap;
+ *  - Europe: Vienna International Centre: a concave curved glass tower between two white pylons, flags in front;
  *  - Islamic: slender clustered tower (Burj style) on an arched podium, green domes, needle spire.
  */
 export function createTechCenterArt(faction: FactionId): BuildingArt {
@@ -150,16 +150,63 @@ export function createTechCenterArt(faction: FactionId): BuildingArt {
           break;
         }
         case 'europe': {
-          podium(p, STONE, GLASS, team.primary, 14);
-          const rings = 24;
-          for (let i = 0; i < rings; i++) {
-            const t = i / rings;
-            const r = 0.95 * Math.sin(Math.PI * (0.25 + t * 0.62)) + 0.1;
-            const c = i % 3 === 0 ? shade(team.primary, 0.9) : shade(GLASS, 1 - t * 0.15);
-            p.cylinder(2.0, 1.85, r, 16 + i * 5.6, 5.8, c, 12);
+          // Vienna International Centre (after the photo): a concave, curved glass tower of horizontal blue glass
+          // bands and white floor lines, held between two taller white concrete pylons, on a low podium, with a row
+          // of flags curving round in front. Symmetric about the picture's centre line.
+          const C: [number, number] = [4.3, 4.3]; // centre of the curve, in front of the plot
+          const RIN = 2.35;
+          const ROUT = 2.95;
+          const A0 = Math.PI + 0.12;
+          const A1 = Math.PI * 1.5 - 0.12;
+          const Z0 = 6;
+          const ZT = 150;
+          const at = (r: number, a: number): [number, number] => [C[0] + Math.cos(a) * r, C[1] + Math.sin(a) * r];
+          p.box(0, 0, 4, 4, 0, 2, '#9aa0a6');
+          p.box(0.4, 0.4, 3.3, 3.3, 2, 4, '#e4e6e8', { top: '#b9bdc2' });
+          p.faceRect('left', 0.4, 0.4, 3.3, 3.3, 2, 4, 0, 1, 0, 1, '#2e3c48');
+          p.faceRect('right', 0.4, 0.4, 3.3, 3.3, 2, 4, 0, 1, 0, 1, '#26323c');
+          // The curved glass wall: its inner (concave) face looks to the front; floors as glass bands.
+          const SEG = 18;
+          for (let i = 0; i < SEG; i++) {
+            const a = A0 + ((A1 - A0) * i) / SEG;
+            const b2 = A0 + ((A1 - A0) * (i + 1)) / SEG;
+            const [u0, v0] = at(RIN, a);
+            const [u1, v1] = at(RIN, b2);
+            const lit = 0.82 + 0.25 * Math.cos(((a + b2) / 2 - Math.PI * 1.25) * 2);
+            p.polygon([[u0, v0, Z0], [u1, v1, Z0], [u1, v1, ZT], [u0, v0, ZT]] as Vec3[], shade('#5f8fb8', lit), null);
+            for (let z = Z0 + 4; z < ZT - 1; z += 4.6) {
+              p.polygon([[u0, v0, z], [u1, v1, z], [u1, v1, z + 0.9], [u0, v0, z + 0.9]] as Vec3[], shade('#e8eef2', lit), null);
+            }
+            // Mullions every segment.
+            p.polygon([[u0, v0, Z0], [u0 + (u1 - u0) * 0.06, v0 + (v1 - v0) * 0.06, Z0], [u0 + (u1 - u0) * 0.06, v0 + (v1 - v0) * 0.06, ZT], [u0, v0, ZT]] as Vec3[], shade('#cfd8de', lit), null);
           }
-          p.dome(2.0, 1.85, 0.42, 150, 14, shade(RA2.glassLit, 0.9));
-          p.pole(2.0, 1.85, 160, 8, '#c8c8c8');
+          // Roof: the band between the inner and outer curves, with a white parapet.
+          const roof: Vec3[] = [];
+          for (let i = 0; i <= SEG; i++) roof.push([...at(ROUT, A0 + ((A1 - A0) * i) / SEG), ZT] as Vec3);
+          for (let i = SEG; i >= 0; i--) roof.push([...at(RIN, A0 + ((A1 - A0) * i) / SEG), ZT] as Vec3);
+          p.polygon(roof, '#8a9096', null);
+          for (let i = 0; i < SEG; i++) {
+            const [u0, v0] = at(RIN, A0 + ((A1 - A0) * i) / SEG);
+            const [u1, v1] = at(RIN, A0 + ((A1 - A0) * (i + 1)) / SEG);
+            p.polygon([[u0, v0, ZT], [u1, v1, ZT], [u1, v1, ZT + 2], [u0, v0, ZT + 2]] as Vec3[], '#f2f3f4', null);
+          }
+          // The two white pylons at the ends of the curve, a little taller, with a dark slot up their face.
+          for (const a of [A0 - 0.02, A1 + 0.02]) {
+            const [pu, pv] = at((RIN + ROUT) / 2, a);
+            const left = a < Math.PI * 1.25;
+            const u = pu - (left ? 0.3 : 0.25);
+            const v = pv - (left ? 0.25 : 0.3);
+            p.box(u, v, 0.55, 0.55, 2, ZT + 10, '#eceeef', { top: '#c9cdd1' });
+            p.faceRect(left ? 'right' : 'left', u, v, 0.55, 0.55, 2, ZT + 10, 0.42, 0.58, 0.04, 0.96, '#9aa6b0');
+          }
+          // A row of flags on white poles curving round in front, in the team colours and the EU blue.
+          const flags = ['#1f3f9a', team.primary, '#c8231e', '#f2c94c', '#2f8a4e', team.light, '#1f3f9a', '#e8e8e8', team.primary];
+          flags.forEach((col, k) => {
+            const a = A0 + 0.1 + ((A1 - A0 - 0.2) * k) / (flags.length - 1);
+            const [u, v] = at(RIN - 0.75, a);
+            p.pole(u, v, 2, 24, '#f4f4f4');
+            p.polygon([[u, v, 26], [u + 0.18, v + 0.04, 26], [u + 0.18, v + 0.04, 22.5], [u, v, 22.5]] as Vec3[], col, null);
+          });
           break;
         }
         default: {

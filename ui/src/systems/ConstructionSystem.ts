@@ -19,6 +19,8 @@ import {
   FLAGPOLE_COST,
   HAPPY_CITY_COST,
   FOOTPRINT_LARGE,
+  FOOTPRINT_BARRACKS,
+  barracksFootprint,
   FOOTPRINT_SMALL,
   POWER_PLANT_COST,
   WAR_FACTORY_COST,
@@ -54,6 +56,8 @@ export interface BuildOption {
   /** Same price for every nation (the faction cost multiplier is not applied). */
   fixedCost?: boolean;
   footprint: { w: number; d: number };
+  /** Plot that depends on whose design it is (the Ministry of Defence); see footprintOf. */
+  footprintFor?: (design: FactionId) => { w: number; d: number };
   spriteKey: (faction: FactionId) => string;
   /** Creates the building with its footprint's top-left at cell (x, y). */
   create: (owner: number, faction: FactionId, x: number, y: number) => Building;
@@ -79,9 +83,10 @@ const OWN_OPTIONS: readonly BuildOption[] = [
     // First building of every nation is a power plant: nothing else runs without power.
     requires: 'powerPlant',
     cost: BARRACKS_COST,
-    footprint: FOOTPRINT_SMALL,
+    footprint: FOOTPRINT_BARRACKS,
+    footprintFor: (f) => barracksFootprint(f),
     spriteKey: (f) => `barracks:${f}`,
-    create: (owner, faction, x, y) => new Barracks(owner, faction, center(x, y, FOOTPRINT_SMALL)),
+    create: (owner, faction, x, y) => new Barracks(owner, faction, center(x, y, barracksFootprint(faction))),
   },
   {
     id: 'warFactory',
@@ -193,6 +198,11 @@ export const BUILD_OPTIONS: readonly BuildOption[] = [
     })),
   ),
 ];
+
+/** The plot of `option` as `faction` builds it (another nation's design: that nation's plot). */
+export function footprintOf(option: BuildOption, faction: FactionId): { w: number; d: number } {
+  return option.footprintFor?.(option.foreign ?? faction) ?? option.footprint;
+}
 
 /** First prerequisite of `option` the nation does not own yet (null = it may be built). */
 export function missingRequirement(option: BuildOption, owned: ReadonlySet<BuildingType>): BuildingType | null {

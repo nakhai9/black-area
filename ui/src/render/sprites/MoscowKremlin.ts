@@ -1,5 +1,4 @@
-import { HALF_TW } from '../../constants';
-import { archPath, starPath } from '../Canvas';
+import { starPath } from '../Canvas';
 import { drawFlagOnPole } from '../Flags';
 import type { IsoPainter } from '../IsoPainter';
 import type { Allegiance } from '../../types';
@@ -9,51 +8,42 @@ import { facade } from './Ra2Kit';
 
 const BRICK = '#9a3626';
 const BRICK_CAP = '#ad4432';
-const CREAM = '#e3d6b4';
-const GREEN = '#3f7a56';
+const CREAM = '#ecdca8'; // the Grand Kremlin Palace's warm cream-yellow
+const GREEN = '#4f9a62'; // its bright green roofs
 const SPIRE = '#2f6a48';
 const GOLD = '#e6b43c';
 const WHITE = '#ece6d6';
 const STONE = '#f0ebdf';
 const GLASS = '#2c3a4e';
 const DOOR = '#2a0f0b';
-const PAVING = '#b9ab93';
 
 const WALL_H = 16;
 const TOWER = 0.46;
-/** Art-space depth: the Kremlin plot only (no Red Square forecourt). */
+/** Art-space depth: the Kremlin plot only. */
 const ART_D = 4;
 
-/** Spasskaya's front-left corner on the front wall (left of centre, clear of Saint Basil's behind it). */
-const SPASSKAYA: readonly [number, number] = [0.62, 3.42];
-/** Saint Basil's Cathedral: centre of the plan. */
-const BASIL: readonly [number, number] = [2.15, 2.35];
-/** Gilded dome on the middle of the Grand Kremlin Palace (the flag flies from it). */
-const PALACE_DOME: readonly [number, number] = [2.0, 0.73];
+/*
+ * After the photo from the river, laid out symmetrically about the picture's centre line (the u = v diagonal): the
+ * round Vodovzvodnaya-style tower on the front corner, the Ivan the Great bell tower in the middle, two white
+ * cathedrals with golden onion domes either side of it, the long cream Grand Kremlin Palace with green roofs and a
+ * gilded dome along the back walls, autumn trees inside red crenellated walls with green-tented towers.
+ */
+/** The gilded dome on the palace's corner pavilion (the flag flies from it), on the centre line. */
+const PALACE_DOME: readonly [number, number] = [0.66, 0.66];
+/** Ivan the Great bell tower, on the centre line. */
+const IVAN: readonly [number, number] = [2.1, 2.1];
 
-/** Glowing red stars: Spasskaya + the four corner towers. [u, v, z, size] */
+/** Glowing red stars: the front corner tower, the left / right corner towers and the two mid-wall towers. */
 const STARS: readonly [number, number, number, number][] = [
-  [SPASSKAYA[0] + 0.32, SPASSKAYA[1] + 0.29, 99, 4.6],
-  [0.25, 0.25, 50, 3],
+  [3.62, 3.62, 84, 4.6],
   [3.75, 0.25, 50, 3],
   [0.25, 3.75, 50, 3],
-  [3.75, 3.75, 50, 3],
+  [3.85, 1.9, 50, 2.6],
+  [1.9, 3.85, 50, 2.6],
 ];
-/** The one flag flies from the top of the palace's gilded dome (u, v, z of the pole foot). */
-const TOP_FLAG: readonly [number, number, number] = [PALACE_DOME[0], PALACE_DOME[1], 53];
-const TOP_POLE_H = 16;
-
-/** Saint Basil's chapel onions: colour and the twisting stripe over it. */
-const BASIL_ONIONS: readonly [string, string][] = [
-  ['#c8302a', '#f2efe6'], // red / white
-  ['#2f8a4e', '#e8c24a'], // green / gold
-  ['#2c6fb6', '#f2efe6'], // blue / white
-  ['#e2a72e', '#2f8a4e'], // gold / green
-  ['#2f8a4e', '#c8302a'], // green / red
-  ['#c8302a', '#e8c24a'], // red / gold
-  ['#2c6fb6', '#e8c24a'], // blue / gold
-  ['#7a3e8e', '#f2efe6'], // violet / white
-];
+/** The one flag flies from the top of the palace's gilded dome. */
+const TOP_FLAG: readonly [number, number, number] = [PALACE_DOME[0], PALACE_DOME[1], 56];
+const TOP_POLE_H = 14;
 
 /** Red-brick wall with swallow-tail (Ghibelline) merlons. */
 function wall(p: IsoPainter, u: number, v: number, w: number, d: number): void {
@@ -100,91 +90,78 @@ function tower(p: IsoPainter, u: number, v: number, round: boolean): void {
   p.pole(cu, cv, 47, 3, GOLD);
 }
 
-function clockFace(ctx: CanvasRenderingContext2D, x: number, y: number): void {
-  ctx.fillStyle = '#0f1a2e';
-  ctx.strokeStyle = GOLD;
-  ctx.lineWidth = 1.2;
-  ctx.beginPath();
-  ctx.arc(x, y, 4.6, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.stroke();
-  ctx.lineWidth = 0.8;
-  ctx.beginPath();
-  ctx.moveTo(x, y);
-  ctx.lineTo(x, y - 3.4);
-  ctx.moveTo(x, y);
-  ctx.lineTo(x + 2.4, y + 0.6);
-  ctx.stroke();
+/** Gilded onion dome on a drum, with its cross. */
+function goldOnion(p: IsoPainter, u: number, v: number, z: number, r: number): void {
+  p.cylinder(u, v, r * 0.75, z, r * 22, WHITE, 8);
+  p.onion(u, v, r, z + r * 22, r * 70, GOLD);
+  p.pole(u, v, z + r * 22 + r * 70, 4, GOLD);
 }
 
-/** Spasskaya Tower on the front wall, its front-left corner at (u, v). */
-function spasskaya(p: IsoPainter, u: number, v: number): void {
-  p.box(u, v, 0.64, 0.58, 0, 34, BRICK);
-  p.faceTransform('left', u, v + 0.58, 0, (ctx) => {
-    ctx.fillStyle = DOOR;
-    archPath(ctx, 0.32 * HALF_TW, 7, 16);
-    ctx.fill();
-  });
-  p.box(u - 0.03, v - 0.03, 0.7, 0.64, 34, 3, STONE);
-  // Clock stage.
-  p.box(u + 0.08, v + 0.06, 0.48, 0.46, 37, 16, BRICK);
-  p.faceTransform('left', u + 0.08, v + 0.52, 37, (ctx) => clockFace(ctx, 0.24 * HALF_TW, 8));
-  p.faceTransform('right', u + 0.56, v + 0.52, 37, (ctx) => clockFace(ctx, 0.23 * HALF_TW, 8));
-  p.box(u + 0.06, v + 0.04, 0.52, 0.5, 53, 2, STONE);
-  // Tiered white-stone stages.
-  p.box(u + 0.14, v + 0.12, 0.36, 0.34, 55, 8, STONE);
-  p.windows('left', u + 0.14, v + 0.12, 0.36, 0.34, 55, 8, 2, 1, DOOR, 0.3, 0.6);
-  p.windows('right', u + 0.14, v + 0.12, 0.36, 0.34, 55, 8, 2, 1, DOOR, 0.3, 0.6);
-  p.cylinder(u + 0.32, v + 0.29, 0.13, 63, 7, STONE, 8);
-  // Green tent spire.
-  p.pyramid(u + 0.19, v + 0.16, 0.26, 0.26, 70, 26, SPIRE);
-  p.pole(u + 0.32, v + 0.29, 94, 3, GOLD);
-}
-
-/**
- * Saint Basil's Cathedral: a red-brick gallery with a white band, the tall central tent church (green tent, gold onion)
- * ringed by eight chapels, each crowned by a twisted, striped onion of its own colours.
- */
-function saintBasil(p: IsoPainter, cu: number, cv: number): void {
-  const base = 7;
-  p.box(cu - 0.78, cv - 0.78, 1.56, 1.56, 0, base, BRICK, { top: shade(BRICK, 1.15) });
+/** A white-stone cathedral (Assumption / Archangel style): cubic body with arched gables, five golden onions. */
+function cathedral(p: IsoPainter, u: number, v: number): void {
+  const w = 0.62;
+  p.box(u, v, w, w, 0, 15, WHITE, { top: shade(GOLD, 0.7) });
   for (const face of ['left', 'right'] as const) {
-    p.faceRect(face, cu - 0.78, cv - 0.78, 1.56, 1.56, 0, base, 0, 1, 0.78, 0.86, WHITE);
-    p.windows(face, cu - 0.78, cv - 0.78, 1.56, 1.56, 0, base, 6, 1, DOOR, 0.35, 0.5);
+    p.windows(face, u, v, w, w, 0, 15, 3, 2, '#5a5248', 0.18, 0.6);
+    p.faceRect(face, u, v, w, w, 0, 15, 0, 1, 0.9, 1, shade(STONE, 0.9));
   }
-  // Eight chapels: four big ones on the axes, four small ones on the diagonals. [u, v, r, drum height, colour, stripe]
-  type Chapel = [number, number, number, number, string, string];
-  const chapels: Chapel[] = BASIL_ONIONS.map(([color, stripe], k) => {
-    const a = (k / 8) * Math.PI * 2 - Math.PI / 4;
-    const big = k % 2 === 0;
-    const dist = big ? 0.5 : 0.56;
-    return [cu + Math.cos(a) * dist, cv + Math.sin(a) * dist, big ? 0.2 : 0.14, big ? 28 : 20, color, stripe];
+  const c = w / 2;
+  for (const [du, dv] of [[0.15, 0.15], [w - 0.15, 0.15], [0.15, w - 0.15]] as const) goldOnion(p, u + du, v + dv, 15, 0.1);
+  goldOnion(p, u + c, v + c, 15, 0.15);
+  goldOnion(p, u + w - 0.15, v + w - 0.15, 15, 0.1);
+}
+
+/** Ivan the Great bell tower: white octagonal tiers with arched belfries, a tall gilded drum and onion. */
+function ivanTower(p: IsoPainter, u: number, v: number): void {
+  const tiers: [number, number, number][] = [
+    [0.3, 0, 24],
+    [0.25, 24, 14],
+    [0.2, 38, 11],
+  ];
+  for (const [r, z, h] of tiers) {
+    p.cylinder(u, v, r, z, h, WHITE, 8);
+    p.cylinder(u, v, r + 0.03, z + h - 1.2, 1.2, STONE, 8);
+    // Arched belfry openings.
+    for (let k = 0; k < 3; k++) {
+      const a = Math.PI * (0.1 + k * 0.4);
+      const [x, y] = p.project(u + Math.cos(a) * r * 0.9, v + Math.sin(a) * r * 0.9, z + h * 0.62);
+      p.ctx.fillStyle = '#4a4238';
+      p.ctx.beginPath();
+      p.ctx.ellipse(x, y, 1.1, 2.2, 0, 0, Math.PI * 2);
+      p.ctx.fill();
+    }
+  }
+  p.cylinder(u, v, 0.15, 49, 9, shade(GOLD, 0.85), 8);
+  p.onion(u, v, 0.2, 58, 15, GOLD);
+  p.pole(u, v, 73, 6, GOLD);
+}
+
+/** Round Vodovzvodnaya-style corner tower: tall brick drum, white-trimmed tiers, a long green tent and the star. */
+function bigTower(p: IsoPainter, cu: number, cv: number): void {
+  p.cylinder(cu, cv, 0.36, 0, 30, BRICK, 12);
+  p.cylinder(cu, cv, 0.39, 30, 3, BRICK_CAP, 12);
+  p.cylinder(cu, cv, 0.28, 33, 9, BRICK, 10);
+  p.cylinder(cu, cv, 0.3, 42, 1.5, STONE, 10);
+  p.cylinder(cu, cv, 0.2, 43.5, 6, BRICK, 8);
+  p.pyramid(cu - 0.2, cv - 0.2, 0.4, 0.4, 49.5, 30, SPIRE);
+  p.pole(cu, cv, 79.5, 3, GOLD);
+}
+
+/** Autumn tree crowns (green, gold, rust) on short trunks. */
+function trees(p: IsoPainter, spots: readonly [number, number][]): void {
+  const leaf = ['#4f7a34', '#c7962c', '#a5552a', '#6b8a3a'];
+  spots.forEach(([u, v], i) => {
+    p.cylinder(u, v, 0.03, 0, 4, '#4a3a28', 4);
+    p.dome(u, v, 0.2, 4, 9, leaf[i % leaf.length]!);
   });
-  const depth = (c: Chapel): number => c[0] + c[1];
-  const chapel = ([u, v, r, h, color, stripe]: Chapel): void => {
-    p.cylinder(u, v, r * 1.05, base, h, BRICK, 8);
-    p.cylinder(u, v, r * 1.1, base + h - 1.5, 1.5, WHITE, 8);
-    p.cylinder(u, v, r * 0.78, base + h, 5, WHITE, 8);
-    const onionH = r * 100;
-    p.onion(u, v, r * 1.25, base + h + 5, onionH, color, stripe);
-    p.pole(u, v, base + h + 5 + onionH, 4, GOLD);
-  };
-  // Back to front: the chapels behind the centre, the central tent church, then the ones in front of it.
-  chapels.filter((c) => depth(c) <= cu + cv).sort((a, b) => depth(a) - depth(b)).forEach(chapel);
-  p.cylinder(cu, cv, 0.3, base, 30, BRICK, 10);
-  p.cylinder(cu, cv, 0.31, base + 14, 2, WHITE, 10);
-  p.cylinder(cu, cv, 0.32, base + 28, 2.5, WHITE, 10);
-  p.cylinder(cu, cv, 0.24, base + 30.5, 6, shade(GOLD, 0.9), 8);
-  p.pyramid(cu - 0.22, cv - 0.22, 0.44, 0.44, base + 36.5, 30, SPIRE);
-  p.onion(cu, cv, 0.08, base + 66, 9, GOLD);
-  p.pole(cu, cv, base + 75, 4, GOLD);
-  chapels.filter((c) => depth(c) > cu + cv).sort((a, b) => depth(a) - depth(b)).forEach(chapel);
 }
 
 /**
- * Moscow — the Kremlin, kept simple: swallow-tail crenellated red walls with green-tented corner towers carrying red
- * stars, the long Grand Kremlin Palace along the back (gilded dome and flag), an open square with Saint Basil's
- * Cathedral and its striped, many-coloured onions in the middle, and the Spasskaya clock tower on the front wall.
+ * Moscow — the Kremlin as seen from the river, symmetric about the picture's vertical centre line: the cream Grand
+ * Kremlin Palace with green roofs and a gilded dome along the back walls, the white Ivan the Great bell tower with its
+ * golden onion in the middle, two white cathedrals with five golden onions either side, autumn trees, and red
+ * crenellated walls with green-tented towers — a tall round one on the front corner, the same towers left / right and
+ * mid-way along the front walls.
  */
 export function createMoscowKremlinArt(flag: Allegiance = 'russia'): BuildingArt {
   return {
@@ -194,34 +171,49 @@ export function createMoscowKremlinArt(flag: Allegiance = 'russia'): BuildingArt
     height: 140,
 
     drawStatic(p) {
-      // Back walls and towers.
-      tower(p, 0.02, 0.02, false);
-      wall(p, 0.48, 0.02, 3.04, 0.26);
-      wall(p, 0.02, 0.48, 0.26, 3.04);
+      p.topRect(0.02, 0.02, 3.98, 3.98, 0.1, '#7a8a52');
+      // Back walls meeting behind the palace.
+      wall(p, 0.02, 0.02, 3.5, 0.26);
+      wall(p, 0.02, 0.28, 0.26, 3.24);
+
+      // Grand Kremlin Palace: two identical cream wings along the back walls and the corner pavilion with the dome.
+      const palace = { glass: GLASS, frame: '#fbf3dc', fill: 0.5, band: 0.3, bandColor: shade(CREAM, 0.86) };
+      const wing = (u: number, v: number, w: number, d: number): void => {
+        p.box(u, v, w, d, 0, 26, CREAM);
+        facade(p, 'left', u, v, w, d, 0, 26, { ...palace, cols: Math.round(w * 7), floors: 3, seed: 21 });
+        facade(p, 'right', u, v, w, d, 0, 26, { ...palace, cols: Math.round(d * 7), floors: 3, seed: 21 });
+        p.faceRect('left', u, v, w, d, 0, 26, 0, 1, 0, 0.12, shade(CREAM, 0.85));
+        p.faceRect('right', u, v, w, d, 0, 26, 0, 1, 0, 0.12, shade(CREAM, 0.8));
+        p.box(u - 0.02, v - 0.02, w + 0.04, d + 0.04, 26, 1.5, STONE);
+        p.hipRoof(u, v, w, d, 27.5, 7, 0.04, GREEN);
+      };
+      wing(1.06, 0.28, 2.4, 0.86);
+      wing(0.28, 1.06, 0.86, 2.4);
+      p.box(0.28, 0.28, 0.78, 0.78, 0, 32, CREAM);
+      facade(p, 'left', 0.28, 0.28, 0.78, 0.78, 0, 32, { ...palace, cols: 5, floors: 3, seed: 25 });
+      facade(p, 'right', 0.28, 0.28, 0.78, 0.78, 0, 32, { ...palace, cols: 5, floors: 3, seed: 25 });
+      p.box(0.26, 0.26, 0.82, 0.82, 32, 2, STONE);
+      p.hipRoof(0.28, 0.28, 0.78, 0.78, 34, 4, 0.03, GREEN);
+      p.cylinder(PALACE_DOME[0], PALACE_DOME[1], 0.22, 36, 8, CREAM, 8);
+      p.dome(PALACE_DOME[0], PALACE_DOME[1], 0.24, 44, 11, GOLD);
+
+      // Left and right corner towers (the same either side of the centre line).
       tower(p, 3.52, 0.02, false);
-      tower(p, 0.02, 3.52, true);
+      tower(p, 0.02, 3.52, false);
 
-      // Grand Kremlin Palace along the back: one long cream range, green roof, gilded dome carrying the flag.
-      const pu = 0.28, pv = 0.28, pw = 3.44, pd = 0.9;
-      const palace = { glass: GLASS, frame: '#f4ecd6', fill: 0.5, band: 0.3, bandColor: shade(CREAM, 0.86) };
-      p.box(pu, pv, pw, pd, 0, 26, CREAM);
-      facade(p, 'left', pu, pv, pw, pd, 0, 26, { ...palace, cols: 20, floors: 3, seed: 21 });
-      facade(p, 'right', pu, pv, pw, pd, 0, 26, { ...palace, cols: 6, floors: 3, seed: 22 });
-      p.box(pu - 0.02, pv - 0.02, pw + 0.04, pd + 0.04, 26, 1.5, STONE);
-      p.hipRoof(pu, pv, pw, pd, 27.5, 8, 0.03, GREEN);
-      p.cylinder(PALACE_DOME[0], PALACE_DOME[1], 0.2, 33, 9, CREAM, 8);
-      p.dome(PALACE_DOME[0], PALACE_DOME[1], 0.21, 42, 11, GOLD);
+      // Trees and the two cathedrals, mirrored; the bell tower in the middle.
+      trees(p, [[1.45, 1.45], [2.7, 1.5], [1.5, 2.7], [3.2, 2.2], [2.2, 3.2]]);
+      cathedral(p, 2.55, 1.2);
+      cathedral(p, 1.2, 2.55);
+      ivanTower(p, IVAN[0], IVAN[1]);
+      trees(p, [[2.95, 2.95], [3.3, 2.75], [2.75, 3.3]]);
 
-      // Open square, and Saint Basil's standing in the middle of it: the one landmark of the capital.
-      p.topRect(0.28, 1.18, 3.72, 3.72, 0.2, PAVING);
-      saintBasil(p, BASIL[0], BASIL[1]);
-
-      // Right and front walls with Spasskaya, front corner tower.
-      wall(p, 3.72, 0.48, 0.26, 3.04);
-      wall(p, 0.48, 3.72, SPASSKAYA[0] - 0.48, 0.26);
-      wall(p, SPASSKAYA[0] + 0.64, 3.72, 3.52 - (SPASSKAYA[0] + 0.64), 0.26);
-      spasskaya(p, SPASSKAYA[0], SPASSKAYA[1]);
-      tower(p, 3.52, 3.52, true);
+      // Right and front walls with a gate tower mid-way, meeting at the tall round tower on the front corner.
+      wall(p, 3.72, 0.48, 0.26, 2.86);
+      wall(p, 0.48, 3.72, 2.86, 0.26);
+      tower(p, 3.62, 1.67, false);
+      tower(p, 1.67, 3.62, false);
+      bigTower(p, 3.62, 3.62);
 
       p.pole(TOP_FLAG[0], TOP_FLAG[1], TOP_FLAG[2], TOP_POLE_H, GOLD);
     },
