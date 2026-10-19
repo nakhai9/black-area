@@ -1442,6 +1442,11 @@ export class Game {
       if (!(u instanceof Vehicle) || !u.aircraft) return true;
       const field = near(u.owner);
       if (!field) return true;
+      // A transport aircraft set down out in the field (not on an apron): it takes off and flies in to land there.
+      if (u.isTransport && u.flight === 'landed') {
+        this.aircraft.land(u, field);
+        return false;
+      }
       if (!u.flies) return false; // on the ground at (or next to) the airfield: no take-off
       this.aircraft.land(u, field);
       return false;
@@ -1456,6 +1461,7 @@ export class Game {
     const grouped = units.filter((u) => !u.aircraft && !(u instanceof Vehicle && u.isTransport)).length >= GROUP_ROUTE_MIN;
     const walkers: { unit: Unit; goal: WorldPoint; cell: GridPoint; ticket: number }[] = [];
     const swimmers: typeof walkers = [];
+    const drivers: typeof walkers = [];
     units.forEach((u, k) => {
       if (u instanceof Vehicle) {
         u.heliHome = null;
@@ -1485,7 +1491,7 @@ export class Game {
       // Every unit gets its own spot around the target: no two vehicles are sent to the same point.
       const cell = this.map.cellAt(target.x + off.x, target.y + off.y) ?? this.map.cellAt(target.x, target.y);
       if (!cell) return;
-      const goal = this.pathfinder.nearestPassable(cell.x, cell.y, 14, undefined, u.swims);
+      const goal = this.pathfinder.nearestPassable(cell.x, cell.y, 14, undefined, u.mobility);
       // A walker cannot reach another landmass: skip the A* search (it would scan the whole map and find nothing).
       if (goal && !u.swims && !this.pathfinder.sameLandmass(Math.floor(u.px / CELL_SIZE), Math.floor(u.py / CELL_SIZE), goal.x, goal.y)) {
         u.attackMove = null;
@@ -1496,17 +1502,17 @@ export class Game {
         if (u.moving) u.pathTicket++;
         else u.stop();
         u.routePending = true;
-        (u.swims ? swimmers : walkers).push({ unit: u, goal: { x: (goal.x + 0.5) * CELL_SIZE, y: (goal.y + 0.5) * CELL_SIZE }, cell: goal, ticket: u.pathTicket });
+        (u.mobility === 'vehicle' ? drivers : u.swims ? swimmers : walkers).push({ unit: u, goal: { x: (goal.x + 0.5) * CELL_SIZE, y: (goal.y + 0.5) * CELL_SIZE }, cell: goal, ticket: u.pathTicket });
         return;
       }
-      u.follow(this.paths.find({ x: u.px, y: u.py }, goal, u.swims));
+      u.follow(this.paths.find({ x: u.px, y: u.py }, goal, u.mobility));
     });
-    for (const members of [walkers, swimmers]) {
+    for (const members of [walkers, swimmers, drivers]) {
       const lead = members[0];
       if (!lead) continue;
       const urgent = this.humanOwned(lead.unit);
       this.paths.schedule(
-        this.paths.groupJob(members, lead.cell, lead.unit.swims, (m, path) => {
+        this.paths.groupJob(members, lead.cell, lead.unit.mobility, (m, path) => {
           const mm = m as (typeof members)[number];
           if (!mm.unit.alive || mm.unit.pathTicket !== mm.ticket) return; // given another order meanwhile
           mm.unit.follow(path);
@@ -1630,7 +1636,7 @@ export class Game {
       const c = this.map.cellAt(o.px, o.py);
       if (c) taken.add(this.map.index(c.x, c.y));
     }
-    const cell = this.pathfinder.nearestPassable(here.x, here.y, 12, taken, u.swims) ?? this.pathfinder.nearestPassable(here.x, here.y, 12, undefined, u.swims);
+    const cell = this.pathfinder.nearestPassable(here.x, here.y, 12, taken, u.mobility) ?? this.pathfinder.nearestPassable(here.x, here.y, 12, undefined, u.mobility);
     if (!cell) {
       if (t.owner === this.humanPlayer.id) this.sidebar.notify(tr('No room around the {name} to unload.', { name: t.name }));
       return false;
@@ -1715,6 +1721,7 @@ export class Game {
       const r = this.aircraft.requestUnload(t);
       if (r === 'noSpot') this.sidebar.notify(tr('The {name} cannot land here (open water) — fly it over land first.', { name: t.name }));
       else if (r === 'busy') this.sidebar.notify(tr('The {name} is taking off or landing — unload in a moment.', { name: t.name }));
+      else if (r === 'airborne') this.sidebar.notify(tr('The {name} is in the air — land it on the ground first, then unload.', { name: t.name }));
     }
   }
 
@@ -1811,7 +1818,7 @@ export class Game {
         left++;
         continue;
       }
-      const cell = this.pathfinder.nearestPassable(here.x, here.y, 16, undefined, u.swims);
+      const cell = this.pathfinder.nearestPassable(here.x, here.y, 16, undefined, u.mobility);
       if (!cell || (!u.swims && !this.pathfinder.sameLandmass(Math.floor(u.px / CELL_SIZE), Math.floor(u.py / CELL_SIZE), cell.x, cell.y))) {
         left++;
         continue;
@@ -1829,7 +1836,7 @@ export class Game {
         u.depotId = null;
         u.mendArea = null;
       }
-      u.follow(this.paths.find({ x: u.px, y: u.py }, cell, u.swims));
+      u.follow(this.paths.find({ x: u.px, y: u.py }, cell, u.mobility));
       sent++;
     }
     if (t.owner === this.humanPlayer.id) {
@@ -1995,7 +2002,7 @@ export class Game {
       if (this.time - v.depotRepathAt < (v.moving ? 2 : 1)) continue;
       v.depotRepathAt = this.time;
       const cell = this.map.cellAt(door.x, door.y);
-      const path = cell ? this.paths.find({ x: v.px, y: v.py }, cell) : [];
+      const path = cell ? this.paths.find({ x: v.px, y: v.py }, cell, v.mobility) : [];
       if (path.length === 0) {
         v.depotId = null; // cannot get there
         continue;
@@ -2024,7 +2031,7 @@ export class Game {
     const spot = this.parkingSpot(b, v);
     const cell = spot ? this.map.cellAt(spot.x, spot.y) : null;
     if (spot && cell) {
-      const path = this.paths.find({ x: v.px, y: v.py }, cell);
+      const path = this.paths.find({ x: v.px, y: v.py }, cell, v.mobility);
       const last = path[path.length - 1];
       if (last) {
         last.x = spot.x;
@@ -2094,7 +2101,7 @@ export class Game {
         if (this.time - v.seekRepathAt < REPAIR_VEHICLE_REPATH || (v.moving && !drifted)) continue;
         v.seekRepathAt = this.time;
         const cell = this.pathfinder.nearestPassable(Math.floor(r.px / CELL_SIZE), Math.floor(r.py / CELL_SIZE), 6);
-        const path = cell && this.pathfinder.sameLandmass(Math.floor(v.px / CELL_SIZE), Math.floor(v.py / CELL_SIZE), cell.x, cell.y) ? this.paths.find({ x: v.px, y: v.py }, cell) : [];
+        const path = cell && this.pathfinder.sameLandmass(Math.floor(v.px / CELL_SIZE), Math.floor(v.py / CELL_SIZE), cell.x, cell.y) ? this.paths.find({ x: v.px, y: v.py }, cell, v.mobility) : [];
         if (path.length === 0) {
           v.seekRepairId = null; // cannot get there
           v.stop();
@@ -2147,7 +2154,7 @@ export class Game {
         if (this.time - v.mendRepathAt < REPAIR_VEHICLE_REPATH || (v.moving && !drifted)) continue;
         v.mendRepathAt = this.time;
         const cell = this.pathfinder.nearestPassable(Math.floor(t.px / CELL_SIZE), Math.floor(t.py / CELL_SIZE), 6);
-        const path = cell && this.pathfinder.sameLandmass(Math.floor(v.px / CELL_SIZE), Math.floor(v.py / CELL_SIZE), cell.x, cell.y) ? this.paths.find({ x: v.px, y: v.py }, cell) : [];
+        const path = cell && this.pathfinder.sameLandmass(Math.floor(v.px / CELL_SIZE), Math.floor(v.py / CELL_SIZE), cell.x, cell.y) ? this.paths.find({ x: v.px, y: v.py }, cell, v.mobility) : [];
         if (path.length === 0) {
           v.repairTargetId = null; // cannot get there
           v.stop();
@@ -2689,7 +2696,7 @@ export class Game {
     const cx = Math.floor(nx / CELL_SIZE);
     const cy = Math.floor(ny / CELL_SIZE);
     // A ship is pushed over water only (so two ships crossing paths shove each other apart instead of overlapping).
-    if (u.flies || (u.naval ? this.map.isWater(cx, cy) : this.pathfinder.passable(cx, cy, u.swims))) {
+    if (u.flies || (u.naval ? this.map.isWater(cx, cy) : this.pathfinder.passable(cx, cy, u.mobility))) {
       u.px = nx;
       u.py = ny;
       return true;
@@ -3268,9 +3275,9 @@ export class Game {
         return;
       }
       const cell = this.map.cellAt(goal.x, goal.y);
-      const spot = cell ? this.pathfinder.nearestPassable(cell.x, cell.y, 3, undefined, u.swims) : null;
+      const spot = cell ? this.pathfinder.nearestPassable(cell.x, cell.y, 3, undefined, u.mobility) : null;
       if (!spot) return;
-      u.follow(this.paths.find({ x: u.px, y: u.py }, spot, u.swims));
+      u.follow(this.paths.find({ x: u.px, y: u.py }, spot, u.mobility));
     });
   }
 
@@ -3335,7 +3342,7 @@ export class Game {
       claimed.push(spot);
       const cell = this.map.cellAt(spot.x, spot.y);
       if (!cell) continue;
-      const path = this.paths.find({ x: u.px, y: u.py }, cell, u.swims);
+      const path = this.paths.find({ x: u.px, y: u.py }, cell, u.mobility);
       const last = path[path.length - 1];
       if (last) {
         last.x = spot.x;
@@ -4156,18 +4163,29 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
 
   /** A new aircraft (fighter or transport) appears parked on a free spot of its airfield's apron. */
   private spawnAircraft(player: PlayerState, kind: VehicleKind, producer: Building, prefer = -1, faction: FactionId = player.faction as FactionId): Vehicle | null {
-    // A helicopter takes no parking spot: it sets down on open ground beside its airfield, like a vehicle rolling out.
+    // A helicopter takes no parking spot: it sets down on free open ground beside the nation's War Factory (beside the
+    // airfield when there is no factory), never on top of another unit.
     if (kind === 'heli') {
-      const f = producer.footprintWorld();
+      const site = this.production.producerOf(player, 'warFactory') ?? producer;
+      const f = site.footprintWorld();
       const probe = new Vehicle(player.id, faction, kind, { x: f.x + f.w + CELL_SIZE, y: f.y + f.h / 2 });
-      const spot = this.landingSpot(probe.px, probe.py, probe) ?? this.landingSpot(f.x - CELL_SIZE, f.y + f.h / 2, probe);
+      const start = { x: f.x + f.w + CELL_SIZE * 1.5, y: f.y + f.h / 2 };
+      const others = this.entities.fieldMovers().filter((m) => m.alive && !m.flies);
+      let spot: WorldPoint | null = null;
+      for (let k = 0; k < 200 && !spot; k++) {
+        const off = spiralOffset(k, CELL_SIZE * 1.2);
+        const at = this.landingSpot(start.x + off.x, start.y + off.y, probe);
+        if (!at || this.entities.buildings().some((b) => b.alive && distanceTo(at.x, at.y, b) < probe.radius + 2)) continue;
+        if (others.some((m) => Math.hypot(m.px - at.x, m.py - at.y) < m.radius + probe.radius + VEHICLE_GAP)) continue;
+        spot = at;
+      }
       if (spot) {
         const heli = this.entities.add(new Vehicle(player.id, faction, kind, spot));
         heli.flight = 'landed';
         heli.altitude = 0;
         heli.homeId = producer.id;
         heli.heading = this.airfieldGeometry(producer).heading;
-        if (player.id === this.localId) this.sidebar.notify(t('{name} has landed beside the airfield.', { name: heli.name }));
+        if (player.id === this.localId) this.sidebar.notify(t('{name} has landed beside the War Factory.', { name: heli.name }));
         return heli;
       }
     }
@@ -4365,7 +4383,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
         if (!spot) continue;
         const cell = this.map.cellAt(spot.x, spot.y);
         if (!cell) continue;
-        const path = this.paths.find({ x: o.px, y: o.py }, cell, o.swims);
+        const path = this.paths.find({ x: o.px, y: o.py }, cell, o.mobility);
         const last = path[path.length - 1];
         if (last) {
           last.x = spot.x;
@@ -4404,18 +4422,18 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       }
       const next = u.waypoints()[0];
       const nextCell = next ? this.map.cellAt(next.x, next.y) : null;
-      const blocked = nextCell !== null && !this.pathfinder.passable(nextCell.x, nextCell.y, u.swims);
+      const blocked = nextCell !== null && !this.pathfinder.passable(nextCell.x, nextCell.y, u.mobility);
       if (!u.needsRepath && !blocked) continue;
       const dest = u.destination;
       const cell = this.map.cellAt(dest.x, dest.y);
       if (!cell) continue;
       budget--;
-      const goal = this.pathfinder.passable(cell.x, cell.y, u.swims) ? cell : this.pathfinder.nearestPassable(cell.x, cell.y, 6, undefined, u.swims);
+      const goal = this.pathfinder.passable(cell.x, cell.y, u.mobility) ? cell : this.pathfinder.nearestPassable(cell.x, cell.y, 6, undefined, u.mobility);
       if (!goal) {
         u.stop();
         continue;
       }
-      const path = this.paths.find({ x: u.px, y: u.py }, goal, u.swims);
+      const path = this.paths.find({ x: u.px, y: u.py }, goal, u.mobility);
       // No way on from here: stop instead of being re-routed again every pass.
       if (path.length <= 1) {
         u.stop();
@@ -4452,9 +4470,9 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       return true;
     }
     const cell = this.map.cellAt(r.x, r.y);
-    const goal = cell && (this.pathfinder.passable(cell.x, cell.y, unit.swims) ? cell : this.pathfinder.nearestPassable(cell.x, cell.y, 6, undefined, unit.swims));
+    const goal = cell && (this.pathfinder.passable(cell.x, cell.y, unit.mobility) ? cell : this.pathfinder.nearestPassable(cell.x, cell.y, 6, undefined, unit.mobility));
     if (!goal) return false;
-    const path = this.paths.find({ x: unit.px, y: unit.py }, goal, unit.swims);
+    const path = this.paths.find({ x: unit.px, y: unit.py }, goal, unit.mobility);
     const last = path[path.length - 1];
     if (last && cell && goal.x === cell.x && goal.y === cell.y) {
       last.x = r.x;
@@ -4487,7 +4505,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     const spot = this.parkingSpot(producer, unit);
     const cell = spot ? this.map.cellAt(spot.x, spot.y) : null;
     if (spot && cell) {
-      const path = this.paths.find({ x: unit.px, y: unit.py }, cell);
+      const path = this.paths.find({ x: unit.px, y: unit.py }, cell, unit.mobility);
       const last = path[path.length - 1];
       if (last) {
         last.x = spot.x;
@@ -4519,7 +4537,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       const spot = this.parkingSpot(producer, m);
       const cell = spot ? this.map.cellAt(spot.x, spot.y) : null;
       if (!spot || !cell) continue;
-      const path = this.paths.find({ x: m.px, y: m.py }, cell);
+      const path = this.paths.find({ x: m.px, y: m.py }, cell, m.mobility);
       const last = path[path.length - 1];
       if (last) {
         last.x = spot.x;
@@ -4622,14 +4640,14 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     let slot = 0;
     for (; slot < slots.length; slot++) {
       const at = slots[slot];
-      if (at && !used.has(slot) && this.pathfinder.passable(Math.floor(at.x / CELL_SIZE), Math.floor(at.y / CELL_SIZE), unit.swims)) break;
+      if (at && !used.has(slot) && this.pathfinder.passable(Math.floor(at.x / CELL_SIZE), Math.floor(at.y / CELL_SIZE), unit.mobility)) break;
     }
     const spot = slots[slot];
     const slotX = spot?.x ?? unit.px;
     const slotY = spot?.y ?? unit.py;
     const slotCell = { x: Math.floor(slotX / CELL_SIZE), y: Math.floor(slotY / CELL_SIZE) };
     if (spot) {
-      const path = this.paths.find({ x: unit.px, y: unit.py }, slotCell, unit.swims);
+      const path = this.paths.find({ x: unit.px, y: unit.py }, slotCell, unit.mobility);
       const last = path[path.length - 1];
       // The slot cell is the goal, so snap the last waypoint to the exact slot spot.
       if (last && Math.floor(last.x / CELL_SIZE) === slotCell.x && Math.floor(last.y / CELL_SIZE) === slotCell.y) {
@@ -4678,11 +4696,11 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
   private walkToDoor(u: Infantry, b: Building): boolean {
     const door = this.doorPoint(b);
     let cell = this.map.cellAt(door.x, door.y);
-    if (!cell || !this.pathfinder.passable(cell.x, cell.y, u.swims)) {
-      cell = this.pathfinder.nearestPassable(cell?.x ?? b.x, cell?.y ?? b.y + b.d, 8, undefined, u.swims);
+    if (!cell || !this.pathfinder.passable(cell.x, cell.y, u.mobility)) {
+      cell = this.pathfinder.nearestPassable(cell?.x ?? b.x, cell?.y ?? b.y + b.d, 8, undefined, u.mobility);
     }
     if (!cell) return false;
-    const path = this.paths.find({ x: u.px, y: u.py }, cell, u.swims);
+    const path = this.paths.find({ x: u.px, y: u.py }, cell, u.mobility);
     const last = path[path.length - 1];
     // Stand exactly on the door spot when it lies in the goal cell.
     if (last && Math.floor(door.x / CELL_SIZE) === cell.x && Math.floor(door.y / CELL_SIZE) === cell.y) {
@@ -4858,7 +4876,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     if (!(target instanceof Unit)) return;
     const cell = this.map.cellAt(target.px, target.py);
     if (!cell) return;
-    const path = this.paths.find({ x: u.px, y: u.py }, cell, u.swims);
+    const path = this.paths.find({ x: u.px, y: u.py }, cell, u.mobility);
     const last = path[path.length - 1];
     if (last) {
       last.x = target.px;
@@ -5226,7 +5244,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     out.forEach((u, k) => {
       const off = spiralOffset(k, UNIT_SPACING * 1.15);
       const base = { x: (b.x + b.w / 2) * CELL_SIZE + off.x, y: (b.y + b.d + 1.2) * CELL_SIZE + off.y };
-      const cell = this.pathfinder.nearestPassable(Math.floor(base.x / CELL_SIZE), Math.floor(base.y / CELL_SIZE), 8, undefined, u.swims);
+      const cell = this.pathfinder.nearestPassable(Math.floor(base.x / CELL_SIZE), Math.floor(base.y / CELL_SIZE), 8, undefined, u.mobility);
       u.px = cell ? (cell.x + 0.5) * CELL_SIZE : base.x;
       u.py = cell ? (cell.y + 0.5) * CELL_SIZE : base.y;
       u.insideId = null;
@@ -5353,13 +5371,13 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
           continue;
         }
         let cell = this.map.cellAt(goal.x, goal.y);
-        if (!cell || !this.pathfinder.passable(cell.x, cell.y, u.swims)) {
-          const near = this.pathfinder.nearestPassable(cell?.x ?? 0, cell?.y ?? 0, 10, undefined, u.swims);
+        if (!cell || !this.pathfinder.passable(cell.x, cell.y, u.mobility)) {
+          const near = this.pathfinder.nearestPassable(cell?.x ?? 0, cell?.y ?? 0, 10, undefined, u.mobility);
           if (!near) continue;
           cell = near;
           goal = { x: (near.x + 0.5) * CELL_SIZE, y: (near.y + 0.5) * CELL_SIZE };
         }
-        const leg = this.paths.find(from, cell, u.swims);
+        const leg = this.paths.find(from, cell, u.mobility);
         const last = leg[leg.length - 1];
         if (last) {
           last.x = goal.x;
@@ -5387,7 +5405,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     const x1 = Math.floor((p.x + r) / CELL_SIZE);
     const y0 = Math.floor((p.y - r) / CELL_SIZE);
     const y1 = Math.floor((p.y + r) / CELL_SIZE);
-    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) if (!this.pathfinder.passable(x, y, u.swims)) return false;
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) if (!this.pathfinder.passable(x, y, u.mobility)) return false;
     return true;
   }
 
@@ -5398,7 +5416,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     for (const off of STAND_OFFSETS) {
       const p = { x: goal.x + off.x, y: goal.y + off.y };
       const cell = this.map.cellAt(p.x, p.y);
-      if (!cell || !this.pathfinder.passable(cell.x, cell.y, u.swims)) continue;
+      if (!cell || !this.pathfinder.passable(cell.x, cell.y, u.mobility)) continue;
       // The whole hull must fit: no part of it may hang over a building, water or the map edge.
       if (!this.hullFits(p, u)) continue;
       // Stationary units hold their ground; a moving one counts by where it is heading.
@@ -5528,9 +5546,10 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     const group = this.nextRetreatGroup++;
     // Spots already handed out in this order: no two units of the group are sent to the same place.
     const claimed: WorldPoint[] = [];
-    // Ground units of the order, by whether they swim: each set shares one flow field (PathService).
+    // Ground units of the order, by how they move (walk / swim / drive): each set shares one flow field (PathService).
     const walkers: (GroupMember & { ticket: number; facing: number })[] = [];
     const swimmers: (GroupMember & { ticket: number; facing: number })[] = [];
+    const drivers: (GroupMember & { ticket: number; facing: number })[] = [];
     // RA2 formation: the ground units line up side by side across the way the group travels (front row first,
     // further rows behind it) and all end up facing that way — never nose to nose.
     const ground = units.filter((u) => !u.aircraft);
@@ -5595,12 +5614,12 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       else u.stop();
       // Waiting for its route: nothing else (pulling over, an automatic bomb run) may take the unit over meanwhile.
       u.routePending = true;
-      (u.swims ? swimmers : walkers).push({ unit: u, goal, cell, ticket: u.pathTicket, facing });
+      (u.mobility === 'vehicle' ? drivers : u.swims ? swimmers : walkers).push({ unit: u, goal, cell, ticket: u.pathTicket, facing });
     });
-    for (const members of [walkers, swimmers]) {
+    for (const members of [walkers, swimmers, drivers]) {
       const lead = members[0];
       if (!lead) continue;
-      const swim = lead.unit.swims;
+      const swim = lead.unit.mobility;
       this.paths.schedule(
         this.paths.groupJob(members, lead.cell, swim, (m, path) => {
           const mm = m as (typeof members)[number];

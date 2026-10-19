@@ -30,6 +30,10 @@ const STEP = DIRS.map((d) => d[2]);
  * cutting). Buildings block; water blocks walkers but not swimmers (special
  * forces); trees only cost more.
  */
+/** How a unit gets about: false = walks, true = walks and swims (special forces), 'vehicle' = ground vehicle (no trees, no
+ * mountain except its trails). */
+export type Mobility = boolean | 'vehicle';
+
 /** Search budget of a sea route (oceans are wide; a ship's order is rare). */
 const NAVAL_EXPANSIONS = 400_000;
 
@@ -51,9 +55,11 @@ export class Pathfinder {
     this.closed = new Uint32Array(n);
   }
 
-  passable(x: number, y: number, swim = false): boolean {
+  passable(x: number, y: number, swim: Mobility = false): boolean {
     if (!this.map.inBounds(x, y) || this.map.occupantAt(x, y) !== null || this.map.isRockWall(x, y)) return false;
-    return !this.map.isWater(x, y) || (swim && (this.swimmable()[this.map.index(x, y)] ?? 0) === 1);
+    // Ground vehicles never drive over trees or a mountain, except along its trails (passes).
+    if (swim === 'vehicle' && (this.map.hasTrees(x, y) || this.map.isMountain(x, y) && this.map.mountain[this.map.index(x, y)] !== MOUNTAIN_PASS)) return false;
+    return !this.map.isWater(x, y) || (swim === true && (this.swimmable()[this.map.index(x, y)] ?? 0) === 1);
   }
 
   /** World px (x, y) on a mountain ledge (high ground)? */
@@ -142,7 +148,7 @@ export class Pathfinder {
   }
 
   /** Nearest passable cell to (x, y) within `radius`, excluding `taken`. */
-  nearestPassable(x: number, y: number, radius = 8, taken?: ReadonlySet<number>, swim = false): GridPoint | null {
+  nearestPassable(x: number, y: number, radius = 8, taken?: ReadonlySet<number>, swim: Mobility = false): GridPoint | null {
     for (let r = 0; r <= radius; r++) {
       let best: GridPoint | null = null;
       let bestD = Infinity;
@@ -168,7 +174,7 @@ export class Pathfinder {
    * Path of world-px waypoints (cell centres) from `start` to `goal`. If the
    * goal is unreachable, returns a path to the closest reachable cell.
    */
-  find(start: WorldPoint, goal: GridPoint, swim = false, corridor: Corridor | null = null, budget = MAX_EXPANSIONS): WorldPoint[] {
+  find(start: WorldPoint, goal: GridPoint, swim: Mobility = false, corridor: Corridor | null = null, budget = MAX_EXPANSIONS): WorldPoint[] {
     const { map } = this;
     const W = map.width;
     const H = map.height;
@@ -185,8 +191,14 @@ export class Pathfinder {
     const { g, stamp, closed } = this;
     const open = this.heap;
     open.clear();
-    const swimCells = swim ? this.swimmable() : null;
-    const free = (i: number): boolean => (types[i] !== 0 || (swimCells !== null && swimCells[i] === 1)) && occupied[i] === 0 && mountain[i] !== MOUNTAIN_CREST;
+    const swimCells = swim === true ? this.swimmable() : null;
+    const vehicle = swim === 'vehicle';
+    const free = (i: number): boolean =>
+      (types[i] !== 0 || (swimCells !== null && swimCells[i] === 1)) &&
+      occupied[i] === 0 &&
+      mountain[i] !== MOUNTAIN_CREST &&
+      // Ground vehicles: no trees, no mountain cells but the trails (passes).
+      (!vehicle || ((trees[i] ?? 0) === 0 && ((mountain[i] ?? 0) === 0 || mountain[i] === MOUNTAIN_PASS)));
     const gx = goal.x;
     const gy = goal.y;
     const h = (x: number, y: number): number => {
@@ -251,7 +263,7 @@ export class Pathfinder {
    * "String pulling": drops every waypoint that has a clear straight line to a
    * later one, so units walk in natural straight lines instead of grid zig-zags.
    */
-  smooth(sx: number, sy: number, pts: readonly GridPoint[], swim: boolean): GridPoint[] {
+  smooth(sx: number, sy: number, pts: readonly GridPoint[], swim: Mobility): GridPoint[] {
     const out: GridPoint[] = [];
     let ax = sx;
     let ay = sy;
@@ -274,7 +286,7 @@ export class Pathfinder {
   }
 
   /** Is the straight line between two cell centres free of obstacles (diagonal squeezes included)? */
-  lineClear(x0: number, y0: number, x1: number, y1: number, swim: boolean): boolean {
+  lineClear(x0: number, y0: number, x1: number, y1: number, swim: Mobility): boolean {
     const dx = x1 - x0;
     const dy = y1 - y0;
     const steps = Math.ceil(Math.max(Math.abs(dx), Math.abs(dy)) * 2);

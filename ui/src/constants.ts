@@ -27,7 +27,7 @@ export const DEMO_FACTION = Number(import.meta.env.VITE_DEMO_FACTION) || 2;
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "2.31.0";
+export const GAME_VERSION = "2.33.1";
 
 /** An Allied Building within this many cells of any capital is an embassy; farther out it is a "Pro-<nation> regime". */
 export const EMBASSY_CAPITAL_CELLS = 25;
@@ -398,7 +398,7 @@ export const MOUNTAIN_RANGES: readonly {
     ],
   },
   // Vesi (fictional): one straight wall between Russia / Central Asia and China, from the Pamir (75.44°E 39.87°N) to
-  // the Altai's west end (82.16°E 47.68°N). No pass: armies must march round one of its ends.
+  // the Altai's west end (82.16°E 47.68°N). No trail: armies must march round one of its ends.
   {
     name: "Vesi",
     passes: 0,
@@ -455,7 +455,7 @@ export const MOUNTAIN_RANGES: readonly {
 export const MOUNTAIN_HALF_WIDTH_CELLS = 6;
 export const MOUNTAIN_CREST_CELLS = 1.3;
 /** Passes per range, unless the range sets its own `passes`. */
-export const MOUNTAIN_PASSES = 3;
+export const MOUNTAIN_PASSES = 2;
 export const MOUNTAIN_PASS_CELLS = 3;
 export const MOUNTAIN_PASS_SPEED_INFANTRY = 0.6;
 export const MOUNTAIN_PASS_SPEED_VEHICLE = 0.45;

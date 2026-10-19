@@ -1,3 +1,4 @@
+import type { Mobility } from '../map/Pathfinder';
 import { demoActive } from '../core/Demo';
 import { movesRight } from '../core/IsoView';
 import { BOMB_FALL_SECONDS, HIGH_GROUND_DAMAGE, HIGH_GROUND_RANGE, LOW_GROUND_DAMAGE, BUNKER_COOLDOWN, BUNKER_DAMAGE, BUNKER_RANGE, BUNKER_VS_VEHICLE, MANTIS_HIT_SHARE, MANTIS_RANGE_CELLS, MANTIS_RANK_BONUS, MANTIS_EVADE_CELLS, HELI_VS_MANTIS_SHARE, JET_VS_MANTIS_SHARE, MANTIS_VS_JET_SHARE, MANTIS_VS_HELI_SHARE, MANTIS_RELOAD, JET_BOMB_VS_STRUCTURE, JET_BOMB_VS_VEHICLE, ACQUIRE_PERIOD, RANK_FIREPOWER, RANK_RELOAD, BOMB_GROUP_RADIUS_CELLS, BOMB_GROUP_SIZE, BOMB_TOUGH_DAMAGE, BOMB_TOUGH_STRUCTURES, BOMBS_PER_DROP, CELL_SIZE, CHASE_GIVE_UP_SECONDS, CHASE_LIMIT_CELLS, CHASE_PERIOD, FIGHT_MEMORY_SECONDS, GUARD_VISION_FACTOR, NEUTRAL_OWNER, RETALIATE_RANGE_FACTOR, WEAPONS, FIGHTER_DRONE_ALERT } from '../constants';
@@ -28,7 +29,7 @@ export interface CombatHooks {
   /** Is this nation's grid short of power (weak or blackout)? Its air-defence vehicles then lose their radar signal. */
   powerShort(owner: number): boolean;
   /** Route planner with the shared caches (an unreachable goal is not flooded again and again). */
-  findPath(start: WorldPoint, goal: GridPoint, swim: boolean): WorldPoint[];
+  findPath(start: WorldPoint, goal: GridPoint, swim: Mobility): WorldPoint[];
 }
 
 /** Two entities are enemies when they belong to different nations (neutral ones are never targets). */
@@ -384,10 +385,10 @@ export class CombatSystem implements GameSystem {
       Math.floor((s.py + (dy / len) * MANTIS_EVADE_CELLS * CELL_SIZE) / CELL_SIZE),
       6,
       undefined,
-      s.swims,
+      s.mobility,
     );
     if (!to) return false;
-    s.follow(this.pathfinder.find({ x: s.px, y: s.py }, to, s.swims));
+    s.follow(this.pathfinder.find({ x: s.px, y: s.py }, to, s.mobility));
     return true;
   }
 
@@ -640,8 +641,8 @@ export class CombatSystem implements GameSystem {
         s.combatTarget = null;
         s.engaged = false;
         s.chasing = false;
-        const back = this.pathfinder.nearestPassable(Math.floor(from.x / CELL_SIZE), Math.floor(from.y / CELL_SIZE), 6, undefined, s.swims);
-        if (back) s.follow(this.pathfinder.find({ x: s.px, y: s.py }, back, s.swims));
+        const back = this.pathfinder.nearestPassable(Math.floor(from.x / CELL_SIZE), Math.floor(from.y / CELL_SIZE), 6, undefined, s.mobility);
+        if (back) s.follow(this.pathfinder.find({ x: s.px, y: s.py }, back, s.mobility));
         else s.stop();
         return;
       }
@@ -660,9 +661,9 @@ export class CombatSystem implements GameSystem {
       return;
     }
     // Nearest standable cell to a point just inside weapon range of the target.
-    const cell = this.pathfinder.nearestPassable(Math.floor(target.x / CELL_SIZE), Math.floor(target.y / CELL_SIZE), 12, undefined, s.swims);
+    const cell = this.pathfinder.nearestPassable(Math.floor(target.x / CELL_SIZE), Math.floor(target.y / CELL_SIZE), 12, undefined, s.mobility);
     if (!cell) return;
-    s.follow(this.pathfinder.find({ x: s.px, y: s.py }, cell, s.swims));
+    s.follow(this.pathfinder.find({ x: s.px, y: s.py }, cell, s.mobility));
   }
 
   /** After a fight, an attack-moving unit carries on to its destination. */
@@ -680,7 +681,7 @@ export class CombatSystem implements GameSystem {
     // A full A* search per call: at most one try per RESUME_RETRY seconds per unit (it used to run every tick).
     if ((this.resumeAt.get(s.id) ?? 0) > this.time) return;
     this.resumeAt.set(s.id, this.time + RESUME_RETRY);
-    const cell = this.pathfinder.nearestPassable(Math.floor(dest.x / CELL_SIZE), Math.floor(dest.y / CELL_SIZE), 10, undefined, s.swims);
+    const cell = this.pathfinder.nearestPassable(Math.floor(dest.x / CELL_SIZE), Math.floor(dest.y / CELL_SIZE), 10, undefined, s.mobility);
     const sx = Math.floor(s.px / CELL_SIZE);
     const sy = Math.floor(s.py / CELL_SIZE);
     // No standable cell there, or across the sea for a unit that cannot swim: the destination cannot be reached.
@@ -688,7 +689,7 @@ export class CombatSystem implements GameSystem {
       s.attackMove = null;
       return;
     }
-    const path = this.hooks.findPath({ x: s.px, y: s.py }, cell, s.swims);
+    const path = this.hooks.findPath({ x: s.px, y: s.py }, cell, s.mobility);
     // Already as close as it can get: the order is done (instead of searching again and again on the spot).
     if (path.length <= 1) {
       s.attackMove = null;

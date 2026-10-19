@@ -125,6 +125,8 @@ export default {
   'Training orders are full ({max}) — one more once an order is done.': 'Hàng chờ huấn luyện đã đầy ({max}) — đặt thêm khi một đơn hoàn tất.',
   'Training cancelled.': 'Đã hủy huấn luyện.',
   "The Global Monitoring Center takes over {n} of {name}'s oil derricks — the oil market is in turmoil.": 'Trung tâm Giám sát Toàn cầu tiếp quản {n} giếng dầu của {name} — thị trường dầu biến động mạnh.',
+  'The {name} is in the air — land it on the ground first, then unload.': '{name} đang bay — hãy cho đáp xuống mặt đất rồi mới thả quân.',
+  '{name} has landed beside the War Factory.': '{name} đã đáp xuống cạnh xưởng xe.',
   'Rally point set.': 'Đã đặt điểm tập kết.',
   'Rally point cleared.': 'Đã xoá điểm tập kết.',
   'No free parking spot on that airfield.': 'Sân bay đó đã hết chỗ đỗ.',

@@ -1,3 +1,4 @@
+import type { Mobility } from '../map/Pathfinder';
 import { CELL_SIZE, RANK_ARMOR, RANK_KILL_MULTIPLES, RANK_SPEED, STEP_PHASE_PER_PX } from '../constants';
 import { movesRight } from '../core/IsoView';
 import type { Allegiance, WeaponSpec, WorldPoint } from '../types';
@@ -163,6 +164,11 @@ export abstract class Unit extends Entity {
   /** Can cross water (special forces, aircraft). */
   get swims(): boolean {
     return false;
+  }
+
+  /** How its routes are found (see Pathfinder Mobility): walker / swimmer here, 'vehicle' for ground vehicles. */
+  get mobility(): Mobility {
+    return this.swims;
   }
 
   /** A ship: moves on open water only (Pathfinder.findNaval), never on land. */

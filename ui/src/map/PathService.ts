@@ -1,7 +1,7 @@
 import { CELL_SIZE, MOUNTAIN_PASS, MOUNTAIN_PATH_COST } from '../constants';
 import type { Unit } from '../entities/Unit';
 import type { GridPoint, WorldPoint } from '../types';
-import { type Corridor, DETOUR_EXPANSIONS, MinHeap, type Pathfinder } from './Pathfinder';
+import { type Corridor, DETOUR_EXPANSIONS, MinHeap, type Mobility, type Pathfinder } from './Pathfinder';
 import type { TileMap } from './TileMap';
 
 /**
@@ -147,8 +147,8 @@ export class PathService {
    * a breadth-first sweep of the cluster graph from the goal, then each start's downhill cluster chain, widened by
    * one cluster all round so the fine search has room to go round obstacles.
    */
-  corridor(starts: readonly GridPoint[], goal: GridPoint, swim: boolean): Corridor | null {
-    if (swim) return null;
+  corridor(starts: readonly GridPoint[], goal: GridPoint, swim: Mobility): Corridor | null {
+    if (swim === true) return null;
     if (starts.every((s) => Math.max(Math.abs(s.x - goal.x), Math.abs(s.y - goal.y)) < SHORT_ROUTE)) return null;
     const n = this.cw * this.ch;
     const hop = new Int32Array(n).fill(-1);
@@ -202,7 +202,7 @@ export class PathService {
    * corridor only adds overhead there); corridors pay off for the group flow fields, which would otherwise flood the
    * whole map.
    */
-  find(start: WorldPoint, goal: GridPoint, swim = false): WorldPoint[] {
+  find(start: WorldPoint, goal: GridPoint, swim: Mobility = false): WorldPoint[] {
     if (!this.map.inBounds(goal.x, goal.y)) return [];
     const key = this.map.index(goal.x, goal.y);
     const now = this.clock();
@@ -226,13 +226,13 @@ export class PathService {
     if (Math.max(Math.abs(sx - goal.x), Math.abs(sy - goal.y)) < SHORT_ROUTE || !this.pathfinder.passable(goal.x, goal.y, swim)) return path;
     // The big search is slow (a frame hitch): never on another landmass (no walking route at all), never again for a
     // goal it just failed on, and at most one per DETOUR_GAP_MS (chases and group orders would otherwise stack them).
-    if (!swim && !this.pathfinder.sameLandmass(sx, sy, goal.x, goal.y)) return path;
+    if (swim !== true && !this.pathfinder.sameLandmass(sx, sy, goal.x, goal.y)) return path;
     if ((this.detourFailed.get(key) ?? 0) > now || now - this.lastDetour < DETOUR_GAP_MS) return path;
     this.lastDetour = now;
     // The long way round is searched only inside the cluster corridor to the goal (a few % of the planet instead of a
     // flood of up to DETOUR_EXPANSIONS cells, which froze the game for a quarter of a second in big late-game wars).
-    const corridor = swim ? null : this.corridor([{ x: sx, y: sy }], goal, swim);
-    const detour = swim || corridor ? this.pathfinder.find(start, goal, swim, corridor, DETOUR_EXPANSIONS / 10) : [];
+    const corridor = swim === true ? null : this.corridor([{ x: sx, y: sy }], goal, swim);
+    const detour = swim === true || corridor ? this.pathfinder.find(start, goal, swim, corridor, DETOUR_EXPANSIONS / 10) : [];
     const dEnd = detour[detour.length - 1];
     if (!dEnd || Math.floor(dEnd.x / CELL_SIZE) !== goal.x || Math.floor(dEnd.y / CELL_SIZE) !== goal.y) {
       if (this.detourFailed.size > 256) this.detourFailed.clear();
@@ -291,7 +291,7 @@ export class PathService {
    * then every member reads its route off the field — downhill from its own cell — plus a short last leg to its own
    * slot. `apply` hands each finished route over (the caller checks the order is still current).
    */
-  *groupJob(members: readonly GroupMember[], target: GridPoint, swim: boolean, apply: (m: GroupMember, path: WorldPoint[]) => void, urgent = false): Generator<void, void, void> {
+  *groupJob(members: readonly GroupMember[], target: GridPoint, swim: Mobility, apply: (m: GroupMember, path: WorldPoint[]) => void, urgent = false): Generator<void, void, void> {
     const field = this.fields[urgent ? 1 : 0];
     // Every member was given another order while this job waited in the queue: nothing left to plan.
     const stale = (): boolean => members.every((m) => m.ticket !== undefined && (m.unit.pathTicket !== m.ticket || !m.unit.alive));
@@ -322,7 +322,7 @@ export class PathService {
   }
 
   /** Dijkstra from `goal` over passable cells (inside the corridor, if any): the distance field, built in slices. */
-  private *buildField(f: FlowField, goal: GridPoint, swim: boolean, corridor: Corridor | null): Generator<void, void, void> {
+  private *buildField(f: FlowField, goal: GridPoint, swim: Mobility, corridor: Corridor | null): Generator<void, void, void> {
     const { map, pathfinder } = this;
     const W = map.width;
     f.run++;

@@ -60,7 +60,7 @@ export interface AircraftHooks {
 }
 
 /** Result of an unload order (U key / Unload button). */
-export type UnloadResult = 'ok' | 'empty' | 'noSpot' | 'busy';
+export type UnloadResult = 'ok' | 'empty' | 'noSpot' | 'busy' | 'airborne';
 
 /** Descent, unloading pause and climb-out of a transport at its drop-off point (seconds). */
 const DESCEND_SECONDS = 1.2;
@@ -455,8 +455,9 @@ export class AircraftSystem implements GameSystem {
     if (!v.aircraft || !v.alive || airfield.owner !== v.owner || !airfield.alive || airfield.spec.type !== 'airfield') return false;
     const slot = this.freeSlot(v.homeId === airfield.id ? v : null, airfield);
     if (slot < 0) return false;
-    // Parked at another airfield: it takes off towards the new one and comes in to land there once airborne.
-    if (v.flight === 'parked' && v.homeId !== airfield.id) {
+    // Parked at another airfield, or (transport aircraft only, not helicopters) set down out in the field: it takes off
+    // towards the airfield and comes in to land there once airborne.
+    if ((v.flight === 'parked' && v.homeId !== airfield.id) || (v.isTransport && v.flight === 'landed' && !v.ejecting)) {
       v.transferTo = airfield.id;
       v.attackTarget = null;
       v.attackMove = null;
@@ -1180,18 +1181,19 @@ export class AircraftSystem implements GameSystem {
   }
 
   /**
-   * Unload order (U key / Unload button): on the ground the passengers step out one by one; in the air the
-   * transport first sets down on the nearest solid ground below it (never on the sea).
+   * Unload order (U key / Unload button / double-click): only a transport aircraft or helicopter standing on the
+   * ground (parked on its apron or landed in the field) lets its passengers out, one by one. In the air the order is
+   * refused ('airborne'): it must be landed first. Player and AI alike.
    */
   requestUnload(v: Vehicle): UnloadResult {
     if (!v.isCarrier || !v.alive || v.cargo.length === 0) return 'empty';
-    if (v.flight === 'parked' || v.flight === 'landed') {
+    if ((v.flight === 'parked' || v.flight === 'landed') && v.altitude <= 0) {
       v.ejecting = true;
       v.ejectClock = 0;
       return 'ok';
     }
-    if (v.flight !== 'airborne' && v.flight !== 'approach') return 'busy';
-    return this.setDown(v, false) ? 'ok' : 'noSpot';
+    if (v.flight === 'airborne' || v.flight === 'approach' || v.flight === 'liftoff' || v.flight === 'crashing') return 'airborne';
+    return 'busy';
   }
 
   /** An airborne transport lands right where it is to take passengers aboard (they walk up to it). False: no ground here. */
