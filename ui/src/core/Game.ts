@@ -1915,6 +1915,38 @@ export class Game {
     return true;
   }
 
+  /**
+   * Repair vehicles (ARV) among `units` are sent to mend `b`, a damaged structure of their own nation (player or AI):
+   * they drive up to its walls and restore REPAIR_VEHICLE_HEAL_SHARE of its health every REPAIR_VEHICLE_INTERVAL s.
+   * False when no repair vehicle is among them or the structure cannot be mended (indestructible, not theirs).
+   */
+  orderMendBuilding(b: Building, units: readonly Unit[]): boolean {
+    if (!b.alive || b.indestructible) return false;
+    const menders = units.filter((u): u is Vehicle => u instanceof Vehicle && u.isRepair && u.alive && u.owner === b.owner);
+    if (menders.length === 0) return false;
+    if (b.hp >= b.maxHp) {
+      if (b.owner === this.humanPlayer.id) this.sidebar.notify(t('The {name} needs no repair.', { name: b.spec.name }));
+      return true;
+    }
+    for (const v of menders) {
+      v.mendArea = null;
+      v.repairTargetId = b.id;
+      v.mendClock = 0;
+      v.mendRepathAt = -Infinity;
+      v.boardTarget = null;
+      v.attackTarget = null;
+      v.attackMove = null;
+      v.task = null;
+      v.parade = null;
+      v.orderFlash = { kind: 'move', at: this.time, target: b };
+    }
+    if (b.owner === this.humanPlayer.id) {
+      const c = b.centerWorld();
+      this.moveMarker = { x: c.x, y: c.y, at: this.time };
+    }
+    return true;
+  }
+
   /** The most damaged own ground vehicle within REPAIR_GROUP_CELLS of `at` (repair vehicles in `skip` excluded), or null. */
   private worstDamagedNear(at: WorldPoint, owner: number, skip: readonly Unit[]): Vehicle | null {
     let best: Vehicle | null = null;
@@ -2131,7 +2163,12 @@ export class Game {
     for (const v of this.entities.vehicles()) {
       v.mending = false;
       if (v.repairTargetId === null) continue;
-      const t = this.entities.get(v.repairTargetId);
+      const tb = this.entities.get(v.repairTargetId);
+      if (tb instanceof Building) {
+        this.mendBuilding(v, tb, dt);
+        continue;
+      }
+      const t = tb;
       if (!v.alive || v.insideId !== null || !(t instanceof Vehicle) || !t.alive || t.aircraft || t.insideId !== null || t.owner !== v.owner || t.hp >= t.maxHp) {
         // Sent to a group: on to the next damaged vehicle there.
         const next = v.alive && v.insideId === null && v.mendArea ? this.worstDamagedNear(v.mendArea, v.owner, [v]) : null;
@@ -2171,6 +2208,43 @@ export class Game {
         v.mendClock -= REPAIR_VEHICLE_INTERVAL;
         t.hp = Math.min(t.maxHp, t.hp + t.maxHp * REPAIR_VEHICLE_HEAL_SHARE);
       }
+    }
+  }
+
+  /** One ARV at work on a structure: drive up to its walls, then mend it until it is whole (or gone / no longer ours). */
+  private mendBuilding(v: Vehicle, b: Building, dt: number): void {
+    if (!v.alive || v.insideId !== null || !b.alive || b.indestructible || b.owner !== v.owner || b.hp >= b.maxHp) {
+      v.repairTargetId = null;
+      if (v.alive && v.insideId === null && v.moving) v.stop();
+      return;
+    }
+    const gap = distanceTo(v.px, v.py, b) - v.radius;
+    if (gap > REPAIR_VEHICLE_RANGE_CELLS * CELL_SIZE * 1.5) {
+      v.mendClock = 0;
+      if (v.moving || this.time - v.mendRepathAt < REPAIR_VEHICLE_REPATH) return;
+      v.mendRepathAt = this.time;
+      // The nearest open cell along its walls (the ARV's own way: no trees, no mountain).
+      const c = b.centerWorld();
+      const here = { x: Math.floor(v.px / CELL_SIZE), y: Math.floor(v.py / CELL_SIZE) };
+      const near = { x: Math.floor((c.x + Math.sign(v.px - c.x) * (b.w * CELL_SIZE) / 2) / CELL_SIZE), y: Math.floor((c.y + Math.sign(v.py - c.y) * (b.d * CELL_SIZE) / 2) / CELL_SIZE) };
+      const cell = this.pathfinder.nearestPassable(near.x, near.y, Math.max(b.w, b.d) + 6, undefined, v.mobility);
+      const path = cell && this.pathfinder.sameLandmass(here.x, here.y, cell.x, cell.y) ? this.paths.find({ x: v.px, y: v.py }, cell, v.mobility) : [];
+      if (path.length === 0) {
+        v.repairTargetId = null; // cannot get there
+        v.stop();
+        return;
+      }
+      v.follow(path);
+      return;
+    }
+    if (v.moving) v.stop();
+    const c = b.centerWorld();
+    v.heading = Math.atan2(c.y - v.py, c.x - v.px);
+    v.mending = true;
+    v.mendClock += dt;
+    if (v.mendClock >= REPAIR_VEHICLE_INTERVAL) {
+      v.mendClock -= REPAIR_VEHICLE_INTERVAL;
+      b.hp = Math.min(b.maxHp, b.hp + b.maxHp * REPAIR_VEHICLE_HEAL_SHARE);
     }
   }
 
@@ -4736,6 +4810,12 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
   private orderOnBuilding(b: Building): boolean {
     const me = this.humanPlayer;
     let ordered = 0;
+    // ARVs selected + click on one of my damaged structures: they drive up and mend it (anyone else selected still
+    // gets the usual order for the structure below).
+    if (b.owner === me.id && this.orderMendBuilding(b, this.selection.selectedUnitList())) {
+      if (this.selection.selectedUnitList().every((u) => u instanceof Vehicle && u.isRepair)) return true;
+      ordered++;
+    }
     // Aircraft selected + click on an own airfield: they come in to land there (from the nearer runway end).
     if (b.owner === me.id && b.spec.type === 'airfield') {
       const planes = this.selection.selectedUnitList().filter((u): u is Vehicle => u instanceof Vehicle && u.aircraft);

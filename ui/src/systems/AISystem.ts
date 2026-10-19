@@ -44,6 +44,7 @@ export interface AIHost {
   orderRepair(u: Infantry, b: Building): void;
   /** Sends repair vehicles (ARV) among `units` to mend a damaged friendly ground vehicle. */
   orderMend(target: Vehicle, units: readonly Unit[]): boolean;
+  orderMendBuilding(b: Building, units: readonly Unit[]): boolean;
   /** Soldiers / vehicles walk to a parked transport and climb aboard. */
   orderBoard(t: Vehicle, riders: Unit[]): boolean;
   /** Sends a kamikaze drone (B-767) to dive into an enemy structure. */
@@ -1134,7 +1135,26 @@ export class AISystem implements GameSystem {
           best = v;
         }
       }
-      if (best && this.host.orderMend(best, [r])) taken.add(best.id);
+      if (best && this.host.orderMend(best, [r])) {
+        taken.add(best.id);
+        continue;
+      }
+      // No damaged vehicle near: the ARV mends the most damaged structure of the nation within reach (calm ones only).
+      let wreck: Building | null = null;
+      let worst = Infinity;
+      for (const b of this.host.entities.buildings()) {
+        if (b.owner !== p.id || !b.alive || b.indestructible || b.hp >= b.maxHp || taken.has(b.id)) continue;
+        if (this.time - b.lastAttackedAt < REPAIR_CALM) continue;
+        const c = b.centerWorld();
+        const d = Math.hypot(c.x - r.px, c.y - r.py);
+        if (d > reach) continue;
+        const score = (b.hp / b.maxHp) * reach + d;
+        if (score < worst) {
+          worst = score;
+          wreck = b;
+        }
+      }
+      if (wreck && this.host.orderMendBuilding(wreck, [r])) taken.add(wreck.id);
     }
   }
 
