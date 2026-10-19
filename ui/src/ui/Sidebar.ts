@@ -24,6 +24,8 @@ export interface TransportInfo {
   /** Units still walking up to climb aboard. */
   incoming: number;
   state: CarrierState;
+  /** False while an aircraft is off the ground (taking off, flying, landing): Unload is refused then. */
+  canUnload: boolean;
 }
 
 /** The selected own aircraft, for the Aircraft panel (Turbo button). */
@@ -577,7 +579,7 @@ export class Sidebar {
     this.renderAircraft(model.aircraft);
     // Unload works only for a carrier with someone aboard (a fighter / bomber has no seats).
     const carrier = model.transport;
-    this.unloadButton.disabled = !carrier || carrier.soldiers + carrier.vehicles === 0 || carrier.state === 'unloading';
+    this.unloadButton.disabled = !carrier || carrier.soldiers + carrier.vehicles === 0 || carrier.state === 'unloading' || !carrier.canUnload;
     this.unloadButton.classList.toggle('lit', !this.unloadButton.disabled);
 
     // POWER: what the nuclear plants can generate / what the structures need (J/s); red while short.

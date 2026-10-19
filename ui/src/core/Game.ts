@@ -1774,6 +1774,8 @@ export class Game {
       vehicleCapacity: t.vehicleCapacity,
       incoming: t.incoming,
       state: t.carrierState,
+      // Same rule as AircraftSystem.requestUnload: an aircraft unloads only standing on the ground.
+      canUnload: !t.aircraft || ((t.flight === 'parked' || t.flight === 'landed') && t.altitude <= 0),
     };
   }
 
