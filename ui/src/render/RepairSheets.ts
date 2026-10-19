@@ -1,19 +1,15 @@
 import { ISO_X, ISO_Y } from '../constants';
 import type { Vehicle } from '../entities/Vehicle';
 import type { FactionId } from '../types';
-import { buildArvSheet } from './ArvModel';
+import { ARV_CELL, arvCell } from './ArvModel';
 
 /**
- * Armoured recovery vehicle sheets, built at start from the 3D ARV model (ArvModel): 16 × 15 cells of 80 px, hull centre in the middle of each cell.
- * 32 screen headings, clockwise from N: headings 0–15 sit in a row pair's first row, 16–31 in its second.
- * Row pairs 0, 2, 4, 6: hull track frames A–D; pair 8: hull shadow (dark, semi-transparent).
- * Rows 10–13: crane at work with sparks, 8 frames for each of 8 headings (N, NE | E, SE | S, SW | W, NW, two per row).
- * Row 14: the burning wreck for the 8 headings (N, NE, … NW), then 8 explosion frames.
+ * Armoured recovery vehicles: every nation's ARV is the detailed polygon model in ArvModel, rendered on demand into
+ * cached ARV_CELL px pictures (ground centre in the middle): 32 screen headings with 4 track frames and a shadow,
+ * 8 work headings × 8 crane frames (sparks), the burning wreck for 8 headings and 8 explosion frames.
  */
-const CELL = 80;
 const DIRS = 32;
-const PER_ROW = 16;
-const ROW = { hull: [0, 2, 4, 6], shadow: 8, work: 10, wreck: 14 } as const;
+const TRACK_FRAMES = 4;
 const WORK_FRAMES = 8;
 const WORK_FRAME_SECONDS = 0.12;
 const TRACK_FRAME_SECONDS = 0.15;
@@ -22,40 +18,21 @@ const BLOW_FRAMES = 8;
 const BLOW_FRAME_SECONDS = 0.1;
 const FADE_SECONDS = 0.8;
 export const REPAIR_DEATH_SECONDS = 4.5;
+/** Iso px per cell px: side-on the hull spans ≈ 34 cell px, drawn about tank-sized. */
+const SCALE = 0.16;
+const NATIONS: readonly FactionId[] = ['usa', 'russia', 'china', 'europe', 'islamic'];
 
-interface RepairSheet {
-  /** The sheet, built from the 3D ARV model (ArvModel) once loadRepairSprites runs. */
-  image: HTMLCanvasElement | null;
-  /** Iso px per sheet px. */
-  readonly scale: number;
-}
-
-// Side-on the hull spans ≈ 34 sheet px, like the tank sheets: drawn about tank-sized.
-/** Every army has its own ARV (its paint and team-colour boom stripe): crawler hull, dozer blade, one long crane. */
-const SHEETS: Partial<Record<FactionId, RepairSheet>> = {
-  usa: { image: null, scale: 0.16 },
-  russia: { image: null, scale: 0.16 },
-  china: { image: null, scale: 0.16 },
-  europe: { image: null, scale: 0.16 },
-  islamic: { image: null, scale: 0.16 },
-};
-
-let loaded: Promise<void> | null = null;
-
-/** Builds (once) every nation's ARV sheet from the 3D model. */
+/** Nothing to download any more (the model is built in code); kept so the loaders stay uniform. */
 export function loadRepairSprites(): Promise<void> {
-  loaded ??= Promise.resolve().then(() => {
-    for (const [f, sh] of Object.entries(SHEETS)) if (sh) sh.image = buildArvSheet(f as FactionId);
-  });
-  return loaded;
+  return Promise.resolve();
 }
 
-/** True when `faction` has a repair vehicle sheet (its repair vehicles die with the sheet's wreck animation). */
+/** True when `faction` has an ARV model (its repair vehicles die with the wreck animation). */
 export function hasRepairSheet(faction: FactionId): boolean {
-  return SHEETS[faction] !== undefined;
+  return NATIONS.includes(faction);
 }
 
-/** Sheet direction (0–31) for a world heading: its direction on screen, clockwise from straight up. */
+/** Direction (0–31) for a world heading: its direction on screen, clockwise from straight up. */
 function direction(heading: number): number {
   const c = Math.cos(heading);
   const s = Math.sin(heading);
@@ -63,71 +40,58 @@ function direction(heading: number): number {
   return ((Math.round((a / (Math.PI * 2)) * DIRS) % DIRS) + DIRS) % DIRS;
 }
 
-function ready(faction: FactionId): (RepairSheet & { image: HTMLCanvasElement }) | null {
-  const sh = SHEETS[faction];
-  return sh && sh.image ? { image: sh.image, scale: sh.scale } : null;
-}
-
 /**
- * Draws a repair vehicle from its faction's sheet with its ground point at (x, y) in iso px: the crane animation
- * while it is mending, the hull with its track frames otherwise. Returns false when there is no loaded sheet.
+ * Draws a repair vehicle with its ground point at (x, y) in iso px: the crane animation while it is mending, the hull
+ * with its track frames otherwise. Returns false for a nation without an ARV model.
  */
 export function drawRepairSheet(ctx: CanvasRenderingContext2D, v: Vehicle, x: number, y: number): boolean {
   if (v.type !== 'repair') return false;
-  const sh = ready(v.faction as FactionId);
-  if (!sh) return false;
-  const img = sh.image;
+  const f = v.faction as FactionId;
+  if (!hasRepairSheet(f)) return false;
   const d = direction(v.heading);
-  const size = CELL * sh.scale;
+  const size = ARV_CELL * SCALE;
   const half = size / 2;
-  const blit = (col: number, row: number): void => ctx.drawImage(img, col * CELL, row * CELL, CELL, CELL, x - half, y - half, size, size);
   const prevSmooth = ctx.imageSmoothingEnabled;
   ctx.imageSmoothingEnabled = true;
-  // Shadow at reduced alpha: set and put back directly (cheaper than save/restore for every vehicle every frame).
   const alpha = ctx.globalAlpha;
   ctx.globalAlpha = 0.35;
-  blit(d % PER_ROW, ROW.shadow + Math.floor(d / PER_ROW));
+  ctx.drawImage(arvCell(f, { kind: 'shadow', dir: d }), x - half, y - half, size, size);
   ctx.globalAlpha = alpha;
   if (v.mending) {
-    // 8 work headings: every 4th of the 32 sheet directions.
+    // 8 work headings: every 4th of the 32 directions.
     const d8 = Math.round(d / 4) % 8;
     const frame = Math.floor(performance.now() / 1000 / WORK_FRAME_SECONDS) % WORK_FRAMES;
-    blit((d8 % 2) * WORK_FRAMES + frame, ROW.work + Math.floor(d8 / 2));
+    ctx.drawImage(arvCell(f, { kind: 'work', dir: d8 * 4, frame }), x - half, y - half, size, size);
   } else {
-    const track = v.moving ? Math.floor(((v.walkPhase % 0.6) + 0.6) % 0.6 / TRACK_FRAME_SECONDS) % ROW.hull.length : 0;
-    blit(d % PER_ROW, (ROW.hull[track] ?? ROW.hull[0]) + Math.floor(d / PER_ROW));
+    const track = v.moving ? Math.floor((((v.walkPhase % 0.6) + 0.6) % 0.6) / TRACK_FRAME_SECONDS) % TRACK_FRAMES : 0;
+    ctx.drawImage(arvCell(f, { kind: 'drive', dir: d, frame: track }), x - half, y - half, size, size);
   }
   ctx.imageSmoothingEnabled = prevSmooth;
   return true;
 }
 
-/** Sidebar cameo from the faction's repair vehicle sheet (`heading` world radians). Returns false when there is none. */
+/** Sidebar cameo of the nation's ARV (`heading` world radians). Returns false when there is none. */
 export function drawRepairPortrait(ctx: CanvasRenderingContext2D, faction: FactionId, w: number, h: number, heading: number): boolean {
-  const sh = ready(faction);
-  if (!sh) return false;
-  const d = direction(heading);
+  if (!hasRepairSheet(faction)) return false;
   const size = Math.min(w, h) * 1.6;
   ctx.save();
   ctx.imageSmoothingEnabled = true;
-  ctx.drawImage(sh.image, (d % PER_ROW) * CELL, (ROW.hull[0] + Math.floor(d / PER_ROW)) * CELL, CELL, CELL, (w - size) / 2, (h - size) / 2, size, size);
+  ctx.drawImage(arvCell(faction, { kind: 'drive', dir: direction(heading), frame: 0 }), (w - size) / 2, (h - size) / 2, size, size);
   ctx.restore();
   return true;
 }
 
 /** Draws a repair vehicle's death (`age` s into a `ttl` s effect, world `heading`) at iso ground point (x, y): blast, then a burning wreck. */
 export function drawRepairDeath(ctx: CanvasRenderingContext2D, faction: FactionId, heading: number, x: number, y: number, age: number, ttl: number): void {
-  const sh = ready(faction);
-  if (!sh) return;
-  const blowEnd = BLOW_FRAMES * BLOW_FRAME_SECONDS;
-  const wreckCol = Math.round(direction(heading) / 4) % 8;
-  const size = CELL * sh.scale;
+  if (!hasRepairSheet(faction)) return;
+  const size = ARV_CELL * SCALE;
   const half = size / 2;
   const prevSmooth = ctx.imageSmoothingEnabled;
   const prevAlpha = ctx.globalAlpha;
   ctx.imageSmoothingEnabled = true;
   ctx.globalAlpha = Math.max(0, Math.min(1, (ttl - age) / FADE_SECONDS));
-  ctx.drawImage(sh.image, wreckCol * CELL, ROW.wreck * CELL, CELL, CELL, x - half, y - half, size, size);
-  if (age < blowEnd) ctx.drawImage(sh.image, (BLOW_FRAMES + Math.floor(age / BLOW_FRAME_SECONDS)) * CELL, ROW.wreck * CELL, CELL, CELL, x - half, y - half, size, size);
+  ctx.drawImage(arvCell(faction, { kind: 'wreck', dir: (Math.round(direction(heading) / 4) % 8) * 4 }), x - half, y - half, size, size);
+  if (age < BLOW_FRAMES * BLOW_FRAME_SECONDS) ctx.drawImage(arvCell(faction, { kind: 'blast', frame: Math.floor(age / BLOW_FRAME_SECONDS) }), x - half, y - half, size, size);
   ctx.globalAlpha = prevAlpha;
   ctx.imageSmoothingEnabled = prevSmooth;
 }
