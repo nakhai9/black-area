@@ -151,7 +151,11 @@ const TRANSPORT_LOAD = 12;
  * flies a Squatters team to unclaimed land and raises an Allied Building there (at most MAX_ALLIES).
  */
 const CLAIM_FROM = 120;
-const CLAIM_MIN_CREDITS = 2500;
+const CLAIM_MIN_CREDITS = 1800;
+/** Squatters are still sent out with up to this many enemy units near the capital (a skirmish does not stop expansion). */
+const CLAIM_MAX_THREAT = 3;
+/** Score added to a claim site across the sea (cells), so the home landmass is filled first. */
+const CLAIM_OVERSEAS_PENALTY = 150;
 /** A claim is kept at least this far (cells) from any enemy structure, and from every other claim. */
 const CLAIM_ENEMY_GAP = 18;
 const CLAIM_SPACING = 30;
@@ -441,7 +445,7 @@ export class AISystem implements GameSystem {
     this.sellOil(p, st);
     this.build(p, st, capital, owned, threat);
     this.train(p, st, owned, threat);
-    this.repairBase(p, owned);
+    this.repairBase(p, st, owned);
     this.mendFleet(p);
     this.claimLand(p, st, capital, owned, threat);
     // Ceasefire: the nation only builds up (economy, base, army) and launches no attack until the war resumes.
@@ -701,7 +705,7 @@ export class AISystem implements GameSystem {
       this.host.orderAttackMove([t], this.safeDrop(p, { x: (st.claimSite.x + 0.5) * CELL_SIZE, y: (st.claimSite.y + 0.5) * CELL_SIZE }));
     }
     const wanted = this.host.alliesOf(p) + this.openClaims(p).length < MAX_ALLIES;
-    if (!wanted || teams.length > 0 || aboard.length > 0 || threat > 0 || this.time < CLAIM_FROM) return;
+    if (!wanted || teams.length > 0 || aboard.length > 0 || threat > CLAIM_MAX_THREAT || this.time < CLAIM_FROM) return;
     if (!owned.has('barracks') || p.credits < CLAIM_MIN_CREDITS || p.debt > 0) return;
     if (this.host.training.queue(p).items.includes('squatters')) return;
     st.claimSite = this.pickClaimSite(p, st, capital);
@@ -742,6 +746,9 @@ export class AISystem implements GameSystem {
     const economy = enemy.filter((b) => ECONOMY_TYPES.has(b.spec.type));
     const claims = buildings.filter((b) => (b.spec.type === 'flagpole' || b.spec.type === 'alliedBuilding') && isClaimable(map, b.x, b.y));
     const home = { x: capital.x + capital.w / 2, y: capital.y + capital.d / 2 };
+    const pf = this.host.pathfinder;
+    const door = pf.nearestPassable(capital.x + Math.floor(capital.w / 2), capital.y + capital.d, 8);
+    const canFly = this.host.ownedTypesOf(p).has('airfield');
     // Nearest-structure lookups through a coarse bucket grid: the whole-map scan times every enemy structure grew
     // with the war and froze the game for a tenth of a second late on.
     const nearestOf = this.nearestFinder(enemy, map.width, map.height);
@@ -762,7 +769,10 @@ export class AISystem implements GameSystem {
       if (!Number.isFinite(nearEconomy)) nearEconomy = nearEnemy;
       // As close to a rival as the rules allow (its structures and above all its economy are threatened), the trip
       // only a small tie-breaker; a little randomness so every AI plays differently.
-      const score = nearEnemy + 0.5 * nearEconomy + 0.1 * Math.hypot(x - home.x, y - home.y) + st.rng() * 6;
+      // A site across the sea needs a free transport: only without an Airfield it is out, else it ranks well behind.
+      const overland = door !== null && pf.sameLandmass(door.x, door.y, x, y);
+      if (!overland && !canFly) continue;
+      const score = nearEnemy + 0.5 * nearEconomy + 0.1 * Math.hypot(x - home.x, y - home.y) + st.rng() * 6 + (overland ? 0 : CLAIM_OVERSEAS_PENALTY);
       if (score < bestScore) {
         bestScore = score;
         best = { x, y };
@@ -1093,12 +1103,13 @@ export class AISystem implements GameSystem {
    * The nation trains engineers when it has damaged buildings and none on the way (one per building, max 3),
    * the capital first since it is the most damaged in a siege.
    */
-  private repairBase(p: PlayerState, owned: Set<BuildingType>): void {
+  private repairBase(p: PlayerState, st: AIState, owned: Set<BuildingType>): void {
     const hurt = this.damaged(p);
     if (hurt.length === 0) return;
     const engineers = this.host.entities.fieldUnits().filter((u): u is Infantry => u instanceof Infantry && u.owner === p.id && u.alive && u.isEngineer);
     const covered = new Set(engineers.filter((u) => u.task?.type === 'repair').map((u) => u.task?.buildingId));
-    const free = engineers.filter((u) => u.task === null && u.insideId === null);
+    // The engineer sent to a contested prize stays on that job.
+    const free = engineers.filter((u) => u.task === null && u.insideId === null && u.id !== st.nationEngineer);
     for (const b of hurt) {
       if (covered.has(b.id)) continue;
       const u = free.shift();
@@ -1430,7 +1441,11 @@ export class AISystem implements GameSystem {
       if (this.time < NATION_FROM) return;
       const home = cellOf(capital);
       const homeW = capital.centerWorld();
-      // Order of prizes: Antarctic oil derricks first, then the independent capitals (occupation), richer ones first.
+      // Order of prizes: Antarctic derricks first when the engineer can get there now (on foot, or a free transport
+      // parked at home); otherwise they never hold up the rest: prizes on foot, then overseas. Within a tier the
+      // nearest (free oil, richer capitals pull harder).
+      const canLift = owned.has('airfield') && this.homeTransports(p).some((v) => !this.carriesSquatters(v) && v.cargo.length < TRANSPORT_LOAD);
+      let wantsLift = false;
       let best = Infinity;
       let bestTier = Infinity;
       for (const c of caps) {
@@ -1441,7 +1456,10 @@ export class AISystem implements GameSystem {
         // Across the sea counts as twice as far (it needs an airlift); nobody's capital is easier prey.
         const overland = home !== null && pf.sameLandmass(home.x, home.y, cell.x, cell.y);
         const freeOil = c instanceof OilDerrick && c.owner === NEUTRAL_OWNER;
-        const tier = c instanceof NationCapital ? 1 : 0;
+        const antarctic = c instanceof OilDerrick && c.antarctic;
+        if (antarctic && !overland) wantsLift = true;
+        if (!overland && !owned.has('airfield')) continue;
+        const tier = antarctic && (overland || canLift) ? 0 : overland ? 1 : 2;
         const rich = c instanceof NationCapital ? Math.sqrt(NATION_PRESENCE_FEE / presenceFee(c.nation)) : 1;
         const score = Math.hypot(w.x - homeW.x, w.y - homeW.y) * (overland ? 1 : 2) * (c.owner === NEUTRAL_OWNER ? 0.8 : 1) * (freeOil ? FREE_OIL_PULL : 1) * rich;
         if (tier < bestTier || (tier === bestTier && score < best)) {
@@ -1450,6 +1468,9 @@ export class AISystem implements GameSystem {
           target = c;
         }
       }
+      // Antarctic oil still wanted: get a transport ready so it can be flown in on a later round.
+      if (wantsLift && owned.has('airfield') && !this.host.entities.vehicles().some((v) => v.owner === p.id && v.alive && v.isTransport) && !this.host.production.queue(p).items.includes('transport'))
+        this.host.production.enqueue(p, 'transport');
       if (!target) return;
       st.nationTarget = target.id;
     }
