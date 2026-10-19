@@ -130,6 +130,16 @@ export class IsoPainter {
       top,
       edge,
     );
+    if (tall && !style.right) {
+      // Specular sheen: a soft band of reflected light sliding across the lit (right) face, like polished stone / metal.
+      const [x0] = this.project(u + w, v + d, z);
+      const [x1] = this.project(u + w, v, z);
+      const g = this.ctx.createLinearGradient(x0, 0, x1, 0);
+      g.addColorStop(0, 'rgba(255,255,255,0)');
+      g.addColorStop(0.32, 'rgba(255,252,240,0.16)');
+      g.addColorStop(0.5, 'rgba(255,255,255,0)');
+      this.polygon([[u + w, v, z], [u + w, v + d, z], [u + w, v + d, z1], [u + w, v, z1]], g, null);
+    }
     if (style.edge !== null && tall) {
       // Bevel: light catches the front corner and the top edges.
       const { ctx } = this;
@@ -246,10 +256,12 @@ export class IsoPainter {
     const yt = yb - h;
 
     const g = ctx.createLinearGradient(cx - rx, 0, cx + rx, 0);
-    g.addColorStop(0, shade(color, 0.58));
+    g.addColorStop(0, shade(color, 0.52));
     g.addColorStop(0.6, shade(color, 0.98));
+    // Specular highlight: a narrow bright streak where the key light glances off the curve.
+    g.addColorStop(0.72, shade(color, 1.32));
     g.addColorStop(0.8, shade(color, 1.06));
-    g.addColorStop(1, shade(color, 0.8));
+    g.addColorStop(1, shade(color, 0.76));
 
     ctx.beginPath();
     ctx.moveTo(cx - rx, yt);
@@ -291,9 +303,10 @@ export class IsoPainter {
     const [rx, ry] = this.radii(r);
     const [cx, cy] = this.project(cu, cv, z);
     const g = ctx.createRadialGradient(cx + rx * 0.35, cy - h * 0.65, 1, cx, cy - h * 0.3, rx * 1.3);
-    g.addColorStop(0, shade(color, 1.18));
+    g.addColorStop(0, shade(color, 1.45)); // specular hot spot
+    g.addColorStop(0.18, shade(color, 1.12));
     g.addColorStop(0.5, shade(color, 0.95));
-    g.addColorStop(1, shade(color, 0.6));
+    g.addColorStop(1, shade(color, 0.55));
     ctx.beginPath();
     ctx.moveTo(cx - rx, cy);
     ctx.ellipse(cx, cy, rx, h, 0, Math.PI, Math.PI * 2);

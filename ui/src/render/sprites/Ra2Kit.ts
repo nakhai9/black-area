@@ -111,6 +111,17 @@ export function roofClutter(p: IsoPainter, u: number, v: number, w: number, d: n
       p.box(bu, bv, bw * 0.6, bd * 0.6, z, 4.5, '#8f939a');
     } else {
       p.cylinder(bu + bw / 2, bv + bd / 2, 0.06, z, 4, '#9a9ea4');
+      // Glowing energy-core lamp on top (cyan or amber), with its halo.
+      const [x, y] = p.project(bu + bw / 2, bv + bd / 2, z + 4.6);
+      const glow = rnd(seed, i, 6) < 0.5 ? '120,240,255' : '255,190,90';
+      const g = p.ctx.createRadialGradient(x, y, 0, x, y, 2.6);
+      g.addColorStop(0, `rgba(${glow},0.95)`);
+      g.addColorStop(0.35, `rgba(${glow},0.45)`);
+      g.addColorStop(1, `rgba(${glow},0)`);
+      p.ctx.fillStyle = g;
+      p.ctx.beginPath();
+      p.ctx.arc(x, y, 2.6, 0, Math.PI * 2);
+      p.ctx.fill();
     }
   }
 }

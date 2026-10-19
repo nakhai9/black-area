@@ -162,7 +162,23 @@ export class SpriteCache {
         if (y > maxY) maxY = y;
       }
     }
-    // Structures cast no shadow on the ground.
+    // Sharp cast shadow on the ground (key light from the upper left): the silhouette above the ground line, sheared
+    // to the lower right and laid under the building. Added after the hit mask, so the shadow is never clickable.
+    {
+      const cy = centerY * RASTER_SCALE;
+      const sil = createCanvas(canvas.width, canvas.height);
+      sil.ctx.drawImage(canvas, 0, 0);
+      sil.ctx.globalCompositeOperation = 'source-in';
+      sil.ctx.fillStyle = 'rgb(8,10,14)';
+      sil.ctx.fillRect(0, 0, canvas.width, canvas.height);
+      sil.ctx.clearRect(0, cy, canvas.width, canvas.height - cy);
+      ctx.save();
+      ctx.globalCompositeOperation = 'destination-over';
+      ctx.globalAlpha = 0.34;
+      ctx.setTransform(1, 0, -SHADOW_RUN_X, -SHADOW_RUN_Y, SHADOW_RUN_X * cy, cy * (1 + SHADOW_RUN_Y));
+      ctx.drawImage(sil.canvas, 0, 0);
+      ctx.restore();
+    }
     const bounds: Rect = {
       x: minX / RASTER_SCALE,
       y: minY / RASTER_SCALE,
