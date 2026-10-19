@@ -27,7 +27,7 @@ export const DEMO_FACTION = Number(import.meta.env.VITE_DEMO_FACTION) || 2;
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "2.27.3";
+export const GAME_VERSION = "2.29.4";
 
 /** An Allied Building within this many cells of any capital is an embassy; farther out it is a "Pro-<nation> regime". */
 export const EMBASSY_CAPITAL_CELLS = 25;
@@ -957,7 +957,27 @@ export const CONTESTED_NATIONS: Readonly<
     site: { lon: -82.36, lat: 23.13, name: "Havana" },
   },
 };
+/** Presence fee of an occupied capital with no entry in NATION_PRESENCE_FEES (an unplayed faction's capital). */
 export const NATION_PRESENCE_FEE = 1200;
+/**
+ * Military presence fee (TB per NATION_PRESENCE_PERIOD) by the occupied nation's real economy:
+ * 1200 × √(GDP ÷ 2 000 bn USD, the median of the eight) — rich lands pay more, poor ones still a little.
+ * GDP used (nominal, ~2024, rough): Japan 4 100, UK 3 600, Canada 2 200, Brazil 2 200, Australia 1 800,
+ * South Korea 1 700, Cuba 100, North Korea 30 bn USD. Cuba (560) and North Korea (320) raised by hand.
+ */
+export const NATION_PRESENCE_FEES: Readonly<Record<ContestedNationId, number>> = {
+  japan: 1720,
+  unitedKingdom: 1610,
+  canada: 1260,
+  brazil: 1260,
+  australia: 1140,
+  southKorea: 1110,
+  cuba: 560,
+  northKorea: 320,
+};
+export function presenceFee(nation: string): number {
+  return (NATION_PRESENCE_FEES as Record<string, number>)[nation] ?? NATION_PRESENCE_FEE;
+}
 
 /**
  * Antarctic oil: unowned derricks spread across Antarctica. They pump under the usual oil rules for whoever holds

@@ -1130,7 +1130,7 @@ export class Sidebar {
         <span class="sb-cameo-info"></span>
         <span class="sb-cameo-state"></span>`;
       const canvas = el.querySelector('canvas');
-      if (canvas) drawPreview(canvas, this.handlers.preview(option), '#ffffff');
+      if (canvas) drawPreview(canvas, this.handlers.preview(option), STRUCTURE_CAMEO_BG);
       addInfoIcon(el, option.name);
       if (option.foreign) this.addForeignFlag(el, option.foreign);
       el.addEventListener('click', () => this.handlers.onBuild(option));
@@ -1204,6 +1204,9 @@ function addInfoIcon(el: HTMLElement, name: string): void {
   slot.title = el.title;
   slot.append(createElement(Info, { width: 14, height: 14, 'stroke-width': 2.25, 'aria-hidden': 'true' }));
 }
+
+/** Background of structure cameos: a soft blue-grey (plain white glared). Keep in step with .sb-cameo-structure. */
+const STRUCTURE_CAMEO_BG = '#8e9aa6';
 
 /** Fits a sprite canvas into the cameo picture. */
 /** `background`: a flat fill (structure cameos are on white); soldiers and vehicles keep the dark gradient. */

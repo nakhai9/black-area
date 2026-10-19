@@ -1,4 +1,4 @@
-import { AI_AIR_DEFENCE, AI_AIR_DEFENCE_PER_CITIES, AI_AIR_DEFENCE_RING, AI_BUNKERS, AI_WALL_ALERT_SECONDS, AI_WALL_ENEMY_UNITS, AI_WALL_GAP, AI_WALL_WATCH_CELLS, AI_WALL_RING, AI_WALL_SEGMENT, BUNKER_RANGE, CELL_SIZE, INFANTRY_BASE, INFANTRY_MARCH_CELLS, EMBASSY_CAPITAL_CELLS, MAX_ALLIES, NATION_GARRISON, NATION_GARRISON_CELLS, NEUTRAL_OWNER, OIL_DERRICK_OUTPUT, OIL_LEASE_CARTEL_SHARE, OIL_LEASE_SECONDS, TECH_VEHICLES, TRUCE_ZONE_CELLS, TRUCK_MIN_RIDERS, TRUCK_SOLDIERS } from '../constants';
+import { AI_AIR_DEFENCE, AI_AIR_DEFENCE_PER_CITIES, AI_AIR_DEFENCE_RING, AI_BUNKERS, AI_WALL_ALERT_SECONDS, AI_WALL_ENEMY_UNITS, AI_WALL_GAP, AI_WALL_WATCH_CELLS, AI_WALL_RING, AI_WALL_SEGMENT, BUNKER_RANGE, CELL_SIZE, INFANTRY_BASE, INFANTRY_MARCH_CELLS, EMBASSY_CAPITAL_CELLS, MAX_ALLIES, NATION_GARRISON, NATION_GARRISON_CELLS, NEUTRAL_OWNER, OIL_DERRICK_OUTPUT, OIL_LEASE_CARTEL_SHARE, OIL_LEASE_SECONDS, TECH_VEHICLES, TRUCE_ZONE_CELLS, TRUCK_MIN_RIDERS, TRUCK_SOLDIERS, NATION_PRESENCE_FEE, presenceFee } from '../constants';
 import { FACTIONS } from '../factions';
 import { StructureIndex } from './StructureIndex';
 import { OilDerrick } from '../entities/OilDerrick';
@@ -162,6 +162,7 @@ const ALLIED_SEARCH = 9;
 const ECONOMY_TYPES: ReadonlySet<BuildingType> = new Set(['oilDerrick', 'happyCity', 'powerPlant']);
 /** From this game time on the nation goes after the contested nations' capitals (one at a time). */
 const NATION_FROM = 90;
+
 /** Prizes anyone's engineer may take and the AI goes after / garrisons: contested capitals and Antarctic derricks. */
 const isPrize = (b: Building): boolean => b instanceof NationCapital || (b instanceof OilDerrick && b.antarctic);
 /** Transports look this many cells around their goal for the landing spot least exposed to enemy fire. */
@@ -1406,7 +1407,9 @@ export class AISystem implements GameSystem {
       if (threat > 0 || this.time < NATION_FROM) return;
       const home = cellOf(capital);
       const homeW = capital.centerWorld();
+      // Order of prizes: Antarctic oil derricks first, then the independent capitals (occupation), richer ones first.
       let best = Infinity;
+      let bestTier = Infinity;
       for (const c of caps) {
         if (c.owner === p.id) continue;
         const cell = cellOf(c);
@@ -1415,8 +1418,11 @@ export class AISystem implements GameSystem {
         // Across the sea counts as twice as far (it needs an airlift); nobody's capital is easier prey.
         const overland = home !== null && pf.sameLandmass(home.x, home.y, cell.x, cell.y);
         const freeOil = c instanceof OilDerrick && c.owner === NEUTRAL_OWNER;
-        const score = Math.hypot(w.x - homeW.x, w.y - homeW.y) * (overland ? 1 : 2) * (c.owner === NEUTRAL_OWNER ? 0.8 : 1) * (freeOil ? FREE_OIL_PULL : 1);
-        if (score < best) {
+        const tier = c instanceof NationCapital ? 1 : 0;
+        const rich = c instanceof NationCapital ? Math.sqrt(NATION_PRESENCE_FEE / presenceFee(c.nation)) : 1;
+        const score = Math.hypot(w.x - homeW.x, w.y - homeW.y) * (overland ? 1 : 2) * (c.owner === NEUTRAL_OWNER ? 0.8 : 1) * (freeOil ? FREE_OIL_PULL : 1) * rich;
+        if (tier < bestTier || (tier === bestTier && score < best)) {
+          bestTier = tier;
           best = score;
           target = c;
         }

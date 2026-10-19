@@ -85,7 +85,7 @@ import {
   capitalFootprint,
   FOOTPRINT_GMC,
   type ContestedNationId,
-  NATION_PRESENCE_FEE,
+  presenceFee,
   ANTARCTIC_OIL_SITES,
   WORLD_HEIGHT,
   WORLD_WIDTH,
@@ -590,7 +590,7 @@ export class Game {
           if (player.id === this.localId) this.sidebar.notify(t('Happy City taxes: +{amount} {currency}.', { amount, currency: CURRENCY }), 3);
         },
         (player, capital) => {
-          if (player.id === this.localId) this.sidebar.notify(t('Military presence fee ({city}): +{fee} {currency}.', { city: capital.city, fee: NATION_PRESENCE_FEE, currency: CURRENCY }), 3);
+          if (player.id === this.localId) this.sidebar.notify(t('Military presence fee ({city}): +{fee} {currency}.', { city: capital.city, fee: presenceFee(capital.nation), currency: CURRENCY }), 3);
         },
       ),
       this.construction,

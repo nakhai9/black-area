@@ -50,8 +50,8 @@ export async function showUnitGallery(root: HTMLElement): Promise<void> {
     .ug-nation { margin: 28px 0 10px; display: flex; align-items: center; gap: 10px; font-size: 16px; text-transform: uppercase; letter-spacing: 1px; }
     .ug-swatch { width: 14px; height: 14px; border-radius: 3px; }
     .ug-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(${PIC_W}px, 1fr)); gap: 12px; }
-    .ug-card { margin: 0; background: #fff; color: #1a2128; border: 1px solid #d5dbe1; border-radius: 8px; overflow: hidden; }
-    .ug-card canvas { display: block; width: 100%; height: ${PIC_H}px; background: #fff; }
+    .ug-card { margin: 0; background: #c3cbd3; color: #1a2128; border: 1px solid #7d8994; border-radius: 8px; overflow: hidden; }
+    .ug-card canvas { display: block; width: 100%; height: ${PIC_H}px; background: #8e9aa6; }
     .ug-card div { padding: 8px 10px; display: flex; flex-direction: column; gap: 2px; }
     .ug-card b { font-weight: 600; }
     .ug-card small { color: #5f6b76; }

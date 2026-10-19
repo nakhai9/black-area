@@ -1,9 +1,10 @@
 import { ISO_X, ISO_Y } from '../constants';
 import type { Vehicle } from '../entities/Vehicle';
 import type { FactionId } from '../types';
+import { buildArvSheet } from './ArvModel';
 
 /**
- * Pre-drawn armoured recovery vehicle sheets (BREM-1, ARV, Type 90 II): 16 × 15 cells of 80 px, hull centre in the middle of each cell.
+ * Armoured recovery vehicle sheets, built at start from the 3D ARV model (ArvModel): 16 × 15 cells of 80 px, hull centre in the middle of each cell.
  * 32 screen headings, clockwise from N: headings 0–15 sit in a row pair's first row, 16–31 in its second.
  * Row pairs 0, 2, 4, 6: hull track frames A–D; pair 8: hull shadow (dark, semi-transparent).
  * Rows 10–13: crane at work with sparks, 8 frames for each of 8 headings (N, NE | E, SE | S, SW | W, NW, two per row).
@@ -23,46 +24,29 @@ const FADE_SECONDS = 0.8;
 export const REPAIR_DEATH_SECONDS = 4.5;
 
 interface RepairSheet {
-  readonly url: string;
-  readonly image: HTMLImageElement;
+  /** The sheet, built from the 3D ARV model (ArvModel) once loadRepairSprites runs. */
+  image: HTMLCanvasElement | null;
   /** Iso px per sheet px. */
   readonly scale: number;
 }
 
-const sheet = (file: string, scale: number): RepairSheet => ({
-  url: `${import.meta.env.BASE_URL}sprites/${file}`,
-  image: new Image(),
-  scale,
-});
-
-// Side-on the hull spans ≈ 33 sheet px, like the tank sheets: drawn about tank-sized.
-const BREM1 = sheet('brem1-russia.png', 0.16);
-const ARV = sheet('arv-usa.png', 0.16);
-const TYPE90II = sheet('type90ii-china.png', 0.16);
-
-/** Sheet per nation; nations may share one (the USA and Europe both field the ARV, China and the Islamic world the Type 90 II). */
+// Side-on the hull spans ≈ 34 sheet px, like the tank sheets: drawn about tank-sized.
+/** Every army has its own ARV (its paint and team-colour boom stripe): crawler hull, dozer blade, one long crane. */
 const SHEETS: Partial<Record<FactionId, RepairSheet>> = {
-  russia: BREM1,
-  usa: ARV,
-  europe: ARV,
-  china: TYPE90II,
-  islamic: TYPE90II,
+  usa: { image: null, scale: 0.16 },
+  russia: { image: null, scale: 0.16 },
+  china: { image: null, scale: 0.16 },
+  europe: { image: null, scale: 0.16 },
+  islamic: { image: null, scale: 0.16 },
 };
 
 let loaded: Promise<void> | null = null;
 
-/** Starts (once) and returns the repair vehicle sheet downloads. */
+/** Builds (once) every nation's ARV sheet from the 3D model. */
 export function loadRepairSprites(): Promise<void> {
-  loaded ??= Promise.all(
-    [...new Set(Object.values(SHEETS))].map(
-      (s) =>
-        new Promise<void>((resolve, reject) => {
-          s.image.onload = () => resolve();
-          s.image.onerror = () => reject(new Error(`Could not load repair vehicle sprites '${s.url}'.`));
-          s.image.src = s.url;
-        }),
-    ),
-  ).then(() => undefined);
+  loaded ??= Promise.resolve().then(() => {
+    for (const [f, sh] of Object.entries(SHEETS)) if (sh) sh.image = buildArvSheet(f as FactionId);
+  });
   return loaded;
 }
 
@@ -79,9 +63,9 @@ function direction(heading: number): number {
   return ((Math.round((a / (Math.PI * 2)) * DIRS) % DIRS) + DIRS) % DIRS;
 }
 
-function ready(faction: FactionId): RepairSheet | null {
+function ready(faction: FactionId): (RepairSheet & { image: HTMLCanvasElement }) | null {
   const sh = SHEETS[faction];
-  return sh && sh.image.complete && sh.image.naturalWidth > 0 ? sh : null;
+  return sh && sh.image ? { image: sh.image, scale: sh.scale } : null;
 }
 
 /**

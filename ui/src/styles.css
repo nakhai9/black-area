@@ -615,8 +615,8 @@ kbd {
   cursor: pointer;
 }
 .sb-cameo-structure {
-  /* Structure cameos (build / defence tabs) sit on white; soldiers and vehicles keep the dark cameo. */
-  background: #ffffff;
+  /* Structure cameos (build / defence tabs) sit on a soft blue-grey (white glared); soldiers and vehicles keep the dark cameo. */
+  background: #8e9aa6;
 }
 .sb-cameo canvas {
   display: block;

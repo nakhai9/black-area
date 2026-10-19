@@ -1,4 +1,4 @@
-import { HAPPY_CITY_TAX, HAPPY_CITY_TAX_BONUS, HAPPY_CITY_TAX_PERIOD, NATION_PRESENCE_FEE, NATION_PRESENCE_PERIOD } from '../constants';
+import { HAPPY_CITY_TAX, HAPPY_CITY_TAX_BONUS, HAPPY_CITY_TAX_PERIOD, NATION_PRESENCE_PERIOD, presenceFee } from '../constants';
 import type { EntityManager } from '../entities/EntityManager';
 import { HappyCity } from '../entities/HappyCity';
 import { NationCapital } from '../entities/NationCapital';
@@ -11,7 +11,7 @@ import type { OilMarket } from './OilMarket';
  * clock (from when it was placed), so several cities pay at different moments. The money is income: it goes
  * through the Global Monitoring Center, which takes any debt first. A damaged city pays in proportion to its health.
  * The more cities a nation runs, the more each one pays: +HAPPY_CITY_TAX_BONUS of the base tax for every other city.
- * Military presence: the holder of a contested nation's capital is paid NATION_PRESENCE_FEE every NATION_PRESENCE_PERIOD s.
+ * Military presence: the holder of a contested nation's capital is paid its nation's fee (NATION_PRESENCE_FEES, by real GDP) every NATION_PRESENCE_PERIOD s.
  */
 export class TaxSystem implements GameSystem {
   constructor(
@@ -32,7 +32,7 @@ export class TaxSystem implements GameSystem {
       b.presenceClock -= dt;
       while (b.presenceClock <= 0) {
         b.presenceClock += NATION_PRESENCE_PERIOD;
-        this.bank.receive(holder, NATION_PRESENCE_FEE);
+        this.bank.receive(holder, presenceFee(b.nation));
         this.onPresence(holder, b);
       }
     }
