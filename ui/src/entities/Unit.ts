@@ -23,6 +23,10 @@ export interface UnitTask {
  */
 /** A ground vehicle pointing farther than this (radians) from its next waypoint stops and turns on the spot first. */
 const PIVOT_ANGLE = 0.45;
+/** A ground vehicle backs up (instead of turning its nose away) to a waypoint behind it within this many world px. */
+const REVERSE_RANGE = CELL_SIZE * 3;
+/** Speed share while backing up. */
+const REVERSE_SPEED = 0.6;
 
 export abstract class Unit extends Entity {
   readonly kind = 'unit' as const;
@@ -305,7 +309,7 @@ export abstract class Unit extends Entity {
     const toEnd = goal ? Math.hypot(goal.x - this.px, goal.y - this.py) : 0;
     let target = moving ? 1 : 0;
     if (moving && this.path.length === 1) target = Math.min(1, Math.max(0.3, toEnd / (this.speed * 0.3)));
-    if (moving && this.drivesForward && this.turnsToMove) target *= this.rollAlignment();
+    if (moving && this.drivesForward && this.turnsToMove) target *= this.rollAlignment() * (this.backsUp() ? REVERSE_SPEED : 1);
     else if (moving && this.turnsToMove) target *= this.alignment();
     // A ship never backs or slides: it slows down while it turns, so it comes about in a tighter circle.
     else if (moving && this.naval) target *= Math.max(0.3, this.alignment());
@@ -317,7 +321,7 @@ export abstract class Unit extends Entity {
     // A machine turns towards its next waypoint even while it stands (pivoting on the spot before it rolls).
     const first = this.path[0];
     if (this.drivesForward && first && budget <= 0 && Math.hypot(first.x - this.px, first.y - this.py) > 0.05) {
-      this.turnTowards(Math.atan2(first.y - this.py, first.x - this.px), dt);
+      this.turnTowards(this.driveBearing(Math.atan2(first.y - this.py, first.x - this.px)), dt);
     }
     while (budget > 0 && this.path.length > 0) {
       const next = this.path[0];
@@ -325,14 +329,15 @@ export abstract class Unit extends Entity {
       const dx = next.x - this.px;
       const dy = next.y - this.py;
       const dist = Math.hypot(dx, dy);
-      if (dist > 0.05) this.turnTowards(Math.atan2(dy, dx), dt);
-      if (Math.abs(dx - dy) > 0.05) this.facing = movesRight(dx, dy) ? 1 : -1; // facing is judged on screen
+      const reverse = this.backsUp();
+      if (dist > 0.05) this.turnTowards(this.driveBearing(Math.atan2(dy, dx)), dt);
+      if (!reverse && Math.abs(dx - dy) > 0.05) this.facing = movesRight(dx, dy) ? 1 : -1; // facing is judged on screen
       if (dist <= budget) {
         this.px = next.x;
         this.py = next.y;
         budget -= dist;
         this.path.shift();
-      } else if (this.drivesForward && (this.naval || !this.insideTurn(dist, Math.atan2(dy, dx)))) {
+      } else if (this.drivesForward && !reverse && (this.naval || !this.insideTurn(dist, Math.atan2(dy, dx)))) {
         // Along the nose, never sideways: the hull (or airframe) carries the machine, so it follows its heading
         // and curves onto the route as it turns instead of gliding straight at the point.
         this.px += Math.cos(this.heading) * budget;
@@ -371,6 +376,24 @@ export abstract class Unit extends Entity {
     if (this.stoodFor >= this.recoverSeconds) this.marched = 0;
   }
 
+  /**
+   * A ground vehicle whose next waypoint lies close behind it backs up to it, nose kept pointing where it was going,
+   * instead of swinging round (pulling over, a waypoint just behind at the start of a route, being nudged back).
+   */
+  private backsUp(): boolean {
+    if (!this.drivesForward || !this.turnsToMove || this.naval || this.aircraft) return false;
+    const next = this.path[0];
+    if (!next) return false;
+    const dist = Math.hypot(next.x - this.px, next.y - this.py);
+    if (dist < 0.05 || dist > REVERSE_RANGE) return false;
+    return Math.abs(this.turnLeft(Math.atan2(next.y - this.py, next.x - this.px))) > Math.PI / 2;
+  }
+
+  /** The heading the hull steers for to reach a waypoint at `bearing` (the opposite way while backing up). */
+  private driveBearing(bearing: number): number {
+    return this.backsUp() ? bearing + Math.PI : bearing;
+  }
+
   /** Signed angle (radians, -π..π) from the heading to the direction of `bearing`. */
   private turnLeft(bearing: number): number {
     let diff = bearing - this.heading;
@@ -386,7 +409,7 @@ export abstract class Unit extends Entity {
   private rollAlignment(): number {
     const next = this.path[0];
     if (!next) return 1;
-    const off = Math.abs(this.turnLeft(Math.atan2(next.y - this.py, next.x - this.px)));
+    const off = Math.abs(this.turnLeft(this.driveBearing(Math.atan2(next.y - this.py, next.x - this.px))));
     if (off > PIVOT_ANGLE) return 0;
     return 1 - (off / PIVOT_ANGLE) * 0.7;
   }
