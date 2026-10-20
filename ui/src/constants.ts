@@ -27,7 +27,7 @@ export const DEMO_FACTION = Number(import.meta.env.VITE_DEMO_FACTION) || 2;
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "2.40.1";
+export const GAME_VERSION = "2.41.0";
 
 /** An Allied Building within this many cells of any capital is an embassy; farther out it is a "Pro-<nation> regime". */
 export const EMBASSY_CAPITAL_CELLS = 25;
@@ -814,10 +814,10 @@ export const RANK_KILL_MULTIPLES = [3, 6, 9] as const;
  * What each rank (none / Veteran / Elite / Elite+) is worth in battle, for every soldier and vehicle (engineers
  * included; Squatters never earn ranks): damage dealt, seconds between shots, damage taken, and speed.
  */
-export const RANK_FIREPOWER = [1, 1.15, 1.3, 1.5] as const;
+export const RANK_FIREPOWER = [1, 1.2, 1.4, 1.6] as const;
 export const RANK_RELOAD = [1, 0.9, 0.8, 0.7] as const;
 export const RANK_ARMOR = [1, 0.9, 0.8, 0.65] as const;
-export const RANK_SPEED = [1, 1.05, 1.1, 1.15] as const;
+export const RANK_SPEED = [1, 1.1, 1.2, 1.3] as const;
 /**
  * Veterans patch themselves up in the field from this rank on (2 chevrons = Elite). The pace is deliberately
  * slow — a share of the unit's own max HP per second — and it only starts after VETERAN_REGEN_CALM seconds
