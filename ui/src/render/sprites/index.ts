@@ -3,7 +3,7 @@ import { createAlliedBuildingArt } from './AlliedBuilding';
 import { createBarracksArt } from './Barracks';
 import { createBunkerArt } from './Bunker';
 import { createFlagpoleArt } from './Flagpole';
-import { createWallArt } from './Wall';
+import { WALL_DAMAGE_LEVELS, createWallArt } from './Wall';
 import { createGateArt } from './Gate';
 import { createHappyCityArt } from './HappyCity';
 import { createTechCenterArt } from './TechCenter';
@@ -103,7 +103,11 @@ export const BUILDING_ART: Readonly<Record<string, BuildingArt>> = {
   // Walls (one cell) in each nation's colour, one sprite per neighbour mask (see createWallArt).
   ...Object.fromEntries(
     (['usa', 'russia', 'china', 'europe', 'islamic'] as const).flatMap((f) =>
-      Array.from({ length: 16 }, (_, m) => [m === 0 ? `wall:${f}` : `wall:${f}|${m}`, createWallArt(f, m)] as const),
+      Array.from({ length: 16 * WALL_DAMAGE_LEVELS }, (_, i) => {
+        const m = i % 16;
+        const dmg = Math.floor(i / 16);
+        return [`${m === 0 ? `wall:${f}` : `wall:${f}|${m}`}${dmg ? `~${dmg}` : ''}`, createWallArt(f, m, dmg)] as const;
+      }),
     ),
   ),
   // Nation Gates (4 × 1) in each nation's architecture.

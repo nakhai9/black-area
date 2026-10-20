@@ -258,6 +258,9 @@ export abstract class Unit extends Entity {
   /** Seconds it has stood still (a long enough halt counts as a rest). */
   private stoodFor = 0;
 
+  /** Set by the game: would moving a ground unit from (x0, y0) to (x1, y1) (world px) enter a blocked cell? */
+  static blocks: ((u: Unit, x0: number, y0: number, x1: number, y1: number) => boolean) | null = null;
+
   /** Replaces the current orders with a new path (world px waypoints). */
   follow(path: readonly WorldPoint[], keepFacing = false): void {
     this.pathTicket++;
@@ -323,6 +326,8 @@ export abstract class Unit extends Entity {
     if (this.drivesForward && first && budget <= 0 && Math.hypot(first.x - this.px, first.y - this.py) > 0.05) {
       this.turnTowards(this.driveBearing(Math.atan2(first.y - this.py, first.x - this.px)), dt);
     }
+    const fromX = this.px;
+    const fromY = this.py;
     while (budget > 0 && this.path.length > 0) {
       const next = this.path[0];
       if (!next) break;
@@ -348,6 +353,14 @@ export abstract class Unit extends Entity {
         this.py += (dy / dist) * budget;
         budget = 0;
       }
+    }
+    // Ground units never step into a blocked cell (a wall, a gate pillar, a structure raised across an old route):
+    // they stay put and ask for a new route instead of walking through it.
+    if (Unit.blocks && !this.flies && !this.naval && Unit.blocks(this, fromX, fromY, this.px, this.py)) {
+      this.px = fromX;
+      this.py = fromY;
+      budget = total;
+      this.needsRepath = true;
     }
     if (this.path.length === 0 && moving) this.destination = null;
     if (this.path.length === 0 && this.faceOnArrival !== null) {

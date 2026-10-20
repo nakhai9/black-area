@@ -27,7 +27,7 @@ export const DEMO_FACTION = Number(import.meta.env.VITE_DEMO_FACTION) || 2;
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "2.42.0";
+export const GAME_VERSION = "2.44.0";
 
 /** An Allied Building within this many cells of any capital is an embassy; farther out it is a "Pro-<nation> regime". */
 export const EMBASSY_CAPITAL_CELLS = 25;
@@ -206,8 +206,8 @@ export const MAX_ALLIES = 6;
  * by BUNKER_VS_VEHICLE against vehicles (≈32 dps on a soldier, ≈11 dps on armour). The AI raises up to AI_BUNKERS.
  */
 export const BUNKER_COST = 800;
-/** A bunker may stand up to this many cells from the edge of one of the nation's own structures (others: BUILD_RADIUS). */
-export const BUNKER_BUILD_RADIUS = 7;
+/** A bunker may stand up to this many cells from the edge of one of the nation's own base structures (Defense-tab ones never count). */
+export const BUNKER_BUILD_RADIUS = 3;
 export const BUNKER_HP = 1000;
 export const BUNKER_POWER_DRAIN = 1;
 export const BUNKER_RANGE = 40;
@@ -218,16 +218,16 @@ export const AI_BUNKERS = 2;
 /**
  * Wall (1×1, Defense tab): a block in the nation's own style (Russia / China red, Islamic blue, USA / Europe concrete)
  * that enemy ground units cannot pass. Like a bunker it may stand up to WALL_BUILD_RADIUS cells from the edge of one of
- * the nation's own structures. The AI rings its capital with wall segments (gaps left for its own troops).
+ * the nation's own base structures (never measured from another Defense-tab structure). The AI rings its capital with wall segments (gaps left for its own troops).
  */
 export const WALL_COST = 100;
 export const WALL_HP = 4000;
-export const WALL_BUILD_RADIUS = 7;
+export const WALL_BUILD_RADIUS = 3;
 /** Placing a wall block with up to this many free cells between it and another block of the nation in a straight line fills them (free). */
 export const WALL_FILL_GAP = 5;
 export const FOOTPRINT_WALL = { w: 1, d: 1 } as const;
 /** AI: wall ring this many cells out from the capital's edge, segments of AI_WALL_SEGMENT blocks with AI_WALL_GAP free cells between. */
-export const AI_WALL_RING = 6;
+export const AI_WALL_RING = 4;
 export const AI_WALL_SEGMENT = 8;
 /** Wider than WALL_FILL_GAP, so the gates are never filled in. */
 export const AI_WALL_GAP = 6;

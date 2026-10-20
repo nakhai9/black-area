@@ -163,7 +163,7 @@ const ALLY_ALERT_SECONDS = 5;
 /** The military ranking is re-counted this often (s): soldiers die and vehicles are lost in between. */
 const MILITARY_RANK_INTERVAL = 240;
 import type { GameSystem } from '../systems/GameSystem';
-import { BUILD_RADIUS, buildRadius, cellGap, OIL_DERRICK_CLEARANCE, type PlacementRequest, type PlacementResult, PlacementSystem, isClaimable } from '../systems/PlacementSystem';
+import { BUILD_RADIUS, SUPPORT_TYPES, buildRadius, cellGap, OIL_DERRICK_CLEARANCE, type PlacementRequest, type PlacementResult, PlacementSystem, isClaimable } from '../systems/PlacementSystem';
 import { bunkerMuzzle, bunkerPreview } from '../render/BunkerSheet';
 import { EXPLOSION_SECONDS } from '../render/ExplosionSheet';
 
@@ -516,6 +516,20 @@ export class Game {
     this.construction = new ConstructionSystem(this.players);
     this.pathfinder = new Pathfinder(this.map);
     this.paths = new PathService(this.map, this.pathfinder);
+    // Only structure cells (walls, gate pillars, buildings) are checked: terrain is left to the routes.
+    Unit.blocks = (_u, x0, y0, x1, y1) => {
+      const ax = Math.floor(x0 / CELL_SIZE);
+      const ay = Math.floor(y0 / CELL_SIZE);
+      const bx = Math.floor(x1 / CELL_SIZE);
+      const by = Math.floor(y1 / CELL_SIZE);
+      if (ax === bx && ay === by) return false;
+      const solid = (x: number, y: number): boolean => this.map.occupantAt(x, y) !== null;
+      // Already standing on a structure cell (just out of a structure, a block raised under it): it may walk off it.
+      if (solid(ax, ay)) return false;
+      if (solid(bx, by)) return true;
+      // A diagonal step never squeezes between two blocks touching at a corner.
+      return ax !== bx && ay !== by && solid(bx, ay) && solid(ax, by);
+    };
     this.spawnCarrierFleets();
     if (mp) {
       // Multiplayer: route work runs on the game clock and a fixed step budget, the same on every machine.
@@ -1082,6 +1096,11 @@ export class Game {
         this.map.occupy(fill.x, fill.y, fill.w, fill.d, fill.id);
       }
     }
+    this.joinWalls(x, y);
+  }
+
+  /** Re-picks the joined sprite (straight, corner, T, cross, single post) of every wall block round (x, y). */
+  private joinWalls(x: number, y: number): void {
     for (let cy = y - WALL_FILL_GAP - 1; cy <= y + WALL_FILL_GAP + 1; cy++) {
       for (let cx = x - WALL_FILL_GAP - 1; cx <= x + WALL_FILL_GAP + 1; cx++) {
         const w = this.wallAt(cx, cy);
@@ -3701,7 +3720,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     const r = BUILD_RADIUS;
     return this.entities
       .buildings()
-      .filter((b) => b.owner === this.humanPlayer.id && b.alive)
+      .filter((b) => b.owner === this.humanPlayer.id && b.alive && !SUPPORT_TYPES.has(b.spec.type))
       .map((b) => ({
         x: (b.x - r) * CELL_SIZE,
         y: (b.y - r) * CELL_SIZE,
@@ -5396,6 +5415,8 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     // another airfield of the nation, or wait grounded where they stand until there is one (see AircraftSystem).
     this.map.occupy(e.x, e.y, e.w, e.d, null);
     this.entities.remove(e.id);
+    // A destroyed / sold wall block: its neighbours rejoin without it (a line end, a corner turned straight...).
+    if (e instanceof Wall) this.joinWalls(e.x, e.y);
     const i = this.derricks.indexOf(e as OilDerrick);
     if (i >= 0) this.derricks.splice(i, 1);
   }

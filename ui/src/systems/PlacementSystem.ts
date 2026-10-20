@@ -5,6 +5,13 @@ import type { PlacementBlocker, TileMap } from '../map/TileMap';
 /** Max gap (in cells) between a new building and the nearest friendly building. */
 export const BUILD_RADIUS = 3;
 
+/**
+ * Support structures (the Defense tab): they never widen the build area. A new structure is measured only from the
+ * nation's base structures (RA2 build radius), so walls, gates and bunkers cannot be chained outward. The claim flag
+ * stays an anchor: the Allied Building is raised next to it on newly claimed land.
+ */
+export const SUPPORT_TYPES: ReadonlySet<string> = new Set(['bunker', 'wall', 'gate']);
+
 /** How far (cells) from an own structure's edge a structure of this kind may be placed. */
 export function buildRadius(type: string): number {
   return type === 'bunker' ? BUNKER_BUILD_RADIUS : type === 'wall' ? WALL_BUILD_RADIUS : type === 'gate' ? GATE_BUILD_RADIUS : BUILD_RADIUS;
@@ -57,7 +64,7 @@ export function cellGap(
  * 1. every cell must be legal terrain and free — no trees, no water (naval: water only),
  *    no ice, never on top of an existing building;
  *    no soldier or vehicle (parked aircraft included) may stand on any of its cells;
- * 2. the footprint must lie within BUILD_RADIUS cells (a bunker: BUNKER_BUILD_RADIUS) of one of the builder's own buildings;
+ * 2. the footprint must lie within BUILD_RADIUS cells of one of the builder's own base structures (SUPPORT_TYPES never count);
  * 3. an Allied Building stands on unclaimed land only (land claimed by a Squatters team, see isClaimable);
  * 4. at least OIL_DERRICK_CLEARANCE free cells between it and the edge of every oil derrick (anyone's);
  * 5. no structure overlaps another one (whole footprints, margin ring included);
@@ -88,11 +95,11 @@ export class PlacementSystem {
       .some((b) => b.alive && req.x < b.x + b.w && b.x < req.x + req.w && req.y < b.y + b.d && b.y < req.y + req.d);
   }
 
-  /** True when some living building of `owner` is within BUILD_RADIUS cells. */
+  /** True when some living base structure of `owner` (not a SUPPORT_TYPES one) is within BUILD_RADIUS cells. */
   nearOwnBase(req: PlacementRequest): boolean {
     return this.entities
       .buildings()
-      .some((b) => b.owner === req.owner && b.alive && cellGap(req, b) <= (req.radius ?? BUILD_RADIUS));
+      .some((b) => b.owner === req.owner && b.alive && !SUPPORT_TYPES.has(b.spec.type) && cellGap(req, b) <= (req.radius ?? BUILD_RADIUS));
   }
 
   /** Is any living oil derrick closer than OIL_DERRICK_CLEARANCE cells to the footprint? */

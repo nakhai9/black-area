@@ -20,7 +20,15 @@ export class Wall extends Building {
     });
   }
 
+  /** Damage state from HP left: 0 above 75%, 1 above 50%, 2 above 25%, 3 below (partly collapsed). */
+  get damageLevel(): number {
+    const r = this.hpRatio;
+    return r > 0.75 ? 0 : r > 0.5 ? 1 : r > 0.25 ? 2 : 3;
+  }
+
   override get spriteKey(): string {
-    return this.joins ? `${super.spriteKey}|${this.joins}` : super.spriteKey;
+    const base = this.joins ? `${super.spriteKey}|${this.joins}` : super.spriteKey;
+    const dmg = this.damageLevel;
+    return dmg ? `${base}~${dmg}` : base;
   }
 }
