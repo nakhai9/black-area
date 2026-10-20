@@ -26,7 +26,7 @@
 <body>
 <main>
 <img class="logo" src="/logo.png" alt="Black Area" />
-<h1>Black Area — RULE <small>v2.41.0</small></h1>
+<h1>Black Area — RULE <small>v2.41.1</small></h1>
 <p class="lead">Tài liệu luật chơi + kiến trúc code dành cho AI/dev sửa game. Mọi con số gameplay chính xác nằm trong <code>src/constants.ts</code> và <code>src/factions/*.ts</code>. Nếu tài liệu này khác code thì <b>code đúng</b>. <b>Khi đổi luật/số trong code, phải cập nhật file này.</b></p>
 <nav><a href="#s1">Quy tắc làm việc cho AI</a><a href="#s2">Chạy dự án</a><a href="#s3">Kiến trúc thư mục</a><a href="#s4">Thế giới</a><a href="#s5">Kinh tế (dầu)</a><a href="#s6">Công trình (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Quân đội</a><a href="#s8">Chiến đấu</a><a href="#s9">Điều khiển (Game.handleKey, handleInput)</a><a href="#s10">Giới hạn &amp; hiệu năng</a><a href="#s11">Thắng / thua &amp; AI</a><a href="#s12">Công thức sửa thường gặp</a></nav>
 <h2 id="s1">0. Quy tắc làm việc cho AI</h2>
@@ -688,6 +688,7 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
   <li>v2.40.0: <b>phím C</b>: camera chỉ nhảy lần lượt tới từng đơn vị của mình trên bản đồ (không còn đi qua công trình); góc màn hình báo số thứ tự (vd. 3/40).</li>
   <li>v2.40.1: tải game từ file JSON: camera luôn mở ở <b>thủ đô phe mình</b> (giữ mức zoom đã lưu); thủ đô đã mất thì về chỗ camera lúc lưu.</li>
   <li>v2.41.0: lên sao mạnh hơn theo số sao: sát thương <b>+20% mỗi sao</b> (×1.2 / 1.4 / 1.6), tốc độ <b>+10% mỗi sao</b> (×1.1 / 1.2 / 1.3); áp dụng cho cả người chơi và AI.</li>
+  <li>v2.41.1: tiêu đề <code>index.html</code> hiện đúng số phiên bản theo <code>GAME_VERSION</code>.</li>
   <li>Bỏ tải (v1.151.0): xe tải / máy bay chở quân chỉ cho người xuống khi đã dừng hẳn (<code>Unit.atRest</code>: hết đường đi và hết đà lăn; máy bay phải chạm đất). Hộ tống tiêm kích: đối tượng mặt đất được bảo vệ đến khi chết hoặc tiêm kích nhận lệnh mới. Bộ đếm hòa bình hiện "Thời gian hòa bình còn lại mm:ss".</li>
   <li>Radar báo bị đánh (v1.150.0): lính/xe/công trình của người chơi trúng đòn trong <code>RADAR_ALERT_SECONDS 2</code> s (<code>lastAttackedAt</code>) có vòng đỏ nhấp nháy trên minimap (<code>Minimap.render</code>), các điểm gần nhau &lt; 10 px gộp một vòng; hết bị đánh hoặc bị phá thì vòng tắt.</li>
   <li>Dọn cache mỗi <code>JANITOR_INTERVAL = 180</code> s (ảnh/địa hình không dùng, sổ ghi unit đã chết, sổ thưởng nhân từ của nhóm rút lui không còn ai sống). Chỉ xoá thứ không còn dùng tới, không động vào lính, công trình, tiền hay lệnh đang chạy. Tìm đường A* (<code>Pathfinder.find</code>) mỗi ô chỉ mở rộng 1 lần (bỏ bản sao cũ trong hàng đợi), đọc thẳng mảng của <code>TileMap</code>, hàng đợi ưu tiên dùng typed array dùng lại giữa các lần tìm.</li>
