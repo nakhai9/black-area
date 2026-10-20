@@ -310,6 +310,9 @@ export class CombatSystem implements GameSystem {
       s.nextThink = this.time + ACQUIRE_PERIOD + (s.id % 4) * 0.04;
       if (better) target = better;
     }
+    // Shot by an enemy bunker with no enemy soldier / vehicle to fight: go and attack that bunker (player and AI alike).
+    const bunkerFoe = !target || target instanceof Building ? this.bunkerAttacker(s, w) : undefined;
+    if (bunkerFoe) target = bunkerFoe;
     s.combatTarget = target?.id ?? null;
 
     if (!target) {
@@ -352,10 +355,10 @@ export class CombatSystem implements GameSystem {
     // Idle units, attack-movers, attack orders and retaliators move in; units on a plain move order keep walking.
     // An air-defence vehicle holds its firing spot: it only shoots what comes into range and moves only when ordered (a move or an
     // explicit attack order), never chasing on its own.
-    if (holdsSpot && s.attackTarget === null) return;
+    if (holdsSpot && s.attackTarget === null && !bunkerFoe) return;
     // An aircraft on a plain move order flies there: it shoots what passes in range but is not pulled off course.
     const plainFlight = s.flies && s.moving && !s.chasing && !(s instanceof Vehicle && (s.returningHome || s.guardId !== null));
-    const mayChase = s.chasing || (s.flies && !plainFlight) || s.attackTarget !== null || s.attackMove !== null;
+    const mayChase = s.chasing || (s.flies && !plainFlight) || s.attackTarget !== null || s.attackMove !== null || !!bunkerFoe;
     if (mayChase) this.chase(s, target, w);
   }
 
@@ -390,6 +393,19 @@ export class CombatSystem implements GameSystem {
     if (!to) return false;
     s.follow(this.pathfinder.find({ x: s.px, y: s.py }, to, s.mobility));
     return true;
+  }
+
+  /**
+   * The enemy bunker that shot `s` in the last 6 s, when `s` is free to hit back: no attack order, not on a plain move
+   * order, not retreating, a ground weapon able to hit it. Ground units go after it even though they otherwise hold their spot.
+   */
+  private bunkerAttacker(s: Unit, w: WeaponSpec): Bunker | undefined {
+    if (s.attackTarget !== null || s.lastAttackerId === null || s.retreating) return undefined;
+    if (s.moving && s.attackMove === null && !s.chasing) return undefined;
+    if (this.time - s.lastAttackedAt >= 6) return undefined;
+    const a = this.entities.get(s.lastAttackerId);
+    if (!(a instanceof Bunker) || !a.alive || !isHostile(s, a) || this.sheltered(a) || !this.canHit(s, w, a)) return undefined;
+    return a;
   }
 
   private currentTarget(s: Unit): Entity | undefined {
