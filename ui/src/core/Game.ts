@@ -816,9 +816,16 @@ export class Game {
     this.effects.list.length = 0;
     for (const c of this.charges) this.effects.add(c.fx);
     this.selection.selectUnits([]);
-    this.camera.x = save.camera.x;
-    this.camera.y = save.camera.y;
     this.camera.setZoom(save.camera.zoom);
+    // Always open on my own nation's capital (wherever the camera was when saved); the saved spot if it is gone.
+    const home = this.entities.buildings().find((b) => b.alive && b.spec.type === 'capital' && b.spec.spriteKey === `capital:${this.humanPlayer.faction}`);
+    if (home) {
+      const c = home.centerWorld();
+      this.camera.centerOn(c.x, c.y - FOCUS_OFFSET_Y);
+    } else {
+      this.camera.x = save.camera.x;
+      this.camera.y = save.camera.y;
+    }
     this.sidebarTimer = SIDEBAR_REFRESH;
     this.sidebar.notify(t('Game loaded.'), 3);
   }
@@ -3483,8 +3490,8 @@ export class Game {
         if (this.selection.selectedUnits.size > 0) this.issue({ k: 'key', code });
         break;
       case 'KeyC':
-        // The camera jumps to the next structure in the world.
-        this.tourNextBuilding();
+        // The camera jumps to the next of my own units on the map.
+        this.tourNextUnit();
         break;
       case 'KeyR':
         // Only while positioning a new structure: turn it 90° (footprint d × w, art mirrored). Once built it stays put.
@@ -4789,18 +4796,24 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     return true;
   }
 
-  /** Id of the structure the camera tour (C) showed last. */
+  /** Id of the unit the camera tour (C) showed last. */
   private tourId = -1;
 
-  /** Camera tour: centres on the next living structure anywhere in the world (by id, wrapping), oil derricks excluded. */
-  private tourNextBuilding(): void {
-    const all = this.entities.buildings().filter((b) => b.alive && b.spec.type !== 'oilDerrick').sort((a, b) => a.id - b.id);
-    if (all.length === 0) return;
-    const next = all.find((b) => b.id > this.tourId) ?? all[0]!;
+  /** Camera tour: centres on the next of my own living units on the map (by id, wrapping); units inside something are skipped. */
+  private tourNextUnit(): void {
+    const me = this.humanPlayer.id;
+    const all = this.entities
+      .fieldMovers()
+      .filter((u) => u.alive && u.owner === me && u.insideId === null)
+      .sort((a, b) => a.id - b.id);
+    if (all.length === 0) {
+      this.sidebar.notify(t('No units on the map.'), 1.5);
+      return;
+    }
+    const next = all.find((u) => u.id > this.tourId) ?? all[0]!;
     this.tourId = next.id;
-    const c = next.centerWorld();
-    this.camera.centerOn(c.x, c.y);
-    this.sidebar.notify(`${next.spec.name} (${all.indexOf(next) + 1}/${all.length})`, 1.5);
+    this.camera.centerOn(next.px, next.py);
+    this.sidebar.notify(`${all.indexOf(next) + 1}/${all.length}`, 1.5);
   }
 
   /**

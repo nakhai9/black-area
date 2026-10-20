@@ -76,6 +76,7 @@ export default {
   'Sound off.': 'Đã tắt âm thanh.',
   'Sound on.': 'Đã bật âm thanh.',
   'Turned 90°.': 'Đã xoay 90°.',
+  'No units on the map.': 'Không có đơn vị nào trên bản đồ.',
   'Turned back.': 'Đã xoay lại.',
   'Waypoint mode: left-click up to {max} points, then Z (or right-click) to go.': 'Chế độ lộ trình: nhấp chuột trái tối đa {max} điểm, rồi nhấn Z (hoặc chuột phải) để xuất phát.',
   'A nation has at most {max} embassies.': 'Mỗi quốc gia có tối đa {max} đại sứ quán.',
