@@ -16,6 +16,7 @@ function displayName(type: string, owner: string): string {
   if (type === 'capital') return FACTIONS[owner as keyof typeof FACTIONS]?.capital.name ?? 'Capital';
   if (type === 'nation') return `${CONTESTED_NATIONS[owner as ContestedNationId]?.capital ?? 'Capital'} (${CONTESTED_NATIONS[owner as ContestedNationId]?.name ?? owner})`;
   if (type === 'bank') return 'Global Monitoring Center';
+  if (type === 'monument') return 'Pyramids of Giza';
   if (type === 'oil') return 'Oil Derrick';
   return BUILD_OPTIONS.find((o) => o.id === type)?.name ?? type;
 }
@@ -62,7 +63,7 @@ export function showBuildingGallery(root: HTMLElement): void {
   const groups: { name: string; color: string; match: (type: string, owner: string) => boolean }[] = [
     ...FACTION_ORDER.map((f) => ({ name: FACTIONS[f].name, color: FACTIONS[f].colors.primary, match: (_t: string, o: string) => o === f })),
     { name: 'Contested nations', color: '#8a8f96', match: (t: string) => t === 'nation' },
-    { name: 'Neutral', color: '#c9c3b2', match: (_t: string, o: string) => o === 'world' },
+    { name: 'Neutral', color: '#c9c3b2', match: (_t: string, o: string) => o === 'world' || o === 'giza' },
   ];
   const cards: Card[] = [];
   for (const g of groups) {

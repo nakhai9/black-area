@@ -325,6 +325,7 @@ export class PathService {
   private *buildField(f: FlowField, goal: GridPoint, swim: Mobility, corridor: Corridor | null): Generator<void, void, void> {
     const { map, pathfinder } = this;
     const W = map.width;
+    const H = map.height;
     f.run++;
     const open = new MinHeap();
     const gi = map.index(goal.x, goal.y);
@@ -344,10 +345,12 @@ export class PathService {
       for (const [dx, dy, step] of DIRS) {
         const nx = cx + dx;
         const ny = cy + dy;
-        if (!pathfinder.passable(nx, ny, swim) || !inside(nx, ny)) continue;
-        if (Math.max(Math.abs(nx - goal.x), Math.abs(ny - goal.y)) > limit) continue;
-        if (dx !== 0 && dy !== 0 && (!pathfinder.passable(cx + dx, cy, swim) || !pathfinder.passable(cx, cy + dy, swim))) continue;
+        if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
         const ni = ny * W + nx;
+        // Cheapest tests first: already settled closer, outside the field, then the grid itself.
+        if (f.stamp[ni] === f.run && dc >= (f.dist[ni] ?? Infinity)) continue;
+        if (Math.max(Math.abs(nx - goal.x), Math.abs(ny - goal.y)) > limit || !inside(nx, ny) || !pathfinder.freeAt(ni, swim)) continue;
+        if (dx !== 0 && dy !== 0 && (!pathfinder.freeAt(cy * W + nx, swim) || !pathfinder.freeAt(ny * W + cx, swim))) continue;
         // Vehicles keep clear of structures where there is room (see NEAR_STRUCTURE_COST).
         const near = swim === 'vehicle' && pathfinder.nearStructure(nx, ny) ? NEAR_STRUCTURE_COST : 1;
         const nd = dc + step * near * (map.mountain[ny * W + nx] === MOUNTAIN_PASS ? MOUNTAIN_PATH_COST : map.hasTrees(nx, ny) ? TREE_COST : 1);

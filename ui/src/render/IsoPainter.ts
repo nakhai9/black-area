@@ -57,6 +57,8 @@ export class IsoPainter {
 
   /** Flat horizontal rectangle (lawns, pools, plaza paving). */
   topRect(u0: number, v0: number, u1: number, v1: number, z: number, fill: Paint, edge: string | null = null): void {
+    // The paving / lawn laid over a left-out ground plate (most of its area, at its height) goes with it.
+    if (this.plate > 0 && z <= this.plate + 0.1 && (u1 - u0) * (v1 - v0) >= this.plateArea * 0.7) return;
     this.polygon(
       [
         [u0, v0, z],
@@ -83,7 +85,26 @@ export class IsoPainter {
    * shaded like real material: occlusion at the foot, light under the top, a lit top face and bevel highlights on
    * the edges facing the light — the solid, thick look of a rendered model.
    */
+  /**
+   * Height (px) of the ground plate left out of this drawing (see box), 0 if none: structures stand straight on the
+   * map's ground, which shows through around them, instead of on a slab filling their whole plot.
+   */
+  private plate = 0;
+  private plateArea = 0;
+
   box(u: number, v: number, w: number, d: number, z: number, h: number, color: string, style: BoxStyle = {}): void {
+    // A low slab from the plot's corner, at least 3 × 3 tiles: the structure's ground plate. It is not drawn (the
+    // ground shows through) and what stood on it is carried down to the ground, so nothing floats. A slab drawn
+    // without edges (the Airfield's apron, which is the structure itself) is kept.
+    if (z === 0 && u === 0 && v === 0 && h <= 3 && w >= 3 && d >= 3 && style.edge !== null) {
+      this.plate = Math.max(this.plate, h);
+      this.plateArea = Math.max(this.plateArea, w * d);
+      return;
+    }
+    if (this.plate > 0 && z > 0 && z <= this.plate + 0.01) {
+      h += z;
+      z = 0;
+    }
     const z1 = z + h;
     const edge = style.edge === undefined ? EDGE : style.edge;
     const tall = h >= 3;

@@ -1,11 +1,10 @@
 import { CELL_SIZE, WORLD_SCALE } from '../constants';
-import { ValueNoise, hash2 } from '../core/Random';
+import { ValueNoise } from '../core/Random';
 import { createCanvas } from '../render/Canvas';
 import { CELL_METRES, RELIEF_LIFT } from './Relief';
 import type { EarthData } from './EarthData';
 import type { TileMap } from './TileMap';
 import type { GroundLift } from './GroundLift';
-import type { RiverLayer } from './Rivers';
 
 /**
  * Tile-based ground. The Earth (real land, lakes, elevation and sea depth from NASA / Natural Earth data) has
@@ -66,8 +65,6 @@ const SEA_DEEP = rgb('#1b3a68');
 const SEA_COAST = rgb('#3d6670');
 const FOAM = rgb('#c8dade');
 const CLIFF = rgb('#4f4232');
-const RIVER = rgb('#3f7196');
-const RIVER_BANK = rgb('#4e5a34');
 
 const clamp01 = (t: number): number => (t < 0 ? 0 : t > 1 ? 1 : t);
 const smooth = (a: number, b: number, x: number): number => {
@@ -137,9 +134,8 @@ export class TileTerrain {
   constructor(
     private readonly map: TileMap,
     private readonly earth: EarthData,
-    private readonly seed: number,
+    seed: number,
     private readonly lift: GroundLift,
-    private readonly rivers: RiverLayer,
   ) {
     this.noise = new ValueNoise(seed + 91);
   }
@@ -353,7 +349,7 @@ export class TileTerrain {
     return { core: smooth(w, w * 0.45, d) * fade, edge: smooth(w * 1.6, w, d) * (1 - smooth(w, w * 0.6, d)) * fade };
   }
 
-  private base(t: number, fx: number, fy: number, n1: number, mott: number): void {
+  private base(t: number, fx: number, fy: number, _n1: number, mott: number): void {
     const c = this.col;
     let a: RGB;
     let b: RGB;
@@ -390,46 +386,41 @@ export class TileTerrain {
     c[0] = a[0] + (b[0] - a[0]) * m;
     c[1] = a[1] + (b[1] - a[1]) * m;
     c[2] = a[2] + (b[2] - a[2]) * m;
-    // RA2 texture: coarse pixel grain plus a finer mottle (several noise scales), never a flat fill.
-    const fine = this.noise.noise(fx * 1.7, fy * 1.7);
-    let k = 1 + (n1 - 0.5) * 0.12 + (fine - 0.5) * 0.1;
+    // RA2 hand-painted look, smooth and clean: soft mottling at a few broad scales, no per-pixel grain or speckle.
+    const soft = this.noise.fbm(fx * 0.6, fy * 0.6, 2);
+    let k = 1 + (soft - 0.5) * 0.08;
     const blend = (q: RGB, w: number): void => {
       c[0] += (q[0] - c[0]) * w;
       c[1] += (q[1] - c[1]) * w;
       c[2] += (q[2] - c[2]) * w;
     };
     if (t === 2) {
-      // Bare-earth patches worn into the grass, and tufts (light / dark flecks).
+      // Bare-earth patches worn into the grass, dirt tracks, and broad lighter / darker swathes of grass.
       const patch = this.noise.noise(fx * 0.55 + 31, fy * 0.55 + 17);
-      if (patch > 0.68) blend(DIRT, smooth(0.68, 0.8, patch) * 0.75);
+      if (patch > 0.66) blend(DIRT, smooth(0.66, 0.84, patch) * 0.6);
       const tr = this.trail(fx, fy);
-      if (tr.edge > 0) blend(TRAIL_EDGE, tr.edge * 0.55);
-      if (tr.core > 0) blend(TRAIL, tr.core * 0.85);
-      if (n1 > 0.88) k += 0.16;
-      else if (n1 < 0.1) k -= 0.18;
+      if (tr.edge > 0) blend(TRAIL_EDGE, tr.edge * 0.45);
+      if (tr.core > 0) blend(TRAIL, tr.core * 0.8);
+      k += (this.noise.fbm(fx * 0.25 + 5, fy * 0.25 + 9, 2) - 0.5) * 0.12;
     } else if (t === 3) {
-      // Undergrowth: dark dapples.
-      if (n1 > 0.72) k -= 0.26;
-      else if (n1 < 0.1) k += 0.1;
+      // Canopy: soft dark hollows between lighter crowns.
+      k -= smooth(0.35, 0.9, this.noise.fbm(fx * 0.45 + 3, fy * 0.45 + 41, 2)) * 0.12;
     } else if (t === 4) {
-      // Dune ripples and darker ochre drifts with pebbles.
-      k += Math.sin(fx * 5 + fy * 2.4 + mott * 6) * 0.05;
+      // Gentle dune ripples and darker ochre drifts.
+      k += Math.sin(fx * 2.2 + fy * 1.1 + mott * 6) * 0.018;
       const drift = this.noise.noise(fx * 0.7 + 7, fy * 0.7 + 3);
-      if (drift > 0.62) blend(DESERT_DARK, smooth(0.62, 0.78, drift) * 0.55);
+      if (drift > 0.6) blend(DESERT_DARK, smooth(0.6, 0.82, drift) * 0.45);
       const tr = this.trail(fx, fy);
-      if (tr.edge > 0) blend(DESERT_DARK, tr.edge * 0.6);
-      if (tr.core > 0) blend(TRAIL, tr.core * 0.4);
-      if (n1 > 0.93) k -= 0.22;
+      if (tr.edge > 0) blend(DESERT_DARK, tr.edge * 0.5);
+      if (tr.core > 0) blend(TRAIL, tr.core * 0.35);
     } else if (t === 5) {
-      // Strata and cracks in the rock.
-      k += Math.sin((fx + fy) * 6 + fine * 4) * 0.07;
-      const crack = Math.abs(this.noise.noise(fx * 2.4, fy * 2.4) - 0.5);
-      if (crack < 0.025) k -= 0.35;
+      // Smooth strata bands and the odd soft crack in the rock.
+      k += Math.sin((fx + fy) * 3 + soft * 3) * 0.05;
+      const crack = Math.abs(this.noise.noise(fx * 1.6, fy * 1.6) - 0.5);
+      k -= smooth(0.03, 0.0, crack) * 0.2;
     } else if (t === 6) {
-      // Grey speckles of rock and scrub in the snow.
-      if (n1 > 0.94) k -= 0.3;
-    } else if (t === 1) {
-      if (n1 > 0.9) k -= 0.14;
+      // Wind-blown snow: soft blue-grey hollows.
+      k -= smooth(0.4, 0.9, this.noise.fbm(fx * 0.4 + 19, fy * 0.4 + 2, 2)) * 0.06;
     }
     c[0] *= k;
     c[1] *= k;
@@ -558,7 +549,6 @@ export class TileTerrain {
     const W = SRC_CELLS + 2;
     const out = job.src;
     const col = this.col;
-    const seed = this.seed;
     {
       const j = Math.floor(py / TILE_PX) + 1;
       const v = ((py % TILE_PX) + 0.5) / TILE_PX;
@@ -569,7 +559,6 @@ export class TileTerrain {
         const here = j * W + i;
         const t = T[here] ?? 0;
         const cx = qx * CHUNK_CELLS - PAD + i - 1;
-        const cellVar = hash2(cx, cy, seed + 11);
         const L = T[here - 1] ?? 0;
         const R = T[here + 1] ?? 0;
         const U = T[here - W] ?? 0;
@@ -579,13 +568,13 @@ export class TileTerrain {
         const DL = T[here + W - 1] ?? 0;
         const DR = T[here + W + 1] ?? 0;
         const d01 = depth[here] ?? 0;
-        const riverNear = t !== 0 && this.rivers.near(cx, cy);
         for (let sx = 0; sx < TILE_PX; sx++) {
           const px = (i - 1) * TILE_PX + sx;
           const u = (sx + 0.5) / TILE_PX;
           const fx = cx + u;
-          const n1 = hash2(((qx * CHUNK_CELLS - PAD) * TILE_PX + px) >> 1, ((qy * CHUNK_CELLS - PAD) * TILE_PX + py) >> 1, seed + 5);
-          const mott = clamp01(this.noise.noise(fx * 0.22, fy * 0.22) * 0.65 + cellVar * 0.35);
+          // Smooth variation only (no per-pixel hash, no per-cell step): seamless ground with no grain or tile squares.
+          const n1 = this.noise.noise(fx * 1.1 + 13, fy * 1.1 + 7);
+          const mott = clamp01(this.noise.noise(fx * 0.22, fy * 0.22) * 0.8 + this.noise.noise(fx * 0.07 + 3, fy * 0.07 + 11) * 0.2);
           // Smooth coastline: the shore follows a soft land / sea field interpolated between cell centres (with a
           // little noise), not the cell edges, so a staircase of cells reads as a rounded, natural coast. The game
           // grid (what is passable) is unchanged; only the painting differs by up to half a cell.
@@ -644,26 +633,10 @@ export class TileTerrain {
             col[0] *= shade;
             col[1] *= shade;
             col[2] *= shade;
-            if (riverNear) {
-              // A great river (art only): a wet dark bank, then flat water with a faint ripple.
-              const rv = this.rivers.at(fx, fy);
-              if (rv.bank > 0) {
-                const k = rv.bank * 0.55;
-                col[0] += (RIVER_BANK[0] - col[0]) * k;
-                col[1] += (RIVER_BANK[1] - col[1]) * k;
-                col[2] += (RIVER_BANK[2] - col[2]) * k;
-              }
-              if (rv.water > 0) {
-                const ripple = 1 + Math.sin(fx * 6 + fy * 3) * 0.03 + (n1 - 0.5) * 0.04;
-                col[0] += (RIVER[0] * ripple - col[0]) * rv.water;
-                col[1] += (RIVER[1] * ripple - col[1]) * rv.water;
-                col[2] += (RIVER[2] * ripple - col[2]) * rv.water;
-              }
-            }
           } else {
             // ---- sea: depth from the bathymetry, lighter coastal shelf, foam where it meets land
             const deep = clamp01(d01 * 1.7);
-            const wave = Math.sin(fx * 7 + fy * 4.5 + mott * 5) * 0.03 + (n1 - 0.5) * 0.05;
+            const wave = (n1 - 0.5) * 0.05;
             const a = deep < 0.5 ? SEA_SHALLOW : SEA_MID;
             const b = deep < 0.5 ? SEA_MID : SEA_DEEP;
             const k = deep < 0.5 ? deep * 2 : (deep - 0.5) * 2;

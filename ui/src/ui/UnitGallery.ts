@@ -11,6 +11,7 @@ import { drawMantisSheet, loadMantisSprites } from '../render/MantisSheet';
 import { drawTruckSheet, loadTruckSprites } from '../render/TruckSheets';
 import { drawTankSheet, loadTankSprites } from '../render/TankSheets';
 import { SQUASH, drawVehicle } from '../render/VehicleArt';
+import { bridgeLayerCell } from '../render/BridgeLayerModel';
 import type { FactionId, UnitTier, VehicleKind } from '../types';
 
 /** Card picture size (CSS px). */
@@ -23,8 +24,12 @@ const ZOOM = { soldier: 11, ground: 9, air: 4 } as const;
 
 interface Card {
   readonly canvas: HTMLCanvasElement;
-  readonly unit: Unit;
+  readonly unit: Unit | null;
+  /** The nation's bridge layer (not a unit kind yet: in the shop, not for sale), drawn from its model instead. */
+  readonly bridge?: FactionId;
 }
+/** Headings the bridge layer is shown at while it turns (its model pictures are cached per heading). */
+const BRIDGE_STEPS = 32;
 
 /** One-line stats: cost, health, speed and weapon. */
 function stats(u: Unit): string {
@@ -92,6 +97,17 @@ export async function showUnitGallery(root: HTMLElement): Promise<void> {
       grid.append(card);
       cards.push({ canvas, unit });
     }
+    // The bridge layer: every nation with vehicles has one, listed but not on sale yet.
+    if (Object.keys(f.vehicles).length > 0) {
+      const card = document.createElement('figure');
+      card.className = 'ug-card';
+      const canvas = document.createElement('canvas');
+      const label = document.createElement('div');
+      label.innerHTML = `<b>Bridge Layer</b><small>bridgeLayer · coming soon (not for sale yet)</small><small>armoured vehicle-launched bridge</small>`;
+      card.append(canvas, label);
+      grid.append(card);
+      cards.push({ canvas, unit: null, bridge: id });
+    }
   }
 
   const frame = (now: number): void => {
@@ -116,6 +132,14 @@ function draw(card: Card, time: number): void {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, w, h);
   const heading = ((time % TURN_SECONDS) / TURN_SECONDS) * Math.PI * 2;
+  if (card.bridge) {
+    const step = (Math.round((heading / (Math.PI * 2)) * BRIDGE_STEPS) % BRIDGE_STEPS) * ((Math.PI * 2) / BRIDGE_STEPS);
+    const size = h * 1.2;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(bridgeLayerCell(card.bridge, step), (w - size) / 2, (h - size) / 2, size, size);
+    return;
+  }
+  if (!u) return;
   u.heading = heading;
   ctx.save();
   ctx.translate(w / 2, h / 2);

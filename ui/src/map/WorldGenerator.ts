@@ -1,7 +1,8 @@
-import { CELL_SIZE, DEPTH_M_PER_UNIT, ELEVATION_M_PER_UNIT, MOUNTAIN_CREST, MOUNTAIN_CREST_CELLS, MOUNTAIN_HALF_WIDTH_CELLS, MOUNTAIN_LEDGE, MOUNTAIN_PASS, MOUNTAIN_PASS_CELLS, MOUNTAIN_PASSES, MOUNTAIN_RANGES, WORLD_SCALE } from '../constants';
+import { CELL_SIZE, MAP_SEED, DEPTH_M_PER_UNIT, ELEVATION_M_PER_UNIT, MOUNTAIN_CREST, MOUNTAIN_CREST_CELLS, MOUNTAIN_HALF_WIDTH_CELLS, MOUNTAIN_LEDGE, MOUNTAIN_PASS, MOUNTAIN_PASS_CELLS, MOUNTAIN_PASSES, MOUNTAIN_RANGES, WORLD_SCALE } from '../constants';
 import { type BiomeFields, sampleField } from './Biomes';
 import type { EarthData } from './EarthData';
 import { fracToLon, geoToWorld } from './Geo';
+import { RiverLayer } from './Rivers';
 import { TERRITORIES, containsGeo } from './Territories';
 import type { TileMap } from './TileMap';
 import { ValueNoise } from '../core/Random';
@@ -34,6 +35,19 @@ export function buildWorld(earth: EarthData, biomes: BiomeFields, map: TileMap):
         elev[i] = earth.elevation[p] * ELEVATION_M_PER_UNIT;
         map.heights[i] = Math.max(1, elev[i]);
       }
+    }
+  }
+
+  // 1b. The great rivers: water cells cut through the land (same courses as the river art, see Rivers.ts).
+  const rivers = new RiverLayer(W, MAP_SEED);
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const i = map.index(x, y);
+      if (!land[i] || !rivers.near(x, y) || rivers.at(x + 0.5, y + 0.5).water < 0.5) continue;
+      land[i] = 0;
+      map.river[i] = 1;
+      map.heights[i] = -DEPTH_M_PER_UNIT;
+      map.setType(x, y, 'water');
     }
   }
 

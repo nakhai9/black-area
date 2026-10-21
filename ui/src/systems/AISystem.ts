@@ -86,6 +86,17 @@ const FORWARD_RANGE = 14;
  * replaces battle losses before it invests, and it stops investing while its base is under attack.
  */
 const MAX_CITIES = 30;
+/** findSite: one of this many nearest legal spots round the capital is taken. */
+const SITE_PICK = 10;
+let SITE_OFFSETS: [number, number][] | null = null;
+/** Offsets (cells) round the capital that findSite tries, 53 × 45 of them, nearest first (built once). */
+function siteOffsets(): [number, number][] {
+  if (SITE_OFFSETS) return SITE_OFFSETS;
+  const out: [number, number][] = [];
+  for (let dy = -22; dy <= 22; dy++) for (let dx = -26; dx <= 26; dx++) out.push([dx, dy]);
+  out.sort((a, b) => Math.hypot(a[0], a[1]) - Math.hypot(b[0], b[1]));
+  return (SITE_OFFSETS = out);
+}
 /** While saving for a city, units are only bought with money above this share of its price. */
 const CITY_SAVE_SHARE = 0.7;
 /** Below this many fighting units the AI ignores savings and rebuilds its army first. */
@@ -632,9 +643,11 @@ export class AISystem implements GameSystem {
         for (let dx = -ALLIED_SEARCH; dx <= ALLIED_SEARCH; dx++) {
           const x = flag.x + dx;
           const y = flag.y + dy;
-          if (!this.host.placement.check({ owner: p.id, x, y, w, d, radius: buildRadius(option.id) }).ok) continue;
+          // Distance first: only a spot nearer than the best so far is worth the full rule check.
           const dist = Math.hypot(x + w / 2 - flag.x, y + d / 2 - flag.y);
-          if (dist < bestD) {
+          if (dist >= bestD) continue;
+          if (!this.host.placement.check({ owner: p.id, x, y, w, d, radius: buildRadius(option.id) }).ok) continue;
+          {
             bestD = dist;
             best = { x, y };
           }
@@ -763,10 +776,12 @@ export class AISystem implements GameSystem {
       const nearEnemy = nearestOf(x, y);
       if (nearEnemy < CLAIM_ENEMY_GAP) continue;
       if (claims.some((b) => Math.hypot(b.x - x, b.y - y) < CLAIM_SPACING)) continue;
-      // Room for the flag and the Allied Building beside it, all on unclaimed land.
-      if (!map.isAreaBuildable(x - 1, y - 1, 7, 7)) continue;
       let nearEconomy = nearestEconomy(x, y);
       if (!Number.isFinite(nearEconomy)) nearEconomy = nearEnemy;
+      // The score below never drops under this: a site that cannot beat the best one so far skips the dear checks.
+      if (nearEnemy + 0.5 * nearEconomy + 0.1 * Math.hypot(x - home.x, y - home.y) >= bestScore) continue;
+      // Room for the flag and the Allied Building beside it, all on unclaimed land.
+      if (!map.isAreaBuildable(x - 1, y - 1, 7, 7)) continue;
       // As close to a rival as the rules allow (its structures and above all its economy are threatened), the trip
       // only a small tie-breaker; a little randomness so every AI plays differently.
       // A site across the sea needs a free transport: only without an Airfield it is out, else it ranks well behind.
@@ -923,20 +938,20 @@ export class AISystem implements GameSystem {
   /** A legal spot near the capital (preferring close ones, with some randomness). */
   private findSite(p: PlayerState, st: AIState, capital: Building, option: BuildOption): GridPoint | null {
     const { w, d } = footprintOf(option, p.faction as Parameters<typeof footprintOf>[1]);
-    const found: { x: number; y: number; dist: number }[] = [];
-    for (let dy = -22; dy <= 22; dy++) {
-      for (let dx = -26; dx <= 26; dx++) {
-        const x = capital.x + dx;
-        const y = capital.y + dy;
-        if (!this.host.placement.check({ owner: p.id, x, y, w, d, radius: buildRadius(option.id) }).ok) continue;
-        // Keep one free cell all around so AI buildings never crowd into each other.
-        if (!this.host.map.isAreaBuildable(x - 1, y - 1, w + 2, d + 2, false, true)) continue;
-        found.push({ x, y, dist: Math.hypot(dx, dy) });
-      }
+    // Offsets nearest first: the search stops at the SITE_PICK nearest legal spots (one is picked at random), instead
+    // of testing all ~2400 spots round the capital every time (a frame hitch of a tenth of a second or more).
+    const found: GridPoint[] = [];
+    for (const [dx, dy] of siteOffsets()) {
+      const x = capital.x + dx;
+      const y = capital.y + dy;
+      // The cheap grid test first (one free cell all round, so AI buildings never crowd), the full rule check after.
+      if (!this.host.map.isAreaBuildable(x - 1, y - 1, w + 2, d + 2, false, true)) continue;
+      if (!this.host.placement.check({ owner: p.id, x, y, w, d, radius: buildRadius(option.id) }).ok) continue;
+      found.push({ x, y });
+      if (found.length >= SITE_PICK) break;
     }
     if (found.length === 0) return null;
-    found.sort((a, b) => a.dist - b.dist);
-    return found[Math.floor(st.rng() * Math.min(found.length, 10))] ?? found[0] ?? null;
+    return found[Math.floor(st.rng() * found.length)] ?? found[0] ?? null;
   }
 
   /**

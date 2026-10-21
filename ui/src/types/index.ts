@@ -220,6 +220,7 @@ export type BuildingType =
   | 'warFactory'
   | 'refinery'
   | 'bank'
+  | 'monument'
   | 'warFactory'
   | 'airfield'
   | 'techCenter'

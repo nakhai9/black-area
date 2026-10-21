@@ -63,6 +63,12 @@ const PEAK_M_PER_PX = 450;
 const PEAK_MIN_M = 2500;
 /** Snow from this height up (more of the peak is white the higher it is). */
 const PEAK_SNOW_M = 3200;
+/**
+ * Rock art is drawn narrower (PEAK_THIN of its width) and a little taller (PEAK_LIFT) than authored: slimmer massifs
+ * with steeper flanks read as high, sheer mountains instead of low, wide mounds.
+ */
+const PEAK_THIN = 0.72;
+const PEAK_LIFT = 1.12;
 
 export interface Peak {
   x: number;
@@ -146,7 +152,7 @@ export class TerrainRenderer {
     this.waterRgb = new Uint8ClampedArray((this.texW / WATER_RES) * (this.texH / WATER_RES) * 3);
     const lift = new GroundLift(map);
     const rivers = new RiverLayer(map.width, seed);
-    this.tiles = new TileTerrain(map, earth, seed, lift, rivers);
+    this.tiles = new TileTerrain(map, earth, seed, lift);
     setGroundLift((x, y) => lift.at(x, y));
     map.onOccupy = (x, y, w, d) => this.tiles.invalidate(x, y, w, d);
     const { canvas, ctx } = createCanvas(this.texW, this.texH);
@@ -285,7 +291,7 @@ export class TerrainRenderer {
       const s = p.scale;
       ctx.save();
       ctx.translate(o.x, o.y);
-      if (p.flip) ctx.scale(-1, 1);
+      ctx.scale(p.flip ? -PEAK_THIN : PEAK_THIN, PEAK_LIFT);
       ctx.drawImage(ROCK_SHEET, p.piece * ROCK_CELL, p.mat * ROCK_CELL, ROCK_CELL, ROCK_CELL, -ROCK_PIVOT[0] * s, -ROCK_PIVOT[1] * s, ROCK_CELL * s, ROCK_CELL * s);
       ctx.restore();
       return;
@@ -295,6 +301,7 @@ export class TerrainRenderer {
     const foot = { x: top.x * 0.4 + p.half * 0.1, y: p.half * 0.3 };
     ctx.save();
     ctx.translate(o.x, o.y);
+    ctx.scale(PEAK_THIN, PEAK_LIFT);
     // Soft shadow at the foot.
     ctx.fillStyle = 'rgba(30,24,16,0.2)';
     ctx.beginPath();
@@ -496,12 +503,11 @@ export class TerrainRenderer {
           this.waterRgb[wi + 2] = lerp(lerp(OCEAN_SHALLOW[2], OCEAN_DEEP[2], t), SHORE_GLOW[2], glow);
         }
 
-        // 2×2 pixel grain for the hand-painted RA2 look.
-        const grain = 1 + (hash2(x >> 1, y >> 1, this.seed) - 0.5) * 0.09;
+        // Smooth, clean ground (no pixel grain).
         const o = i * 4;
-        out[o] = r * grain;
-        out[o + 1] = g * grain;
-        out[o + 2] = b * grain;
+        out[o] = r;
+        out[o + 1] = g;
+        out[o + 2] = b;
         out[o + 3] = 255;
       }
     }

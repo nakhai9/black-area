@@ -31,6 +31,8 @@ export class TileMap {
   readonly mountain: Uint8Array;
   /** Mountain range per cell: index into MOUNTAIN_RANGES + 1 (0 = none). */
   readonly mountainRange: Uint8Array;
+  /** 1 on a great river's water cell (see Rivers.ts). */
+  readonly river: Uint8Array;
 
   constructor(
     readonly width: number,
@@ -44,6 +46,7 @@ export class TileMap {
     this.trees = new Uint8Array(n);
     this.mountain = new Uint8Array(n);
     this.mountainRange = new Uint8Array(n);
+    this.river = new Uint8Array(n);
   }
 
   inBounds(x: number, y: number): boolean {

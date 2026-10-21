@@ -81,6 +81,7 @@ import {
   STARTING_CREDITS,
   STARTING_OIL,
   WORLD_BANK_LOCATION,
+  PYRAMIDS_LOCATION,
   CONTESTED_NATIONS,
   capitalFootprint,
   FOOTPRINT_GMC,
@@ -122,6 +123,7 @@ import { Unit } from '../entities/Unit';
 import { Vehicle } from '../entities/Vehicle';
 import { OilDerrick } from '../entities/OilDerrick';
 import { WorldBank } from '../entities/WorldBank';
+import { Pyramids } from '../entities/Pyramids';
 import { FACTIONS } from '../factions';
 import { computeBiomes } from '../map/Biomes';
 import { type EarthData, loadEarthData } from '../map/EarthData';
@@ -307,7 +309,9 @@ const BUILDING_ALERT_SECONDS = 10;
 /** Structures that take a rally point (right-click with the building selected). */
 const RALLY_TYPES: ReadonlySet<string> = new Set(['barracks', 'warFactory', 'airfield']);
 /** Above this many units on the field, separateUnits runs 2 relaxation passes a tick instead of 6. */
-const SEPARATE_CROWD = 200;
+const SEPARATE_CROWD = 120;
+/** Seconds (game time) between two re-routes of the same stuck unit (see repathStuckUnits). */
+const REPATH_COOLDOWN = 1.5;
 /** Attack-move groups of at least this many ground units get their routes from one shared, time-sliced flow field. */
 const GROUP_ROUTE_MIN = 4;
 
@@ -489,6 +493,8 @@ export class Game {
     }
     // The Global Monitoring Center is neutral: shared by every nation, never destroyed or occupied.
     this.landmarks.push(this.entities.add(new WorldBank(geoToWorld(WORLD_BANK_LOCATION))));
+    // Scenery: the Pyramids of Giza (neutral, indestructible; not a hotkey landmark).
+    this.entities.add(new Pyramids(geoToWorld(PYRAMIDS_LOCATION)));
     // Contested independent nations: their capitals start neutral and go to whoever's engineer takes them.
     for (const id of Object.keys(CONTESTED_NATIONS) as ContestedNationId[]) {
       this.landmarks.push(this.entities.add(new NationCapital(id, geoToWorld(CONTESTED_NATIONS[id].site))));
@@ -538,6 +544,8 @@ export class Game {
     }
     // Label the landmasses now, behind the loading screen, not on the first order of the game (~130 ms).
     this.pathfinder.sameLandmass(0, 0, 0, 0);
+    // Same for the swimmers' water mask (a whole-map flood fill, ~0.3 s): built now, not on the first soldier out.
+    this.pathfinder.swimmable();
     this.training = new TrainingSystem(this.players, this.entities, (player, tier, barracks, faction) =>
       this.spawnSoldier(player, tier, barracks, faction),
     );
@@ -728,7 +736,7 @@ export class Game {
   }
 
   /** Game fields never written back from a save (screen / input state). */
-  private static readonly UNSAVED = ['systems', 'paths', 'paused', 'ended', 'dom', 'lastCursor', 'mouseWorld', 'ghost', 'placing', 'placingRotated', 'waypoints', 'moveMarker', 'pathPeekId', 'lastBuildingClick', 'shortRepaths', 'localId', 'actorId', 'lockstep', 'desyncWarned'];
+  private static readonly UNSAVED = ['systems', 'paths', 'paused', 'ended', 'dom', 'lastCursor', 'mouseWorld', 'ghost', 'placing', 'placingRotated', 'waypoints', 'moveMarker', 'pathPeekId', 'lastBuildingClick', 'shortRepaths', 'lastRepath', 'localId', 'actorId', 'lockstep', 'desyncWarned'];
 
   /**
    * Everything needed to continue this game later, as plain JSON-ready data: players, every entity, the state of
@@ -2725,7 +2733,7 @@ export class Game {
   private separateUnits(): void {
     // Several relaxation passes so a crowd of vehicles ends up fully apart, not just mostly. Late-game wars field
     // hundreds of units in tight crowds that never fully settle: fewer passes there (the rest is done next tick).
-    const passes = this.entities.fieldMovers().length > SEPARATE_CROWD ? 2 : 6;
+    const passes = this.entities.fieldMovers().length > SEPARATE_CROWD ? 2 : 4;
     for (let pass = 0; pass < passes; pass++) if (!this.separatePass()) break;
   }
 
@@ -4552,6 +4560,8 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
 
   /** Units whose last re-route fell short of its goal (see repathStuckUnits). */
   private readonly shortRepaths = new WeakMap<Unit, { key: number; count: number }>();
+  /** Game time of each unit's last re-route: a unit stuck behind something re-plans at most every REPATH_COOLDOWN s. */
+  private readonly lastRepath = new WeakMap<Unit, number>();
 
   /** Units that have been stuck for a while, or whose next waypoint became blocked, plan a new route. */
   private repathStuckUnits(dt: number): void {
@@ -4578,6 +4588,10 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       const nextCell = next ? this.map.cellAt(next.x, next.y) : null;
       const blocked = nextCell !== null && !this.pathfinder.passable(nextCell.x, nextCell.y, u.mobility);
       if (!u.needsRepath && !blocked) continue;
+      // A long search costs tens of ms: a unit that keeps getting stuck (blocked by a crowd, a structure) re-plans
+      // at most every REPATH_COOLDOWN seconds instead of every pass (it keeps its flag and waits).
+      if (this.time - (this.lastRepath.get(u) ?? -Infinity) < REPATH_COOLDOWN) continue;
+      this.lastRepath.set(u, this.time);
       const dest = u.destination;
       const cell = this.map.cellAt(dest.x, dest.y);
       if (!cell) continue;

@@ -65,12 +65,30 @@ export class Pathfinder {
   /** Does cell (x, y) touch a structure cell (any of its 8 neighbours)? */
   nearStructure(x: number, y: number): boolean {
     const { map } = this;
-    for (let dy = -1; dy <= 1; dy++) {
-      for (let dx = -1; dx <= 1; dx++) {
-        if ((dx !== 0 || dy !== 0) && map.inBounds(x + dx, y + dy) && map.occupied[map.index(x + dx, y + dy)] !== 0) return true;
-      }
+    const W = map.width;
+    const occ = map.occupied;
+    const x0 = x > 0 ? x - 1 : 0;
+    const x1 = x < W - 1 ? x + 1 : W - 1;
+    const y0 = y > 0 ? y - 1 : 0;
+    const y1 = y < map.height - 1 ? y + 1 : map.height - 1;
+    for (let cy = y0; cy <= y1; cy++) {
+      const row = cy * W;
+      for (let cx = x0; cx <= x1; cx++) if (occ[row + cx] !== 0 && (cx !== x || cy !== y)) return true;
     }
     return false;
+  }
+
+  /**
+   * passable() for an in-bounds cell index, reading the grid's typed arrays directly (no bounds or accessor calls):
+   * for the hot loops of route searches and flow fields.
+   */
+  freeAt(i: number, swim: Mobility): boolean {
+    const map = this.map;
+    if (map.occupied[i] !== 0) return false;
+    const m = map.mountain[i] ?? 0;
+    if (m === MOUNTAIN_CREST) return false;
+    if (swim === 'vehicle' && ((map.trees[i] ?? 0) > 0 || (m !== 0 && m !== MOUNTAIN_PASS))) return false;
+    return map.types[i] !== 0 || (swim === true && (this.swimmable()[i] ?? 0) === 1);
   }
 
   passable(x: number, y: number, swim: Mobility = false): boolean {
@@ -119,7 +137,8 @@ export class Pathfinder {
       }
     }
     const cells = new Uint8Array(n);
-    for (let i = 0; i < n; i++) cells[i] = dist[i]! >= 0 ? 1 : 0;
+    // A great river is never swum across.
+    for (let i = 0; i < n; i++) cells[i] = dist[i]! >= 0 && map.river[i] === 0 ? 1 : 0;
     this.swimCells = cells;
     return cells;
   }

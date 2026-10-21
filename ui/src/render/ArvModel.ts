@@ -390,16 +390,23 @@ export function arvHeading(d: number): number {
 }
 
 /** Draws the mesh at world heading `h`, ground centre (cx, cy); as its ground shadow when `shadow`. */
-export function drawMesh(ctx: CanvasRenderingContext2D, mesh: Mesh, h: number, cx: number, cy: number, shadow: boolean, flames: boolean): void {
+/** Half-way vector between the light and the eye (Blinn-Phong): faces turned near it catch a metallic glint. */
+const HALF = norm([LIGHT[0] + VIEW[0], LIGHT[1] + VIEW[1], LIGHT[2] + VIEW[2]]);
+
+/**
+ * `metal`: painted steel instead of matt concrete — a soft specular glint on faces turned towards the sun, a slight
+ * sheen gradient across each face and pale worn edges, so hulls read as metal (ARV, bridge layer; not bunkers).
+ */
+export function drawMesh(ctx: CanvasRenderingContext2D, mesh: Mesh, h: number, cx: number, cy: number, shadow: boolean, flames: boolean, metal = false): void {
   const c = Math.cos(h);
   const s = Math.sin(h);
   const world = (p: V3): V3 => [p[0] * c - p[1] * s, p[0] * s + p[1] * c, p[2]];
   const proj = (w: V3): P2 => [cx + (w[0] - w[1]) * K, cy + (w[0] + w[1]) * K * 0.5 - w[2] * KZ];
-  const faces: { pts: P2[]; depth: number; fill: string }[] = [];
+  const faces: { pts: P2[]; depth: number; fill: string; spec: number; dark: string; edge: boolean }[] = [];
   for (const pl of mesh.polys) {
     const ws = pl.pts.map(world);
     if (shadow) {
-      if (pl.bias === undefined) faces.push({ pts: ws.map((w) => proj([w[0] + w[2] * 0.35, w[1] - w[2] * 0.2, 0])), depth: 0, fill: '#000' });
+      if (pl.bias === undefined) faces.push({ pts: ws.map((w) => proj([w[0] + w[2] * 0.35, w[1] - w[2] * 0.2, 0])), depth: 0, fill: '#000', spec: 0, dark: '#000', edge: false });
       continue;
     }
     // Newell normal, turned away from the inside of its solid.
@@ -415,7 +422,17 @@ export function drawMesh(ctx: CanvasRenderingContext2D, mesh: Mesh, h: number, c
     if (n[0] * (cen[0] - inside[0]) + n[1] * (cen[1] - inside[1]) + n[2] * (cen[2] - inside[2]) < 0) n = [-n[0], -n[1], -n[2]];
     if (n[0] * VIEW[0] + n[1] * VIEW[1] + n[2] * VIEW[2] <= 0.001) continue;
     const lit = 0.48 + 0.64 * Math.max(0, n[0] * LIGHT[0] + n[1] * LIGHT[1] + n[2] * LIGHT[2]);
-    faces.push({ pts: ws.map(proj), depth: cen[0] + cen[1] + cen[2] * 0.6 + (pl.bias ?? 0), fill: shade(pl.color, lit) });
+    // Markings (decals) stay matt; steel faces get a glint, strongest on faces turned half-way to the sun and the eye.
+    const spec = metal && pl.bias === undefined ? Math.pow(Math.max(0, n[0] * HALF[0] + n[1] * HALF[1] + n[2] * HALF[2]), 10) : 0;
+    const fill = shade(pl.color, metal ? lit * 1.08 + spec * 0.85 : lit);
+    faces.push({
+      pts: ws.map(proj),
+      depth: cen[0] + cen[1] + cen[2] * 0.6 + (pl.bias ?? 0),
+      fill,
+      spec,
+      dark: metal ? shade(pl.color, lit * 0.68) : fill,
+      edge: metal && pl.bias === undefined && lit > 0.75,
+    });
   }
   ctx.lineJoin = 'round';
   if (shadow) {
@@ -433,12 +450,30 @@ export function drawMesh(ctx: CanvasRenderingContext2D, mesh: Mesh, h: number, c
     ctx.beginPath();
     f.pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
     ctx.closePath();
-    ctx.fillStyle = f.fill;
+    if (f.dark !== f.fill) {
+      // Steel sheen: lighter at the face's top, a little darker at its foot.
+      let y0 = Infinity;
+      let y1 = -Infinity;
+      for (const [, y] of f.pts) {
+        y0 = Math.min(y0, y);
+        y1 = Math.max(y1, y);
+      }
+      const g = ctx.createLinearGradient(0, y0, 0, Math.max(y0 + 0.01, y1));
+      g.addColorStop(0, f.fill);
+      g.addColorStop(1, f.dark);
+      ctx.fillStyle = g;
+    } else ctx.fillStyle = f.fill;
     ctx.fill();
     // A thin seam of the same face colour closes the anti-aliasing gaps between neighbouring faces.
     ctx.strokeStyle = f.fill;
     ctx.lineWidth = 0.25;
     ctx.stroke();
+    if (f.edge) {
+      // Paint worn off the edges of sunlit plates: a faint bright rim.
+      ctx.strokeStyle = `rgba(235, 240, 245, ${0.3 + f.spec * 0.5})`;
+      ctx.lineWidth = 0.3;
+      ctx.stroke();
+    }
   }
   for (const sp of mesh.sparks) {
     const [x, y] = proj(world(sp));
@@ -503,7 +538,7 @@ export function arvCell(faction: FactionId, cell: ArvCell): HTMLCanvasElement {
   if (cell.kind === 'blast') blast(ctx, cell.frame, mid, mid);
   else {
     const pose: ArvPose = cell.kind === 'work' ? { kind: 'work', frame: cell.frame } : cell.kind === 'wreck' ? { kind: 'wreck' } : { kind: 'drive', frame: cell.kind === 'drive' ? cell.frame : 0 };
-    drawMesh(ctx, build(L, pose), arvHeading(cell.dir), mid, mid, cell.kind === 'shadow', cell.kind === 'wreck');
+    drawMesh(ctx, build(L, pose), arvHeading(cell.dir), mid, mid, cell.kind === 'shadow', cell.kind === 'wreck', cell.kind !== 'wreck');
   }
   cells.set(key, canvas);
   return canvas;

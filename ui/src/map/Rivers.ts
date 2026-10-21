@@ -2,8 +2,12 @@ import { CELL_SIZE } from '../constants';
 import { ValueNoise } from '../core/Random';
 import { geoToWorld } from './Geo';
 
+/** Width of every great river (cells): a wide water barrier no soldier or ground vehicle can cross. */
+export const RIVER_WIDTH = 3;
+
 /**
- * The great rivers, painted on the ground (art only: units, pathing and building are unchanged). Each course is a
+ * The great rivers: RIVER_WIDTH cells of water stamped into the grid (buildWorld), so soldiers and ground vehicles
+ * cannot cross them (nor swim them: Pathfinder.swimmable leaves river cells out). Each course is a
  * hand-traced list of [lon, lat] points from source to mouth, smoothed (Catmull-Rom) and given small meanders; the
  * river widens from `from` to `to` cells downstream.
  */
@@ -17,8 +21,8 @@ export interface RiverDef {
 export const RIVERS: readonly RiverDef[] = [
   {
     name: 'Nile',
-    from: 0.7,
-    to: 1.6,
+    from: RIVER_WIDTH,
+    to: RIVER_WIDTH,
     course: [
       [33.2, 0.5], [32.4, 2.5], [31.6, 4.8], [31.4, 7.5], [30.8, 9.5], [31.6, 12], [32.5, 15.6], [33.6, 17.7], [32.3, 19],
       [30.6, 19.3], [30.9, 20.8], [31.5, 21.8], [32.9, 24.1], [32.7, 25.7], [31.4, 27.2], [31.2, 30], [30.9, 31], [30.4, 31.45],
@@ -26,8 +30,8 @@ export const RIVERS: readonly RiverDef[] = [
   },
   {
     name: 'Amazon',
-    from: 0.8,
-    to: 2.6,
+    from: RIVER_WIDTH,
+    to: RIVER_WIDTH,
     course: [
       [-74.6, -10.5], [-74.4, -8.4], [-73.6, -6], [-73.3, -4.5], [-71, -4.2], [-69.9, -4.2], [-67, -3.3], [-64.5, -3.5],
       [-60, -3.1], [-58.5, -3.3], [-56, -2.3], [-54.7, -2.4], [-52.5, -1.8], [-51, -0.6], [-49.8, 0.1],
@@ -35,8 +39,8 @@ export const RIVERS: readonly RiverDef[] = [
   },
   {
     name: 'Yangtze',
-    from: 0.6,
-    to: 2,
+    from: RIVER_WIDTH,
+    to: RIVER_WIDTH,
     course: [
       [91, 33.5], [94, 33.2], [97, 33], [98.6, 30.5], [99.6, 27.6], [100.2, 26.8], [101.5, 26.4], [103, 26.5], [104.6, 28.8],
       [106.6, 29.6], [108.5, 30.8], [110.4, 31], [111.3, 30.7], [112.5, 30.1], [114.3, 30.6], [116, 29.8], [117, 30.5],
@@ -45,8 +49,8 @@ export const RIVERS: readonly RiverDef[] = [
   },
   {
     name: 'Mississippi',
-    from: 0.6,
-    to: 1.8,
+    from: RIVER_WIDTH,
+    to: RIVER_WIDTH,
     course: [
       [-95.2, 47.2], [-94, 46.4], [-93.3, 45], [-92, 44.5], [-91.2, 43.3], [-90.8, 41.5], [-91.3, 40], [-90.2, 38.6],
       [-89.4, 37], [-90, 35.1], [-91, 33.5], [-90.9, 32.3], [-91.5, 31], [-90.1, 30], [-89.3, 29.2],
@@ -54,8 +58,8 @@ export const RIVERS: readonly RiverDef[] = [
   },
   {
     name: 'Yenisei',
-    from: 0.7,
-    to: 2.2,
+    from: RIVER_WIDTH,
+    to: RIVER_WIDTH,
     course: [
       [96.5, 51.5], [94.4, 51.7], [92, 52.6], [91.5, 53.7], [92.8, 56], [93.3, 58], [92.2, 60], [90, 61.8], [88, 63.8],
       [87.6, 65.8], [86.5, 67.5], [86.2, 69.4], [83.5, 70.8], [82, 72],
@@ -63,20 +67,20 @@ export const RIVERS: readonly RiverDef[] = [
   },
   {
     name: 'Amur',
-    from: 0.8,
-    to: 1.8,
+    from: RIVER_WIDTH,
+    to: RIVER_WIDTH,
     course: [
       [121.5, 53.3], [124, 53.6], [126.5, 52.5], [127.5, 50.3], [129.5, 49.4], [131, 47.8], [133, 48], [135, 48.5],
-      [136.5, 49.5], [137, 50.5], [138, 52], [139.5, 52.8], [140.8, 53.2],
+      [136.5, 49.5], [137, 50.5], [138, 52], [139.5, 52.8], [140.8, 53.2], [141.4, 53],
     ],
   },
   {
     name: 'Volga',
-    from: 0.6,
-    to: 1.8,
+    from: RIVER_WIDTH,
+    to: RIVER_WIDTH,
     course: [
       [33, 57.2], [35.9, 56.9], [38.3, 57.6], [39.9, 57.6], [41, 57.5], [44, 56.3], [46.5, 56], [49.1, 55.8], [49.5, 55],
-      [48.5, 54.3], [50.1, 53.2], [48.5, 52], [46, 51.5], [45, 50], [44.5, 48.7], [46, 47.5], [48, 46.4], [48.6, 45.8],
+      [48.5, 54.3], [50.1, 53.2], [48.5, 52], [46, 51.5], [45, 50], [44.5, 48.7], [46, 47.5], [48, 46.4], [48.6, 45.8], [49.4, 44.9], [50.2, 43.9],
     ],
   },
 ];

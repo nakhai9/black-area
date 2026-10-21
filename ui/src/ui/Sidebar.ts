@@ -3,6 +3,7 @@ import { type IconNode, Settings, ArrowUpFromLine, Clock, House, Handshake, Wall
 import { BUILD_LIMIT_VEHICLES, CURRENCY, MAX_ALLIES, OIL_GRID_MARKUP, OIL_POLICIES, POWER_PER_BARREL, TECH_TIERS, TECH_VEHICLES, isAircraftKind } from '../constants';
 import { FACTIONS } from '../factions';
 import { getFlagTexture } from '../render/Flags';
+import { bridgeLayerPortrait } from '../render/BridgeLayerModel';
 import { factionBadgeHtml } from './FactionBadge';
 import { nationFlag } from '../render/sprites/NationCapital';
 import { isFactionNation, type NationId } from '../entities/NationCapital';
@@ -268,6 +269,8 @@ export class Sidebar {
   private readonly cameos = new Map<string, Cameo>();
   private readonly unitCameos = new Map<string, Cameo>();
   private readonly vehicleCameos = new Map<string, Cameo>();
+  /** Machines shown in the War Factory shop but not on sale yet (the bridge layer): greyed out, never clickable. */
+  private comingSoon: HTMLElement | null = null;
   private readonly panels = new Map<TabId, HTMLElement>();
   private activeTab: TabId = 'build';
   private messageTimer = 0;
@@ -976,6 +979,8 @@ export class Sidebar {
 
   private updateVehicleCameos(model: SidebarModel): void {
     const q = model.vehicleQueue;
+    // Like the ground vehicles, the bridge layer leaves the shop (an empty cell) while there is no War Factory.
+    this.comingSoon?.classList.toggle('sb-placeholder', !model.hasWarFactory);
     for (const option of this.vehicleOptions) {
       const c = this.vehicleCameos.get(option.key);
       if (!c) continue;
@@ -1048,6 +1053,27 @@ export class Sidebar {
       const badge = el.querySelector<HTMLElement>('.sb-cameo-badge') ?? undefined;
       if (wipe && state) this.vehicleCameos.set(option.key, { el, wipe, state, badge });
     }
+    this.comingSoon?.remove();
+    this.comingSoon = null;
+    if (this.vehicleOptions.length === 0) return;
+    // The nation's armoured bridge layer: on show in the shop, not on sale yet (no order can be placed for it).
+    const el = document.createElement('button');
+    el.type = 'button';
+    el.className = 'sb-cameo locked';
+    el.disabled = true;
+    el.title = `${t('Bridge Layer')} — ${t('Armoured vehicle-launched bridge. Coming soon: not on sale yet.')}`;
+    el.innerHTML = `
+      <canvas width="128" height="96"></canvas>
+      <span class="sb-cameo-info"></span>
+      <span class="sb-cameo-name"></span>
+      <span class="sb-cameo-state"></span>`;
+    const canvas = el.querySelector('canvas');
+    if (canvas) drawPreview(canvas, bridgeLayerPortrait(this.faction));
+    addInfoIcon(el, t('Bridge Layer'));
+    const state = el.querySelector<HTMLElement>('.sb-cameo-state');
+    if (state) state.textContent = t('COMING SOON');
+    container.append(el);
+    this.comingSoon = el;
   }
 
   private buildUnitCameos(container: HTMLElement): void {

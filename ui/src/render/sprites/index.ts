@@ -17,6 +17,7 @@ import { createPowerPlantArt } from './PowerPlant';
 import { createGrandMosqueArt } from './GrandMosque';
 import { createWashingtonWhiteHouseArt } from './WashingtonWhiteHouse';
 import { WorldBankArt } from './WorldBank';
+import { PyramidsArt } from './Pyramids';
 import { createNationCapitalArt } from './NationCapital';
 import type { ContestedNationId } from '../../constants';
 import { FACTIONS } from '../../factions';
@@ -30,6 +31,7 @@ export const BUILDING_ART: Readonly<Record<string, BuildingArt>> = {
   'capital:europe': createBrusselsEUHeadquartersArt(),
   'capital:islamic': createGrandMosqueArt(),
   'bank:world': WorldBankArt,
+  'monument:giza': PyramidsArt,
   // Capitals of the contested independent nations (neutral until an engineer takes one).
   'nation:northKorea': createNationCapitalArt('northKorea'),
   'nation:southKorea': createNationCapitalArt('southKorea'),
