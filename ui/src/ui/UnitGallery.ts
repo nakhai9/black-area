@@ -11,7 +11,7 @@ import { drawMantisSheet, loadMantisSprites } from '../render/MantisSheet';
 import { drawTruckSheet, loadTruckSprites } from '../render/TruckSheets';
 import { drawTankSheet, loadTankSprites } from '../render/TankSheets';
 import { SQUASH, drawVehicle } from '../render/VehicleArt';
-import { bridgeLayerCell } from '../render/BridgeLayerModel';
+import { drawBridgeLayerSheet } from '../render/BridgeLayerSheets';
 import type { FactionId, UnitTier, VehicleKind } from '../types';
 
 /** Card picture size (CSS px). */
@@ -24,12 +24,8 @@ const ZOOM = { soldier: 11, ground: 9, air: 4 } as const;
 
 interface Card {
   readonly canvas: HTMLCanvasElement;
-  readonly unit: Unit | null;
-  /** The nation's bridge layer (not a unit kind yet: in the shop, not for sale), drawn from its model instead. */
-  readonly bridge?: FactionId;
+  readonly unit: Unit;
 }
-/** Headings the bridge layer is shown at while it turns (its model pictures are cached per heading). */
-const BRIDGE_STEPS = 32;
 
 /** One-line stats: cost, health, speed and weapon. */
 function stats(u: Unit): string {
@@ -97,17 +93,6 @@ export async function showUnitGallery(root: HTMLElement): Promise<void> {
       grid.append(card);
       cards.push({ canvas, unit });
     }
-    // The bridge layer: every nation with vehicles has one, listed but not on sale yet.
-    if (Object.keys(f.vehicles).length > 0) {
-      const card = document.createElement('figure');
-      card.className = 'ug-card';
-      const canvas = document.createElement('canvas');
-      const label = document.createElement('div');
-      label.innerHTML = `<b>Bridge Layer</b><small>bridgeLayer · coming soon (not for sale yet)</small><small>armoured vehicle-launched bridge</small>`;
-      card.append(canvas, label);
-      grid.append(card);
-      cards.push({ canvas, unit: null, bridge: id });
-    }
   }
 
   const frame = (now: number): void => {
@@ -132,14 +117,6 @@ function draw(card: Card, time: number): void {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, w, h);
   const heading = ((time % TURN_SECONDS) / TURN_SECONDS) * Math.PI * 2;
-  if (card.bridge) {
-    const step = (Math.round((heading / (Math.PI * 2)) * BRIDGE_STEPS) % BRIDGE_STEPS) * ((Math.PI * 2) / BRIDGE_STEPS);
-    const size = h * 1.2;
-    ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(bridgeLayerCell(card.bridge, step), (w - size) / 2, (h - size) / 2, size, size);
-    return;
-  }
-  if (!u) return;
   u.heading = heading;
   ctx.save();
   ctx.translate(w / 2, h / 2);
@@ -150,7 +127,7 @@ function draw(card: Card, time: number): void {
     ctx.scale(zoom, zoom);
     const y = air ? u.altitude / 2 : 0; // aircraft hover over their ground point: centre the whole picture
     // Sheet aircraft are drawn altitude + 1.5 px above their ground point: put the plane itself in the middle.
-    const sheet = (air && drawAircraftSheet(ctx, u, 0, u.altitude + 1.5)) || (u.type === 'tank' && drawTankSheet(ctx, u, 0, y)) || (u.type === 'repair' && drawRepairSheet(ctx, u, 0, y)) || (u.type === 'mantis' && drawMantisSheet(ctx, u, 0, y)) || (u.type === 'truck' && drawTruckSheet(ctx, u, 0, y));
+    const sheet = (air && drawAircraftSheet(ctx, u, 0, u.altitude + 1.5)) || (u.type === 'tank' && drawTankSheet(ctx, u, 0, y)) || (u.type === 'repair' && drawRepairSheet(ctx, u, 0, y)) || (u.type === 'mantis' && drawMantisSheet(ctx, u, 0, y)) || (u.type === 'truck' && drawTruckSheet(ctx, u, 0, y)) || (u.type === 'bridgeLayer' && drawBridgeLayerSheet(ctx, u, 0, y));
     if (!sheet) drawVehicle(ctx, { x: 0, y, heading: isoHeading(heading, air ? 0.8 : SQUASH), phase: 0, moving: false, altitude: air ? u.altitude : undefined }, u.type, u.faction as FactionId);
   } else if (u instanceof Infantry) {
     ctx.scale(ZOOM.soldier, ZOOM.soldier);

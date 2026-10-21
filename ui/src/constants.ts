@@ -135,6 +135,14 @@ export function barracksFootprint(design: string): { readonly w: number; readonl
 }
 /** The Global Monitoring Center: 5 × 5 cells. */
 export const FOOTPRINT_GMC = { w: 5, d: 5 } as const;
+/** Bridge laid by a bridge layer: BRIDGE_W cells wide across, BRIDGE_L cells long (Bridge; rotated = long along x). */
+export const BRIDGE_W = 2;
+export const BRIDGE_L = 3;
+export const FOOTPRINT_BRIDGE = { w: BRIDGE_W, d: BRIDGE_L } as const;
+/** Health of one bridge section (enemies can destroy it; it falls into the water). */
+export const BRIDGE_HP = 900;
+/** A bridge layer deploys once within this many cells of the spot it was sent to (its bow at the bridge's near end). */
+export const BRIDGE_DEPLOY_CELLS = 2.5;
 /** Pyramids of Giza (neutral monument). */
 export const FOOTPRINT_PYRAMIDS = { w: 6, d: 6 } as const;
 /** Flagpole: exactly one cell. */
@@ -632,6 +640,8 @@ export const VEHICLE_BASE = {
   /** National kamikaze drone (the Islamic world's B-767), built at the Airfield (one order = one drone); unarmed: ordered onto an enemy structure it dives into it (DRONE_*) and is gone.
    * Cheaper than the fighter. */
   drone: { cost: 900, trainSeconds: 12, maxHp: 90, speed: 7, radius: 3.0 },
+  /** Armoured bridge layer: slow, tough, unarmed; one use — it unfolds into a BRIDGE_W × BRIDGE_L Bridge across water (see Bridge). */
+  bridgeLayer: { cost: 1000, trainSeconds: 12, maxHp: 400, speed: 1.0, radius: 4.4 },
 } as const;
 
 /** Kamikaze drone: the share of a structure's max health its dive takes. */
@@ -768,6 +778,7 @@ export const AVAILABLE_VEHICLES: readonly VehicleKind[] = [
   "truck",
   "mantis",
   "drone",
+  "bridgeLayer",
 ];
 
 /**

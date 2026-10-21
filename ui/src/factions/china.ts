@@ -114,5 +114,10 @@ export const CHINA: FactionConfig = {
       description:
         t("Type 99II armoured recovery vehicle: slow and unarmed; click a damaged friendly ground vehicle to drive up and repair it, or select damaged vehicles and click it to send them in for repair (5% of its max health every 2 s)."),
     },
+    bridgeLayer: {
+      name: "GQL-111",
+      description:
+        t("Armoured bridge layer: slow and unarmed. Select it, press the Bridge button (B) and click a spot across a river or shallow water: it drives there and unfolds into a 2 × 3 bridge that soldiers and vehicles can cross (used once). Bridges laid end to end join into one long bridge. Enemies can destroy the vehicle and the bridge."),
+    },
   },
 };

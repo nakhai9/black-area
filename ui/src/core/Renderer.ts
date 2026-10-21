@@ -20,6 +20,7 @@ import { drawCarriedFlag, getFlagTexture } from '../render/Flags';
 import { drawAircraftSheet } from '../render/AircraftSheets';
 import { drawFlagOnPole, drawNationalPole } from '../render/Flags';
 import { drawRepairDeath, drawRepairSheet } from '../render/RepairSheets';
+import { drawBridgeLayerDeath, drawBridgeLayerSheet } from '../render/BridgeLayerSheets';
 import { drawMantisDeath, drawMantisSheet } from '../render/MantisSheet';
 import { drawCarrierSheet } from '../render/CarrierSheet';
 import { drawTruckDeath, drawTruckSheet } from '../render/TruckSheets';
@@ -260,6 +261,12 @@ export class Renderer {
     // Passes now; the peaks join the depth-sorted pass below (a soldier behind a peak is hidden by it).
     this.terrain.drawMountains(ctx, view, camera.zoom, this.visiblePeaks);
     this.terrain.drawTrees(ctx, view, camera.zoom);
+    // Bridges lie on the ground (or over the water): under every unit, ring and structure, out of the depth pass.
+    for (const b of scene.buildings) {
+      if (b.spec.type !== 'bridge') continue;
+      const c = b.centerWorld();
+      if (onScreen(c.x, c.y, (b.w + b.d) * CELL_SIZE)) this.drawBuilding(b, scene.time);
+    }
 
     this.ground();
     // Scratch arrays reused every frame (no new arrays at 60 fps); depth order barely changes between frames.
@@ -267,7 +274,7 @@ export class Renderer {
     sorted.length = 0;
     for (const b of scene.buildings) {
       const c = b.centerWorld();
-      if (b.id === scene.selectedId || onScreen(c.x, c.y, (b.w + b.d) * CELL_SIZE)) sorted.push(b);
+      if (b.spec.type !== 'bridge' && (b.id === scene.selectedId || onScreen(c.x, c.y, (b.w + b.d) * CELL_SIZE))) sorted.push(b);
     }
     this.settleSmallPieces(sorted);
     sorted.sort(byDepth);
@@ -610,6 +617,7 @@ export class Renderer {
       if ((u.aircraft || u.isDrone) && drawAircraftSheet(ctx, u, P.x, P.y)) return;
       if (u.type === 'tank' && drawTankSheet(ctx, u, P.x, P.y)) return;
       if (u.type === 'repair' && drawRepairSheet(ctx, u, P.x, P.y)) return;
+      if (u.type === 'bridgeLayer' && drawBridgeLayerSheet(ctx, u, P.x, P.y)) return;
       if (u.type === 'mantis' && drawMantisSheet(ctx, u, P.x, P.y)) return;
       if (u.type === 'carrier' && drawCarrierSheet(ctx, u, P.x, P.y)) return;
       if (u.type === 'truck' && drawTruckSheet(ctx, u, P.x, P.y)) return;
@@ -1204,6 +1212,8 @@ export class Renderer {
         drawMantisDeath(ctx, e.faction, e.heading, e.x, e.y, e.age, e.ttl);
       } else if (e.kind === 'repairDeath') {
         drawRepairDeath(ctx, e.faction, e.heading, e.x, e.y, e.age, e.ttl);
+      } else if (e.kind === 'bridgeLayerDeath') {
+        drawBridgeLayerDeath(ctx, e.faction, e.heading, e.x, e.y, e.age, e.ttl);
       } else {
         const r = e.radius * (0.5 + t * 1.2);
         ctx.globalAlpha = 0.5 * (1 - t);

@@ -100,7 +100,8 @@ export interface WeaponSpec {
 /** Light car, main battle tank, armoured vehicle (IFV) and fighter aircraft. */
 /** `bomber` is a national special: only nations that list it in their `vehicles` can build it (Russia's Tu-160, the USA's B-1A Lancer). */
 /** `repair` is a national special too: an unarmed armoured recovery vehicle that mends friendly ground vehicles (Russia's BREM-1). */
-export type VehicleKind = 'light' | 'tank' | 'ifv' | 'jet' | 'transport' | 'bomber' | 'repair' | 'truck' | 'heli' | 'mantis' | 'drone' | 'carrier';
+/** `bridgeLayer`: armoured vehicle-launched bridge; used once, it unfolds into a Bridge structure across water (see Bridge). */
+export type VehicleKind = 'light' | 'tank' | 'ifv' | 'jet' | 'transport' | 'bomber' | 'repair' | 'truck' | 'heli' | 'mantis' | 'drone' | 'carrier' | 'bridgeLayer';
 
 export interface VehicleProfile {
   name: string;
@@ -149,7 +150,7 @@ export interface FactionConfig {
   /** Ground forces trained at the Barracks. */
   infantry: Readonly<Record<Exclude<UnitTier, 'demolition'>, InfantryProfile>> & { readonly demolition?: InfantryProfile };
   /** Vehicles (War Factory) and aircraft (Airfield). */
-  vehicles: Readonly<Record<Exclude<VehicleKind, 'bomber' | 'repair' | 'truck' | 'transport' | 'heli' | 'drone' | 'carrier'>, VehicleProfile>> & {
+  vehicles: Readonly<Record<Exclude<VehicleKind, 'bomber' | 'repair' | 'truck' | 'transport' | 'heli' | 'drone' | 'carrier' | 'bridgeLayer'>, VehicleProfile>> & {
     readonly bomber?: VehicleProfile;
     /** Attack helicopter (built at the Airfield). */
     readonly heli?: VehicleProfile;
@@ -162,6 +163,8 @@ export interface FactionConfig {
     readonly drone?: VehicleProfile;
     /** Aircraft carrier (USA, Europe, China): sails the open sea only; not built yet, a fleet starts near the capital. */
     readonly carrier?: VehicleProfile;
+    /** Armoured bridge layer (every nation that builds vehicles). */
+    readonly bridgeLayer?: VehicleProfile;
   };
   /** Leads the world oil cartel (like OPEC in real life): sets a production policy that moves the global oil price. */
   oilCartel?: boolean;
@@ -221,6 +224,7 @@ export type BuildingType =
   | 'refinery'
   | 'bank'
   | 'monument'
+  | 'bridge'
   | 'warFactory'
   | 'airfield'
   | 'techCenter'

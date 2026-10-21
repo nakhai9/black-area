@@ -1,13 +1,13 @@
 import { FACTIONS } from '../factions';
 import type { FactionId } from '../types';
-import { Mesh, type P2, type V3, chamfer, disc, drawMesh, star } from './ArvModel';
+import { Mesh, type P2, type V3, arvHeading, blast, chamfer, disc, drawMesh, star } from './ArvModel';
 import { createCanvas } from './Canvas';
 import { shade } from './Color';
 
 /**
  * Armoured vehicle-launched bridge (AVLB) of every nation as a detailed polygon model (same renderer as the ARV): a
- * main-battle-tank hull without a turret carrying its folded assault bridge. Not yet on sale (see Sidebar); only the
- * shop picture is drawn for now. Each nation follows its real-world machine:
+ * main-battle-tank hull without a turret carrying its folded assault bridge (BridgeLayerSheets draws it in the game).
+ * Each nation follows its real-world machine:
  *  - USA: M104 Wolverine — Abrams hull, two flat bridge halves stacked, launch beam over the bow;
  *  - Russia: MTU-72 — T-72 hull, three-section bridge with the side treadways folded in on top;
  *  - China: GQL-111 — Type 84 hull, scissor bridge folded over the hull, big hinge at the bow;
@@ -33,6 +33,12 @@ interface Look {
   /** Hull length (half, model units) and the number of road wheels a side. */
   half: number;
   wheels: number;
+}
+
+/** The nation's bridge colours (deck, steel, team stripe), shared with the laid Bridge's art. */
+export function bridgeColors(f: FactionId): { deck: string; steel: string; stripe: string } {
+  const L = look(f);
+  return { deck: L.deck, steel: L.steel, stripe: L.stripe };
 }
 
 function look(f: FactionId): Look {
@@ -267,5 +273,36 @@ export function bridgeLayerPortrait(faction: FactionId, w = 128, h = 96): HTMLCa
   const size = Math.min(w, h) * 2.3;
   ctx.imageSmoothingEnabled = true;
   ctx.drawImage(bridgeLayerCell(faction, 0.45), (w - size) / 2, (h - size) / 2, size, size);
+  return canvas;
+}
+
+export type BridgeLayerCell = { kind: 'drive' | 'shadow' | 'wreck'; dir: number } | { kind: 'blast'; frame: number };
+
+/** The burnt-out wreck: every colour charred dark. */
+function charred(L: Look): Look {
+  const c = (x: string): string => shade(x, 0.42);
+  return { ...L, body: c(L.body), track: c(L.track), steel: c(L.steel), rubber: c(L.rubber), deck: c(L.deck), stripe: c(L.stripe) };
+}
+
+/**
+ * One in-game picture of a nation's bridge layer (BRIDGE_CELL px, ground centre in the middle) for screen direction
+ * `dir` (0–31, as the ARV's), its shadow, burning wreck or an explosion frame; built on first use and cached.
+ */
+export function bridgeLayerSheetCell(faction: FactionId, cell: BridgeLayerCell): HTMLCanvasElement {
+  const key = `sheet:${faction}:${cell.kind}:${'dir' in cell ? cell.dir : cell.frame}`;
+  let canvas = cells.get(key);
+  if (canvas) return canvas;
+  const made = createCanvas(BRIDGE_CELL * RES, BRIDGE_CELL * RES);
+  canvas = made.canvas;
+  const ctx = made.ctx;
+  ctx.scale(RES, RES);
+  const mid = BRIDGE_CELL / 2;
+  if (cell.kind === 'blast') blast(ctx, cell.frame, mid, mid);
+  else {
+    const L = look(faction);
+    const wreck = cell.kind === 'wreck';
+    drawMesh(ctx, build(wreck ? charred(L) : L), arvHeading(cell.dir), mid, mid, cell.kind === 'shadow', wreck, !wreck);
+  }
+  cells.set(key, canvas);
   return canvas;
 }

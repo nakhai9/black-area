@@ -88,14 +88,14 @@ export class Pathfinder {
     const m = map.mountain[i] ?? 0;
     if (m === MOUNTAIN_CREST) return false;
     if (swim === 'vehicle' && ((map.trees[i] ?? 0) > 0 || (m !== 0 && m !== MOUNTAIN_PASS))) return false;
-    return map.types[i] !== 0 || (swim === true && (this.swimmable()[i] ?? 0) === 1);
+    return map.types[i] !== 0 || map.bridge[i] === 1 || (swim === true && (this.swimmable()[i] ?? 0) === 1);
   }
 
   passable(x: number, y: number, swim: Mobility = false): boolean {
     if (!this.map.inBounds(x, y) || this.map.occupantAt(x, y) !== null || this.map.isRockWall(x, y)) return false;
     // Ground vehicles never drive over trees or a mountain, except along its trails (passes).
     if (swim === 'vehicle' && (this.map.hasTrees(x, y) || this.map.isMountain(x, y) && this.map.mountain[this.map.index(x, y)] !== MOUNTAIN_PASS)) return false;
-    return !this.map.isWater(x, y) || (swim === true && (this.swimmable()[this.map.index(x, y)] ?? 0) === 1);
+    return !this.map.isOpenWater(x, y) || (swim === true && (this.swimmable()[this.map.index(x, y)] ?? 0) === 1);
   }
 
   /** World px (x, y) on a mountain ledge (high ground)? */
@@ -145,6 +145,11 @@ export class Pathfinder {
 
   private components: Int32Array | null = null;
 
+  /** The walkable land changed (a bridge laid or destroyed): the landmass labels are rebuilt on the next query. */
+  landChanged(): void {
+    this.components = null;
+  }
+
   /**
    * Are two cells on the same piece of dry land (ignoring buildings)? Walkers can
    * only fight enemies on their own landmass. Labelled once, on first use.
@@ -156,7 +161,7 @@ export class Pathfinder {
       const stack: number[] = [];
       let label = 0;
       for (let start = 0; start < comp.length; start++) {
-        if ((comp[start] ?? 0) !== 0 || map.isWater(start % map.width, (start / map.width) | 0)) continue;
+        if ((comp[start] ?? 0) !== 0 || map.isOpenWater(start % map.width, (start / map.width) | 0)) continue;
         label++;
         comp[start] = label;
         stack.push(start);
@@ -170,7 +175,7 @@ export class Pathfinder {
             const ny = y + dy;
             if (!map.inBounds(nx, ny)) continue;
             const j = ny * map.width + nx;
-            if ((comp[j] ?? 0) === 0 && !map.isWater(nx, ny)) {
+            if ((comp[j] ?? 0) === 0 && !map.isOpenWater(nx, ny)) {
               comp[j] = label;
               stack.push(j);
             }
@@ -223,6 +228,7 @@ export class Pathfinder {
     // Hot loop: the grid's typed arrays are read directly (same rules as passable()).
     const types = map.types;
     const occupied = map.occupied;
+    const bridge = map.bridge;
     const trees = map.trees;
     const mountain = map.mountain;
     const { g, stamp, closed } = this;
@@ -231,7 +237,7 @@ export class Pathfinder {
     const swimCells = swim === true ? this.swimmable() : null;
     const vehicle = swim === 'vehicle';
     const free = (i: number): boolean =>
-      (types[i] !== 0 || (swimCells !== null && swimCells[i] === 1)) &&
+      (types[i] !== 0 || bridge[i] === 1 || (swimCells !== null && swimCells[i] === 1)) &&
       occupied[i] === 0 &&
       mountain[i] !== MOUNTAIN_CREST &&
       // Ground vehicles: no trees, no mountain cells but the trails (passes).
@@ -346,7 +352,8 @@ export class Pathfinder {
 
   /** Open water a ship may sail on (any sea or lake cell inside the map). */
   navigable(x: number, y: number): boolean {
-    return this.map.inBounds(x, y) && this.map.types[this.map.index(x, y)] === 0;
+    // A bridge closes the water under it to shipping (its piers stand in the way).
+    return this.map.inBounds(x, y) && this.map.types[this.map.index(x, y)] === 0 && this.map.bridge[this.map.index(x, y)] === 0;
   }
 
   /** Nearest navigable cell to (x, y) within `radius` cells (ring by ring), or null. */
@@ -388,7 +395,7 @@ export class Pathfinder {
     const { g, stamp, closed } = this;
     const open = this.heap;
     open.clear();
-    const free = (i: number): boolean => types[i] === 0;
+    const free = (i: number): boolean => types[i] === 0 && map.bridge[i] === 0;
     const gx = goal.x;
     const gy = goal.y;
     const h = (x: number, y: number): number => {

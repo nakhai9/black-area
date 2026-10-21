@@ -33,6 +33,8 @@ export class TileMap {
   readonly mountainRange: Uint8Array;
   /** 1 on a great river's water cell (see Rivers.ts). */
   readonly river: Uint8Array;
+  /** 1 on a cell spanned by a Bridge: walkable for soldiers and ground vehicles even over water, closed to ships. */
+  readonly bridge: Uint8Array;
 
   constructor(
     readonly width: number,
@@ -47,6 +49,7 @@ export class TileMap {
     this.mountain = new Uint8Array(n);
     this.mountainRange = new Uint8Array(n);
     this.river = new Uint8Array(n);
+    this.bridge = new Uint8Array(n);
   }
 
   inBounds(x: number, y: number): boolean {
@@ -82,6 +85,16 @@ export class TileMap {
 
   isWater(x: number, y: number): boolean {
     return this.typeAt(x, y) === 'water';
+  }
+
+  /** Is a Bridge laid over (x, y)? */
+  isBridge(x: number, y: number): boolean {
+    return this.inBounds(x, y) && this.bridge[this.index(x, y)] === 1;
+  }
+
+  /** Water no bridge spans: where a soldier must swim and a ground vehicle cannot go. */
+  isOpenWater(x: number, y: number): boolean {
+    return this.isWater(x, y) && !this.isBridge(x, y);
   }
 
   occupantAt(x: number, y: number): number | null {
@@ -142,6 +155,8 @@ export class TileMap {
         // Only the new building's core may not touch an existing building's core; the
         // 1-cell outer ring of both is just margin around the artwork and may overlap.
         if (this.inCore(tx, ty, x, y, w, d) && this.occupantAt(tx, ty) !== null) return 'occupied';
+        // A bridge's deck is a road, never a building plot.
+        if (this.bridge[this.index(tx, ty)] === 1) return 'occupied';
         if (naval) {
           if (t !== 'water') return 'needsWater';
           continue;

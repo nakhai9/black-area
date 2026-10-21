@@ -107,25 +107,41 @@ export class PathService {
   // ------------------------------------------------------------------ layer 1: clusters (HPA*)
 
   private buildClusters(): void {
+    for (let cy = 0; cy < this.ch; cy++) for (let cx = 0; cx < this.cw; cx++) this.buildCluster(cx, cy);
+  }
+
+  /** Land and border links of cluster (cx, cy); a bridge counts as dry land. */
+  private buildCluster(cx: number, cy: number): void {
     const { map } = this;
-    const dry = (x: number, y: number): boolean => map.inBounds(x, y) && !map.isWater(x, y) && !map.isRockWall(x, y);
-    for (let cy = 0; cy < this.ch; cy++) {
-      for (let cx = 0; cx < this.cw; cx++) {
-        const x0 = cx * CLUSTER;
-        const y0 = cy * CLUSTER;
-        let any = false;
-        for (let y = y0; y < y0 + CLUSTER && !any; y++) for (let x = x0; x < x0 + CLUSTER && !any; x++) any = dry(x, y);
-        const i = cy * this.cw + cx;
-        this.land[i] = any ? 1 : 0;
-        let link = 0;
-        // Right border: some row where both sides of the seam are dry.
-        const xr = x0 + CLUSTER - 1;
-        for (let y = y0; y < y0 + CLUSTER; y++) if (dry(xr, y) && dry(xr + 1, y)) { link |= 1; break; }
-        const yb = y0 + CLUSTER - 1;
-        for (let x = x0; x < x0 + CLUSTER; x++) if (dry(x, yb) && dry(x, yb + 1)) { link |= 2; break; }
-        this.links[i] = link;
-      }
-    }
+    const dry = (x: number, y: number): boolean => map.inBounds(x, y) && !map.isOpenWater(x, y) && !map.isRockWall(x, y);
+    const x0 = cx * CLUSTER;
+    const y0 = cy * CLUSTER;
+    let any = false;
+    for (let y = y0; y < y0 + CLUSTER && !any; y++) for (let x = x0; x < x0 + CLUSTER && !any; x++) any = dry(x, y);
+    const i = cy * this.cw + cx;
+    this.land[i] = any ? 1 : 0;
+    let link = 0;
+    // Right border: some row where both sides of the seam are dry.
+    const xr = x0 + CLUSTER - 1;
+    for (let y = y0; y < y0 + CLUSTER; y++) if (dry(xr, y) && dry(xr + 1, y)) { link |= 1; break; }
+    const yb = y0 + CLUSTER - 1;
+    for (let x = x0; x < x0 + CLUSTER; x++) if (dry(x, yb) && dry(x, yb + 1)) { link |= 2; break; }
+    this.links[i] = link;
+  }
+
+  /**
+   * The walkable ground of cells (x, y, w, d) changed (a bridge laid or destroyed): the clusters round it are re-read
+   * and every remembered failed search is forgotten (a goal cut off a moment ago may be reachable now, or not).
+   */
+  groundChanged(x: number, y: number, w: number, d: number): void {
+    const cx0 = Math.max(0, Math.floor(x / CLUSTER) - 1);
+    const cy0 = Math.max(0, Math.floor(y / CLUSTER) - 1);
+    const cx1 = Math.min(this.cw - 1, Math.floor((x + w) / CLUSTER));
+    const cy1 = Math.min(this.ch - 1, Math.floor((y + d) / CLUSTER));
+    for (let cy = cy0; cy <= cy1; cy++) for (let cx = cx0; cx <= cx1; cx++) this.buildCluster(cx, cy);
+    this.missed.clear();
+    this.detourFailed.clear();
+    this.pathfinder.landChanged();
   }
 
   private linked(a: number, b: number): boolean {

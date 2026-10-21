@@ -50,6 +50,7 @@ const HANDLING: Readonly<Record<VehicleKind, { accel: number; turn: number; pivo
   mantis: { accel: 1.0, turn: 2.0, pivot: true },
   drone: { accel: 0.4, turn: 3.0, pivot: false },
   carrier: { accel: 4, turn: 0.35, pivot: false },
+  bridgeLayer: { accel: 1.0, turn: 2.0, pivot: true },
 };
 
 /** Can `soldiers` soldiers and `vehicles` vehicles travel together in one transport? */
@@ -301,8 +302,16 @@ export class Vehicle extends Unit {
     return this.type === 'truck';
   }
 
+  /** Armoured bridge layer: unarmed; one use, it unfolds into a Bridge (see Game.deployBridge). */
+  get isBridgeLayer(): boolean {
+    return this.type === 'bridgeLayer';
+  }
+
+  /** Bridge layer only: where it was ordered to lay its bridge (top-left cell and orientation), or null. */
+  bridgeOrder: { x: number; y: number; rotated: boolean } | null = null;
+
   override get canFight(): boolean {
-    if (this.isTransport || this.isRepair || this.isTruck || this.isDrone) return false;
+    if (this.isTransport || this.isRepair || this.isTruck || this.isDrone || this.isBridgeLayer) return false;
     return !this.aircraft ||(this.flight === 'airborne' && this.weapon !== null);
   }
 

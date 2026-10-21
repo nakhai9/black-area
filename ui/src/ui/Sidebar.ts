@@ -3,7 +3,6 @@ import { type IconNode, Settings, ArrowUpFromLine, Clock, House, Handshake, Wall
 import { BUILD_LIMIT_VEHICLES, CURRENCY, MAX_ALLIES, OIL_GRID_MARKUP, OIL_POLICIES, POWER_PER_BARREL, TECH_TIERS, TECH_VEHICLES, isAircraftKind } from '../constants';
 import { FACTIONS } from '../factions';
 import { getFlagTexture } from '../render/Flags';
-import { bridgeLayerPortrait } from '../render/BridgeLayerModel';
 import { factionBadgeHtml } from './FactionBadge';
 import { nationFlag } from '../render/sprites/NationCapital';
 import { isFactionNation, type NationId } from '../entities/NationCapital';
@@ -14,6 +13,19 @@ import type { VehicleKey, VehicleOption, VehicleQueue } from '../systems/Vehicle
 import type { BuildingType, FactionId, OilPolicy, PlayerState, WorldPoint } from '../types';
 import type { CarrierState } from '../entities/Vehicle';
 import { t } from '../i18n';
+
+/**
+ * Bridge button icon: "bridge" from Material Design Icons by Pictogrammers (Apache 2.0,
+ * https://github.com/Templarian/MaterialDesign/blob/master/LICENSE), a filled 24 × 24 path.
+ */
+const BRIDGE_ICON: IconNode = [
+  [
+    'path',
+    {
+      d: 'M7 14v-3.09c-.72-.33-1.39-.73-2-1.2V14zm-2 4H3v-2H1v-2h2V7h2v1.43C6.8 10 9.27 11 12 11s5.2-1 7-2.57V7h2v7h2v2h-2v2h-2v-2H5zm12-7.09V14h2V9.71c-.61.47-1.28.87-2 1.2M16 14v-2.68c-.64.23-1.31.4-2 .52V14zm-3 0v-2.04L12 12l-1-.04V14zm-3 0v-2.16c-.69-.12-1.36-.29-2-.52V14z',
+    },
+  ],
+];
 
 /** The selected transport, for the Transport panel (RA2: passengers aboard + the Deploy / Unload button). */
 export interface TransportInfo {
@@ -161,6 +173,10 @@ export interface SidebarModel {
   ranking: readonly RankRow[] | null;
   /** The selected transport of the player, or null (hides the Transport panel). */
   transport: TransportInfo | null;
+  /** A bridge layer of mine is selected: the Bridge button is lit (B). */
+  bridgeReady: boolean;
+  /** Bridge mode is on: the bridge is being positioned. */
+  bridging: boolean;
   aircraft: AircraftInfo | null;
   /** The player's allies and open claims (the Allies tab shows up once there is at least one ally). */
   allies: readonly AllyInfo[];
@@ -191,6 +207,8 @@ export interface SidebarHandlers {
   onOilPolicy: (policy: OilPolicy) => void;
   /** The Unload button of the Transport panel (same as the U key). */
   onUnload: () => void;
+  /** The Bridge button (same as the B key): position the selected bridge layer's bridge. */
+  onBridge: () => void;
   /** The Turbo button of the Aircraft panel (same as the T key). */
   onTurbo: () => void;
   /** The Home button of the action bar (same as the H key): camera to the own capital. */
@@ -239,6 +257,7 @@ export class Sidebar {
   private readonly transportVehicles: HTMLElement;
   private readonly transportState: HTMLElement;
   private readonly unloadButton: HTMLButtonElement;
+  private readonly bridgeButton: HTMLButtonElement;
   /** Floating action bar left of the sidebar (Home / Turbo / Unload), always shown; each button is disabled when it does not apply. */
   private readonly airTools: HTMLElement;
   /** Countdown to the end of the peace (mm:ss) under the air tools; hidden during the war. */
@@ -269,8 +288,6 @@ export class Sidebar {
   private readonly cameos = new Map<string, Cameo>();
   private readonly unitCameos = new Map<string, Cameo>();
   private readonly vehicleCameos = new Map<string, Cameo>();
-  /** Machines shown in the War Factory shop but not on sale yet (the bridge layer): greyed out, never clickable. */
-  private comingSoon: HTMLElement | null = null;
   private readonly panels = new Map<TabId, HTMLElement>();
   private activeTab: TabId = 'build';
   private messageTimer = 0;
@@ -429,12 +446,12 @@ export class Sidebar {
     this.transportState = q('.sb-transport-state');
     this.airTools = document.createElement('div');
     this.airTools.className = 'air-tools';
-    const tool = (icon: IconNode, title: string, onClick: () => void): HTMLButtonElement => {
+    const tool = (icon: IconNode, title: string, onClick: () => void, attrs: Record<string, string | number> = {}): HTMLButtonElement => {
       const b = document.createElement('button');
       b.type = 'button';
       b.className = 'air-tool';
       b.title = title;
-      b.append(createElement(icon, { width: 20, height: 20, 'stroke-width': 2, 'aria-hidden': 'true' }));
+      b.append(createElement(icon, { width: 20, height: 20, 'stroke-width': 2, 'aria-hidden': 'true', ...attrs }));
       // A click only acts (camera home, turbo…): the button never keeps the focus, so no focus ring is left on it.
       b.addEventListener('pointerdown', (e) => e.preventDefault());
       b.addEventListener('click', () => {
@@ -451,6 +468,7 @@ export class Sidebar {
     this.turboBadge.className = 'air-tool-badge';
     this.turboButton.append(this.turboBadge);
     this.unloadButton = tool(ArrowUpFromLine, t('Unload (U): let the passengers out one by one. In the air the transport first lands on solid ground below it.'), () => this.handlers.onUnload());
+    this.bridgeButton = tool(BRIDGE_ICON, t('Bridge (B): the selected bridge layer lays its bridge — click a spot at the edge of a river or the sea (R turns it). Used once.'), () => this.handlers.onBridge(), { fill: 'currentColor', stroke: 'none', 'stroke-width': 0 });
     tool(Settings, t('Settings: screen lock, volume, language (pause menu, Esc).'), () => this.handlers.onSettings());
     this.peaceTimer = document.createElement('div');
     this.peaceTimer.className = 'peace-timer';
@@ -584,6 +602,9 @@ export class Sidebar {
     const carrier = model.transport;
     this.unloadButton.disabled = !carrier || carrier.soldiers + carrier.vehicles === 0 || carrier.state === 'unloading' || !carrier.canUnload;
     this.unloadButton.classList.toggle('lit', !this.unloadButton.disabled);
+    this.bridgeButton.disabled = !model.bridgeReady;
+    this.bridgeButton.classList.toggle('lit', model.bridgeReady);
+    this.bridgeButton.classList.toggle('on', model.bridging);
 
     // POWER: what the nuclear plants can generate / what the structures need (J/s); red while short.
     // No numbers on the bar: supply / demand goes in the tooltip.
@@ -979,8 +1000,6 @@ export class Sidebar {
 
   private updateVehicleCameos(model: SidebarModel): void {
     const q = model.vehicleQueue;
-    // Like the ground vehicles, the bridge layer leaves the shop (an empty cell) while there is no War Factory.
-    this.comingSoon?.classList.toggle('sb-placeholder', !model.hasWarFactory);
     for (const option of this.vehicleOptions) {
       const c = this.vehicleCameos.get(option.key);
       if (!c) continue;
@@ -1053,27 +1072,6 @@ export class Sidebar {
       const badge = el.querySelector<HTMLElement>('.sb-cameo-badge') ?? undefined;
       if (wipe && state) this.vehicleCameos.set(option.key, { el, wipe, state, badge });
     }
-    this.comingSoon?.remove();
-    this.comingSoon = null;
-    if (this.vehicleOptions.length === 0) return;
-    // The nation's armoured bridge layer: on show in the shop, not on sale yet (no order can be placed for it).
-    const el = document.createElement('button');
-    el.type = 'button';
-    el.className = 'sb-cameo locked';
-    el.disabled = true;
-    el.title = `${t('Bridge Layer')} — ${t('Armoured vehicle-launched bridge. Coming soon: not on sale yet.')}`;
-    el.innerHTML = `
-      <canvas width="128" height="96"></canvas>
-      <span class="sb-cameo-info"></span>
-      <span class="sb-cameo-name"></span>
-      <span class="sb-cameo-state"></span>`;
-    const canvas = el.querySelector('canvas');
-    if (canvas) drawPreview(canvas, bridgeLayerPortrait(this.faction));
-    addInfoIcon(el, t('Bridge Layer'));
-    const state = el.querySelector<HTMLElement>('.sb-cameo-state');
-    if (state) state.textContent = t('COMING SOON');
-    container.append(el);
-    this.comingSoon = el;
   }
 
   private buildUnitCameos(container: HTMLElement): void {

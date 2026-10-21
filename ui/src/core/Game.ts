@@ -85,6 +85,8 @@ import {
   CONTESTED_NATIONS,
   capitalFootprint,
   FOOTPRINT_GMC,
+  FOOTPRINT_BRIDGE,
+  BRIDGE_DEPLOY_CELLS,
   type ContestedNationId,
   presenceFee,
   ANTARCTIC_OIL_SITES,
@@ -140,6 +142,7 @@ import { TreeLayer } from '../map/Trees';
 import { SOLDIER_DEATH_SECONDS, hasSoldierDeath, soldierPortrait } from '../render/InfantryArt';
 import { vehiclePortrait } from '../render/VehicleArt';
 import { REPAIR_DEATH_SECONDS, hasRepairSheet } from '../render/RepairSheets';
+import { BRIDGE_LAYER_DEATH_SECONDS } from '../render/BridgeLayerSheets';
 import { MANTIS_DEATH_SECONDS, hasMantisSheet } from '../render/MantisSheet';
 import { TRUCK_DEATH_SECONDS, hasTruckSheet } from '../render/TruckSheets';
 import { TANK_DEATH_SECONDS, hasTankSheet } from '../render/TankSheets';
@@ -175,6 +178,7 @@ const EXPLOSION_PER_BODY = 1.4;
 import { Flagpole } from '../entities/Flagpole';
 import { Wall } from '../entities/Wall';
 import { Gate } from '../entities/Gate';
+import { BRIDGE_JOIN_HIGH, BRIDGE_JOIN_LOW, Bridge, bridgeAnchor, bridgeSiteOk } from '../entities/Bridge';
 import { WALL_E, WALL_N, WALL_S, WALL_W } from '../render/sprites/Wall';
 import { Bunker } from '../entities/Bunker';
 import { PowerSystem } from '../systems/PowerSystem';
@@ -232,6 +236,8 @@ export type GameCommand = (
   | { k: 'waypoints'; pts: WorldPoint[] }
   | { k: 'minimap'; w: WorldPoint }
   | { k: 'place'; opt: string; x: number; y: number; rot: boolean }
+  /** The selected bridge layer lays its bridge with the top-left cell at (x, y), long along x when `rot`. */
+  | { k: 'bridge'; x: number; y: number; rot: boolean }
   | { k: 'build' | 'buildCancel'; opt: string }
   | { k: 'train' | 'trainCancel'; tier: TrainKey }
   | { k: 'vehicle' | 'vehicleCancel'; kind: VehicleKey }
@@ -661,6 +667,7 @@ export class Game {
       onLoan: () => this.issue({ k: 'loan' }),
       onOilPolicy: (policy) => this.issue({ k: 'policy', policy }),
       onUnload: () => this.issue({ k: 'unload' }),
+      onBridge: () => this.startBridging(),
       onTurbo: () => this.issue({ k: 'turbo' }),
       onHome: () => {
         if (!this.paused) this.focusOwnCapital();
@@ -800,7 +807,8 @@ export class Game {
     // World sites added by later versions (contested capitals, Antarctic oil): kept from the fresh game in case the save has none.
     const freshSites = this.entities.buildings().filter((b) => b instanceof NationCapital || (b instanceof OilDerrick && b.antarctic));
     // Clear the new game's starting world: its structures leave the map, every entity goes.
-    for (const b of this.entities.buildings()) this.map.occupy(b.x, b.y, b.w, b.d, null);
+    for (const b of this.entities.buildings()) if (!(b instanceof Bridge)) this.map.occupy(b.x, b.y, b.w, b.d, null);
+    this.map.bridge.fill(0);
     for (const e of [...this.entities.all()]) this.entities.remove(e.id);
     // Entities: shells first (so references between them resolve), then their fields.
     // Anything this version no longer has (a removed kind of unit) is left out.
@@ -1133,8 +1141,191 @@ export class Game {
     }
   }
 
+  // ------------------------------------------------------------------ bridges
+
+  /** Bridge mode (B / the Bridge button): the selected bridge layer's bridge is being positioned (R turns it). */
+  private bridging = false;
+
+  /** My selected bridge layers (alive, on the map). */
+  private selectedBridgeLayers(): Vehicle[] {
+    const me = this.humanPlayer.id;
+    return this.selection.selectedUnitList().filter((u): u is Vehicle => u instanceof Vehicle && u.isBridgeLayer && u.alive && u.owner === me);
+  }
+
+  private startBridging(): void {
+    if (this.paused || this.ended) return;
+    if (this.selectedBridgeLayers().length === 0) {
+      this.sidebar.notify(t('Select a bridge layer first.'), 2);
+      return;
+    }
+    if (this.placing) this.stopPlacing();
+    this.bridging = true;
+    this.waypoints = null;
+    this.sidebar.notify(t('Bridge: click a spot at the edge of a river or the sea (R turns it, right-click cancels).'), 3);
+  }
+
+  private stopBridging(): void {
+    this.bridging = false;
+    this.ghost = null;
+    this.placingRotated = false;
+  }
+
+  /** The bridge's footprint under the cursor and whether it may be laid there (water's edge, see bridgeSiteOk). */
+  private updateBridgeGhost(): void {
+    if (this.selectedBridgeLayers().length === 0) {
+      this.stopBridging();
+      return;
+    }
+    if (!this.mouseWorld) {
+      this.ghost = null;
+      return;
+    }
+    const rot = this.placingRotated;
+    const w = rot ? FOOTPRINT_BRIDGE.d : FOOTPRINT_BRIDGE.w;
+    const d = rot ? FOOTPRINT_BRIDGE.w : FOOTPRINT_BRIDGE.d;
+    const x = Math.floor(this.mouseWorld.x / CELL_SIZE - w / 2 + 0.5);
+    const y = Math.floor(this.mouseWorld.y / CELL_SIZE - d / 2 + 0.5);
+    const ok = bridgeSiteOk(this.map, x, y, rot);
+    this.ghost = {
+      spriteKey: `bridge:${this.humanPlayer.faction}|0~0`,
+      faction: this.humanPlayer.faction,
+      x,
+      y,
+      w,
+      d,
+      mirrored: rot,
+      ok,
+      reason: ok ? null : t('A bridge starts at the edge of a river or the sea (or runs on from a bridge)'),
+    };
+  }
+
+  /** Left click in bridge mode: send the order if the spot is legal. */
+  private tryBridge(): void {
+    const g = this.ghost;
+    if (!g) return;
+    if (!g.ok) {
+      this.sidebar.notify(g.reason ?? t('Cannot place here.'));
+      return;
+    }
+    this.issue({ k: 'bridge', x: g.x, y: g.y, rot: g.mirrored });
+    this.stopBridging();
+  }
+
+  /**
+   * Order (player or AI): the nearest of `layers` drives to the bank end of the bridge site (x, y) and lays the
+   * bridge there (see updateBridgeLayers). Refused when the site is not at the water's edge. True when sent.
+   */
+  orderBridge(layers: readonly Vehicle[], x: number, y: number, rotated: boolean): boolean {
+    const notify = (msg: string): void => {
+      if (layers[0]?.owner === this.localId) this.sidebar.notify(msg, 3);
+    };
+    const at = bridgeAnchor(this.map, x, y, rotated);
+    if (!at) {
+      notify(t('A bridge starts at the edge of a river or the sea (or runs on from a bridge)'));
+      return false;
+    }
+    const goal = { x: at.x * CELL_SIZE, y: at.y * CELL_SIZE };
+    const free = layers.filter((v) => v.alive && v.isBridgeLayer && !v.bridgeOrder);
+    const pool = free.length > 0 ? free : layers.filter((v) => v.alive && v.isBridgeLayer);
+    const v = pool.sort((a, b) => Math.hypot(a.px - goal.x, a.py - goal.y) - Math.hypot(b.px - goal.x, b.py - goal.y))[0];
+    if (!v) return false;
+    const cell = { x: Math.floor(at.x), y: Math.floor(at.y) };
+    const path = Math.hypot(v.px - goal.x, v.py - goal.y) < CELL_SIZE * BRIDGE_DEPLOY_CELLS ? [goal] : this.paths.find({ x: v.px, y: v.py }, cell, v.mobility);
+    const last = path[path.length - 1];
+    if (!last || Math.hypot(last.x - goal.x, last.y - goal.y) > CELL_SIZE * BRIDGE_DEPLOY_CELLS) {
+      notify(t('The {name} cannot get there.', { name: v.name }));
+      return false;
+    }
+    last.x = goal.x;
+    last.y = goal.y;
+    v.follow(path);
+    v.bridgeOrder = { x, y, rotated };
+    notify(t('The {name} is on its way to lay the bridge.', { name: v.name }));
+    return true;
+  }
+
+  /**
+   * Bridge layers on a bridge order: one that reaches the bank end of its site unfolds there into a Bridge and is gone
+   * (used once). Another order given meanwhile (it is headed elsewhere) cancels it; a site that stopped being legal
+   * (another bridge, a structure) too.
+   */
+  private updateBridgeLayers(): void {
+    for (const v of this.entities.vehicles()) {
+      const o = v.bridgeOrder;
+      if (!o || !v.alive || !v.visible) continue;
+      const at = bridgeAnchor(this.map, o.x, o.y, o.rotated);
+      if (!at) {
+        v.bridgeOrder = null;
+        if (v.owner === this.localId) this.sidebar.notify(t('The bridge site is no longer free.'), 3);
+        continue;
+      }
+      const gx = at.x * CELL_SIZE;
+      const gy = at.y * CELL_SIZE;
+      if (v.destination && Math.hypot(v.destination.x - gx, v.destination.y - gy) > CELL_SIZE) {
+        v.bridgeOrder = null; // sent somewhere else
+        continue;
+      }
+      if (Math.hypot(v.px - gx, v.py - gy) > CELL_SIZE * BRIDGE_DEPLOY_CELLS) {
+        // Stopped short (pushed off its route): it carries on to the site.
+        if (!v.moving) {
+          const path = this.paths.find({ x: v.px, y: v.py }, { x: Math.floor(at.x), y: Math.floor(at.y) }, v.mobility);
+          if (path.length === 0) v.bridgeOrder = null;
+          else v.follow(path);
+        }
+        continue;
+      }
+      this.deployBridge(v, o.x, o.y, o.rotated);
+    }
+  }
+
+  /** The bridge layer unfolds into a Bridge at (x, y) and leaves the map (one use). */
+  private deployBridge(v: Vehicle, x: number, y: number, rotated: boolean): void {
+    v.bridgeOrder = null;
+    const b = new Bridge(v.owner, v.faction as FactionId, { x: 0, y: 0 });
+    b.rotated = rotated;
+    b.moveTo(x, y);
+    b.placedAt = this.time;
+    this.entities.add(b);
+    this.occupyBuilding(b);
+    this.selection.selectedUnits.delete(v.id);
+    this.entities.remove(v.id);
+    if (v.owner === this.localId) this.sidebar.notify(t('Bridge laid.'), 2);
+  }
+
+  /**
+   * Lays (or lifts) a bridge's cells in the grid: walkable over water, closed to ships, no structure on them. The
+   * neighbouring sections re-join (ramps only at the open ends) and the route planner re-reads the ground. A bridge
+   * lifted from under units leaves the soldiers swimming and drowns the vehicles standing over water.
+   */
+  private markBridge(b: Bridge, on: boolean): void {
+    const map = this.map;
+    for (let y = b.y; y < b.y + b.d; y++) for (let x = b.x; x < b.x + b.w; x++) if (map.inBounds(x, y)) map.bridge[map.index(x, y)] = on ? 1 : 0;
+    this.paths.groundChanged(b.x, b.y, b.w, b.d);
+    this.joinBridges(b.x - 3, b.y - 3, b.w + 6, b.d + 6);
+    if (on) return;
+    for (const u of [...this.entities.fieldMovers()]) {
+      if (u.flies || u.naval || !(u instanceof Vehicle)) continue;
+      const cx = Math.floor(u.px / CELL_SIZE);
+      const cy = Math.floor(u.py / CELL_SIZE);
+      if (b.containsCell(cx, cy) && map.isOpenWater(cx, cy)) u.damage(u.hp + 1);
+    }
+  }
+
+  /** Re-picks the joined ends of every bridge section in the area (an end runs on when bridge cells lie just past it). */
+  private joinBridges(x: number, y: number, w: number, d: number): void {
+    for (const b of this.entities.buildings()) {
+      if (!(b instanceof Bridge) || !b.alive || b.x + b.w < x || b.y + b.d < y || b.x > x + w || b.y > y + d) continue;
+      const on = (high: boolean): boolean => b.endBeyond(high).every((c) => this.map.isBridge(c.x, c.y));
+      b.joins = (on(false) ? BRIDGE_JOIN_LOW : 0) | (on(true) ? BRIDGE_JOIN_HIGH : 0);
+    }
+  }
+
   /** Marks a structure's cells as taken; a Nation Gate leaves its two middle cells open as the way through. */
   private occupyBuilding(b: Building): void {
+    if (b instanceof Bridge) {
+      this.markBridge(b, true);
+      return;
+    }
     this.map.occupy(b.x, b.y, b.w, b.d, b.id);
     if (b instanceof Gate) for (const c of b.openCells()) this.map.occupy(c.x, c.y, 1, 1, null);
   }
@@ -2301,7 +2492,7 @@ export class Game {
       const cx = Math.floor(u.px / CELL_SIZE);
       const cy = Math.floor(u.py / CELL_SIZE);
       // Mountain crests are rock walls for every ground unit (swimmers too): only the passes lead across a range.
-      if (u.naval ? this.map.isWater(cx, cy) : !this.map.isRockWall(cx, cy) && (u.swims || !this.map.isWater(cx, cy))) {
+      if (u.naval ? this.map.isWater(cx, cy) : !this.map.isRockWall(cx, cy) && (u.swims || !this.map.isOpenWater(cx, cy))) {
         // Update the stored point in place: no new object per unit per tick.
         const dry = this.lastDry.get(u.id);
         if (dry) {
@@ -2377,7 +2568,7 @@ export class Game {
     for (const u of this.entities.fieldMovers()) {
       const cx = Math.floor(u.px / CELL_SIZE);
       const cy = Math.floor(u.py / CELL_SIZE);
-      u.inWater = !u.flies && this.map.isWater(cx, cy);
+      u.inWater = !u.flies && this.map.isOpenWater(cx, cy);
       // Woods slow everybody down; mountain passes (slopes) slow soldiers and vehicles (machines more).
       u.terrainFactor = u.flies ? 1 : this.map.mountain[this.map.index(cx, cy)] === MOUNTAIN_PASS ? (u instanceof Vehicle ? MOUNTAIN_PASS_SPEED_VEHICLE : MOUNTAIN_PASS_SPEED_INFANTRY) : this.map.hasTrees(cx, cy) ? 0.78 : 1;
       if (!u.flies && !u.inWater) u.terrainFactor *= this.climbFactor(u);
@@ -2394,6 +2585,7 @@ export class Game {
     this.processTruckUnloading(dt);
     this.separateUnits();
     this.keepOffStructures();
+    this.updateBridgeLayers();
     this.watchBuildingHits();
     this.repathStuckUnits(dt);
     this.giveWay(dt);
@@ -2585,6 +2777,9 @@ export class Game {
         break;
       case 'place':
         this.placeStructure(cmd.opt, cmd.x, cmd.y, cmd.rot);
+        break;
+      case 'bridge':
+        this.orderBridge(this.selectedBridgeLayers(), cmd.x, cmd.y, cmd.rot);
         break;
       case 'build':
       case 'buildCancel': {
@@ -3087,6 +3282,8 @@ export class Game {
           parkingFree: this.production.parkingFree(this.humanPlayer),
           ranking: this.sidebar.wantsRanking(elapsed) ? this.ranking() : null,
           transport: this.transportInfo(),
+          bridgeReady: this.selectedBridgeLayers().length > 0,
+          bridging: this.bridging,
           aircraft: this.aircraftInfo(),
           allies: this.alliesInfo(),
         },
@@ -3110,6 +3307,11 @@ export class Game {
       if (ev.type === 'click' || ev.type === 'keyDown') this.sound.unlock(); // browsers need a user gesture
       switch (ev.type) {
         case 'click': {
+          if (this.bridging) {
+            if (ev.button === 'right') this.stopBridging();
+            else this.tryBridge();
+            break;
+          }
           if (this.placing) {
             if (ev.button === 'right') this.stopPlacing();
             else this.tryPlace();
@@ -3161,6 +3363,10 @@ export class Game {
           // Drag-select own soldiers (buildings are not box-selectable — RA2 rule). A shaky click while placing still places.
           if (this.placing) {
             this.tryPlace();
+            break;
+          }
+          if (this.bridging) {
+            this.tryBridge();
             break;
           }
           const a = camera.screenToIso(ev.rect.x, ev.rect.y);
@@ -3292,7 +3498,8 @@ export class Game {
       if (!unit) {
         const hit = this.selection.pick(world);
         if (hit && this.orderOnBuilding(hit)) return;
-        if (!hit) {
+        // A bridge is a road: clicked with units selected (no attack or repair on it), they drive / walk onto it.
+        if (!hit || hit instanceof Bridge) {
           this.orderMove(world);
           return;
         }
@@ -3554,6 +3761,7 @@ export class Game {
         break;
       case 'Escape':
         if (this.placing) this.stopPlacing();
+        else if (this.bridging) this.stopBridging();
         else if (this.waypoints) this.waypoints = null; // Esc drops the route being plotted
         else if (!this.ended) this.togglePause();
         break;
@@ -3567,13 +3775,18 @@ export class Game {
       case 'KeyG': // parade formation
         if (this.selection.selectedUnits.size > 0) this.issue({ k: 'key', code });
         break;
+      case 'KeyB':
+        // Bridge mode for the selected bridge layer (B again leaves it).
+        if (this.bridging) this.stopBridging();
+        else this.startBridging();
+        break;
       case 'KeyC':
         // The camera jumps to the next of my own units on the map.
         this.tourNextUnit();
         break;
       case 'KeyR':
         // Only while positioning a new structure: turn it 90° (footprint d × w, art mirrored). Once built it stays put.
-        if (this.placing) {
+        if (this.placing || this.bridging) {
           this.placingRotated = !this.placingRotated;
           this.updateGhost();
           this.sidebar.notify(this.placingRotated ? t('Turned 90°.') : t('Turned back.'), 1.5);
@@ -3715,6 +3928,10 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
 
   /** Footprint under the cursor (centred on it) + legality for the preview. */
   private updateGhost(): void {
+    if (this.bridging) {
+      this.updateBridgeGhost();
+      return;
+    }
     if (!this.placing || !this.mouseWorld) {
       this.ghost = null;
       return;
@@ -4221,6 +4438,9 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
         this.sound.play('explosion', { x: e.px, y: e.py });
       } else if (vehicle && e.isRepair && hasRepairSheet(e.faction as FactionId)) {
         this.effects.add({ kind: 'repairDeath', ...this.fx(e.px, e.py), age: 0, ttl: REPAIR_DEATH_SECONDS, faction: e.faction as FactionId, heading: e.heading });
+        this.sound.play('explosion', { x: e.px, y: e.py });
+      } else if (vehicle && e.isBridgeLayer) {
+        this.effects.add({ kind: 'bridgeLayerDeath', ...this.fx(e.px, e.py), age: 0, ttl: BRIDGE_LAYER_DEATH_SECONDS, faction: e.faction as FactionId, heading: e.heading });
         this.sound.play('explosion', { x: e.px, y: e.py });
       } else if (vehicle) {
         this.sound.play('explosion', { x: e.px, y: e.py });
@@ -5478,7 +5698,8 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     this.placeOutside(e, e.crew.splice(0));
     // An airfield attacked and destroyed takes only itself down: the aircraft parked on it are not hit. They move to
     // another airfield of the nation, or wait grounded where they stand until there is one (see AircraftSystem).
-    this.map.occupy(e.x, e.y, e.w, e.d, null);
+    if (e instanceof Bridge) this.markBridge(e, false);
+    else this.map.occupy(e.x, e.y, e.w, e.d, null);
     this.entities.remove(e.id);
     // A destroyed / sold wall block: its neighbours rejoin without it (a line end, a corner turned straight...).
     if (e instanceof Wall) this.joinWalls(e.x, e.y);

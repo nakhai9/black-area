@@ -498,7 +498,7 @@ export function drawMesh(ctx: CanvasRenderingContext2D, mesh: Mesh, h: number, c
 }
 
 /** Explosion frame k (0–7): a fireball that swells and fades into smoke. */
-function blast(ctx: CanvasRenderingContext2D, k: number, cx: number, cy: number): void {
+export function blast(ctx: CanvasRenderingContext2D, k: number, cx: number, cy: number): void {
   const t = (k + 1) / 8;
   const r = 6 + 22 * Math.sqrt(t);
   const g = ctx.createRadialGradient(cx, cy - 8, 1, cx, cy - 8, r);
