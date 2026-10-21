@@ -128,6 +128,10 @@ const FLAG_VARIANTS: Readonly<Record<string, (design: FactionId, flag: FactionId
             : createBrusselsEUHeadquartersArt)(flag),
   alliedBuilding: (design, flag) => createAlliedBuildingArt(design, flag),
   nation: (design, flag) => createNationCapitalArt(design as unknown as ContestedNationId, flag),
+  barracks: (design, flag) => createBarracksArt(design, flag),
+  warFactory: (design, flag) => createWarFactoryArt(design, flag),
+  flagpole: (design, flag) => createFlagpoleArt(design, flag),
+  happyCity: (design, flag) => createHappyCityArt(design, flag),
 };
 
 /** Art for a `kind:design@flag` sprite key, or undefined when the key is not one. */

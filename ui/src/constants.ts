@@ -27,7 +27,7 @@ export const DEMO_FACTION = Number(import.meta.env.VITE_DEMO_FACTION) || 2;
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "2.44.0";
+export const GAME_VERSION = "2.49.0";
 
 /** An Allied Building within this many cells of any capital is an embassy; farther out it is a "Pro-<nation> regime". */
 export const EMBASSY_CAPITAL_CELLS = 25;
@@ -283,14 +283,14 @@ export const INFANTRY_BASE = {
 } as const;
 /**
  * BuildLimit: how many orders a nation may have waiting at once (the one being made included). Any type may be
- * ordered; a slot frees up as soon as an order is completed. There is no cap on how many units a nation owns.
+ * ordered; a slot frees up as soon as an order is completed. Army size is capped by MAX_SOLDIERS / MAX_GROUND_VEHICLES.
  */
 export const BUILD_LIMIT_SOLDIERS = 15;
 export const BUILD_LIMIT_VEHICLES = 10;
-/** Army size is unlimited: soldiers, ground vehicles and transport aircraft have no cap (only money, queues and parking). */
-export const MAX_SOLDIERS = Number.POSITIVE_INFINITY;
-export const MAX_GROUND_VEHICLES = Number.POSITIVE_INFINITY;
-export const MAX_TRANSPORTS = Number.POSITIVE_INFINITY;
+/** Army caps per nation (player and AI alike): keeps the unit count, route work and frame time bounded. */
+export const MAX_SOLDIERS = 120;
+export const MAX_GROUND_VEHICLES = 60;
+export const MAX_TRANSPORTS = 8;
 /**
  * Elite (second-tier) soldiers are never more than the regular (first-tier) ones, at most 2 for every 3
  * regulars: with 5 soldiers that is 3 regular + 2 elite. Alive soldiers and soldiers on order both count.

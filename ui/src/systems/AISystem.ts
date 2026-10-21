@@ -139,7 +139,7 @@ const MEND_SEARCH_CELLS = 60;
 const OVERSEAS_TRANSPORTS = 2;
 /** Army trucks: at most this many per nation, one per TRUCK_SEATS soldiers; soldiers within TRUCK_PICKUP_CELLS of an
  * idle truck ride it, and it lets them out UNLOAD_SHORT_CELLS short of the target. */
-const MAX_TRUCKS = Number.POSITIVE_INFINITY;
+const MAX_TRUCKS = 8;
 const TRUCK_SEATS = TRUCK_SOLDIERS;
 const TRUCK_PICKUP_CELLS = 25;
 const UNLOAD_SHORT_CELLS = 8;

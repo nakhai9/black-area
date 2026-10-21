@@ -123,6 +123,8 @@ function bombRow(v: Vehicle): { x0: number; y: number; bar: number; gap: number;
 }
 /** Structures whose art has no flag of its own (sprite key kinds): the renderer gives them a flag pole. */
 const FLAGLESS_ART: ReadonlySet<string> = new Set(['oil', 'airfield', 'techCenter', 'powerPlant', 'happyCity']);
+/** Structures without a flag that get one only once taken from another nation. */
+const CAPTURE_POLE_ART: ReadonlySet<string> = new Set(['bunker', 'wall', 'gate']);
 const FLAG_POLE_HEIGHT = 30;
 /** How long an RA2 order line stays on screen after the order (s). */
 const ORDER_LINE_SECONDS = 1;
@@ -538,9 +540,11 @@ export class Renderer {
       s.art.drawAnimated(new IsoPainter(ctx, s.originX / s.artScale, s.originY / s.artScale), time, b.active);
       ctx.restore();
     }
-    // Every structure flies its owner's national flag: ones whose art has no flag get a pole at their front corner.
+    // Every structure flies its owner's national flag: ones whose art has no flag get a pole at their front corner,
+    // and so does a taken bunker / wall / gate (it keeps the old owner's design, the pole shows who holds it now).
     const kind = b.spriteKey.split(':')[0] ?? '';
-    if (FLAGLESS_ART.has(kind) && b.faction !== 'neutral') {
+    const taken = CAPTURE_POLE_ART.has(kind) && b.origin !== b.faction;
+    if ((FLAGLESS_ART.has(kind) || taken) && b.faction !== 'neutral') {
       ctx.save();
       ctx.translate(c.x, c.y);
       const a = k * s.artScale;

@@ -484,7 +484,8 @@ function islamicPlan(rnd: () => number): CityPlan {
   };
 }
 
-export function createHappyCityArt(faction: FactionId): BuildingArt {
+/** `flagOf`: the nation whose flag flies (its owner after a capture; the city stays `faction`'s). */
+export function createHappyCityArt(faction: FactionId, flagOf: FactionId = faction): BuildingArt {
   const team = FACTIONS[faction].colors.primary;
   const rnd = seeded(faction);
   const plan =
@@ -512,7 +513,7 @@ export function createHappyCityArt(faction: FactionId): BuildingArt {
     },
 
     drawAnimated(p, time) {
-      drawFlagOnPole(p, faction, fu, fv, fz + pole, time, 0, 16, 10);
+      drawFlagOnPole(p, flagOf, fu, fv, fz + pole, time, 0, 16, 10);
       // A few windows of the landmark light up and go dark again.
       const [lu, lv, lw, ld, lz, lh] = plan.lit;
       for (let i = 0; i < 6; i++) {

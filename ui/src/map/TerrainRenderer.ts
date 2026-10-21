@@ -11,6 +11,7 @@ import { type BiomeFields, sampleField } from './Biomes';
 import type { EarthData } from './EarthData';
 import type { TileMap } from './TileMap';
 import { TileTerrain } from './TileTerrain';
+import { RiverLayer } from './Rivers';
 import type { TreeLayer } from './Trees';
 
 /**
@@ -38,6 +39,7 @@ const ROCKY_SHORE = hexToRgb('#8f7558');
 const OCEAN_SHALLOW = hexToRgb('#3b6f9a');
 const OCEAN_DEEP = hexToRgb('#1b3a68');
 const SHORE_GLOW = hexToRgb('#3d6670');
+const RIVER = hexToRgb('#3f7196');
 
 /** Light from the north-east (x east, y south, z up). */
 const LIGHT = (() => {
@@ -143,12 +145,13 @@ export class TerrainRenderer {
     this.landRgb = new Uint8ClampedArray(this.texW * this.texH * 3);
     this.waterRgb = new Uint8ClampedArray((this.texW / WATER_RES) * (this.texH / WATER_RES) * 3);
     const lift = new GroundLift(map);
-    this.tiles = new TileTerrain(map, earth, seed, lift);
+    const rivers = new RiverLayer(map.width, seed);
+    this.tiles = new TileTerrain(map, earth, seed, lift, rivers);
     setGroundLift((x, y) => lift.at(x, y));
     map.onOccupy = (x, y, w, d) => this.tiles.invalidate(x, y, w, d);
     const { canvas, ctx } = createCanvas(this.texW, this.texH);
     this.canvas = canvas;
-    this.paintRelief(ctx, earth, biomes);
+    this.paintRelief(ctx, earth, biomes, rivers);
     // Trees are drawn live as upright billboards (drawTrees), not into the ground textures.
     this.collectWaterSpots();
     this.collectPeaks();
@@ -372,7 +375,7 @@ export class TerrainRenderer {
 
   // ------------------------------------------------------------------ relief
 
-  private paintRelief(ctx: CanvasRenderingContext2D, earth: EarthData, biomes: BiomeFields): void {
+  private paintRelief(ctx: CanvasRenderingContext2D, earth: EarthData, biomes: BiomeFields, rivers: RiverLayer): void {
     const W = this.texW;
     const H = this.texH;
     const gw = this.map.width;
@@ -466,6 +469,11 @@ export class TerrainRenderer {
           const shade = (nx * LIGHT[0] + ny * LIGHT[1] + LIGHT[2]) / Math.hypot(nx, ny, 1) / flat;
           const s = Math.min(1.3, Math.max(0.5, shade));
 
+          if (rivers.near(gx, gy)) {
+            const rv = rivers.at(gx + 0.5, gy + 0.5);
+            // Water is flat: unshaded (the hill-shading s multiplies it below).
+            if (rv.water > 0) [lr, lg, lb] = mix3(lr, lg, lb, [RIVER[0] / s, RIVER[1] / s, RIVER[2] / s], rv.water);
+          }
           r = lerp(r, lr * s, cov);
           g = lerp(g, lg * s, cov);
           b = lerp(b, lb * s, cov);

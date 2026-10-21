@@ -5,6 +5,7 @@ import { CELL_METRES, RELIEF_LIFT } from './Relief';
 import type { EarthData } from './EarthData';
 import type { TileMap } from './TileMap';
 import type { GroundLift } from './GroundLift';
+import type { RiverLayer } from './Rivers';
 
 /**
  * Tile-based ground. The Earth (real land, lakes, elevation and sea depth from NASA / Natural Earth data) has
@@ -44,6 +45,9 @@ const rgb = (hex: string): RGB => [parseInt(hex.slice(1, 3), 16), parseInt(hex.s
 const GRASS_A = rgb('#6ca044'); // a little lighter than RA2's so green-camo vehicles stand out
 const GRASS_B = rgb('#86b852');
 const DIRT = rgb('#a09058');
+/** RA2 dirt tracks worn into grass / desert: a pale packed centre with darker trodden edges. */
+const TRAIL = rgb('#b4a06a');
+const TRAIL_EDGE = rgb('#7a6a40');
 const FOREST_A = rgb('#45702e');
 const FOREST_B = rgb('#568338');
 const SAND = rgb('#dcc184');
@@ -62,6 +66,8 @@ const SEA_DEEP = rgb('#1b3a68');
 const SEA_COAST = rgb('#3d6670');
 const FOAM = rgb('#c8dade');
 const CLIFF = rgb('#4f4232');
+const RIVER = rgb('#3f7196');
+const RIVER_BANK = rgb('#4e5a34');
 
 const clamp01 = (t: number): number => (t < 0 ? 0 : t > 1 ? 1 : t);
 const smooth = (a: number, b: number, x: number): number => {
@@ -85,6 +91,12 @@ const SNOW_FULL = 4700;
 const ROCK_SLOPE = 0.55;
 const ROCK_FULL = 1.1;
 const BARE_ROCK = rgb('#8a7c6c');
+/** Dirt tracks (see trail()): noise frequency per cell (about one bend every ~20 cells), half-width in cells, and the
+ * coarse region noise above which tracks appear (frequency per cell, threshold). */
+const TRAIL_SCALE = 0.05;
+const TRAIL_WIDTH = 1;
+const TRAIL_REGION = 0.012;
+const TRAIL_REGION_MIN = 0.4;
 const SNOWCAP = rgb('#f1f3f6');
 
 /**
@@ -127,6 +139,7 @@ export class TileTerrain {
     private readonly earth: EarthData,
     private readonly seed: number,
     private readonly lift: GroundLift,
+    private readonly rivers: RiverLayer,
   ) {
     this.noise = new ValueNoise(seed + 91);
   }
@@ -318,6 +331,28 @@ export class TileTerrain {
     return top + (bottom - top) * sy;
   }
 
+  /**
+   * Dirt track share (0 none … 1 track centre) at cell position (fx, fy), and how much of it is the darker edge:
+   * the tracks are the 0.5 contour of a domain-warped noise, so they wind and branch in continuous lines, and a
+   * second, coarse noise keeps them to some regions only (open country is crossed by a few, not covered).
+   */
+  private trail(fx: number, fy: number): { core: number; edge: number } {
+    const none = { core: 0, edge: 0 };
+    const region = this.noise.noise(fx * TRAIL_REGION + 53, fy * TRAIL_REGION + 71);
+    if (region < TRAIL_REGION_MIN) return none;
+    const wx = fx + (this.noise.noise(fx * 0.09 + 11, fy * 0.09 + 5) - 0.5) * 5;
+    const wy = fy + (this.noise.noise(fx * 0.09 + 41, fy * 0.09 + 23) - 0.5) * 5;
+    // Distance to the contour in cells (value / slope), so a track keeps one width wherever the noise is steep or flat.
+    const f = (a: number, b: number): number => this.noise.noise(a * TRAIL_SCALE + 97, b * TRAIL_SCALE + 13);
+    const v = f(wx, wy);
+    const g = Math.hypot(f(wx + 0.25, wy) - v, f(wx, wy + 0.25) - v) * 4 + 1e-4;
+    const d = Math.abs(v - 0.5) / g + (this.noise.noise(fx * 2.1, fy * 2.1 + 7) - 0.5) * 0.35;
+    const fade = smooth(TRAIL_REGION_MIN, TRAIL_REGION_MIN + 0.08, region);
+    const w = TRAIL_WIDTH * (0.8 + this.noise.noise(fx * 0.3, fy * 0.3 + 61) * 0.4);
+    if (d > w * 1.6) return none;
+    return { core: smooth(w, w * 0.45, d) * fade, edge: smooth(w * 1.6, w, d) * (1 - smooth(w, w * 0.6, d)) * fade };
+  }
+
   private base(t: number, fx: number, fy: number, n1: number, mott: number): void {
     const c = this.col;
     let a: RGB;
@@ -367,6 +402,9 @@ export class TileTerrain {
       // Bare-earth patches worn into the grass, and tufts (light / dark flecks).
       const patch = this.noise.noise(fx * 0.55 + 31, fy * 0.55 + 17);
       if (patch > 0.68) blend(DIRT, smooth(0.68, 0.8, patch) * 0.75);
+      const tr = this.trail(fx, fy);
+      if (tr.edge > 0) blend(TRAIL_EDGE, tr.edge * 0.55);
+      if (tr.core > 0) blend(TRAIL, tr.core * 0.85);
       if (n1 > 0.88) k += 0.16;
       else if (n1 < 0.1) k -= 0.18;
     } else if (t === 3) {
@@ -378,6 +416,9 @@ export class TileTerrain {
       k += Math.sin(fx * 5 + fy * 2.4 + mott * 6) * 0.05;
       const drift = this.noise.noise(fx * 0.7 + 7, fy * 0.7 + 3);
       if (drift > 0.62) blend(DESERT_DARK, smooth(0.62, 0.78, drift) * 0.55);
+      const tr = this.trail(fx, fy);
+      if (tr.edge > 0) blend(DESERT_DARK, tr.edge * 0.6);
+      if (tr.core > 0) blend(TRAIL, tr.core * 0.4);
       if (n1 > 0.93) k -= 0.22;
     } else if (t === 5) {
       // Strata and cracks in the rock.
@@ -538,6 +579,7 @@ export class TileTerrain {
         const DL = T[here + W - 1] ?? 0;
         const DR = T[here + W + 1] ?? 0;
         const d01 = depth[here] ?? 0;
+        const riverNear = t !== 0 && this.rivers.near(cx, cy);
         for (let sx = 0; sx < TILE_PX; sx++) {
           const px = (i - 1) * TILE_PX + sx;
           const u = (sx + 0.5) / TILE_PX;
@@ -602,6 +644,22 @@ export class TileTerrain {
             col[0] *= shade;
             col[1] *= shade;
             col[2] *= shade;
+            if (riverNear) {
+              // A great river (art only): a wet dark bank, then flat water with a faint ripple.
+              const rv = this.rivers.at(fx, fy);
+              if (rv.bank > 0) {
+                const k = rv.bank * 0.55;
+                col[0] += (RIVER_BANK[0] - col[0]) * k;
+                col[1] += (RIVER_BANK[1] - col[1]) * k;
+                col[2] += (RIVER_BANK[2] - col[2]) * k;
+              }
+              if (rv.water > 0) {
+                const ripple = 1 + Math.sin(fx * 6 + fy * 3) * 0.03 + (n1 - 0.5) * 0.04;
+                col[0] += (RIVER[0] * ripple - col[0]) * rv.water;
+                col[1] += (RIVER[1] * ripple - col[1]) * rv.water;
+                col[2] += (RIVER[2] * ripple - col[2]) * rv.water;
+              }
+            }
           } else {
             // ---- sea: depth from the bathymetry, lighter coastal shelf, foam where it meets land
             const deep = clamp01(d01 * 1.7);

@@ -4,7 +4,7 @@ import type { FactionId } from '../types';
 import { BUNKER_ANCHOR, BUNKER_BODY_PX, BUNKER_CELL, bunkerCell, bunkerMuzzleCell, bunkerRow } from './BunkerModel';
 
 /**
- * Bunkers: every nation's own model (BunkerModel — USA hexagonal pillbox, Europe casemate with a steel cloche, Russia
+ * Bunkers: every nation's own model (BunkerModel — USA hexagonal pillbox with HESCO ring, Europe casemate with a steel cloche, Russia
  * DOT in an earth berm, China crenellated blockhouse, Islamic sandbag sangar), each with its firing embrasures, drawn
  * from cached cells per gun facing (8) and damage stage (intact, light, heavy, burning, ruin).
  */
@@ -35,7 +35,7 @@ function blit(ctx: CanvasRenderingContext2D, cell: HTMLCanvasElement, x: number,
 
 /** Draws a bunker of its nation (false for a neutral one). */
 export function drawBunkerSheet(ctx: CanvasRenderingContext2D, b: Bunker, x: number, y: number): boolean {
-  const f = b.faction as FactionId;
+  const f = b.origin as FactionId; // a taken bunker keeps its design
   if (!NATIONS.includes(f)) return false;
   blit(ctx, bunkerCell(f, bunkerRow(b.aimHeading), stage(b.hp / b.maxHp)), x, y);
   return true;

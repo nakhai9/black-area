@@ -33,7 +33,8 @@ const STACKS: readonly [number, number][] = [
  * rooftop gantry crane at each end, two exhaust stacks and team-coloured trim.
  * The hall fills the whole plot; vehicles roll out of the front bays.
  */
-export function createWarFactoryArt(faction: FactionId): BuildingArt {
+/** `flagOf`: the nation whose flags fly (its owner after a capture; the design stays `faction`'s). */
+export function createWarFactoryArt(faction: FactionId, flagOf: FactionId = faction): BuildingArt {
   const team = FACTIONS[faction].colors;
   return {
     footprint: { w: 5, d: 4 },
@@ -127,7 +128,7 @@ export function createWarFactoryArt(faction: FactionId): BuildingArt {
           p.ctx.arc(x, y, 1.1, 0, Math.PI * 2);
           p.ctx.fill();
         }
-        own.flags.forEach(([u, v, z], i) => drawFlagOnPole(p, faction, u, v, z + 22, time, i * 1.2, 15, 9));
+        own.flags.forEach(([u, v, z], i) => drawFlagOnPole(p, flagOf, u, v, z + 22, time, i * 1.2, 15, 9));
         return;
       }
       for (const [u, v] of STACKS) {
@@ -136,7 +137,7 @@ export function createWarFactoryArt(faction: FactionId): BuildingArt {
         p.ctx.arc(x, y, 1.1, 0, Math.PI * 2);
         p.ctx.fill();
       }
-      FLAGS.forEach(([u, v], i) => drawFlagOnPole(p, faction, u, v, FLAG_BASE + 22, time, i * 1.2, 15, 9));
+      FLAGS.forEach(([u, v], i) => drawFlagOnPole(p, flagOf, u, v, FLAG_BASE + 22, time, i * 1.2, 15, 9));
     },
   };
 }

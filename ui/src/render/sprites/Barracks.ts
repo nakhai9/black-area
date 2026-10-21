@@ -598,7 +598,8 @@ const FLAGS: Record<FactionId, FlagSpot> = {
  * the Frunzenskaya Ministry of Defence (Russia), the symmetric August 1st Building with its 八一 star (China), a glass alliance
  * headquarters (Europe) and a mud-brick desert fortress (Islamic). The national flag flies on the roof of each; every design fills its plot.
  */
-export function createBarracksArt(faction: FactionId): BuildingArt {
+/** `flagOf`: the nation whose flag flies (its owner after a capture; the design stays `faction`'s). */
+export function createBarracksArt(faction: FactionId, flagOf: FactionId = faction): BuildingArt {
   const team = FACTIONS[faction].colors;
   const flag = FLAGS[faction];
 
@@ -613,7 +614,7 @@ export function createBarracksArt(faction: FactionId): BuildingArt {
     },
 
     drawAnimated(p, time) {
-      drawFlagOnPole(p, faction, flag.u, flag.v, flag.z + flag.h, time, 0.6, 16, 10);
+      drawFlagOnPole(p, flagOf, flag.u, flag.v, flag.z + flag.h, time, 0.6, 16, 10);
     },
   };
 }

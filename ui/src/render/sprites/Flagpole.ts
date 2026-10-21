@@ -138,7 +138,8 @@ const PLAZAS: Record<FactionId, Plaza> = {
  * (China), a round blue-glass podium ringed by twelve star lights (Europe) — with the nation's own pole
  * (see drawNationalPole) and its flag waving on top.
  */
-export function createFlagpoleArt(faction: FactionId): BuildingArt {
+/** `flagOf`: the nation whose flag flies (its owner after a capture; the plaza stays `faction`'s). */
+export function createFlagpoleArt(faction: FactionId, flagOf: FactionId = faction): BuildingArt {
   const plaza = PLAZAS[faction];
   const base = plaza.top;
   return {
@@ -152,7 +153,7 @@ export function createFlagpoleArt(faction: FactionId): BuildingArt {
 
     drawAnimated(p, time) {
       plaza.animate?.(p, time);
-      drawFlagOnPole(p, faction, 0.5, 0.5, base + POLE_H, time, 0.3, FLAG_W, FLAG_H);
+      drawFlagOnPole(p, flagOf, 0.5, 0.5, base + POLE_H, time, 0.3, FLAG_W, FLAG_H);
     },
   };
 }
