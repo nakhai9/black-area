@@ -2385,6 +2385,7 @@ export class Game {
     this.processBoarding();
     this.processTruckUnloading(dt);
     this.separateUnits();
+    this.keepOffStructures();
     this.watchBuildingHits();
     this.repathStuckUnits(dt);
     this.giveWay(dt);
@@ -2726,6 +2727,56 @@ export class Game {
     // hundreds of units in tight crowds that never fully settle: fewer passes there (the rest is done next tick).
     const passes = this.entities.fieldMovers().length > SEPARATE_CROWD ? 2 : 6;
     for (let pass = 0; pass < passes; pass++) if (!this.separatePass()) break;
+  }
+
+  /**
+   * Ground units never stand with their body over a structure: the route rules only keep a unit's centre off structure
+   * cells, so a vehicle (wider than half a cell) passing a building, or one shoved by a crowd, overlapped it. Each one
+   * whose body reaches into a structure cell is pushed back out to touch it. A unit whose centre is on a structure
+   * cell (just out of a factory, a block raised under it) is left to walk off, and soldiers on a task at a building
+   * (capture, repair, enter, lease) may come right up to it.
+   */
+  private keepOffStructures(): void {
+    const map = this.map;
+    for (const u of this.entities.fieldMovers()) {
+      if (u.flies || u.naval || u.fixed || u.task) continue;
+      const r = u.radius;
+      const cx = Math.floor(u.px / CELL_SIZE);
+      const cy = Math.floor(u.py / CELL_SIZE);
+      if (map.occupantAt(cx, cy) !== null) continue;
+      const reach = Math.ceil(r / CELL_SIZE);
+      // Strongest push from each side, per axis: two structures facing each other across a narrow gap cancel out
+      // (the unit stays in the middle) instead of tossing it from one to the other.
+      let posX = 0;
+      let negX = 0;
+      let posY = 0;
+      let negY = 0;
+      for (let y = cy - reach; y <= cy + reach; y++) {
+        for (let x = cx - reach; x <= cx + reach; x++) {
+          if ((x === cx && y === cy) || map.occupantAt(x, y) === null) continue;
+          // Nearest point of that cell's square to the unit's centre.
+          const nx = Math.max(x * CELL_SIZE, Math.min((x + 1) * CELL_SIZE, u.px));
+          const ny = Math.max(y * CELL_SIZE, Math.min((y + 1) * CELL_SIZE, u.py));
+          const dx = u.px - nx;
+          const dy = u.py - ny;
+          const d = Math.hypot(dx, dy);
+          if (d >= r || d < 1e-6) continue;
+          const k = (r - d) / d;
+          posX = Math.max(posX, dx * k);
+          negX = Math.min(negX, dx * k);
+          posY = Math.max(posY, dy * k);
+          negY = Math.min(negY, dy * k);
+        }
+      }
+      const pushX = posX + negX;
+      const pushY = posY + negY;
+      if (pushX !== 0 || pushY !== 0) {
+        if (!this.nudge(u, pushX, pushY)) {
+          this.nudge(u, pushX, 0);
+          this.nudge(u, 0, pushY);
+        }
+      }
+    }
   }
 
   /** One pass of pushing overlapping units apart; false when nothing overlapped. */

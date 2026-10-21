@@ -1,7 +1,7 @@
 import { CELL_SIZE, MOUNTAIN_PASS, MOUNTAIN_PATH_COST } from '../constants';
 import type { Unit } from '../entities/Unit';
 import type { GridPoint, WorldPoint } from '../types';
-import { type Corridor, DETOUR_EXPANSIONS, MinHeap, type Mobility, type Pathfinder } from './Pathfinder';
+import { type Corridor, DETOUR_EXPANSIONS, MinHeap, type Mobility, NEAR_STRUCTURE_COST, type Pathfinder } from './Pathfinder';
 import type { TileMap } from './TileMap';
 
 /**
@@ -348,7 +348,9 @@ export class PathService {
         if (Math.max(Math.abs(nx - goal.x), Math.abs(ny - goal.y)) > limit) continue;
         if (dx !== 0 && dy !== 0 && (!pathfinder.passable(cx + dx, cy, swim) || !pathfinder.passable(cx, cy + dy, swim))) continue;
         const ni = ny * W + nx;
-        const nd = dc + step * (map.mountain[ny * W + nx] === MOUNTAIN_PASS ? MOUNTAIN_PATH_COST : map.hasTrees(nx, ny) ? TREE_COST : 1);
+        // Vehicles keep clear of structures where there is room (see NEAR_STRUCTURE_COST).
+        const near = swim === 'vehicle' && pathfinder.nearStructure(nx, ny) ? NEAR_STRUCTURE_COST : 1;
+        const nd = dc + step * near * (map.mountain[ny * W + nx] === MOUNTAIN_PASS ? MOUNTAIN_PATH_COST : map.hasTrees(nx, ny) ? TREE_COST : 1);
         if (f.stamp[ni] === f.run && nd >= (f.dist[ni] ?? Infinity)) continue;
         f.stamp[ni] = f.run;
         f.dist[ni] = nd;

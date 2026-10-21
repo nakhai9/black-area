@@ -8,6 +8,13 @@ const MAX_EXPANSIONS = 40000;
 export const DETOUR_EXPANSIONS = 600000;
 /** Woods slow infantry down but do not block them. */
 const TREE_COST = 1.6;
+/**
+ * Ground vehicles: a step onto a cell touching a structure (8 neighbours) costs this much more, and string-pulling
+ * never cuts across such cells. A vehicle is wider than half a cell and steers along its nose, so a route hugging a
+ * wall or a building made it clip the corner (drawn over the structure) or be stopped by it and repath again and
+ * again; with this it keeps a cell of clear ground where there is room, and still squeezes through when there is not.
+ */
+export const NEAR_STRUCTURE_COST = 4;
 
 const DIRS: readonly [number, number, number][] = [
   [1, 0, 1],
@@ -53,6 +60,17 @@ export class Pathfinder {
     this.from = new Int32Array(n);
     this.stamp = new Uint32Array(n);
     this.closed = new Uint32Array(n);
+  }
+
+  /** Does cell (x, y) touch a structure cell (any of its 8 neighbours)? */
+  nearStructure(x: number, y: number): boolean {
+    const { map } = this;
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        if ((dx !== 0 || dy !== 0) && map.inBounds(x + dx, y + dy) && map.occupied[map.index(x + dx, y + dy)] !== 0) return true;
+      }
+    }
+    return false;
   }
 
   passable(x: number, y: number, swim: Mobility = false): boolean {
@@ -244,7 +262,8 @@ export class Pathfinder {
         // No corner cutting: both side cells of a diagonal step must be open too (they are in bounds here).
         if (dx !== 0 && dy !== 0 && (!free(cy * W + nx) || !free(ny * W + cx))) continue;
         if (closed[ni] === run) continue;
-        const cost = gc + (STEP[k] ?? 1) * (mountain[ni] === MOUNTAIN_PASS ? MOUNTAIN_PATH_COST : (trees[ni] ?? 0) > 0 ? TREE_COST : 1);
+        const near = vehicle && ni !== goalI && this.nearStructure(nx, ny) ? NEAR_STRUCTURE_COST : 1;
+        const cost = gc + (STEP[k] ?? 1) * near * (mountain[ni] === MOUNTAIN_PASS ? MOUNTAIN_PATH_COST : (trees[ni] ?? 0) > 0 ? TREE_COST : 1);
         if (stamp[ni] === run && cost >= (g[ni] ?? Infinity)) continue;
         this.visit(ni, cost, cur);
         open.push(ni, cost + h(nx, ny));
@@ -298,6 +317,8 @@ export class Pathfinder {
       const cy = Math.round(y0 + dy * t);
       if (!this.passable(cx, cy, swim)) return false;
       if (cx !== px && cy !== py && (!this.passable(px, cy, swim) || !this.passable(cx, py, swim))) return false;
+      // A vehicle's straight line never runs along a structure (only its two ends may touch one).
+      if (swim === 'vehicle' && s < steps && !(cx === x0 && cy === y0) && this.nearStructure(cx, cy)) return false;
       px = cx;
       py = cy;
     }
