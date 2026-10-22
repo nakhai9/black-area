@@ -62,6 +62,8 @@ export interface AircraftHooks {
 /** Result of an unload order (U key / Unload button). */
 export type UnloadResult = 'ok' | 'empty' | 'noSpot' | 'busy' | 'airborne';
 
+/** World px from its drop-off point at which a transport counts as there and starts to set down. */
+const DROP_ARRIVE = CELL_SIZE;
 /** Descent, unloading pause and climb-out of a transport at its drop-off point (seconds). */
 const DESCEND_SECONDS = 1.2;
 const UNLOAD_PAUSE = 1.2;
@@ -1064,7 +1066,9 @@ export class AircraftSystem implements GameSystem {
   private unloading(v: Vehicle, dt: number): void {
     // Over the sea (or still short of its spot): it flies on to the solid ground it picked first, at full height,
     // and only then glides down — a transport never sets down on the water.
-    if (v.dropSpot && v.phaseTime === 0 && Math.hypot(v.dropSpot.x - v.px, v.dropSpot.y - v.py) > 1) {
+    // "Arrived" within a cell: aircraft keep apart in the air, so two transports sent to the same spot shoved each
+    // other about and neither ever came within a pixel of it, hanging there for ever with their passengers aboard.
+    if (v.dropSpot && v.phaseTime === 0 && Math.hypot(v.dropSpot.x - v.px, v.dropSpot.y - v.py) > DROP_ARRIVE) {
       this.moveTo(v, v.dropSpot, Math.max(10, v.speed), dt);
       return;
     }

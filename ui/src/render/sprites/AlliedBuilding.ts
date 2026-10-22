@@ -1,3 +1,4 @@
+import { HALF_TW } from '../../constants';
 import { FACTIONS } from '../../factions';
 import type { FactionId } from '../../types';
 import { shade } from '../Color';
@@ -81,16 +82,54 @@ const STYLES: Record<FactionId, { height: number; wing: string; draw: (p: IsoPai
     },
   },
   china: {
-    wing: '#d2ccbd',
-    height: 64,
+    wing: '#d9d2c0',
+    height: 92,
     draw: (p, team) => {
-      p.box(0.3, 0.4, 3.4, 2.6, 2, 5, '#d2ccbd');
-      p.box(0.6, 0.7, 2.8, 2.0, 7, 15, '#a8987c');
-      p.windows('left', 0.6, 0.7, 2.8, 2.0, 7, 15, 6, 1, '#5a3a22', 0.12, 0.4);
-      p.windows('right', 0.6, 0.7, 2.8, 2.0, 7, 15, 4, 1, '#5a3a22', 0.12, 0.4);
-      for (let i = 0; i < 6; i++) p.box(0.75 + i * 0.5, 2.62, 0.1, 0.1, 7, 15, '#b3261e');
-      p.hipRoof(0.6, 0.7, 2.8, 2.0, 22, 14, 0.35, '#a88a3a', 0.6);
-      p.faceRect('left', 0.6, 0.7, 2.8, 2.0, 7, 15, 0.3, 0.7, 0.7, 0.95, team);
+      // A hall of the people in miniature: a cream stone hall behind a tall square colonnade, a band of green glazed
+      // tiles under its cornice, the red national emblem over the entrance, and a two-tier red-and-gold pavilion
+      // rising from the middle of its roof.
+      const STONE = '#ddd5c2';
+      const COL = '#efe9da';
+      const GLAZE = '#3f7a54';
+      const RED = '#a52a1e';
+      const ROOF = '#d9a52c';
+      p.box(0.35, 0.45, 3.3, 2.6, 8, 2, shade(STONE, 0.88));
+      p.box(0.5, 0.6, 3.0, 2.0, 10, 20, STONE, { top: RA2.roof });
+      facade(p, 'left', 0.5, 0.6, 3.0, 2.0, 10, 20, { cols: 14, floors: 3, frame: '#f1ecdf', bandColor: '#b8ae98', seed: 81 });
+      facade(p, 'right', 0.5, 0.6, 3.0, 2.0, 10, 20, { cols: 10, floors: 3, frame: '#f1ecdf', bandColor: '#a89e88', seed: 82 });
+      // Green glazed-tile cornice and a stepped stone parapet.
+      p.faceRect('left', 0.5, 0.6, 3.0, 2.0, 10, 20, 0, 1, 0.86, 0.96, GLAZE);
+      p.faceRect('right', 0.5, 0.6, 3.0, 2.0, 10, 20, 0, 1, 0.86, 0.96, shade(GLAZE, 0.85));
+      parapet(p, 0.5, 0.6, 3.0, 2.0, 30, shade(STONE, 0.95), 0.07, 2.2);
+      // Tall colonnade across the front, under a deep entablature with the team band.
+      p.box(0.75, 2.6, 2.5, 0.42, 10, 1, shade(STONE, 0.92));
+      p.colonnade('left', 0.75, 2.6, 2.5, 0.42, 11, 16, 10, COL, '#6a6252');
+      p.box(0.68, 2.56, 2.64, 0.5, 27, 3, STONE);
+      p.faceRect('left', 0.68, 2.56, 2.64, 0.5, 27, 3, 0, 1, 0.35, 0.65, team);
+      // The national emblem: gold-ringed red disc with a gold star, over the middle of the colonnade.
+      p.faceTransform('left', 0.68, 3.06, 27, (ctx) => {
+        const x = 1.32 * HALF_TW;
+        ctx.fillStyle = '#f0c445';
+        ctx.beginPath();
+        ctx.arc(x, 1.5, 2.2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#c8261d';
+        ctx.beginPath();
+        ctx.arc(x, 1.5, 1.7, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#f0c445';
+        ctx.fillRect(x - 0.6, 1.0, 1.2, 1.0);
+      });
+      // Two-tier pavilion on the roof: red walls, golden glazed roofs with upturned eaves.
+      p.box(1.4, 1.1, 1.2, 1.0, 30, 11, RED);
+      p.colonnade('left', 1.4, 1.1, 1.2, 1.0, 30, 11, 5, shade(RED, 1.15), '#4a150f');
+      p.colonnade('right', 1.4, 1.1, 1.2, 1.0, 30, 11, 4, RED, '#4a150f');
+      p.hipRoof(1.4, 1.1, 1.2, 1.0, 41, 4, 0.1, ROOF, 1.2);
+      p.box(1.6, 1.3, 0.8, 0.6, 45, 8, RED);
+      p.colonnade('left', 1.6, 1.3, 0.8, 0.6, 45, 8, 4, shade(RED, 1.15), '#4a150f');
+      p.colonnade('right', 1.6, 1.3, 0.8, 0.6, 45, 8, 3, RED, '#4a150f');
+      p.hipRoof(1.6, 1.3, 0.8, 0.6, 53, 7, 0.1, ROOF, 1.6);
+      p.box(1.97, 1.57, 0.06, 0.06, 59, 4, '#f0c445');
     },
   },
   europe: {

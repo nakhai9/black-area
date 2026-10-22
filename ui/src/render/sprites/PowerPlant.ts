@@ -1,25 +1,25 @@
+import { HALF_TH, HALF_TW } from '../../constants';
 import { FACTIONS } from '../../factions';
 import type { FactionId } from '../../types';
 import { shade } from '../Color';
 import type { IsoPainter } from '../IsoPainter';
 import type { BuildingArt } from './BuildingArt';
-import { ISLAMIC_GREEN_DOME } from './IslamicPalette';
 import { RA2 } from './Ra2Kit';
 
 
-/** Per-nation materials (no two alike): pad, tower concrete and the accent of the reactor annex. */
-function materials(faction: FactionId): { pad: string; tower: string; annex: string } {
+/** Per-nation materials (no two alike): pad and tower concrete. */
+function materials(faction: FactionId): { pad: string; tower: string } {
   switch (faction) {
     case 'russia':
-      return { pad: '#7e7a6c', tower: '#a29e8a', annex: '#9c8a78' };
+      return { pad: '#7e7a6c', tower: '#b4b0a0' };
     case 'china':
-      return { pad: '#8c8474', tower: '#b0aa98', annex: '#b23a2a' };
+      return { pad: '#8c8474', tower: '#c2bcac' };
     case 'europe':
-      return { pad: '#9a9cA4', tower: '#c4c6cc', annex: '#d8dce4' };
+      return { pad: '#9a9cA4', tower: '#cfd1d4' };
     case 'islamic':
-      return { pad: '#a8987c', tower: '#c4b496', annex: '#d6c49c' };
+      return { pad: '#a8987c', tower: '#cec2a6' };
     default:
-      return { pad: RA2.paving, tower: '#b4b6b4', annex: '#e4e4e0' };
+      return { pad: RA2.paving, tower: '#c6c8c4' };
   }
 }
 
@@ -38,7 +38,7 @@ export function roofStar(p: IsoPainter, cu: number, cv: number, z: number, r: nu
 function radiationIcon(p: IsoPainter, u: number, v: number, z: number, color: string): void {
   const [x, y] = p.project(u, v, z);
   const { ctx } = p;
-  const R = 11;
+  const R = 9;
   ctx.fillStyle = '#1c1c1c';
   ctx.beginPath();
   ctx.arc(x, y, R + 2, 0, Math.PI * 2);
@@ -57,97 +57,177 @@ function radiationIcon(p: IsoPainter, u: number, v: number, z: number, color: st
   ctx.fill();
 }
 
-/** Hyperboloid cooling tower centred at (cu, cv): many thin rings, narrowest at 70% of its height, with a coloured band at mid-height. */
-function coolingTower(p: IsoPainter, cu: number, cv: number, base: number, h: number, TOWER: string, band: string): void {
-  const rings = 30;
-  for (let i = 0; i < rings; i++) {
-    const t = (i + 0.5) / rings;
-    const r = base * (0.62 + (0.38 * Math.abs(t - 0.7)) / 0.7);
-    p.cylinder(cu, cv, r, 2 + (i * h) / rings, h / rings + 0.4, i === 13 || i === 14 ? band : shade(TOWER, 1 - i * 0.004));
+/** Cooling towers: base radius (tiles), height (px) and their centres on the plot. */
+const TOWER_R = 0.85;
+const TOWER_H = 80;
+const TOWERS: readonly [number, number][] = [
+  [1.15, 1.0],
+  [2.85, 1.2],
+];
+
+/**
+ * Hyperboloid cooling tower centred at (cu, cv) on the ground at z: one smooth shell (no rings), waist at 72% of
+ * its height, lit across its curve and darker towards its foot, a row of support legs round the foot, a lip and the
+ * open throat at the top.
+ */
+function coolingTower(p: IsoPainter, cu: number, cv: number, z: number, base: number, h: number, TOWER: string): void {
+  const { ctx } = p;
+  const k = Math.SQRT2;
+  const radius = (t: number): number => base * (0.6 + 0.4 * Math.pow(Math.abs(t - 0.72) / 0.72, 1.6) * (t < 0.72 ? 1 : 0.55));
+  const [cx, y0] = p.project(cu, cv, z);
+  const steps = 24;
+  const rb = radius(0);
+  const rt = radius(1);
+  const shell = (): void => {
+    ctx.beginPath();
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps;
+      const x = cx - radius(t) * k * HALF_TW;
+      if (i === 0) ctx.moveTo(x, y0 - t * h);
+      else ctx.lineTo(x, y0 - t * h);
+    }
+    ctx.ellipse(cx, y0 - h, rt * k * HALF_TW, rt * k * HALF_TH, 0, Math.PI, 0, false);
+    for (let i = steps; i >= 0; i--) {
+      const t = i / steps;
+      ctx.lineTo(cx + radius(t) * k * HALF_TW, y0 - t * h);
+    }
+    ctx.ellipse(cx, y0, rb * k * HALF_TW, rb * k * HALF_TH, 0, 0, Math.PI, false);
+    ctx.closePath();
+  };
+  // Shell: smooth concrete, shaded across (light from the right) with a soft highlight.
+  const wx = rb * k * HALF_TW;
+  const g = ctx.createLinearGradient(cx - wx, 0, cx + wx, 0);
+  g.addColorStop(0, shade(TOWER, 0.6));
+  g.addColorStop(0.45, shade(TOWER, 0.92));
+  g.addColorStop(0.68, shade(TOWER, 1.12));
+  g.addColorStop(0.82, shade(TOWER, 1.0));
+  g.addColorStop(1, shade(TOWER, 0.78));
+  shell();
+  ctx.fillStyle = g;
+  ctx.fill();
+  const v = ctx.createLinearGradient(0, y0 - h, 0, y0);
+  v.addColorStop(0, 'rgba(255,255,255,0.06)');
+  v.addColorStop(0.75, 'rgba(0,0,0,0)');
+  v.addColorStop(1, 'rgba(0,0,0,0.22)');
+  ctx.fillStyle = v;
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(20,16,12,0.35)';
+  ctx.lineWidth = 0.75;
+  ctx.stroke();
+  // Support legs: a dark band of slanted columns round the foot.
+  ctx.save();
+  shell();
+  ctx.clip();
+  ctx.fillStyle = 'rgba(25,22,18,0.55)';
+  ctx.fillRect(cx - wx - 1, y0 - 2.2, wx * 2 + 2, 2.2 + rb * k * HALF_TH + 1);
+  ctx.strokeStyle = shade(TOWER, 0.95);
+  ctx.lineWidth = 0.7;
+  for (let x = cx - wx; x <= cx + wx; x += 3.4) {
+    ctx.beginPath();
+    ctx.moveTo(x, y0 + rb * k * HALF_TH);
+    ctx.lineTo(x + 0.8, y0 - 2.2);
+    ctx.stroke();
   }
-  // Soot-dark lip.
-  p.cylinder(cu, cv, base * 0.66, 2 + h - 3, 3.2, shade(TOWER, 0.72));
-  p.cylinder(cu, cv, base * 0.6, 2 + h, 0.3, '#3c3c38');
+  ctx.restore();
+  // Lip and the open throat.
+  ctx.fillStyle = shade(TOWER, 0.8);
+  ctx.beginPath();
+  ctx.ellipse(cx, y0 - h, rt * k * HALF_TW, rt * k * HALF_TH, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#34322e';
+  ctx.beginPath();
+  ctx.ellipse(cx, y0 - h, rt * k * HALF_TW * 0.9, rt * k * HALF_TH * 0.9, 0, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+/** Chimney stack at (cu, cv): white and team-colour bands alternating up its height, a dark cap. */
+function chimney(p: IsoPainter, cu: number, cv: number, z: number, r: number, h: number, team: string): void {
+  const bands = 7;
+  for (let i = 0; i < bands; i++) p.cylinder(cu, cv, r * (1 - i * 0.03), z + (i * h) / bands, h / bands + 0.3, i % 2 ? '#f2f0ea' : team);
+  p.cylinder(cu, cv, r * 0.82, z + h, 1.2, '#3a3834');
+}
+
+/** Thin wire fence round the pad's edge: posts and two rails; the back two sides first, the front two last. */
+function fence(p: IsoPainter, side: 'back' | 'front'): void {
+  const E0 = 0.12;
+  const E1 = 3.88;
+  const Z = 1.2;
+  const H = 7;
+  const runs: [number, number, number, number][] =
+    side === 'back'
+      ? [
+          [E0, E0, E1, E0],
+          [E0, E0, E0, E1],
+        ]
+      : [
+          [E0, E1, E1, E1],
+          [E1, E0, E1, E1],
+        ];
+  const { ctx } = p;
+  for (const [u0, v0, u1, v1] of runs) {
+    const n = Math.round(Math.hypot(u1 - u0, v1 - v0) / 0.32);
+    ctx.strokeStyle = '#5c5f62';
+    ctx.lineWidth = 0.6;
+    for (let i = 0; i <= n; i++) {
+      const u = u0 + ((u1 - u0) * i) / n;
+      const v = v0 + ((v1 - v0) * i) / n;
+      const [x, y] = p.project(u, v, Z);
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x, y - H);
+      ctx.stroke();
+    }
+    ctx.strokeStyle = 'rgba(150,154,158,0.9)';
+    ctx.lineWidth = 0.4;
+    for (const z of [Z + H * 0.45, Z + H]) {
+      const [ax, ay] = p.project(u0, v0, z);
+      const [bx, by] = p.project(u1, v1, z);
+      ctx.beginPath();
+      ctx.moveTo(ax, ay);
+      ctx.lineTo(bx, by);
+      ctx.stroke();
+    }
+  }
 }
 
 /**
- * Nuclear Power Plant (4×4 tiles), each nation's own design in its team colour (radiation trefoil on the tower):
- *  - USA: tall cooling tower behind a white containment dome with a blue band and a white star;
- *  - Russia: RBMK-style block reactor hall and a red-and-white striped vent stack beside a squat tower;
- *  - China: cooling tower and a reactor hall under a curled red pagoda roof with golden ridge;
- *  - Europe: twin slim cooling towers and an EPR dome ringed with golden stars;
- *  - Islamic: cooling tower and an arched reactor hall crowned by a green dome and a minaret-like stack.
+ * Nuclear Power Plant (4×4 tiles), the same for every nation: two smooth cooling towers (steam rising, a radiation trefoil on
+ * the front one) and a chimney striped white and in its team colour, on a concrete pad behind a thin wire fence (each nation's own concrete).
  */
 export function createPowerPlantArt(faction: FactionId): BuildingArt {
   const team = FACTIONS[faction].colors;
-  const { pad: PAD, tower: TOWER, annex: ANNEX } = materials(faction);
+  const { pad: PAD, tower: TOWER } = materials(faction);
   return {
     footprint: { w: 4, d: 4 },
-    height: 110,
+    height: 120,
 
     drawStatic(p) {
-      p.box(0, 0, 4, 4, 0, 2, PAD);
-      for (let k = 0; k < 16; k++) {
-        const c = k % 2 ? '#2a2a2a' : RA2.hazard;
-        p.faceRect('left', 0, 0, 4, 4, 0, 2, k / 16, (k + 1) / 16, 0.2, 0.9, c);
-        p.faceRect('right', 0, 0, 4, 4, 0, 2, k / 16, (k + 1) / 16, 0.2, 0.9, shade(c, 0.8));
-      }
-      switch (faction) {
-        case 'usa':
-          coolingTower(p, 2.5, 1.5, 1.25, 92, TOWER, team.primary);
-          radiationIcon(p, 2.5 + 1.05 * Math.SQRT1_2, 1.5 + 1.05 * Math.SQRT1_2, 30, team.primary);
-          p.cylinder(1.1, 2.9, 0.85, 2, 14, ANNEX);
-          p.cylinder(1.1, 2.9, 0.86, 12, 2.5, team.primary);
-          p.dome(1.1, 2.9, 0.85, 16, 16, ANNEX);
-          roofStar(p, 1.1, 2.9, 32.5, 0.35, '#ffffff');
-          break;
-        case 'russia':
-          // Vent stack (back), squat tower, then the long block reactor hall in front.
-          p.cylinder(0.7, 0.7, 0.28, 2, 100, '#e8e4dc', 10);
-          for (let i = 0; i < 6; i++) p.cylinder(0.7, 0.7, 0.29, 2 + i * 16, 8, team.primary);
-          coolingTower(p, 2.6, 1.4, 1.15, 70, TOWER, team.primary);
-          radiationIcon(p, 2.6 + 0.95 * Math.SQRT1_2, 1.4 + 0.95 * Math.SQRT1_2, 22, team.primary);
-          p.box(0.3, 2.5, 3.4, 1.3, 2, 24, ANNEX);
-          p.faceRect('left', 0.3, 2.5, 3.4, 1.3, 2, 24, 0, 1, 0.78, 0.92, team.primary);
-          p.windows('left', 0.3, 2.5, 3.4, 1.3, 2, 24, 10, 1, RA2.glass, 0.3, 0.6);
-          p.box(1.6, 2.7, 0.9, 0.9, 26, 8, shade(ANNEX, 0.85));
-          roofStar(p, 2.05, 3.15, 34.2, 0.38, team.primary);
-          break;
-        case 'china':
-          coolingTower(p, 2.6, 1.4, 1.2, 88, TOWER, team.primary);
-          radiationIcon(p, 2.6 + 1 * Math.SQRT1_2, 1.4 + 1 * Math.SQRT1_2, 28, team.primary);
-          p.box(0.4, 2.4, 2.2, 1.3, 2, 16, '#e0d8c4');
-          p.faceRect('left', 0.4, 2.4, 2.2, 1.3, 2, 16, 0, 1, 0, 0.75, ANNEX);
-          p.faceRect('right', 0.4, 2.4, 2.2, 1.3, 2, 16, 0, 1, 0, 0.75, shade(ANNEX, 0.8));
-          p.hipRoof(0.4, 2.4, 2.2, 1.3, 18, 9, 0.25, ANNEX, 3);
-          p.box(1.1, 2.95, 0.8, 0.12, 27, 1.5, team.primary);
-          break;
-        case 'europe':
-          coolingTower(p, 1.2, 1.1, 0.85, 80, TOWER, team.primary);
-          coolingTower(p, 2.9, 1.1, 0.85, 80, TOWER, team.primary);
-          radiationIcon(p, 2.9 + 0.7 * Math.SQRT1_2, 1.1 + 0.7 * Math.SQRT1_2, 26, team.primary);
-          p.cylinder(2, 2.9, 0.9, 2, 16, ANNEX);
-          p.dome(2, 2.9, 0.9, 18, 14, ANNEX);
-          for (let k = 0; k < 12; k++) {
-            const a = (k / 12) * Math.PI * 2;
-            p.cylinder(2 + Math.cos(a) * 0.91, 2.9 + Math.sin(a) * 0.91, 0.05, 11, 1.4, team.light);
-          }
-          p.cylinder(2, 2.9, 0.92, 8, 1.6, team.primary);
-          break;
-        default: {
-          // Islamic: arched hall with a green dome, a slim minaret stack and a crescent finial.
-          coolingTower(p, 2.6, 1.4, 1.2, 88, TOWER, team.primary);
-          radiationIcon(p, 2.6 + 1 * Math.SQRT1_2, 1.4 + 1 * Math.SQRT1_2, 28, team.primary);
-          p.box(0.4, 2.4, 1.9, 1.4, 2, 18, ANNEX);
-          p.windows('left', 0.4, 2.4, 1.9, 1.4, 2, 18, 4, 1, shade(team.dark, 1.1), 0.15, 0.7);
-          p.faceRect('left', 0.4, 2.4, 1.9, 1.4, 2, 18, 0, 1, 0.85, 0.95, team.primary);
-          p.dome(1.35, 3.1, 0.65, 20, 18, ISLAMIC_GREEN_DOME);
-          p.pole(1.35, 3.1, 38, 4, '#e8c860');
-          p.cylinder(3.5, 3.4, 0.16, 2, 46, ANNEX);
-          p.cylinder(3.5, 3.4, 0.22, 36, 2, team.primary);
-          p.dome(3.5, 3.4, 0.16, 48, 5, ISLAMIC_GREEN_DOME);
+      // Only three pieces on a fenced concrete pad: two cooling towers (radiation trefoil on the front one) and the
+      // striped chimney.
+      p.box(0.04, 0.04, 3.92, 3.92, 0, 1.2, PAD);
+      p.topRect(0.1, 0.1, 3.9, 3.9, 1.21, shade(PAD, 1.08));
+      fence(p, 'back');
+      coolingTower(p, TOWERS[0]![0], TOWERS[0]![1], 1.2, TOWER_R, TOWER_H, TOWER);
+      chimney(p, 0.75, 2.95, 1.2, 0.17, 96, team.primary);
+      coolingTower(p, TOWERS[1]![0], TOWERS[1]![1], 1.2, TOWER_R, TOWER_H, TOWER);
+      radiationIcon(p, TOWERS[1]![0] + 0.62 * Math.SQRT1_2, TOWERS[1]![1] + 0.62 * Math.SQRT1_2, 30, team.primary);
+      fence(p, 'front');
+    },
+
+    drawAnimated(p, time) {
+      // Steam rising from both towers: soft white puffs drifting up and fading.
+      const { ctx } = p;
+      TOWERS.forEach(([cu, cv], n) => {
+        const [x, y] = p.project(cu, cv, 2 + TOWER_H);
+        for (let k = 0; k < 4; k++) {
+          const t = (time * 0.25 + n * 0.37 + k / 4) % 1;
+          const r = 8 + t * 14;
+          ctx.fillStyle = `rgba(245,247,250,${(0.55 * (1 - t)).toFixed(3)})`;
+          ctx.beginPath();
+          ctx.ellipse(x + t * 10, y - 4 - t * 34, r, r * 0.7, 0, 0, Math.PI * 2);
+          ctx.fill();
         }
-      }
+      });
     },
   };
 }

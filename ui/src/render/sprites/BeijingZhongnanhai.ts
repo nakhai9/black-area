@@ -26,7 +26,7 @@ const FLAG_POLE: readonly [number, number, number] = [2.0, 3.62, 64];
 /** Red lanterns hanging under the lower eave either side of the doors. */
 const LANTERN_U = [1.15, 2.85] as const;
 const LANTERN_V = 3.02;
-const LANTERN_Z = 15;
+const LANTERN_Z = 17;
 
 /** White marble terrace with a darker plinth course and a balustrade on its front/right edges. */
 function terrace(p: IsoPainter, u: number, v: number, w: number, d: number, z: number, h: number): void {
@@ -46,6 +46,26 @@ function hallBody(p: IsoPainter, u: number, v: number, w: number, d: number, z: 
   p.faceRect('right', u, v, w, d, z, h, 0, 1, 0.78, 0.9, TEAL);
   p.faceRect('left', u, v, w, d, z, h, 0, 1, 0.9, 1, shade(BLUE, 0.85));
   p.faceRect('right', u, v, w, d, z, h, 0, 1, 0.9, 1, BLUE);
+  // Shadow of the eave on the top of the walls, and the left (shaded) face a touch darker overall: the hall reads
+  // as a solid block under its roof instead of a flat red band.
+  p.faceRect('left', u, v, w, d, z, h, 0, 1, 0.62, 1, 'rgba(20,6,4,0.32)');
+  p.faceRect('right', u, v, w, d, z, h, 0, 1, 0.72, 1, 'rgba(20,6,4,0.22)');
+  p.faceRect('left', u, v, w, d, z, h, 0, 1, 0, 1, 'rgba(20,6,4,0.12)');
+}
+
+/** Soft shadow a block of height h casts on the ground (z) behind it to the right, away from the light. */
+function castShadow(p: IsoPainter, u: number, v: number, w: number, d: number, z: number, h: number): void {
+  const k = h / 40;
+  p.polygon(
+    [
+      [u + w, v, z],
+      [u + w + k, v - k * 0.6, z],
+      [u + w + k, v + d - k * 0.6, z],
+      [u + w, v + d, z],
+    ],
+    'rgba(10,8,6,0.22)',
+    null,
+  );
 }
 
 /** Chiwen finials at both ridge ends plus a gilded centre ornament. */
@@ -119,7 +139,8 @@ export function createBeijingZhongnanhaiArt(flag: Allegiance = 'china'): Buildin
       }
       terrace(p, 1.0, 0.1, 2.0, 0.9, 1, 2);
       hallBody(p, 1.1, 0.2, 1.8, 0.7, 3, 9, 7);
-      p.hipRoof(1.1, 0.2, 1.8, 0.7, 12, 6, 0.18, TILE, 2.4);
+      castShadow(p, 1.0, 0.1, 2.0, 0.9, 1, 18);
+      p.hipRoof(1.1, 0.2, 1.8, 0.7, 12, 6, 0.12, shade(TILE, 0.92), 2);
       // Inner walls running back from the slogan walls (the compound's enclosure).
       for (const u of [0.05, 3.7]) {
         p.box(u, 1.2, 0.25, 1.4, 1, 8, RED);
@@ -131,8 +152,9 @@ export function createBeijingZhongnanhaiArt(flag: Allegiance = 'china'): Buildin
       const GW = 2.9;
       const GV = 1.75;
       const GD = 1.2;
+      castShadow(p, G0 - 0.12, GV - 0.12, GW + 0.24, GD + 0.24, 1, 42);
       p.box(G0 - 0.12, GV - 0.12, GW + 0.24, GD + 0.24, 1, 2, '#8c8880');
-      hallBody(p, G0, GV, GW, GD, 3, 13, 10);
+      hallBody(p, G0, GV, GW, GD, 3, 15, 10);
       p.faceTransform('left', G0, GV + GD, 3, (ctx) => {
         // Red doors with gold studs in bays 2–4, the middle one under a gold-framed name plaque.
         for (const [k, w] of [[1, 9], [2, 11], [3, 9]] as const) {
@@ -149,20 +171,21 @@ export function createBeijingZhongnanhaiArt(flag: Allegiance = 'china'): Buildin
         ctx.fillRect(cx - 4, 10.6, 8, 2);
       });
       // Lower eave: golden-orange tiles, white marble balustrade on the platform above it.
-      p.hipRoof(G0, GV, GW, GD, 16, 4, 0.26, TILE, 2.2);
-      p.box(G0 + 0.12, GV + GD - 0.06, GW - 0.24, 0.04, 19, 2, MARBLE);
-      p.box(G0 + GW - 0.16, GV + 0.12, 0.04, GD - 0.24, 19, 2, shade(MARBLE, 0.92));
-      for (let i = 0; i <= 12; i++) p.box(G0 + 0.12 + (i * (GW - 0.24)) / 12 - 0.02, GV + GD - 0.07, 0.04, 0.06, 19, 2.6, MARBLE);
+      // A narrow eave (not a wide hat), so the storeys below and above stay readable as two stacked blocks.
+      p.hipRoof(G0, GV, GW, GD, 18, 4, 0.16, TILE, 1.8);
+      p.box(G0 + 0.12, GV + GD - 0.06, GW - 0.24, 0.04, 21, 2, MARBLE);
+      p.box(G0 + GW - 0.16, GV + 0.12, 0.04, GD - 0.24, 21, 2, shade(MARBLE, 0.92));
+      for (let i = 0; i <= 12; i++) p.box(G0 + 0.12 + (i * (GW - 0.24)) / 12 - 0.02, GV + GD - 0.07, 0.04, 0.06, 21, 2.6, MARBLE);
       // Upper storey: red lattice windows between red columns, the national emblem in the middle.
       const U0 = G0 + 0.22;
       const UW = GW - 0.44;
       const UV = GV + 0.2;
       const UD = GD - 0.4;
-      hallBody(p, U0, UV, UW, UD, 19, 10, 9);
-      p.faceTransform('left', U0, UV + UD, 19, (ctx) => emblem(ctx, 0.5 * UW * HALF_TW, 7.6, 2.6));
+      hallBody(p, U0, UV, UW, UD, 21, 12, 9);
+      p.faceTransform('left', U0, UV + UD, 21, (ctx) => emblem(ctx, 0.5 * UW * HALF_TW, 8.6, 2.8));
       // Upper roof: tall, flared hip-and-gable roof with ridge finials.
-      p.hipRoof(U0, UV, UW, UD, 29, 10, 0.32, TILE, 3.4);
-      finials(p, U0, UV, UW, UD, 39);
+      p.hipRoof(U0, UV, UW, UD, 33, 9, 0.2, TILE, 3);
+      finials(p, U0, UV, UW, UD, 42);
 
       // Slogan walls either side of the gate (red, golden coping, white characters).
       const wall = (u: number, w: number, text: string): void => {
