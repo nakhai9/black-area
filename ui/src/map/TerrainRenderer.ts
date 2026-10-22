@@ -154,7 +154,10 @@ export class TerrainRenderer {
     const rivers = new RiverLayer(map.width, seed);
     this.tiles = new TileTerrain(map, earth, seed, lift);
     setGroundLift((x, y) => lift.at(x, y));
-    map.onOccupy = (x, y, w, d) => this.tiles.invalidate(x, y, w, d);
+    map.onOccupy = (x, y, w, d) => {
+      lift.invalidate(x, y, w, d);
+      this.tiles.invalidate(x, y, w, d);
+    };
     const { canvas, ctx } = createCanvas(this.texW, this.texH);
     this.canvas = canvas;
     this.paintRelief(ctx, earth, biomes, rivers);

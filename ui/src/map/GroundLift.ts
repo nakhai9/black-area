@@ -19,10 +19,34 @@ const smooth = (a: number, b: number, x: number): number => {
 };
 
 export class GroundLift {
-  constructor(private readonly map: TileMap) {}
+  /**
+   * Corner lifts already worked out (NaN = not yet): every unit, building and tree drawn asks for the lift under it
+   * each frame, and each answer costs a hill-noise sample and a few dozen grid reads — cached per corner instead.
+   */
+  private readonly known: Float32Array;
+
+  constructor(private readonly map: TileMap) {
+    this.known = new Float32Array((map.width + 1) * (map.height + 1)).fill(Number.NaN);
+  }
+
+  /** The ground of cells (x, y, w, d) changed (a building came or went): the corners it affects are worked out again. */
+  invalidate(x: number, y: number, w: number, d: number): void {
+    const W = this.map.width + 1;
+    for (let vy = Math.max(0, y - 3); vy <= Math.min(this.map.height, y + d + 3); vy++) {
+      for (let vx = Math.max(0, x - 3); vx <= Math.min(this.map.width, x + w + 3); vx++) this.known[vy * W + vx] = Number.NaN;
+    }
+  }
 
   /** Lift (iso px) at cell corner (vx, vy): shared by the four cells (vx-1..vx, vy-1..vy). */
   vertex(vx: number, vy: number): number {
+    if (vx < 1 || vy < 1 || vx >= this.map.width || vy >= this.map.height) return 0;
+    const k = vy * (this.map.width + 1) + vx;
+    const cached = this.known[k]!;
+    if (cached === cached) return cached;
+    return (this.known[k] = this.compute(vx, vy));
+  }
+
+  private compute(vx: number, vy: number): number {
     const { map } = this;
     const W = map.width;
     if (vx < 1 || vy < 1 || vx >= W || vy >= map.height) return 0;

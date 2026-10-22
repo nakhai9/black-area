@@ -14,7 +14,7 @@ import type { GroundLift } from './GroundLift';
  * deepens with the real bathymetry. Chunks of CHUNK_CELLS × CHUNK_CELLS tiles are rendered on demand and cached.
  */
 const CHUNK_CELLS = 16;
-const TILE_PX = 20;
+const TILE_PX = 14;
 const CHUNK_PX = CHUNK_CELLS * TILE_PX;
 /**
  * Raised ground (GroundLift): a chunk is painted flat with PAD extra cells all round, then warped so each pixel
@@ -387,7 +387,7 @@ export class TileTerrain {
     c[1] = a[1] + (b[1] - a[1]) * m;
     c[2] = a[2] + (b[2] - a[2]) * m;
     // RA2 hand-painted look, smooth and clean: soft mottling at a few broad scales, no per-pixel grain or speckle.
-    const soft = this.noise.fbm(fx * 0.6, fy * 0.6, 2);
+    const soft = this.noise.noise(fx * 0.6, fy * 0.6);
     let k = 1 + (soft - 0.5) * 0.08;
     const blend = (q: RGB, w: number): void => {
       c[0] += (q[0] - c[0]) * w;
@@ -401,7 +401,7 @@ export class TileTerrain {
       const tr = this.trail(fx, fy);
       if (tr.edge > 0) blend(TRAIL_EDGE, tr.edge * 0.45);
       if (tr.core > 0) blend(TRAIL, tr.core * 0.8);
-      k += (this.noise.fbm(fx * 0.25 + 5, fy * 0.25 + 9, 2) - 0.5) * 0.12;
+      k += (this.noise.noise(fx * 0.25 + 5, fy * 0.25 + 9) - 0.5) * 0.12;
     } else if (t === 3) {
       // Canopy: soft dark hollows between lighter crowns.
       k -= smooth(0.35, 0.9, this.noise.fbm(fx * 0.45 + 3, fy * 0.45 + 41, 2)) * 0.12;

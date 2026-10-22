@@ -190,9 +190,22 @@ function fence(p: IsoPainter, side: 'back' | 'front'): void {
   }
 }
 
+/** Guard post at the front corner of the fence: a small booth with windows, a flat roof and a team-colour band. */
+function guardPost(p: IsoPainter, team: string): void {
+  const [u, v, w, d, z, h] = [3.15, 3.15, 0.55, 0.55, 1.2, 13];
+  p.box(u, v, w, d, z, h, '#d9d6cc', { top: '#8a8c88' });
+  p.faceRect('left', u, v, w, d, z, h, 0.15, 0.85, 0.45, 0.8, '#3d566a');
+  p.faceRect('right', u, v, w, d, z, h, 0.15, 0.85, 0.45, 0.8, '#4a6478');
+  p.faceRect('left', u, v, w, d, z, h, 0, 1, 0.86, 0.96, team);
+  p.faceRect('right', u, v, w, d, z, h, 0, 1, 0.86, 0.96, shade(team, 0.85));
+  p.box(u - 0.04, v - 0.04, w + 0.08, d + 0.08, z + h, 1, '#6e706c');
+  // Barrier arm beside it.
+  p.box(u - 0.55, v + 0.3, 0.5, 0.03, z + 4, 0.6, '#d8262b');
+}
+
 /**
  * Nuclear Power Plant (4×4 tiles), the same for every nation: two smooth cooling towers (steam rising, a radiation trefoil on
- * the front one) and a chimney striped white and in its team colour, on a concrete pad behind a thin wire fence (each nation's own concrete).
+ * the front one) and a chimney striped white and in its team colour, on a concrete pad behind a thin wire fence with a guard post (each nation's own concrete).
  */
 export function createPowerPlantArt(faction: FactionId): BuildingArt {
   const team = FACTIONS[faction].colors;
@@ -212,6 +225,7 @@ export function createPowerPlantArt(faction: FactionId): BuildingArt {
       coolingTower(p, TOWERS[1]![0], TOWERS[1]![1], 1.2, TOWER_R, TOWER_H, TOWER);
       radiationIcon(p, TOWERS[1]![0] + 0.62 * Math.SQRT1_2, TOWERS[1]![1] + 0.62 * Math.SQRT1_2, 30, team.primary);
       fence(p, 'front');
+      guardPost(p, team.primary);
     },
 
     drawAnimated(p, time) {
