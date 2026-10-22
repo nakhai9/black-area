@@ -26,7 +26,7 @@
 <body>
 <main>
 <img class="logo" src="/logo.png" alt="Black Area" />
-<h1>Black Area — RULE <small>v2.61.0</small></h1>
+<h1>Black Area — RULE <small>v2.62.3</small></h1>
 <p class="lead">Game rules + code architecture document for AI/devs modifying the game. All exact gameplay numbers live in <code>src/constants.ts</code> and <code>src/factions/*.ts</code>. If this document differs from the code, <b>the code is right</b>. <b>When changing rules/numbers in code, this file must be updated.</b></p>
 <nav><a href="#s1">Working rules for AI</a><a href="#s2">Running the project</a><a href="#s3">Folder architecture</a><a href="#s4">World</a><a href="#s5">Economy (oil)</a><a href="#s6">Buildings (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Military</a><a href="#s8">Combat</a><a href="#s9">Controls (Game.handleKey, handleInput)</a><a href="#s10">Limits &amp; performance</a><a href="#s11">Victory / defeat &amp; AI</a><a href="#s12">Common edit recipes</a></nav>
 <h2 id="s1">0. Working rules for AI</h2>
@@ -678,6 +678,10 @@ npm run build:earth  # regenerate public/data/earth.png (scripts/build-earth.mjs
   <li>v2.59.1: The Vehicles tab shows a tank icon instead of a truck.</li>
   <li>v2.59.2: The Command tab is renamed Government, with a government-building icon.</li>
   <li>v2.60.0: New <b>Radar Tower</b> art (2 × 2 plot) for every nation, its antenna turning a full 360°: USA parabolic dish on a white cone; Russia phased-array panel on a lattice mast; China Cassegrain dish on an octagon; Europe orange-peel reflector on a round tower; Islamic world gold-rimmed mesh dish on an arched octagon. Art only for now (see <code>?view=buildings</code>): not for sale / not buildable in a game yet.</li>
+  <li>v2.62.3: The AI embargoes an enemy capital when that nation holds at least <code>AI_EMBARGO_CREDITS 1000</code> TB (was 5000), else captures it.</li>
+  <li>v2.62.2: An <b>embargo</b> now wipes the economy out: treasury and oil stock drop to 0 and the treasury stays at 0 for 180 s (no income, no spending, no oil sales, no loans). After that the nation rebuilds its economy from scratch.</li>
+  <li>v2.62.1: The <b>Destroy</b> choice is removed: an engineer in another nation's own capital now picks 1. Embargo or 2. Capture.</li>
+  <li>v2.62.0: An <b>engineer inside another nation's own capital</b> opens a 2-choice popup: 1. <b>Embargo</b>: that nation's treasury drops to 0 and earns nothing for <code>CAPITAL_EMBARGO_SECONDS 180</code> s; 2. <b>Capture</b>: unlocks all of its structures, soldiers, vehicles and aircraft. The engineer is used up. Capturing an enemy Ministry of Defence / War Factory / Airfield / other structure unlocks the matching units (appended to the list) and lets you build that structure type of that nation. The AI does the same (embargo when the target holds ≥ <code>AI_EMBARGO_CREDITS 1000</code> TB, else capture) and builds captured designs.</li>
   <li>v2.61.0: The <b>Radar Tower</b> can be built (2 × 2, 1500): with one the minimap is online and shows units and structures; without one it is offline. An Airfield needs a Radar Tower. The AI builds it after the War Factory. The radar no longer runs on the Airfield.</li>
   <li>v2.57.5: The Nuclear Power Plant keeps its team-colour radiation trefoil on the front cooling tower.</li>
   <li>v2.57.4: The Nuclear Power Plant is down to 3 pieces: 2 cooling towers and 1 chimney striped white and team colour, on a concrete pad with a thin fence (reactor building and trefoil removed). Fix: transports / helicopters carrying vehicles or soldiers stuck on "UNLOADING" without letting anyone out — two of them sent to the same spot shoved each other and never reached it; now within a cell counts as arrived.</li>

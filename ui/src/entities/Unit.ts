@@ -13,7 +13,12 @@ export interface UnitTask {
   buildingId: number;
   /** Lease: the nation that owns the derrick. Its forces leave this engineer alone while he walks up to sign. */
   lessor?: number;
+  /** Capture of an enemy nation's own capital: what the engineer does there (picked by its owner on arrival). */
+  choice?: CapitalChoice;
 }
+
+/** Engineer in an enemy capital: freeze that nation's treasury (embargo), or take it over. */
+export type CapitalChoice = 'embargo' | 'capture';
 
 /**
  * Anything that moves around the map under orders: soldiers, vehicles and

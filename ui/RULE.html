@@ -26,7 +26,7 @@
 <body>
 <main>
 <img class="logo" src="/logo.png" alt="Black Area" />
-<h1>Black Area — RULE <small>v2.61.0</small></h1>
+<h1>Black Area — RULE <small>v2.62.3</small></h1>
 <p class="lead">Tài liệu luật chơi + kiến trúc code dành cho AI/dev sửa game. Mọi con số gameplay chính xác nằm trong <code>src/constants.ts</code> và <code>src/factions/*.ts</code>. Nếu tài liệu này khác code thì <b>code đúng</b>. <b>Khi đổi luật/số trong code, phải cập nhật file này.</b></p>
 <nav><a href="#s1">Quy tắc làm việc cho AI</a><a href="#s2">Chạy dự án</a><a href="#s3">Kiến trúc thư mục</a><a href="#s4">Thế giới</a><a href="#s5">Kinh tế (dầu)</a><a href="#s6">Công trình (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Quân đội</a><a href="#s8">Chiến đấu</a><a href="#s9">Điều khiển (Game.handleKey, handleInput)</a><a href="#s10">Giới hạn &amp; hiệu năng</a><a href="#s11">Thắng / thua &amp; AI</a><a href="#s12">Công thức sửa thường gặp</a></nav>
 <h2 id="s1">0. Quy tắc làm việc cho AI</h2>
@@ -697,6 +697,10 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
   <li>v2.59.1: Tab Phương tiện dùng biểu tượng xe tăng thay cho xe tải.</li>
   <li>v2.59.2: Tab Chỉ huy đổi tên thành Chính phủ (Government), biểu tượng toà nhà chính phủ.</li>
   <li>v2.60.0: Thêm hình <b>Tháp Radar</b> (nền 2 × 2) cho mỗi phe, ăng-ten xoay đủ 360°: Mỹ — chảo parabol trên tháp côn trắng; Nga — tấm ra-đa mảng pha trên cột thép giàn; Trung Quốc — chảo Cassegrain trên tháp bát giác; châu Âu — gương phản xạ "vỏ cam" trên tháp tròn; thế giới Hồi giáo — chảo lưới viền vàng trên tháp bát giác có vòm nhọn. Mới chỉ có hình (xem ở <code>?view=buildings</code>), chưa bán / chưa xây được trong trận.</li>
+  <li>v2.62.3: AI cấm vận thủ đô địch khi nước đó có từ <code>AI_EMBARGO_CREDITS 1000</code> TB trở lên (trước là 5000), còn lại thì chiếm.</li>
+  <li>v2.62.2: <b>Cấm vận kinh tế</b> giờ xóa sạch nền kinh tế: ngân sách và kho dầu về 0, ngân sách bị giữ ở 0 suốt 180 s (không kiếm, không chi tiêu được gì; không bán dầu, không vay nợ; các khoản thu khác cũng bị chặn). Hết 180 s mới kiếm tiền lại, xây lại kinh tế từ đầu.</li>
+  <li>v2.62.1: Bỏ lựa chọn <b>Phá hủy</b> thủ đô: kỹ sư vào thủ đô chính của phe khác chỉ còn 2 lựa chọn: 1. Cấm vận kinh tế, 2. Chiếm thành.</li>
+  <li>v2.62.0: <b>Kỹ sư vào thủ đô chính của phe khác</b> → popup 3 lựa chọn (<code>Game.isEnemyCapital</code>, lệnh <code>capitalChoice</code>): 1. <b>Cấm vận kinh tế</b>: ngân sách nước đó về 0 và không kiếm được tiền trong <code>CAPITAL_EMBARGO_SECONDS 180</code> s (vẫn tiêu được); 2. <b>Chiếm thành</b>: mở khóa toàn bộ công trình + lính/xe/máy bay của phe đó. Kỹ sư biến mất sau khi chọn. Chiếm Ministry of Defence / War Factory / Airfield / công trình khác của địch: mở khóa lính/xe/máy bay tương ứng (thêm vào cuối danh sách) và cho xây công trình loại đó của phe đó. AI: cũng gửi kỹ sư vào thủ đô địch (ưu tiên sau thủ đô tranh chấp), tự chọn cấm vận nếu địch có ≥ <code>AI_EMBARGO_CREDITS 1000</code> TB, ngược lại chiếm; AI xây thêm công trình của phe đã bị chiếm.</li>
   <li>v2.61.0: <b>Tháp Radar</b> xây được (2 × 2, 1500): có tháp thì minimap bật, hiện quân và công trình; không có thì minimap tắt. Muốn xây Sân bay phải có Tháp Radar. AI xây Tháp Radar sau War Factory. Radar không còn chạy nhờ Sân bay.</li>
   <li>v2.57.5: Nhà máy điện hạt nhân giữ lại biểu tượng phóng xạ màu phe trên tháp làm mát phía trước.</li>
   <li>v2.57.4: Nhà máy điện hạt nhân chỉ còn 3 chi tiết: 2 tháp làm mát và 1 ống khói sọc trắng xen màu phe, trên nền xi măng có hàng rào mỏng (bỏ tòa lò phản ứng và biểu tượng phóng xạ). Sửa lỗi máy bay vận tải / trực thăng chở xe hoặc lính bị kẹt ở trạng thái "ĐANG XUỐNG" không thả được: hai máy bay đến cùng chỗ đẩy nhau nên không bao giờ tới đúng điểm hạ cánh; giờ chỉ cần tới trong vòng 1 ô là hạ cánh.</li>

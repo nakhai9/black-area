@@ -12,6 +12,8 @@ import {
   CAMERA_EDGE_PAN_SPEED,
   DERRICK_GRACE_ATTACKS,
   ENGINEER_REPAIR_SHARE,
+  CAPITAL_EMBARGO_SECONDS,
+  AI_EMBARGO_CREDITS,
   DERRICK_GRACE_GAP,
   MERCY_BONUS,
   RESALE_SHARE,
@@ -187,7 +189,9 @@ import { PowerSystem } from '../systems/PowerSystem';
 import { SAFE_ZONE_SIZE, type SafeZone, SafeZoneSystem } from '../systems/SafeZoneSystem';
 import { SelectionSystem } from '../systems/SelectionSystem';
 import { type TrainKey, TrainingSystem } from '../systems/TrainingSystem';
-import { takenNations } from '../systems/Foreign';
+import { foreignBuildAllowed } from '../systems/Foreign';
+import { askCapitalChoice } from '../ui/CapitalChoice';
+import type { CapitalChoice } from '../entities/Unit';
 import { type VehicleKey, VehicleSystem } from '../systems/VehicleSystem';
 import type { BuildingType, FactionId, GameEvents, GridPoint, OilPolicy, PlayerState, UnitTier, VehicleKind, WeaponSpec, WorldPoint } from '../types';
 import { HASH_EVERY_TURNS, type Lockstep, type Turn } from '../net/Lockstep';
@@ -245,6 +249,8 @@ export type GameCommand = (
   | { k: 'vehicle' | 'vehicleCancel'; kind: VehicleKey }
   | { k: 'policy'; policy: OilPolicy }
   | { k: 'sellOil' | 'autoSell' | 'loan' | 'unload' | 'turbo' }
+  /** My engineer standing in an enemy capital: what he does there (see CapitalChoice). */
+  | { k: 'capitalChoice'; u: number; c: CapitalChoice }
   /** Server-sent: that player left the match. */
   | { k: 'leftMatch' }
 ) & { sel?: number[]; sb?: number | null; pu?: number | null; pb?: number | null };
@@ -745,7 +751,7 @@ export class Game {
   }
 
   /** Game fields never written back from a save (screen / input state). */
-  private static readonly UNSAVED = ['systems', 'paths', 'paused', 'ended', 'dom', 'lastCursor', 'mouseWorld', 'ghost', 'placing', 'placingRotated', 'waypoints', 'moveMarker', 'pathPeekId', 'lastBuildingClick', 'shortRepaths', 'lastRepath', 'localId', 'actorId', 'lockstep', 'desyncWarned'];
+  private static readonly UNSAVED = ['systems', 'paths', 'paused', 'ended', 'dom', 'lastCursor', 'mouseWorld', 'ghost', 'placing', 'placingRotated', 'waypoints', 'moveMarker', 'pathPeekId', 'lastBuildingClick', 'shortRepaths', 'lastRepath', 'localId', 'actorId', 'lockstep', 'desyncWarned', 'capitalPrompts'];
 
   /**
    * Everything needed to continue this game later, as plain JSON-ready data: players, every entity, the state of
@@ -2605,6 +2611,7 @@ export class Game {
       this.collectGarbage();
     }
     for (const s of this.systems) s.update(dt);
+    this.enforceEmbargoes();
     this.autoSellClock += dt;
     if (this.autoSellClock >= SIDEBAR_REFRESH) {
       this.autoSellClock = 0;
@@ -2756,6 +2763,11 @@ export class Game {
       case 'rally': {
         const b = this.entities.get(cmd.b);
         if (b instanceof Building && b.owner === me && RALLY_TYPES.has(b.spec.type)) b.rally = cmd.clear ? null : { x: cmd.x, y: cmd.y };
+        break;
+      }
+      case 'capitalChoice': {
+        const u = this.entities.get(cmd.u);
+        if (u instanceof Infantry && u.alive && u.owner === me && u.task?.type === 'capture') u.task.choice = cmd.c;
         break;
       }
       case 'sellBuilding': {
@@ -3870,10 +3882,10 @@ export class Game {
   // ------------------------------------------------------------------ construction
 
   /** Cameo left-click: start building, or pick up a finished structure to place it. */
-  /** Another nation's design is on sale only while its capital, taken by an engineer, is held. */
+  /** Another nation's design is on sale only while its capital, or a structure of that type of it, taken by an engineer, is held. */
   private buildAvailable(player: PlayerState, option: BuildOption): boolean {
     if (!option.foreign) return true;
-    return takenNations(this.entities, player, 'capital').includes(option.foreign);
+    return foreignBuildAllowed(this.entities, player, option.id, option.foreign);
   }
 
   private onBuildClick(option: BuildOption): void {
@@ -5540,6 +5552,22 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
           }
         } else if (u.owner === this.humanPlayer.id) this.sidebar.notify(t('That derrick is already leased.'), 3);
       } else {
+        // An enemy nation's own capital: its owner picks embargo / take over first (the engineer waits).
+        if (this.isEnemyCapital(b)) {
+          if (!task.choice) {
+            const owner = this.players.find((p) => p.id === u.owner);
+            if (owner?.isHuman) {
+              u.stop();
+              if (u.owner === this.localId) this.promptCapitalChoice(u, b);
+              continue;
+            }
+            task.choice = this.aiCapitalChoice(b);
+          }
+          if (task.choice === 'embargo') {
+            this.embargoCapital(u, b);
+            continue;
+          }
+        }
         // Capture: the engineer is consumed and the building changes sides.
         const before = b.owner;
         if (b.capture(u.owner, u.banner as FactionId)) {
@@ -5550,6 +5578,67 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
           this.razeFlagsAround(b);
         } else u.task = null;
       }
+    }
+  }
+
+  /** Engineers of this screen's player already asked what to do in an enemy capital (not saved: asked again on load). */
+  private capitalPrompts = new Set<number>();
+
+  /** A nation's own main capital, held by its nation (not a contested NationCapital, not one already taken). */
+  private isEnemyCapital(b: Building): boolean {
+    if (b instanceof NationCapital || b.spec.type !== 'capital' || b.owner === NEUTRAL_OWNER) return false;
+    const holder = this.players.find((p) => p.id === b.owner);
+    return !!holder && b.spec.spriteKey === `capital:${holder.faction}`;
+  }
+
+  /** The popup for my engineer at an enemy capital; the pick goes out as a command (lockstep-safe). */
+  private promptCapitalChoice(u: Infantry, b: Building): void {
+    if (this.capitalPrompts.has(u.id)) return;
+    this.capitalPrompts.add(u.id);
+    const holder = this.players.find((p) => p.id === b.owner);
+    askCapitalChoice(
+      { capital: b.spec.name, nation: holder ? FACTIONS[holder.faction].name : '', embargoMinutes: CAPITAL_EMBARGO_SECONDS / 60 },
+      (c) => this.issue({ k: 'capitalChoice', u: u.id, c }),
+      () => u.alive && u.task?.type === 'capture' && u.task.buildingId === b.id && !u.task.choice && b.alive && this.isEnemyCapital(b),
+    );
+  }
+
+  /** AI engineer at an enemy capital: a rich nation is put under embargo, otherwise the capital is taken over. */
+  private aiCapitalChoice(b: Building): CapitalChoice {
+    const holder = this.players.find((p) => p.id === b.owner);
+    return holder && holder.credits >= AI_EMBARGO_CREDITS && !this.underEmbargo(holder) ? 'embargo' : 'capture';
+  }
+
+  private underEmbargo(p: PlayerState): boolean {
+    return p.embargoUntil !== undefined && this.time < p.embargoUntil;
+  }
+
+  /** Embargo: the engineer is used up, the capital stays with its nation. */
+  private embargoCapital(u: Infantry, b: Building): void {
+    const holder = this.players.find((p) => p.id === b.owner);
+    const by = this.players.find((p) => p.id === u.owner);
+    this.entities.remove(u.id);
+    this.selection.selectedUnits.delete(u.id);
+    if (!holder || !by) return;
+    const vars = { by: FACTIONS[by.faction].name, nation: FACTIONS[holder.faction].name, minutes: CAPITAL_EMBARGO_SECONDS / 60 };
+    // The economy starts over: no TB, no oil in stock; nothing comes in (sales, loans, fees) until the embargo ends.
+    holder.credits = 0;
+    holder.oil = 0;
+    holder.leasedOil = 0;
+    holder.embargoUntil = this.time + CAPITAL_EMBARGO_SECONDS;
+    this.news.show(t('BREAKING NEWS'), t('{by} has put {nation} under an economic embargo: its treasury is empty and earns nothing for {minutes} minutes.', vars));
+  }
+
+  /** Embargoed nations have no money at all: the treasury stays at 0 (nothing to spend) until the embargo ends. */
+  private enforceEmbargoes(): void {
+    for (const p of this.players) {
+      if (p.embargoUntil === undefined) continue;
+      if (this.time >= p.embargoUntil) {
+        delete p.embargoUntil;
+        if (p.id === this.localId) this.sidebar.notify(t('The embargo is over: your nation earns money again.'), 5);
+        continue;
+      }
+      p.credits = 0;
     }
   }
 

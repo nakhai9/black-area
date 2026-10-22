@@ -197,6 +197,7 @@ export class OilMarket implements GameSystem {
    */
   sell(player: PlayerState): SaleResult {
     if (player.defeated) return { kind: 'declined', reason: t('your nation has fallen') };
+    if (player.embargoUntil !== undefined) return { kind: 'declined', reason: t('economic embargo — no oil sales until it ends') };
     const wait = this.waitSeconds(player);
     if (wait > 0) return { kind: 'declined', reason: t('{burst} sales in a row, then a {cooldown} s pause — try again in {wait} s', { burst: OIL_SALE_BURST, cooldown: OIL_SALE_COOLDOWN, wait }) };
     const stock = this.sellable(player);
@@ -274,6 +275,7 @@ export class OilMarket implements GameSystem {
   /** Why an emergency loan would be refused right now (null = it would be granted). */
   loanBlocker(player: PlayerState): string | null {
     if (player.defeated) return 'your nation has fallen';
+    if (player.embargoUntil !== undefined) return t('economic embargo — no loans until it ends');
     if (player.credits >= 1) return 'loans are only for an empty treasury (0 TB)';
     this.checkFreeze(player);
     const line = this.creditLine(player);

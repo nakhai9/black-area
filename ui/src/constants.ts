@@ -27,7 +27,7 @@ export const DEMO_FACTION = Number(import.meta.env.VITE_DEMO_FACTION) || 2;
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "2.61.0";
+export const GAME_VERSION = "2.62.3";
 
 /** An Allied Building within this many cells of any capital is an embassy; farther out it is a "Pro-<nation> regime". */
 export const EMBASSY_CAPITAL_CELLS = 25;
@@ -130,8 +130,11 @@ export const FOOTPRINT_SMALL = { w: 4, d: 4 } as const;
 /** Ministry of Defence (barracks) plot: 5 × 3 cells; the USA's Pentagon stands on 4 × 4 (barracksFootprint). */
 export const FOOTPRINT_BARRACKS = { w: 5, d: 3 } as const;
 export const FOOTPRINT_PENTAGON = { w: 4, d: 4 } as const;
-export function barracksFootprint(design: string): { readonly w: number; readonly d: number } {
-  return design === 'usa' ? FOOTPRINT_PENTAGON : FOOTPRINT_BARRACKS;
+export function barracksFootprint(design: string): {
+  readonly w: number;
+  readonly d: number;
+} {
+  return design === "usa" ? FOOTPRINT_PENTAGON : FOOTPRINT_BARRACKS;
 }
 /** The Global Monitoring Center: 5 × 5 cells. */
 export const FOOTPRINT_GMC = { w: 5, d: 5 } as const;
@@ -645,7 +648,13 @@ export const VEHICLE_BASE = {
    * Cheaper than the fighter. */
   drone: { cost: 900, trainSeconds: 12, maxHp: 90, speed: 7, radius: 3.0 },
   /** Armoured bridge layer: slow, tough, unarmed; one use — it unfolds into a BRIDGE_W × BRIDGE_L Bridge across water (see Bridge). */
-  bridgeLayer: { cost: 1000, trainSeconds: 12, maxHp: 400, speed: 1.0, radius: 4.4 },
+  bridgeLayer: {
+    cost: 1000,
+    trainSeconds: 12,
+    maxHp: 400,
+    speed: 1.0,
+    radius: 4.4,
+  },
 } as const;
 
 /** Kamikaze drone: the share of a structure's max health its dive takes. */
@@ -855,6 +864,11 @@ export const WAR_FACTORY_COST = 2000;
  */
 export const ENGINEER_REPAIR_SHARE = 0.06;
 
+/** Engineer in an enemy capital, embargo: that nation's treasury and oil stock drop to 0, and it can neither earn nor spend for this many seconds. */
+export const CAPITAL_EMBARGO_SECONDS = 180;
+/** AI engineer in an enemy capital: embargo when that nation holds at least this many TB, else take it over. */
+export const AI_EMBARGO_CREDITS = 1000;
+
 /** Every nation starts broke; oil derricks are the only source of TB. */
 export const STARTING_CREDITS = 0;
 
@@ -876,9 +890,25 @@ export const FACTION_ORDER: readonly FactionId[] = [
  * cost of that kind), so a dear model (Leopard 2, F-22, C-17) costs more than a cheap one (Karrar, Su-57, Il-76) without wrecking the economy. Fighters (√ softened to the 0.3 power, from 3600) and bombers
  * (5200) always cost more than any air-defence vehicle (≤ 3000). Kinds not listed here: VEHICLE_BASE cost × the nation's cost factor.
  */
-export const VEHICLE_PRICE: Readonly<Record<FactionId, Partial<Record<VehicleKind, number>>>> = {
-  usa: { tank: 1610, heli: 1920, mantis: 2680, jet: 4250, transport: 2260, bomber: 5200 },
-  russia: { tank: 1140, heli: 1300, mantis: 3000, jet: 3050, transport: 870, bomber: 5200 },
+export const VEHICLE_PRICE: Readonly<
+  Record<FactionId, Partial<Record<VehicleKind, number>>>
+> = {
+  usa: {
+    tank: 1610,
+    heli: 1920,
+    mantis: 2680,
+    jet: 4250,
+    transport: 2260,
+    bomber: 5200,
+  },
+  russia: {
+    tank: 1140,
+    heli: 1300,
+    mantis: 3000,
+    jet: 3050,
+    transport: 870,
+    bomber: 5200,
+  },
   china: { tank: 1200, heli: 1260, mantis: 3000, jet: 3420, transport: 1550 },
   europe: { tank: 1780, heli: 1920, mantis: 2680, jet: 3940, transport: 1230 },
   // The B-767 kamikaze drone is cheap: the Islamic world fields it in numbers.
@@ -891,7 +921,9 @@ export const VEHICLE_PRICE: Readonly<Record<FactionId, Partial<Record<VehicleKin
  * STRENGTH_REF (9 = the base stats); this replaces the nation's armor / firepower factors.
  */
 export const STRENGTH_REF = 9;
-export const NATION_STRENGTH: Readonly<Record<FactionId, { land: number; air: number; sea: number }>> = {
+export const NATION_STRENGTH: Readonly<
+  Record<FactionId, { land: number; air: number; sea: number }>
+> = {
   usa: { land: 9.0, air: 10.0, sea: 10.0 },
   europe: { land: 8.5, air: 9.0, sea: 8.5 },
   russia: { land: 9.5, air: 9.0, sea: 8.0 },
@@ -901,7 +933,7 @@ export const NATION_STRENGTH: Readonly<Record<FactionId, { land: number; air: nu
 
 // ---------------------------------------------------------------- Landmarks (real coordinates)
 /** Nations with aircraft carriers, and how many start at sea near the capital (only moving for now). */
-export const CARRIER_NATIONS: readonly FactionId[] = ['usa', 'europe', 'china'];
+export const CARRIER_NATIONS: readonly FactionId[] = ["usa", "europe", "china"];
 export const CARRIER_FLEET = 2;
 /** Fighters a carrier can carry on its deck. */
 export const CARRIER_JETS = 4;
@@ -993,18 +1025,22 @@ export const NATION_PRESENCE_FEE = 1200;
  * GDP used (nominal, ~2024, rough): Japan 4 100, UK 3 600, Canada 2 200, Brazil 2 200, Australia 1 800,
  * South Korea 1 700, Cuba 100, North Korea 30 bn USD. Cuba (560) and North Korea (320) raised by hand.
  */
-export const NATION_PRESENCE_FEES: Readonly<Record<ContestedNationId, number>> = {
-  japan: 1720,
-  unitedKingdom: 1610,
-  canada: 1260,
-  brazil: 1260,
-  australia: 1140,
-  southKorea: 1110,
-  cuba: 560,
-  northKorea: 320,
-};
+export const NATION_PRESENCE_FEES: Readonly<Record<ContestedNationId, number>> =
+  {
+    japan: 1720,
+    unitedKingdom: 1610,
+    canada: 1260,
+    brazil: 1260,
+    australia: 1140,
+    southKorea: 1110,
+    cuba: 560,
+    northKorea: 320,
+  };
 export function presenceFee(nation: string): number {
-  return (NATION_PRESENCE_FEES as Record<string, number>)[nation] ?? NATION_PRESENCE_FEE;
+  return (
+    (NATION_PRESENCE_FEES as Record<string, number>)[nation] ??
+    NATION_PRESENCE_FEE
+  );
 }
 
 /**

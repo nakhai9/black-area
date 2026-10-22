@@ -210,6 +210,8 @@ export interface PlayerState {
   powerSupply: number;
   /** Not enough power: supply below drain, or a blackout. No construction (but plants), vehicles or take-offs. */
   powerShort: boolean;
+  /** Economic embargo (an enemy engineer in its capital): treasury held at 0, no sales or loans, until this game time (s). */
+  embargoUntil?: number;
   /** Building id chosen by double-click per producer type (barracks / warFactory / airfield): new units come out there. */
   primaryBuilding?: Partial<Record<string, number>>;
 }

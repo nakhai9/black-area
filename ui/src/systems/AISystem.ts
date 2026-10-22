@@ -17,6 +17,7 @@ import type { Pathfinder } from '../map/Pathfinder';
 import type { TileMap } from '../map/TileMap';
 import { mulberry32 } from '../core/Random';
 import type { BuildingType, GridPoint, PlayerState, UnitTier, VehicleKind, WorldPoint } from '../types';
+import { foreignBuildAllowed } from './Foreign';
 import { BUILD_OPTIONS, type BuildOption, type ConstructionSystem, buildCost, footprintOf, missingRequirement } from './ConstructionSystem';
 import type { GameSystem } from './GameSystem';
 import { type PlacementSystem, buildRadius, isClaimable } from './PlacementSystem';
@@ -190,6 +191,8 @@ const ECONOMY_TYPES: ReadonlySet<BuildingType> = new Set(['oilDerrick', 'happyCi
 const NATION_FROM = 90;
 
 /** Prizes anyone's engineer may take and the AI goes after / garrisons: contested capitals and Antarctic derricks. */
+/** A rival's own capital counts this many times as far as a contested prize (it is guarded: a later target). */
+const RIVAL_CAPITAL_PULL = 1.5;
 const isPrize = (b: Building): boolean => b instanceof NationCapital || (b instanceof OilDerrick && b.antarctic);
 /** Transports look this many cells around their goal for the landing spot least exposed to enemy fire. */
 const SAFE_DROP_CELLS = 24;
@@ -589,6 +592,18 @@ export class AISystem implements GameSystem {
     if (!next && threat === 0 && this.embassyAnchors(p, capital).length > 0 && this.host.alliesOf(p) < MAX_ALLIES) {
       const allied = BUILD_OPTIONS.find((o) => o.id === 'alliedBuilding');
       if (allied && missingRequirement(allied, owned) === null) next = allied;
+    }
+    // Designs taken from another nation (its capital, or one of its structures, captured): build one of each.
+    if (!next && threat === 0) {
+      next = BUILD_OPTIONS.find(
+        (o) =>
+          o.foreign &&
+          !busy(o.id) &&
+          foreignBuildAllowed(this.host.entities, p, o.id, o.foreign) &&
+          missingRequirement(o, owned) === null &&
+          p.credits >= buildCost(o, p.faction) * 1.5 &&
+          !this.host.entities.buildings().some((b) => b.owner === p.id && b.alive && b.spec.type === o.id.split('@')[0] && b.origin === o.foreign),
+      );
     }
     // Forward base: a Barracks and a War Factory next to each Allied Building, so troops come out on the new land.
     if (!next && threat === 0) {
@@ -1551,8 +1566,16 @@ export class AISystem implements GameSystem {
    * free engineer it trains one. Unowned prizes are always fair game (also during a ceasefire and while the home
    * front is under attack - one engineer is cheap); a prize held by another nation only in war time, home quiet.
    */
+  /** Another nation's own main capital, still held by that nation. */
+  private isRivalCapital(p: PlayerState, b: Building): boolean {
+    if (b instanceof NationCapital || b.spec.type !== 'capital' || b.owner === p.id || b.owner === NEUTRAL_OWNER) return false;
+    const holder = this.players.find((pl) => pl.id === b.owner);
+    return !!holder && !holder.defeated && b.spec.spriteKey === `capital:${holder.faction}`;
+  }
+
   private contestNations(p: PlayerState, st: AIState, capital: Building, owned: Set<BuildingType>, threat: number): void {
-    const caps = this.host.entities.buildings().filter((b) => isPrize(b) && b.alive);
+    // Rivals' own capitals too: an engineer there razes it, embargoes that nation or takes it over (Game.aiCapitalChoice).
+    const caps = this.host.entities.buildings().filter((b) => b.alive && (isPrize(b) || this.isRivalCapital(p, b)));
     const pf = this.host.pathfinder;
     const cellOf = (b: Building): GridPoint | null => pf.nearestPassable(b.x + Math.floor(b.w / 2), b.y + b.d, 10);
     const allowed = (c: Building): boolean => c.owner !== p.id && (c.owner === NEUTRAL_OWNER || (threat === 0 && !inTruce()));
@@ -1581,7 +1604,8 @@ export class AISystem implements GameSystem {
         if (antarctic && !overland) wantsLift = true;
         if (!overland && !owned.has('airfield')) continue;
         const tier = antarctic && (overland || canLift) ? 0 : overland ? 1 : 2;
-        const rich = c instanceof NationCapital ? Math.sqrt(NATION_PRESENCE_FEE / presenceFee(c.nation)) : 1;
+        const rival = this.isRivalCapital(p, c) ? RIVAL_CAPITAL_PULL : 1;
+        const rich = rival * (c instanceof NationCapital ? Math.sqrt(NATION_PRESENCE_FEE / presenceFee(c.nation)) : 1);
         const score = Math.hypot(w.x - homeW.x, w.y - homeW.y) * (overland ? 1 : 2) * (c.owner === NEUTRAL_OWNER ? 0.8 : 1) * (freeOil ? FREE_OIL_PULL : 1) * rich;
         if (tier < bestTier || (tier === bestTier && score < best)) {
           bestTier = tier;
