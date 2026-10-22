@@ -15,6 +15,7 @@ import type { BuildingArt } from './BuildingArt';
 import { createMoscowKremlinArt } from './MoscowKremlin';
 import { createOilDerrickArt } from './OilDerrick';
 import { createPowerPlantArt } from './PowerPlant';
+import { createRadarTowerArt } from './RadarTower';
 import { createGrandMosqueArt } from './GrandMosque';
 import { createWashingtonWhiteHouseArt } from './WashingtonWhiteHouse';
 import { WorldBankArt } from './WorldBank';
@@ -79,6 +80,12 @@ export const BUILDING_ART: Readonly<Record<string, BuildingArt>> = {
   'powerPlant:china': createPowerPlantArt('china'),
   'powerPlant:europe': createPowerPlantArt('europe'),
   'powerPlant:islamic': createPowerPlantArt('islamic'),
+  // Radar Tower (2 × 2): each nation's own pedestal and antenna, turning 360°.
+  'radarTower:usa': createRadarTowerArt('usa'),
+  'radarTower:russia': createRadarTowerArt('russia'),
+  'radarTower:china': createRadarTowerArt('china'),
+  'radarTower:europe': createRadarTowerArt('europe'),
+  'radarTower:islamic': createRadarTowerArt('islamic'),
   // Happy City in each nation's own architecture.
   'happyCity:usa': createHappyCityArt('usa'),
   'happyCity:russia': createHappyCityArt('russia'),

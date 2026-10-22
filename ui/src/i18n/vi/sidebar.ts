@@ -66,6 +66,7 @@ export default {
   "BLACKOUT: no power and no TB to buy oil from the Global Monitoring Center. No take-offs.": "MẤT ĐIỆN: không có điện và không còn TB để mua dầu từ Trung tâm Giám sát Toàn cầu. Không thể cất cánh.",
   "Vehicles & aircraft": "Phương tiện & máy bay",
   "Command": "Chỉ huy",
+  "Government": "Chính phủ",
   "Look at it": "Xem",
   "Claimed land · no ally yet": "Đất đã chiếm · chưa có đồng minh",
   "PLACING": "ĐANG ĐẶT",

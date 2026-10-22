@@ -17,6 +17,8 @@ export interface BuildingArt {
   readonly scale?: number;
   /** True for pieces that join their neighbours (wall blocks): no dark rim, so a wall line shows no seams. */
   readonly noRim?: boolean;
+  /** The animated layer reaches above the static sprite (a turning antenna): previews fit the full `height`. */
+  readonly fitHeight?: boolean;
   drawStatic(p: IsoPainter): void;
   drawAnimated?(p: IsoPainter, time: number, active: boolean): void;
 }

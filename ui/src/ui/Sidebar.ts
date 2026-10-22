@@ -1,5 +1,14 @@
 import { AlertToast } from './NewsToast';
-import { type IconNode, Settings, ArrowUpFromLine, Clock, House, Handshake, Wallet, Info, Keyboard, Droplet, Hammer, LogIn, LogOut, Minus, PersonStanding, Radar, Rocket, Shield, TrendingDown, TrendingUp, Trophy, Truck, Zap, createElement } from 'lucide';
+import { type IconNode, Settings, ArrowUpFromLine, Clock, House, Handshake, Wallet, Info, Keyboard, Droplet, Hammer, LogIn, LogOut, Minus, PersonStanding, Rocket, Shield, TrendingDown, TrendingUp, Trophy, Zap, createElement } from 'lucide';
+
+/** Government building (Remix Icon by Remix Design, Apache-2.0): filled, so it draws without the lucide stroke. */
+const Government: IconNode = [
+  ['path', { fill: 'currentColor', stroke: 'none', d: 'M2 19V8H1V6h3V4a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v2h3v2h-1v11h1v2H1v-2zm11 0v-7h-2v7zm-5 0v-7H6v7zm10 0v-7h-2v7zM6 5v1h12V5z' }],
+];
+/** Tank (Material Design Icons by Pictogrammers, Apache-2.0): filled, so it draws without the lucide stroke. */
+const Tank: IconNode = [
+  ['path', { fill: 'currentColor', stroke: 'none', d: 'M20 12H4v-1h2l1-5h5l1 5h7zm-6.78-5l.4 2H22V7zM22 16a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3a3 3 0 0 1 3-3h14a3 3 0 0 1 3 3M6 16a1 1 0 0 0-1-1a1 1 0 0 0-1 1a1 1 0 0 0 1 1a1 1 0 0 0 1-1m7 0a1 1 0 0 0-1-1a1 1 0 0 0-1 1a1 1 0 0 0 1 1a1 1 0 0 0 1-1m7 0a1 1 0 0 0-1-1a1 1 0 0 0-1 1a1 1 0 0 0 1 1a1 1 0 0 0 1-1' }],
+];
 import { BUILD_LIMIT_VEHICLES, CURRENCY, MAX_ALLIES, OIL_GRID_MARKUP, OIL_POLICIES, POWER_PER_BARREL, TECH_TIERS, TECH_VEHICLES, isAircraftKind } from '../constants';
 import { FACTIONS } from '../factions';
 import { getFlagTexture } from '../render/Flags';
@@ -108,7 +117,7 @@ const BUILD_TABS: readonly { id: TabId; label: string; icon: IconNode; enabled: 
   { id: 'build', label: 'Build', icon: Hammer, enabled: true },
   { id: 'defense', label: 'Defense', icon: Shield, enabled: true },
   { id: 'infantry', label: 'Infantry', icon: PersonStanding, enabled: true },
-  { id: 'vehicles', label: 'Vehicles', icon: Truck, enabled: true },
+  { id: 'vehicles', label: 'Vehicles', icon: Tank, enabled: true },
 ];
 
 export interface SidebarModel {
@@ -620,8 +629,8 @@ export class Sidebar {
         ? t('Not enough power: the Global Monitoring Center sells oil for the missing power (+25%), and take-offs stop (construction and production keep running while you have TB).')
         : t('Stored {a} / {b}. Plants burn your oil (0.001 bbl = 1 J).', { a: compactEnergy(player.powerStored), b: compactEnergy(player.powerCapacity) }));
 
-    // The radar picture is blurred and dimmed until the nation owns an Airfield.
-    this.radarPanel.classList.toggle('offline', !model.owned.has('airfield'));
+    // The radar picture is blurred and dimmed until the nation owns a Radar Tower.
+    this.radarPanel.classList.toggle('offline', !model.owned.has('radarTower'));
 
     // Blink the Build tab (and the sidebar opener) while a finished structure waits.
     const ready = this.options.filter((o) => model.buildSlot(o.id).state === 'ready' && model.placingId !== o.id);
@@ -715,7 +724,7 @@ export class Sidebar {
       btn.addEventListener('click', onClick);
       return btn;
     };
-    const command = tabButton(t('Command'), Radar, true, () => this.switchView('command'));
+    const command = tabButton(t('Government'), Government, true, () => this.switchView('command'));
     nav.append(command);
     this.mainTabs.set('command', command);
     const infos: readonly { id: InfoId; label: string; icon: IconNode }[] = [

@@ -126,7 +126,9 @@ function draw(card: Card, time: number): void {
     }
     return;
   }
-  const b = s.bounds;
+  // A turning antenna rises above the static sprite: fit the art's full height instead.
+  const reach = s.centerY - s.groundHalfH - s.art.height * s.artScale;
+  const b = s.art.fitHeight && reach < s.bounds.y ? { ...s.bounds, y: reach, h: s.bounds.y + s.bounds.h - reach } : s.bounds;
   const k = Math.min((w - 20) / b.w, (h - 20) / b.h);
   // Sprite top-left so that its opaque bounds sit centred in the card.
   const left = (w - b.w * k) / 2 - b.x * k;

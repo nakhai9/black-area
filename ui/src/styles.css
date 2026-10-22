@@ -825,7 +825,7 @@ kbd {
   color: #ff9a8a;
 }
 
-/* ------------------------------------------------------------- radar offline (no Airfield yet) */
+/* ------------------------------------------------------------- radar offline (no Radar Tower) */
 
 .sb-radar {
   position: relative;
@@ -838,7 +838,7 @@ kbd {
   cursor: not-allowed;
 }
 .sb-radar.offline::after {
-  content: 'RADAR OFFLINE · build an Airfield';
+  content: 'RADAR OFFLINE · build a Radar Tower';
   position: absolute;
   inset: 0;
   display: grid;

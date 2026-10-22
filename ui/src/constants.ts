@@ -27,7 +27,7 @@ export const DEMO_FACTION = Number(import.meta.env.VITE_DEMO_FACTION) || 2;
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "2.58.0";
+export const GAME_VERSION = "2.61.0";
 
 /** An Allied Building within this many cells of any capital is an embassy; farther out it is a "Pro-<nation> regime". */
 export const EMBASSY_CAPITAL_CELLS = 25;
@@ -259,7 +259,11 @@ export const GATE_COST = 300;
 export const GATE_HP = 6000;
 export const GATE_BUILD_RADIUS = WALL_BUILD_RADIUS;
 export const FOOTPRINT_GATE = { w: 4, d: 1 } as const;
-/** Dearer than a War Factory: it runs the radar and fields aircraft that cost 3000–5200 each. */
+/** Radar Tower (2 × 2): runs the nation's radar (minimap); an Airfield needs one. */
+export const RADAR_TOWER_COST = 1500;
+export const RADAR_TOWER_HP = 1200;
+export const FOOTPRINT_RADAR_TOWER = { w: 2, d: 2 } as const;
+/** Dearer than a War Factory: it fields aircraft that cost 3000–5200 each. */
 export const AIRFIELD_COST = 6000;
 /** High-Tech Center (a high-rise): base price; it unlocks the second-tier soldiers and vehicles. */
 export const TECH_CENTER_COST = 8000;
@@ -649,8 +653,10 @@ export const DRONE_DAMAGE_SHARE = 0.5;
 /** A fighter (player's or AI's) without an attack order shoots down an enemy drone diving at its own nation as a danger,
  * before any other target, once the drone is within this many times its weapon range. */
 export const FIGHTER_DRONE_ALERT = 3;
-/** How close (cells) to the structure's edge the drone must get to strike it. */
-export const DRONE_STRIKE_CELLS = 0.4;
+/** How close (cells) to the target's centre the drone must get to crash into it and explode. */
+export const DRONE_STRIKE_CELLS = 0.6;
+/** Over its last this-many cells to the target the drone dives from cruise height down to the ground. */
+export const DRONE_DIVE_CELLS = 6;
 
 /**
  * Soldiers and ground vehicles move this much faster than their base speed (a little quicker on the bigger map,
@@ -1154,6 +1160,7 @@ export const BUILDING_VALUE: Readonly<Partial<Record<BuildingType, number>>> = {
   gate: GATE_COST,
   warFactory: WAR_FACTORY_COST,
   airfield: AIRFIELD_COST,
+  radarTower: RADAR_TOWER_COST,
   techCenter: TECH_CENTER_COST,
   happyCity: HAPPY_CITY_COST,
   powerPlant: POWER_PLANT_COST,

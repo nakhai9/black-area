@@ -123,7 +123,7 @@ function bombRow(v: Vehicle): { x0: number; y: number; bar: number; gap: number;
   return { x0: P.x - w / 2, y: P.y - v.altitude - h / 2, bar, gap, h };
 }
 /** Structures whose art has no flag of its own (sprite key kinds): the renderer gives them a flag pole. */
-const FLAGLESS_ART: ReadonlySet<string> = new Set(['oil', 'airfield', 'techCenter', 'powerPlant', 'happyCity']);
+const FLAGLESS_ART: ReadonlySet<string> = new Set(['oil', 'airfield', 'radarTower', 'techCenter', 'powerPlant', 'happyCity']);
 /** Structures without a flag that get one only once taken from another nation. */
 const CAPTURE_POLE_ART: ReadonlySet<string> = new Set(['bunker', 'wall', 'gate']);
 const FLAG_POLE_HEIGHT = 30;

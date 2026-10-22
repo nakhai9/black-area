@@ -3,6 +3,8 @@ import {
   AIRFIELD_COST,
   ALLIED_BUILDING_COST,
   TECH_CENTER_COST,
+  RADAR_TOWER_COST,
+  FOOTPRINT_RADAR_TOWER,
   BARRACKS_COST,
   BUNKER_COST,
   WALL_COST,
@@ -32,6 +34,7 @@ import { HappyCity } from '../entities/HappyCity';
 import { Bunker } from '../entities/Bunker';
 import { PowerPlant } from '../entities/PowerPlant';
 import { TechCenter } from '../entities/TechCenter';
+import { RadarTower } from '../entities/RadarTower';
 import { WarFactory } from '../entities/WarFactory';
 import { Barracks } from '../entities/Barracks';
 import { Flagpole } from '../entities/Flagpole';
@@ -42,7 +45,7 @@ import type { BuildingType, FactionId, PlayerState } from '../types';
 import type { GameSystem } from './GameSystem';
 
 /** A structure that can be produced from the sidebar's Build tab. */
-type BaseBuildId = 'powerPlant' | 'barracks' | 'warFactory' | 'airfield' | 'techCenter' | 'happyCity' | 'flagpole' | 'alliedBuilding' | 'bunker' | 'wall' | 'gate';
+type BaseBuildId = 'powerPlant' | 'barracks' | 'warFactory' | 'airfield' | 'radarTower' | 'techCenter' | 'happyCity' | 'flagpole' | 'alliedBuilding' | 'bunker' | 'wall' | 'gate';
 
 export interface BuildOption {
   /** `base@faction` for another nation's design (on sale while that nation's capital is held). */
@@ -50,7 +53,7 @@ export interface BuildOption {
   /** Another nation's design: offered only to the holder of that nation's captured capital. */
   foreign?: FactionId;
   name: string;
-  /** Tech tree: these buildings must already stand (power plant → barracks → war factory → airfield → happy city). */
+  /** Tech tree: these buildings must already stand (power plant → barracks → war factory + radar tower → airfield → happy city). */
   requires?: BuildingType | readonly BuildingType[];
   cost: number;
   /** Same price for every nation (the faction cost multiplier is not applied). */
@@ -128,9 +131,18 @@ const OWN_OPTIONS: readonly BuildOption[] = [
     create: (owner, faction, x, y) => new Gate(owner, faction, center(x, y, FOOTPRINT_GATE)),
   },
   {
+    // Runs the radar (minimap: every unit and structure shows); an Airfield needs one.
+    id: 'radarTower',
+    name: 'Radar Tower',
+    cost: RADAR_TOWER_COST,
+    footprint: FOOTPRINT_RADAR_TOWER,
+    spriteKey: (f) => `radarTower:${f}`,
+    create: (owner, faction, x, y) => new RadarTower(owner, faction, center(x, y, FOOTPRINT_RADAR_TOWER)),
+  },
+  {
     id: 'airfield',
     name: 'Airfield',
-    requires: 'warFactory',
+    requires: ['warFactory', 'radarTower'],
     cost: AIRFIELD_COST,
     footprint: FOOTPRINT_AIRFIELD,
     spriteKey: (f) => `airfield:${f}`,
@@ -204,10 +216,16 @@ export function footprintOf(option: BuildOption, faction: FactionId): { w: numbe
   return option.footprintFor?.(option.foreign ?? faction) ?? option.footprint;
 }
 
-/** First prerequisite of `option` the nation does not own yet (null = it may be built). */
+/**
+ * First prerequisite of `option` the nation does not own yet (null = it may be built). Like Red Alert 2, every structure
+ * but the Power Plant needs a standing Power Plant, and every one but the Power Plant and Ministry of Defence also needs a
+ * Ministry of Defence — on top of its own `requires`. Player and AI both go through here.
+ */
 export function missingRequirement(option: BuildOption, owned: ReadonlySet<BuildingType>): BuildingType | null {
-  const list: readonly BuildingType[] = option.requires === undefined ? [] : typeof option.requires === 'string' ? [option.requires] : option.requires;
-  return list.find((t) => !owned.has(t)) ?? null;
+  const base = option.id.split('@')[0];
+  const core: BuildingType[] = base === 'powerPlant' ? [] : base === 'barracks' ? ['powerPlant'] : ['powerPlant', 'barracks'];
+  const own: readonly BuildingType[] = option.requires === undefined ? [] : typeof option.requires === 'string' ? [option.requires] : option.requires;
+  return [...core, ...own].find((t) => !owned.has(t)) ?? null;
 }
 
 /** Price of a structure for a nation (faction cost multiplier applied, like soldiers and vehicles). */

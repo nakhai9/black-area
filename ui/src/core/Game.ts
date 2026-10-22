@@ -26,6 +26,8 @@ import {
   DEMO_FUSE_SECONDS,
   DRONE_DAMAGE_SHARE,
   DRONE_STRIKE_CELLS,
+  DRONE_DIVE_CELLS,
+  CRUISE_ALTITUDE,
   DEMO_GROUP_RADIUS_CELLS,
   DEMO_GROUP_SIZE,
   DEMO_LARGE_DAMAGE,
@@ -1013,7 +1015,7 @@ export class Game {
     if (!capital) return;
     const cx = capital.x + Math.floor(capital.w / 2);
     const cy = capital.y + Math.floor(capital.d / 2);
-    const ids = ['powerPlant', 'powerPlant', 'barracks', 'warFactory', 'airfield', 'techCenter', 'alliedBuilding', 'bunker', 'flagpole'];
+    const ids = ['powerPlant', 'powerPlant', 'barracks', 'warFactory', 'radarTower', 'airfield', 'techCenter', 'alliedBuilding', 'bunker', 'flagpole'];
     const placed: Building[] = [capital];
     for (const id of ids) {
       const option = BUILD_OPTIONS.find((o) => o.id === id);
@@ -3221,7 +3223,7 @@ export class Game {
     this.minimapTimer += dt;
     if (this.minimapTimer >= 1 / 12) {
       this.minimapTimer = 0;
-      this.minimap.render(buildings, units, this.humanPlayer.id, this.ownedCache.has('airfield'), drawTime);
+      this.minimap.render(buildings, units, this.humanPlayer.id, this.ownedCache.has('radarTower'), drawTime);
     }
     this.status.update(dt, this.mouseWorld, this.camera.zoom);
 
@@ -5391,8 +5393,8 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
   }
 
   /**
-   * Kamikaze drones (B-767). A diving drone homes on the structure's centre (its target stays locked: attackTarget) and, once over its
-   * edge, strikes it for DRONE_DAMAGE_SHARE of its max health and is destroyed. A target that is gone or no longer
+   * Kamikaze drones (B-767). A diving drone homes on the structure's centre (its target stays locked: attackTarget), glides down over
+   * the last DRONE_DIVE_CELLS and, on impact at the centre (not in the air), strikes it for DRONE_DAMAGE_SHARE of its max health and is destroyed. A target that is gone or no longer
    * hostile calls the dive off.
    */
   private processDrones(): void {
@@ -5407,19 +5409,23 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
         continue;
       }
       d.attackTarget = b.id;
-      if (distanceTo(d.px, d.py, b) > DRONE_STRIKE_CELLS * CELL_SIZE || !d.flies) {
+      const aim = this.diveAim(b);
+      const gap = Math.hypot(aim.x - d.px, aim.y - d.py);
+      // Terminal dive: glide down from cruise height to the ground at the target's centre.
+      if (d.flies && gap < DRONE_DIVE_CELLS * CELL_SIZE) d.altitude = Math.min(d.altitude, CRUISE_ALTITUDE * (gap / (DRONE_DIVE_CELLS * CELL_SIZE)));
+      const arrived = gap <= DRONE_STRIKE_CELLS * CELL_SIZE || (!d.moving && gap < DRONE_DIVE_CELLS * CELL_SIZE);
+      if (!arrived || !d.flies) {
         // A unit drives on: re-aim at it every tick.
-        if (!d.moving || b instanceof Unit) d.follow([this.diveAim(b)]);
+        if (!d.moving || b instanceof Unit) d.follow([aim]);
         continue;
       }
-      const aim = this.diveAim(b);
       if (!(b instanceof Building && b.indestructible) && !this.safeZones.isSafe(aim.x, aim.y)) {
         // Structures and vehicles lose DRONE_DAMAGE_SHARE of their max health; a soldier is killed.
         b.damage(b instanceof Infantry ? Infinity : b.maxHp * DRONE_DAMAGE_SHARE);
         b.lastAttackerId = d.id;
         b.lastAttackedAt = this.time;
       }
-      const p = this.fx(d.px, d.py, d.altitude);
+      const p = this.fx(aim.x, aim.y, 0);
       this.effects.add({ kind: 'demoBlast', x: p.x, y: p.y, age: 0, ttl: 0.8 });
       this.sound.play('explosion', { x: d.px, y: d.py });
       d.diveTargetId = null;

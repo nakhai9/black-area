@@ -75,7 +75,7 @@ export interface AIHost {
 }
 
 /** Order in which an AI nation builds its base. */
-const BUILD_PLAN: readonly BuildOption['id'][] = ['powerPlant', 'barracks', 'warFactory', 'airfield', 'techCenter'];
+const BUILD_PLAN: readonly BuildOption['id'][] = ['powerPlant', 'barracks', 'warFactory', 'radarTower', 'airfield', 'techCenter'];
 const THINK_PERIOD = 1.5;
 /** Ceasefire: the AI keeps its units this many cells further out than the zone itself (a safety margin). */
 const TRUCE_SAFETY_CELLS = 2;
@@ -128,6 +128,7 @@ const DRONE_BUILDING_TIER: Partial<Record<BuildingType, number>> = {
   barracks: 1,
   warFactory: 1,
   airfield: 1,
+  radarTower: 1,
   techCenter: 1,
   bunker: 1,
   wall: 1,
@@ -264,7 +265,7 @@ const ECONOMIC_TARGETS: Partial<Record<BuildingType, number>> = { oilDerrick: 1.
 const FREE_OIL_PULL = 0.4;
 /** captureOil: enemy derricks within this many cells of a free engineer are taken over (one engineer at a time). */
 const OIL_CAPTURE_CELLS = 70;
-const MILITARY_TARGETS: Partial<Record<BuildingType, number>> = { barracks: 0.75, warFactory: 0.8, airfield: 0.85, techCenter: 0.9 };
+const MILITARY_TARGETS: Partial<Record<BuildingType, number>> = { barracks: 0.75, warFactory: 0.8, airfield: 0.85, radarTower: 0.8, techCenter: 0.9 };
 /** Any other structure. */
 const OTHER_TARGET = 1.1;
 /** Seconds between re-weighing which nation to make war on. */
