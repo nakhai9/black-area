@@ -1523,6 +1523,10 @@ body.sidebar-hidden .air-tools {
   border-color: #5cff6a;
   box-shadow: 0 0 6px rgba(92, 255, 106, 0.55);
 }
+.air-tool.on {
+  border-color: #ffd23f;
+  box-shadow: 0 0 8px rgba(255, 210, 63, 0.7);
+}
 .air-tool:disabled {
   opacity: 0.4;
   cursor: not-allowed;

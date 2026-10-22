@@ -16,6 +16,7 @@ import { Vehicle } from '../entities/Vehicle';
 import { WarFactory } from '../entities/WarFactory';
 import { WorldBank } from '../entities/WorldBank';
 import { Pyramids } from '../entities/Pyramids';
+import { Bridge } from '../entities/Bridge';
 import { NationCapital, type NationId } from '../entities/NationCapital';
 import { CELL_SIZE, VEHICLE_BASE } from '../constants';
 import { geoToWorld } from '../map/Geo';
@@ -38,6 +39,7 @@ const ENTITY_CLASSES: Readonly<Record<string, abstract new (...args: never[]) =>
   Capital,
   WorldBank,
   Pyramids,
+  Bridge,
   NationCapital,
   Barracks,
   WarFactory,

@@ -1,3 +1,4 @@
+import { bridgeAnchor } from '../entities/Bridge';
 import { AI_AIR_DEFENCE, AI_AIR_DEFENCE_PER_CITIES, AI_AIR_DEFENCE_RING, AI_BUNKERS, AI_WALL_ALERT_SECONDS, AI_WALL_ENEMY_UNITS, AI_WALL_GAP, AI_WALL_WATCH_CELLS, AI_WALL_RING, AI_WALL_SEGMENT, BUNKER_RANGE, CELL_SIZE, INFANTRY_BASE, INFANTRY_MARCH_CELLS, EMBASSY_CAPITAL_CELLS, MAX_ALLIES, NATION_GARRISON, NATION_GARRISON_CELLS, NEUTRAL_OWNER, OIL_DERRICK_OUTPUT, OIL_LEASE_CARTEL_SHARE, OIL_LEASE_SECONDS, TECH_VEHICLES, TRUCE_ZONE_CELLS, TRUCK_MIN_RIDERS, TRUCK_SOLDIERS, NATION_PRESENCE_FEE, presenceFee } from '../constants';
 import { FACTIONS } from '../factions';
 import { StructureIndex } from './StructureIndex';
@@ -69,6 +70,8 @@ export interface AIHost {
   alliesOf(player: PlayerState): number;
   /** Sends an engineer to take over a contested nation's capital (false if it cannot get there). */
   orderCapture(u: Infantry, b: Building): boolean;
+  /** Sends one of `layers` (bridge layers) to lay a bridge at (x, y) (false when the site is not at the water's edge). */
+  orderBridge(layers: readonly Vehicle[], x: number, y: number, rotated: boolean): boolean;
 }
 
 /** Order in which an AI nation builds its base. */
@@ -86,6 +89,12 @@ const FORWARD_RANGE = 14;
  * replaces battle losses before it invests, and it stops investing while its base is under attack.
  */
 const MAX_CITIES = 30;
+/** layBridges: seconds between looks at river crossings, how far along the way (cells), the search budget of the
+ * "already a way across?" test and how far (cells) from the near bank a bridge site is looked for. */
+const BRIDGE_PERIOD = 10;
+const BRIDGE_LOOK_CELLS = 120;
+const BRIDGE_SEARCH = 4000;
+const BRIDGE_SITE_CELLS = 6;
 /** findSite: one of this many nearest legal spots round the capital is taken. */
 const SITE_PICK = 10;
 let SITE_OFFSETS: [number, number][] | null = null;
@@ -272,6 +281,8 @@ const MAX_ATTACKERS = 2;
 
 interface AIState {
   nextThink: number;
+  /** Game time of the next look at river crossings on the way to the rival (see layBridges). */
+  nextBridge?: number;
   /** Ids of the units kept at home as the guard (GUARD_SHARE of the army). */
   guard: Set<number>;
   /** Unit id → game time it fell back from a lost fight (rests RETREAT_REST s before attacking again). */
@@ -472,6 +483,7 @@ export class AISystem implements GameSystem {
     this.leaseOil(p, owned, threat);
     this.captureOil(p, threat);
     this.driveConvoys(st);
+    this.layBridges(p, st, capital, owned);
     this.evacuate(p, capital);
     this.army(p, st, capital);
   }
@@ -933,6 +945,99 @@ export class AISystem implements GameSystem {
       if (this.host.placement.check({ owner: p.id, x: c.x, y: c.y, w: 1, d: 1, radius: buildRadius('wall') }).ok) return c;
     }
     return null;
+  }
+
+  /**
+   * River crossings (same rules as the player's bridges): every BRIDGE_PERIOD s the nation looks along the straight
+   * line from its capital to its rival's nearest structure. When a great river cuts it within BRIDGE_LOOK_CELLS and
+   * there is no short way across near that spot (a bridge already laid, a ford round the bend), it buys one bridge
+   * layer (never more than one at a time) and sends it to the nearest legal site at that bank — or to extend the bridge
+   * it already started there, until the crossing is open.
+   */
+  private layBridges(p: PlayerState, st: AIState, capital: Building, owned: Set<BuildingType>): void {
+    if (this.time < (st.nextBridge ?? 0)) return;
+    st.nextBridge = this.time + BRIDGE_PERIOD;
+    if (!owned.has('warFactory') || FACTIONS[p.faction].peaceful) return;
+    const { map, pathfinder, entities } = this.host;
+    const rival = st.rival;
+    const cx = capital.x + capital.w / 2;
+    const cy = capital.y + capital.d / 2;
+    let target: Building | null = null;
+    let best = Infinity;
+    for (const b of entities.buildings()) {
+      if (!b.alive || b.indestructible || b.owner === p.id || b.owner === NEUTRAL_OWNER || (rival !== null && b.owner !== rival)) continue;
+      const d = Math.hypot(b.x - cx, b.y - cy);
+      if (d < best) {
+        best = d;
+        target = b;
+      }
+    }
+    if (!target) return;
+    // First river cell on the way, and the dry cells either side of it along the line.
+    const steps = Math.min(BRIDGE_LOOK_CELLS, Math.ceil(best));
+    const dx = (target.x - cx) / best;
+    const dy = (target.y - cy) / best;
+    let near: { x: number; y: number } | null = null;
+    let far: { x: number; y: number } | null = null;
+    let crossed = false;
+    for (let s = 0; s <= steps; s++) {
+      const x = Math.floor(cx + dx * s);
+      const y = Math.floor(cy + dy * s);
+      const river = map.inBounds(x, y) && map.river[map.index(x, y)] === 1;
+      if (river) crossed = true;
+      else if (!map.isOpenWater(x, y)) {
+        if (!crossed) near = { x, y };
+        else {
+          far = { x, y };
+          break;
+        }
+      }
+    }
+    if (!near || !far) return;
+    // A short way across already (a bridge, the river's end close by): nothing to do.
+    const span = Math.hypot(far.x - near.x, far.y - near.y);
+    const route = pathfinder.find({ x: (near.x + 0.5) * CELL_SIZE, y: (near.y + 0.5) * CELL_SIZE }, far, 'vehicle', null, BRIDGE_SEARCH);
+    const end = route[route.length - 1];
+    if (end && Math.floor(end.x / CELL_SIZE) === far.x && Math.floor(end.y / CELL_SIZE) === far.y && route.length <= span * 3 + 12) return;
+    const layers = entities.vehicles().filter((v) => v.owner === p.id && v.alive && v.isBridgeLayer);
+    if (layers.length === 0) {
+      const q = this.host.production.queue(p);
+      if (!q.items.some((k) => k === 'bridgeLayer') && p.credits > 1500) this.host.production.enqueue(p, 'bridgeLayer');
+      return;
+    }
+    const idle = layers.filter((v) => !v.bridgeOrder);
+    if (idle.length === 0) return;
+    // The legal site at the near bank that reaches furthest across, laid along the way across (long side along the
+    // line's main axis) and no more than a cell or two off it: a fresh bridge, or the next section of one started.
+    const rotated = Math.abs(dx) >= Math.abs(dy);
+    let site: { x: number; y: number; rotated: boolean } | null = null;
+    let siteScore = -Infinity;
+    for (let oy = -BRIDGE_SITE_CELLS; oy <= BRIDGE_SITE_CELLS; oy++) {
+      for (let ox = -BRIDGE_SITE_CELLS; ox <= BRIDGE_SITE_CELLS; ox++) {
+        const x = near.x + ox;
+        const y = near.y + oy;
+        const w = rotated ? 3 : 2;
+        const d = rotated ? 2 : 3;
+        const mx = x + w / 2 - (near.x + 0.5);
+        const my = y + d / 2 - (near.y + 0.5);
+        const along = mx * dx + my * dy;
+        const off = Math.abs(mx * dy - my * dx);
+        if (off > 2) continue;
+        // It must be laid from this side: the end its layer stands at lies on the near bank (or on the bridge so far).
+        const at = bridgeAnchor(map, x, y, rotated);
+        if (!at || (!map.isBridge(Math.floor(at.x), Math.floor(at.y)) && (at.x - (near.x + 0.5)) * dx + (at.y - (near.y + 0.5)) * dy > 1.5)) continue;
+        // Only sites that span river water (not a pond on the way).
+        let river = false;
+        for (let ty = y; ty < y + d && !river; ty++) for (let tx = x; tx < x + w && !river; tx++) river = map.river[map.index(tx, ty)] === 1;
+        if (!river) continue;
+        const score = along - off;
+        if (score > siteScore) {
+          site = { x, y, rotated };
+          siteScore = score;
+        }
+      }
+    }
+    if (site) this.host.orderBridge(idle, site.x, site.y, site.rotated);
   }
 
   /** A legal spot near the capital (preferring close ones, with some randomness). */
