@@ -275,6 +275,17 @@ export class CombatSystem implements GameSystem {
       return;
     }
     let target = this.currentTarget(s);
+    // A helicopter never attacks on its own: only on an order (attack order / attack-move) or to hit back at whoever
+    // shot it (player and AI alike).
+    if (s instanceof Vehicle && s.isHeli && s.attackTarget === null && s.attackMove === null) {
+      const foe = this.heliFoe(s, w, target);
+      s.combatTarget = foe?.id ?? null;
+      if (!foe) {
+        s.engaged = false;
+        return;
+      }
+      target = foe;
+    }
 
     // Explicit attack order beats everything else.
     if (s.attackTarget !== null) {
@@ -405,6 +416,16 @@ export class CombatSystem implements GameSystem {
     if (this.time - s.lastAttackedAt >= 6) return undefined;
     const a = this.entities.get(s.lastAttackerId);
     if (!(a instanceof Bunker) || !a.alive || !isHostile(s, a) || this.sheltered(a) || !this.canHit(s, w, a)) return undefined;
+    return a;
+  }
+
+  /** The enemy an order-less helicopter may fight: the one it is already hitting back at, or whoever shot it in the last 6 s. */
+  private heliFoe(s: Vehicle, w: WeaponSpec, current: Entity | undefined): Entity | undefined {
+    if (current && (current.id === s.heliRevenge || current.id === s.lastAttackerId)) return current;
+    if (s.lastAttackerId === null || this.time - s.lastAttackedAt >= 6) return undefined;
+    const a = this.entities.get(s.lastAttackerId);
+    if (!a || !a.alive || !isHostile(s, a) || !this.canHit(s, w, a) || this.sheltered(a)) return undefined;
+    if (a instanceof Unit && !a.visible) return undefined;
     return a;
   }
 

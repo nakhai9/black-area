@@ -26,7 +26,7 @@
 <body>
 <main>
 <img class="logo" src="/logo.png" alt="Black Area" />
-<h1>Black Area — RULE <small>v2.62.3</small></h1>
+<h1>Black Area — RULE <small>v2.62.4</small></h1>
 <p class="lead">Tài liệu luật chơi + kiến trúc code dành cho AI/dev sửa game. Mọi con số gameplay chính xác nằm trong <code>src/constants.ts</code> và <code>src/factions/*.ts</code>. Nếu tài liệu này khác code thì <b>code đúng</b>. <b>Khi đổi luật/số trong code, phải cập nhật file này.</b></p>
 <nav><a href="#s1">Quy tắc làm việc cho AI</a><a href="#s2">Chạy dự án</a><a href="#s3">Kiến trúc thư mục</a><a href="#s4">Thế giới</a><a href="#s5">Kinh tế (dầu)</a><a href="#s6">Công trình (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Quân đội</a><a href="#s8">Chiến đấu</a><a href="#s9">Điều khiển (Game.handleKey, handleInput)</a><a href="#s10">Giới hạn &amp; hiệu năng</a><a href="#s11">Thắng / thua &amp; AI</a><a href="#s12">Công thức sửa thường gặp</a></nav>
 <h2 id="s1">0. Quy tắc làm việc cho AI</h2>
@@ -697,6 +697,7 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
   <li>v2.59.1: Tab Phương tiện dùng biểu tượng xe tăng thay cho xe tải.</li>
   <li>v2.59.2: Tab Chỉ huy đổi tên thành Chính phủ (Government), biểu tượng toà nhà chính phủ.</li>
   <li>v2.60.0: Thêm hình <b>Tháp Radar</b> (nền 2 × 2) cho mỗi phe, ăng-ten xoay đủ 360°: Mỹ — chảo parabol trên tháp côn trắng; Nga — tấm ra-đa mảng pha trên cột thép giàn; Trung Quốc — chảo Cassegrain trên tháp bát giác; châu Âu — gương phản xạ "vỏ cam" trên tháp tròn; thế giới Hồi giáo — chảo lưới viền vàng trên tháp bát giác có vòm nhọn. Mới chỉ có hình (xem ở <code>?view=buildings</code>), chưa bán / chưa xây được trong trận.</li>
+  <li>v2.62.4: Trực thăng không còn tự ý tấn công: chỉ đánh khi có lệnh (tấn công / attack-move) hoặc để đánh trả kẻ vừa bắn nó (người chơi và AI như nhau).</li>
   <li>v2.62.3: AI cấm vận thủ đô địch khi nước đó có từ <code>AI_EMBARGO_CREDITS 1000</code> TB trở lên (trước là 5000), còn lại thì chiếm.</li>
   <li>v2.62.2: <b>Cấm vận kinh tế</b> giờ xóa sạch nền kinh tế: ngân sách và kho dầu về 0, ngân sách bị giữ ở 0 suốt 180 s (không kiếm, không chi tiêu được gì; không bán dầu, không vay nợ; các khoản thu khác cũng bị chặn). Hết 180 s mới kiếm tiền lại, xây lại kinh tế từ đầu.</li>
   <li>v2.62.1: Bỏ lựa chọn <b>Phá hủy</b> thủ đô: kỹ sư vào thủ đô chính của phe khác chỉ còn 2 lựa chọn: 1. Cấm vận kinh tế, 2. Chiếm thành.</li>
