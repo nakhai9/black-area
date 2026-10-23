@@ -13,6 +13,19 @@ const HIT_ALPHA = 40;
 const SHADOW_RUN_X = 0.55;
 const SHADOW_RUN_Y = 0.22;
 
+/**
+ * Main structures are drawn BUILDING_HEIGHT_SCALE times taller than authored (more lifelike proportions next to the
+ * units); low pieces that must line up with the ground or each other (walls, gates, bridges, bunkers, flagpoles,
+ * airfields) and the Pyramids (real proportions) keep
+ * their height.
+ */
+const BUILDING_HEIGHT_SCALE = 1.35;
+const FLAT_PIECES = ['bridge', 'wall', 'gate', 'bunker', 'flag', 'airfield', 'monument'];
+function buildingHeightScale(key: string): number {
+  const k = key.toLowerCase();
+  return FLAT_PIECES.some((f) => k.startsWith(f)) ? 1 : BUILDING_HEIGHT_SCALE;
+}
+
 export interface Sprite {
   readonly canvas: HTMLCanvasElement;
   /** Logical size (px at building scale 1). */
@@ -26,6 +39,8 @@ export interface Sprite {
   readonly originY: number;
   /** BuildingArt.scale, needed by callers that paint the animated layer in the same art space. */
   readonly artScale: number;
+  /** Height scale of the art (buildingHeightScale), for the animated layer's painter too. */
+  readonly zScale: number;
   /** Half extents of the footprint diamond (ground plaza). */
   readonly groundHalfW: number;
   readonly groundHalfH: number;
@@ -120,7 +135,8 @@ export class SpriteCache {
     const artScale = art.scale ?? 1;
     const w = art.footprint.w * artScale;
     const d = art.footprint.d * artScale;
-    const artHeight = art.height * artScale;
+    const zScale = buildingHeightScale(key);
+    const artHeight = art.height * artScale * zScale;
     // Room for the cast shadow, which falls to the lower right (both sides, so the mirrored sprite fits too).
     const marginX = MARGIN + Math.ceil(artHeight * SHADOW_RUN_X);
     const width = (w + d) * HALF_TW + marginX * 2;
@@ -139,7 +155,7 @@ export class SpriteCache {
     }
     ctx.save();
     ctx.scale(artScale, artScale);
-    art.drawStatic(new IsoPainter(ctx, anchorX / artScale, anchorY / artScale));
+    art.drawStatic(new IsoPainter(ctx, anchorX / artScale, anchorY / artScale, zScale));
     ctx.restore();
 
     // Red Alert 2 look: grainy, slightly muted pre-rendered surfaces with a dark rim.
@@ -194,6 +210,7 @@ export class SpriteCache {
       originX: anchorX - groundCenterX,
       originY: anchorY - centerY,
       artScale,
+      zScale,
       groundHalfW: ((w + d) / 2) * HALF_TW,
       groundHalfH: ((w + d) / 2) * HALF_TH,
       bounds,

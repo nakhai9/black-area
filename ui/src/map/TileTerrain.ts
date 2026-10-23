@@ -34,6 +34,8 @@ const MIN_ROWS_PER_FRAME = 16;
 const PENDING_LIMIT = 24;
 /** Below this zoom the quarter-size copies are drawn. */
 const ZOOMED_OUT = 5;
+/** Quarter-size copies made per frame at most. */
+const HALVES_PER_FRAME = 4;
 
 type RGB = readonly [number, number, number];
 const rgb = (hex: string): RGB => [parseInt(hex.slice(1, 3), 16), parseInt(hex.slice(3, 5), 16), parseInt(hex.slice(5, 7), 16)];
@@ -41,17 +43,19 @@ const rgb = (hex: string): RGB => [parseInt(hex.slice(1, 3), 16), parseInt(hex.s
 // Terrain codes follow TERRAIN_TYPES: 0 water, 1 sand, 2 grass, 3 forest, 4 desert, 5 rock, 6 snow.
 // Red Alert 2 palette: deep mottled grass with bare-earth patches, orange-yellow desert sand, brown-orange rock,
 // grey-white snow, and a dark navy sea whose shore is a black-green wet band.
-const GRASS_A = rgb('#6ca044'); // a little lighter than RA2's so green-camo vehicles stand out
-const GRASS_B = rgb('#86b852');
-const DIRT = rgb('#a09058');
+// RA2 temperate grass: bright yellow-green, a fine blade grain and darker clumps (see base()).
+const GRASS_A = rgb('#8cae3c');
+const GRASS_B = rgb('#a4c04e');
+const GRASS_DARK = rgb('#6a8e30');
+const DIRT = rgb('#b09c62');
 /** RA2 dirt tracks worn into grass / desert: a pale packed centre with darker trodden edges. */
 const TRAIL = rgb('#b4a06a');
 const TRAIL_EDGE = rgb('#7a6a40');
 const FOREST_A = rgb('#45702e');
 const FOREST_B = rgb('#568338');
-const SAND = rgb('#dcc184');
-const BEACH = rgb('#dcc68a');
-const WET_SAND = rgb('#9a8c5e');
+const SAND = rgb('#e2cc94');
+const BEACH = rgb('#ead6a0');
+const WET_SAND = rgb('#b0a070');
 const DESERT_A = rgb('#d9b062');
 const DESERT_B = rgb('#e6c47c');
 const DESERT_DARK = rgb('#bf9450');
@@ -66,7 +70,22 @@ const SEA_COAST = rgb('#3d6670');
 const FOAM = rgb('#c8dade');
 const CLIFF = rgb('#4f4232');
 
-const clamp01 = (t: number): number => (t < 0 ? 0 : t > 1 ? 1 : t);
+/**
+ * RA2 pixel grain (about −0.8 … 0.6) at cell position (fx, fy): one value per world px (2×2 texture px, so it survives
+ * the quarter-size copy drawn when zoomed out), plus sparse dark blade specks and light glints like the original tiles.
+ */
+const grain = (fx: number, fy: number): number => {
+  const gx = Math.floor(fx * CELL_SIZE);
+  const gy = Math.floor(fy * CELL_SIZE);
+  // One integer hash: its low bits give the grain, its high bits the speck (cheap: this runs for every painted pixel).
+  let h = Math.imul(gx, 374761393) ^ Math.imul(gy, 668265263);
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  h ^= h >>> 16;
+  const s = (h >>> 24) / 256;
+  return (h & 0xffff) / 65536 - 0.5 + (s < 0.14 ? -0.3 : s > 0.92 ? 0.15 : 0);
+};
+
+const clamp01 =(t: number): number => (t < 0 ? 0 : t > 1 ? 1 : t);
 const smooth = (a: number, b: number, x: number): number => {
   const t = clamp01((x - a) / (b - a));
   return t * t * (3 - 2 * t);
@@ -162,6 +181,7 @@ export class TileTerrain {
 
     const start = performance.now();
     let built = 0;
+    let halves = 0;
     for (const [qx, qy] of wanted) {
       const key = `${qx},${qy}`;
       let tile = this.cache.get(key);
@@ -188,7 +208,9 @@ export class TileTerrain {
       }
       this.cache.set(key, tile);
       this.touched.add(key);
-      if (zoom < ZOOMED_OUT && !tile.half) {
+      // A few quarter-size copies per frame (a zoom-out would otherwise make every visible one at once); the full
+      // picture is drawn until its copy exists.
+      if (zoom < ZOOMED_OUT && !tile.half && halves++ < HALVES_PER_FRAME) {
         const { canvas: half, ctx: hctx } = createCanvas(CHUNK_PX / 2, CHUNK_PX / 2);
         hctx.imageSmoothingQuality = 'high';
         hctx.drawImage(tile.full, 0, 0, CHUNK_PX / 2, CHUNK_PX / 2);
@@ -395,14 +417,18 @@ export class TileTerrain {
       c[2] += (q[2] - c[2]) * w;
     };
     if (t === 2) {
-      // Bare-earth patches worn into the grass, dirt tracks, and broad lighter / darker swathes of grass.
+      // RA2 grass texture: darker clumps, then bare-earth patches, dirt tracks and broad swathes.
+      const clump = this.noise.noise(fx * 1.8 + 71, fy * 1.8 + 23);
+      if (clump > 0.55) blend(GRASS_DARK, smooth(0.55, 0.8, clump) * 0.45);
       const patch = this.noise.noise(fx * 0.55 + 31, fy * 0.55 + 17);
       if (patch > 0.66) blend(DIRT, smooth(0.66, 0.84, patch) * 0.6);
       const tr = this.trail(fx, fy);
       if (tr.edge > 0) blend(TRAIL_EDGE, tr.edge * 0.45);
       if (tr.core > 0) blend(TRAIL, tr.core * 0.8);
       k += (this.noise.noise(fx * 0.25 + 5, fy * 0.25 + 9) - 0.5) * 0.12;
+      k += grain(fx, fy) * 0.38;
     } else if (t === 3) {
+      k += grain(fx, fy) * 0.3;
       // Canopy: soft dark hollows between lighter crowns.
       k -= smooth(0.35, 0.9, this.noise.fbm(fx * 0.45 + 3, fy * 0.45 + 41, 2)) * 0.12;
     } else if (t === 4) {
@@ -413,6 +439,9 @@ export class TileTerrain {
       const tr = this.trail(fx, fy);
       if (tr.edge > 0) blend(DESERT_DARK, tr.edge * 0.5);
       if (tr.core > 0) blend(TRAIL, tr.core * 0.35);
+      k += grain(fx, fy) * 0.16;
+    } else if (t === 1) {
+      k += grain(fx, fy) * 0.16;
     } else if (t === 5) {
       // Smooth strata bands and the odd soft crack in the rock.
       k += Math.sin((fx + fy) * 3 + soft * 3) * 0.05;

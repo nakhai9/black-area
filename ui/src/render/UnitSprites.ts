@@ -6,7 +6,7 @@ import { createCanvas } from './Canvas';
  * pose — faction, kind, heading bucket, animation frame — is painted once into a small offscreen canvas at
  * RES pixels per iso px and then simply blitted.
  */
-const RES = 6;
+const RES = 4;
 /** Oldest entries are dropped past this many pictures (they are rebuilt on demand). */
 const LIMIT = 4000;
 /**
@@ -37,6 +37,10 @@ const sprites = new Map<string, UnitSprite>();
 export function unitSprite(key: string, w: number, h: number, ox: number, oy: number, draw: (ctx: CanvasRenderingContext2D) => void): UnitSprite {
   let s = sprites.get(key);
   if (s) {
+    // Least recently used goes first: a hit moves the picture to the back of the eviction order (poses still on
+    // screen are never thrown out and repainted in a big battle).
+    sprites.delete(key);
+    sprites.set(key, s);
     touched.add(key);
     return s;
   }

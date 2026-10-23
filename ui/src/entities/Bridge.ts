@@ -1,4 +1,4 @@
-import { BRIDGE_HP, FOOTPRINT_BRIDGE, MOUNTAIN_PASS } from '../constants';
+import { BRIDGE_HP, BRIDGE_MAX_SECTIONS, FOOTPRINT_BRIDGE, MOUNTAIN_PASS } from '../constants';
 import type { TileMap } from '../map/TileMap';
 import type { FactionId, WorldPoint } from '../types';
 import { Building } from './Building';
@@ -61,32 +61,77 @@ export function bridgeEnd(x: number, y: number, rotated: boolean, high: boolean,
   return out;
 }
 
+/** A bridge head rests at most this many cells on the bank, this side and the far side. */
+export const BRIDGE_BANK_CELLS = 2;
+
 /**
  * Can a bridge be laid with its top-left cell at (x, y)? Every cell inside the map, free of structures, bridges, trees
- * and mountains (passes allowed), and it must start at the water's edge: one end row on dry land with water within the footprint
- * (so that end is at most a cell from the bank) — or one end run straight on from an existing bridge, extending it.
+ * and mountains (passes allowed), and laid from one end (see bridgeStart): the bank or the bridge it runs on from.
  * Same rule for the player and the AI.
  */
 export function bridgeSiteOk(map: TileMap, x: number, y: number, rotated: boolean): boolean {
   const w = rotated ? FOOTPRINT_BRIDGE.d : FOOTPRINT_BRIDGE.w;
   const d = rotated ? FOOTPRINT_BRIDGE.w : FOOTPRINT_BRIDGE.d;
-  let water = false;
   for (let ty = y; ty < y + d; ty++) {
     for (let tx = x; tx < x + w; tx++) {
       if (!map.inBounds(tx, ty) || map.occupantAt(tx, ty) !== null || map.isBridge(tx, ty) || map.hasTrees(tx, ty)) return false;
       // No mountain cell but a pass (vehicles could not drive onto it anyway).
       const m = map.mountain[map.index(tx, ty)] ?? 0;
       if (m !== 0 && m !== MOUNTAIN_PASS) return false;
-      if (map.isWater(tx, ty)) water = true;
     }
   }
-  const dry = (c: { x: number; y: number }): boolean => map.inBounds(c.x, c.y) && !map.isOpenWater(c.x, c.y);
-  const joined = (c: { x: number; y: number }): boolean => map.isBridge(c.x, c.y);
+  return bridgeStart(map, x, y, rotated) !== null;
+}
+
+/**
+ * The end a bridge at (x, y) is laid from (true: the high end), or null when it may not be laid there:
+ *  - from the bank: that end row dry, the water starting at most BRIDGE_BANK_CELLS rows in;
+ *  - or run straight on from an existing bridge;
+ *  - the far bank must be within reach of the whole bridge (at most BRIDGE_MAX_SECTIONS sections, so never across a
+ *    sea), and no section rests more than BRIDGE_BANK_CELLS rows on the far bank.
+ */
+export function bridgeStart(map: TileMap, x: number, y: number, rotated: boolean): boolean | null {
+  const len = FOOTPRINT_BRIDGE.d;
+  const across = FOOTPRINT_BRIDGE.w;
+  // Bridge cells straight on past one end (the sections it would join).
+  const run = (high: boolean): number => {
+    const start = bridgeEnd(x, y, rotated, high, true)[0]!;
+    const step = high ? 1 : -1;
+    let n = 0;
+    const at = (k: number): [number, number] => (rotated ? [start.x + k * step, start.y] : [start.x, start.y + k * step]);
+    while (map.inBounds(...at(n)) && map.isBridge(...at(n))) n++;
+    return n;
+  };
+  const lowRun = run(false);
+  const highRun = run(true);
+  if (lowRun + highRun + len > BRIDGE_MAX_SECTIONS * len) return null;
   for (const high of [false, true]) {
-    if (bridgeEnd(x, y, rotated, high, true).every(joined)) return true;
-    if (water && bridgeEnd(x, y, rotated, high).every(dry)) return true;
+    const joined = (high ? highRun : lowRun) > 0;
+    // Row k counted from this end, going across (k >= len: past the footprint). Dry: no open water in it.
+    const dry = (k: number): boolean => {
+      const a = high ? len - 1 - k : k;
+      for (let j = 0; j < across; j++) {
+        const cx = rotated ? x + a : x + j;
+        const cy = rotated ? y + j : y + a;
+        if (!map.inBounds(cx, cy) || map.isOpenWater(cx, cy)) return false;
+      }
+      return true;
+    };
+    let k = 0;
+    if (!joined) {
+      if (!dry(0)) continue;
+      while (k < len && dry(k)) k++;
+      if (k > BRIDGE_BANK_CELLS || k >= len) continue;
+    }
+    // The far bank: the first dry row after the water, within reach of the whole bridge.
+    const reach = BRIDGE_MAX_SECTIONS * len - (joined ? (high ? highRun : lowRun) : 0);
+    while (k < reach && !dry(k)) k++;
+    if (k >= reach || !dry(k)) continue;
+    // This section rests at most BRIDGE_BANK_CELLS rows on the far bank.
+    if (len - k > BRIDGE_BANK_CELLS) continue;
+    return high;
   }
-  return false;
+  return null;
 }
 
 /**
@@ -101,11 +146,10 @@ export function bridgeAnchor(map: TileMap, x: number, y: number, rotated: boolea
     x: cells.reduce((s, c) => s + c.x + 0.5, 0) / cells.length,
     y: cells.reduce((s, c) => s + c.y + 0.5, 0) / cells.length,
   });
-  for (const high of [false, true]) {
-    const beyond = bridgeEnd(x, y, rotated, high, true);
-    const row = bridgeEnd(x, y, rotated, high);
-    if (beyond.every((c) => map.isBridge(c.x, c.y))) return mid(beyond);
-    if (row.every((c) => !map.isOpenWater(c.x, c.y))) return beyond.every(walk) ? mid(beyond) : mid(row);
-  }
-  return null;
+  const high = bridgeStart(map, x, y, rotated);
+  if (high === null) return null;
+  const beyond = bridgeEnd(x, y, rotated, high, true);
+  const row = bridgeEnd(x, y, rotated, high);
+  if (beyond.every((c) => map.isBridge(c.x, c.y))) return mid(beyond);
+  return beyond.every(walk) ? mid(beyond) : mid(row);
 }

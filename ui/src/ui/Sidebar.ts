@@ -477,7 +477,7 @@ export class Sidebar {
     this.turboBadge.className = 'air-tool-badge';
     this.turboButton.append(this.turboBadge);
     this.unloadButton = tool(ArrowUpFromLine, t('Unload (U): let the passengers out one by one. In the air the transport first lands on solid ground below it.'), () => this.handlers.onUnload());
-    this.bridgeButton = tool(BRIDGE_ICON, t('Bridge (B): the selected bridge layer lays its bridge — click a spot at the edge of a river or the sea (R turns it). Used once.'), () => this.handlers.onBridge(), { fill: 'currentColor', stroke: 'none', 'stroke-width': 0 });
+    this.bridgeButton = tool(BRIDGE_ICON, t('Bridge (B): the selected bridge layer lays its bridge right where it stands — park it at the edge of a river or the sea, facing the water. Used once.'), () => this.handlers.onBridge(), { fill: 'currentColor', stroke: 'none', 'stroke-width': 0 });
     tool(Settings, t('Settings: screen lock, volume, language (pause menu, Esc).'), () => this.handlers.onSettings());
     this.peaceTimer = document.createElement('div');
     this.peaceTimer.className = 'peace-timer';

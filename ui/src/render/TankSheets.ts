@@ -74,7 +74,25 @@ function direction(heading: number): number {
   return ((Math.round((a / (Math.PI * 2)) * DIRS) % DIRS) + DIRS) % DIRS;
 }
 
-function blit(ctx: CanvasRenderingContext2D, img: HTMLImageElement, dir: number, frame: number, x: number, y: number, size: number): void {
+/** Burnt-out copies of the sheets (darkened, desaturated), made on first use. */
+const BURNT = new WeakMap<HTMLImageElement, HTMLCanvasElement>();
+function burnt(img: HTMLImageElement): HTMLCanvasElement {
+  let c = BURNT.get(img);
+  if (!c) {
+    c = document.createElement('canvas');
+    c.width = img.naturalWidth;
+    c.height = img.naturalHeight;
+    const g = c.getContext('2d');
+    if (g) {
+      g.filter = 'brightness(0.32) saturate(0.4)';
+      g.drawImage(img, 0, 0);
+    }
+    BURNT.set(img, c);
+  }
+  return c;
+}
+
+function blit(ctx: CanvasRenderingContext2D, img: CanvasImageSource, dir: number, frame: number, x: number, y: number, size: number): void {
   const prevSmooth = ctx.imageSmoothingEnabled;
   ctx.imageSmoothingEnabled = true;
   ctx.drawImage(img, dir * CELL, frame * CELL, CELL, CELL, x - size / 2, y - size / 2, size, size);
@@ -113,13 +131,11 @@ export function drawTankDeath(ctx: CanvasRenderingContext2D, faction: FactionId,
   const img = ready(faction);
   if (!img) return;
   const prevAlpha = ctx.globalAlpha;
-  const prevFilter = ctx.filter;
   ctx.globalAlpha = Math.max(0, Math.min(1, (ttl - age) / FADE_SECONDS));
-  ctx.filter = 'brightness(0.32) saturate(0.4)';
-  blit(ctx, img, direction(heading), 0, x, y, CELL * SCALE);
+  // The burnt look is baked once per sheet (a canvas filter on every frame for every wreck is slow).
+  blit(ctx, burnt(img), direction(heading), 0, x, y, CELL * SCALE);
   const turret = readyTurret(faction);
-  if (turret) blit(ctx, turret, direction(heading), 0, x, y, CELL * SCALE);
-  ctx.filter = prevFilter;
+  if (turret) blit(ctx, burnt(turret), direction(heading), 0, x, y, CELL * SCALE);
   ctx.globalAlpha = prevAlpha;
   if (!drawTankBlast(ctx, x, y, age, CELL * SCALE * 1.5)) drawCraftBlast(ctx, `heli:${BLAST[faction]}`, false, x, y, age, CELL * SCALE * 1.6);
 }

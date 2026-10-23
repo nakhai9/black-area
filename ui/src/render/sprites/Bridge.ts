@@ -1,3 +1,4 @@
+import { BRIDGE_L, BRIDGE_W } from '../../constants';
 import { BRIDGE_JOIN_HIGH, BRIDGE_JOIN_LOW } from '../../entities/Bridge';
 import type { FactionId } from '../../types';
 import { bridgeColors } from '../BridgeLayerModel';
@@ -10,10 +11,12 @@ export const BRIDGE_DAMAGE_LEVELS = 3;
 
 /** Deck top (px above the ground), girder height above it, the ramp length (cells) at an open end. */
 const DECK = 5;
+/** Units on a bridge are drawn this many iso px up, on its deck. */
+export const BRIDGE_DECK_PX = DECK;
 const GIRDER = 3.2;
 const RAMP = 0.6;
-const LEN = 3;
-const WIDE = 2;
+const LEN = BRIDGE_L;
+const WIDE = BRIDGE_W;
 /** The two treadways (u from, u to) and the side girders' thickness (cells). */
 const TREADS: readonly [number, number][] = [
   [0.22, 0.88],
@@ -44,7 +47,7 @@ function strip(p: IsoPainter, u0: number, u1: number, v0: number, v1: number, lo
 
 /** One side girder (u0..u0 + SIDE) along the bridge: a steel beam riding GIRDER px over the deck, its outer face striped. */
 function girder(p: IsoPainter, u0: number, low: boolean, high: boolean, steel: string, stripe: string, outer: boolean, damage: number): void {
-  const segs = 12;
+  const segs = LEN * 4;
   for (let i = 0; i < segs; i++) {
     const v0 = (i / segs) * LEN;
     const v1 = ((i + 1) / segs) * LEN;
@@ -75,7 +78,7 @@ function girder(p: IsoPainter, u0: number, low: boolean, high: boolean, steel: s
 }
 
 /**
- * A laid Bridge section (2 × 3 cells, long along v) of a nation's bridge layer: painted steel treadway bridge — two
+ * A laid Bridge section (BRIDGE_W × BRIDGE_L cells, long along v) of a nation's bridge layer: painted steel treadway bridge — two
  * ribbed treadways with a gap between, side girders with the team stripe, the deck carried DECK px over the ground or
  * water, ramps down at the open ends only (`joins`: ends running on into another section). Damage: scorch, holes in the
  * deck, then a stretch of rail torn away.

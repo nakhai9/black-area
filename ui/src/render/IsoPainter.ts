@@ -30,10 +30,12 @@ export class IsoPainter {
     readonly ctx: CanvasRenderingContext2D,
     readonly ox: number,
     readonly oy: number,
+    /** Heights are drawn this many times taller (see buildingHeightScale); ground plans are unchanged. */
+    readonly zs = 1,
   ) {}
 
   project(u: number, v: number, z = 0): [number, number] {
-    return [this.ox + (u - v) * HALF_TW, this.oy + (u + v) * HALF_TH - z];
+    return [this.ox + (u - v) * HALF_TW, this.oy + (u + v) * HALF_TH - z * this.zs];
   }
 
   polygon(points: readonly Vec3[], fill: Paint, edge: string | null = EDGE): void {
@@ -271,6 +273,7 @@ export class IsoPainter {
   }
 
   cylinder(cu: number, cv: number, r: number, z: number, h: number, color: string, stripes = 0): void {
+    h *= this.zs;
     const { ctx } = this;
     const [rx, ry] = this.radii(r);
     const [cx, yb] = this.project(cu, cv, z);
@@ -320,6 +323,7 @@ export class IsoPainter {
 
   /** Hemispherical dome sitting on a circle of radius r at height z. */
   dome(cu: number, cv: number, r: number, z: number, h: number, color: string): void {
+    h *= this.zs;
     const { ctx } = this;
     const [rx, ry] = this.radii(r);
     const [cx, cy] = this.project(cu, cv, z);
@@ -342,6 +346,7 @@ export class IsoPainter {
 
   /** Russian onion dome, optionally with a swirling stripe colour. */
   onion(cu: number, cv: number, r: number, z: number, h: number, color: string, stripe?: string): void {
+    h *= this.zs;
     const { ctx } = this;
     const [rx, ry] = this.radii(r);
     const [cx, cy] = this.project(cu, cv, z);
@@ -491,6 +496,7 @@ export class IsoPainter {
 
   /** Vertical pole with a small finial (flagpoles, spire tips). */
   pole(u: number, v: number, z: number, h: number, color = '#d8d8d8'): void {
+    h *= this.zs;
     const { ctx } = this;
     const [x, y] = this.project(u, v, z);
     ctx.strokeStyle = color;

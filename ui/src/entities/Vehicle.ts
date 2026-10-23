@@ -377,7 +377,7 @@ export class Vehicle extends Unit {
     return v === 0 ? TRANSPORT_SOLDIERS : v === 1 ? TRANSPORT_MIXED_SOLDIERS : 0;
   }
 
-  /** Vehicle places with the soldiers now aboard (3 when empty of soldiers, 1 beside up to 8 soldiers, else none; a helicopter: none). */
+  /** Vehicle places with the soldiers now aboard (4 when empty of soldiers, 1 beside up to 8 soldiers, else none; a helicopter: none). */
   get vehicleCapacity(): number {
     if (this.isHeli || this.isTruck) return 0;
     const s = this.soldiersAboard;

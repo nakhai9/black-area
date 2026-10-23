@@ -117,7 +117,7 @@ export const CHINA: FactionConfig = {
     bridgeLayer: {
       name: "GQL-111",
       description:
-        t("Armoured bridge layer: slow and unarmed. Select it, press the Bridge button (B) and click a spot across a river or shallow water: it drives there and unfolds into a 2 × 3 bridge that soldiers and vehicles can cross (used once). Bridges laid end to end join into one long bridge. Enemies can destroy the vehicle and the bridge."),
+        t("Armoured bridge layer: slow and unarmed. Drive it to the edge of a river or shallow water, facing the water, select it and press the Bridge button (B): it unfolds right where it stands into a 2 × 3 bridge that soldiers and vehicles can cross (used once). Bridges laid end to end join into one long bridge (3 sections at most). Enemies can destroy the vehicle and the bridge."),
     },
   },
 };

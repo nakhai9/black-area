@@ -139,7 +139,7 @@ function draw(card: Card, time: number): void {
     ctx.save();
     ctx.translate(left + s.centerX * k, top + s.centerY * k);
     ctx.scale(k * s.artScale, k * s.artScale);
-    s.art.drawAnimated(new IsoPainter(ctx, s.originX / s.artScale, s.originY / s.artScale), time, true);
+    s.art.drawAnimated(new IsoPainter(ctx, s.originX / s.artScale, s.originY / s.artScale, s.zScale), time, true);
     ctx.restore();
   }
 }

@@ -19,8 +19,8 @@ import type { TreeLayer } from './Trees';
  * beaches with a dark wet band, and a dark navy sea.
  */
 const ELEVATION_RAMP: readonly [number, string][] = [
-  [0, '#6a9a3e'],
-  [300, '#729c40'],
+  [0, '#92b242'],
+  [300, '#8aa83e'],
   [800, '#93964e'],
   [1400, '#9a7d52'],
   [2400, '#86664a'],
@@ -28,12 +28,12 @@ const ELEVATION_RAMP: readonly [number, string][] = [
   [5000, '#e4e6e8'],
 ];
 const RAMP_STEP = 25;
-const OLIVE_ALT = hexToRgb('#5c8f36');
+const OLIVE_ALT = hexToRgb('#7a9c36');
 const FOREST = hexToRgb('#45702e');
 const DESERT = hexToRgb('#d9b062');
 const TUNDRA = hexToRgb('#8a8a70');
 const ICE = hexToRgb('#eceef0');
-const SAND = hexToRgb('#dcc184');
+const SAND = hexToRgb('#e2cc94');
 const SAND_EDGE = hexToRgb('#9a8c5e');
 const ROCKY_SHORE = hexToRgb('#8f7558');
 const OCEAN_SHALLOW = hexToRgb('#3b6f9a');
@@ -363,7 +363,11 @@ export class TerrainRenderer {
     });
   }
 
-  /** Animated glints on visible water. `view` is in world coordinates. */
+  /** Is world point (x, y) on a bridge deck? */
+  onBridge(x: number, y: number): boolean {
+    return this.map.isBridge(Math.floor(x / CELL_SIZE), Math.floor(y / CELL_SIZE));
+  }
+
   /** Housekeeping: see TileTerrain.sweep. */
   sweepChunks(): { dropped: number; freedMB: number } {
     return this.tiles.sweep();

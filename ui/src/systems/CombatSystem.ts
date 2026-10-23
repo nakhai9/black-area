@@ -122,6 +122,9 @@ const retreatKey = (u: Unit): string => (u.retreatGroup > 0 ? `g${u.retreatGroup
  * Damage, splash and kills are resolved here; effects/sound/removal are
  * delegated to `hooks`.
  */
+/** Chase / evade route searches per combat tick at most (each is a full A*). */
+const CHASE_ROUTES_PER_TICK = 3;
+
 export class CombatSystem implements GameSystem {
   private time = 0;
   private readonly chaseAt = new Map<number, number>();
@@ -143,8 +146,12 @@ export class CombatSystem implements GameSystem {
     private readonly hooks: CombatHooks,
   ) {}
 
+  /** Route searches still allowed this tick (see chase). */
+  private chaseBudget = 0;
+
   update(dt: number): void {
     this.time += dt;
+    this.chaseBudget = CHASE_ROUTES_PER_TICK;
     if (this.falling.length > 0) {
       const due = this.falling.filter((f) => f.at <= this.time);
       if (due.length > 0) {
@@ -390,7 +397,8 @@ export class CombatSystem implements GameSystem {
       return true;
     }
     if ((this.chaseAt.get(s.id) ?? 0) > this.time) return true;
-    this.chaseAt.set(s.id, this.time + CHASE_PERIOD);
+    if (this.chaseBudget-- <= 0) return true;
+    this.chaseAt.set(s.id, this.time + CHASE_PERIOD + (s.id % 8) * 0.05);
     const dx = s.px - a.px;
     const dy = s.py - a.py;
     const len = Math.hypot(dx, dy) || 1;
@@ -402,7 +410,7 @@ export class CombatSystem implements GameSystem {
       s.mobility,
     );
     if (!to) return false;
-    s.follow(this.pathfinder.find({ x: s.px, y: s.py }, to, s.mobility));
+    s.follow(this.hooks.findPath({ x: s.px, y: s.py }, to, s.mobility));
     return true;
   }
 
@@ -685,7 +693,10 @@ export class CombatSystem implements GameSystem {
       }
     }
     if ((this.chaseAt.get(s.id) ?? 0) > this.time) return;
-    this.chaseAt.set(s.id, this.time + CHASE_PERIOD);
+    // A few route searches per tick at most (a big battle would otherwise plan every chaser in the same tick): the
+    // rest try again next tick. The period is spread by id so chasers do not stay in step.
+    if (!s.aircraft && this.chaseBudget-- <= 0) return;
+    this.chaseAt.set(s.id, this.time + CHASE_PERIOD + (s.id % 8) * 0.05);
     s.chasing = true;
     const target = t instanceof Unit ? { x: t.px, y: t.py } : t instanceof Building ? t.centerWorld() : null;
     if (!target) return;
@@ -700,7 +711,7 @@ export class CombatSystem implements GameSystem {
     // Nearest standable cell to a point just inside weapon range of the target.
     const cell = this.pathfinder.nearestPassable(Math.floor(target.x / CELL_SIZE), Math.floor(target.y / CELL_SIZE), 12, undefined, s.mobility);
     if (!cell) return;
-    s.follow(this.pathfinder.find({ x: s.px, y: s.py }, cell, s.mobility));
+    s.follow(this.hooks.findPath({ x: s.px, y: s.py }, cell, s.mobility));
   }
 
   /** After a fight, an attack-moving unit carries on to its destination. */

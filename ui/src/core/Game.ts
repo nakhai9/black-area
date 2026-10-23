@@ -89,6 +89,7 @@ import {
   CONTESTED_NATIONS,
   capitalFootprint,
   FOOTPRINT_GMC,
+  BRIDGE_MAX_SECTIONS,
   FOOTPRINT_BRIDGE,
   BRIDGE_DEPLOY_CELLS,
   type ContestedNationId,
@@ -243,7 +244,7 @@ export type GameCommand = (
   | { k: 'minimap'; w: WorldPoint }
   | { k: 'place'; opt: string; x: number; y: number; rot: boolean }
   /** The selected bridge layer lays its bridge with the top-left cell at (x, y), long along x when `rot`. */
-  | { k: 'bridge'; x: number; y: number; rot: boolean }
+  | { k: 'bridge'; id: number }
   | { k: 'build' | 'buildCancel'; opt: string }
   | { k: 'train' | 'trainCancel'; tier: TrainKey }
   | { k: 'vehicle' | 'vehicleCancel'; kind: VehicleKey }
@@ -324,6 +325,16 @@ const BUILDING_ALERT_SECONDS = 10;
 const RALLY_TYPES: ReadonlySet<string> = new Set(['barracks', 'warFactory', 'airfield']);
 /** Above this many units on the field, separateUnits runs 2 relaxation passes a tick instead of 6. */
 const SEPARATE_CROWD = 120;
+/** Shared empty bucket for the spatial-hash look-ups (no new array per miss). */
+const NO_UNITS: readonly Unit[] = [];
+/** Vehicles pulled over per giveWay pass at most. */
+const GIVE_WAY_PER_PASS = 4;
+/** Cell expansions of a stuck ship's re-plan (a fresh order still gets the full sea search). */
+const NAVAL_REPATH_EXPANSIONS = 30_000;
+/** On a bridge deck units keep within this many cells of its centre line (single file between the girders). */
+const BRIDGE_LANE = 0.3;
+/** Gap (world px) a unit on a bridge keeps behind the one ahead of it. */
+const BRIDGE_GAP_PX = 2;
 /** Seconds (game time) between two re-routes of the same stuck unit (see repathStuckUnits). */
 const REPATH_COOLDOWN = 1.5;
 /** Attack-move groups of at least this many ground units get their routes from one shared, time-sliced flow field. */
@@ -817,6 +828,7 @@ export class Game {
     // Clear the new game's starting world: its structures leave the map, every entity goes.
     for (const b of this.entities.buildings()) if (!(b instanceof Bridge)) this.map.occupy(b.x, b.y, b.w, b.d, null);
     this.map.bridge.fill(0);
+    this.bridges.length = 0;
     for (const e of [...this.entities.all()]) this.entities.remove(e.id);
     // Entities: shells first (so references between them resolve), then their fields.
     // Anything this version no longer has (a removed kind of unit) is left out.
@@ -1153,6 +1165,8 @@ export class Game {
 
   /** Bridge mode (B / the Bridge button): the selected bridge layer's bridge is being positioned (R turns it). */
   private bridging = false;
+  /** Bridges on the map (kept by markBridge): the per-tick deck rules skip all work when there are none. */
+  private readonly bridges: Bridge[] = [];
 
   /** My selected bridge layers (alive, on the map). */
   private selectedBridgeLayers(): Vehicle[] {
@@ -1162,14 +1176,44 @@ export class Game {
 
   private startBridging(): void {
     if (this.paused || this.ended) return;
-    if (this.selectedBridgeLayers().length === 0) {
+    const layers = this.selectedBridgeLayers();
+    if (layers.length === 0) {
       this.sidebar.notify(t('Select a bridge layer first.'), 2);
       return;
     }
     if (this.placing) this.stopPlacing();
-    this.bridging = true;
-    this.waypoints = null;
-    this.sidebar.notify(t('Bridge: click a spot at the edge of a river or the sea (R turns it, right-click cancels).'), 3);
+    // The bridge is laid where the layer stands (drive it to the bank first), never at a spot picked elsewhere.
+    for (const v of layers) this.issue({ k: 'bridge', id: v.id });
+  }
+
+  /**
+   * The bridge layer `v` lays its bridge right where it stands: the footprint starts at its cell (or the one in front)
+   * and runs out across the water, the direction it faces tried first. Same rule for the player and the AI. True when laid.
+   */
+  layBridgeHere(v: Vehicle): boolean {
+    const L = FOOTPRINT_BRIDGE.d;
+    const W = FOOTPRINT_BRIDGE.w;
+    const cx = Math.floor(v.px / CELL_SIZE);
+    const cy = Math.floor(v.py / CELL_SIZE);
+    const side = (p: number): number => Math.floor(p / CELL_SIZE - W / 2 + 0.5);
+    const dirs = [
+      { dx: 1, dy: 0 },
+      { dx: -1, dy: 0 },
+      { dx: 0, dy: 1 },
+      { dx: 0, dy: -1 },
+    ].sort((a, b) => Math.cos(v.heading - Math.atan2(b.dy, b.dx)) - Math.cos(v.heading - Math.atan2(a.dy, a.dx)));
+    for (const { dx, dy } of dirs) {
+      for (const step of [1, 0, -1]) {
+        const rotated = dx !== 0;
+        const x = rotated ? (dx > 0 ? cx + step : cx - step - L + 1) : side(v.px);
+        const y = rotated ? side(v.py) : dy > 0 ? cy + step : cy - step - L + 1;
+        if (!bridgeSiteOk(this.map, x, y, rotated)) continue;
+        this.deployBridge(v, x, y, rotated);
+        return true;
+      }
+    }
+    if (v.owner === this.localId) this.sidebar.notify(t('Park the bridge layer at the edge of a river or the sea, facing the water, then lay the bridge.'), 3);
+    return false;
   }
 
   private stopBridging(): void {
@@ -1215,7 +1259,7 @@ export class Game {
       this.sidebar.notify(g.reason ?? t('Cannot place here.'));
       return;
     }
-    this.issue({ k: 'bridge', x: g.x, y: g.y, rot: g.mirrored });
+    this.startBridging();
     this.stopBridging();
   }
 
@@ -1303,10 +1347,13 @@ export class Game {
   /**
    * Lays (or lifts) a bridge's cells in the grid: walkable over water, closed to ships, no structure on them. The
    * neighbouring sections re-join (ramps only at the open ends) and the route planner re-reads the ground. A bridge
-   * lifted from under units leaves the soldiers swimming and drowns the vehicles standing over water.
+   * lifted from under units leaves the soldiers swimming; every ground vehicle on it goes down with it.
    */
   private markBridge(b: Bridge, on: boolean): void {
     const map = this.map;
+    const at = this.bridges.indexOf(b);
+    if (on && at < 0) this.bridges.push(b);
+    else if (!on && at >= 0) this.bridges.splice(at, 1);
     for (let y = b.y; y < b.y + b.d; y++) for (let x = b.x; x < b.x + b.w; x++) if (map.inBounds(x, y)) map.bridge[map.index(x, y)] = on ? 1 : 0;
     this.paths.groundChanged(b.x, b.y, b.w, b.d);
     this.joinBridges(b.x - 3, b.y - 3, b.w + 6, b.d + 6);
@@ -1315,7 +1362,7 @@ export class Game {
       if (u.flies || u.naval || !(u instanceof Vehicle)) continue;
       const cx = Math.floor(u.px / CELL_SIZE);
       const cy = Math.floor(u.py / CELL_SIZE);
-      if (b.containsCell(cx, cy) && map.isOpenWater(cx, cy)) u.damage(u.hp + 1);
+      if (b.containsCell(cx, cy)) u.damage(u.hp + 1);
     }
   }
 
@@ -2592,6 +2639,7 @@ export class Game {
     this.processBoarding();
     this.processTruckUnloading(dt);
     this.separateUnits();
+    this.keepOnDeck();
     this.keepOffStructures();
     this.updateBridgeLayers();
     this.watchBuildingHits();
@@ -2793,7 +2841,10 @@ export class Game {
         this.placeStructure(cmd.opt, cmd.x, cmd.y, cmd.rot);
         break;
       case 'bridge':
-        this.orderBridge(this.selectedBridgeLayers(), cmd.x, cmd.y, cmd.rot);
+      {
+        const v = this.entities.get(cmd.id);
+        if (v instanceof Vehicle && v.isBridgeLayer && v.alive && !v.bridgeOrder) this.layBridgeHere(v);
+      }
         break;
       case 'build':
       case 'buildCancel': {
@@ -3058,6 +3109,31 @@ export class Game {
       }
     }
     return moved;
+  }
+
+  /**
+   * Ground units on a bridge keep to the middle of its deck (single file between the girders), never out on the rails:
+   * the across coordinate is held within BRIDGE_LANE cells of the centre line. Player and AI alike.
+   */
+  private keepOnDeck(): void {
+    const bridges = this.bridges;
+    if (bridges.length === 0) return;
+    for (const u of this.entities.fieldMovers()) {
+      if (u.flies || u.naval || !u.alive) continue;
+      const cx = Math.floor(u.px / CELL_SIZE);
+      const cy = Math.floor(u.py / CELL_SIZE);
+      if (!this.map.isBridge(cx, cy)) continue;
+      const b = bridges.find((q) => q.containsCell(cx, cy));
+      if (!b) continue;
+      const lane = BRIDGE_LANE * CELL_SIZE;
+      if (b.rotated) {
+        const mid = (b.y + b.d / 2) * CELL_SIZE;
+        u.py = Math.max(mid - lane, Math.min(mid + lane, u.py));
+      } else {
+        const mid = (b.x + b.w / 2) * CELL_SIZE;
+        u.px = Math.max(mid - lane, Math.min(mid + lane, u.px));
+      }
+    }
   }
 
   private nudge(u: Unit, dx: number, dy: number): boolean {
@@ -4484,9 +4560,14 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     this.smokeTimer -= dt;
     if (this.smokeTimer > 0) return;
     this.smokeTimer = 0.45;
+    // Only on and near the screen: smoke nobody can see would fill the effect pool (and its per-frame pass) for nothing.
+    const view = this.camera.viewRect();
+    const m = CELL_SIZE * 8;
+    const seen = (x: number, y: number): boolean => x > view.x - m && x < view.x + view.w + m && y > view.y - m && y < view.y + view.h + m;
     for (const b of this.entities.buildings()) {
       if (b.hpRatio >= 0.5 || !b.alive) continue;
       const f = b.footprintWorld();
+      if (!seen(f.x + f.w / 2, f.y + f.h / 2)) continue;
       const spot = this.fx(f.x + f.w * (0.25 + Math.random() * 0.5), f.y + f.h * (0.2 + Math.random() * 0.5), 6);
       this.effects.add({ kind: 'smoke', ...spot, age: 0, ttl: 1.8, radius: 4.5 });
       if (b.hpRatio < 0.25) this.effects.add({ kind: 'blast', x: spot.x, y: spot.y + 2, age: 0, ttl: 0.4, radius: 5 });
@@ -4494,6 +4575,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     // Tanks (every nation) the same way, smaller: smoke below half health, flames too below a quarter.
     for (const v of this.entities.vehicles()) {
       if (v.type !== 'tank' || !v.alive || !v.visible || v.hp >= v.maxHp * 0.5) continue;
+      if (!seen(v.px, v.py)) continue;
       const spot = this.fx(v.px + (Math.random() - 0.5) * 2, v.py + (Math.random() - 0.5) * 2, 3);
       this.effects.add({ kind: 'smoke', ...spot, age: 0, ttl: 1.4, radius: 2.4 });
       if (v.hp < v.maxHp * 0.25) this.effects.add({ kind: 'blast', x: spot.x, y: spot.y + 1, age: 0, ttl: 0.35, radius: 2.2 });
@@ -4632,6 +4714,17 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       if (list) list.push(u);
       else grid.set(k, [u]);
     }
+    // Ground units standing on a bridge deck (only looked for when there are bridges).
+    const deck: Unit[] = [];
+    const deckIds = new Set<number>();
+    if (this.bridges.length > 0) {
+      for (const o of movers) {
+        if (!o.flies && !o.naval && o.alive && this.map.isBridge(Math.floor(o.px / CELL_SIZE), Math.floor(o.py / CELL_SIZE))) {
+          deck.push(o);
+          deckIds.add(o.id);
+        }
+      }
+    }
     for (const u of movers) {
       if (!u.moving || u.flies || !u.alive) continue;
       const next = u.waypoints()[0];
@@ -4643,8 +4736,26 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       const bx = Math.floor(u.px / bucket);
       const by = Math.floor(u.py / bucket);
       let factor = 1;
+      // On a bridge (or driving onto one) it is single file: no overtaking, a gap kept to whoever is ahead on the deck,
+      // and oncoming traffic already on the bridge is let off it first (no shoving on the deck).
+      const onDeck = deckIds.has(u.id);
+      const entering = deck.length > 0 && !onDeck && this.map.isBridge(Math.floor((u.px + fx * CELL_SIZE) / CELL_SIZE), Math.floor((u.py + fy * CELL_SIZE) / CELL_SIZE));
+      if (onDeck || entering) {
+        const reach = BRIDGE_MAX_SECTIONS * FOOTPRINT_BRIDGE.d * CELL_SIZE;
+        for (const o of deck) {
+          if (o === u) continue;
+          const rx = o.px - u.px;
+          const ry = o.py - u.py;
+          const along = rx * fx + ry * fy;
+          if (along <= 0 || along > reach || Math.abs(rx * -fy + ry * fx) > FOOTPRINT_BRIDGE.w * CELL_SIZE) continue;
+          const on = o.moving ? o.waypoints()[0] : undefined;
+          const oncoming = on !== undefined && (on.x - o.px) * fx + (on.y - o.py) * fy < 0;
+          if (oncoming && entering) factor = 0;
+          else factor = Math.min(factor, Math.max(0, (along - (u.radius + o.radius) - BRIDGE_GAP_PX) / CELL_SIZE));
+        }
+      }
       for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
-        for (const o of grid.get(key(bx + dx, by + dy)) ?? []) {
+        for (const o of grid.get(key(bx + dx, by + dy)) ?? NO_UNITS) {
           // Nobody queues politely behind an enemy.
           if (o === u || !o.moving || isHostile(u, o)) continue;
           const rx = o.px - u.px;
@@ -4698,7 +4809,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       const bx = Math.floor(a.px / bucket);
       const by = Math.floor(a.py / bucket);
       for (let gy = -1; gy <= 1; gy++) for (let gx = -1; gx <= 1; gx++) {
-        for (const b of grid.get(key(bx + gx, by + gy)) ?? []) {
+        for (const b of grid.get(key(bx + gx, by + gy)) ?? NO_UNITS) {
           // Enemies never give way to each other: a unit falling back does not stop to let the foe go by.
           if (b.id <= a.id || isHostile(a, b)) continue;
           const lb = leg.get(b.id);
@@ -4745,7 +4856,10 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     const ground = movers.filter((m): m is Vehicle => m instanceof Vehicle && m.alive && !m.flies && !m.fixed);
     const idle = ground.filter((m) => !m.moving && !m.routePending && m.attackTarget === null && m.task === null);
     if (idle.length === 0) return;
+    // A few pull-overs per pass at most (the rest next pass): never a burst of work in one tick.
+    let budget = GIVE_WAY_PER_PASS;
     for (const v of ground) {
+      if (budget <= 0) return;
       if (!v.moving) continue;
       const next = v.waypoints()[0];
       if (!next) continue;
@@ -4761,6 +4875,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
         if (o === v || o.moving) continue;
         const rx = o.px - v.px;
         const ry = o.py - v.py;
+        if (Math.abs(rx) > lookAhead + o.radius || Math.abs(ry) > lookAhead + o.radius) continue;
         const along = rx * fx + ry * fy; // distance ahead of the mover
         const side = rx * -fy + ry * fx; // signed distance off its line
         const clear = v.radius + o.radius + VEHICLE_GAP;
@@ -4777,16 +4892,10 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
           if (spot) break;
         }
         if (!spot) continue;
-        const cell = this.map.cellAt(spot.x, spot.y);
-        if (!cell) continue;
-        const path = this.paths.find({ x: o.px, y: o.py }, cell, o.mobility);
-        const last = path[path.length - 1];
-        if (last) {
-          last.x = spot.x;
-          last.y = spot.y;
-        } else path.push(spot);
+        budget--;
+        // The spot is a short hop to the side (freeStandSpot checked it): driven straight, no route search.
         const facing = o.faceOnArrival ?? o.heading;
-        o.follow(path);
+        o.follow([spot]);
         o.faceOnArrival = facing; // pulls over and lines up again the way it stood
       }
     }
@@ -4810,10 +4919,13 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       if (!u.moving || u.aircraft || !u.destination) continue;
       if (u.naval) {
         if (!u.needsRepath) continue;
+        // A sea search can flood a whole ocean: a stuck ship re-plans at most every REPATH_COOLDOWN s, with a small budget.
+        if (this.time - (this.lastRepath.get(u) ?? -Infinity) < REPATH_COOLDOWN) continue;
+        this.lastRepath.set(u, this.time);
         budget--;
         const c = this.map.cellAt(u.destination.x, u.destination.y);
         const goal = c ? this.pathfinder.nearestNavigable(c.x, c.y) : null;
-        const route = goal ? this.pathfinder.findNaval({ x: u.px, y: u.py }, goal) : [];
+        const route = goal ? this.pathfinder.findNaval({ x: u.px, y: u.py }, goal, NAVAL_REPATH_EXPANSIONS) : [];
         if (route.length === 0) u.stop();
         else u.follow(route, true);
         continue;

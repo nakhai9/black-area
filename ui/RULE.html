@@ -26,7 +26,7 @@
 <body>
 <main>
 <img class="logo" src="/logo.png" alt="Black Area" />
-<h1>Black Area — RULE <small>v2.62.4</small></h1>
+<h1>Black Area — RULE <small>v2.69.0</small></h1>
 <p class="lead">Tài liệu luật chơi + kiến trúc code dành cho AI/dev sửa game. Mọi con số gameplay chính xác nằm trong <code>src/constants.ts</code> và <code>src/factions/*.ts</code>. Nếu tài liệu này khác code thì <b>code đúng</b>. <b>Khi đổi luật/số trong code, phải cập nhật file này.</b></p>
 <nav><a href="#s1">Quy tắc làm việc cho AI</a><a href="#s2">Chạy dự án</a><a href="#s3">Kiến trúc thư mục</a><a href="#s4">Thế giới</a><a href="#s5">Kinh tế (dầu)</a><a href="#s6">Công trình (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Quân đội</a><a href="#s8">Chiến đấu</a><a href="#s9">Điều khiển (Game.handleKey, handleInput)</a><a href="#s10">Giới hạn &amp; hiệu năng</a><a href="#s11">Thắng / thua &amp; AI</a><a href="#s12">Công thức sửa thường gặp</a></nav>
 <h2 id="s1">0. Quy tắc làm việc cho AI</h2>
@@ -407,7 +407,7 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
   <li>Xe phòng không tự hành (<code>mantis</code>) render từ mô hình 3D (32 hướng, hàng 2 là xác cháy): Mỹ và châu Âu dùng NOMADS (<code>sam-nomads.png</code>; script tools/ground_model_sheet.py), Nga, Trung Quốc, Hồi giáo dùng Buk-M3 (<code>sam-buk.png</code>). Tên hiển thị: NOMADS / Buk-M3; hiệu ứng nổ lấy từ <code>mantis.png</code>.</li>
   <li>Trực thăng render từ mô hình 3D (tools/heli_model_sheet.py, 32 hướng × 16 hàng, cánh quạt xoay từng khung): Mỹ và châu Âu AH-64 Apache (<code>heli-apache.png</code>), Nga và Hồi giáo Ka-52 (<code>heli-ka52.png</code>), Trung Quốc Z-10 (<code>heli-z10.png</code>, nổ dùng <code>heli-z19e-fx.png</code>).</li>
   <li>Kích thước hiển thị phương tiện chiến đấu giảm 5%: xe tăng và xe phòng không (tỷ lệ 0.175 → 0.166), tiêm kích (10 → 9.5 px), máy bay ném bom (B-1A 15 → 14.25, Tu-160 16 → 15.2), trực thăng (12 → 11.4). Máy bay vận tải, xe tải, xe sửa giữ nguyên. Chỉ đổi hình vẽ, không đổi bán kính va chạm.</li>
-  <li>Chở: 12 lính; hoặc 8 lính + 1 xe; hoặc 3 xe (<code>TRANSPORT_*</code>). Máy bay nổ → quân bên trong chết theo.</li>
+  <li>Chở: 12 lính; hoặc 8 lính + 1 xe; hoặc 4 xe (<code>TRANSPORT_*</code>). Máy bay nổ → quân bên trong chết theo.</li>
   <li>Lên: chọn quân, chuột phải vào transport của mình. Xuống: U / nút Unload; quân ra mỗi 0.3 s.</li>
   <li>Nhiên liệu <code>TRANSPORT_FUEL_CELLS</code> = 1.25 × chiều cao bản đồ (<code>GRID_HEIGHT</code>): bình đầy bay hết quãng cực bắc → cực nam rồi thêm 1/4 quãng đó nữa (gộp phần dầu trước đây do máy bay tiếp dầu nạp). Không còn máy bay tiếp dầu: transport chỉ được nạp lại khi đậu dưới mặt đất. Hết nhiên liệu trên không → rơi.</li>
   <li>Hộ tống: chọn tiêm kích, giữ <b>Ctrl</b> + chuột trái vào bất kỳ đơn vị nào của mình (lính, xe, máy bay — trừ công trình và xe phòng không tự hành <code>mantis</code>) → tiêm kích bay theo sau đuôi nó <code>GUARD_TRAIL_CELLS 4</code> ô; gặp địch thì đổi mục tiêu đánh (không đuổi xa quá <code>GUARD_LEASH_CELLS 14</code> ô), đánh xong quay lại hộ tống. Máy bay được hộ tống chạm đất (sân bay hoặc ngoài chiến trường) → hoàn thành, tiêm kích bay về căn cứ. Nhận lệnh di chuyển / tấn công mới thì hủy hộ tống.</li>
@@ -697,6 +697,14 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
   <li>v2.59.1: Tab Phương tiện dùng biểu tượng xe tăng thay cho xe tải.</li>
   <li>v2.59.2: Tab Chỉ huy đổi tên thành Chính phủ (Government), biểu tượng toà nhà chính phủ.</li>
   <li>v2.60.0: Thêm hình <b>Tháp Radar</b> (nền 2 × 2) cho mỗi phe, ăng-ten xoay đủ 360°: Mỹ — chảo parabol trên tháp côn trắng; Nga — tấm ra-đa mảng pha trên cột thép giàn; Trung Quốc — chảo Cassegrain trên tháp bát giác; châu Âu — gương phản xạ "vỏ cam" trên tháp tròn; thế giới Hồi giáo — chảo lưới viền vàng trên tháp bát giác có vòm nhọn. Mới chỉ có hình (xem ở <code>?view=buildings</code>), chưa bán / chưa xây được trong trận.</li>
+  <li>v2.69.0: Cầu trở lại <b>2 × 3 ô</b> (cả chuỗi tối đa 3 đoạn = 9 ô). Công trình chính cao hơn 1,35 lần cho giống thật (tường, cổng, cầu, bunker, cột cờ, sân bay, Kim Tự Tháp giữ nguyên). Chống giật lag: giới hạn số lần tìm đường khi truy đuổi mỗi tick (3) và giãn nhịp; tàu kẹt tìm lại đường có thời gian chờ và giới hạn; xe nhường đường tối đa 4 xe mỗi lượt, không chạy A*; bộ đệm hình đơn vị xóa theo lần dùng gần nhất, độ phân giải 4 thay 6; khói/lửa chỉ sinh gần màn hình; xác xe tăng không dùng filter mỗi khung; bản thu nhỏ địa hình tối đa 4 mỗi khung; bớt cấp phát bộ nhớ mỗi tick.</li>
+  <li>v2.68.0: Qua cầu: lính và xe đi <b>trên mặt cầu</b> (vẽ cao bằng mặt cầu, giữ giữa cầu, không ra thành cầu); đi <b>một hàng, không chen lấn</b>: không vượt, giữ khoảng cách với người phía trước, chờ bên kia đi hết rồi mới lên cầu. Đầu cầu chỉ được gác lên bờ <b>tối đa 2 ô</b> ở bên này và bên kia; bờ bên kia phải nằm trong tầm 3 đoạn cầu. Người chơi và AI như nhau.</li>
+  <li>v2.67.0: Tối đa <b>3 đoạn cầu</b> nối thành 1 cầu (15 ô), không bắc cầu vượt biển (<code>BRIDGE_MAX_SECTIONS</code>). AI tự tìm chỗ bắc cầu qua sông, lái xe tới bờ rồi bắc tại chỗ, theo cùng giới hạn này.</li>
+  <li>v2.66.0: Cầu được bắc <b>ngay tại chỗ xe bắc cầu đang đậu</b> (bấm B, không còn chọn chỗ khác bằng chuột): xe phải đậu sát mép nước, cầu chạy ra theo hướng xe quay mặt (thử hướng đó trước). AI cũng chạy xe tới bờ rồi bắc tại chỗ; AI tính đúng kích thước cầu 2 × 5.</li>
+  <li>v2.65.0: Máy bay vận tải chở tối đa 4 xe (trước là 3). Áp dụng cho người chơi và AI như nhau.</li>
+  <li>v2.64.0: Cầu dài hơn: 2 × 5 ô (trước là 2 × 3). Cầu sập thì mọi xe đang ở trên cầu mất theo (cả đoạn trên bờ); lính vẫn bơi được. Áp dụng cho người chơi và AI như nhau.</li>
+  <li>v2.63.1: Hạt cỏ đậm hơn kiểu Red Alert 2: hạt to bằng 1 pixel thế giới, nhiều đốm sẫm/sáng, vẫn thấy khi thu nhỏ.</li>
+  <li>v2.63.0: Mặt đất kiểu Red Alert 2: cỏ xanh vàng sáng, hạt cỏ mịn từng pixel, các bụi cỏ sẫm; bãi cát nhạt hơn.</li>
   <li>v2.62.4: Trực thăng không còn tự ý tấn công: chỉ đánh khi có lệnh (tấn công / attack-move) hoặc để đánh trả kẻ vừa bắn nó (người chơi và AI như nhau).</li>
   <li>v2.62.3: AI cấm vận thủ đô địch khi nước đó có từ <code>AI_EMBARGO_CREDITS 1000</code> TB trở lên (trước là 5000), còn lại thì chiếm.</li>
   <li>v2.62.2: <b>Cấm vận kinh tế</b> giờ xóa sạch nền kinh tế: ngân sách và kho dầu về 0, ngân sách bị giữ ở 0 suốt 180 s (không kiếm, không chi tiêu được gì; không bán dầu, không vay nợ; các khoản thu khác cũng bị chặn). Hết 180 s mới kiếm tiền lại, xây lại kinh tế từ đầu.</li>

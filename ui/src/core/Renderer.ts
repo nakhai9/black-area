@@ -1,3 +1,4 @@
+import { BRIDGE_DECK_PX } from '../render/sprites/Bridge';
 import { isViolator } from '../systems/CombatSystem';
 import { t, t as tr } from '../i18n';
 import { drawBunkerGhost, drawBunkerSheet } from '../render/BunkerSheet';
@@ -544,7 +545,7 @@ export class Renderer {
       ctx.translate(c.x, c.y);
       const a = k * s.artScale;
       ctx.scale(b.rotated ? -a : a, a);
-      s.art.drawAnimated(new IsoPainter(ctx, s.originX / s.artScale, s.originY / s.artScale), time, b.active);
+      s.art.drawAnimated(new IsoPainter(ctx, s.originX / s.artScale, s.originY / s.artScale, s.zScale), time, b.active);
       ctx.restore();
     }
     // Every structure flies its owner's national flag: ones whose art has no flag get a pole at their front corner,
@@ -556,7 +557,7 @@ export class Renderer {
       ctx.translate(c.x, c.y);
       const a = k * s.artScale;
       ctx.scale(b.rotated ? -a : a, a);
-      const p = new IsoPainter(ctx, s.originX / s.artScale, s.originY / s.artScale);
+      const p = new IsoPainter(ctx, s.originX / s.artScale, s.originY / s.artScale, s.zScale);
       const u = s.art.footprint.w - 0.35;
       const v = s.art.footprint.d - 0.35;
       drawNationalPole(p, b.faction, u, v, 0, FLAG_POLE_HEIGHT);
@@ -571,6 +572,21 @@ export class Renderer {
    * SLOPE_TILT times stronger to read at this scale — climbing a hill looks like climbing.
    */
   private drawUnit(u: Unit): void {
+    // Ground units on a bridge drive / walk on its deck, not at water level beside its girders.
+    if (!u.flies && !u.naval && this.terrain.onBridge(u.px, u.py)) {
+      this.ctx.save();
+      this.ctx.translate(0, -BRIDGE_DECK_PX);
+      try {
+        this.drawUnitOnGround(u);
+      } finally {
+        this.ctx.restore();
+      }
+      return;
+    }
+    this.drawUnitOnGround(u);
+  }
+
+  private drawUnitOnGround(u: Unit): void {
     if (!(u instanceof Vehicle) || u.aircraft || u.isDrone || u.naval) {
       this.drawUnitBody(u);
       return;

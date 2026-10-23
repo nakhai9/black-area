@@ -27,7 +27,7 @@ export const DEMO_FACTION = Number(import.meta.env.VITE_DEMO_FACTION) || 2;
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "2.62.4";
+export const GAME_VERSION = "2.69.0";
 
 /** An Allied Building within this many cells of any capital is an embassy; farther out it is a "Pro-<nation> regime". */
 export const EMBASSY_CAPITAL_CELLS = 25;
@@ -142,6 +142,8 @@ export const FOOTPRINT_GMC = { w: 5, d: 5 } as const;
 export const BRIDGE_W = 2;
 export const BRIDGE_L = 3;
 export const FOOTPRINT_BRIDGE = { w: BRIDGE_W, d: BRIDGE_L } as const;
+/** At most this many sections join end to end into one bridge (no bridges across a sea). Player and AI alike. */
+export const BRIDGE_MAX_SECTIONS = 3;
 /** Health of one bridge section (enemies can destroy it; it falls into the water). */
 export const BRIDGE_HP = 900;
 /** A bridge layer deploys once within this many cells of the spot it was sent to (its bow at the bridge's near end). */
@@ -822,11 +824,11 @@ export const FACTORY_REPAIR_REACH_CELLS = 1.5;
 
 /**
  * Transport aircraft load: soldiers only → 12; soldiers + a vehicle → 8 soldiers and 1 vehicle;
- * vehicles only → 3 (2 or 3 vehicles leave no room for soldiers).
+ * vehicles only → 4 (2 to 4 vehicles leave no room for soldiers).
  */
 export const TRANSPORT_SOLDIERS = 12;
 export const TRANSPORT_MIXED_SOLDIERS = 8;
-export const TRANSPORT_VEHICLES = 3;
+export const TRANSPORT_VEHICLES = 4;
 /** Attack helicopter load: up to 8 soldiers; it carries no vehicles. */
 export const HELI_SOLDIERS = 8;
 /**
