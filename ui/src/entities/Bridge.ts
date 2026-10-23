@@ -7,6 +7,10 @@ import { Building } from './Building';
 export const BRIDGE_JOIN_LOW = 1;
 /** Bridge.joins: the high end runs on into another bridge. */
 export const BRIDGE_JOIN_HIGH = 2;
+/** Bridge.joins: another bridge lies alongside the low side (smaller x, or smaller y when rotated): one wide deck. */
+export const BRIDGE_JOIN_SIDE_LOW = 4;
+/** Bridge.joins: another bridge lies alongside the high side. */
+export const BRIDGE_JOIN_SIDE_HIGH = 8;
 
 /**
  * Bridge (BRIDGE_W × BRIDGE_L) laid by a bridge layer: soldiers and ground vehicles cross water on it (its cells are
@@ -46,6 +50,15 @@ export class Bridge extends Building {
   endBeyond(high: boolean): { x: number; y: number }[] {
     return bridgeEnd(this.x, this.y, this.rotated, high, true);
   }
+
+  /** The cells just past the low (`high` false) or high long side, the whole length of the section. */
+  sideBeyond(high: boolean): { x: number; y: number }[] {
+    const len = FOOTPRINT_BRIDGE.d;
+    const at = high ? FOOTPRINT_BRIDGE.w : -1;
+    const out: { x: number; y: number }[] = [];
+    for (let k = 0; k < len; k++) out.push(this.rotated ? { x: this.x + k, y: this.y + at } : { x: this.x + at, y: this.y + k });
+    return out;
+  }
 }
 
 /**
@@ -74,7 +87,8 @@ export function bridgeSiteOk(map: TileMap, x: number, y: number, rotated: boolea
   const d = rotated ? FOOTPRINT_BRIDGE.w : FOOTPRINT_BRIDGE.d;
   for (let ty = y; ty < y + d; ty++) {
     for (let tx = x; tx < x + w; tx++) {
-      if (!map.inBounds(tx, ty) || map.occupantAt(tx, ty) !== null || map.isBridge(tx, ty) || map.hasTrees(tx, ty)) return false;
+      // Bridge cells are only allowed where the section closes the gap between two bridges (see bridgeGap).
+      if (!map.inBounds(tx, ty) || map.occupantAt(tx, ty) !== null || map.hasTrees(tx, ty)) return false;
       // No mountain cell but a pass (vehicles could not drive onto it anyway).
       const m = map.mountain[map.index(tx, ty)] ?? 0;
       if (m !== 0 && m !== MOUNTAIN_PASS) return false;
@@ -93,6 +107,9 @@ export function bridgeSiteOk(map: TileMap, x: number, y: number, rotated: boolea
 export function bridgeStart(map: TileMap, x: number, y: number, rotated: boolean): boolean | null {
   const len = FOOTPRINT_BRIDGE.d;
   const across = FOOTPRINT_BRIDGE.w;
+  const gap = bridgeGap(map, x, y, rotated);
+  if (gap === 'bad') return null;
+  if (gap === 'joins') return false; // laid from the low end, standing on the bridge there
   // Bridge cells straight on past one end (the sections it would join).
   const run = (high: boolean): number => {
     const start = bridgeEnd(x, y, rotated, high, true)[0]!;
@@ -132,6 +149,30 @@ export function bridgeStart(map: TileMap, x: number, y: number, rotated: boolean
     return high;
   }
   return null;
+}
+
+/**
+ * A section laid over bridge cells: 'joins' when it closes the gap between two bridges into one (whole rows of bridge
+ * only at its two ends, or a bridge just past an end, the rows between open water), 'bad' for any other overlap,
+ * 'none' when no cell of it is a bridge yet.
+ */
+function bridgeGap(map: TileMap, x: number, y: number, rotated: boolean): 'none' | 'joins' | 'bad' {
+  const len = FOOTPRINT_BRIDGE.d;
+  const across = FOOTPRINT_BRIDGE.w;
+  // Row k (0..len-1) of the footprint: 'b' all bridge, 'w' none bridge, 'x' mixed.
+  const rows: string[] = [];
+  for (let k = 0; k < len; k++) {
+    let n = 0;
+    for (let j = 0; j < across; j++) if (map.isBridge(rotated ? x + k : x + j, rotated ? y + j : y + k)) n++;
+    rows.push(n === 0 ? 'w' : n === across ? 'b' : 'x');
+  }
+  const bridged = (high: boolean): boolean => bridgeEnd(x, y, rotated, high, true).every((c) => map.inBounds(c.x, c.y) && map.isBridge(c.x, c.y));
+  if (rows.every((c) => c === 'w')) return bridged(false) && bridged(true) ? 'joins' : 'none';
+  const m = /^(b*)(w+)(b*)$/.exec(rows.join(''));
+  if (!m) return 'bad';
+  const lowJoined = (m[1] ?? '').length > 0 || bridged(false);
+  const highJoined = (m[3] ?? '').length > 0 || bridged(true);
+  return lowJoined && highJoined ? 'joins' : 'bad';
 }
 
 /**

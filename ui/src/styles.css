@@ -635,14 +635,8 @@ kbd {
   cursor: not-allowed;
 }
 .sb-cameo.sb-placeholder {
-  /* Lost producer / capital: the item has left the shop, only an empty hatched cell remains. */
-  background: repeating-linear-gradient(45deg, #1b2229 0 6px, #151b21 6px 12px);
-  border-style: dashed;
-  filter: none;
-  cursor: default;
-}
-.sb-cameo.sb-placeholder > * {
-  visibility: hidden;
+  /* Lost producer / capital: the item has left the shop and its cell is not shown at all. */
+  display: none;
 }
 .sb-cameo-wipe {
   position: absolute;
@@ -1085,7 +1079,7 @@ body.sidebar-hidden .alert-stack {
 
 /* ------------------------------------------------------------- two pages: command centre / production */
 .sb-main-tabs {
-  /* Command, the four production tabs (Build / Defense / Infantry / Vehicles), Rank and Allies share one row. */
+  /* Command, the five production tabs (Build / Defense / Infantry / Vehicles / Aircraft), Rank and Allies share one row. */
   display: grid;
   grid-auto-flow: column;
   grid-auto-columns: minmax(0, 1fr);

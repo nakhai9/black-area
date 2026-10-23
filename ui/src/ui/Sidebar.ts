@@ -1,9 +1,23 @@
 import { AlertToast } from './NewsToast';
-import { type IconNode, Settings, ArrowUpFromLine, Clock, House, Handshake, Wallet, Info, Keyboard, Droplet, Hammer, LogIn, LogOut, Minus, PersonStanding, Rocket, Shield, TrendingDown, TrendingUp, Trophy, Zap, createElement } from 'lucide';
+import { type IconNode, Settings, ArrowUpFromLine, Clock, House, Handshake, Wallet, Info, Keyboard, Droplet, Hammer, LogIn, LogOut, Minus, Plane, Rocket, Shield, TrendingDown, TrendingUp, Trophy, Zap, createElement } from 'lucide';
 
-/** Government building (Remix Icon by Remix Design, Apache-2.0): filled, so it draws without the lucide stroke. */
+/** Government building (Emoji One v1, CC BY-SA 4.0): in full colour, 64×64 grid scaled to the 24×24 icon box. */
 const Government: IconNode = [
-  ['path', { fill: 'currentColor', stroke: 'none', d: 'M2 19V8H1V6h3V4a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v2h3v2h-1v11h1v2H1v-2zm11 0v-7h-2v7zm-5 0v-7H6v7zm10 0v-7h-2v7zM6 5v1h12V5z' }],
+  ['path', { fill: '#909091', stroke: 'none', transform: 'scale(0.375)', d: 'M59.34 13.349Q46.117 7.852 32.893 2.357l-.522-.216a1.8 1.8 0 0 0-.776-.139a1.8 1.8 0 0 0-.772.139L4.377 13.131l-.524.218c-1.442.598-.666 2.583.776 2.583h53.934c1.443-.001 2.214-1.986.777-2.583' }],
+  ['path', { fill: '#7e7e7f', stroke: 'none', transform: 'scale(0.375)', d: 'm17.985 13.349l.52-.218q10.08-4.188 20.15-8.377l-5.768-2.397l-.522-.216a1.8 1.8 0 0 0-.776-.139a1.8 1.8 0 0 0-.772.139L4.372 13.131l-.524.218c-1.442.598-.666 2.583.776 2.583h14.13c-1.438-.001-2.214-1.986-.772-2.583m39.608 6.603c0 1.313-.395 2.375-.885 2.375H6.994c-.487 0-.881-1.062-.881-2.375s.394-2.378.881-2.378h49.711c.49 0 .885 1.066.885 2.378' }],
+  ['path', { fill: '#909091', stroke: 'none', transform: 'scale(0.375)', d: 'M59.23 47.734c0 .939-.422 1.698-.941 1.698H5.308c-.518 0-.941-.759-.941-1.698c0-.941.423-1.702.941-1.702h52.981c.52 0 .941.761.941 1.702m2.32 4.506c0 1.03-.455 1.865-1.017 1.865H3.363c-.561 0-1.016-.835-1.016-1.865c0-1.032.455-1.867 1.016-1.867h57.17c.562 0 1.017.835 1.017 1.867m2.352 5.67c0 1.485-.491 2.693-1.094 2.693H1.097C.495 60.604 0 59.396 0 57.91c0-1.487.495-2.692 1.097-2.692h61.711c.603 0 1.094 1.205 1.094 2.692' }],
+  ['path', { fill: '#647e89', stroke: 'none', transform: 'scale(0.375)', d: 'M10.631 21.799c1.095 0 1.983.193 1.983.429l1.235 24.294c0 .236-2.124.432-3.219.432c-1.097 0-3.221-.195-3.221-.432l1.235-24.294c.002-.236.89-.429 1.987-.429' }],
+  ['path', { fill: '#576f77', stroke: 'none', transform: 'scale(0.375)', d: 'm9.948 46.522l1.233-24.294c0-.134.278-.252.715-.331a7 7 0 0 0-1.265-.098c-1.097 0-1.986.193-1.986.429L7.411 46.522c0 .236 2.124.432 3.221.432c.353 0 .806-.023 1.265-.055c-.97-.075-1.949-.216-1.949-.377' }],
+  ['path', { fill: '#647e89', stroke: 'none', transform: 'scale(0.375)', d: 'M23.756 21.799c1.097 0 1.986.193 1.986.429l1.233 24.294c0 .236-2.122.432-3.219.432c-1.095 0-3.219-.195-3.219-.432l1.235-24.294c.001-.236.889-.429 1.984-.429m14.294 0c1.097 0 1.985.193 1.985.429l1.233 24.294c0 .236-2.122.432-3.219.432s-3.219-.195-3.219-.432l1.235-24.294c.001-.236.889-.429 1.985-.429m14.43 0c1.098 0 1.986.193 1.986.429l1.232 24.294c0 .236-2.121.432-3.219.432s-3.219-.195-3.219-.432l1.233-24.294c.001-.236.89-.429 1.987-.429' }],
+  ['path', { fill: '#576f77', stroke: 'none', transform: 'scale(0.375)', d: 'm23.07 46.522l1.235-24.294c0-.134.278-.252.719-.331a7.4 7.4 0 0 0-1.271-.098c-1.095 0-1.983.193-1.983.429l-1.235 24.294c0 .236 2.124.432 3.219.432c.354 0 .808-.023 1.271-.055c-.974-.075-1.955-.216-1.955-.377m14.3 0l1.235-24.294c0-.134.277-.252.715-.331a7 7 0 0 0-1.267-.098c-1.096 0-1.983.193-1.983.429l-1.235 24.294c0 .236 2.123.432 3.219.432c.351 0 .808-.023 1.267-.055c-.97-.075-1.951-.216-1.951-.377m14.417 0l1.233-24.294c0-.134.283-.252.721-.331a7.4 7.4 0 0 0-1.267-.098c-1.097 0-1.985.193-1.985.429l-1.233 24.294c0 .236 2.122.432 3.219.432c.349 0 .808-.023 1.267-.055c-.973-.075-1.955-.216-1.955-.377' }],
+];
+/** Soldier (Cyber free icons by Streamline, CC BY 4.0): stroked, like the lucide icons. */
+const Soldier: IconNode = [
+  ['path', { 'stroke-width': 1.25, d: 'M18 6.5L21 5l-2.5-2.5l-7-2l-7 2L2 5l3 1.5zm0 0l-.5 2l-6 1.5l-6-1.5l-.5-2' }],
+  ['path', { 'stroke-width': 1.25, d: 'm12.5 4l-1 1l-1-1V2.5h2zm5 4.5V15l-6 2.5l-6-2.5V8.5m12 1h2V12l-2 1m-12-3.5h-2V12l2 1m4-2.5v1m4-1v1' }],
+  ['path', { 'stroke-width': 1.25, d: 'm10 14.5l1.5.5l1.5-.5m-7.044 5.109L5 21.499l2 2m10.044-3.89l.956 1.89l-2 2m-1.546-4.408l-2.954 4.41l-2.954-4.41' }],
+  ['path', { 'stroke-width': 1.25, d: 'M10.068 21.363L11.5 18.5l1.432 2.863' }],
+  ['path', { 'stroke-width': 1.25, d: 'm22.5 23.5l-1-3l-10-2l-10 2l-1 3' }],
 ];
 /** Tank (Material Design Icons by Pictogrammers, Apache-2.0): filled, so it draws without the lucide stroke. */
 const Tank: IconNode = [
@@ -69,7 +83,7 @@ const CARRIER_STATE_LABEL: Readonly<Record<CarrierState, string>> = {
   unloading: 'Unloading…',
 };
 
-type TabId = 'build' | 'defense' | 'infantry' | 'vehicles';
+type TabId = 'build' | 'defense' | 'infantry' | 'vehicles' | 'aircraft';
 /** Sidebar pages: the command centre (budget, oil, alerts), production (build, train) and the world ranking with oil & power prices. */
 type ViewId = 'command' | 'production';
 /** Tabs of the row above the alerts on the Command page: what shows under it. */
@@ -116,8 +130,9 @@ const DEFENSE_IDS: ReadonlySet<string> = new Set(['bunker', 'wall', 'gate', 'fla
 const BUILD_TABS: readonly { id: TabId; label: string; icon: IconNode; enabled: boolean }[] = [
   { id: 'build', label: 'Build', icon: Hammer, enabled: true },
   { id: 'defense', label: 'Defense', icon: Shield, enabled: true },
-  { id: 'infantry', label: 'Infantry', icon: PersonStanding, enabled: true },
+  { id: 'infantry', label: 'Infantry', icon: Soldier, enabled: true },
   { id: 'vehicles', label: 'Vehicles', icon: Tank, enabled: true },
+  { id: 'aircraft', label: 'Aircraft', icon: Plane, enabled: true },
 ];
 
 export interface SidebarModel {
@@ -171,7 +186,7 @@ export interface SidebarModel {
   hasAirfield: boolean;
   /** Infantry can only be trained while the nation owns a Barracks. */
   hasBarracks: boolean;
-  /** The nation's own capital is gone: no structure may be bought (the build cameos turn to placeholders). */
+  /** The nation's own capital is gone: no structure may be bought (the build cameos are hidden). */
   capitalLost: boolean;
   army: ArmyCount;
   /** Vehicle orders waiting (limit: BUILD_LIMIT_VEHICLES). */
@@ -412,6 +427,7 @@ export class Sidebar {
         <div class="sb-cameos" data-panel="defense" hidden></div>
         <div class="sb-cameos" data-panel="infantry" hidden></div>
         <div class="sb-cameos" data-panel="vehicles" hidden></div>
+        <div class="sb-cameos" data-panel="aircraft" hidden></div>
         <div class="sb-msg" role="status" aria-live="polite"></div>
       </section>
       </div>`;
@@ -514,7 +530,9 @@ export class Sidebar {
     this.panels.set('infantry', infantryPanel);
     const vehiclePanel = q('[data-panel=vehicles]');
     this.panels.set('vehicles', vehiclePanel);
-    this.buildVehicleCameos(vehiclePanel);
+    const aircraftPanel = q('[data-panel=aircraft]');
+    this.panels.set('aircraft', aircraftPanel);
+    this.buildVehicleCameos(vehiclePanel, aircraftPanel);
     this.buildCameos(buildPanel, defensePanel);
     this.buildUnitCameos(infantryPanel);
     const collapse = q('.sb-collapse');
@@ -640,7 +658,7 @@ export class Sidebar {
     // Infantry tab: locked without a Barracks, blinks when it first becomes available.
     const infantryTab = this.tabButtons.get('infantry');
     if (infantryTab) {
-      // Once opened it stays open: after the last Barracks is lost its cameos show as empty placeholders.
+      // Once opened it stays open: after the last Barracks is lost its cameos are hidden.
       if (model.hasBarracks) this.hadBarracks = true;
       const open = this.hadBarracks;
       infantryTab.disabled = !open;
@@ -648,16 +666,18 @@ export class Sidebar {
       infantryTab.classList.toggle('no-icon', !open);
     }
     if (!this.hadBarracks && this.activeTab === 'infantry') this.switchTab('build');
-    // Vehicles tab: unlocked by a War Factory (ground vehicles) or an Airfield (aircraft); blinks until opened.
-    if (model.hasWarFactory || model.hasAirfield) this.hadFactory = true;
-    const canMake = this.hadFactory;
-    const vehicleTab = this.tabButtons.get('vehicles');
-    if (vehicleTab) {
-      vehicleTab.disabled = !canMake;
-      vehicleTab.title = canMake ? t('Vehicles & aircraft') : '';
-      vehicleTab.classList.toggle('no-icon', !canMake);
+    // Vehicles tab: unlocked by a War Factory; Aircraft tab: by an Airfield.
+    if (model.hasWarFactory) this.hadFactory = true;
+    if (model.hasAirfield) this.hadAirfield = true;
+    for (const [id, open, label] of [['vehicles', this.hadFactory, 'Vehicles'], ['aircraft', this.hadAirfield, 'Aircraft']] as const) {
+      const tab = this.tabButtons.get(id);
+      if (tab) {
+        tab.disabled = !open;
+        tab.title = open ? t(label) : '';
+        tab.classList.toggle('no-icon', !open);
+      }
+      if (!open && this.activeTab === id) this.switchTab('build');
     }
-    if (!canMake && this.activeTab === 'vehicles') this.switchTab('build');
     this.opener.classList.toggle('sb-attention', awaiting);
     // The page you are not looking at calls for attention: green when something can be built / placed / unlocked,
     // red while a fresh alert (an attack) is showing.
@@ -676,7 +696,7 @@ export class Sidebar {
       const placingThis = model.placingId === option.id;
       setData(c.el, 'state', placingThis ? 'placing' : state);
       const missing = missingRequirement(option, model.owned);
-      // Capital lost = government gone: no structure can be bought any more, only placeholders remain.
+      // Capital lost = government gone: no structure can be bought any more, their cameos are hidden.
       const gone = model.capitalLost && !mine;
       const locked = (missing !== null && !mine) || gone;
       c.el.classList.toggle('sb-placeholder', gone);
@@ -933,7 +953,7 @@ export class Sidebar {
   private readonly lastMade = new Map<string, { count: number; progress: number }>();
 
   /** A soldier or vehicle just came out: only its tab flashes green once, then stops. */
-  private flashIfDone(key: string, tab: 'infantry' | 'vehicles', count: number, progress: number): void {
+  private flashIfDone(key: string, tab: 'infantry' | 'vehicles' | 'aircraft', count: number, progress: number): void {
     const before = this.lastMade.get(key);
     this.lastMade.set(key, { count, progress });
     if (!before || count >= before.count || before.progress < 0.9) return;
@@ -960,17 +980,19 @@ export class Sidebar {
     if (keys(model.vehicleOptions) !== keys(this.vehicleOptions)) {
       this.vehicleOptions = model.vehicleOptions;
       const panel = this.panels.get('vehicles');
-      if (panel) {
+      const air = this.panels.get('aircraft');
+      if (panel && air) {
         for (const c of this.vehicleCameos.values()) c.el.remove();
         this.vehicleCameos.clear();
-        this.buildVehicleCameos(panel);
+        this.buildVehicleCameos(panel, air);
       }
     }
   }
 
-  /** Infantry / vehicle tab was unlocked once (it then stays open, with placeholders when the producers are lost). */
+  /** Infantry / vehicle tab was unlocked once (it then stays open, its cameos hidden when the producers are lost). */
   private hadBarracks = false;
   private hadFactory = false;
+  private hadAirfield = false;
 
   private updateUnitCameos(model: SidebarModel): void {
     const q = model.training;
@@ -987,7 +1009,7 @@ export class Sidebar {
       const noTech = TECH_TIERS.includes(option.tier) && !model.owned.has('techCenter');
       const overElite = option.tier === 'special' && model.army.special >= model.army.specialCap && count === 0;
       const locked = !model.hasBarracks || atLimit || noTech || overElite;
-      // Every Barracks lost: the soldiers leave the shop, their cells stay as empty placeholders.
+      // Every Barracks lost: the soldiers leave the shop, their cells are hidden.
       c.el.classList.toggle('sb-placeholder', !model.hasBarracks && !training);
       c.el.classList.toggle('locked', locked);
       (c.el as HTMLButtonElement).disabled = locked;
@@ -1017,13 +1039,13 @@ export class Sidebar {
       // Every order is built at once: each cameo shows its own most advanced machine.
       const producing = count > 0;
       const progress = model.vehicleProgress(option.key);
-      this.flashIfDone(`v:${option.key}`, 'vehicles', count, progress);
+      this.flashIfDone(`v:${option.key}`, option.needsAirfield ? 'aircraft' : 'vehicles', count, progress);
       setData(c.el, 'state', producing ? q.state : 'idle');
       const atLimit = model.vehicleQueued >= BUILD_LIMIT_VEHICLES && count === 0;
       const noTech = TECH_VEHICLES.includes(option.kind) && !model.owned.has('techCenter');
       const noParking = isAircraftKind(option.kind) && option.kind !== 'heli' && model.parkingFree <= 0 && count === 0;
       const locked = !have || atLimit || noTech || noParking;
-      // No War Factory (ground) / Airfield (aircraft) left: the machine leaves the shop, an empty placeholder remains.
+      // No War Factory (ground) / Airfield (aircraft) left: the machine leaves the shop, its cell is hidden.
       c.el.classList.toggle('sb-placeholder', !have && !producing);
       c.el.classList.toggle('locked', locked);
       (c.el as HTMLButtonElement).disabled = locked;
@@ -1053,7 +1075,8 @@ export class Sidebar {
     }
   }
 
-  private buildVehicleCameos(container: HTMLElement): void {
+  /** Ground vehicles go in `container`, aircraft (built at an Airfield) in `air`. */
+  private buildVehicleCameos(container: HTMLElement, air: HTMLElement): void {
     for (const option of this.vehicleOptions) {
       const el = document.createElement('button');
       el.type = 'button';
@@ -1075,7 +1098,7 @@ export class Sidebar {
         e.preventDefault();
         this.handlers.onVehicleCancel(option);
       });
-      container.append(el);
+      (option.needsAirfield ? air : container).append(el);
       const wipe = el.querySelector<HTMLElement>('.sb-cameo-wipe');
       const state = el.querySelector<HTMLElement>('.sb-cameo-state');
       const badge = el.querySelector<HTMLElement>('.sb-cameo-badge') ?? undefined;
@@ -1136,7 +1159,7 @@ export class Sidebar {
       btn.dataset.tab = tab.id;
       btn.classList.toggle('active', false);
       btn.title = tab.enabled ? t(tab.label) : t('{label} (coming soon)', { label: t(tab.label) });
-      if (tab.id === 'infantry' || tab.id === 'vehicles') btn.disabled = true; // unlocked by the matching building
+      if (tab.id === 'infantry' || tab.id === 'vehicles' || tab.id === 'aircraft') btn.disabled = true; // unlocked by the matching building
       btn.setAttribute('aria-label', t(tab.label));
       btn.setAttribute('aria-pressed', 'false');
       btn.append(createElement(tab.icon, { width: 18, height: 18, 'stroke-width': 2, 'aria-hidden': 'true' }));

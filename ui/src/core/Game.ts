@@ -92,6 +92,7 @@ import {
   BRIDGE_MAX_SECTIONS,
   FOOTPRINT_BRIDGE,
   BRIDGE_DEPLOY_CELLS,
+  BRIDGE_REACH_CELLS,
   type ContestedNationId,
   presenceFee,
   ANTARCTIC_OIL_SITES,
@@ -183,7 +184,7 @@ const EXPLOSION_PER_BODY = 1.4;
 import { Flagpole } from '../entities/Flagpole';
 import { Wall } from '../entities/Wall';
 import { Gate } from '../entities/Gate';
-import { BRIDGE_JOIN_HIGH, BRIDGE_JOIN_LOW, Bridge, bridgeAnchor, bridgeSiteOk } from '../entities/Bridge';
+import { BRIDGE_JOIN_HIGH, BRIDGE_JOIN_LOW, BRIDGE_JOIN_SIDE_HIGH, BRIDGE_JOIN_SIDE_LOW, Bridge, bridgeAnchor, bridgeEnd, bridgeSiteOk } from '../entities/Bridge';
 import { WALL_E, WALL_N, WALL_S, WALL_W } from '../render/sprites/Wall';
 import { Bunker } from '../entities/Bunker';
 import { PowerSystem } from '../systems/PowerSystem';
@@ -244,7 +245,7 @@ export type GameCommand = (
   | { k: 'minimap'; w: WorldPoint }
   | { k: 'place'; opt: string; x: number; y: number; rot: boolean }
   /** The selected bridge layer lays its bridge with the top-left cell at (x, y), long along x when `rot`. */
-  | { k: 'bridge'; id: number }
+  | { k: 'bridge'; x: number; y: number; rot: boolean }
   | { k: 'build' | 'buildCancel'; opt: string }
   | { k: 'train' | 'trainCancel'; tier: TrainKey }
   | { k: 'vehicle' | 'vehicleCancel'; kind: VehicleKey }
@@ -293,7 +294,11 @@ const CROSSING_PASS_SECONDS = 3;
 /** Cells around an airfield (on top of its own N × M) where a move click keeps its aircraft home; from one more cell out they take off. */
 const AIRFIELD_CLICK_MARGIN = 2;
 /** New vehicles park around a rally point this many cells out in front of the War Factory's door. */
-const PARKING_RALLY_CELLS = 3;
+const PARKING_RALLY_CELLS = 5;
+/** DEMO: the ground army's drop point lies this many cells from the capital's centre. */
+const DEMO_DROP_CELLS = 10;
+/** New soldiers and vehicles never wait closer than this many cells to the door they came out of (it stays clear). */
+const DOOR_CLEAR_CELLS = 2.5;
 /** Preset structures (capitals, cities…) clear the mountain this many cells around their footprint. */
 const PRESET_VALLEY_CELLS = 3;
 /** Seconds between two riders getting off a truck. */
@@ -339,6 +344,13 @@ const BRIDGE_GAP_PX = 2;
 const REPATH_COOLDOWN = 1.5;
 /** Attack-move groups of at least this many ground units get their routes from one shared, time-sliced flow field. */
 const GROUP_ROUTE_MIN = 4;
+
+/** Bridge ghost: cell offsets round the cursor tried for a legal spot, nearest first (see updateBridgeGhost). */
+const BRIDGE_SNAP_OFFSETS: readonly [number, number][] = (() => {
+  const out: [number, number][] = [];
+  for (let oy = -2; oy <= 2; oy++) for (let ox = -2; ox <= 2; ox++) out.push([ox, oy]);
+  return out.sort((a, b) => Math.hypot(a[0], a[1]) - Math.hypot(b[0], b[1]));
+})();
 
 /**
  * Composition root: loads the Earth, builds the world, wires systems/UI
@@ -1159,6 +1171,77 @@ export class Game {
         if (producer) this.spawnVehicle(me, o.kind, producer);
       }
     }
+    this.deployDemoArmy();
+  }
+
+  /**
+   * DEMO: the ground army waits at its own drop point DEMO_DROP_CELLS from the capital, one unit per cell; the
+   * bridge layers wait on the nearest shore (river or sea) instead, ready to lay a bridge. Aircraft and ships stay put.
+   */
+  private deployDemoArmy(): void {
+    const me = this.humanPlayer;
+    const capital = this.landmarks.find((b) => b.owner === me.id && b.spec.type === 'capital');
+    if (!capital) return;
+    const map = this.map;
+    const ccx = capital.x + capital.w / 2;
+    const ccy = capital.y + capital.d / 2;
+    const units = this.entities.fieldMovers().filter((u) => u.owner === me.id && u.alive && u.visible && !u.aircraft && !u.naval);
+    const taken = new Set<number>();
+    const free = (x: number, y: number): boolean =>
+      map.inBounds(x, y) && !taken.has(map.index(x, y)) && map.occupantAt(x, y) === null && !map.isWater(x, y) && this.pathfinder.passable(x, y, 'vehicle');
+    const put = (u: Unit, x: number, y: number): void => {
+      taken.add(map.index(x, y));
+      u.stop();
+      u.parade = null;
+      if (u instanceof Vehicle) u.parking = false;
+      u.px = (x + 0.5) * CELL_SIZE;
+      u.py = (y + 0.5) * CELL_SIZE;
+      u.x = u.px / CELL_SIZE;
+      u.y = u.py / CELL_SIZE;
+    };
+    // Bridge layers: the dry cells next to open water nearest the capital.
+    const layers = units.filter((u): u is Vehicle => u instanceof Vehicle && u.isBridgeLayer);
+    if (layers.length > 0) {
+      const shore: { x: number; y: number; d: number }[] = [];
+      const R = 60;
+      for (let y = Math.floor(ccy) - R; y <= ccy + R; y++) {
+        for (let x = Math.floor(ccx) - R; x <= ccx + R; x++) {
+          if (!free(x, y)) continue;
+          if (![[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => map.inBounds(x + dx!, y + dy!) && map.isOpenWater(x + dx!, y + dy!))) continue;
+          shore.push({ x, y, d: Math.hypot(x + 0.5 - ccx, y + 0.5 - ccy) });
+        }
+      }
+      shore.sort((a, b) => a.d - b.d);
+      for (const v of layers) {
+        const c = shore.find((s) => free(s.x, s.y));
+        if (c) put(v, c.x, c.y);
+      }
+    }
+    // Everyone else: a drop point DEMO_DROP_CELLS out from the capital (the first direction with dry ground).
+    const rest = units.filter((u) => !(u instanceof Vehicle && u.isBridgeLayer));
+    if (rest.length === 0) return;
+    let drop: { x: number; y: number } | null = null;
+    for (let k = 0; k < 16 && !drop; k++) {
+      const a = (k / 16) * Math.PI * 2 + Math.PI / 2;
+      const x = Math.floor(ccx + Math.cos(a) * DEMO_DROP_CELLS);
+      const y = Math.floor(ccy + Math.sin(a) * DEMO_DROP_CELLS);
+      if (free(x, y)) drop = { x, y };
+    }
+    if (!drop) return;
+    // One unit per cell, filling outwards from the drop point (nearest cells first).
+    const cells: { x: number; y: number }[] = [];
+    for (let r = 0; r <= 12 && cells.length < rest.length; r++) {
+      for (let dy = -r; dy <= r; dy++) {
+        for (let dx = -r; dx <= r; dx++) {
+          if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+          if (free(drop.x + dx, drop.y + dy)) cells.push({ x: drop.x + dx, y: drop.y + dy });
+        }
+      }
+    }
+    rest.forEach((u, i) => {
+      const c = cells[i];
+      if (c) put(u, c.x, c.y);
+    });
   }
 
   // ------------------------------------------------------------------ bridges
@@ -1182,38 +1265,11 @@ export class Game {
       return;
     }
     if (this.placing) this.stopPlacing();
-    // The bridge is laid where the layer stands (drive it to the bank first), never at a spot picked elsewhere.
-    for (const v of layers) this.issue({ k: 'bridge', id: v.id });
-  }
-
-  /**
-   * The bridge layer `v` lays its bridge right where it stands: the footprint starts at its cell (or the one in front)
-   * and runs out across the water, the direction it faces tried first. Same rule for the player and the AI. True when laid.
-   */
-  layBridgeHere(v: Vehicle): boolean {
-    const L = FOOTPRINT_BRIDGE.d;
-    const W = FOOTPRINT_BRIDGE.w;
-    const cx = Math.floor(v.px / CELL_SIZE);
-    const cy = Math.floor(v.py / CELL_SIZE);
-    const side = (p: number): number => Math.floor(p / CELL_SIZE - W / 2 + 0.5);
-    const dirs = [
-      { dx: 1, dy: 0 },
-      { dx: -1, dy: 0 },
-      { dx: 0, dy: 1 },
-      { dx: 0, dy: -1 },
-    ].sort((a, b) => Math.cos(v.heading - Math.atan2(b.dy, b.dx)) - Math.cos(v.heading - Math.atan2(a.dy, a.dx)));
-    for (const { dx, dy } of dirs) {
-      for (const step of [1, 0, -1]) {
-        const rotated = dx !== 0;
-        const x = rotated ? (dx > 0 ? cx + step : cx - step - L + 1) : side(v.px);
-        const y = rotated ? side(v.py) : dy > 0 ? cy + step : cy - step - L + 1;
-        if (!bridgeSiteOk(this.map, x, y, rotated)) continue;
-        this.deployBridge(v, x, y, rotated);
-        return true;
-      }
-    }
-    if (v.owner === this.localId) this.sidebar.notify(t('Park the bridge layer at the edge of a river or the sea, facing the water, then lay the bridge.'), 3);
-    return false;
+    // The bridge shows under the cursor (R turns it); a left click on a legal spot sends the layer there to lay it.
+    this.bridging = true;
+    this.placingRotated = false;
+    this.updateBridgeGhost();
+    this.sidebar.notify(t('Pick where the bridge goes (R turns it), then left-click. Right-click cancels.'), 3);
   }
 
   private stopBridging(): void {
@@ -1235,9 +1291,26 @@ export class Game {
     const rot = this.placingRotated;
     const w = rot ? FOOTPRINT_BRIDGE.d : FOOTPRINT_BRIDGE.w;
     const d = rot ? FOOTPRINT_BRIDGE.w : FOOTPRINT_BRIDGE.d;
-    const x = Math.floor(this.mouseWorld.x / CELL_SIZE - w / 2 + 0.5);
-    const y = Math.floor(this.mouseWorld.y / CELL_SIZE - d / 2 + 0.5);
-    const ok = bridgeSiteOk(this.map, x, y, rot);
+    const mx = Math.floor(this.mouseWorld.x / CELL_SIZE - w / 2 + 0.5);
+    const my = Math.floor(this.mouseWorld.y / CELL_SIZE - d / 2 + 0.5);
+    // Snaps onto the end of a bridge near the cursor, so a new section runs on from it in one line (never beside it);
+    // no bridge end near: it stays under the cursor.
+    let x = mx;
+    let y = my;
+    for (const [ox, oy] of BRIDGE_SNAP_OFFSETS) {
+      const sx = mx + ox;
+      const sy = my + oy;
+      if (!bridgeSiteOk(this.map, sx, sy, rot)) continue;
+      const joins = [false, true].some((high) => bridgeEnd(sx, sy, rot, high, true).every((c) => this.map.inBounds(c.x, c.y) && this.map.isBridge(c.x, c.y)));
+      if (joins) {
+        x = sx;
+        y = sy;
+        break;
+      }
+    }
+    const legal = bridgeSiteOk(this.map, x, y, rot);
+    const inReach = legal && this.layerInReach(this.selectedBridgeLayers(), x, y, rot) !== null;
+    const ok = legal && inReach;
     this.ghost = {
       spriteKey: `bridge:${this.humanPlayer.faction}|0~0`,
       faction: this.humanPlayer.faction,
@@ -1247,8 +1320,27 @@ export class Game {
       d,
       mirrored: rot,
       ok,
-      reason: ok ? null : t('A bridge starts at the edge of a river or the sea (or runs on from a bridge)'),
+      reason: ok ? null : !legal ? t('A bridge starts at the edge of a river or the sea (or runs on from a bridge)') : t('Too far: a bridge is laid within {n} cells of where the bridge layer stands.', { n: BRIDGE_REACH_CELLS }),
     };
+  }
+
+  /** The nearest of `layers` standing within BRIDGE_REACH_CELLS of the near end of the bridge site (x, y), or null. */
+  layerInReach(layers: readonly Vehicle[], x: number, y: number, rotated: boolean): Vehicle | null {
+    const at = bridgeAnchor(this.map, x, y, rotated);
+    if (!at) return null;
+    const gx = at.x * CELL_SIZE;
+    const gy = at.y * CELL_SIZE;
+    let best: Vehicle | null = null;
+    let bestD = BRIDGE_REACH_CELLS * CELL_SIZE;
+    for (const v of layers) {
+      if (!v.alive || !v.isBridgeLayer) continue;
+      const d = Math.hypot(v.px - gx, v.py - gy);
+      if (d <= bestD) {
+        best = v;
+        bestD = d;
+      }
+    }
+    return best;
   }
 
   /** Left click in bridge mode: send the order if the spot is legal. */
@@ -1259,7 +1351,7 @@ export class Game {
       this.sidebar.notify(g.reason ?? t('Cannot place here.'));
       return;
     }
-    this.startBridging();
+    this.issue({ k: 'bridge', x: g.x, y: g.y, rot: this.placingRotated });
     this.stopBridging();
   }
 
@@ -1277,10 +1369,13 @@ export class Game {
       return false;
     }
     const goal = { x: at.x * CELL_SIZE, y: at.y * CELL_SIZE };
+    // Only within reach of where a layer stands (player and AI alike): it is driven to the bank first.
     const free = layers.filter((v) => v.alive && v.isBridgeLayer && !v.bridgeOrder);
-    const pool = free.length > 0 ? free : layers.filter((v) => v.alive && v.isBridgeLayer);
-    const v = pool.sort((a, b) => Math.hypot(a.px - goal.x, a.py - goal.y) - Math.hypot(b.px - goal.x, b.py - goal.y))[0];
-    if (!v) return false;
+    const v = this.layerInReach(free.length > 0 ? free : layers, x, y, rotated);
+    if (!v) {
+      notify(t('Too far: a bridge is laid within {n} cells of where the bridge layer stands.', { n: BRIDGE_REACH_CELLS }));
+      return false;
+    }
     const cell = { x: Math.floor(at.x), y: Math.floor(at.y) };
     const path = Math.hypot(v.px - goal.x, v.py - goal.y) < CELL_SIZE * BRIDGE_DEPLOY_CELLS ? [goal] : this.paths.find({ x: v.px, y: v.py }, cell, v.mobility);
     const last = path[path.length - 1];
@@ -1355,6 +1450,8 @@ export class Game {
     if (on && at < 0) this.bridges.push(b);
     else if (!on && at >= 0) this.bridges.splice(at, 1);
     for (let y = b.y; y < b.y + b.d; y++) for (let x = b.x; x < b.x + b.w; x++) if (map.inBounds(x, y)) map.bridge[map.index(x, y)] = on ? 1 : 0;
+    // A section that closed a gap overlaps its neighbours: lifting it leaves their cells in place.
+    if (!on) for (const o of this.bridges) for (let y = o.y; y < o.y + o.d; y++) for (let x = o.x; x < o.x + o.w; x++) if (map.inBounds(x, y)) map.bridge[map.index(x, y)] = 1;
     this.paths.groundChanged(b.x, b.y, b.w, b.d);
     this.joinBridges(b.x - 3, b.y - 3, b.w + 6, b.d + 6);
     if (on) return;
@@ -1371,7 +1468,9 @@ export class Game {
     for (const b of this.entities.buildings()) {
       if (!(b instanceof Bridge) || !b.alive || b.x + b.w < x || b.y + b.d < y || b.x > x + w || b.y > y + d) continue;
       const on = (high: boolean): boolean => b.endBeyond(high).every((c) => this.map.isBridge(c.x, c.y));
-      b.joins = (on(false) ? BRIDGE_JOIN_LOW : 0) | (on(true) ? BRIDGE_JOIN_HIGH : 0);
+      // Sections laid side by side merge into one wide deck: no girder between them.
+      const beside = (high: boolean): boolean => b.sideBeyond(high).every((c) => this.map.isBridge(c.x, c.y));
+      b.joins = (on(false) ? BRIDGE_JOIN_LOW : 0) | (on(true) ? BRIDGE_JOIN_HIGH : 0) | (beside(false) ? BRIDGE_JOIN_SIDE_LOW : 0) | (beside(true) ? BRIDGE_JOIN_SIDE_HIGH : 0);
     }
   }
 
@@ -2842,8 +2941,8 @@ export class Game {
         break;
       case 'bridge':
       {
-        const v = this.entities.get(cmd.id);
-        if (v instanceof Vehicle && v.isBridgeLayer && v.alive && !v.bridgeOrder) this.layBridgeHere(v);
+        const layers = this.selection.selectedUnitList().filter((u): u is Vehicle => u instanceof Vehicle && u.isBridgeLayer && u.alive && u.owner === me);
+        if (layers.length > 0) this.orderBridge(layers, cmd.x, cmd.y, cmd.rot);
       }
         break;
       case 'build':
@@ -5081,6 +5180,8 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       const p = { x: (cell.x + 0.5) * CELL_SIZE, y: (cell.y + 0.5) * CELL_SIZE };
       // Keep the exit lane open: the strip straight out from the door, as wide as a vehicle.
       if (Math.abs(p.x - exit.x) < unit.radius + CELL_SIZE * 0.5 && p.y >= exit.y - CELL_SIZE && p.y < rally.y - CELL_SIZE * 0.5) continue;
+      // Nobody waits right in front of the door.
+      if (Math.hypot(p.x - exit.x, p.y - exit.y) < DOOR_CLEAR_CELLS * CELL_SIZE) continue;
       if (!this.hullFits(p, unit)) continue;
       // Taken by anyone standing there or already driving there.
       if (others.some((m) => {
@@ -5178,8 +5279,8 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
   }
 
   /**
-   * Standing spots around a barracks, at most PARADE_MAX_CELLS cells from its walls, ordered from the
-   * door outwards. Slot numbers stay valid as long as the barracks does not move.
+   * Standing spots around a barracks, at most PARADE_MAX_CELLS cells from its walls and none right in front of the
+   * door (DOOR_CLEAR_CELLS), ordered from the door outwards. Slot numbers stay valid as long as the barracks does not move.
    */
   private paradeSlots(b: Building): WorldPoint[] {
     const reach = PARADE_MAX_CELLS * CELL_SIZE - PARADE_SPACING / 2;
@@ -5193,6 +5294,8 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       for (let y = top - reach; y <= bottom + reach; y += PARADE_SPACING) {
         const gap = Math.hypot(Math.max(left - x, 0, x - right), Math.max(top - y, 0, y - bottom));
         if (gap < PARADE_GAP || gap > reach) continue;
+        // The ground right in front of the door stays clear: soldiers form up beside and behind it.
+        if (Math.hypot(x - door.x, y - door.y) < DOOR_CLEAR_CELLS * CELL_SIZE) continue;
         slots.push({ x, y });
       }
     }
@@ -6209,6 +6312,14 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
         const free = this.freeStandSpot(goal, u, units, claimed);
         if (free) goal = free;
         cell = this.map.cellAt(goal.x, goal.y);
+        // Clicked on water (or a structure) with no dry spot near: it goes to the nearest ground it can stand on,
+        // never into the water.
+        if (!free && cell && !this.pathfinder.passable(cell.x, cell.y, u.mobility)) {
+          const near = this.pathfinder.nearestPassable(cell.x, cell.y, 10, undefined, u.mobility);
+          if (!near) return;
+          goal = { x: (near.x + 0.5) * CELL_SIZE, y: (near.y + 0.5) * CELL_SIZE };
+          cell = near;
+        }
         claimed.push(goal);
       }
       u.orderFlash = { kind: 'move', at: this.time, target: null };

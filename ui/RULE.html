@@ -26,7 +26,7 @@
 <body>
 <main>
 <img class="logo" src="/logo.png" alt="Black Area" />
-<h1>Black Area — RULE <small>v2.69.0</small></h1>
+<h1>Black Area — RULE <small>v2.74.0</small></h1>
 <p class="lead">Tài liệu luật chơi + kiến trúc code dành cho AI/dev sửa game. Mọi con số gameplay chính xác nằm trong <code>src/constants.ts</code> và <code>src/factions/*.ts</code>. Nếu tài liệu này khác code thì <b>code đúng</b>. <b>Khi đổi luật/số trong code, phải cập nhật file này.</b></p>
 <nav><a href="#s1">Quy tắc làm việc cho AI</a><a href="#s2">Chạy dự án</a><a href="#s3">Kiến trúc thư mục</a><a href="#s4">Thế giới</a><a href="#s5">Kinh tế (dầu)</a><a href="#s6">Công trình (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Quân đội</a><a href="#s8">Chiến đấu</a><a href="#s9">Điều khiển (Game.handleKey, handleInput)</a><a href="#s10">Giới hạn &amp; hiệu năng</a><a href="#s11">Thắng / thua &amp; AI</a><a href="#s12">Công thức sửa thường gặp</a></nav>
 <h2 id="s1">0. Quy tắc làm việc cho AI</h2>
@@ -697,6 +697,22 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
   <li>v2.59.1: Tab Phương tiện dùng biểu tượng xe tăng thay cho xe tải.</li>
   <li>v2.59.2: Tab Chỉ huy đổi tên thành Chính phủ (Government), biểu tượng toà nhà chính phủ.</li>
   <li>v2.60.0: Thêm hình <b>Tháp Radar</b> (nền 2 × 2) cho mỗi phe, ăng-ten xoay đủ 360°: Mỹ — chảo parabol trên tháp côn trắng; Nga — tấm ra-đa mảng pha trên cột thép giàn; Trung Quốc — chảo Cassegrain trên tháp bát giác; châu Âu — gương phản xạ "vỏ cam" trên tháp tròn; thế giới Hồi giáo — chảo lưới viền vàng trên tháp bát giác có vòm nhọn. Mới chỉ có hình (xem ở <code>?view=buildings</code>), chưa bán / chưa xây được trong trận.</li>
+  <li>v2.74.0: Sông có khúc hẹp khúc rộng (khoảng 2–7 ô). Cầu dài tối đa 5 đoạn; bóng cầu chỉ hít nối tiếp vào đầu cầu, không đặt cạnh cầu. Lính và xe mới ra không đứng chắn trước cửa (chừa 2,5 ô). DEMO: xe bắc cầu đứng sẵn ở mép sông/biển gần thủ đô; các quân mặt đất khác đứng ở điểm tập kết riêng cách thủ đô 10 ô, mỗi quân một ô.</li>
+  <li>v2.73.1: Hai đoạn cầu đặt sát cạnh nhau (song song) liền thành một cây cầu rộng: bỏ thành cầu ở giữa, mặt cầu chạy liền.</li>
+  <li>v2.73.0: Nối 2 cây cầu bắc từ hai bờ thành một: đặt một đoạn vào khe giữa hai đầu cầu (khe 1–3 ô, đoạn mới được chồng lên đầu cầu cũ) là hai cầu thông nhau. Phá đoạn nối thì hai cầu cũ vẫn còn.</li>
+  <li>v2.72.2: Nối cầu dễ hơn: bóng cầu tự hít vào đầu cầu đang có khi chuột ở gần (lệch tối đa 2 ô), đoạn mới luôn thẳng hàng với cầu cũ.</li>
+  <li>v2.72.1: Chỉ bắc cầu được trong vòng 4 ô quanh chỗ xe bắc cầu đứng (bóng cầu đỏ khi quá xa). AI cũng theo luật này: lái xe tới bờ trước rồi mới bắc.</li>
+  <li>v2.72.0: Bắc cầu: nhấn B (hoặc nút Cầu) hiện bóng cây cầu theo chuột để chọn chỗ (R xoay), nhấp chuột trái để xe bắc cầu chạy tới đó; bắc xong xe mới biến mất. Chuột phải để hủy.</li>
+  <li>v2.71.7: Nối cầu được cả khi xe bắc cầu đỗ hơi lệch giữa đầu cầu (đoạn mới tự thẳng hàng với cầu cũ). Ra lệnh cho xe/lính tới mặt nước mà không có chỗ đứng gần đó: chúng đi tới chỗ đất gần nhất, không còn lội xuống nước.</li>
+  <li>v2.71.6: Ô mua không dùng được (mất Nhà máy / Sân bay / Bộ Quốc phòng / Thủ đô) bị ẩn hẳn, không còn ô kẻ sọc trống.</li>
+  <li>v2.71.5: Huy hiệu cựu binh mới màu vàng: sao viền (cấp 1), sao đầy (cấp 2), sao trong hình tròn (cấp 3).</li>
+  <li>v2.71.4: Cấp 3 cựu binh dùng huy hiệu ngôi sao dưới vạch chữ V màu vàng.</li>
+  <li>v2.71.3: Cấp cựu binh hiện bằng ngôi sao vàng bên trái quốc kỳ và thanh máu: sao rỗng (cấp 1), nửa sao (cấp 2), sao đầy (cấp 3).</li>
+  <li>v2.71.2: Huy chương cựu binh đặt đúng chỗ các vạch cấp trước đây.</li>
+  <li>v2.71.1: Tab Chính phủ dùng biểu tượng tòa nhà chính phủ màu mới.</li>
+  <li>v2.71.0: Cấp cựu binh hiện bằng huy chương vàng (cấp 1–3) thay cho các vạch. Trong ván DEMO, máy bay tấn công hiện cấp 1, máy bay ném bom cấp 2, máy bay vận tải cấp 3 để xem thử.</li>
+  <li>v2.70.1: Tab Bộ binh dùng biểu tượng người lính mới.</li>
+  <li>v2.70.0: Máy bay có tab riêng (biểu tượng máy bay) cạnh tab Phương tiện; tab Phương tiện mở khi có Nhà máy chiến xa, tab Máy bay mở khi có Sân bay.</li>
   <li>v2.69.0: Cầu trở lại <b>2 × 3 ô</b> (cả chuỗi tối đa 3 đoạn = 9 ô). Công trình chính cao hơn 1,35 lần cho giống thật (tường, cổng, cầu, bunker, cột cờ, sân bay, Kim Tự Tháp giữ nguyên). Chống giật lag: giới hạn số lần tìm đường khi truy đuổi mỗi tick (3) và giãn nhịp; tàu kẹt tìm lại đường có thời gian chờ và giới hạn; xe nhường đường tối đa 4 xe mỗi lượt, không chạy A*; bộ đệm hình đơn vị xóa theo lần dùng gần nhất, độ phân giải 4 thay 6; khói/lửa chỉ sinh gần màn hình; xác xe tăng không dùng filter mỗi khung; bản thu nhỏ địa hình tối đa 4 mỗi khung; bớt cấp phát bộ nhớ mỗi tick.</li>
   <li>v2.68.0: Qua cầu: lính và xe đi <b>trên mặt cầu</b> (vẽ cao bằng mặt cầu, giữ giữa cầu, không ra thành cầu); đi <b>một hàng, không chen lấn</b>: không vượt, giữ khoảng cách với người phía trước, chờ bên kia đi hết rồi mới lên cầu. Đầu cầu chỉ được gác lên bờ <b>tối đa 2 ô</b> ở bên này và bên kia; bờ bên kia phải nằm trong tầm 3 đoạn cầu. Người chơi và AI như nhau.</li>
   <li>v2.67.0: Tối đa <b>3 đoạn cầu</b> nối thành 1 cầu (15 ô), không bắc cầu vượt biển (<code>BRIDGE_MAX_SECTIONS</code>). AI tự tìm chỗ bắc cầu qua sông, lái xe tới bờ rồi bắc tại chỗ, theo cùng giới hạn này.</li>

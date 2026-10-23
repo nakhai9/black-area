@@ -99,6 +99,8 @@ export default {
   "Bridge Layer": "Xe bắc cầu",
   "Bridge (B): the selected bridge layer lays its bridge right where it stands — park it at the edge of a river or the sea, facing the water. Used once.": "Bắc cầu (B): xe bắc cầu đang chọn bắc cầu ngay tại chỗ nó đứng — hãy đậu xe sát mép sông hoặc biển, quay mặt ra nước. Chỉ dùng 1 lần.",
   "Select a bridge layer first.": "Hãy chọn một xe bắc cầu trước.",
+  "Pick where the bridge goes (R turns it), then left-click. Right-click cancels.": "Chọn chỗ bắc cầu (R để xoay), rồi nhấp chuột trái. Chuột phải để hủy.",
+  "Too far: a bridge is laid within {n} cells of where the bridge layer stands.": "Quá xa: chỉ bắc cầu trong vòng {n} ô quanh chỗ xe bắc cầu đứng.",
   "Park the bridge layer at the edge of a river or the sea, facing the water, then lay the bridge.": "Hãy đậu xe bắc cầu sát mép sông hoặc biển, quay mặt ra nước, rồi mới bắc cầu.",
   "Bridge: click a spot at the edge of a river or the sea (R turns it, right-click cancels).": "Bắc cầu: nhấp vào một chỗ sát mép sông hoặc mép biển (R để xoay, nhấp chuột phải để hủy).",
   "A bridge starts at the edge of a river or the sea (or runs on from a bridge)": "Cầu phải bắt đầu sát mép sông / mép biển (hoặc nối tiếp một cây cầu)",
@@ -112,6 +114,7 @@ export default {
   "Build": "Xây dựng",
   "Defense": "Phòng thủ",
   "Vehicles": "Phương tiện",
+  "Aircraft": "Máy bay",
   "Rank": "Xếp hạng",
   "Allies": "Đồng minh",
 } satisfies Record<string, string>;

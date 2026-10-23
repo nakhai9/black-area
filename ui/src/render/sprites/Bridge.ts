@@ -1,5 +1,5 @@
 import { BRIDGE_L, BRIDGE_W } from '../../constants';
-import { BRIDGE_JOIN_HIGH, BRIDGE_JOIN_LOW } from '../../entities/Bridge';
+import { BRIDGE_JOIN_HIGH, BRIDGE_JOIN_LOW, BRIDGE_JOIN_SIDE_HIGH, BRIDGE_JOIN_SIDE_LOW } from '../../entities/Bridge';
 import type { FactionId } from '../../types';
 import { bridgeColors } from '../BridgeLayerModel';
 import { shade } from '../Color';
@@ -87,16 +87,21 @@ export function createBridgeArt(faction: FactionId, joins = 0, damage = 0): Buil
   const { deck, steel, stripe } = bridgeColors(faction);
   const low = (joins & BRIDGE_JOIN_LOW) !== 0;
   const high = (joins & BRIDGE_JOIN_HIGH) !== 0;
+  // A section alongside: that girder goes and the deck runs out to the edge, so the two read as one wide bridge.
+  const sideLow = (joins & BRIDGE_JOIN_SIDE_LOW) !== 0;
+  const sideHigh = (joins & BRIDGE_JOIN_SIDE_HIGH) !== 0;
+  const u0 = sideLow ? 0 : SIDE;
+  const u1 = sideHigh ? WIDE : WIDE - SIDE;
   return {
     footprint: { w: WIDE, d: LEN },
     height: DECK + GIRDER + 3,
     noRim: true, // joined sections read as one bridge
     drawStatic(p) {
       // Under-structure: the deck's front edge seen at the open ends, and the dark underside between the girders.
-      p.polygon([[SIDE, 0, deckAt(0, low, high) - 1.5], [WIDE - SIDE, 0, deckAt(0, low, high) - 1.5], [WIDE - SIDE, LEN, deckAt(LEN, low, high) - 1.5], [SIDE, LEN, deckAt(LEN, low, high) - 1.5]], shade(steel, 0.35), null);
-      girder(p, 0, low, high, steel, stripe, false, damage);
+      p.polygon([[u0, 0, deckAt(0, low, high) - 1.5], [u1, 0, deckAt(0, low, high) - 1.5], [u1, LEN, deckAt(LEN, low, high) - 1.5], [u0, LEN, deckAt(LEN, low, high) - 1.5]], shade(steel, 0.35), null);
+      if (!sideLow) girder(p, 0, low, high, steel, stripe, false, damage);
       // Deck plate between the girders, then the two treadways with their cross ribs.
-      strip(p, SIDE, WIDE - SIDE, 0, LEN, low, high, shade(deck, 0.62));
+      strip(p, u0, u1, 0, LEN, low, high, shade(deck, 0.62));
       for (const [u0, u1] of TREADS) {
         strip(p, u0, u1, 0, LEN, low, high, shade(deck, 1.02), 0.05);
         for (let v = 0.06; v < LEN; v += 0.14) strip(p, u0, u1, v, v + 0.05, low, high, shade(deck, 0.8), 0.08);
@@ -105,7 +110,7 @@ export function createBridgeArt(faction: FactionId, joins = 0, damage = 0): Buil
         strip(p, u1 - 0.04, u1, 0, LEN, low, high, shade(steel, 1.2), 0.12);
       }
       // Front face of the deck at a joined high end: a straight seam (no ramp) into the next section.
-      if (high) p.polygon([[SIDE, LEN, DECK - 1.5], [WIDE - SIDE, LEN, DECK - 1.5], [WIDE - SIDE, LEN, DECK], [SIDE, LEN, DECK]], shade(steel, 0.55), null);
+      if (high) p.polygon([[u0, LEN, DECK - 1.5], [u1, LEN, DECK - 1.5], [u1, LEN, DECK], [u0, LEN, DECK]], shade(steel, 0.55), null);
       if (damage >= 1) {
         for (const [u, v, r] of [[0.6, 1.1, 0.22], [1.4, 2.1, 0.18], [1.1, 0.7, 0.14]] as const) {
           const z = deckAt(v, low, high) + 0.15;
@@ -118,7 +123,7 @@ export function createBridgeArt(faction: FactionId, joins = 0, damage = 0): Buil
           p.polygon([[u - 0.18, v - 0.2, z], [u + 0.2, v - 0.12, z], [u + 0.14, v + 0.22, z], [u - 0.2, v + 0.16, z]], '#0e0c0a', null);
         }
       }
-      girder(p, WIDE - SIDE, low, high, steel, stripe, true, damage);
+      if (!sideHigh) girder(p, WIDE - SIDE, low, high, steel, stripe, true, damage);
     },
   };
 }

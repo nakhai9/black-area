@@ -73,6 +73,8 @@ export interface AIHost {
   orderCapture(u: Infantry, b: Building): boolean;
   /** Sends one of `layers` (bridge layers) to lay a bridge at (x, y) (false when the site is not at the water's edge). */
   orderBridge(layers: readonly Vehicle[], x: number, y: number, rotated: boolean): boolean;
+  /** The nearest of `layers` close enough to lay a bridge at (x, y), or null (see BRIDGE_REACH_CELLS). */
+  layerInReach(layers: readonly Vehicle[], x: number, y: number, rotated: boolean): Vehicle | null;
 }
 
 /** Order in which an AI nation builds its base. */
@@ -1053,7 +1055,16 @@ export class AISystem implements GameSystem {
         }
       }
     }
-    if (site) this.host.orderBridge(idle, site.x, site.y, site.rotated);
+    if (!site) return;
+    // Out of reach (same rule as the player's): the nearest idle layer first drives to the near bank.
+    if (this.host.layerInReach(idle, site.x, site.y, site.rotated)) this.host.orderBridge(idle, site.x, site.y, site.rotated);
+    else {
+      const at = bridgeAnchor(map, site.x, site.y, site.rotated);
+      if (!at) return;
+      const goal = { x: at.x * CELL_SIZE, y: at.y * CELL_SIZE };
+      const v = idle.slice().sort((a, b) => Math.hypot(a.px - goal.x, a.py - goal.y) - Math.hypot(b.px - goal.x, b.py - goal.y))[0];
+      if (v && !v.moving) this.host.orderMoveUnits([v], goal);
+    }
   }
 
   /** A legal spot near the capital (preferring close ones, with some randomness). */

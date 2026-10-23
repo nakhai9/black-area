@@ -113,7 +113,7 @@ export const BUILDING_ART: Readonly<Record<string, BuildingArt>> = {
   // Bridges laid by the bridge layers: one sprite per joined-ends mask and damage stage (see createBridgeArt).
   ...Object.fromEntries(
     (['usa', 'russia', 'china', 'europe', 'islamic'] as const).flatMap((f) =>
-      Array.from({ length: 4 * BRIDGE_DAMAGE_LEVELS }, (_, i) => [`bridge:${f}|${i % 4}~${Math.floor(i / 4)}`, createBridgeArt(f, i % 4, Math.floor(i / 4))] as const),
+      Array.from({ length: 16 * BRIDGE_DAMAGE_LEVELS }, (_, i) => [`bridge:${f}|${i % 16}~${Math.floor(i / 16)}`, createBridgeArt(f, i % 16, Math.floor(i / 16))] as const),
     ),
   ),
   // Walls (one cell) in each nation's colour, one sprite per neighbour mask (see createWallArt).

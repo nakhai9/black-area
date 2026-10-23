@@ -6,7 +6,6 @@ import { Bunker } from '../entities/Bunker';
 import { drawExplosion } from '../render/ExplosionSheet';
 import { emblemImage } from '../render/Emblems';
 import { demoActive } from './Demo';
-import { ChevronDown } from 'lucide';
 import { BUILD_RISE_SECONDS, CELL_SIZE, CRUISE_ALTITUDE, ISO_X, ISO_Y } from '../constants';
 import { blitUnit, unitSprite } from '../render/UnitSprites';
 import type { Building } from '../entities/Building';
@@ -34,7 +33,7 @@ import { createCanvas, get2d } from '../render/Canvas';
 import { withAlpha } from '../render/Color';
 import { IsoPainter } from '../render/IsoPainter';
 import { type Sprite, type SpriteCache, spriteRaster } from '../render/SpriteCache';
-import type { FactionId, Rect } from '../types';
+import type { FactionId, Rect, VehicleKind } from '../types';
 import type { Camera } from './Camera';
 import { drawBombBlast, drawBombFall } from '../render/BombSheets';
 import { drawMissile, drawMissileBlast } from '../render/MissileSheet';
@@ -156,8 +155,14 @@ const GROUND_BOX = { w: 26, h: 22, ox: 13, oy: 15 };
 const AIR_PARKED_BOX = { w: 30, h: 20, ox: 15, oy: 12 };
 const AIR_CRUISE_BOX = { w: 34, h: CRUISE_ALTITUDE + 30, ox: 15, oy: CRUISE_ALTITUDE + 10 };
 
-/** Lucide's ChevronDown path (24×24 grid): drawn 1–3 times above a veteran unit. */
-const CHEVRON = new Path2D(String((ChevronDown[0]?.[1] as { d?: string } | undefined)?.d ?? 'm6 9 6 6 6-6'));
+/** Veteran badges, rank 1–3 (Google Material Icons, 24×24 grid): star outline, filled star, star in a disc. */
+const RANK_BADGES = [
+  'm22 9.24l-7.19-.62L12 2L9.19 8.63L2 9.24l5.46 4.73L5.82 21L12 17.27L18.18 21l-1.63-7.03zM12 15.4l-3.76 2.27l1-4.28l-3.32-2.88l4.38-.38L12 6.1l1.71 4.04l4.38.38l-3.32 2.88l1 4.28z',
+  'M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2L9.19 8.63L2 9.24l5.46 4.73L5.82 21z',
+  'M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2m4.24 16L12 15.45L7.77 18l1.12-4.81l-3.73-3.23l4.92-.42L12 5l1.92 4.53l4.92.42l-3.73 3.23z',
+].map((d) => new Path2D(d));
+/** DEMO test game: each aircraft type shows one star level, to preview all three in play. */
+const DEMO_AIR_RANK: Partial<Record<VehicleKind, number>> = { jet: 1, bomber: 2, transport: 3 };
 
 /**
  * Draws one frame: terrain blit → water shimmer → selection ring →
@@ -342,7 +347,8 @@ export class Renderer {
     if (info) this.drawEnemyInfo(info);
     if (scene.mountainTip) this.drawMountainTip(scene.mountainTip);
     for (const u of units) {
-      if (u.rank > 0) this.drawRank(u);
+      const rank = (demoActive && u instanceof Vehicle ? DEMO_AIR_RANK[u.type] : undefined) ?? u.rank;
+      if (rank > 0) this.drawRank(u, rank);
       if (u instanceof Vehicle && u.isCarrier && (u.cargo.length > 0 || u.incoming > 0)) this.drawCargoBadge(u);
     }
     // Effects are stored in iso px already.
@@ -984,7 +990,6 @@ export class Renderer {
     ctx.restore();
   }
 
-  /** Veteran chevrons (Lucide ChevronDown ×1, ×2, ×3) hovering above the unit; on a bomber, left of its bomb row. */
   /** "F: plant flag" in a small dark tag above a Squatters team (upright transform). */
   private drawFlagHint(u: Unit): void {
     this.drawTag(u, t('F: plant flag'), '#ffd84a');
@@ -1009,39 +1014,24 @@ export class Renderer {
     ctx.restore();
   }
 
-  private drawRank(u: Unit): void {
+  /** Veteran badge (rank 1–3, gold) in the square box left of the flag and health bar. */
+  private drawRank(u: Unit, rank: number): void {
+    const badge = RANK_BADGES[Math.min(rank, RANK_BADGES.length) - 1];
+    if (!badge) return;
     const { ctx } = this;
-    const lift = (u as { altitude?: number }).altitude ?? 0;
-    void lift;
-    // In the box left of the flag and health bar (see plate): the chevrons stacked to fill its height.
     const box = this.plate(u);
-    let size = Math.min(2.6, box.side / (0.62 + 0.34 * (u.rank - 1)));
-    let sc = size / 24;
-    let P = { x: box.rankX + box.side / 2, y: 0 };
-    let top = box.top + (u.rank - 1) * size * 0.34;
-    if (u instanceof Vehicle && u.maxBombs > 0) {
-      // The stack ends level with the bottom of the bomb bars, just left of them.
-      const r = bombRow(u);
-      size = 2.6;
-      sc = size / 24;
-      P = { x: r.x0 - 0.4 - size / 2, y: P.y };
-      top = r.y + r.h - size * 0.65;
-    }
+    // The badges span 2–22 of their 24 grid: scaled so that span fills the box.
+    const k = box.side / 20;
     ctx.save();
-    ctx.lineCap = 'round';
+    ctx.translate(box.rankX + box.side / 2, box.top + box.side / 2);
+    ctx.scale(k, k);
+    ctx.translate(-12, -12);
     ctx.lineJoin = 'round';
-    for (let i = 0; i < u.rank; i++) {
-      ctx.save();
-      ctx.translate(P.x - size / 2, top - (u.rank - 1 - i) * size * 0.34);
-      ctx.scale(sc, sc);
-      ctx.strokeStyle = 'rgba(0,0,0,0.85)';
-      ctx.lineWidth = 5.2;
-      ctx.stroke(CHEVRON);
-      ctx.strokeStyle = '#ffd23f';
-      ctx.lineWidth = 3;
-      ctx.stroke(CHEVRON);
-      ctx.restore();
-    }
+    ctx.strokeStyle = 'rgba(0,0,0,0.85)';
+    ctx.lineWidth = 2;
+    ctx.stroke(badge);
+    ctx.fillStyle = '#ffd23f';
+    ctx.fill(badge, 'evenodd');
     ctx.restore();
   }
 

@@ -27,7 +27,7 @@ export const DEMO_FACTION = Number(import.meta.env.VITE_DEMO_FACTION) || 2;
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "2.69.0";
+export const GAME_VERSION = "2.74.0";
 
 /** An Allied Building within this many cells of any capital is an embassy; farther out it is a "Pro-<nation> regime". */
 export const EMBASSY_CAPITAL_CELLS = 25;
@@ -143,11 +143,13 @@ export const BRIDGE_W = 2;
 export const BRIDGE_L = 3;
 export const FOOTPRINT_BRIDGE = { w: BRIDGE_W, d: BRIDGE_L } as const;
 /** At most this many sections join end to end into one bridge (no bridges across a sea). Player and AI alike. */
-export const BRIDGE_MAX_SECTIONS = 3;
+export const BRIDGE_MAX_SECTIONS = 5;
 /** Health of one bridge section (enemies can destroy it; it falls into the water). */
 export const BRIDGE_HP = 900;
 /** A bridge layer deploys once within this many cells of the spot it was sent to (its bow at the bridge's near end). */
 export const BRIDGE_DEPLOY_CELLS = 2.5;
+/** A bridge may only be laid this close (cells, from the layer to the near end of the bridge) to where its layer stands. */
+export const BRIDGE_REACH_CELLS = 4;
 /** Pyramids of Giza (neutral monument). */
 export const FOOTPRINT_PYRAMIDS = { w: 6, d: 6 } as const;
 /** Flagpole: exactly one cell. */

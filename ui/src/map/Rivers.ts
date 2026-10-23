@@ -2,7 +2,7 @@ import { CELL_SIZE } from '../constants';
 import { ValueNoise } from '../core/Random';
 import { geoToWorld } from './Geo';
 
-/** Width of every great river (cells): a wide water barrier no soldier or ground vehicle can cross. */
+/** Base width of every great river (cells): it narrows and widens along the course (see WIDTH_MIN / WIDTH_MAX). */
 export const RIVER_WIDTH = 3;
 
 /**
@@ -90,6 +90,10 @@ const SUBDIVIDE = 8;
 /** Meander amplitude (cells) and wavelength (cells along the river). */
 const MEANDER = 1.2;
 const MEANDER_LEN = 9;
+/** Narrows and reaches: the width swings between these shares of the river's own width, over about this many cells. */
+const WIDTH_MIN = 0.7;
+const WIDTH_MAX = 2.2;
+const WIDTH_LEN = 26;
 /** Wet, darker bank on each side (cells beyond the water's edge). */
 const BANK = 0.6;
 /** Bucket size (cells) of the segment index. */
@@ -152,6 +156,8 @@ export class RiverLayer {
     });
 
     const total = along || 1;
+    // Narrow stretches and wide ones along the course (a noise of the distance travelled).
+    const swing = (d: number): number => WIDTH_MIN + (WIDTH_MAX - WIDTH_MIN) * noise.noise(d / WIDTH_LEN, 3.5);
     for (let i = 0; i < bent.length - 1; i++) {
       const a = bent[i]!;
       const b = bent[i + 1]!;
@@ -160,8 +166,8 @@ export class RiverLayer {
         ay: a[1],
         bx: b[0],
         by: b[1],
-        wa: r.from + (r.to - r.from) * (a[2] / total),
-        wb: r.from + (r.to - r.from) * (b[2] / total),
+        wa: (r.from + (r.to - r.from) * (a[2] / total)) * swing(a[2]),
+        wb: (r.from + (r.to - r.from) * (b[2] / total)) * swing(b[2]),
       };
       const pad = Math.max(seg.wa, seg.wb) + BANK + 1;
       const x0 = Math.floor((Math.min(seg.ax, seg.bx) - pad) / BIN);
