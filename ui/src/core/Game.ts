@@ -93,6 +93,9 @@ import {
   FOOTPRINT_BRIDGE,
   BRIDGE_DEPLOY_CELLS,
   BRIDGE_REACH_CELLS,
+  SQUAD_MIN_REGULAR,
+  SQUAD_MIN_SPECIAL,
+  SQUAD_MIN_TANKS,
   type ContestedNationId,
   presenceFee,
   ANTARCTIC_OIL_SITES,
@@ -184,6 +187,7 @@ const EXPLOSION_PER_BODY = 1.4;
 import { Flagpole } from '../entities/Flagpole';
 import { Wall } from '../entities/Wall';
 import { Gate } from '../entities/Gate';
+import { squadFilter } from '../systems/Squad';
 import { BRIDGE_JOIN_HIGH, BRIDGE_JOIN_LOW, BRIDGE_JOIN_SIDE_HIGH, BRIDGE_JOIN_SIDE_LOW, Bridge, bridgeAnchor, bridgeEnd, bridgeSiteOk } from '../entities/Bridge';
 import { WALL_E, WALL_N, WALL_S, WALL_W } from '../render/sprites/Wall';
 import { Bunker } from '../entities/Bunker';
@@ -3802,11 +3806,13 @@ export class Game {
   /** Ctrl+Shift+right-click: armed units attack-move to the spot, the unarmed ones simply go there. */
   private orderHumanAttackMove(units: readonly Unit[], world: WorldPoint): void {
     if (!this.map.cellAt(world.x, world.y)) return;
-    const armed = units.filter((u) => u.weapon !== null && !(u instanceof Vehicle && u.isTransport));
+    const squad = this.squadOfSelection();
+    // Too few of a kind (squad rule): those stay where they are.
+    const armed = units.filter((u) => u.weapon !== null && !(u instanceof Vehicle && u.isTransport) && squad.has(u));
     for (const u of armed) u.chasing = false;
     this.orderAttackMove(armed, world);
     for (const u of armed) u.orderFlash = { kind: 'move', at: this.time, target: null };
-    const unarmed = units.filter((u) => !armed.includes(u));
+    const unarmed = units.filter((u) => !armed.includes(u) && squad.has(u));
     if (unarmed.length > 0) this.orderMove(world, unarmed);
     this.moveMarker = { x: world.x, y: world.y, at: this.time };
   }
@@ -5377,9 +5383,12 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     }
     // Damaged vehicles selected + click on an own War Factory: they drive in to be repaired.
     if (b.owner === me.id && b.spec.type === 'warFactory' && this.orderFactoryRepair(b, this.selection.selectedUnitList())) return true;
+    const hostile = b.owner !== me.id && b.owner !== NEUTRAL_OWNER;
+    const squad = hostile && this.selection.selectedUnitList().some((u) => u instanceof Infantry && u.isSpecial) ? this.squadOfSelection() : null;
     for (const u of this.selection.selectedUnitList()) {
       if (!(u instanceof Infantry)) continue; // only people enter, repair or capture
       if ((u.isDemolition || (u.isSpecial && !b.indestructible)) && b.spec.type !== 'nationCapital' && b.owner !== me.id && isHostile(u, b)) {
+        if (squad && !squad.has(u)) continue; // special forces go in squads only
         // Crazy Soldier / special forces: run up and plant a charge on it.
         u.charge = { targetId: b.id };
         u.task = null;
@@ -5452,9 +5461,23 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
   }
 
   /** Every selected armed unit that can hurt `target` is ordered to attack it. */
+  /**
+   * The selected units allowed to set off on an attack (squad rule, see squadFilter); tells the player which kinds were
+   * held back for being too few.
+   */
+  private squadOfSelection(): Set<Unit> {
+    const { going, short } = squadFilter(this.selection.selectedUnitList());
+    if (short.length > 0) {
+      const names = { regular: t('soldiers: {n}+', { n: SQUAD_MIN_REGULAR }), special: t('special forces: {n}+', { n: SQUAD_MIN_SPECIAL }), tank: t('tanks: {n}+', { n: SQUAD_MIN_TANKS }) };
+      this.sidebar.notify(t('Too few to attack — they go in squads only ({list}).', { list: short.map((k) => names[k]).join(', ') }), 3);
+    }
+    return new Set(going);
+  }
+
   private orderAttack(target: Entity): boolean {
+    const squad = this.squadOfSelection();
     // Crazy Soldiers run at a ground target to plant a charge on it.
-    const sappers = this.selection.selectedUnitList().filter(
+    const sappers = this.selection.selectedUnitList().filter((u) => squad.has(u)).filter(
       (u): u is Infantry =>
         u instanceof Infantry && isHostile(u, target) && !(target instanceof Unit && target.flies) && (u.isDemolition || (u.isSpecial && (target instanceof Vehicle || (target instanceof Building && !target.indestructible)))),
     );
@@ -5475,8 +5498,9 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       d.orderFlash = { kind: 'attack', at: this.time, target };
       d.follow([this.diveAim(target)]);
     }
-    const attackers = this.selection.selectedUnitList().filter((u) => canTarget(u, target));
-    if (attackers.length === 0) return sappers.length > 0 || drones.length > 0;
+    const attackers = this.selection.selectedUnitList().filter((u) => squad.has(u) && canTarget(u, target));
+    // Nobody able to attack: the click falls through (a move), unless the squad rule held some back.
+    if (attackers.length === 0) return sappers.length > 0 || drones.length > 0 || this.selection.selectedUnitList().some((u) => !squad.has(u));
     for (const u of attackers) {
       if (u instanceof Vehicle) u.guardId = null;
       u.combatTarget = null; // a new order drops whatever it was locked on

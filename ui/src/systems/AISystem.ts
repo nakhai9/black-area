@@ -1,3 +1,4 @@
+import { squadFilter } from './Squad';
 import { bridgeAnchor } from '../entities/Bridge';
 import { AI_AIR_DEFENCE, FOOTPRINT_BRIDGE, AI_AIR_DEFENCE_PER_CITIES, AI_AIR_DEFENCE_RING, AI_BUNKERS, AI_WALL_ALERT_SECONDS, AI_WALL_ENEMY_UNITS, AI_WALL_GAP, AI_WALL_WATCH_CELLS, AI_WALL_RING, AI_WALL_SEGMENT, BUNKER_RANGE, CELL_SIZE, INFANTRY_BASE, INFANTRY_MARCH_CELLS, EMBASSY_CAPITAL_CELLS, MAX_ALLIES, NATION_GARRISON, NATION_GARRISON_CELLS, NEUTRAL_OWNER, OIL_DERRICK_OUTPUT, OIL_LEASE_CARTEL_SHARE, OIL_LEASE_SECONDS, TECH_VEHICLES, TRUCE_ZONE_CELLS, TRUCK_MIN_RIDERS, TRUCK_SOLDIERS, NATION_PRESENCE_FEE, presenceFee } from '../constants';
 import { FACTIONS } from '../factions';
@@ -233,6 +234,8 @@ const WAVE_GAP = 110;
 const GUARD_SHARE = 1 / 3;
 /** Idle attackers set out together once at least this many are ready (or all of them are). */
 const STRIKE_GROUP = 3;
+/** Squads waiting at the staging point stand within this many cells of it. */
+const STAGE_RADIUS_CELLS = 6;
 /** Enemies this close (world px) to the capital call out the home guard. */
 const DEFENCE_RADIUS = 38 * CELL_SIZE;
 /** Derrick under attack: the attacker is looked for within DERRICK_THREAT_CELLS of it, and up to DERRICK_DEFENDERS
@@ -297,6 +300,8 @@ interface AIState {
   nextSell: number;
   nextWave: number;
   waveSize: number;
+  /** Blitz staging point (anywhere on the map, toward the target) where squads still too small gather; null: none yet. */
+  stage: WorldPoint | null;
   rng: () => number;
   /** This nation's character (see PERSONALITIES). */
   style: Personality;
@@ -371,6 +376,7 @@ export class AISystem implements GameSystem {
       nextSell: 20 + i * 7,
       nextWave: FIRST_WAVE_AT * style.waveGap + i * 25,
       waveSize: style.name === 'warlord' ? 6 : style.name === 'economist' ? 10 : 8,
+      stage: null,
       rng,
       style,
       overseas: false,
@@ -1882,9 +1888,30 @@ export class AISystem implements GameSystem {
     let going = idle.filter(
       (u) => u.aircraft || u.swims || (cell !== null && this.host.pathfinder.sameLandmass(Math.floor(u.px / CELL_SIZE), Math.floor(u.py / CELL_SIZE), cell.x, cell.y)),
     );
+    // Squad rule (same as the player's): kinds still too few gather at a staging point toward the target and set off
+    // together once there are enough of them — a blitz from wherever the staging point is.
+    const { going: ready, short } = squadFilter(going);
+    const waiting = going.filter((u) => !ready.includes(u));
+    going = ready;
+    if (waiting.length > 0) this.gatherAtStage(st, waiting, { x: cx, y: cy }, goal);
+    else if (short.length === 0) st.stage = null;
     // Far away: soldiers who would have to rest on the march ride the nation's trucks to the front instead.
     going = this.motorize(p, st, going, { x: goal.x, y: goal.y + CELL_SIZE * 3 });
     if (going.length > 0) this.host.orderAttackMove(going, { x: goal.x, y: goal.y + CELL_SIZE * 3 });
+  }
+
+  /** Sends squads still too small to the staging point (picked a third of the way from `from` to `goal`, on dry ground). */
+  private gatherAtStage(st: AIState, units: readonly Unit[], from: WorldPoint, goal: WorldPoint): void {
+    if (!st.stage) {
+      const x = from.x + (goal.x - from.x) / 3;
+      const y = from.y + (goal.y - from.y) / 3;
+      const cell = this.host.pathfinder.nearestPassable(Math.floor(x / CELL_SIZE), Math.floor(y / CELL_SIZE), 12, undefined, 'vehicle');
+      if (!cell) return;
+      st.stage = { x: (cell.x + 0.5) * CELL_SIZE, y: (cell.y + 0.5) * CELL_SIZE };
+    }
+    const stage = st.stage;
+    const far = units.filter((u) => !u.aircraft && Math.hypot(u.px - stage.x, u.py - stage.y) > STAGE_RADIUS_CELLS * CELL_SIZE);
+    if (far.length > 0) this.host.orderMoveUnits(far, stage);
   }
 
   /**
@@ -2041,7 +2068,8 @@ export class AISystem implements GameSystem {
     const target = this.pickTarget(p, capital.centerWorld());
     if (!target) return;
     const goal = target.centerWorld();
-    const crossers = army.filter((u) => (u.aircraft || u.swims) && !u.retreating && !this.resting(st, u));
+    // Squad rule: special forces swimming over go only five or more at a time.
+    const crossers = squadFilter(army.filter((u) => (u.aircraft || u.swims) && !u.retreating && !this.resting(st, u))).going;
     const loaded = this.homeTransports(p).filter((t) => t.cargo.length > 0 && !this.carriesSquatters(t) && !t.cargo.some((c) => c.id === st.nationEngineer));
     const boarding = this.host.entities.fieldMovers().some((u) => u.owner === p.id && u.boardTarget !== null);
     const force = crossers.length + loaded.reduce((s, t) => s + t.cargo.length, 0);

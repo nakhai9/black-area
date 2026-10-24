@@ -27,7 +27,7 @@ export const DEMO_FACTION = Number(import.meta.env.VITE_DEMO_FACTION) || 2;
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "2.74.0";
+export const GAME_VERSION = "2.75.0";
 
 /** An Allied Building within this many cells of any capital is an embassy; farther out it is a "Pro-<nation> regime". */
 export const EMBASSY_CAPITAL_CELLS = 25;
@@ -148,6 +148,10 @@ export const BRIDGE_MAX_SECTIONS = 5;
 export const BRIDGE_HP = 900;
 /** A bridge layer deploys once within this many cells of the spot it was sent to (its bow at the bridge's near end). */
 export const BRIDGE_DEPLOY_CELLS = 2.5;
+/** Attack orders go out in squads (player and AI): at least this many regular soldiers, special forces, tanks. */
+export const SQUAD_MIN_REGULAR = 9;
+export const SQUAD_MIN_SPECIAL = 5;
+export const SQUAD_MIN_TANKS = 6;
 /** A bridge may only be laid this close (cells, from the layer to the near end of the bridge) to where its layer stands. */
 export const BRIDGE_REACH_CELLS = 4;
 /** Pyramids of Giza (neutral monument). */
