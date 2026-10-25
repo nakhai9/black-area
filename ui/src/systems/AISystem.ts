@@ -1078,6 +1078,23 @@ export class AISystem implements GameSystem {
 
   /** A legal spot near the capital (preferring close ones, with some randomness). */
   private findSite(p: PlayerState, st: AIState, capital: Building, option: BuildOption): GridPoint | null {
+    const home = this.findSiteNear(p, st, capital, option);
+    if (home) return home;
+    // No room left round home: build beside the nation's allies instead — its Allied Buildings (embassies) and the
+    // nation capitals it holds, nearest the capital first (the same placement rule as the player's).
+    const anchors = this.host.entities
+      .buildings()
+      .filter((b) => b.owner === p.id && b.alive && b !== capital && (b.spec.type === 'alliedBuilding' || b.spec.type === 'nationCapital'))
+      .sort((a, b) => Math.hypot(a.x - capital.x, a.y - capital.y) - Math.hypot(b.x - capital.x, b.y - capital.y));
+    for (const a of anchors) {
+      const spot = this.findSiteNear(p, st, a, option);
+      if (spot) return spot;
+    }
+    return null;
+  }
+
+  /** A legal spot for `option` round `capital` (nearest first, one of the SITE_PICK nearest at random), or null. */
+  private findSiteNear(p: PlayerState, st: AIState, capital: Building, option: BuildOption): GridPoint | null {
     const { w, d } = footprintOf(option, p.faction as Parameters<typeof footprintOf>[1]);
     // Offsets nearest first: the search stops at the SITE_PICK nearest legal spots (one is picked at random), instead
     // of testing all ~2400 spots round the capital every time (a frame hitch of a tenth of a second or more).

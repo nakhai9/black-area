@@ -246,6 +246,14 @@ export abstract class Unit extends Entity {
   pathTicket = 0;
   /** A group route is being planned for it in the background (attack-move resumes wait for it instead of searching). */
   routePending = false;
+  /** Attack-move group: top speed of its slowest member (world px/s), set by the order; Infinity = none. */
+  groupSpeed = Infinity;
+
+  /** Top speed on open ground right now (rank included), for matching a group's pace. */
+  cruiseSpeed(): number {
+    return this.speed * this.speedFactor();
+  }
+
   /** Speed share allowed by traffic this tick (queueing behind a slower unit ahead); 1 = free road. */
   crowdFactor = 1;
   /** Seconds it has been waiting at a crossing for another unit to go by. */
@@ -324,7 +332,9 @@ export abstract class Unit extends Entity {
     const rate = dt / this.accelTime;
     this.speedRatio += Math.sign(target - this.speedRatio) * Math.min(Math.abs(target - this.speedRatio), rate);
 
-    const total = this.speed * this.speedFactor() * this.terrainFactor * this.crowdFactor * this.speedRatio * dt;
+    // On an attack-move the group keeps together: nobody outruns its slowest member (groupSpeed).
+    const own = this.speed * this.speedFactor() * this.terrainFactor;
+    const total = (this.attackMove !== null ? Math.min(own, this.groupSpeed) : own) * this.crowdFactor * this.speedRatio * dt;
     let budget = total;
     // A machine turns towards its next waypoint even while it stands (pivoting on the spot before it rolls).
     const first = this.path[0];
@@ -362,10 +372,22 @@ export abstract class Unit extends Entity {
     // Ground units never step into a blocked cell (a wall, a gate pillar, a structure raised across an old route):
     // they stay put and ask for a new route instead of walking through it.
     if (Unit.blocks && !this.flies && !this.naval && Unit.blocks(this, fromX, fromY, this.px, this.py)) {
-      this.px = fromX;
-      this.py = fromY;
-      budget = total;
-      this.needsRepath = true;
+      // A hull swinging wide on a turn (along its nose) may still go straight at its next point (e.g. along a bank).
+      const next = this.path[0];
+      const d = next ? Math.hypot(next.x - fromX, next.y - fromY) : 0;
+      const step = Math.min(total, d);
+      const sx = next && d > 0.05 ? fromX + ((next.x - fromX) / d) * step : fromX;
+      const sy = next && d > 0.05 ? fromY + ((next.y - fromY) / d) * step : fromY;
+      if (next && d > 0.05 && !Unit.blocks(this, fromX, fromY, sx, sy)) {
+        this.px = sx;
+        this.py = sy;
+        budget = total - step;
+      } else {
+        this.px = fromX;
+        this.py = fromY;
+        budget = total;
+        this.needsRepath = true;
+      }
     }
     if (this.path.length === 0 && moving) this.destination = null;
     if (this.path.length === 0 && this.faceOnArrival !== null) {

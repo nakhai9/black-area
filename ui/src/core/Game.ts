@@ -564,14 +564,16 @@ export class Game {
     this.construction = new ConstructionSystem(this.players);
     this.pathfinder = new Pathfinder(this.map);
     this.paths = new PathService(this.map, this.pathfinder);
-    // Only structure cells (walls, gate pillars, buildings) are checked: terrain is left to the routes.
+    // Structure cells (walls, gate pillars, buildings) block everyone; open water blocks ground units that cannot swim
+    // (a vehicle swinging wide on a bank turn stops at the water's edge instead of driving in and being snapped back).
     Unit.blocks = (_u, x0, y0, x1, y1) => {
       const ax = Math.floor(x0 / CELL_SIZE);
       const ay = Math.floor(y0 / CELL_SIZE);
       const bx = Math.floor(x1 / CELL_SIZE);
       const by = Math.floor(y1 / CELL_SIZE);
       if (ax === bx && ay === by) return false;
-      const solid = (x: number, y: number): boolean => this.map.occupantAt(x, y) !== null;
+      const wet = !_u.swims && !_u.naval && !_u.flies;
+      const solid = (x: number, y: number): boolean => this.map.occupantAt(x, y) !== null || (wet && this.map.isOpenWater(x, y));
       // Already standing on a structure cell (just out of a structure, a block raised under it): it may walk off it.
       if (solid(ax, ay)) return false;
       if (solid(bx, by)) return true;
@@ -1859,6 +1861,10 @@ export class Game {
     // A bigger group shares one time-sliced flow field (PathService.groupJob) instead of one A* each in this frame:
     // AI armies of dozens re-ordered at once used to freeze the game for up to a second late in a war.
     const grouped = units.filter((u) => !u.aircraft && !(u instanceof Vehicle && u.isTransport)).length >= GROUP_ROUTE_MIN;
+    // The ground force moves as one group (player and AI alike): everyone at the pace of the slowest of them.
+    const march = units.filter((u) => !u.aircraft && !u.naval && !(u instanceof Vehicle && u.isTransport));
+    const pace = march.length > 1 ? Math.min(...march.map((u) => u.cruiseSpeed())) : Infinity;
+    for (const u of units) u.groupSpeed = march.includes(u) ? pace : Infinity;
     const walkers: { unit: Unit; goal: WorldPoint; cell: GridPoint; ticket: number }[] = [];
     const swimmers: typeof walkers = [];
     const drivers: typeof walkers = [];

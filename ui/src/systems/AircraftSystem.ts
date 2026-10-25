@@ -401,6 +401,9 @@ export class AircraftSystem implements GameSystem {
         return;
       }
     }
+    // An attack-move flown to its end with nothing to fight there is over (CombatSystem only clears it for aircraft
+    // that can fight): without this an unarmed one, or one that found no target, hung in the air for good.
+    if (v.attackMove && !v.moving && v.combatTarget === null && (!v.canFight || Math.hypot(v.attackMove.x - v.px, v.attackMove.y - v.py) < CELL_SIZE * 3)) v.attackMove = null;
     const busy = v.moving || v.attackTarget !== null || v.attackMove !== null || v.combatTarget !== null;
     if (busy) {
       this.orbits.delete(v.id);
@@ -1117,6 +1120,9 @@ export class AircraftSystem implements GameSystem {
   private heliAirborne(v: Vehicle, dt: number): void {
     v.returningHome = false;
     if (this.guard(v)) return;
+    // An attack-move flown to its end with nothing to fight there is over (CombatSystem only clears it for aircraft
+    // that can fight): without this an unarmed one, or one that found no target, hung in the air for good.
+    if (v.attackMove && !v.moving && v.combatTarget === null && (!v.canFight || Math.hypot(v.attackMove.x - v.px, v.attackMove.y - v.py) < CELL_SIZE * 3)) v.attackMove = null;
     if (v.moving || v.attackTarget !== null || v.attackMove !== null || v.combatTarget !== null) {
       v.idleFor = 0;
       return;

@@ -62,6 +62,32 @@ export class Pathfinder {
     this.closed = new Uint32Array(n);
   }
 
+  /** 1 for every cell next to open water (any of its 8 neighbours): vehicles keep off the bank (built lazily). */
+  private shoreCells: Uint8Array | null = null;
+  nearWater(x: number, y: number): boolean {
+    const map = this.map;
+    if (!this.shoreCells) {
+      const W = map.width;
+      const H = map.height;
+      const cells = new Uint8Array(W * H);
+      for (let y = 0; y < H; y++) {
+        for (let x = 0; x < W; x++) {
+          if (map.isOpenWater(x, y)) continue;
+          for (let k = 0; k < DX.length; k++) {
+            const nx = x + DX[k]!;
+            const ny = y + DY[k]!;
+            if (map.inBounds(nx, ny) && map.isOpenWater(nx, ny)) {
+              cells[y * W + x] = 1;
+              break;
+            }
+          }
+        }
+      }
+      this.shoreCells = cells;
+    }
+    return this.shoreCells[map.index(x, y)] === 1;
+  }
+
   /** Does cell (x, y) touch a structure cell (any of its 8 neighbours)? */
   nearStructure(x: number, y: number): boolean {
     const { map } = this;
@@ -148,6 +174,7 @@ export class Pathfinder {
   /** The walkable land changed (a bridge laid or destroyed): the landmass labels are rebuilt on the next query. */
   landChanged(): void {
     this.components = null;
+    this.shoreCells = null;
   }
 
   /**
@@ -287,7 +314,8 @@ export class Pathfinder {
         // No corner cutting: both side cells of a diagonal step must be open too (they are in bounds here).
         if (dx !== 0 && dy !== 0 && (!free(cy * W + nx) || !free(ny * W + cx))) continue;
         if (closed[ni] === run) continue;
-        const near = vehicle && ni !== goalI && this.nearStructure(nx, ny) ? NEAR_STRUCTURE_COST : 1;
+        // Vehicles keep a cell off structures and off the water's edge where they can (a hull swinging wide would drive in).
+        const near = vehicle && ni !== goalI && (this.nearStructure(nx, ny) || this.nearWater(nx, ny)) ? NEAR_STRUCTURE_COST : 1;
         const cost = gc + (STEP[k] ?? 1) * near * (mountain[ni] === MOUNTAIN_PASS ? MOUNTAIN_PATH_COST : (trees[ni] ?? 0) > 0 ? TREE_COST : 1);
         if (stamp[ni] === run && cost >= (g[ni] ?? Infinity)) continue;
         this.visit(ni, cost, cur);
@@ -343,7 +371,7 @@ export class Pathfinder {
       if (!this.passable(cx, cy, swim)) return false;
       if (cx !== px && cy !== py && (!this.passable(px, cy, swim) || !this.passable(cx, py, swim))) return false;
       // A vehicle's straight line never runs along a structure (only its two ends may touch one).
-      if (swim === 'vehicle' && s < steps && !(cx === x0 && cy === y0) && this.nearStructure(cx, cy)) return false;
+      if (swim === 'vehicle' && s < steps && !(cx === x0 && cy === y0) && (this.nearStructure(cx, cy) || this.nearWater(cx, cy))) return false;
       px = cx;
       py = cy;
     }
