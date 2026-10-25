@@ -27,7 +27,7 @@ export const DEMO_FACTION = Number(import.meta.env.VITE_DEMO_FACTION) || 2;
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "2.75.0";
+export const GAME_VERSION = "2.76.1";
 
 /** An Allied Building within this many cells of any capital is an embassy; farther out it is a "Pro-<nation> regime". */
 export const EMBASSY_CAPITAL_CELLS = 25;
@@ -613,6 +613,8 @@ export const FIGHT_MEMORY_SECONDS = 20;
 export const RETALIATE_RANGE_FACTOR = 2.2;
 /** Idle armed units notice enemies up to this many times their weapon range away and move in to fight. */
 export const GUARD_VISION_FACTOR = 1.8;
+/** AWACS: enemy combat units within this many cells of one of the player's airborne AWACS are ringed in red on the battlefield. */
+export const AWACS_RADIUS_CELLS = 15;
 
 // ---------------------------------------------------------------- Vehicles & aircraft
 /**
@@ -639,6 +641,8 @@ export const VEHICLE_BASE = {
     speed: 5.5,
     radius: 3.6,
   },
+  /** AWACS (every nation): unarmed airborne radar; loiters where it is sent and rings the enemy combat units in its sweep (AWACS_RADIUS_CELLS). */
+  awacs: { cost: 3000, trainSeconds: 24, maxHp: 300, speed: 5.0, radius: 4.0 },
   /** National heavy bomber (Russia's Tu-160, the USA's B-1A Lancer; no other nation has one): tough, flattens ground targets and structures; cannot hit aircraft. */
   bomber: {
     cost: 2600,
@@ -762,7 +766,8 @@ export const isAircraftKind = (kind: VehicleKind): boolean =>
   kind === "heli" ||
   kind === "transport" ||
   kind === "bomber" ||
-  kind === "drone";
+  kind === "drone" ||
+  kind === "awacs";
 
 /** Aircraft are built at, park at and take off from an airfield. */
 export const needsAirfield = (kind: VehicleKind): boolean =>
@@ -796,6 +801,7 @@ export const AVAILABLE_VEHICLES: readonly VehicleKind[] = [
   "jet",
   "heli",
   "bomber",
+  "awacs",
   "transport",
   "repair",
   "truck",

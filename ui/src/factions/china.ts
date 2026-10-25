@@ -98,6 +98,7 @@ export const CHINA: FactionConfig = {
     ifv: { name: "ZBD-04", description: t("ZBD-04 armoured fighting vehicle.") },
     heli: { name: "Z-10", description: t("Changhe Z-10 attack helicopter: guided missiles against ground vehicles only. Carries up to 8 soldiers (no vehicles) and sets down anywhere on open ground.") },
     mantis: { name: "Buk-M3", description: t("Buk-M3 (9K317) self-propelled air-defence vehicle: long-range missiles that hit aircraft only (fighters, bombers, helicopters, transports), never ground units or structures. Expensive and slow, armoured like a tank.") },
+    awacs: { name: "KJ-2000", description: t("KJ-2000 airborne early warning and control aircraft: unarmed; its fixed radar dome marks every enemy combat unit within 15 cells with a red ring.") },
     jet: { name: "J-31", description: t("Shenyang J-31 Gyrfalcon stealth multirole fighter.") },
     transport: {
       name: "Y-20",

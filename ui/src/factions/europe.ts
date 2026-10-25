@@ -46,6 +46,7 @@ export const EUROPE: FactionConfig = {
     ifv: { name: "Puma", description: t("Puma armoured fighting vehicle, modern and fast.") },
     heli: { name: "AH-64 Apache", description: t("AH-64 Apache attack helicopter: anti-tank missiles against ground vehicles only. Carries up to 8 soldiers (no vehicles) and sets down anywhere on open ground.") },
     mantis: { name: "NOMADS", description: t("NOMADS self-propelled air-defence vehicle: long-range missiles that hit aircraft only (fighters, bombers, helicopters, transports), never ground units or structures. Expensive and slow, armoured like a tank.") },
+    awacs: { name: "A330 AEW", description: t("A330-based airborne early warning aircraft: unarmed; its radar marks every enemy combat unit within 15 cells with a red ring.") },
     jet: { name: "Rafale", description: t("Dassault Rafale multirole fighter.") },
     transport: { name: "C-130", description: t("C-130 transport aircraft: carries soldiers and vehicles; unarmed.") },
     truck: {

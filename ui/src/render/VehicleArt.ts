@@ -529,7 +529,7 @@ export function drawVehicle(ctx: Ctx, pose: VehiclePose, kind: VehicleKind, fact
   if (kind === 'tank' || kind === 'repair') tank(ctx, pose, body, team);
   else if (kind === 'ifv') ifv(ctx, pose, body, team);
   else if (kind === 'light') light(ctx, pose, body, team);
-  else if (kind === 'transport') transport(ctx, pose, body, team);
+  else if (kind === 'transport' || kind === 'awacs') transport(ctx, pose, body, team); // AWACS: its sheet (AircraftSheets) normally; the airlifter until it loads
   else jet(ctx, pose, body, team, JETS[faction]);
 }
 
@@ -546,8 +546,8 @@ export function vehiclePortrait(faction: FactionId, kind: VehicleKind): HTMLCanv
       return canvas;
     }
     // A jet hovers 7 px above its ground point, so its ground point sits lower in the picture.
-    const air = kind === 'jet' || kind === 'heli' || kind === 'transport';
-    const scale = kind === 'transport' ? 7.5 : air ? 9 : 13;
+    const air = kind === 'jet' || kind === 'heli' || kind === 'transport' || kind === 'awacs';
+    const scale = kind === 'transport' || kind === 'awacs' ? 7.5 : air ? 9 : 13;
     ctx.setTransform(scale, 0, 0, scale, 0, 0);
     drawVehicle(ctx, { x: 128 / 2 / scale, y: (air ? 108 : 62) / scale, heading: 0.45, phase: 0, moving: false, altitude: air ? 7 : undefined }, kind, faction);
     portraits.set(key, canvas);

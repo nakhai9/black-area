@@ -236,6 +236,9 @@ const GUARD_SHARE = 1 / 3;
 const STRIKE_GROUP = 3;
 /** Squads waiting at the staging point stand within this many cells of it. */
 const STAGE_RADIUS_CELLS = 6;
+/** AWACS the AI keeps (one), built once it has at least this many vehicles. */
+const AI_AWACS = 1;
+const AI_AWACS_AFTER = 6;
 /** Enemies this close (world px) to the capital call out the home guard. */
 const DEFENCE_RADIUS = 38 * CELL_SIZE;
 /** Derrick under attack: the attacker is looked for within DERRICK_THREAT_CELLS of it, and up to DERRICK_DEFENDERS
@@ -1163,6 +1166,12 @@ export class AISystem implements GameSystem {
           production.enqueue(p, 'mantis');
           return;
         }
+        // One AWACS over the army once the fleet is under way (same unit and rules as the player's).
+        const awacs = (f.vehicles.get('awacs') ?? 0) + q.items.filter((k) => k === 'awacs').length;
+        if (able('awacs') && awacs < AI_AWACS && vehicleCount >= AI_AWACS_AFTER) {
+          production.enqueue(p, 'awacs');
+          return;
+        }
         // Pick the kind furthest below its wanted share of the fleet.
         const weights = this.fleetWeights(p, st, f, vehicleCount);
         let total = 0;
@@ -1895,9 +1904,20 @@ export class AISystem implements GameSystem {
     going = ready;
     if (waiting.length > 0) this.gatherAtStage(st, waiting, { x: cx, y: cy }, goal);
     else if (short.length === 0) st.stage = null;
+    // The nation's AWACS flies over the group (its radar lets them spot enemies farther).
+    this.coverWithAwacs(p, going.length > 0 ? going : waiting);
     // Far away: soldiers who would have to rest on the march ride the nation's trucks to the front instead.
     going = this.motorize(p, st, going, { x: goal.x, y: goal.y + CELL_SIZE * 3 });
     if (going.length > 0) this.host.orderAttackMove(going, { x: goal.x, y: goal.y + CELL_SIZE * 3 });
+  }
+
+  /** Idle AWACS of the nation fly to the middle of `units` (they circle there until sent on). */
+  private coverWithAwacs(p: PlayerState, units: readonly Unit[]): void {
+    if (units.length === 0) return;
+    const x = units.reduce((s, u) => s + u.px, 0) / units.length;
+    const y = units.reduce((s, u) => s + u.py, 0) / units.length;
+    const eyes = this.host.entities.fieldMovers().filter((u): u is Vehicle => u instanceof Vehicle && u.type === 'awacs' && u.owner === p.id && u.alive && !u.moving && Math.hypot(u.px - x, u.py - y) > CELL_SIZE * 6);
+    if (eyes.length > 0) this.host.orderMoveUnits(eyes, { x, y });
   }
 
   /** Sends squads still too small to the staging point (picked a third of the way from `from` to `goal`, on dry ground). */

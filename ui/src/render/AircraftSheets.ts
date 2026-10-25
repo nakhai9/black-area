@@ -37,6 +37,12 @@ const SHEETS: Partial<Record<`${FactionId}:${VehicleKind}`, AircraftSheet>> = {
   // National bombers, one nation each (rendered from 3D models by tools/aircraft_model_sheet.py).
   'russia:bomber': sheet('tu160-russia.png', 96, 15.2),
   'usa:bomber': sheet('b1-usa.png', 96, 14.25),
+  // AWACS, every nation (built in code and rendered by tools/awacs_model_sheet.py at 128 px cells).
+  'usa:awacs': sheet('awacs-usa.png', 128, 14.5),
+  'europe:awacs': sheet('awacs-europe.png', 128, 15.5),
+  'china:awacs': sheet('awacs-china.png', 128, 14.5),
+  'russia:awacs': sheet('awacs-russia.png', 128, 14.5),
+  'islamic:awacs': sheet('awacs-islamic.png', 128, 14),
   // Kamikaze drone (Islamic world's B-767).
   'islamic:drone': sheet('drone-islamic.png', 96, 9.5), // same size as the fighters
 };

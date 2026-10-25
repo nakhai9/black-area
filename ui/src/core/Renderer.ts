@@ -102,6 +102,8 @@ export interface RenderScene {
   readonly rallyLine?: { from: { x: number; y: number }; to: { x: number; y: number } } | null;
   /** Selected Squatters teams standing still: a "F: plant flag" hint above their heads. */
   readonly flagHints?: ReadonlySet<number>;
+  /** Enemy combat units in the sweep of one of my AWACS: ringed in red. */
+  readonly awacsMarks?: ReadonlySet<number>;
   /** An opponent's unit under the cursor: its info card is drawn above its head. */
   readonly enemyInfoId?: number | null;
   /** Mountain range under the mouse (nothing else hovered): its name, drawn at the mouse (world px). */
@@ -297,6 +299,8 @@ export class Renderer {
     // DEMO: a selected combat vehicle shows its weapon range (light green).
     if (demoActive) for (const u of units) if (selUnits.has(u.id) && u instanceof Vehicle && u.weapon) this.drawRangeCircle(u, u.weapon.range);
     for (const u of units) if (selUnits.has(u.id)) this.drawUnitRing(u, '#5cff6a');
+    const marks = scene.awacsMarks;
+    if (marks?.size) for (const u of units) if (marks.has(u.id)) this.drawUnitRing(u, '#ff3b30');
     const hovered = units.find((u) => u.id === scene.hoveredUnitId);
     if (hovered && !selUnits.has(hovered.id)) this.drawUnitRing(hovered, 'rgba(255,255,255,0.6)');
     if (scene.moveMarker) this.drawMoveMarker(scene.moveMarker, scene.time);

@@ -51,6 +51,7 @@ const HANDLING: Readonly<Record<VehicleKind, { accel: number; turn: number; pivo
   drone: { accel: 0.4, turn: 3.0, pivot: false },
   carrier: { accel: 4, turn: 0.35, pivot: false },
   bridgeLayer: { accel: 1.0, turn: 2.0, pivot: true },
+  awacs: { accel: 1.0, turn: 1.3, pivot: false },
 };
 
 /** Can `soldiers` soldiers and `vehicles` vehicles travel together in one transport? */

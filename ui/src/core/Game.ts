@@ -93,6 +93,7 @@ import {
   FOOTPRINT_BRIDGE,
   BRIDGE_DEPLOY_CELLS,
   BRIDGE_REACH_CELLS,
+  AWACS_RADIUS_CELLS,
   SQUAD_MIN_REGULAR,
   SQUAD_MIN_SPECIAL,
   SQUAD_MIN_TANKS,
@@ -1254,6 +1255,21 @@ export class Game {
   private bridging = false;
   /** Bridges on the map (kept by markBridge): the per-tick deck rules skip all work when there are none. */
   private readonly bridges: Bridge[] = [];
+
+  /** Enemy combat units (armed) within AWACS_RADIUS_CELLS of one of my AWACS in the air: ringed in red on the battlefield. */
+  private awacsMarks(): ReadonlySet<number> {
+    const ids = new Set<number>();
+    const me = this.humanPlayer.id;
+    const movers = this.entities.fieldMovers();
+    const eyes = movers.filter((u) => u instanceof Vehicle && u.type === 'awacs' && u.owner === me && u.alive && u.flies);
+    if (eyes.length === 0) return ids;
+    const r = AWACS_RADIUS_CELLS * CELL_SIZE;
+    for (const u of movers) {
+      if (!u.alive || !u.visible || u.weapon === null || !isHostile(eyes[0]!, u)) continue;
+      if (eyes.some((a) => Math.hypot(a.px - u.px, a.py - u.py) <= r)) ids.add(u.id);
+    }
+    return ids;
+  }
 
   /** My selected bridge layers (alive, on the map). */
   private selectedBridgeLayers(): Vehicle[] {
@@ -3404,6 +3420,7 @@ export class Game {
       waypointPlan: this.waypointPlan(),
       rallyLine: this.rallyLine(),
       flagHints: this.flagHints(),
+      awacsMarks: this.awacsMarks(),
       enemyInfoId: !this.placing && hoverUnit instanceof Unit && hoverUnit.owner !== this.humanPlayer.id ? hoverUnit.id : null,
       mountainTip: this.placing || hovering ? null : this.mountainTip(),
       focus: focus.map((f) => ({ entity: f.entity, strong: f.strong, engaged: f.engaged, airLock: f.airLock })),

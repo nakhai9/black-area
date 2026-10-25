@@ -417,6 +417,11 @@ export class AircraftSystem implements GameSystem {
       return;
     }
     if (v.idleFor < RETURN_AFTER) return;
+    // An AWACS keeps its radar watch: it circles where it was sent until it is ordered onto an airfield.
+    if (v.type === 'awacs' && !v.returningHome) {
+      this.orbit(v, dt);
+      return;
+    }
     // A selected fighter with nothing to do circles where it is, waiting for its next order; once deselected it heads home.
     if (!v.isTransport && !v.returningHome && this.hooks.selected(v)) {
       this.orbit(v, dt);
