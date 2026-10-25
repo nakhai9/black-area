@@ -39,10 +39,9 @@ export function takenNations(entities: EntityManager, player: PlayerState, type:
 }
 
 /**
- * Another nation's structure (`base@faction`) is on sale while its capital is held, or while a captured structure of
- * that same type of that nation is held (a captured Ministry of Defence lets its holder build more of them).
+ * Another nation's structure (`base@faction`) is on sale only while that nation's capital is held. A captured
+ * Ministry of Defence / War Factory / Airfield brings only its soldiers / machines, never its structures.
  */
-export function foreignBuildAllowed(entities: EntityManager, player: PlayerState, id: string, nation: FactionId): boolean {
-  const base = id.split('@')[0] as BuildingType;
-  return takenNations(entities, player, 'capital').includes(nation) || takenNations(entities, player, base).includes(nation);
+export function foreignBuildAllowed(entities: EntityManager, player: PlayerState, _id: string, nation: FactionId): boolean {
+  return takenNations(entities, player, 'capital').includes(nation);
 }
