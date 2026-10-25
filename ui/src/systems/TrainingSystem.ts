@@ -115,9 +115,9 @@ export class TrainingSystem implements GameSystem {
     const own = this.options.get(player.id) ?? [];
     const taken = takenNations(this.entities, player, 'barracks');
     if (taken.length === 0 || own.length === 0) return own;
-    // One design per soldier type only: the own nation's, else the first captured nation's (no duplicates in the shop).
-    const seen = new Set(own.map((o) => o.tier));
-    return [...own, ...taken.flatMap((f) => foreignOptions(f)).filter((o) => !seen.has(o.tier) && (seen.add(o.tier), true))];
+    // Every captured Ministry of Defence brings its nation's soldiers into the shop next to the own ones (each foreign
+    // design has its own key and shows that nation's flag).
+    return [...own, ...taken.flatMap((f) => foreignOptions(f))];
   }
 
   /** First living Barracks of the player (soldiers exit there). */

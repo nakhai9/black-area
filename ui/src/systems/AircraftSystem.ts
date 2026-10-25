@@ -420,8 +420,9 @@ export class AircraftSystem implements GameSystem {
       return;
     }
     if (v.idleFor < RETURN_AFTER) return;
-    // An AWACS keeps its radar watch: it circles where it was sent until it is ordered onto an airfield.
-    if (v.type === 'awacs' && !v.returningHome) {
+    // An AWACS keeps its radar watch: it circles where it was sent until it is ordered onto an airfield. A loaded
+    // transport aircraft never heads home with its riders aboard: it circles until it is sent to set them down.
+    if ((v.type === 'awacs' && !v.returningHome) || (v.isTransport && v.cargo.length > 0)) {
       this.orbit(v, dt);
       return;
     }
@@ -463,6 +464,8 @@ export class AircraftSystem implements GameSystem {
    */
   land(v: Vehicle, airfield: Building): boolean {
     if (!v.aircraft || !v.alive || airfield.owner !== v.owner || !airfield.alive || airfield.spec.type !== 'airfield') return false;
+    // A transport aircraft only comes in to an airfield empty: its riders are set down first.
+    if (v.isTransport && v.cargo.length > 0) return false;
     const slot = this.freeSlot(v.homeId === airfield.id ? v : null, airfield);
     if (slot < 0) return false;
     // Parked at another airfield, or (transport aircraft only, not helicopters) set down out in the field: it takes off

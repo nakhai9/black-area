@@ -1844,6 +1844,8 @@ export class Game {
       if (!(u instanceof Vehicle) || !u.aircraft) return true;
       const field = near(u.owner);
       if (!field) return true;
+      // A loaded transport aircraft never lands at an airfield: the click is an ordinary move order for it.
+      if (u.isTransport && u.cargo.length > 0) return true;
       // A transport aircraft set down out in the field (not on an apron): it takes off and flies in to land there.
       if (u.isTransport && u.flight === 'landed') {
         this.aircraft.land(u, field);
@@ -5399,6 +5401,10 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       const planes = this.selection.selectedUnitList().filter((u): u is Vehicle => u instanceof Vehicle && u.aircraft);
       for (const u of planes) if (this.aircraft.land(u, b)) ordered++;
       if (ordered > 0) return true;
+      if (planes.some((u) => u.isTransport && u.cargo.length > 0)) {
+        this.sidebar.notify(t('A transport aircraft lands at the airfield only empty: set its riders down first.'), 3);
+        return true;
+      }
       if (planes.length > 0) {
         this.sidebar.notify(t('No free parking spot on that airfield.'), 3);
         return true;

@@ -68,6 +68,7 @@ export default {
   'soldiers: {n}+': 'lính thường: từ {n}',
   'special forces: {n}+': 'đặc nhiệm: từ {n}',
   'tanks: {n}+': 'xe tăng: từ {n}',
+  'A transport aircraft lands at the airfield only empty: set its riders down first.': 'Máy bay vận tải chỉ hạ cánh ở sân bay khi không chở gì: hãy thả quân xuống trước.',
   'At most {max} waypoints — press Z or right-click to go.': 'Tối đa {max} điểm lộ trình — nhấn Z hoặc chuột phải để xuất phát.',
   '{name}: new units will come out here.': '{name}: quân mới sẽ xuất hiện tại đây.',
   'The {name} cannot land there (open water) — the passengers stay aboard.': '{name} không thể hạ cánh ở đó (mặt nước) — hành khách vẫn ở lại trên máy bay.',
