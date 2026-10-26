@@ -95,32 +95,55 @@ const sheet8 = (file: string, fallback: SoldierSheetId, swim = false): SoldierSh
   scale: 4 / 45,
   patch: [0, 0],
 });
+/**
+ * Blender-built soldiers (tools/blender/soldier_render.py + tools/soldier_sheet.py): the same 'dir8' layout at 128 px
+ * cells, the soldier ≈90 px tall with the feet at (64, 98) — twice the detail of the older sheets, so they stay sharp
+ * when zoomed in. Falls back to the older sheet if the file is missing.
+ */
+const sheetHD = (file: string, fallback: SoldierSheetId, swim = false): SoldierSheet => ({ ...sheet8(file, fallback, swim), cw: 128, ch: 128, feetX: 64, feetY: 98, scale: 4 / 90 });
 /** Squad sheet (see SoldierSheet.squad): the pair stands ≈40 px tall with the feet at (48, 78). */
 const squad8 = (file: string, fallback: SoldierSheetId): SoldierSheet => ({ ...sheet8(file, fallback), cw: 96, ch: 96, feetX: 48, feetY: 78, scale: 4 / 40, squad: true });
+/** Blender-built squatters team (bearer and escort rendered in two passes laid over each other), 192 px cells. */
+const squadHD = (file: string, fallback: SoldierSheetId): SoldierSheet => ({ ...sheet8(file, fallback), cw: 192, ch: 192, feetX: 96, feetY: 150, scale: 4 / 90, squad: true });
 const SHEETS: Record<SoldierSheetId, SoldierSheet> = {
-  usRegular: sheet8('us-regular-8dir.png', 'gi'),
-  usSpecial: sheet8('us-special-8dir.png', 'ranger', true),
-  ruRegular: sheet8('ru-regular-8dir.png', 'conscript'),
-  ruSpecial: sheet8('ru-special-8dir.png', 'spetsnaz', true),
-  cnRegular: sheet8('cn-regular-8dir.png', 'gi'),
-  cnSpecial: sheet8('cn-special-8dir.png', 'gi', true),
-  euRegular: sheet8('eu-regular-8dir.png', 'gi'),
-  euSpecial: sheet8('eu-special-8dir.png', 'gi', true),
-  islamicRegular: sheet8('ru-regular-8dir.png', 'conscript'), // no own sheet yet: wears the Russian one
-  islamicSpecial: sheet8('islamic-special-8dir.png', 'ruSpecial', true),
-  euSquatters: squad8('eu-squatters-8dir.png', 'euSpecial'),
-  ruSquatters: squad8('ru-squatters-8dir.png', 'ruSpecial'),
-  usSquatters: squad8('us-squatters-8dir.png', 'usSpecial'),
-  cnSquatters: squad8('cn-squatters-8dir.png', 'cnSpecial'),
-  islamicSquatters: squad8('islamic-squatters-8dir.png', 'islamicSpecial'),
+  usRegular: sheetHD('us-regular-hd.png', 'usRegularOld'),
+  usRegularOld: sheet8('us-regular-8dir.png', 'gi'),
+  usSpecial: sheetHD('us-special-hd.png', 'usSpecialOld', true),
+  usSpecialOld: sheet8('us-special-8dir.png', 'ranger', true),
+  ruRegular: sheetHD('ru-regular-hd.png', 'ruRegularOld'),
+  ruRegularOld: sheet8('ru-regular-8dir.png', 'conscript'),
+  ruSpecial: sheetHD('ru-special-hd.png', 'ruSpecialOld', true),
+  ruSpecialOld: sheet8('ru-special-8dir.png', 'spetsnaz', true),
+  cnRegular: sheetHD('cn-regular-hd.png', 'cnRegularOld'),
+  cnRegularOld: sheet8('cn-regular-8dir.png', 'gi'),
+  cnSpecial: sheetHD('cn-special-hd.png', 'cnSpecialOld', true),
+  cnSpecialOld: sheet8('cn-special-8dir.png', 'gi', true),
+  euRegular: sheetHD('eu-regular-hd.png', 'euRegularOld'),
+  euRegularOld: sheet8('eu-regular-8dir.png', 'gi'),
+  euSpecial: sheetHD('eu-special-hd.png', 'euSpecialOld', true),
+  euSpecialOld: sheet8('eu-special-8dir.png', 'gi', true),
+  islamicRegular: sheetHD('islamic-regular-hd.png', 'ruRegularOld'),
+  islamicSpecial: sheetHD('islamic-special-hd.png', 'islamicSpecialOld', true),
+  islamicSpecialOld: sheet8('islamic-special-8dir.png', 'ruSpecialOld', true),
+  euSquatters: squadHD('eu-squatters-hd.png', 'euSquattersOld'),
+  ruSquatters: squadHD('ru-squatters-hd.png', 'ruSquattersOld'),
+  usSquatters: squadHD('us-squatters-hd.png', 'usSquattersOld'),
+  cnSquatters: squadHD('cn-squatters-hd.png', 'cnSquattersOld'),
+  islamicSquatters: squadHD('islamic-squatters-hd.png', 'islamicSquattersOld'),
+  euSquattersOld: squad8('eu-squatters-8dir.png', 'euSpecial'),
+  ruSquattersOld: squad8('ru-squatters-8dir.png', 'ruSpecial'),
+  usSquattersOld: squad8('us-squatters-8dir.png', 'usSpecial'),
+  cnSquattersOld: squad8('cn-squatters-8dir.png', 'cnSpecial'),
+  islamicSquattersOld: squad8('islamic-squatters-8dir.png', 'islamicSpecial'),
   // Engineers (tools/engineer-render): hard hat, safety vest, wrench; no swim rows.
-  usEngineer: { ...sheet8('us-engineer-8dir.png', 'gi'), walkOnly: true },
-  ruEngineer: { ...sheet8('ru-engineer-8dir.png', 'gi'), walkOnly: true },
-  cnEngineer: { ...sheet8('cn-engineer-8dir.png', 'gi'), walkOnly: true },
-  euEngineer: { ...sheet8('eu-engineer-8dir.png', 'gi'), walkOnly: true },
-  islamicEngineer: { ...sheet8('islamic-engineer-8dir.png', 'gi'), walkOnly: true },
+  usEngineer: { ...sheetHD('us-engineer-hd.png', 'gi'), walkOnly: true },
+  ruEngineer: { ...sheetHD('ru-engineer-hd.png', 'gi'), walkOnly: true },
+  cnEngineer: { ...sheetHD('cn-engineer-hd.png', 'gi'), walkOnly: true },
+  euEngineer: { ...sheetHD('eu-engineer-hd.png', 'gi'), walkOnly: true },
+  islamicEngineer: { ...sheetHD('islamic-engineer-hd.png', 'gi'), walkOnly: true },
   // Crazy Soldier: rows 11–12 hold his charge and its blast (render/DemolitionArt).
-  islamicDemolition: sheet8('islamic-demolition-8dir.png', 'islamicRegular'),
+  islamicDemolition: sheetHD('islamic-demolition-hd.png', 'islamicDemolitionOld'),
+  islamicDemolitionOld: sheet8('islamic-demolition-8dir.png', 'islamicRegular'),
   gi: sheet('gi.png', 64, 64, 61, 4, 51, [-3, -40]),
   ranger: sheet('ranger.png', 96, 128, 124, 6, 112, [-6, -82]),
   spetsnaz: sheet('spetsnaz.png', 64, 64, 61, 8, 52, [-3, -40]),

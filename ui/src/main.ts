@@ -1,3 +1,4 @@
+import { loadPictureArts } from './render/sprites/PictureArt';
 import './styles.css';
 import { t } from './i18n';
 import { DEMO_FACTION, DEMO_MODE,EARTH_TEXTURE_URL, FACTION_ORDER } from './constants';
@@ -115,6 +116,7 @@ async function boot(): Promise<void> {
   loadMissileSprites().catch(() => undefined);
   loadShellSprites().catch(() => undefined);
   loadBulletSprites().catch(() => undefined);
+  const pictures = loadPictureArts();
 
   // Music starts on the faction picker: browsers only allow audio after the first click or key press.
   const sound = new SoundSystem();
@@ -169,7 +171,7 @@ async function boot(): Promise<void> {
     byId('loading-text').textContent = t('Generating Earth…');
     loading.hidden = false;
     // Downloads fill the bar to 80%; the terrain bake (synchronous) takes it to 100%.
-    const steps = [earth, soldiers, aircraft, tanks, repairs, trucks]; // sidebar cameos and units draw from the GI sheet
+    const steps = [earth, soldiers, aircraft, tanks, repairs, trucks, pictures]; // sidebar cameos and units draw from the GI sheet
     let done = 0;
     setProgress(0);
     await Promise.all(steps.map((p) => p.then(() => setProgress((++done / steps.length) * 80))));

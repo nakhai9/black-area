@@ -76,9 +76,21 @@ export function facade(p: IsoPainter, face: Face, u: number, v: number, w: numbe
       const w1 = t0 + fh * 0.9;
       if (o.frame) p.faceRect(face, u, v, w, d, z, h, s0 - cw * 0.06, s1 + cw * 0.06, w0 - fh * 0.06, w1 + fh * 0.04, o.frame);
       const lit = rnd(seed, f, c + (face === 'left' ? 0 : 97)) < (o.lit ?? 0.05);
-      p.faceRect(face, u, v, w, d, z, h, s0, s1, w0, w1, lit ? RA2.glassLit : glass);
+      const pane = lit ? RA2.glassLit : glass;
+      p.faceRect(face, u, v, w, d, z, h, s0, s1, w0, w1, pane);
       // Upper-pane sky reflection.
-      p.faceRect(face, u, v, w, d, z, h, s0, s1, w1 - (w1 - w0) * 0.3, w1, shade(lit ? RA2.glassLit : glass, 1.35));
+      p.faceRect(face, u, v, w, d, z, h, s0, s1, w1 - (w1 - w0) * 0.3, w1, shade(pane, 1.35));
+      // Depth: the reveal casts a shadow over the top and one side of the pane; a mullion and transom split it.
+      p.faceRect(face, u, v, w, d, z, h, s0, s1, w1 - (w1 - w0) * 0.1, w1, shade(pane, 0.55));
+      p.faceRect(face, u, v, w, d, z, h, s0, s0 + (s1 - s0) * 0.1, w0, w1, shade(pane, 0.7));
+      const bar = o.frame ?? shade(pane, 1.6);
+      p.faceRect(face, u, v, w, d, z, h, (s0 + s1) / 2 - cw * 0.025, (s0 + s1) / 2 + cw * 0.025, w0, w1, bar);
+      p.faceRect(face, u, v, w, d, z, h, s0, s1, w0 + (w1 - w0) * 0.62, w0 + (w1 - w0) * 0.67, bar);
+      // Stone sill below (pale, catches the light) and a lintel above (with a thin shadow line under it).
+      p.faceRect(face, u, v, w, d, z, h, s0 - cw * 0.1, s1 + cw * 0.1, w0 - fh * 0.08, w0 - fh * 0.03, 'rgba(255,250,236,0.55)');
+      p.faceRect(face, u, v, w, d, z, h, s0 - cw * 0.08, s1 + cw * 0.08, w1 + fh * 0.03, w1 + fh * 0.08, 'rgba(240,234,218,0.45)');
+      // Weathering: a faint grime run from the sill down the wall below some windows.
+      if (rnd(seed, f, c + 311) < 0.35) p.faceRect(face, u, v, w, d, z, h, s0 + (s1 - s0) * 0.3, s0 + (s1 - s0) * 0.45, Math.max(t0, w0 - fh * 0.45), w0 - fh * 0.08, 'rgba(40,36,30,0.16)');
     }
   }
 }

@@ -17,9 +17,10 @@ import { Vehicle } from '../entities/Vehicle';
 import { WarFactory } from '../entities/WarFactory';
 import { WorldBank } from '../entities/WorldBank';
 import { Pyramids } from '../entities/Pyramids';
+import { Monument } from '../entities/Monument';
 import { Bridge } from '../entities/Bridge';
 import { NationCapital, type NationId } from '../entities/NationCapital';
-import { CELL_SIZE, VEHICLE_BASE } from '../constants';
+import { CELL_SIZE, VEHICLE_BASE , type MonumentId } from '../constants';
 import { geoToWorld } from '../map/Geo';
 import { FACTIONS } from '../factions';
 import { BUILD_OPTIONS } from '../systems/ConstructionSystem';
@@ -40,6 +41,7 @@ const ENTITY_CLASSES: Readonly<Record<string, abstract new (...args: never[]) =>
   Capital,
   WorldBank,
   Pyramids,
+  Monument,
   Bridge,
   NationCapital,
   Barracks,
@@ -68,6 +70,7 @@ const TEMPLATES: Readonly<Record<string, (d: Record<string, unknown>, at: WorldP
   Capital: (d, at) => new Capital(FACTIONS[d.faction as FactionId], d.owner as number, at),
   WorldBank: (_d, at) => new WorldBank(at),
   Pyramids: (_d, at) => new Pyramids(at),
+  Monument: (d, at) => new Monument(d.monument as MonumentId, at),
   NationCapital: (d, at) => new NationCapital(d.nation as NationId, at),
   // A leased-out derrick is built as its leasing nation's (its protection follows that nation); the saved fields then hand it to the lessee.
   OilDerrick: (d, at) =>

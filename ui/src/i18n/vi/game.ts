@@ -123,6 +123,7 @@ export default {
   'Production cancelled.': 'Đã hủy sản xuất.',
   '{name} has landed beside the airfield.': '{name} đã hạ cánh cạnh sân bay.',
   '{name} parked on the airfield.': '{name} đã đỗ tại sân bay.',
+  '{name} launched with {n} fighters aboard.': '{name} đã hạ thủy, mang theo {n} máy bay chiến đấu.',
   '{name} ready.': '{name} sẵn sàng.',
   'Training {name} — {cost} {currency}': 'Đang huấn luyện {name} — {cost} {currency}',
   'Second-tier soldiers need a {name}.': 'Lính cấp hai cần có {name}.',

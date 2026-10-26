@@ -28,10 +28,12 @@ export class TaxSystem implements GameSystem {
     for (const b of this.entities.buildings()) {
       if (!(b instanceof NationCapital) || !b.alive) continue;
       const holder = this.players.find((p) => p.id === b.owner);
+      b.mend(dt);
       if (!holder || holder.defeated) continue;
       b.presenceClock -= dt;
       while (b.presenceClock <= 0) {
         b.presenceClock += NATION_PRESENCE_PERIOD;
+        if (b.down) continue; // knocked down: no fee until it is whole again
         this.bank.receive(holder, presenceFee(b.nation));
         this.onPresence(holder, b);
       }

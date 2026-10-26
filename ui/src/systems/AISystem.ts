@@ -721,7 +721,7 @@ export class AISystem implements GameSystem {
       const site = st.claimSite;
       const cx = Math.floor(u.px / CELL_SIZE);
       const cy = Math.floor(u.py / CELL_SIZE);
-      if (!u.airlifted && site && (u.swims || this.host.pathfinder.sameLandmass(cx, cy, site.x, site.y))) {
+      if (!u.airlifted && site && (u.swims ? this.host.pathfinder.sameSwimArea(cx, cy, site.x, site.y) : this.host.pathfinder.sameLandmass(cx, cy, site.x, site.y))) {
         if (u.moving || u.boardTarget !== null) continue;
         if (Math.hypot(site.x - cx, site.y - cy) <= 2 && this.host.plantFlag(u) === null) {
           st.claimSite = null;
@@ -992,7 +992,7 @@ export class AISystem implements GameSystem {
     let target: Building | null = null;
     let best = Infinity;
     for (const b of entities.buildings()) {
-      if (!b.alive || b.indestructible || b.owner === p.id || b.owner === NEUTRAL_OWNER || (rival !== null && b.owner !== rival)) continue;
+      if (!b.alive || (b.indestructible || (b instanceof NationCapital && b.down)) || b.owner === p.id || b.owner === NEUTRAL_OWNER || (rival !== null && b.owner !== rival)) continue;
       const d = Math.hypot(b.x - cx, b.y - cy);
       if (d < best) {
         best = d;
@@ -1368,7 +1368,7 @@ export class AISystem implements GameSystem {
     const enemy = (owner: number): boolean => owner !== p.id && owner !== NEUTRAL_OWNER;
     const cands: { e: Entity; owner: number; tier: number; size: number; dist: number }[] = [];
     for (const b of this.host.entities.buildings()) {
-      if (!b.alive || !enemy(b.owner) || b.indestructible || b.spec.type === 'oilDerrick' || this.host.isShielded(b) || !isHostile(first, b)) continue;
+      if (!b.alive || !enemy(b.owner) || (b.indestructible || (b instanceof NationCapital && b.down)) || b.spec.type === 'oilDerrick' || this.host.isShielded(b) || !isHostile(first, b)) continue;
       const c = b.centerWorld();
       cands.push({ e: b, owner: b.owner, tier: DRONE_BUILDING_TIER[b.spec.type] ?? DRONE_TIER_CIVIL, size: 1, dist: Math.hypot(c.x - home.x, c.y - home.y) });
     }
@@ -1724,7 +1724,7 @@ export class AISystem implements GameSystem {
       const spot = { x: centre.x, y: centre.y + CELL_SIZE * 4 };
       const cell = pf.nearestPassable(c.x + Math.floor(c.w / 2), c.y + c.d, 10);
       if (!cell) continue;
-      const reaches = (u: Unit): boolean => !u.aircraft && (u.swims || pf.sameLandmass(Math.floor(u.px / CELL_SIZE), Math.floor(u.py / CELL_SIZE), cell.x, cell.y));
+      const reaches = (u: Unit): boolean => !u.aircraft && (u.swims ? pf.sameSwimArea(Math.floor(u.px / CELL_SIZE), Math.floor(u.py / CELL_SIZE), cell.x, cell.y) : pf.sameLandmass(Math.floor(u.px / CELL_SIZE), Math.floor(u.py / CELL_SIZE), cell.x, cell.y));
       const dist = (u: Unit): number => Math.hypot(u.px - centre.x, u.py - centre.y);
       const kept = [...(st.nationGuard.get(c.id) ?? [])].map((id) => byId.get(id)).filter((u): u is Unit => u !== undefined && !busy.has(u.id) && reaches(u));
       if (kept.length < NATION_GARRISON) {
@@ -1912,7 +1912,7 @@ export class AISystem implements GameSystem {
     const goal = target.centerWorld();
     const cell = this.host.pathfinder.nearestPassable(Math.floor(goal.x / CELL_SIZE), Math.floor((goal.y + 10) / CELL_SIZE), 10);
     let going = idle.filter(
-      (u) => u.aircraft || u.swims || (cell !== null && this.host.pathfinder.sameLandmass(Math.floor(u.px / CELL_SIZE), Math.floor(u.py / CELL_SIZE), cell.x, cell.y)),
+      (u) => u.aircraft || (cell !== null && (u.swims ? this.host.pathfinder.sameSwimArea(Math.floor(u.px / CELL_SIZE), Math.floor(u.py / CELL_SIZE), cell.x, cell.y) : this.host.pathfinder.sameLandmass(Math.floor(u.px / CELL_SIZE), Math.floor(u.py / CELL_SIZE), cell.x, cell.y))),
     );
     // Squad rule (same as the player's): kinds still too few gather at a staging point toward the target and set off
     // together once there are enough of them — a blitz from wherever the staging point is.
@@ -1923,6 +1923,9 @@ export class AISystem implements GameSystem {
     else if (short.length === 0) st.stage = null;
     // The nation's AWACS flies over the group (its radar lets them spot enemies farther).
     this.coverWithAwacs(p, going.length > 0 ? going : waiting);
+    // Its aircraft carriers sail toward the target (the nearest sea to it), bringing their fighters within reach.
+    const ships = this.host.entities.fieldMovers().filter((u): u is Vehicle => u instanceof Vehicle && u.isAircraftCarrier && u.owner === p.id && u.alive && !u.moving);
+    if (ships.length > 0) this.host.orderMoveUnits(ships, goal);
     // Far away: soldiers who would have to rest on the march ride the nation's trucks to the front instead.
     going = this.motorize(p, st, going, { x: goal.x, y: goal.y + CELL_SIZE * 3 });
     if (going.length > 0) this.host.orderAttackMove(going, { x: goal.x, y: goal.y + CELL_SIZE * 3 });
@@ -2105,8 +2108,11 @@ export class AISystem implements GameSystem {
     const target = this.pickTarget(p, capital.centerWorld());
     if (!target) return;
     const goal = target.centerWorld();
-    // Squad rule: special forces swimming over go only five or more at a time.
-    const crossers = squadFilter(army.filter((u) => (u.aircraft || u.swims) && !u.retreating && !this.resting(st, u))).going;
+    // Squad rule: special forces swimming over go only five or more at a time — and only where they can swim to (within
+    // SWIM_MAX_CELLS of the shore all the way, never across open sea).
+    const gc = { x: Math.floor(goal.x / CELL_SIZE), y: Math.floor(goal.y / CELL_SIZE) };
+    const swimTo = (u: Unit): boolean => u.swims && this.host.pathfinder.sameSwimArea(Math.floor(u.px / CELL_SIZE), Math.floor(u.py / CELL_SIZE), gc.x, gc.y);
+    const crossers = squadFilter(army.filter((u) => (u.aircraft || swimTo(u)) && !u.retreating && !this.resting(st, u))).going;
     const loaded = this.homeTransports(p).filter((t) => t.cargo.length > 0 && !this.carriesSquatters(t) && !t.cargo.some((c) => c.id === st.nationEngineer));
     const boarding = this.host.entities.fieldMovers().some((u) => u.owner === p.id && u.boardTarget !== null);
     const force = crossers.length + loaded.reduce((s, t) => s + t.cargo.length, 0);
@@ -2172,7 +2178,7 @@ export class AISystem implements GameSystem {
   private enemyStructures(p: PlayerState): Building[] {
     return this.host.entities
       .buildings()
-      .filter((b) => b.alive && b.owner !== p.id && b.owner !== NEUTRAL_OWNER && !b.indestructible && !this.host.isShielded(b));
+      .filter((b) => b.alive && b.owner !== p.id && b.owner !== NEUTRAL_OWNER && !b.indestructible && !(b instanceof NationCapital && b.down) && !this.host.isShielded(b));
   }
 
   /** Army units near an enemy structure (and not busy) get an explicit order to destroy the most valuable one in reach. */

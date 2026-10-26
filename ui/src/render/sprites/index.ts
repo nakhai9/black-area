@@ -20,6 +20,7 @@ import { createGrandMosqueArt } from './GrandMosque';
 import { createWashingtonWhiteHouseArt } from './WashingtonWhiteHouse';
 import { WorldBankArt } from './WorldBank';
 import { PyramidsArt } from './Pyramids';
+import { MONUMENT_ARTS } from './Monuments';
 import { createNationCapitalArt } from './NationCapital';
 import type { ContestedNationId } from '../../constants';
 import { FACTIONS } from '../../factions';
@@ -34,6 +35,7 @@ export const BUILDING_ART: Readonly<Record<string, BuildingArt>> = {
   'capital:islamic': createGrandMosqueArt(),
   'bank:world': WorldBankArt,
   'monument:giza': PyramidsArt,
+  ...MONUMENT_ARTS,
   // Capitals of the contested independent nations (neutral until an engineer takes one).
   'nation:northKorea': createNationCapitalArt('northKorea'),
   'nation:southKorea': createNationCapitalArt('southKorea'),
@@ -43,6 +45,7 @@ export const BUILDING_ART: Readonly<Record<string, BuildingArt>> = {
   'nation:unitedKingdom': createNationCapitalArt('unitedKingdom'),
   'nation:canada': createNationCapitalArt('canada'),
   'nation:cuba': createNationCapitalArt('cuba'),
+  'nation:belarus': createNationCapitalArt('belarus'),
   // Oil derricks in each nation's team colour.
   'oil:usa': createOilDerrickArt(FACTIONS.usa.colors),
   'oil:russia': createOilDerrickArt(FACTIONS.russia.colors),

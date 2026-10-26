@@ -5,6 +5,7 @@ import { shade } from '../Color';
 import { drawFlagOnPole, drawNationalPole } from '../Flags';
 import { type IsoPainter, LIGHT, type Vec3 } from '../IsoPainter';
 import type { BuildingArt } from './BuildingArt';
+import { pictureArt } from './PictureArt';
 import { iwan } from './GrandMosque';
 import { RA2, facade, parapet } from './Ra2Kit';
 
@@ -599,9 +600,21 @@ const FLAGS: Record<FactionId, FlagSpot> = {
  * headquarters (Europe) and a mud-brick desert fortress (Islamic). The national flag flies on the roof of each; every design fills its plot.
  */
 /** `flagOf`: the nation whose flag flies (its owner after a capture; the design stays `faction`'s). */
+/** Europe's Ministry of Defence, built and rendered in Blender (tools/blender/building_render.py barracks-europe). */
+const EUROPE_PICTURE = { file: 'building-barracks-europe', originX: 100, originY: 70.33, scale: 3, footprint: { w: W, d: D }, zScale: 1.35 };
+/** Its flag flies from the roof of the front pavilion (art units; z already divided by the cache's height scale). */
+const EUROPE_FLAG = { u: 4.75, v: 1.5, z: 46, h: 14 };
+
 export function createBarracksArt(faction: FactionId, flagOf: FactionId = faction): BuildingArt {
   const team = FACTIONS[faction].colors;
   const flag = FLAGS[faction];
+  if (faction === 'europe') {
+    const f = EUROPE_FLAG;
+    return pictureArt(EUROPE_PICTURE, {
+      overlay: (p) => drawNationalPole(p, faction, f.u, f.v, f.z, f.h),
+      drawAnimated: (p, time) => drawFlagOnPole(p, flagOf, f.u, f.v, f.z + f.h, time, 0.6, 16, 10),
+    });
+  }
 
   return {
     // 5 × 3 plot (FOOTPRINT_BARRACKS), the Pentagon 4 × 4: every design fills its plot edge to edge, symmetric.

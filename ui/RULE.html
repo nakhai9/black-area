@@ -26,7 +26,7 @@
 <body>
 <main>
 <img class="logo" src="/logo.png" alt="Black Area" />
-<h1>Black Area — RULE <small>v2.77.3</small></h1>
+<h1>Black Area — RULE <small>v2.83.0</small></h1>
 <p class="lead">Tài liệu luật chơi + kiến trúc code dành cho AI/dev sửa game. Mọi con số gameplay chính xác nằm trong <code>src/constants.ts</code> và <code>src/factions/*.ts</code>. Nếu tài liệu này khác code thì <b>code đúng</b>. <b>Khi đổi luật/số trong code, phải cập nhật file này.</b></p>
 <nav><a href="#s1">Quy tắc làm việc cho AI</a><a href="#s2">Chạy dự án</a><a href="#s3">Kiến trúc thư mục</a><a href="#s4">Thế giới</a><a href="#s5">Kinh tế (dầu)</a><a href="#s6">Công trình (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Quân đội</a><a href="#s8">Chiến đấu</a><a href="#s9">Điều khiển (Game.handleKey, handleInput)</a><a href="#s10">Giới hạn &amp; hiệu năng</a><a href="#s11">Thắng / thua &amp; AI</a><a href="#s12">Công thức sửa thường gặp</a></nav>
 <h2 id="s1">0. Quy tắc làm việc cho AI</h2>
@@ -358,7 +358,7 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 </ul>
 <h3>Hành quân bộ binh (mệt mỏi)</h3>
 <ul>
-  <li>Đặc nhiệm (<code>special</code>): bơi được nhưng không ra xa đất liền quá <code>SWIM_MAX_CELLS = 5</code> ô. Gặp lính địch thì bắn; gặp phương tiện địch trên mặt đất (không bắn) thì chạy tới đặt bom, bom nổ sau <code>4</code> s phá hủy luôn phương tiện đó (chỉ phương tiện đó). Hồi đặt bom tiếp <code>5</code> s. Áp dụng cho cả AI.</li>
+  <li>Đặc nhiệm (<code>special</code>): bơi được nhưng không ra xa đất liền quá <code>SWIM_MAX_CELLS = 10</code> ô (không vượt biển khơi, không bơi qua sông lớn). Gặp lính địch thì bắn; gặp phương tiện địch trên mặt đất (không bắn) thì chạy tới đặt bom, bom nổ sau <code>4</code> s phá hủy luôn phương tiện đó (chỉ phương tiện đó). Hồi đặt bom tiếp <code>5</code> s. Áp dụng cho cả AI.</li>
   <li>Mọi lính trừ đặc nhiệm (<code>special</code>): đi bộ được <code>INFANTRY_MARCH_CELLS = 52 × GROUND_SPEED_SCALE ≈ 68</code> ô đơn vị thì dừng tại chỗ nghỉ <code>INFANTRY_REST_SECONDS = 35</code> s (hiện "Resting Ns" trên đầu), giữ nguyên lệnh rồi đi tiếp — kể cả khi đang đi đánh. Đứng yên <code>INFANTRY_RECOVER_SECONDS = 10</code> s cũng tính là đã nghỉ. Ngồi xe tải / máy bay vận tải không mệt.</li>
   <li>Máy bay mang bom (B-1A Lancer, Tu-160, tiêm kích) bay chậm hơn khi còn bom: đầy bom chậm <code>BOMB_LOAD_SLOWDOWN = 20%</code>, ném dần thì nhanh dần, hết bom bay đủ tốc độ.</li>
   <li>Nhiều Barracks / War Factory / Airfield: double-click vào công trình nào thì lính / xe / máy bay mới ra ở công trình đó.</li>
@@ -697,6 +697,15 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
   <li>v2.59.1: Tab Phương tiện dùng biểu tượng xe tăng thay cho xe tải.</li>
   <li>v2.59.2: Tab Chỉ huy đổi tên thành Chính phủ (Government), biểu tượng toà nhà chính phủ.</li>
   <li>v2.60.0: Thêm hình <b>Tháp Radar</b> (nền 2 × 2) cho mỗi phe, ăng-ten xoay đủ 360°: Mỹ — chảo parabol trên tháp côn trắng; Nga — tấm ra-đa mảng pha trên cột thép giàn; Trung Quốc — chảo Cassegrain trên tháp bát giác; châu Âu — gương phản xạ "vỏ cam" trên tháp tròn; thế giới Hồi giáo — chảo lưới viền vàng trên tháp bát giác có vòm nhọn. Mới chỉ có hình (xem ở <code>?view=buildings</code>), chưa bán / chưa xây được trong trận.</li>
+  <li>v2.83.0: Toàn bộ lính của cả 5 phe được dựng lại bằng Blender (người có khung xương, quân phục ngụy trang thật từng phe, mũ, áo giáp, túi đạn, súng riêng): lính thường, đặc nhiệm (có bơi), công binh, Crazy Soldier, đội cắm cờ (cờ thật từng phe). Ảnh độ phân giải gấp đôi nên không còn mờ khi phóng to.</li>
+  <li>v2.82.0: Thử nghiệm công trình dựng và render bằng Blender: Bộ Quốc phòng châu Âu thành dinh thự đá kiểu Paris quanh sân trong, mái mansard đá phiến, cửa sổ có khung và bậu, ống khói, vật liệu phong hóa. Tượng Nữ thần Tự do và Lăng Lenin giờ được vẽ vào hình tĩnh (có hình ở mọi chỗ xem trước), vẫn không đổ bóng.</li>
+  <li>v2.81.0: Công trình trông như vật liệu thật, chịu nắng mưa: vệt ố loang lổ (ẩm, bụi), vệt nước mưa chảy dọc tường, bám bẩn ở chân tường, mép mái bắt sáng trời; cửa sổ có chiều sâu (bóng ô cửa, song chia ô, bậu và lanh tô đá, vệt bẩn dưới bậu).</li>
+  <li>v2.80.1: Tượng Nữ thần Tự do và Lăng Lenin không còn khối đen phía sau và không đổ bóng.</li>
+  <li>v2.80.0: Thêm hai công trình biểu tượng (dựng từ mô hình 3D): Lăng Lenin đối diện thủ đô Nga, cách 5 ô; Tượng Nữ thần Tự do ở New York. Chỉ là biểu tượng: không bị tấn công, phá hủy hay chiếm đóng.</li>
+  <li>v2.79.1: Lính đặc nhiệm chỉ bơi trong vùng nước cách bờ tối đa 10 ô (người chơi và AI): không còn bơi tự do vượt biển; ra lệnh tới nơi ngoài tầm bơi thì không đi, AI không gửi đặc nhiệm bơi vượt biển nữa.</li>
+  <li>v2.79.0: Mỹ, châu Âu, Trung Quốc mỗi phe có 3 tàu sân bay lúc đầu, mỗi tàu mang sẵn 4 máy bay chiến đấu. Mua thêm tàu sân bay ở Nhà máy chiến xa (9000): hạ thủy ở vùng biển gần nhất, tặng kèm 4 máy bay trên boong; tàu không tính vào giới hạn xe mặt đất. Máy bay cất cánh từ tàu để tấn công, về tàu nạp bom và sửa chữa; tàu và máy bay trên boong vẫn bị tấn công như ở sân bay. AI cho tàu sân bay đi theo hướng tấn công. Thêm quốc gia độc lập Belarus (thủ đô Minsk, Palace of Independence) để chiếm.</li>
+  <li>v2.78.0: Thủ đô quốc gia bị chiếm (Hàn Quốc, Nhật, Úc, Brazil…) giờ bị địch tấn công được nhưng không bao giờ bị phá hủy: hết máu thì ngừng thu phí hiện diện quân sự cho đến khi tự hồi phục đầy máu (1% máu/giây, khoảng 100 giây). Thủ đô đã hết máu thì quân và AI không bắn tiếp.</li>
+  <li>v2.77.4: Xe phòng không (chỉ bắn máy bay) không còn được tính là lực lượng chiến đấu. Một phe mất thủ đô, mất hết nhà sản xuất và đơn vị chiến đấu cuối cùng thì bị tiêu diệt, mọi đơn vị còn lại (phòng không, xe tải, vận tải, tàu…) chết theo.</li>
   <li>v2.77.3: Công trình của phe khác chỉ hiện trong cửa hàng khi chiếm được thủ đô của phe đó. Chiếm Bộ Quốc phòng / Nhà máy chiến xa / Sân bay chỉ có thêm lính / xe / máy bay của phe đó, không có công trình.</li>
   <li>v2.77.2: Chiếm Bộ Quốc phòng / Nhà máy chiến xa / Sân bay của phe khác giờ có thêm toàn bộ lính / xe / máy bay của phe đó (kể cả loại mình đã có, ví dụ xe tăng của họ), có cờ phe đó trên ô mua.</li>
   <li>v2.77.1: Máy bay vận tải chỉ hạ cánh ở sân bay khi không chở gì (người chơi và AI); đang chở quân thì bay vòng tại chỗ chờ lệnh thả quân, ra lệnh về sân bay sẽ bị từ chối kèm thông báo.</li>

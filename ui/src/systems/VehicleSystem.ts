@@ -181,7 +181,7 @@ export class VehicleSystem implements GameSystem {
     // BuildLimit: only the orders waiting are limited, not the vehicles the nation owns.
     if (!AVAILABLE_VEHICLES.includes(kind) || q.items.length >= BUILD_LIMIT_VEHICLES) return 'full';
     if (needsAirfield(kind) && kind !== 'heli' && this.parkingFree(player) < (kind === 'transport' || kind === 'drone' ? 2 : 1)) return 'noParking';
-    if (!needsAirfield(kind) && this.groundCount(player) >= MAX_GROUND_VEHICLES) return 'cap';
+    if (!needsAirfield(kind) && kind !== 'carrier' && this.groundCount(player) >= MAX_GROUND_VEHICLES) return 'cap';
     if (kind === 'transport' && this.transportCount(player) >= MAX_TRANSPORTS) return 'transportCap';
     q.items.push(key);
     q.paidEach.push(0);
@@ -198,8 +198,10 @@ export class VehicleSystem implements GameSystem {
 
   /** Ground vehicles of the nation (alive anywhere, aboard transports too) plus those on order; airfield aircraft excluded. */
   groundCount(player: PlayerState): number {
-    let n = this.queue(player).items.filter((k) => !needsAirfield(splitKey(k).base)).length;
-    for (const v of this.entities.vehicles()) if (v.owner === player.id && v.alive && !needsAirfield(v.type)) n++;
+    // Aircraft carriers sail the sea: they never count against the ground fleet.
+    const ground = (k: VehicleKind): boolean => !needsAirfield(k) && k !== 'carrier';
+    let n = this.queue(player).items.filter((k) => ground(splitKey(k).base)).length;
+    for (const v of this.entities.vehicles()) if (v.owner === player.id && v.alive && ground(v.type)) n++;
     return n;
   }
 

@@ -180,7 +180,7 @@ export class SpriteCache {
     }
     // Sharp cast shadow on the ground (key light from the upper left): the silhouette above the ground line, sheared
     // to the lower right and laid under the building. Added after the hit mask, so the shadow is never clickable.
-    {
+    if (!art.noShadow) {
       const cy = centerY * RASTER_SCALE;
       const sil = createCanvas(canvas.width, canvas.height);
       sil.ctx.drawImage(canvas, 0, 0);

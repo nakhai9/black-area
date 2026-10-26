@@ -72,10 +72,12 @@ export default {
   '{burst} sales in a row, then a {cooldown} s pause — try again in {wait} s': '{burst} lần bán liên tiếp, sau đó nghỉ {cooldown} giây — thử lại sau {wait} giây',
   'not enough oil to offer ({reserve} barrels stay in reserve)': 'không đủ dầu để bán ({reserve} thùng được giữ dự trữ)',
   // Building descriptions
+  'Capital of {name}, an independent nation. An engineer takes it over; its holder earns a military presence fee every {minutes} minutes and may build next to it. Enemies can attack it but never destroy it: knocked down to no health, it pays no fee until it has mended itself back to full health.': 'Thủ đô của {name}, một quốc gia độc lập. Kỹ sư chiếm được; phe nắm giữ nhận phí hiện diện quân sự mỗi {minutes} phút và được xây cạnh đó. Địch có thể tấn công nhưng không phá hủy được: khi hết máu sẽ ngừng trả phí cho đến khi tự hồi phục đầy máu.',
   'Capital of {name}, an independent nation. Cannot be destroyed; an engineer takes it over. Its holder earns a military presence fee every {minutes} minutes and may build next to it.': 'Thủ đô của {name}, một quốc gia độc lập. Không thể phá hủy; công binh có thể chiếm. Bên nắm giữ nhận phí hiện diện quân sự mỗi {minutes} phút và được xây cạnh nó.',
   "Antarctic oil field: belongs to whoever took it last. It cannot be destroyed; any nation's engineer can take it over.": 'Mỏ dầu Nam Cực: thuộc về bên chiếm sau cùng. Không thể phá hủy; công binh của bất kỳ quốc gia nào cũng có thể chiếm.',
   'Managed by the Global Monitoring Center: its TB still goes to its nation, and it cannot be destroyed or captured.': 'Do Global Monitoring Center quản lý: TB vẫn về quốc gia sở hữu, và không thể bị phá hủy hay chiếm.',
   'Pumps oil for the nation to sell to the Global Monitoring Center. Pumps {mine} s, then rests {rest} s while the field recovers.': 'Bơm dầu cho quốc gia bán cho Global Monitoring Center. Bơm {mine} giây, rồi nghỉ {rest} giây để mỏ hồi phục.',
+  '{name}: a symbol only. Cannot be attacked, destroyed or occupied.': '{name}: chỉ là biểu tượng. Không thể bị tấn công, phá hủy hay chiếm đóng.',
   'The Pyramids of Giza: an ancient wonder. Cannot be destroyed or occupied.': 'Kim tự tháp Giza: kỳ quan cổ đại. Không thể phá hủy hay chiếm đóng.',
   'Neutral global finance hub shared by all nations. Cannot be destroyed or occupied.': 'Trung tâm tài chính toàn cầu trung lập, dùng chung cho mọi quốc gia. Không thể phá hủy hay chiếm đóng.',
   // Multiplayer lobby

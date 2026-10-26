@@ -27,7 +27,7 @@ export const DEMO_FACTION = Number(import.meta.env.VITE_DEMO_FACTION) || 2;
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "2.77.3";
+export const GAME_VERSION = "2.83.0";
 
 /** An Allied Building within this many cells of any capital is an embassy; farther out it is a "Pro-<nation> regime". */
 export const EMBASSY_CAPITAL_CELLS = 25;
@@ -156,6 +156,14 @@ export const SQUAD_MIN_TANKS = 6;
 export const BRIDGE_REACH_CELLS = 4;
 /** Pyramids of Giza (neutral monument). */
 export const FOOTPRINT_PYRAMIDS = { w: 6, d: 6 } as const;
+/** Symbol landmarks (Monument): Lenin's Mausoleum LENIN_MAUSOLEUM_GAP cells in front of Russia's capital, the Statue of Liberty on Liberty Island. */
+export type MonumentId = 'lenin' | 'liberty';
+export const MONUMENTS: Readonly<Record<MonumentId, { name: string; city: string; footprint: { readonly w: number; readonly d: number } }>> = {
+  lenin: { name: "Lenin's Mausoleum", city: 'Moscow', footprint: { w: 4, d: 3 } },
+  liberty: { name: 'Statue of Liberty', city: 'New York', footprint: { w: 2, d: 2 } },
+};
+export const LENIN_MAUSOLEUM_GAP = 5;
+export const STATUE_OF_LIBERTY_LOCATION = { lon: -74.04, lat: 40.69 };
 /** Flagpole: exactly one cell. */
 export const FOOTPRINT_FLAGPOLE = { w: 1, d: 1 } as const;
 /** Bunker: a small pillbox filling one cell. */
@@ -500,7 +508,7 @@ export const MOUNTAIN_LEDGE = 1;
 export const MOUNTAIN_PASS = 3;
 export const MOUNTAIN_CREST = 4;
 /** Special forces never swim farther than this many cells from land. */
-export const SWIM_MAX_CELLS = 5;
+export const SWIM_MAX_CELLS = 10;
 /** Leg-swing phase (radians) per world px walked: higher = shorter, quicker steps. */
 export const STEP_PHASE_PER_PX = 2.4;
 /** Minimum distance between two soldiers' feet (world px): they never overlap. */
@@ -623,8 +631,8 @@ export const AWACS_RADIUS_CELLS = 15;
  * everything else at the War Factory.
  */
 export const VEHICLE_BASE = {
-  /** Aircraft carrier: sea only, slow, very tough, unarmed, carries up to CARRIER_JETS fighters on its deck (AircraftSystem.onDeck). Not built: a fleet of CARRIER_FLEET starts near the capital. */
-  carrier: { cost: 0, trainSeconds: 0, maxHp: 4000, speed: 0.9, radius: 10 },
+  /** Aircraft carrier: sea only, slow, very tough, unarmed, carries up to CARRIER_JETS fighters on its deck (AircraftSystem.onDeck). A fleet of CARRIER_FLEET starts near the capital; more are bought at the War Factory (launched on the nearest open sea), each with CARRIER_JETS fighters parked aboard. */
+  carrier: { cost: 9000, trainSeconds: 45, maxHp: 4000, speed: 0.9, radius: 10 },
   light: { cost: 600, trainSeconds: 8, maxHp: 180, speed: 2.4, radius: 3.4 },
   tank: { cost: 1200, trainSeconds: 14, maxHp: 420, speed: 1.4, radius: 4.2 },
   ifv: { cost: 900, trainSeconds: 11, maxHp: 300, speed: 1.8, radius: 4.0 },
@@ -802,6 +810,7 @@ export const AVAILABLE_VEHICLES: readonly VehicleKind[] = [
   "heli",
   "bomber",
   "awacs",
+  "carrier",
   "transport",
   "repair",
   "truck",
@@ -946,9 +955,9 @@ export const NATION_STRENGTH: Readonly<
 };
 
 // ---------------------------------------------------------------- Landmarks (real coordinates)
-/** Nations with aircraft carriers, and how many start at sea near the capital (only moving for now). */
+/** Nations with aircraft carriers, and how many start at sea near the capital (each with CARRIER_JETS fighters aboard). */
 export const CARRIER_NATIONS: readonly FactionId[] = ["usa", "europe", "china"];
-export const CARRIER_FLEET = 2;
+export const CARRIER_FLEET = 3;
 /** Fighters a carrier can carry on its deck. */
 export const CARRIER_JETS = 4;
 export const CAPITAL_LOCATIONS: Readonly<Record<FactionId, NamedSite>> = {
@@ -977,7 +986,8 @@ export type ContestedNationId =
   | "brazil"
   | "unitedKingdom"
   | "canada"
-  | "cuba";
+  | "cuba"
+  | "belarus";
 export interface ContestedNation {
   name: string;
   /** Name of the capital building shown in game. */
@@ -1029,7 +1039,13 @@ export const CONTESTED_NATIONS: Readonly<
     name: "Cuba",
     capital: "El Capitolio",
     site: { lon: -82.36, lat: 23.13, name: "Havana" },
+  },  // Belarus: Russia's western neighbour and ally, an independent nation of its own.
+  belarus: {
+    name: "Belarus",
+    capital: "Palace of Independence",
+    site: { lon: 27.56, lat: 53.9, name: "Minsk" },
   },
+
 };
 /** Presence fee of an occupied capital with no entry in NATION_PRESENCE_FEES (an unplayed faction's capital). */
 export const NATION_PRESENCE_FEE = 1200;
@@ -1049,6 +1065,7 @@ export const NATION_PRESENCE_FEES: Readonly<Record<ContestedNationId, number>> =
     southKorea: 1110,
     cuba: 560,
     northKorea: 320,
+    belarus: 520,
   };
 export function presenceFee(nation: string): number {
   return (
@@ -1069,6 +1086,9 @@ export const ANTARCTIC_OIL_SITES: readonly GeoPoint[] = [
   { lon: 136, lat: -75 },
 ];
 export const NATION_PRESENCE_PERIOD = 120;
+/** Contested nation capital: never destroyed — its health stops at this floor (it is then down: no presence fee) and mends by this share of max health per second (full in about 100 s). */
+export const NATION_CAPITAL_FLOOR_HP = 0.5;
+export const NATION_CAPITAL_REGEN = 0.01;
 /** Soldiers / vehicles an AI keeps stationed at each contested capital it holds, and how near (cells) counts as there. */
 export const NATION_GARRISON = 6;
 export const NATION_GARRISON_CELLS = 10;

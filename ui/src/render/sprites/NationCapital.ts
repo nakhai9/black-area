@@ -11,6 +11,27 @@ const FLAG_H = 36;
 
 /** National flags of the contested nations (simplified). */
 const FLAG_PAINTERS: Record<ContestedNationId, (ctx: CanvasRenderingContext2D, w: number, h: number) => void> = {
+  belarus(ctx, w, h) {
+    // Red over green (2 : 1), a red-on-white ornament band at the hoist.
+    ctx.fillStyle = '#c8313e';
+    ctx.fillRect(0, 0, w, h * 2 / 3);
+    ctx.fillStyle = '#4aa657';
+    ctx.fillRect(0, h * 2 / 3, w, h / 3);
+    const band = w * 0.11;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, band, h);
+    ctx.fillStyle = '#c8313e';
+    for (let k = 0; k < 6; k++) {
+      const cy = (k + 0.5) * (h / 6);
+      ctx.beginPath();
+      ctx.moveTo(band / 2, cy - h / 14);
+      ctx.lineTo(band * 0.85, cy);
+      ctx.lineTo(band / 2, cy + h / 14);
+      ctx.lineTo(band * 0.15, cy);
+      ctx.closePath();
+      ctx.fill();
+    }
+  },
   northKorea(ctx, w, h) {
     ctx.fillStyle = '#024fa2';
     ctx.fillRect(0, 0, w, h);
@@ -169,6 +190,25 @@ const ART_D = 2.4;
 
 /** Each nation's seat of government, authored in 4 × 2.4 art units; the building fills the plot. */
 const PALACES: Record<ContestedNationId, { height: number; draw: (p: IsoPainter) => void }> = {
+  // Palace of Independence, Minsk: a long pale stone block behind a tall colonnade, a raised central hall and a
+  // wide stair up to it.
+  belarus: {
+    height: 60,
+    draw: (p) => {
+      const STONE = '#e6e1d6';
+      p.box(0.3, 0.1, 3.4, 2.2, 3, 4, '#b8b2a4', { top: '#cfc9bb' });
+      p.box(0.45, 0.3, 3.1, 1.6, 7, 20, STONE, { top: RA2.roof });
+      facade(p, 'left', 0.45, 0.3, 3.1, 1.6, 7, 20, { cols: 16, floors: 3, frame: '#f4f1ea', bandColor: '#cdc7b9', seed: 211 });
+      facade(p, 'right', 0.45, 0.3, 3.1, 1.6, 7, 20, { cols: 9, floors: 3, frame: '#f4f1ea', bandColor: '#bfb9ab', seed: 212 });
+      parapet(p, 0.45, 0.3, 3.1, 1.6, 27, '#d6d0c2', 0.06, 2);
+      // Raised central hall with its tall portico.
+      p.box(1.2, 0.6, 1.6, 1.1, 27, 9, STONE, { top: '#9aa0a4' });
+      p.colonnade('left', 1.1, 1.75, 1.8, 0.4, 7, 22, 8, '#f7f5ef', '#5c6266');
+      p.box(1.05, 1.7, 1.9, 0.5, 29, 2.2, '#f2efe8');
+      // Front stair.
+      p.box(1.2, 2.15, 1.6, 0.2, 3, 2.5, '#c4bead');
+    },
+  },
   // Kumsusan-style palace: long grey-white hall with a central portal, red banners.
   northKorea: {
     height: 64,

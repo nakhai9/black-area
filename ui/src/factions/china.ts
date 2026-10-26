@@ -86,7 +86,7 @@ export const CHINA: FactionConfig = {
     },
   },
   vehicles: {
-    carrier: { name: "Type 004", description: t("Type 004 nuclear aircraft carrier: sails the open sea only. Carries up to 4 fighters on its deck (right-click it with fighters selected); they sink with it.") },
+    carrier: { name: "Type 004", description: t("Type 004 nuclear aircraft carrier: sails the open sea only. Carries up to 4 fighters on its deck (right-click it with fighters selected); they sink with it. Bought at the War Factory, it is launched on the nearest open sea with 4 fighters aboard; they take off from it to attack and are rearmed and repaired on its deck.") },
     light: {
       name: "Dongfeng Scout",
       description: t("Chinese light reconnaissance vehicle."),

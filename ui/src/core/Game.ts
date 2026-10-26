@@ -93,6 +93,9 @@ import {
   FOOTPRINT_BRIDGE,
   BRIDGE_DEPLOY_CELLS,
   BRIDGE_REACH_CELLS,
+  MONUMENTS,
+  STATUE_OF_LIBERTY_LOCATION,
+  LENIN_MAUSOLEUM_GAP,
   AWACS_RADIUS_CELLS,
   SQUAD_MIN_REGULAR,
   SQUAD_MIN_SPECIAL,
@@ -136,6 +139,7 @@ import { Vehicle } from '../entities/Vehicle';
 import { OilDerrick } from '../entities/OilDerrick';
 import { WorldBank } from '../entities/WorldBank';
 import { Pyramids } from '../entities/Pyramids';
+import { Monument } from '../entities/Monument';
 import { FACTIONS } from '../factions';
 import { computeBiomes } from '../map/Biomes';
 import { type EarthData, loadEarthData } from '../map/EarthData';
@@ -547,6 +551,14 @@ export class Game {
     buildWorld(earth, biomes, this.map);
     const trees = new TreeLayer(this.map, biomes, MAP_SEED);
     this.placeOnGrid(this.entities.buildings(), trees);
+    // Lenin's Mausoleum faces Russia's capital, LENIN_MAUSOLEUM_GAP cells in front of it (a symbol only).
+    const kremlin = this.landmarks.find((b) => b.spec.spriteKey === 'capital:russia' || (b instanceof NationCapital && b.nation === 'russia'));
+    if (kremlin) {
+      const at = { x: (kremlin.x + kremlin.w / 2) * CELL_SIZE, y: (kremlin.y + kremlin.d + LENIN_MAUSOLEUM_GAP + MONUMENTS.lenin.footprint.d / 2) * CELL_SIZE };
+      this.placeOnGrid([this.entities.add(new Monument('lenin', at))], trees);
+    }
+    // The Statue of Liberty in New York harbour (on the nearest dry ground if the island is not on the map).
+    this.placeOnGrid([this.entities.add(new Monument('liberty', geoToWorld(STATUE_OF_LIBERTY_LOCATION)))], trees);
     this.placeOilRows(trees);
     this.placeAntarcticOil(trees);
     this.terrain = new TerrainRenderer(earth, this.map, biomes, trees, MAP_SEED);
@@ -572,8 +584,10 @@ export class Game {
       const bx = Math.floor(x1 / CELL_SIZE);
       const by = Math.floor(y1 / CELL_SIZE);
       if (ax === bx && ay === by) return false;
-      const wet = !_u.swims && !_u.naval && !_u.flies;
-      const solid = (x: number, y: number): boolean => this.map.occupantAt(x, y) !== null || (wet && this.map.isOpenWater(x, y));
+      // Swimmers (special forces) may enter water only within SWIM_MAX_CELLS of the shore.
+      const wet = !_u.naval && !_u.flies;
+      const solid = (x: number, y: number): boolean =>
+        this.map.occupantAt(x, y) !== null || (wet && this.map.isOpenWater(x, y) && !(_u.swims && this.pathfinder.swimmable()[this.map.index(x, y)] === 1));
       // Already standing on a structure cell (just out of a structure, a block raised under it): it may walk off it.
       if (solid(ax, ay)) return false;
       if (solid(bx, by)) return true;
@@ -1790,7 +1804,7 @@ export class Game {
     const cell = this.pathfinder.nearestPassable(goal.x, goal.y, 10);
     if (!cell) return [];
     return units.filter(
-      (u) => !u.aircraft && !u.flies && !u.swims && !this.pathfinder.sameLandmass(Math.floor(u.px / CELL_SIZE), Math.floor(u.py / CELL_SIZE), cell.x, cell.y),
+      (u) => !u.aircraft && !u.flies && !(u.swims ? this.pathfinder.sameSwimArea(Math.floor(u.px / CELL_SIZE), Math.floor(u.py / CELL_SIZE), cell.x, cell.y) : this.pathfinder.sameLandmass(Math.floor(u.px / CELL_SIZE), Math.floor(u.py / CELL_SIZE), cell.x, cell.y)),
     );
   }
 
@@ -1901,7 +1915,7 @@ export class Game {
       if (!cell) return;
       const goal = this.pathfinder.nearestPassable(cell.x, cell.y, 14, undefined, u.mobility);
       // A walker cannot reach another landmass: skip the A* search (it would scan the whole map and find nothing).
-      if (goal && !u.swims && !this.pathfinder.sameLandmass(Math.floor(u.px / CELL_SIZE), Math.floor(u.py / CELL_SIZE), goal.x, goal.y)) {
+      if (goal && !(u.swims ? this.pathfinder.sameSwimArea(Math.floor(u.px / CELL_SIZE), Math.floor(u.py / CELL_SIZE), goal.x, goal.y) : this.pathfinder.sameLandmass(Math.floor(u.px / CELL_SIZE), Math.floor(u.py / CELL_SIZE), goal.x, goal.y))) {
         u.attackMove = null;
         return;
       }
@@ -2229,7 +2243,7 @@ export class Game {
         continue;
       }
       const cell = this.pathfinder.nearestPassable(here.x, here.y, 16, undefined, u.mobility);
-      if (!cell || (!u.swims && !this.pathfinder.sameLandmass(Math.floor(u.px / CELL_SIZE), Math.floor(u.py / CELL_SIZE), cell.x, cell.y))) {
+      if (!cell || !(u.swims ? this.pathfinder.sameSwimArea(Math.floor(u.px / CELL_SIZE), Math.floor(u.py / CELL_SIZE), cell.x, cell.y) : this.pathfinder.sameLandmass(Math.floor(u.px / CELL_SIZE), Math.floor(u.py / CELL_SIZE), cell.x, cell.y))) {
         left++;
         continue;
       }
@@ -2674,7 +2688,7 @@ export class Game {
       const cx = Math.floor(u.px / CELL_SIZE);
       const cy = Math.floor(u.py / CELL_SIZE);
       // Mountain crests are rock walls for every ground unit (swimmers too): only the passes lead across a range.
-      if (u.naval ? this.map.isWater(cx, cy) : !this.map.isRockWall(cx, cy) && (u.swims || !this.map.isOpenWater(cx, cy))) {
+      if (u.naval ? this.map.isWater(cx, cy) : !this.map.isRockWall(cx, cy) && (!this.map.isOpenWater(cx, cy) || (u.swims && this.pathfinder.swimmable()[this.map.index(cx, cy)] === 1))) {
         // Update the stored point in place: no new object per unit per tick.
         const dry = this.lastDry.get(u.id);
         if (dry) {
@@ -4525,10 +4539,9 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
 
   /** Does the nation still have soldiers or armed vehicles (aircraft and passengers included)? */
   private hasArmy(p: PlayerState): boolean {
-    return (
-      this.entities.units().some((u) => u.owner === p.id && u.alive && u.weapon !== null) ||
-      this.entities.vehicles().some((v) => v.owner === p.id && v.alive && v.weapon !== null)
-    );
+    // An air-defence vehicle only shoots aircraft: on its own it cannot fight on, so it does not count.
+    const fights = (u: Unit): boolean => u.owner === p.id && u.alive && u.weapon !== null && !(u instanceof Vehicle && u.type === 'mantis');
+    return this.entities.units().some(fights) || this.entities.vehicles().some(fights);
   }
 
   /**
@@ -4550,6 +4563,9 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       }
       if (b.owner === p.id) this.removeBuilding(b);
     }
+    // Whatever is left of its forces can no longer fight on (air defence, trucks, transports, ships…): it goes down
+    // with the nation once the last real combat unit is gone.
+    for (const u of [...this.entities.units(), ...this.entities.vehicles()]) if (u.owner === p.id && u.alive) u.damage(u.maxHp * 100); // well past any veteran armour
     if (derricks > 0) {
       this.oilMarket.takeOver(derricks);
       this.news.show(t('BREAKING NEWS'), t("The Global Monitoring Center takes over {n} of {name}'s oil derricks — the oil market is in turmoil.", { n: derricks, name: FACTIONS[p.faction].name }));
@@ -5133,6 +5149,18 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       // Another nation's aircraft (captured Airfield): its design, its new owner's colours.
       if (craft && faction !== player.faction) craft.ownerFaction = player.faction;
       if (craft) this.toRally(craft, producer);
+      return;
+    }
+    // An aircraft carrier is launched on the nearest open sea to the factory (or the capital), fighters aboard.
+    if (kind === 'carrier') {
+      const at = this.map.cellAt(producer.centerWorld().x, producer.centerWorld().y);
+      const sea = at ? this.openSeaNear(at.x, at.y, 5) : null;
+      if (!sea) return;
+      const ship = this.entities.add(new Vehicle(player.id, faction, 'carrier', { x: (sea.x + 0.5) * CELL_SIZE, y: (sea.y + 0.5) * CELL_SIZE }));
+      if (faction !== player.faction) ship.ownerFaction = player.faction;
+      ship.heading = Math.atan2(sea.y - at!.y, sea.x - at!.x);
+      this.crewCarrier(ship);
+      if (player.id === this.localId) this.sidebar.notify(t('{name} launched with {n} fighters aboard.', { name: ship.name, n: CARRIER_JETS }), 3);
       return;
     }
     // Land vehicles roll out of the War Factory's exit cell and drive on to a parking spot (see parkingSpot).
@@ -6216,7 +6244,21 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
         const spot = this.pathfinder.nearestNavigable(Math.round(sea.x + Math.cos(a) * side), Math.round(sea.y + Math.sin(a) * side), 8) ?? sea;
         const ship = this.entities.add(new Vehicle(p.id, f, 'carrier', { x: (spot.x + 0.5) * CELL_SIZE, y: (spot.y + 0.5) * CELL_SIZE }));
         ship.heading = out;
+        this.crewCarrier(ship);
       }
+    }
+  }
+
+  /** A new carrier comes with a full deck: CARRIER_JETS of its nation's fighters parked aboard (AircraftSystem.onDeck). */
+  private crewCarrier(ship: Vehicle): void {
+    for (let k = 0; k < CARRIER_JETS; k++) {
+      const jet = this.entities.add(new Vehicle(ship.owner, ship.faction as FactionId, 'jet', { x: ship.px, y: ship.py }));
+      if (ship.ownerFaction) jet.ownerFaction = ship.ownerFaction;
+      jet.flight = 'parked';
+      jet.altitude = 0;
+      jet.heading = ship.heading;
+      jet.deckId = ship.id;
+      jet.homeCarrierId = ship.id;
     }
   }
 

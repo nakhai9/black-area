@@ -174,6 +174,7 @@ export class Pathfinder {
   /** The walkable land changed (a bridge laid or destroyed): the landmass labels are rebuilt on the next query. */
   landChanged(): void {
     this.components = null;
+    this.swimComponents = null;
     this.shoreCells = null;
   }
 
@@ -214,6 +215,48 @@ export class Pathfinder {
     if (!map.inBounds(ax, ay) || !map.inBounds(bx, by)) return false;
     const a = this.components[ay * map.width + ax] ?? 0;
     return a !== 0 && a === (this.components[by * map.width + bx] ?? -1);
+  }
+
+  private swimComponents: Int32Array | null = null;
+
+  /**
+   * Can a swimmer (special forces) get from one cell to the other: through land and water at most SWIM_MAX_CELLS
+   * from the shore (swimmable), never across open sea or a great river. Labelled once, on first use.
+   */
+  sameSwimArea(ax: number, ay: number, bx: number, by: number): boolean {
+    const { map } = this;
+    if (!this.swimComponents) {
+      const ok = this.swimmable();
+      const comp = new Int32Array(map.width * map.height);
+      const stack: number[] = [];
+      let label = 0;
+      for (let start = 0; start < comp.length; start++) {
+        if ((comp[start] ?? 0) !== 0 || ok[start] !== 1) continue;
+        label++;
+        comp[start] = label;
+        stack.push(start);
+        while (stack.length > 0) {
+          const i = stack.pop() ?? 0;
+          const x = i % map.width;
+          const y = (i / map.width) | 0;
+          for (const [dx, dy] of DIRS) {
+            if (dx !== 0 && dy !== 0) continue;
+            const nx = x + dx;
+            const ny = y + dy;
+            if (!map.inBounds(nx, ny)) continue;
+            const j = ny * map.width + nx;
+            if ((comp[j] ?? 0) === 0 && ok[j] === 1) {
+              comp[j] = label;
+              stack.push(j);
+            }
+          }
+        }
+      }
+      this.swimComponents = comp;
+    }
+    if (!map.inBounds(ax, ay) || !map.inBounds(bx, by)) return false;
+    const a = this.swimComponents[ay * map.width + ax] ?? 0;
+    return a !== 0 && a === (this.swimComponents[by * map.width + bx] ?? -1);
   }
 
   /** Nearest passable cell to (x, y) within `radius`, excluding `taken`. */

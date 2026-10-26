@@ -54,7 +54,7 @@ export const USA: FactionConfig = {
       description:
         t("Oshkosh MTVR army truck: unarmed and faster than soldiers or tanks; carries up to 8 soldiers under its canvas cover (no vehicles). Ground only — it cannot cross the sea. Select soldiers or a tank and click the truck to board; select the truck and press U to unload."),
     },
-    carrier: { name: "USS Enterprise (CVN-80)", description: t("Gerald R. Ford-class nuclear aircraft carrier: sails the open sea only. Carries up to 4 fighters on its deck (right-click it with fighters selected); they sink with it.") },
+    carrier: { name: "USS Enterprise (CVN-80)", description: t("Gerald R. Ford-class nuclear aircraft carrier: sails the open sea only. Carries up to 4 fighters on its deck (right-click it with fighters selected); they sink with it. Bought at the War Factory, it is launched on the nearest open sea with 4 fighters aboard; they take off from it to attack and are rearmed and repaired on its deck.") },
     repair: {
       name: "M88",
       description:
