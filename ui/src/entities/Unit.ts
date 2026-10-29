@@ -30,6 +30,8 @@ export type CapitalChoice = 'embargo' | 'capture';
 const PIVOT_ANGLE = 0.45;
 /** A ground vehicle backs up (instead of turning its nose away) to a waypoint behind it within this many world px. */
 const REVERSE_RANGE = CELL_SIZE * 3;
+/** A soldier this close (world px) to a bend in his route already heads for the next point. */
+const CORNER_CUT = 1.2;
 /** Speed share while backing up. */
 const REVERSE_SPEED = 0.6;
 
@@ -64,6 +66,9 @@ export abstract class Unit extends Entity {
   faceOnArrival: number | null = null;
   /** Advances while moving; drives leg swing / track animation. */
   walkPhase = 0;
+  /** Actually covering ground (a short grace bridges one-tick stalls): soldiers swing their legs only then. */
+  stepping = false;
+  private stepIdle = 0;
   /** Set by the game each tick: standing in water. */
   inWater = false;
   /** Set by the game each tick: 1 = open ground, less in woods. */
@@ -329,6 +334,8 @@ export abstract class Unit extends Entity {
     else if (moving && this.turnsToMove) target *= this.alignment();
     // A ship never backs or slides: it slows down while it turns, so it comes about in a tighter circle.
     else if (moving && this.naval) target *= Math.max(0.3, this.alignment());
+    // A soldier eases off on a sharp turn instead of sliding sideways at full pace.
+    else if (moving && !this.drivesForward) target *= Math.max(0.4, this.alignment());
     const rate = dt / this.accelTime;
     this.speedRatio += Math.sign(target - this.speedRatio) * Math.min(Math.abs(target - this.speedRatio), rate);
 
@@ -352,6 +359,11 @@ export abstract class Unit extends Entity {
       const reverse = this.backsUp();
       if (dist > 0.05) this.turnTowards(this.driveBearing(Math.atan2(dy, dx)), dt);
       if (!reverse && Math.abs(dx - dy) > 0.05) this.facing = movesRight(dx, dy) ? 1 : -1; // facing is judged on screen
+      // A soldier rounds a corner: close to a bend he already heads for the following point.
+      if (!this.drivesForward && this.path.length > 1 && dist < CORNER_CUT && dist > budget) {
+        this.path.shift();
+        continue;
+      }
       if (dist <= budget) {
         this.px = next.x;
         this.py = next.y;
@@ -394,7 +406,10 @@ export abstract class Unit extends Entity {
       this.turnTowards(this.faceOnArrival, dt);
       if (Math.abs(Math.sin(this.heading - this.faceOnArrival)) < 1e-3 && Math.cos(this.heading - this.faceOnArrival) > 0) this.faceOnArrival = null;
     }
-    this.walkPhase += (total - budget) * STEP_PHASE_PER_PX;
+    const walked = total - budget;
+    this.walkPhase += walked * STEP_PHASE_PER_PX;
+    this.stepIdle = walked > 0.001 ? 0 : this.stepIdle + dt;
+    this.stepping = this.stepIdle < 0.12 && this.path.length > 0;
     this.tire(total - budget, dt);
     this.x = this.px / CELL_SIZE;
     this.y = this.py / CELL_SIZE;

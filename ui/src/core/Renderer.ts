@@ -688,14 +688,14 @@ export class Renderer {
       return;
     }
     if (!(u instanceof Infantry)) return;
-    const pose = { x: P.x, y: P.y, facing: u.facing, walkPhase: u.walkPhase, moving: u.moving };
+    const pose = { x: P.x, y: P.y, facing: u.facing, walkPhase: u.walkPhase, moving: u.stepping };
     if (!u.inWater) {
       const special = u.tier === 'special';
-      const frame = u.moving ? ((Math.floor((u.walkPhase / (Math.PI * 2)) * GI_WALK_FRAMES) % GI_WALK_FRAMES) + GI_WALK_FRAMES) % GI_WALK_FRAMES : -1;
+      const frame = u.stepping ? ((Math.floor((u.walkPhase / (Math.PI * 2)) * GI_WALK_FRAMES) % GI_WALK_FRAMES) + GI_WALK_FRAMES) % GI_WALK_FRAMES : -1;
       const sinceShot = u.weapon ? u.weapon.cooldown - u.cooldown : Infinity;
       const fire = sinceShot >= 0 && sinceShot < GI_FIRE_SECONDS ? Math.min(GI_FIRE_FRAMES - 1, Math.floor((sinceShot / GI_FIRE_SECONDS) * GI_FIRE_FRAMES)) : -1;
-      const aiming = !u.moving && u.engaged;
-      const oct = ((Math.round(u.heading / (Math.PI / 8)) % 16) + 16) % 16;
+      const aiming = !u.stepping && u.engaged;
+      const oct = ((Math.round(u.viewHeading / (Math.PI / 8)) % 16) + 16) % 16;
       const look = u.profile.look;
       const soldier = (fire: number, aiming: boolean) => unitSprite(`${look.sprite ?? 'gi'}:${f.colors.primary}:${special ? 1 : 0}:${oct}:${frame}:${fire}:${aiming ? 1 : 0}`, 6, 6, 3, 5, (c) =>
         drawSoldier(
@@ -717,7 +717,7 @@ export class Renderer {
       );
       if (u.isSquatters && drawsSquad(look)) {
         // Squad sheet: bearer, escort and flag in one picture (too tall for the cached soldier box: drawn live).
-        drawSoldier(ctx, { x: P.x, y: P.y, facing: u.facing, heading: u.heading, walkPhase: u.walkPhase, moving: u.moving, fire: fire >= 0 ? (fire + 0.5) / GI_FIRE_FRAMES : -1, aiming }, look, f.colors.primary, true);
+        drawSoldier(ctx, { x: P.x, y: P.y, facing: u.facing, heading: u.viewHeading, walkPhase: u.walkPhase, moving: u.stepping, fire: fire >= 0 ? (fire + 0.5) / GI_FIRE_FRAMES : -1, aiming }, look, f.colors.primary, true);
         return;
       }
       if (u.isSquatters) {
