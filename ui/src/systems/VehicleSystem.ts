@@ -161,8 +161,11 @@ export class VehicleSystem implements GameSystem {
     return this.parkingCapacity(player) - this.aircraftOwned(player) - ordered;
   }
 
+  /** Aircraft that need an airfield spot: carrier-based fighters park on their carrier's deck instead. */
   private aircraftOwned(player: PlayerState): number {
-    return this.entities.vehicles().filter((v) => v.owner === player.id && v.alive && needsAirfield(v.type) && v.type !== 'heli').length;
+    return this.entities
+      .vehicles()
+      .filter((v) => v.owner === player.id && v.alive && needsAirfield(v.type) && v.type !== 'heli' && v.homeCarrierId == null).length;
   }
 
   /** Second-tier vehicles need a High-Tech Center. */
