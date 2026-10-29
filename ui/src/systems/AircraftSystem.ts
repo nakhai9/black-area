@@ -76,6 +76,8 @@ const AFTER_UNLOAD = 0.4;
 const LANDED_WAIT = 40;
 /** Radius (px) of the circle an idle selected fighter flies while it waits for orders. */
 const ORBIT_RADIUS = 3 * CELL_SIZE;
+/** An AWACS circles this many times over the point it was sent to, then flies home (unless given a new order). */
+const AWACS_LOOPS = 5;
 /** Aircraft closer than this (px) and closing in take avoiding action; the climber goes this share above cruise. */
 const AVOID_RANGE = 3 * CELL_SIZE;
 const AVOID_CLIMB = 0.6;
@@ -97,7 +99,7 @@ const HOLD_STEP = 1.5 * CELL_SIZE;
 
 export class AircraftSystem implements GameSystem {
   /** Centre and current angle of the waiting circle of each idle selected fighter. */
-  private readonly orbits = new Map<number, { cx: number; cy: number; angle: number }>();
+  private readonly orbits = new Map<number, { cx: number; cy: number; angle: number; start?: number }>();
   /** Health and position of each aircraft at the last tick: a drop in health means it was hit, a move burns fuel. */
   private readonly last = new Map<number, { hp: number; x: number; y: number }>();
   /** Runway queue of each airfield (aircraft ids, first come first served) for take-offs and landings. */
@@ -420,9 +422,17 @@ export class AircraftSystem implements GameSystem {
       return;
     }
     if (v.idleFor < RETURN_AFTER) return;
-    // An AWACS keeps its radar watch: it circles where it was sent until it is ordered onto an airfield. A loaded
-    // transport aircraft never heads home with its riders aboard: it circles until it is sent to set them down.
-    if ((v.type === 'awacs' && !v.returningHome) || (v.isTransport && v.cargo.length > 0)) {
+    // An AWACS keeps its radar watch where it was sent for AWACS_LOOPS circles, then (no new order meanwhile) flies
+    // home. A loaded transport aircraft never heads home with its riders aboard: it circles until sent to set them down.
+    if (v.type === 'awacs' && !v.returningHome) {
+      const o = this.orbits.get(v.id);
+      if (!o || o.angle - (o.start ??= o.angle) < AWACS_LOOPS * Math.PI * 2) {
+        this.orbit(v, dt);
+        return;
+      }
+      v.returningHome = true; // watch done: on to the airfield below
+    }
+    if (v.isTransport && v.cargo.length > 0) {
       this.orbit(v, dt);
       return;
     }
@@ -823,7 +833,7 @@ export class AircraftSystem implements GameSystem {
     if (!o) {
       // The circle starts at the aircraft's position, curving off its current heading.
       const side = v.heading + Math.PI / 2;
-      o = { cx: v.px + Math.cos(side) * ORBIT_RADIUS, cy: v.py + Math.sin(side) * ORBIT_RADIUS, angle: side + Math.PI };
+      o = { cx: v.px + Math.cos(side) * ORBIT_RADIUS, cy: v.py + Math.sin(side) * ORBIT_RADIUS, angle: side + Math.PI, start: side + Math.PI };
       this.orbits.set(v.id, o);
     }
     o.angle += ((v.fieldSpeed * 0.7) / ORBIT_RADIUS) * dt;

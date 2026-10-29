@@ -26,7 +26,7 @@
 <body>
 <main>
 <img class="logo" src="/logo.png" alt="Black Area" />
-<h1>Black Area — RULE <small>v2.83.0</small></h1>
+<h1>Black Area — RULE <small>v2.84.0</small></h1>
 <p class="lead">Tài liệu luật chơi + kiến trúc code dành cho AI/dev sửa game. Mọi con số gameplay chính xác nằm trong <code>src/constants.ts</code> và <code>src/factions/*.ts</code>. Nếu tài liệu này khác code thì <b>code đúng</b>. <b>Khi đổi luật/số trong code, phải cập nhật file này.</b></p>
 <nav><a href="#s1">Quy tắc làm việc cho AI</a><a href="#s2">Chạy dự án</a><a href="#s3">Kiến trúc thư mục</a><a href="#s4">Thế giới</a><a href="#s5">Kinh tế (dầu)</a><a href="#s6">Công trình (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Quân đội</a><a href="#s8">Chiến đấu</a><a href="#s9">Điều khiển (Game.handleKey, handleInput)</a><a href="#s10">Giới hạn &amp; hiệu năng</a><a href="#s11">Thắng / thua &amp; AI</a><a href="#s12">Công thức sửa thường gặp</a></nav>
 <h2 id="s1">0. Quy tắc làm việc cho AI</h2>
@@ -697,6 +697,9 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
   <li>v2.59.1: Tab Phương tiện dùng biểu tượng xe tăng thay cho xe tải.</li>
   <li>v2.59.2: Tab Chỉ huy đổi tên thành Chính phủ (Government), biểu tượng toà nhà chính phủ.</li>
   <li>v2.60.0: Thêm hình <b>Tháp Radar</b> (nền 2 × 2) cho mỗi phe, ăng-ten xoay đủ 360°: Mỹ — chảo parabol trên tháp côn trắng; Nga — tấm ra-đa mảng pha trên cột thép giàn; Trung Quốc — chảo Cassegrain trên tháp bát giác; châu Âu — gương phản xạ "vỏ cam" trên tháp tròn; thế giới Hồi giáo — chảo lưới viền vàng trên tháp bát giác có vòm nhọn. Mới chỉ có hình (xem ở <code>?view=buildings</code>), chưa bán / chưa xây được trong trận.</li>
+  <li>v2.84.0: Tối ưu hiệu năng (đo bằng profiler trên save cuối ván): tách quân không còn so từng cặp trong ô quá lớn (tàu sân bay tách riêng) và bỏ qua các cặp đứng yên đã tách xong; AI không tìm lại chỗ cắm cờ mỗi nhịp khi không có chỗ, không gửi lại quân tới điểm tập kết không tới được, không ra lệnh lại cho quân đã tới mục tiêu hoặc đang trên đường tới chỗ địch. FPS trên save thử tăng khoảng gấp đôi.</li>
+  <li>v2.83.2: AWACS đang bay có vòng tròn radar 15 ô trên mặt đất: nền xanh lá viền xanh đậm; có quân địch trong vòng thì chuyển nền cam.</li>
+  <li>v2.83.1: AWACS bay tới điểm được chọn, lượn 5 vòng rồi tự bay về sân bay nếu không có lệnh mới. Cờ của đội cắm cờ đúng chiều cho cả 5 phe.</li>
   <li>v2.83.0: Toàn bộ lính của cả 5 phe được dựng lại bằng Blender (người có khung xương, quân phục ngụy trang thật từng phe, mũ, áo giáp, túi đạn, súng riêng): lính thường, đặc nhiệm (có bơi), công binh, Crazy Soldier, đội cắm cờ (cờ thật từng phe). Ảnh độ phân giải gấp đôi nên không còn mờ khi phóng to.</li>
   <li>v2.82.0: Thử nghiệm công trình dựng và render bằng Blender: Bộ Quốc phòng châu Âu thành dinh thự đá kiểu Paris quanh sân trong, mái mansard đá phiến, cửa sổ có khung và bậu, ống khói, vật liệu phong hóa. Tượng Nữ thần Tự do và Lăng Lenin giờ được vẽ vào hình tĩnh (có hình ở mọi chỗ xem trước), vẫn không đổ bóng.</li>
   <li>v2.81.0: Công trình trông như vật liệu thật, chịu nắng mưa: vệt ố loang lổ (ẩm, bụi), vệt nước mưa chảy dọc tường, bám bẩn ở chân tường, mép mái bắt sáng trời; cửa sổ có chiều sâu (bóng ô cửa, song chia ô, bậu và lanh tô đá, vệt bẩn dưới bậu).</li>

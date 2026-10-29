@@ -236,6 +236,10 @@ const GUARD_SHARE = 1 / 3;
 const STRIKE_GROUP = 3;
 /** Squads waiting at the staging point stand within this many cells of it. */
 const STAGE_RADIUS_CELLS = 6;
+/** A unit is sent to the staging point at most once in this many seconds. */
+const STAGE_REORDER_SECONDS = 20;
+/** A claim-site search that found nothing waits this long before the next try. */
+const CLAIM_RETRY_SECONDS = 20;
 /** AWACS the AI keeps (one), built once it has at least this many vehicles. */
 const AI_AWACS = 1;
 const AI_AWACS_AFTER = 6;
@@ -305,6 +309,8 @@ interface AIState {
   waveSize: number;
   /** Blitz staging point (anywhere on the map, toward the target) where squads still too small gather; null: none yet. */
   stage: WorldPoint | null;
+  /** When each unit was last sent to the staging point (see gatherAtStage). */
+  staged?: Map<number, number>;
   rng: () => number;
   /** This nation's character (see PERSONALITIES). */
   style: Personality;
@@ -312,6 +318,8 @@ interface AIState {
   overseas: boolean;
   /** Where the current Squatters is headed (cell), or null while none is picked. */
   claimSite: GridPoint | null;
+  /** No claim site was found: the (costly) search is not tried again before this time. */
+  nextClaimSearch?: number;
   /** Truck id → where it carries its soldiers (they would have to rest on the march on foot). */
   convoys: Map<number, WorldPoint>;
   /** Own derrick id -> its health at the last think (a drop means it is under attack). */
@@ -380,6 +388,7 @@ export class AISystem implements GameSystem {
       nextWave: FIRST_WAVE_AT * style.waveGap + i * 25,
       waveSize: style.name === 'warlord' ? 6 : style.name === 'economist' ? 10 : 8,
       stage: null,
+      staged: new Map(),
       rng,
       style,
       overseas: false,
@@ -707,6 +716,14 @@ export class AISystem implements GameSystem {
    *  4. the team plants the flag (walking onto the claimable land first if the transport set down beside it).
    * The Allied Building itself is queued by build() once the flag stands.
    */
+  /** pickClaimSite, but a search that found nothing is not repeated for CLAIM_RETRY_SECONDS (it scans a wide area). */
+  private claimSiteThrottled(p: PlayerState, st: AIState, capital: Building): GridPoint | null {
+    if (this.time < (st.nextClaimSearch ?? 0)) return null;
+    const site = this.pickClaimSite(p, st, capital);
+    if (!site) st.nextClaimSearch = this.time + CLAIM_RETRY_SECONDS;
+    return site;
+  }
+
   private claimLand(p: PlayerState, st: AIState, capital: Building, owned: Set<BuildingType>, threat: number): void {
     const teams = this.host.entities
       .fieldMovers()
@@ -717,7 +734,7 @@ export class AISystem implements GameSystem {
     // Teams in the field: walk to a site on their own landmass and plant the flag there; a site across the sea
     // (they cannot swim) means flying in by transport.
     for (const u of teams) {
-      st.claimSite ??= this.pickClaimSite(p, st, capital);
+      st.claimSite ??= this.claimSiteThrottled(p, st, capital);
       const site = st.claimSite;
       const cx = Math.floor(u.px / CELL_SIZE);
       const cy = Math.floor(u.py / CELL_SIZE);
@@ -752,7 +769,7 @@ export class AISystem implements GameSystem {
     // Loaded transports still at home take off for the site.
     for (const t of aboard) {
       if (t.flight !== 'parked' || t.incoming > 0) continue;
-      st.claimSite ??= this.pickClaimSite(p, st, capital);
+      st.claimSite ??= this.claimSiteThrottled(p, st, capital);
       if (!st.claimSite) continue;
       this.host.orderAttackMove([t], this.safeDrop(p, { x: (st.claimSite.x + 0.5) * CELL_SIZE, y: (st.claimSite.y + 0.5) * CELL_SIZE }));
     }
@@ -760,7 +777,7 @@ export class AISystem implements GameSystem {
     if (!wanted || teams.length > 0 || aboard.length > 0 || threat > CLAIM_MAX_THREAT || this.time < CLAIM_FROM) return;
     if (!owned.has('barracks') || p.credits < CLAIM_MIN_CREDITS || p.debt > 0) return;
     if (this.host.training.queue(p).items.includes('squatters')) return;
-    st.claimSite = this.pickClaimSite(p, st, capital);
+    st.claimSite = this.claimSiteThrottled(p, st, capital);
     if (!st.claimSite) return;
     // Overseas site: a transport is needed to fly the team over (a site on the home landmass is reached on foot).
     const door = this.host.pathfinder.nearestPassable(capital.x + Math.floor(capital.w / 2), capital.y + capital.d, 8);
@@ -1595,8 +1612,13 @@ export class AISystem implements GameSystem {
     }
     if (threat) {
       const t = threat;
-      const responders = guard.filter((u) => canTarget(u, t) && (!u.attackMove || u.chasing === false));
-      this.host.orderAttackMove(responders, { x: t.px, y: t.py });
+      // Units already on their way to (near) the threat keep their route: re-ordering them every think rebuilt the
+      // whole group's route field each time.
+      const near = CELL_SIZE * 6;
+      const responders = guard.filter(
+        (u) => canTarget(u, t) && (!u.attackMove || (u.chasing === false && Math.hypot(u.attackMove.x - t.px, u.attackMove.y - t.py) > near)),
+      );
+      if (responders.length > 0) this.host.orderAttackMove(responders, { x: t.px, y: t.py });
       return;
     }
     const strays = guard.filter((u) => !u.moving && u.attackMove === null && u.combatTarget === null && Math.hypot(u.px - home.x, u.py - home.y) > HOME_RADIUS);
@@ -1914,6 +1936,9 @@ export class AISystem implements GameSystem {
     let going = idle.filter(
       (u) => u.aircraft || (cell !== null && (u.swims ? this.host.pathfinder.sameSwimArea(Math.floor(u.px / CELL_SIZE), Math.floor(u.py / CELL_SIZE), cell.x, cell.y) : this.host.pathfinder.sameLandmass(Math.floor(u.px / CELL_SIZE), Math.floor(u.py / CELL_SIZE), cell.x, cell.y))),
     );
+    // Already standing at the target (arrived, nothing left in range to shoot): another attack-move there would only
+    // rebuild the same route field every think — leave them; they engage on their own when something comes near.
+    going = going.filter((u) => Math.hypot(u.px - goal.x, u.py - goal.y) > CELL_SIZE * 8);
     // Squad rule (same as the player's): kinds still too few gather at a staging point toward the target and set off
     // together once there are enough of them — a blitz from wherever the staging point is.
     const { going: ready, short } = squadFilter(going);
@@ -1950,7 +1975,22 @@ export class AISystem implements GameSystem {
       st.stage = { x: (cell.x + 0.5) * CELL_SIZE, y: (cell.y + 0.5) * CELL_SIZE };
     }
     const stage = st.stage;
-    const far = units.filter((u) => !u.aircraft && Math.hypot(u.px - stage.x, u.py - stage.y) > STAGE_RADIUS_CELLS * CELL_SIZE);
+    const sx = Math.floor(stage.x / CELL_SIZE);
+    const sy = Math.floor(stage.y / CELL_SIZE);
+    const pf = this.host.pathfinder;
+    // Each unit is sent at most once per STAGE_REORDER_SECONDS, and only if it can get there (same landmass, or a
+    // swimmer within reach): one that could not reach the point used to be re-sent — and its route field rebuilt —
+    // every time the AI thought.
+    const staged = (st.staged ??= new Map()); // older saves have no record
+    const far = units.filter((u) => {
+      if (u.aircraft || Math.hypot(u.px - stage.x, u.py - stage.y) <= STAGE_RADIUS_CELLS * CELL_SIZE) return false;
+      if ((staged.get(u.id) ?? -Infinity) > this.time - STAGE_REORDER_SECONDS) return false;
+      const ux = Math.floor(u.px / CELL_SIZE);
+      const uy = Math.floor(u.py / CELL_SIZE);
+      return u.swims ? pf.sameSwimArea(ux, uy, sx, sy) : pf.sameLandmass(ux, uy, sx, sy);
+    });
+    for (const u of far) staged.set(u.id, this.time);
+    if (staged.size > 400) for (const [id, at] of staged) if (at < this.time - STAGE_REORDER_SECONDS) staged.delete(id);
     if (far.length > 0) this.host.orderMoveUnits(far, stage);
   }
 

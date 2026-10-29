@@ -1272,18 +1272,28 @@ export class Game {
   /** Bridges on the map (kept by markBridge): the per-tick deck rules skip all work when there are none. */
   private readonly bridges: Bridge[] = [];
 
+  /** My AWACS' radar circles this frame (set by awacsMarks): green, orange while an enemy combat unit is inside. */
+  private awacsRadar: { x: number; y: number; r: number; alert: boolean }[] = [];
+
   /** Enemy combat units (armed) within AWACS_RADIUS_CELLS of one of my AWACS in the air: ringed in red on the battlefield. */
   private awacsMarks(): ReadonlySet<number> {
     const ids = new Set<number>();
+    this.awacsRadar = [];
     const me = this.humanPlayer.id;
     const movers = this.entities.fieldMovers();
     const eyes = movers.filter((u) => u instanceof Vehicle && u.type === 'awacs' && u.owner === me && u.alive && u.flies);
     if (eyes.length === 0) return ids;
     const r = AWACS_RADIUS_CELLS * CELL_SIZE;
+    const radar = eyes.map((a) => ({ x: a.px, y: a.py, r, alert: false }));
     for (const u of movers) {
       if (!u.alive || !u.visible || u.weapon === null || !isHostile(eyes[0]!, u)) continue;
-      if (eyes.some((a) => Math.hypot(a.px - u.px, a.py - u.py) <= r)) ids.add(u.id);
+      for (const c of radar) {
+        if (Math.hypot(c.x - u.px, c.y - u.py) > r) continue;
+        c.alert = true;
+        ids.add(u.id);
+      }
     }
+    this.awacsRadar = radar;
     return ids;
   }
 
@@ -3134,9 +3144,33 @@ export class Game {
   private separateUnits(): void {
     // Several relaxation passes so a crowd of vehicles ends up fully apart, not just mostly. Late-game wars field
     // hundreds of units in tight crowds that never fully settle: fewer passes there (the rest is done next tick).
-    const passes = this.entities.fieldMovers().length > SEPARATE_CROWD ? 2 : 4;
+    const movers = this.entities.fieldMovers();
+    const passes = movers.length > SEPARATE_CROWD ? 2 : 4;
+    // Units that have not moved since the end of the last tick's separation were left apart from each other then:
+    // a pair of two such settled units needs no check (most of a big army stands still most of the time).
+    const settled = this.sepSettled;
+    settled.clear();
+    for (const u of movers) {
+      const at = this.sepLast.get(u.id);
+      if (at && at.x === u.px && at.y === u.py) settled.add(u.id);
+    }
     for (let pass = 0; pass < passes; pass++) if (!this.separatePass()) break;
+    for (const u of movers) {
+      const at = this.sepLast.get(u.id);
+      if (at) {
+        at.x = u.px;
+        at.y = u.py;
+      } else this.sepLast.set(u.id, { x: u.px, y: u.py });
+    }
+    if (this.sepLast.size > movers.length * 2 + 64) {
+      const alive = new Set(movers.map((u) => u.id));
+      for (const id of this.sepLast.keys()) if (!alive.has(id)) this.sepLast.delete(id);
+    }
   }
+
+  /** Where each unit stood after the last separation, and the units still standing there now (see separateUnits). */
+  private readonly sepLast = new Map<number, { x: number; y: number }>();
+  private readonly sepSettled = new Set<number>();
 
   /**
    * Ground units never stand with their body over a structure: the route rules only keep a unit's centre off structure
@@ -3189,14 +3223,39 @@ export class Game {
   }
 
   /** One pass of pushing overlapping units apart; false when nothing overlapped. */
+  /** Ships of the current separation pass (reused). */
+  private readonly sepShips: Unit[] = [];
+
   private separatePass(): boolean {
     let moved = false;
     const units = this.entities.fieldMovers();
     if (units.length < 2) return false;
     // A bucket must be at least as wide as the largest contact gap, or overlapping pairs two buckets apart are missed.
+    // Ships (huge hulls) are left out of it: sized for a carrier, the buckets held whole crowds of soldiers and every
+    // pass compared each of them with all the others. Ships are kept apart from each other in their own small loop.
     let maxR = 0;
-    for (const u of units) maxR = Math.max(maxR, u.radius * (u.naval ? SHIP_GAP_SCALE : 1));
-    const bucket = Math.max(8, maxR * 2);
+    const ships = this.sepShips;
+    ships.length = 0;
+    for (const u of units) {
+      if (u.naval) ships.push(u);
+      else maxR = Math.max(maxR, u.radius);
+    }
+    for (let i = 0; i < ships.length; i++) {
+      for (let j = i + 1; j < ships.length; j++) {
+        const a = ships[i]!;
+        const b = ships[j]!;
+        const gap = (a.radius + b.radius) * SHIP_GAP_SCALE;
+        const vx = b.px - a.px;
+        const vy = b.py - a.py;
+        if (vx * vx + vy * vy >= gap * gap) continue;
+        const d = Math.max(0.01, Math.hypot(vx, vy));
+        const push = (gap - d) / d / 2;
+        moved = true;
+        if (!this.nudge(a, -vx * push, -vy * push)) this.nudge(b, vx * push, vy * push);
+        if (!this.nudge(b, vx * push, vy * push)) this.nudge(a, -vx * push, -vy * push);
+      }
+    }
+    const bucket = Math.max(8, maxR * 2 + VEHICLE_GAP);
     // The hash and its bucket arrays are reused from pass to pass and tick to tick (no garbage at 30 Hz × 6 passes).
     const grid = this.sepGrid;
     for (const list of grid.values()) {
@@ -3206,6 +3265,7 @@ export class Game {
     grid.clear();
     const key = (cx: number, cy: number): number => cx * 100003 + cy;
     for (const u of units) {
+      if (u.naval) continue;
       const k = key(Math.floor(u.px / bucket), Math.floor(u.py / bucket));
       const list = grid.get(k);
       if (list) list.push(u);
@@ -3216,14 +3276,17 @@ export class Game {
       }
     }
     for (const a of units) {
+      if (a.naval) continue;
       const bx = Math.floor(a.px / bucket);
       const by = Math.floor(a.py / bucket);
       for (let dx = -1; dx <= 1; dx++) {
         for (let dy = -1; dy <= 1; dy++) {
           const cell = grid.get(key(bx + dx, by + dy));
           if (!cell) continue;
+          const aSettled = this.sepSettled.has(a.id);
           for (const b of cell) {
             if (b.id <= a.id || a.flies !== b.flies) continue;
+            if (aSettled && this.sepSettled.has(b.id)) continue;
             // Vehicles and aircraft hold a little clear air between their hulls; soldiers still close up.
             // Ships are long hulls: two of them keep SHIP_GAP_SCALE times their radii apart, so they never sail over each other.
             const gap = a.naval && b.naval ? (a.radius + b.radius) * SHIP_GAP_SCALE : a.radius + b.radius + (a instanceof Vehicle && b instanceof Vehicle ? VEHICLE_GAP : 0);
@@ -3443,6 +3506,7 @@ export class Game {
       rallyLine: this.rallyLine(),
       flagHints: this.flagHints(),
       awacsMarks: this.awacsMarks(),
+      awacsRadar: this.awacsRadar,
       enemyInfoId: !this.placing && hoverUnit instanceof Unit && hoverUnit.owner !== this.humanPlayer.id ? hoverUnit.id : null,
       mountainTip: this.placing || hovering ? null : this.mountainTip(),
       focus: focus.map((f) => ({ entity: f.entity, strong: f.strong, engaged: f.engaged, airLock: f.airLock })),

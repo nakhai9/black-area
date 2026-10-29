@@ -104,6 +104,8 @@ export interface RenderScene {
   readonly flagHints?: ReadonlySet<number>;
   /** Enemy combat units in the sweep of one of my AWACS: ringed in red. */
   readonly awacsMarks?: ReadonlySet<number>;
+  /** Radar circles of my AWACS in the air (world px): green, orange while an enemy combat unit is inside. */
+  readonly awacsRadar?: readonly { x: number; y: number; r: number; alert: boolean }[];
   /** An opponent's unit under the cursor: its info card is drawn above its head. */
   readonly enemyInfoId?: number | null;
   /** Mountain range under the mouse (nothing else hovered): its name, drawn at the mouse (world px). */
@@ -289,6 +291,7 @@ export class Renderer {
     const selected = sorted.find((b) => b.id === scene.selectedId) ?? null;
     if (selected) this.drawFootprint(selected, scene.time);
     if (scene.safeZones?.length) this.drawSafeZones(scene.safeZones, scene.time);
+    if (scene.awacsRadar?.length) this.drawAwacsRadar(scene.awacsRadar);
     if (scene.buildZones?.length) this.drawBuildZones(scene.buildZones, scene.ghost?.faction);
 
     // Buildings and soldiers share one painter's-algorithm pass (by depth).
@@ -1363,6 +1366,22 @@ export class Renderer {
 
   /** Allowed build area around the player's buildings (soft tint + dashed edge). */
   /** Safe zones: a green square on the ground with a pulsing border and a SAFE ZONE marking. */
+  /** AWACS radar circles on the ground (world transform): green with a dark green border, orange when an enemy is inside. */
+  private drawAwacsRadar(circles: readonly { x: number; y: number; r: number; alert: boolean }[]): void {
+    const { ctx } = this;
+    ctx.save();
+    ctx.lineWidth = 2.2 / this.camera.zoom;
+    for (const c of circles) {
+      ctx.beginPath();
+      ctx.arc(c.x, c.y, c.r, 0, Math.PI * 2);
+      ctx.fillStyle = c.alert ? 'rgba(255,140,30,0.2)' : 'rgba(70,200,100,0.14)';
+      ctx.fill();
+      ctx.strokeStyle = c.alert ? '#b8520e' : '#1d6b32';
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   private drawSafeZones(zones: readonly Rect[], time: number): void {
     const { ctx } = this;
     const k = 3 / this.camera.zoom;
