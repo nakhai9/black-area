@@ -150,6 +150,8 @@ const AIR_HEADINGS = 24;
 const AIR_BURNER_FRAMES = 2;
 /** Walk cycle buckets: 24 is a multiple of every sheet's walk frames (GI 4, Ranger 6, Spetsnaz 8). */
 const GI_WALK_FRAMES = 24;
+/** Canvas px per iso px of a cached soldier picture: the HD sheets carry ≈22, so soldiers stay sharp at the closest zoom. */
+const SOLDIER_SPRITE_RES = 16;
 /** Squatters: world px between the unit's position and each of its two men (bearer ahead, escort behind). */
 const SQUATTERS_GAP = 0.9;
 const GI_FIRE_FRAMES = 3;
@@ -714,6 +716,7 @@ export class Renderer {
           f.colors.primary,
           special,
         ),
+        SOLDIER_SPRITE_RES,
       );
       if (u.isSquatters && drawsSquad(look)) {
         // Squad sheet: bearer, escort and flag in one picture (too tall for the cached soldier box: drawn live).

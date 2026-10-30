@@ -33,8 +33,9 @@ const sprites = new Map<string, UnitSprite>();
 /**
  * Returns the cached picture for `key`, painting it with `draw` the first time. `draw` paints the unit with its
  * ground point at (0, 0) in iso px; the box (w × h, ground point at ox, oy) must contain everything it paints.
+ * `res`: canvas px per iso px (soldiers use more, so they stay sharp at the closest zoom).
  */
-export function unitSprite(key: string, w: number, h: number, ox: number, oy: number, draw: (ctx: CanvasRenderingContext2D) => void): UnitSprite {
+export function unitSprite(key: string, w: number, h: number, ox: number, oy: number, draw: (ctx: CanvasRenderingContext2D) => void, res = RES): UnitSprite {
   let s = sprites.get(key);
   if (s) {
     // Least recently used goes first: a hit moves the picture to the back of the eviction order (poses still on
@@ -44,8 +45,9 @@ export function unitSprite(key: string, w: number, h: number, ox: number, oy: nu
     touched.add(key);
     return s;
   }
-  const { canvas, ctx } = createCanvas(w * RES, h * RES);
-  ctx.scale(RES, RES);
+  const { canvas, ctx } = createCanvas(w * res, h * res);
+  ctx.imageSmoothingQuality = 'high';
+  ctx.scale(res, res);
   ctx.translate(ox, oy);
   draw(ctx);
   s = { canvas, ox, oy, w, h };
