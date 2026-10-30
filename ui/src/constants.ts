@@ -27,7 +27,7 @@ export const DEMO_FACTION = Number(import.meta.env.VITE_DEMO_FACTION) || 2;
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "2.83.6";
+export const GAME_VERSION = "2.83.7";
 
 /** An Allied Building within this many cells of any capital is an embassy; farther out it is a "Pro-<nation> regime". */
 export const EMBASSY_CAPITAL_CELLS = 25;
@@ -157,10 +157,27 @@ export const BRIDGE_REACH_CELLS = 4;
 /** Pyramids of Giza (neutral monument). */
 export const FOOTPRINT_PYRAMIDS = { w: 6, d: 6 } as const;
 /** Symbol landmarks (Monument): Lenin's Mausoleum LENIN_MAUSOLEUM_GAP cells in front of Russia's capital, the Statue of Liberty on Liberty Island. */
-export type MonumentId = 'lenin' | 'liberty';
-export const MONUMENTS: Readonly<Record<MonumentId, { name: string; city: string; footprint: { readonly w: number; readonly d: number } }>> = {
-  lenin: { name: "Lenin's Mausoleum", city: 'Moscow', footprint: { w: 4, d: 3 } },
-  liberty: { name: 'Statue of Liberty', city: 'New York', footprint: { w: 2, d: 2 } },
+export type MonumentId = "lenin" | "liberty";
+export const MONUMENTS: Readonly<
+  Record<
+    MonumentId,
+    {
+      name: string;
+      city: string;
+      footprint: { readonly w: number; readonly d: number };
+    }
+  >
+> = {
+  lenin: {
+    name: "Lenin's Mausoleum",
+    city: "Moscow",
+    footprint: { w: 4, d: 3 },
+  },
+  liberty: {
+    name: "Statue of Liberty",
+    city: "New York",
+    footprint: { w: 2, d: 2 },
+  },
 };
 export const LENIN_MAUSOLEUM_GAP = 5;
 export const STATUE_OF_LIBERTY_LOCATION = { lon: -74.04, lat: 40.69 };
@@ -495,7 +512,7 @@ export const MOUNTAIN_HALF_WIDTH_CELLS = 6;
 export const MOUNTAIN_CREST_CELLS = 1.3;
 /** Passes per range, unless the range sets its own `passes`. */
 export const MOUNTAIN_PASSES = 2;
-export const MOUNTAIN_PASS_CELLS = 3;
+export const MOUNTAIN_PASS_CELLS = 4;
 export const MOUNTAIN_PASS_SPEED_INFANTRY = 0.6;
 export const MOUNTAIN_PASS_SPEED_VEHICLE = 0.45;
 /** Path cost per pass cell (they are slow). */
@@ -632,7 +649,13 @@ export const AWACS_RADIUS_CELLS = 15;
  */
 export const VEHICLE_BASE = {
   /** Aircraft carrier: sea only, slow, very tough, unarmed, carries up to CARRIER_JETS fighters on its deck (AircraftSystem.onDeck). A fleet of CARRIER_FLEET starts near the capital; more are bought at the War Factory (launched on the nearest open sea), each with CARRIER_JETS fighters parked aboard. */
-  carrier: { cost: 9000, trainSeconds: 45, maxHp: 4000, speed: 0.9, radius: 10 },
+  carrier: {
+    cost: 9000,
+    trainSeconds: 45,
+    maxHp: 4000,
+    speed: 0.9,
+    radius: 10,
+  },
   light: { cost: 600, trainSeconds: 8, maxHp: 180, speed: 2.4, radius: 3.4 },
   tank: { cost: 1200, trainSeconds: 14, maxHp: 420, speed: 1.4, radius: 4.2 },
   ifv: { cost: 900, trainSeconds: 11, maxHp: 300, speed: 1.8, radius: 4.0 },
@@ -1039,13 +1062,12 @@ export const CONTESTED_NATIONS: Readonly<
     name: "Cuba",
     capital: "El Capitolio",
     site: { lon: -82.36, lat: 23.13, name: "Havana" },
-  },  // Belarus: Russia's western neighbour and ally, an independent nation of its own.
+  }, // Belarus: Russia's western neighbour and ally, an independent nation of its own.
   belarus: {
     name: "Belarus",
     capital: "Palace of Independence",
     site: { lon: 27.56, lat: 53.9, name: "Minsk" },
   },
-
 };
 /** Presence fee of an occupied capital with no entry in NATION_PRESENCE_FEES (an unplayed faction's capital). */
 export const NATION_PRESENCE_FEE = 1200;
