@@ -27,7 +27,7 @@ export const DEMO_FACTION = Number(import.meta.env.VITE_DEMO_FACTION) || 2;
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "2.83.11";
+export const GAME_VERSION = "2.83.12";
 
 /** An Allied Building within this many cells of any capital is an embassy; farther out it is a "Pro-<nation> regime". */
 export const EMBASSY_CAPITAL_CELLS = 25;
@@ -978,9 +978,9 @@ export const NATION_STRENGTH: Readonly<
 };
 
 // ---------------------------------------------------------------- Landmarks (real coordinates)
-/** Nations with aircraft carriers, and how many start at sea near the capital (each with CARRIER_JETS fighters aboard). */
+/** Nations with aircraft carriers, and how many start at sea near the capital (each with CARRIER_JETS fighters aboard; 0 = carriers are only bought). */
 export const CARRIER_NATIONS: readonly FactionId[] = ["usa", "europe", "china"];
-export const CARRIER_FLEET = 3;
+export const CARRIER_FLEET = 0;
 /** Fighters a carrier can carry on its deck. */
 export const CARRIER_JETS = 4;
 export const CAPITAL_LOCATIONS: Readonly<Record<FactionId, NamedSite>> = {
