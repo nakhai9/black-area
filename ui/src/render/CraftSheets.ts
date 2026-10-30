@@ -90,7 +90,9 @@ const cycle = (rows: readonly number[], seconds: number): number => rows[Math.fl
 
 function pickRow(v: Vehicle, rows: Rows): number {
   if (v.flight === 'crashing') return cycle(rows.falling, 0.25);
-  if (v.altitude <= 0) return v.flight === 'parked' ? rows.parked[0] : cycle(rows.engines, 0.06);
+  // On the ground the rotors / propellers stand still while it sits (parked, set down, unloading); they only turn
+  // while it taxis, spins up to lift off or settles after landing.
+  if (v.altitude <= 0) return v.flight === 'parked' || v.flight === 'landed' || v.flight === 'unloading' ? rows.parked[0] : cycle(rows.engines, 0.06);
   if (v.flight === 'airborne' || v.flight === 'approach') return cycle(rows.fly, 0.06);
   return cycle(rows.takeoff, rows === HELI_ROW ? 0.12 : 1);
 }

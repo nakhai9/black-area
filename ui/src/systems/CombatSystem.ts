@@ -362,13 +362,15 @@ export class CombatSystem implements GameSystem {
     if (d <= w.range * this.heightReach(s)) {
       // A unit on its way somewhere (plain move order) shoots on the move: only its gun turns to the target (aimHeading),
       // the hull keeps steering along its route (turning it to the target every tick pinned it in place).
-      if (!s.moving || s.attackTarget !== null || s.attackMove) {
+      // A tank keeps its hull where it is: only the turret turns to the target (it fires once the gun is laid).
+      const tank = s instanceof Vehicle && s.type === 'tank';
+      if (!tank && (!s.moving || s.attackTarget !== null || s.attackMove)) {
         s.facing = movesRight(tx - s.px, ty - s.py) ? 1 : -1;
         s.heading = Math.atan2(ty - s.py, tx - s.px);
       }
       // Units on attack orders stand and fight; ones just passing through keep walking and shooting.
       if (s.attackTarget !== null || s.attackMove) s.stop();
-      if (s.cooldown <= 0 && this.canHit(s, w, target)) this.fire(s, target, w);
+      if (s.cooldown <= 0 && (!tank || (s as Vehicle).turretOnTarget) && this.canHit(s, w, target)) this.fire(s, target, w);
       return;
     }
 

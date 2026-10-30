@@ -74,6 +74,9 @@ export function vehicleStrength(faction: FactionId, kind: VehicleKind): number {
 }
 
 /** A land vehicle (light car, tank, armoured vehicle) or an aircraft (fighter, transport). */
+/** Radians per second a tank turret traverses (about 2.5 s for a full turn round). */
+const TURRET_TURN_RATE = 2.5;
+
 export class Vehicle extends Unit {
   readonly profile: VehicleProfile;
   /** Top speed empty (world px/s). */
@@ -115,6 +118,8 @@ export class Vehicle extends Unit {
   flight: Flight = 'airborne';
   /** Height above the ground in px: 0 on the ground, CRUISE_ALTITUDE in the air. */
   altitude = 0;
+  /** Tank: world heading of the turret (eases towards `aimHeading` at TURRET_TURN_RATE, independent of the hull). */
+  turretHeading = this.heading;
   /** 0..1: how far it has climbed above cruise height to pass over another aircraft head-on. */
   climb = 0;
   /** Airfield this aircraft belongs to, and its parking spot there. */
@@ -413,5 +418,20 @@ export class Vehicle extends Unit {
       return;
     }
     super.update(dt);
+    // A tank's turret swings on its own (any way round, right over the engine deck) to the target, and back to the
+    // front once it has none.
+    if (this.type === 'tank') {
+      const want = this.combatTarget !== null ? this.aimHeading : this.heading;
+      let diff = want - this.turretHeading;
+      while (diff > Math.PI) diff -= Math.PI * 2;
+      while (diff < -Math.PI) diff += Math.PI * 2;
+      const step = TURRET_TURN_RATE * dt;
+      this.turretHeading += Math.abs(diff) <= step ? diff : Math.sign(diff) * step;
+    }
+  }
+
+  /** Tank: the gun is laid on `aimHeading` (within a few degrees). */
+  get turretOnTarget(): boolean {
+    return Math.cos(this.turretHeading - this.aimHeading) > 0.985;
   }
 }

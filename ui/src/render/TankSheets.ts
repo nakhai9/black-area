@@ -109,7 +109,7 @@ export function drawTankSheet(ctx: CanvasRenderingContext2D, v: Vehicle, x: numb
   if (!img) return false;
   const turret = readyTurret(v.faction as FactionId);
   blit(ctx, img, direction(v.heading), 0, x, y, CELL * SCALE);
-  if (turret) blit(ctx, turret, direction(v.combatTarget !== null ? v.aimHeading : v.heading), 0, x, y, CELL * SCALE);
+  if (turret) blit(ctx, turret, direction(v.turretHeading), 0, x, y, CELL * SCALE);
   return true;
 }
 
