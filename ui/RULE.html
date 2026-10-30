@@ -26,7 +26,7 @@
 <body>
 <main>
 <img class="logo" src="/logo.png" alt="Black Area" />
-<h1>Black Area — RULE <small>v2.83.10</small></h1>
+<h1>Black Area — RULE <small>v2.83.11</small></h1>
 <p class="lead">Tài liệu luật chơi + kiến trúc code dành cho AI/dev sửa game. Mọi con số gameplay chính xác nằm trong <code>src/constants.ts</code> và <code>src/factions/*.ts</code>. Nếu tài liệu này khác code thì <b>code đúng</b>. <b>Khi đổi luật/số trong code, phải cập nhật file này.</b></p>
 <nav><a href="#s1">Quy tắc làm việc cho AI</a><a href="#s2">Chạy dự án</a><a href="#s3">Kiến trúc thư mục</a><a href="#s4">Thế giới</a><a href="#s5">Kinh tế (dầu)</a><a href="#s6">Công trình (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Quân đội</a><a href="#s8">Chiến đấu</a><a href="#s9">Điều khiển (Game.handleKey, handleInput)</a><a href="#s10">Giới hạn &amp; hiệu năng</a><a href="#s11">Thắng / thua &amp; AI</a><a href="#s12">Công thức sửa thường gặp</a></nav>
 <h2 id="s1">0. Quy tắc làm việc cho AI</h2>
@@ -697,6 +697,7 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
   <li>v2.59.1: Tab Phương tiện dùng biểu tượng xe tăng thay cho xe tải.</li>
   <li>v2.59.2: Tab Chỉ huy đổi tên thành Chính phủ (Government), biểu tượng toà nhà chính phủ.</li>
   <li>v2.60.0: Thêm hình <b>Tháp Radar</b> (nền 2 × 2) cho mỗi phe, ăng-ten xoay đủ 360°: Mỹ — chảo parabol trên tháp côn trắng; Nga — tấm ra-đa mảng pha trên cột thép giàn; Trung Quốc — chảo Cassegrain trên tháp bát giác; châu Âu — gương phản xạ "vỏ cam" trên tháp tròn; thế giới Hồi giáo — chảo lưới viền vàng trên tháp bát giác có vòm nhọn. Mới chỉ có hình (xem ở <code>?view=buildings</code>), chưa bán / chưa xây được trong trận.</li>
+  <li>v2.83.11: Tàu sân bay chỉ mua được khi có Trung tâm Công nghệ cao (<code>TECH_VEHICLES</code> thêm <code>carrier</code>), cả người chơi và AI. Hạm đội tàu sân bay có sẵn lúc đầu trận không đổi.</li>
   <li>v2.83.10: Lính nét trở lại khi phóng to (zoom 8–9): ảnh lính đệm sẵn vẽ ở độ phân giải 16 px mỗi px iso (trước 4), lấy mẫu chất lượng cao từ sheet HD.</li>
   <li>v2.83.9: Vẽ lại máy bay AWACS mọi phe bằng mô hình 3D dựng trong Blender (<code>tools/blender/awacs_render.py</code>, <code>tools/awacs_pack.py</code>): khối, cạnh, góc rõ nét, sơn kim loại, đường viền mảnh — Mỹ E-3 Sentry, châu Âu A330 AEW, Trung Quốc KJ-2000, Nga A-50, Hồi giáo Al-Basir. Bố cục sheet, kích thước và tên hiển thị không đổi.</li>
   <li>v2.83.8: Chu kỳ giếng dầu: bơm 3 phút, nghỉ 3 phút (trước nghỉ 1 phút) — <code>OIL_REST_SECONDS 180</code>, cả người chơi và AI.</li>

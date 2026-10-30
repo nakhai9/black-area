@@ -426,21 +426,39 @@ def pose_aim():
     rot('shin.R', -10)
 
 
+def bump(p, centre, width):
+    """Smooth hump (0..1) at `centre` of a cycle phase p (wraps round), `width` its half-width."""
+    d = (p - centre + 0.5) % 1 - 0.5
+    return math.exp(-(d / width) ** 2)
+
+
+def leg(side, p):
+    """One leg at gait phase p (0 = heel strike, 0.6 = toe-off): hip swings forward and back, the knee takes a small
+    give after heel strike and folds well up during the swing so the foot clears the ground."""
+    hip = 24 * math.cos(2 * math.pi * p) + 4
+    knee = 14 * bump(p, 0.12, 0.08) + 58 * bump(p, 0.72, 0.12) + 4
+    rot(f'thigh.{side}', -hip)
+    rot(f'shin.{side}', knee)
+
+
 def pose_walk(t):
     reset()
-    a = math.sin(t * 2 * math.pi)
-    c = math.cos(t * 2 * math.pi)
-    rot('thigh.L', -28 * a)
-    rot('thigh.R', 28 * a)
-    rot('shin.L', -max(0, 40 * -c) - 5)
-    rot('shin.R', -max(0, 40 * c) - 5)
-    rot('pelvis', 0, 0, 4 * a)
-    rot('chest', 4, 0, -5 * a)
-    POSE['pelvis'].location = (0, 0, 0.02 * abs(c))
+    leg('L', t)
+    leg('R', (t + 0.5) % 1)
+    w = 2 * math.pi * t
+    # Body: lowest at each heel strike (both feet down), highest mid-stance; hips turn with the forward leg and the
+    # shoulders turn against them; a slight forward lean, the hip dropping a little over the swinging leg.
+    POSE['pelvis'].location = (0, 0, 0.035 * (0.5 - 0.5 * math.cos(2 * w)) - 0.015)
+    rot('pelvis', 0, 3 * math.sin(w), 6 * math.cos(w))
+    rot('spine', 3, 0, -4 * math.cos(w))
+    rot('chest', 3, -2 * math.sin(w), -3 * math.cos(w))
+    rot('head', -3, 0, 3 * math.cos(w))
     arms_hold()
     if WRENCH:
-        rot('upper_arm.L', 25 * a)
-        rot('upper_arm.R', -25 * a)
+        rot('upper_arm.L', 22 * math.cos(w))
+        rot('upper_arm.R', -22 * math.cos(w))
+        rot('forearm.L', -12 - 10 * max(0, math.cos(w)))
+        rot('forearm.R', -12 - 10 * max(0, -math.cos(w)))
 
 
 def pose_die(t):
