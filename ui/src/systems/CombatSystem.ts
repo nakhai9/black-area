@@ -59,8 +59,11 @@ export function forceFire(a: Entity, b: Entity): boolean {
 }
 
 export function isHostile(a: Entity, b: Entity): boolean {
-  // Ceasefire: nobody fights, except that a unit breaking it may be attacked by every other nation (and cannot hit back).
+  // Ceasefire: nobody fights, except that a unit breaking it may be attacked by every other nation (and cannot hit back,
+  // bar a tank's self-defence).
   if (truce) {
+    // Self-defence: a tank caught in the ceasefire zone may shoot back at whoever fired on it first.
+    if (a instanceof Vehicle && a.type === 'tank' && violators.has(a.id) && a.lastAttackerId === b.id && b.alive && a.owner !== b.owner) return true;
     return b instanceof Unit && violators.has(b.id) && !violators.has(a.id) && b.alive && a.owner !== b.owner && a.owner !== NEUTRAL_OWNER && b.owner !== NEUTRAL_OWNER;
   }
   // An engineer on his way to lease a derrick is a customer, not a target, for the derrick's owner.
@@ -240,9 +243,8 @@ export class CombatSystem implements GameSystem {
     if (!w) return;
     // Air-defence vehicle: every veteran star adds one cell of range (its own weapon copy, set from the current rank).
     if (s instanceof Vehicle && s.type === 'mantis') {
-      // It runs on the radar signal: with the nation's power weak it is frozen at once (no moving, no firing).
+      // It runs on the radar signal: with the nation's power weak it cannot fire (it may still drive where it is sent).
       if (this.hooks.powerShort(s.owner)) {
-        if (s.moving) s.stop();
         s.combatTarget = null;
         s.engaged = false;
         return;

@@ -53,18 +53,20 @@ LOOKS = {
                        weapon='qbz', skin='#dcb38c', boots='#2b2924', gloves='#3a3f2e'),
     'cn-special': dict(camo=['#3f5470', '#2b3b52', '#6d7e94', '#1e2838'], cscale=18, digital=True, vest='#2f3d52', helmet='#33445a', head='helmet',
                        weapon='qbz', skin='#dcb38c', boots='#1f1f22', gloves='#22262c', extra_pouches=True),
-    'eu-regular': dict(camo=['#6f7a52', '#4d5838', '#8f8f6a', '#2d3324'], cscale=10, flecks=True, vest='#5a6447', helmet='#55603f', head='helmet',
+    'eu-regular': dict(camo=['#5b3f78', '#3e2a55', '#7d62a0', '#2a1d3a'], cscale=10, flecks=True, vest='#4a3563', helmet='#4f3a68', head='helmet',
                        weapon='g36', skin='#e6c0a2', boots='#2a2723', gloves='#33372b'),
-    'eu-special': dict(camo=['#5e6c78', '#46525d', '#7a8792', '#323b44'], cscale=10, vest='#3c464f', helmet='#3f4a54', head='cap',
+    'eu-special': dict(camo=['#3a2650', '#271a38', '#4d3768', '#18101f'], cscale=7, vest='#151318', helmet='#1a171e', head='cap',
                        weapon='g36', skin='#e2bb9a', boots='#24252a', gloves='#25282c', extra_pouches=True),
     'islamic-regular': dict(camo=['#a8946a', '#857250', '#c4b087', '#5f5236'], cscale=12, vest='#6e6448', helmet='#6f6a48', head='helmet',
                             weapon='ak', skin='#b98a63', boots='#5a4a35', gloves='#4a3f2e'),
     'islamic-special': dict(camo=['#4c5236', '#363b27', '#6a6e4c', '#25281b'], cscale=12, vest='#2f3324', helmet='#1c1d18', head='balaclava',
                             weapon='ak', skin='#b98a63', boots='#24221d', gloves='#1f1e19', extra_pouches=True),
 }
-for f, u in (('us', '#8a7a55'), ('ru', '#6c6a4c'), ('cn', '#5f6a48'), ('eu', '#6a6a50'), ('islamic', '#8a7a5a')):
+for f, u in (('us', '#8a7a55'), ('ru', '#6c6a4c'), ('cn', '#5f6a48'), ('eu', '#5b3f78'), ('islamic', '#8a7a5a')):
     LOOKS[f'{f}-engineer'] = dict(camo=[u, u, u, u], cscale=10, vest='#f06a1a', hivis=True, helmet='#f2c230', head='hardhat',
                                   weapon='wrench', skin='#d6a884', boots='#4a3a28', gloves='#6b5536', walk_only=True)
+# Europe: purple uniforms throughout — regulars light purple with a helmet, special forces near-black purple with a
+# black vest and cap, engineers purple under the orange hi-vis vest and hard hat.
 # Crazy Soldier (Islamic world): explosive vest and a satchel charge instead of a rifle.
 LOOKS['islamic-demolition'] = dict(LOOKS['islamic-regular'], head='balaclava', helmet='#2c4a2a', vest='#5a3f28', weapon='satchel', charges=True)
 if NAME.endswith('-squatters'):

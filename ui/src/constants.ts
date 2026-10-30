@@ -27,7 +27,7 @@ export const DEMO_FACTION = Number(import.meta.env.VITE_DEMO_FACTION) || 2;
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "2.83.13";
+export const GAME_VERSION = "2.83.16";
 
 /** An Allied Building within this many cells of any capital is an embassy; farther out it is a "Pro-<nation> regime". */
 export const EMBASSY_CAPITAL_CELLS = 25;
@@ -1225,9 +1225,9 @@ export const OIL_DERRICK_REGEN = 0.01;
 export const OIL_ROW_MAX = 4;
 /** No derrick may stand within this many cells of another nation's derrick (oil fields never share ground). */
 export const OIL_FIELD_SPACING = 40;
-/** Oil cycle: pump for 3 minutes, then rest 1.5 minutes while the field recovers. */
+/** Oil cycle: pump for 3 minutes, then rest 1 minute while the field recovers. */
 export const OIL_MINE_SECONDS = 180;
-export const OIL_REST_SECONDS = 90;
+export const OIL_REST_SECONDS = 60;
 
 // ---------------------------------------------------------------- Power (nuclear plants burn oil)
 /**
