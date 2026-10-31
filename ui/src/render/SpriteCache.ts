@@ -1,5 +1,6 @@
 import { HALF_TH, HALF_TW, SPRITE_SCALE } from '../constants';
-import type { Rect } from '../types';
+import { FACTIONS } from '../factions';
+import type { FactionId, Rect } from '../types';
 import { createCanvas } from './Canvas';
 import { IsoPainter } from './IsoPainter';
 import { applyRa2Finish } from './Ra2Finish';
@@ -164,7 +165,8 @@ export class SpriteCache {
     const recolor = teamColorOwner(key);
     if (recolor) {
       const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      recolorPixels(img.data, recolor);
+      const design = /^\w+:(\w+)/.exec(key)?.[1] as FactionId | undefined;
+      recolorPixels(img.data, recolor, design && design in FACTIONS ? design : undefined);
       ctx.putImageData(img, 0, 0);
     }
     const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;

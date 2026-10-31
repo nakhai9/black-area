@@ -4,7 +4,7 @@ import { FACTIONS } from '../factions';
 import { bunkerPreview, loadBunkerSprites } from '../render/BunkerSheet';
 import { IsoPainter } from '../render/IsoPainter';
 import { type Sprite, SpriteCache } from '../render/SpriteCache';
-import { BUILDING_ART } from '../render/sprites';
+import { BUILDING_ART, teamColoredKey } from '../render/sprites';
 import { BUILD_OPTIONS } from '../systems/ConstructionSystem';
 
 /** Card picture size (CSS px). */
@@ -54,6 +54,7 @@ export function showBuildingGallery(root: HTMLElement): void {
   document.head.append(style);
 
   const cache = new SpriteCache(BUILDING_ART);
+  const paintAs = new URLSearchParams(location.search).get('owner') ?? '';
   loadBunkerSprites().catch(() => undefined);
   const page = document.createElement('div');
   page.className = 'bg-page';
@@ -82,7 +83,8 @@ export function showBuildingGallery(root: HTMLElement): void {
       const [type = '', owner = ''] = key.split(':');
       const art = BUILDING_ART[key];
       if (!art) continue;
-      const sprite = cache.get(key);
+      // `&owner=<nation>`: every structure as if taken by that nation (captured colours).
+      const sprite = cache.get(paintAs ? teamColoredKey(key, paintAs) : key);
       const card = document.createElement('figure');
       card.className = 'bg-card';
       card.style.margin = '0';

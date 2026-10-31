@@ -41,13 +41,13 @@ export function drawBunkerSheet(ctx: CanvasRenderingContext2D, b: Bunker, x: num
   if (!NATIONS.includes(f)) return false;
   const cell = bunkerCell(f, bunkerRow(b.aimHeading), stage(b.hp / b.maxHp));
   const owner = b.faction as FactionId;
-  blit(ctx, owner !== f && NATIONS.includes(owner) ? recolored(cell, owner) : cell, x, y);
+  blit(ctx, owner !== f && NATIONS.includes(owner) ? recolored(cell, owner, f) : cell, x, y);
   return true;
 }
 
 /** A taken bunker in its new owner's colours (its design kept), made once per picture and owner. */
 const RECOLORED = new WeakMap<HTMLCanvasElement, Map<FactionId, HTMLCanvasElement>>();
-function recolored(cell: HTMLCanvasElement, owner: FactionId): HTMLCanvasElement {
+function recolored(cell: HTMLCanvasElement, owner: FactionId, design: FactionId): HTMLCanvasElement {
   let byOwner = RECOLORED.get(cell);
   if (!byOwner) RECOLORED.set(cell, (byOwner = new Map()));
   let c = byOwner.get(owner);
@@ -55,7 +55,7 @@ function recolored(cell: HTMLCanvasElement, owner: FactionId): HTMLCanvasElement
     const { canvas, ctx } = createCanvas(cell.width, cell.height);
     ctx.drawImage(cell, 0, 0);
     const img = ctx.getImageData(0, 0, cell.width, cell.height);
-    recolorPixels(img.data, owner);
+    recolorPixels(img.data, owner, design);
     ctx.putImageData(img, 0, 0);
     byOwner.set(owner, (c = canvas));
   }

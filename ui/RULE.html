@@ -26,7 +26,7 @@
 <body>
 <main>
 <img class="logo" src="/logo.png" alt="Black Area" />
-<h1>Black Area — RULE <small>v2.83.21</small></h1>
+<h1>Black Area — RULE <small>v2.83.22</small></h1>
 <p class="lead">Tài liệu luật chơi + kiến trúc code dành cho AI/dev sửa game. Mọi con số gameplay chính xác nằm trong <code>src/constants.ts</code> và <code>src/factions/*.ts</code>. Nếu tài liệu này khác code thì <b>code đúng</b>. <b>Khi đổi luật/số trong code, phải cập nhật file này.</b></p>
 <nav><a href="#s1">Quy tắc làm việc cho AI</a><a href="#s2">Chạy dự án</a><a href="#s3">Kiến trúc thư mục</a><a href="#s4">Thế giới</a><a href="#s5">Kinh tế (dầu)</a><a href="#s6">Công trình (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Quân đội</a><a href="#s8">Chiến đấu</a><a href="#s9">Điều khiển (Game.handleKey, handleInput)</a><a href="#s10">Giới hạn &amp; hiệu năng</a><a href="#s11">Thắng / thua &amp; AI</a><a href="#s12">Công thức sửa thường gặp</a></nav>
 <h2 id="s1">0. Quy tắc làm việc cho AI</h2>
@@ -697,6 +697,7 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
   <li>v2.59.1: Tab Phương tiện dùng biểu tượng xe tăng thay cho xe tải.</li>
   <li>v2.59.2: Tab Chỉ huy đổi tên thành Chính phủ (Government), biểu tượng toà nhà chính phủ.</li>
   <li>v2.60.0: Thêm hình <b>Tháp Radar</b> (nền 2 × 2) cho mỗi phe, ăng-ten xoay đủ 360°: Mỹ — chảo parabol trên tháp côn trắng; Nga — tấm ra-đa mảng pha trên cột thép giàn; Trung Quốc — chảo Cassegrain trên tháp bát giác; châu Âu — gương phản xạ "vỏ cam" trên tháp tròn; thế giới Hồi giáo — chảo lưới viền vàng trên tháp bát giác có vòm nhọn. Mới chỉ có hình (xem ở <code>?view=buildings</code>), chưa bán / chưa xây được trong trận.</li>
+  <li>v2.83.22: Sửa màu công trình bị chiếm bị loè loẹt: chỉ những màu của phe bị chiếm (màu phe và màu điểm nhấn kiến trúc của phe đó: vòm xanh Hồi giáo, tường đỏ / vòm vàng Nga, đỏ / vàng Trung Quốc) đổi sang sắc màu phe chiếm, giữ độ đậm nhạt gốc; đá, cát, bê tông, sân bãi, đường băng giữ nguyên. Thư viện công trình xem thử được màu sau khi chiếm: <code>?view=buildings&amp;owner=usa</code>.</li>
   <li>v2.83.21: Sửa cầu nối bị lệch sang một bên: đoạn nối tiếp chỉ hợp lệ khi cả đầu đoạn mới khớp trọn đầu cây cầu có sẵn (đủ 3 ô); chạm lệch một phần thì khung đỏ, không đặt được — khung đặt cầu tự hút vào đúng thẳng hàng. Cả người chơi và AI.</li>
   <li>v2.83.20: Công trình bị chiếm đổi <b>hoàn toàn</b> sang màu phe chiếm, giữ nguyên kiến trúc: mọi điểm ảnh có màu trên công trình (kể cả mái vòm, tường gạch, viền trang trí cố định của phe cũ) lấy sắc màu của phe chiếm, giữ độ sáng tối; đá xám, thép, kính, bóng giữ nguyên. Áp dụng mọi công trình chiếm được, cả tường, cổng và lô cốt. Cả người chơi và AI.</li>
   <li>v2.83.19: Cầu rộng 3 ô (<code>BRIDGE_W 3</code>, trước 2), mỗi ô một làn ván. Sửa kẹt khi nhiều quân qua cầu: qua cầu theo thứ tự đến trước đi trước (FIFO) — bên nào tới cầu trước được đi trước, bên kia chờ ở đầu cầu; quân đã lên cầu không dừng vì quân đi ngược chiều (vượt nhau trên mặt cầu rộng), chỉ giữ khoảng cách với quân cùng làn phía trước; không ai ngồi nghỉ trên cầu; quân đứng yên trên cầu không chặn cả đoàn. Cả người chơi và AI.</li>
