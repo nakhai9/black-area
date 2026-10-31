@@ -122,7 +122,10 @@ export function bridgeStart(map: TileMap, x: number, y: number, rotated: boolean
   const lowRun = run(false);
   const highRun = run(true);
   if (lowRun + highRun + len > BRIDGE_MAX_SECTIONS * len) return null;
-  for (const high of [false, true]) {
+  // A section that runs on from a bridge is laid from that bridge (the layer stays on the near bank side), never
+  // from the far bank it reaches.
+  const ends = highRun > 0 && lowRun === 0 ? [true, false] : [false, true];
+  for (const high of ends) {
     const joined = (high ? highRun : lowRun) > 0;
     // Row k counted from this end, going across (k >= len: past the footprint). Dry: no open water in it.
     const dry = (k: number): boolean => {

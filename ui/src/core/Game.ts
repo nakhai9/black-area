@@ -1380,18 +1380,41 @@ export class Game {
     const bx = seg.b.x * CELL_SIZE;
     const by = seg.b.y * CELL_SIZE;
     const len2 = (bx - ax) ** 2 + (by - ay) ** 2;
+    // A section that runs on from a bridge: every cell of that whole (joined) bridge counts as a place to start from.
+    const deck = this.joinedBridgeCells(x, y, rotated);
     let best: Vehicle | null = null;
     let bestD = BRIDGE_REACH_CELLS * CELL_SIZE;
     for (const v of layers) {
       if (!v.alive || !v.isBridgeLayer) continue;
       const t0 = len2 > 0 ? Math.max(0, Math.min(1, ((v.px - ax) * (bx - ax) + (v.py - ay) * (by - ay)) / len2)) : 0;
-      const d = Math.hypot(v.px - (ax + t0 * (bx - ax)), v.py - (ay + t0 * (by - ay)));
+      let d = Math.hypot(v.px - (ax + t0 * (bx - ax)), v.py - (ay + t0 * (by - ay)));
+      for (const c of deck) d = Math.min(d, Math.hypot(v.px - (c.x + 0.5) * CELL_SIZE, v.py - (c.y + 0.5) * CELL_SIZE));
       if (d <= bestD) {
         best = v;
         bestD = d;
       }
     }
     return best;
+  }
+
+  /** Bridge cells connected (side by side or end to end) to the bridge the section at (x, y) runs on from; empty when it runs on from none. */
+  private joinedBridgeCells(x: number, y: number, rotated: boolean): { x: number; y: number }[] {
+    const seeds = [false, true].flatMap((high) => bridgeEnd(x, y, rotated, high, true)).filter((c) => this.map.inBounds(c.x, c.y) && this.map.isBridge(c.x, c.y));
+    const seen = new Set<number>();
+    const out: { x: number; y: number }[] = [];
+    const stack = [...seeds];
+    while (stack.length > 0 && out.length < 4000) {
+      const c = stack.pop()!;
+      const i = this.map.index(c.x, c.y);
+      if (seen.has(i)) continue;
+      seen.add(i);
+      out.push(c);
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+        const n = { x: c.x + dx, y: c.y + dy };
+        if (this.map.inBounds(n.x, n.y) && this.map.isBridge(n.x, n.y) && !seen.has(this.map.index(n.x, n.y))) stack.push(n);
+      }
+    }
+    return out;
   }
 
   /** Left click in bridge mode: send the order if the spot is legal. */
