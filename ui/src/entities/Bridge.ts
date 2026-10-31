@@ -144,6 +144,14 @@ export function bridgeStart(map: TileMap, x: number, y: number, rotated: boolean
       return true;
     };
     let k = 0;
+    if (joined) {
+      // Running on from a bridge: the whole chain is capped at BRIDGE_MAX_SECTIONS (checked above), so no far-bank
+      // reach test here (it disagreed with the first section's by a row and refused straight continuations). Where the
+      // far bank comes within this section, it rests at most BRIDGE_BANK_CELLS rows on it.
+      while (k < len && !dry(k)) k++;
+      if (k === 0 || (k < len && len - k > BRIDGE_BANK_CELLS)) continue;
+      return high;
+    }
     if (!joined) {
       if (!dry(0)) continue;
       while (k < len && dry(k)) k++;
