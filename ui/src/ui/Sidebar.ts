@@ -181,6 +181,8 @@ export interface SidebarModel {
   vehicleQueue: VehicleQueue;
   /** Types of the player's living buildings (drives the tech tree). */
   owned: ReadonlySet<BuildingType>;
+  /** Military embargo: Barracks, War Factory and Airfield may not be built. */
+  disarmed: boolean;
   /** Vehicles need a War Factory, aircraft an Airfield. */
   hasWarFactory: boolean;
   hasAirfield: boolean;
@@ -695,7 +697,7 @@ export class Sidebar {
       const mine = state !== 'idle';
       const placingThis = model.placingId === option.id;
       setData(c.el, 'state', placingThis ? 'placing' : state);
-      const missing = missingRequirement(option, model.owned);
+      const missing = missingRequirement(option, model.owned, model.disarmed);
       // Capital lost = government gone: no structure can be bought any more, their cameos are hidden.
       const gone = model.capitalLost && !mine;
       const locked = (missing !== null && !mine) || gone;

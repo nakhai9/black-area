@@ -10,6 +10,8 @@ export type Paint = string | CanvasGradient | CanvasPattern;
 /** Relative brightness per face — light comes from the upper right. */
 export const LIGHT = { top: 1.0, right: 0.86, left: 0.7 } as const;
 const EDGE = 'rgba(20,16,12,0.35)';
+/** Height (px) above which a flat face counts as a roof (lower ones are steps, plinths, paving). */
+const ROOF_MIN_Z = 3;
 
 export interface BoxStyle {
   top?: Paint;
@@ -34,11 +36,30 @@ export class IsoPainter {
     readonly zs = 1,
   ) {}
 
+  /** > 0 while a roof surface is being drawn (read by roofMaskContext to paint the roof mask of a taken building). */
+  roofing = 0;
+
+  /** Runs `fn` as roof drawing (see roofing). */
+  private asRoof(fn: () => void): void {
+    this.roofing++;
+    try {
+      fn();
+    } finally {
+      this.roofing--;
+    }
+  }
+
   project(u: number, v: number, z = 0): [number, number] {
     return [this.ox + (u - v) * HALF_TW, this.oy + (u + v) * HALF_TH - z * this.zs];
   }
 
   polygon(points: readonly Vec3[], fill: Paint, edge: string | null = EDGE): void {
+    // A flat face up in the air is a roof.
+    const z0 = points[0]?.[2] ?? 0;
+    if (z0 > ROOF_MIN_Z && points.every((p) => p[2] === z0) && this.roofing === 0) {
+      this.asRoof(() => this.polygon(points, fill, edge));
+      return;
+    }
     const { ctx } = this;
     ctx.beginPath();
     points.forEach(([u, v, z], i) => {
@@ -313,16 +334,22 @@ export class IsoPainter {
       ctx.stroke();
     }
 
-    ctx.beginPath();
-    ctx.ellipse(cx, yt, rx, ry, 0, 0, Math.PI * 2);
-    ctx.fillStyle = shade(color, 1.04);
-    ctx.fill();
-    ctx.strokeStyle = EDGE;
-    ctx.stroke();
+    this.asRoof(() => {
+      ctx.beginPath();
+      ctx.ellipse(cx, yt, rx, ry, 0, 0, Math.PI * 2);
+      ctx.fillStyle = shade(color, 1.04);
+      ctx.fill();
+      ctx.strokeStyle = EDGE;
+      ctx.stroke();
+    });
   }
 
   /** Hemispherical dome sitting on a circle of radius r at height z. */
   dome(cu: number, cv: number, r: number, z: number, h: number, color: string): void {
+    this.asRoof(() => this.domeShape(cu, cv, r, z, h, color));
+  }
+
+  private domeShape(cu: number, cv: number, r: number, z: number, h: number, color: string): void {
     h *= this.zs;
     const { ctx } = this;
     const [rx, ry] = this.radii(r);
@@ -346,6 +373,10 @@ export class IsoPainter {
 
   /** Russian onion dome, optionally with a swirling stripe colour. */
   onion(cu: number, cv: number, r: number, z: number, h: number, color: string, stripe?: string): void {
+    this.asRoof(() => this.onionShape(cu, cv, r, z, h, color, stripe));
+  }
+
+  private onionShape(cu: number, cv: number, r: number, z: number, h: number, color: string, stripe?: string): void {
     h *= this.zs;
     const { ctx } = this;
     const [rx, ry] = this.radii(r);
@@ -390,6 +421,10 @@ export class IsoPainter {
 
   /** Square-based pyramid (tower spires). */
   pyramid(u: number, v: number, w: number, d: number, z: number, h: number, color: string): void {
+    this.asRoof(() => this.pyramidShape(u, v, w, d, z, h, color));
+  }
+
+  private pyramidShape(u: number, v: number, w: number, d: number, z: number, h: number, color: string): void {
     const apex: Vec3 = [u + w / 2, v + d / 2, z + h];
     this.polygon([[u, v, z], [u + w, v, z], apex], shade(color, 0.92));
     this.polygon([[u, v, z], [u, v + d, z], apex], shade(color, 0.76));
@@ -402,6 +437,10 @@ export class IsoPainter {
    * corners (in px) for the upturned look of Chinese palace roofs.
    */
   hipRoof(u: number, v: number, w: number, d: number, z: number, h: number, overhang: number, color: string, curl = 0): void {
+    this.asRoof(() => this.hipRoofShape(u, v, w, d, z, h, overhang, color, curl));
+  }
+
+  private hipRoofShape(u: number, v: number, w: number, d: number, z: number, h: number, overhang: number, color: string, curl = 0): void {
     const U0 = u - overhang;
     const V0 = v - overhang;
     const U1 = u + w + overhang;
@@ -489,8 +528,10 @@ export class IsoPainter {
   gableRoofV(u: number, v: number, w: number, d: number, z: number, h: number, gable: string, roof: string): void {
     const um = u + w / 2;
     const top = z + h;
-    this.polygon([[u, v, z], [u, v + d, z], [um, v + d, top], [um, v, top]], shade(roof, 0.82));
-    this.polygon([[um, v, top], [um, v + d, top], [u + w, v + d, z], [u + w, v, z]], shade(roof, 0.98));
+    this.asRoof(() => {
+      this.polygon([[u, v, z], [u, v + d, z], [um, v + d, top], [um, v, top]], shade(roof, 0.82));
+      this.polygon([[um, v, top], [um, v + d, top], [u + w, v + d, z], [u + w, v, z]], shade(roof, 0.98));
+    });
     this.polygon([[u, v + d, z], [u + w, v + d, z], [um, v + d, top]], shade(gable, LIGHT.left + 0.1));
   }
 
@@ -510,4 +551,31 @@ export class IsoPainter {
     ctx.arc(x, y - h, 1.3, 0, Math.PI * 2);
     ctx.fill();
   }
+}
+
+/**
+ * A context that paints the roof mask of a drawing instead of its colours: white where an IsoPainter draws a roof
+ * (see IsoPainter.roofing), black everywhere else (walls, details, pictures), same shapes and overdraw order.
+ */
+export function roofMaskContext(ctx: CanvasRenderingContext2D, painter: () => IsoPainter | null): CanvasRenderingContext2D {
+  return new Proxy(ctx, {
+    get(target, prop) {
+      if (prop === 'drawImage') {
+        return (...args: Parameters<CanvasRenderingContext2D['drawImage']>) => {
+          target.save();
+          target.filter = 'brightness(0)';
+          (target.drawImage as (...a: unknown[]) => void)(...args);
+          target.restore();
+        };
+      }
+      const v = Reflect.get(target, prop, target) as unknown;
+      return typeof v === 'function' ? (v as (...a: unknown[]) => unknown).bind(target) : v;
+    },
+    set(target, prop, value) {
+      if (prop === 'fillStyle' || prop === 'strokeStyle') value = (painter()?.roofing ?? 0) > 0 ? '#fff' : '#000';
+      else if (prop === 'shadowColor') value = 'rgba(0,0,0,0)';
+      else if (prop === 'filter') value = 'none';
+      return Reflect.set(target, prop, value, target);
+    },
+  });
 }

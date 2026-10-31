@@ -20,7 +20,7 @@ import { Pyramids } from '../entities/Pyramids';
 import { Monument } from '../entities/Monument';
 import { Bridge } from '../entities/Bridge';
 import { NationCapital, type NationId } from '../entities/NationCapital';
-import { CELL_SIZE, VEHICLE_BASE , type MonumentId } from '../constants';
+import { CELL_SIZE, MONUMENTS, VEHICLE_BASE, type MonumentId } from '../constants';
 import { geoToWorld } from '../map/Geo';
 import { FACTIONS } from '../factions';
 import { BUILD_OPTIONS } from '../systems/ConstructionSystem';
@@ -70,7 +70,10 @@ const TEMPLATES: Readonly<Record<string, (d: Record<string, unknown>, at: WorldP
   Capital: (d, at) => new Capital(FACTIONS[d.faction as FactionId], d.owner as number, at),
   WorldBank: (_d, at) => new WorldBank(at),
   Pyramids: (_d, at) => new Pyramids(at),
-  Monument: (d, at) => new Monument(d.monument as MonumentId, at),
+  Monument: (d, at) => {
+    if (!(String(d.monument) in MONUMENTS)) throw new Error(`monument '${String(d.monument)}' was removed`);
+    return new Monument(d.monument as MonumentId, at);
+  },
   NationCapital: (d, at) => new NationCapital(d.nation as NationId, at),
   // A leased-out derrick is built as its leasing nation's (its protection follows that nation); the saved fields then hand it to the lessee.
   OilDerrick: (d, at) =>

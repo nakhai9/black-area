@@ -4,7 +4,7 @@ import type { WorldPoint } from '../types';
 import { Building } from './Building';
 
 /**
- * A landmark that is a symbol only (Lenin's Mausoleum, the Statue of Liberty): neutral, never attacked, damaged,
+ * A landmark that is a symbol only (the Statue of Liberty): neutral, never attacked, damaged,
  * captured or occupied; it blocks the ground like any structure.
  */
 export class Monument extends Building {

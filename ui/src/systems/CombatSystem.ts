@@ -49,6 +49,11 @@ export function setViolators(ids: ReadonlySet<number>): void {
 export function isViolator(id: number): boolean {
   return violators.has(id);
 }
+/** Nations under a military embargo (Game.enforceEmbargoes): their units cannot attack anyone. */
+let disarmed: ReadonlySet<number> = new Set();
+export function setDisarmed(owners: ReadonlySet<number>): void {
+  disarmed = owners;
+}
 
 /**
  * DEMO test games only: force fire. A unit given an explicit attack order on one of its own side's structures or units
@@ -59,6 +64,7 @@ export function forceFire(a: Entity, b: Entity): boolean {
 }
 
 export function isHostile(a: Entity, b: Entity): boolean {
+  if (disarmed.has(a.owner)) return false;
   // Ceasefire: nobody fights, except that a unit breaking it may be attacked by every other nation (and cannot hit back,
   // bar a tank's self-defence).
   if (truce) {

@@ -495,7 +495,7 @@ export class AISystem implements GameSystem {
       if (!anchor) return;
       this.sellOil(p, st);
       this.train(p, st, owned, this.threat(p, anchor));
-      if (!inTruce()) this.army(p, st, anchor);
+      if (!inTruce() && p.disarmedUntil === undefined) this.army(p, st, anchor);
       return;
     }
     const threat = this.threat(p, capital);
@@ -510,8 +510,8 @@ export class AISystem implements GameSystem {
     this.repairBase(p, st, owned);
     this.mendFleet(p);
     this.claimLand(p, st, capital, owned, threat);
-    // Ceasefire: the nation only builds up (economy, base, army) and launches no attack until the war resumes.
-    if (inTruce()) {
+    // Ceasefire, or a military embargo on the nation: it only builds up and launches no attack meanwhile.
+    if (inTruce() || p.disarmedUntil !== undefined) {
       this.contestNations(p, st, capital, owned, threat);
       this.leaseOil(p, owned, threat);
       this.keepCeasefire(p, st, capital);
@@ -564,7 +564,7 @@ export class AISystem implements GameSystem {
    */
   private savingForCity(p: PlayerState, owned: Set<BuildingType>, st?: AIState): boolean {
     const city = BUILD_OPTIONS.find((o) => o.id === 'happyCity');
-    if (!city || missingRequirement(city, owned) !== null) return false;
+    if (!city || missingRequirement(city, owned, p.disarmedUntil !== undefined) !== null) return false;
     // Growth is paid for out of income, never out of debt: clearing what it owes comes first.
     if (p.debt > 0 || p.creditFrozen) return false;
     const cap = Math.max(2, Math.round(MAX_CITIES * (st?.style.cityAppetite ?? 1)));
@@ -613,7 +613,7 @@ export class AISystem implements GameSystem {
       return;
     }
     let next = BUILD_PLAN.map((id) => BUILD_OPTIONS.find((o) => o.id === id)).find(
-      (o) => o && !busy(o.id) && !owned.has(o.id as BuildingType) && missingRequirement(o, owned) === null,
+      (o) => o && !busy(o.id) && !owned.has(o.id as BuildingType) && missingRequirement(o, owned, p.disarmedUntil !== undefined) === null,
     );
     // Walls and gates round the capital, first of the defences, but only while the nation needs them (see needsWalls).
     const walls = owned.has('barracks') && this.needsWalls(p, st, capital, threat);
@@ -627,7 +627,7 @@ export class AISystem implements GameSystem {
     // A claim flag stands on new land without its ally yet: raise the Allied Building next to it.
     if (!next && threat === 0 && this.embassyAnchors(p, capital).length > 0 && this.host.alliesOf(p) < MAX_ALLIES) {
       const allied = BUILD_OPTIONS.find((o) => o.id === 'alliedBuilding');
-      if (allied && missingRequirement(allied, owned) === null) next = allied;
+      if (allied && missingRequirement(allied, owned, p.disarmedUntil !== undefined) === null) next = allied;
     }
     // Designs taken from another nation (its capital, or one of its structures, captured): build one of each.
     if (!next && threat === 0) {
@@ -636,7 +636,7 @@ export class AISystem implements GameSystem {
           o.foreign &&
           !busy(o.id) &&
           foreignBuildAllowed(this.host.entities, p, o.id, o.foreign) &&
-          missingRequirement(o, owned) === null &&
+          missingRequirement(o, owned, p.disarmedUntil !== undefined) === null &&
           p.credits >= buildCost(o, p.faction) * 1.5 &&
           !this.host.entities.buildings().some((b) => b.owner === p.id && b.alive && b.spec.type === o.id.split('@')[0] && b.origin === o.foreign),
       );
@@ -1664,8 +1664,8 @@ export class AISystem implements GameSystem {
     const caps = this.host.entities.buildings().filter((b) => b.alive && (isPrize(b) || this.isRivalCapital(p, b)));
     const pf = this.host.pathfinder;
     const cellOf = (b: Building): GridPoint | null => pf.nearestPassable(b.x + Math.floor(b.w / 2), b.y + b.d, 10);
-    const allowed = (c: Building): boolean => c.owner !== p.id && (c.owner === NEUTRAL_OWNER || (threat === 0 && !inTruce()));
-    let target = caps.find((c) => c.id === st.nationTarget && c.owner !== p.id && (c.owner === NEUTRAL_OWNER || !inTruce())) ?? null;
+    const allowed = (c: Building): boolean => c.owner !== p.id && (c.owner === NEUTRAL_OWNER || threat === 0);
+    let target = caps.find((c) => c.id === st.nationTarget && c.owner !== p.id) ?? null;
     if (!target) {
       st.nationTarget = null;
       if (this.time < NATION_FROM) return;
@@ -2069,7 +2069,7 @@ export class AISystem implements GameSystem {
     };
     const out: Unit[] = [];
     for (const u of this.host.entities.fieldMovers()) {
-      if (u.owner !== p.id || !u.alive || u.task?.type === 'lease' || u.retreating || u.fixed) continue;
+      if (u.owner !== p.id || !u.alive || u.task?.type === 'lease' || u.retreating || u.fixed || (u instanceof Infantry && u.isEngineer)) continue;
       // Already standing at the capital: ordering it there again every think only costs a path search.
       if (!u.moving && Math.hypot(u.px - home.x, u.py - home.y) < 6 * CELL_SIZE) continue;
       if (near(u)) out.push(u);

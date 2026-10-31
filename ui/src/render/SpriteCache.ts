@@ -2,7 +2,7 @@ import { HALF_TH, HALF_TW, SPRITE_SCALE } from '../constants';
 import { FACTIONS } from '../factions';
 import type { FactionId, Rect } from '../types';
 import { createCanvas } from './Canvas';
-import { IsoPainter } from './IsoPainter';
+import { IsoPainter, roofMaskContext } from './IsoPainter';
 import { applyRa2Finish } from './Ra2Finish';
 import { baseKeyOf, flagVariantArt, recolorPixels, teamColorOwner, teamColoredArt, type BuildingArt } from './sprites';
 
@@ -124,6 +124,35 @@ export class SpriteCache {
     return s.alpha[py * w + px] > HIT_ALPHA;
   }
 
+  /**
+   * Roof pixels of a drawing from its roof-mask render (see roofMaskContext). Art with no roof drawn through the
+   * painter (a picture) falls back to the top 35% of its silhouette.
+   */
+  private roofMask(mask: Uint8ClampedArray, image: Uint8ClampedArray, width: number): Uint8Array {
+    const n = image.length / 4;
+    const roof = new Uint8Array(n);
+    let any = false;
+    for (let p = 0; p < n; p++) {
+      if (image[p * 4 + 3]! > 0 && mask[p * 4 + 3]! > 0 && mask[p * 4]! > 127) {
+        roof[p] = 1;
+        any = true;
+      }
+    }
+    if (any) return roof;
+    let top = -1;
+    let bottom = -1;
+    for (let p = 0; p < n; p++) {
+      if (image[p * 4 + 3]! <= HIT_ALPHA) continue;
+      const y = (p / width) | 0;
+      if (top < 0) top = y;
+      bottom = y;
+    }
+    if (top < 0) return roof;
+    const limit = top + (bottom - top) * 0.35;
+    for (let p = 0; p < n; p++) if (image[p * 4 + 3]! > 0 && ((p / width) | 0) <= limit) roof[p] = 1;
+    return roof;
+  }
+
   private build(key: string, mirrored: boolean): Sprite {
     let art = this.registry.get(key);
     if (!art) {
@@ -148,25 +177,44 @@ export class SpriteCache {
     const centerX = mirrored ? width - groundCenterX : groundCenterX;
     const centerY = anchorY + ((w + d) / 2) * HALF_TH;
 
-    const { canvas, ctx } = createCanvas(width * RASTER_SCALE, height * RASTER_SCALE);
-    ctx.scale(RASTER_SCALE, RASTER_SCALE);
-    if (mirrored) {
-      ctx.translate(width, 0);
-      ctx.scale(-1, 1);
-    }
-    ctx.save();
-    ctx.scale(artScale, artScale);
-    art.drawStatic(new IsoPainter(ctx, anchorX / artScale, anchorY / artScale, zScale));
-    ctx.restore();
-
-    // Red Alert 2 look: grainy, slightly muted pre-rendered surfaces with a dark rim.
-    applyRa2Finish(ctx, canvas.width, canvas.height, !art.noRim);
-    // A taken structure: no colour of the nation it was taken from is left (see recolorPixels).
+    const paint = (a: BuildingArt, mask = false): { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D } => {
+      const out = createCanvas(width * RASTER_SCALE, height * RASTER_SCALE);
+      let painter: IsoPainter | null = null;
+      const c = mask ? roofMaskContext(out.ctx, () => painter) : out.ctx;
+      c.scale(RASTER_SCALE, RASTER_SCALE);
+      if (mirrored) {
+        c.translate(width, 0);
+        c.scale(-1, 1);
+      }
+      c.save();
+      c.scale(artScale, artScale);
+      painter = new IsoPainter(c, anchorX / artScale, anchorY / artScale, zScale);
+      a.drawStatic(painter);
+      c.restore();
+      // Red Alert 2 look: grainy, slightly muted pre-rendered surfaces with a dark rim.
+      if (!mask) applyRa2Finish(out.ctx, out.canvas.width, out.canvas.height, !a.noRim);
+      return out;
+    };
+    const { canvas, ctx } = paint(art);
+    // A taken structure keeps the look of the nation that built it: only its roofs take the new owner's colours
+    // (see recolorPixels), the walls and the rest stay as they were.
     const recolor = teamColorOwner(key);
+    const original = recolor ? this.registry.get(baseKeyOf(key)) : undefined;
     if (recolor) {
       const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
       const design = /^\w+:(\w+)/.exec(key)?.[1] as FactionId | undefined;
       recolorPixels(img.data, recolor, design && design in FACTIONS ? design : undefined);
+      if (original) {
+        const before = paint(original).ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+        const roof = this.roofMask(paint(original, true).ctx.getImageData(0, 0, canvas.width, canvas.height).data, before, canvas.width);
+        for (let i = 0, p = 0; i < before.length; i += 4, p++) {
+          if (roof[p]) continue;
+          img.data[i] = before[i]!;
+          img.data[i + 1] = before[i + 1]!;
+          img.data[i + 2] = before[i + 2]!;
+          img.data[i + 3] = before[i + 3]!;
+        }
+      }
       ctx.putImageData(img, 0, 0);
     }
     const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;

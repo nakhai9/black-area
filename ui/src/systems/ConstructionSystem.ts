@@ -1,5 +1,6 @@
 import { demoPrice } from '../core/Demo';
 import {
+  MILITARY_BASES,
   AIRFIELD_COST,
   ALLIED_BUILDING_COST,
   TECH_CENTER_COST,
@@ -221,11 +222,13 @@ export function footprintOf(option: BuildOption, faction: FactionId): { w: numbe
  * but the Power Plant needs a standing Power Plant, and every one but the Power Plant and Ministry of Defence also needs a
  * Ministry of Defence — on top of its own `requires`. Player and AI both go through here.
  */
-export function missingRequirement(option: BuildOption, owned: ReadonlySet<BuildingType>): BuildingType | null {
-  const base = option.id.split('@')[0];
+export function missingRequirement(option: BuildOption, owned: ReadonlySet<BuildingType>, disarmed = false): BuildingType | null {
+  const base = option.id.split('@')[0] as BuildingType;
+  // Military embargo: the bases themselves are forbidden, and nothing else waits on them meanwhile.
+  if (disarmed && MILITARY_BASES.includes(base)) return base;
   const core: BuildingType[] = base === 'powerPlant' ? [] : base === 'barracks' ? ['powerPlant'] : ['powerPlant', 'barracks'];
   const own: readonly BuildingType[] = option.requires === undefined ? [] : typeof option.requires === 'string' ? [option.requires] : option.requires;
-  return [...core, ...own].find((t) => !owned.has(t)) ?? null;
+  return [...core, ...own].find((t) => !owned.has(t) && !(disarmed && MILITARY_BASES.includes(t))) ?? null;
 }
 
 /** Price of a structure for a nation (faction cost multiplier applied, like soldiers and vehicles). */
@@ -295,6 +298,7 @@ export class ConstructionSystem implements GameSystem {
   start(player: PlayerState, option: BuildOption): boolean {
     const s = this.slot(player, option.id);
     if (s.state !== 'idle' || player.capitalLost) return false;
+    if (player.disarmedUntil !== undefined && MILITARY_BASES.includes(option.id.split('@')[0] as BuildingType)) return false;
     Object.assign(s, { option, state: 'building', progress: 0, paid: 0 });
     return true;
   }

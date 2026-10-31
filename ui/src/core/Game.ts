@@ -13,6 +13,8 @@ import {
   DERRICK_GRACE_ATTACKS,
   ENGINEER_REPAIR_SHARE,
   CAPITAL_EMBARGO_SECONDS,
+  CAPITAL_DISARM_SECONDS,
+  MILITARY_BASES,
   AI_EMBARGO_CREDITS,
   DERRICK_GRACE_GAP,
   MERCY_BONUS,
@@ -93,9 +95,7 @@ import {
   FOOTPRINT_BRIDGE,
   BRIDGE_DEPLOY_CELLS,
   BRIDGE_REACH_CELLS,
-  MONUMENTS,
   STATUE_OF_LIBERTY_LOCATION,
-  LENIN_MAUSOLEUM_GAP,
   AWACS_RADIUS_CELLS,
   SQUAD_MIN_REGULAR,
   SQUAD_MIN_SPECIAL,
@@ -167,7 +167,7 @@ import { AIRFIELD_SLOTS, RUNWAY_D, AIRFIELD_SIZE } from '../render/sprites/Airfi
 import { AircraftSystem, type AirfieldGeometry } from '../systems/AircraftSystem';
 import { AISystem } from '../systems/AISystem';
 import { StructureIndex } from '../systems/StructureIndex';
-import { canTarget, CombatSystem, distanceTo, inTruce, isHostile, setTruce, setViolators } from '../systems/CombatSystem';
+import { canTarget, CombatSystem, distanceTo, inTruce, isHostile, setDisarmed, setTruce, setViolators } from '../systems/CombatSystem';
 import { MIN_SALE_STOCK, OilMarket } from '../systems/OilMarket';
 import { TaxSystem } from '../systems/TaxSystem';
 import { EndScreen } from '../ui/EndScreen';
@@ -559,12 +559,6 @@ export class Game {
     buildWorld(earth, biomes, this.map);
     const trees = new TreeLayer(this.map, biomes, MAP_SEED);
     this.placeOnGrid(this.entities.buildings(), trees);
-    // Lenin's Mausoleum faces Russia's capital, LENIN_MAUSOLEUM_GAP cells in front of it (a symbol only).
-    const kremlin = this.landmarks.find((b) => b.spec.spriteKey === 'capital:russia' || (b instanceof NationCapital && b.nation === 'russia'));
-    if (kremlin) {
-      const at = { x: (kremlin.x + kremlin.w / 2) * CELL_SIZE, y: (kremlin.y + kremlin.d + LENIN_MAUSOLEUM_GAP + MONUMENTS.lenin.footprint.d / 2) * CELL_SIZE };
-      this.placeOnGrid([this.entities.add(new Monument('lenin', at))], trees);
-    }
     // The Statue of Liberty in New York harbour (on the nearest dry ground if the island is not on the map).
     this.placeOnGrid([this.entities.add(new Monument('liberty', geoToWorld(STATUE_OF_LIBERTY_LOCATION)))], trees);
     this.placeOilRows(trees);
@@ -3147,9 +3141,9 @@ export class Game {
     return t < WAR_SECONDS ? { peace: false, left: WAR_SECONDS - t } : { peace: true, left: WAR_SECONDS + PEACE_SECONDS - t };
   }
 
-  /** During a ceasefire no nation takes over a building another nation owns (unowned ones are still fair game). */
-  private captureBanned(b: Building): boolean {
-    return inTruce() && b.owner !== NEUTRAL_OWNER;
+  /** Engineers keep every right during a ceasefire too: takeovers are never banned by the peace. */
+  private captureBanned(_b: Building): boolean {
+    return false;
   }
 
   /** 6 minutes of war, 4 of peace, over and over: at each switch every fight and takeover in progress is called off. */
@@ -3196,7 +3190,7 @@ export class Game {
           if (b instanceof Building && this.captureBanned(b)) u.task = null;
         }
       }
-      this.news.show(t('CEASEFIRE'), t('{minutes} minutes of peace: no attacks, no takeovers. Build up your nation.', { minutes: PEACE_SECONDS / 60 }));
+      this.news.show(t('CEASEFIRE'), t('{minutes} minutes of peace: no attacks; engineers keep working as usual. Build up your nation.', { minutes: PEACE_SECONDS / 60 }));
     } else {
       this.news.show(t('WAR'), t('The ceasefire is over: {minutes} minutes of war.', { minutes: WAR_SECONDS / 60 }));
     }
@@ -3229,7 +3223,8 @@ export class Game {
     let mine = 0;
     for (const u of this.entities.fieldMovers()) {
       // Aircraft standing on the ground (parked, taxiing, landed) do not count; flying ones do.
-      if (!u.alive || u.owner === NEUTRAL_OWNER || u.task?.type === 'lease' || u.fixed) continue;
+      // Engineers keep working freely in peace time: never violators.
+      if (!u.alive || u.owner === NEUTRAL_OWNER || u.task?.type === 'lease' || u.fixed || (u instanceof Infantry && u.isEngineer)) continue;
       const cx = u.px / CELL_SIZE;
       const cy = u.py / CELL_SIZE;
       if (!zones.foreignWithin(u.owner, cx, cy, R)) continue;
@@ -3633,6 +3628,7 @@ export class Game {
           training: this.training.queue(this.humanPlayer),
           vehicleQueue: this.production.queue(this.humanPlayer),
           owned: (this.ownedCache = this.ownedTypes()),
+          disarmed: this.humanPlayer.disarmedUntil !== undefined,
           hasWarFactory: this.production.producerOf(this.humanPlayer, 'warFactory') !== null,
           hasAirfield: this.production.producerOf(this.humanPlayer, 'airfield') !== null,
           hasBarracks: this.training.barracksOf(this.humanPlayer) !== null,
@@ -4246,7 +4242,11 @@ export class Game {
         this.sidebar.notify(t('A nation has at most {max} embassies.', { max: MAX_ALLIES }));
         return;
       }
-      const need = missingRequirement(option, this.ownedTypes());
+      const need = missingRequirement(option, this.ownedTypes(), player.disarmedUntil !== undefined);
+      if (need && need === option.id.split('@')[0]) {
+        this.sidebar.notify(t('Military embargo: no Barracks, War Factory or Airfield for now.'));
+        return;
+      }
       if (need) {
         this.sidebar.notify(
 t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.find((o) => o.id === need)?.name ?? need }),
@@ -6037,10 +6037,14 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
               if (u.owner === this.localId) this.promptCapitalChoice(u, b);
               continue;
             }
-            task.choice = this.aiCapitalChoice(b);
+            task.choice = this.aiCapitalChoice(b, u.owner);
           }
           if (task.choice === 'embargo') {
             this.embargoCapital(u, b);
+            continue;
+          }
+          if (task.choice === 'disarm') {
+            this.disarmCapital(u, b);
             continue;
           }
         }
@@ -6073,16 +6077,31 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     this.capitalPrompts.add(u.id);
     const holder = this.players.find((p) => p.id === b.owner);
     askCapitalChoice(
-      { capital: b.spec.name, nation: holder ? FACTIONS[holder.faction].name : '', embargoMinutes: CAPITAL_EMBARGO_SECONDS / 60 },
+      { capital: b.spec.name, nation: holder ? FACTIONS[holder.faction].name : '', embargoMinutes: CAPITAL_EMBARGO_SECONDS / 60, disarmMinutes: CAPITAL_DISARM_SECONDS / 60 },
       (c) => this.issue({ k: 'capitalChoice', u: u.id, c }),
       () => u.alive && u.task?.type === 'capture' && u.task.buildingId === b.id && !u.task.choice && b.alive && this.isEnemyCapital(b),
     );
   }
 
-  /** AI engineer at an enemy capital: a rich nation is put under embargo, otherwise the capital is taken over. */
-  private aiCapitalChoice(b: Building): CapitalChoice {
+  /**
+   * AI engineer at an enemy capital: a rich nation is put under embargo, one fielding a bigger army than the
+   * engineer's nation is disarmed, otherwise the capital is taken over.
+   */
+  private aiCapitalChoice(b: Building, by: number): CapitalChoice {
     const holder = this.players.find((p) => p.id === b.owner);
-    return holder && holder.credits >= AI_EMBARGO_CREDITS && !this.underEmbargo(holder) ? 'embargo' : 'capture';
+    if (!holder) return 'capture';
+    if (holder.credits >= AI_EMBARGO_CREDITS && !this.underEmbargo(holder)) return 'embargo';
+    if (holder.disarmedUntil === undefined) {
+      let theirs = 0;
+      let ours = 0;
+      for (const x of this.entities.fieldUnits()) {
+        if (!x.alive || !x.weapon) continue;
+        if (x.owner === holder.id) theirs++;
+        else if (x.owner === by) ours++;
+      }
+      if (theirs > ours) return 'disarm';
+    }
+    return 'capture';
   }
 
   private underEmbargo(p: PlayerState): boolean {
@@ -6105,8 +6124,50 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     this.news.show(t('BREAKING NEWS'), t('{by} has put {nation} under an economic embargo: its treasury is empty and earns nothing for {minutes} minutes.', vars));
   }
 
-  /** Embargoed nations have no money at all: the treasury stays at 0 (nothing to spend) until the embargo ends. */
+  /**
+   * Military embargo: the engineer is used up, the capital stays with its nation, which loses every Barracks, War
+   * Factory and Airfield (and their orders) and may neither rebuild them nor attack until it ends.
+   */
+  private disarmCapital(u: Infantry, b: Building): void {
+    const holder = this.players.find((p) => p.id === b.owner);
+    const by = this.players.find((p) => p.id === u.owner);
+    this.entities.remove(u.id);
+    this.selection.selectedUnits.delete(u.id);
+    if (!holder || !by) return;
+    for (const x of this.entities.buildings()) {
+      if (x.owner === holder.id && x.alive && MILITARY_BASES.includes(x.spec.type)) x.hp = 0;
+    }
+    for (const s of this.construction.active(holder)) {
+      if (s.option && MILITARY_BASES.includes(s.option.id.split('@')[0] as BuildingType)) this.construction.cancel(holder, s.option.id);
+    }
+    if (holder.id === this.localId && this.placing && MILITARY_BASES.includes(this.placing.id.split('@')[0] as BuildingType)) this.placing = null;
+    for (const x of this.entities.units()) {
+      if (x.owner !== holder.id) continue;
+      x.attackTarget = null;
+      x.combatTarget = null;
+      x.attackMove = null;
+    }
+    holder.disarmedUntil = this.time + CAPITAL_DISARM_SECONDS;
+    const vars = { by: FACTIONS[by.faction].name, nation: FACTIONS[holder.faction].name, minutes: CAPITAL_DISARM_SECONDS / 60 };
+    this.news.show(t('BREAKING NEWS'), t('{by} has put {nation} under a military embargo: its Barracks, War Factories and Airfields are gone and it cannot attack for {minutes} minutes.', vars));
+  }
+
+  /**
+   * Embargoed nations have no money at all: the treasury stays at 0 (nothing to spend) until the embargo ends.
+   * Disarmed nations stay disarmed until theirs ends, then may build an army again from scratch.
+   */
   private enforceEmbargoes(): void {
+    const disarmed = new Set<number>();
+    for (const p of this.players) {
+      if (p.disarmedUntil === undefined) continue;
+      if (this.time >= p.disarmedUntil) {
+        delete p.disarmedUntil;
+        if (p.id === this.localId) this.sidebar.notify(t('The military embargo is over: you may build Barracks, War Factories and Airfields again.'), 6);
+        continue;
+      }
+      disarmed.add(p.id);
+    }
+    setDisarmed(disarmed);
     for (const p of this.players) {
       if (p.embargoUntil === undefined) continue;
       if (this.time >= p.embargoUntil) {

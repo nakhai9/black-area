@@ -3,11 +3,12 @@ import { t } from '../i18n';
 
 /**
  * Shown when one of my engineers reaches an enemy nation's own capital: put that nation under an economic embargo,
+ * a military embargo,
  * or take the capital over. The engineer is used up whichever is picked. `isOpen` closes it on its own
  * once the engineer is gone (killed, or the capital fell meanwhile).
  */
 export function askCapitalChoice(
-  info: { capital: string; nation: string; embargoMinutes: number },
+  info: { capital: string; nation: string; embargoMinutes: number; disarmMinutes: number },
   pick: (c: CapitalChoice) => void,
   isOpen: () => boolean,
   parent: HTMLElement = document.body,
@@ -42,7 +43,8 @@ export function askCapitalChoice(
     actions.append(b);
   };
   button('embargo', t('1. Embargo'), t('Their economy is wiped out: treasury and oil stock drop to 0, and they can neither earn nor spend for {minutes} minutes.', { minutes: info.embargoMinutes }));
-  button('capture', t('2. Capture'), t('Take the capital: you unlock all of their structures, soldiers, vehicles and aircraft.'));
+  button('disarm', t('2. Military embargo'), t('They lose every Barracks, War Factory and Airfield and cannot attack or rebuild them for {minutes} minutes; then they may re-arm from scratch.', { minutes: info.disarmMinutes }));
+  button('capture', t('3. Capture'), t('Take the capital: you unlock all of their structures, soldiers, vehicles and aircraft.'));
   card.append(title, text, actions);
   root.append(card);
   parent.append(root);

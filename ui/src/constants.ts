@@ -27,7 +27,7 @@ export const DEMO_FACTION = Number(import.meta.env.VITE_DEMO_FACTION) || 2;
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "2.83.31";
+export const GAME_VERSION = "2.84.0";
 
 /** An Allied Building within this many cells of any capital is an embassy; farther out it is a "Pro-<nation> regime". */
 export const EMBASSY_CAPITAL_CELLS = 25;
@@ -156,8 +156,8 @@ export const SQUAD_MIN_TANKS = 6;
 export const BRIDGE_REACH_CELLS = 4;
 /** Pyramids of Giza (neutral monument). */
 export const FOOTPRINT_PYRAMIDS = { w: 6, d: 6 } as const;
-/** Symbol landmarks (Monument): Lenin's Mausoleum LENIN_MAUSOLEUM_GAP cells in front of Russia's capital, the Statue of Liberty on Liberty Island. */
-export type MonumentId = "lenin" | "liberty";
+/** Symbol landmarks (Monument): the Statue of Liberty on Liberty Island. */
+export type MonumentId = "liberty";
 export const MONUMENTS: Readonly<
   Record<
     MonumentId,
@@ -168,18 +168,12 @@ export const MONUMENTS: Readonly<
     }
   >
 > = {
-  lenin: {
-    name: "Lenin's Mausoleum",
-    city: "Moscow",
-    footprint: { w: 4, d: 3 },
-  },
   liberty: {
     name: "Statue of Liberty",
     city: "New York",
     footprint: { w: 2, d: 2 },
   },
 };
-export const LENIN_MAUSOLEUM_GAP = 5;
 export const STATUE_OF_LIBERTY_LOCATION = { lon: -74.04, lat: 40.69 };
 /** Flagpole: exactly one cell. */
 export const FOOTPRINT_FLAGPOLE = { w: 1, d: 1 } as const;
@@ -914,6 +908,13 @@ export const ENGINEER_REPAIR_SHARE = 0.06;
 export const CAPITAL_EMBARGO_SECONDS = 180;
 /** AI engineer in an enemy capital: embargo when that nation holds at least this many TB, else take it over. */
 export const AI_EMBARGO_CREDITS = 1000;
+/**
+ * Engineer in an enemy capital, military embargo (demilitarisation): that nation loses every Barracks, War Factory and
+ * Airfield, may not rebuild them and its units cannot attack for this many seconds; afterwards it re-arms from scratch.
+ */
+export const CAPITAL_DISARM_SECONDS = 120;
+/** Structures a military embargo tears down and forbids. */
+export const MILITARY_BASES: readonly BuildingType[] = ['barracks', 'warFactory', 'airfield'];
 
 /** Every nation starts broke; oil derricks are the only source of TB. */
 export const STARTING_CREDITS = 0;

@@ -212,6 +212,8 @@ export interface PlayerState {
   powerShort: boolean;
   /** Economic embargo (an enemy engineer in its capital): treasury held at 0, no sales or loans, until this game time (s). */
   embargoUntil?: number;
+  /** Military embargo (an enemy engineer in its capital): no Barracks / War Factory / Airfield, no attacks, until this game time (s). */
+  disarmedUntil?: number;
   /** Building id chosen by double-click per producer type (barracks / warFactory / airfield): new units come out there. */
   primaryBuilding?: Partial<Record<string, number>>;
 }

@@ -17,8 +17,8 @@ export interface UnitTask {
   choice?: CapitalChoice;
 }
 
-/** Engineer in an enemy capital: freeze that nation's treasury (embargo), or take it over. */
-export type CapitalChoice = 'embargo' | 'capture';
+/** Engineer in an enemy capital: freeze that nation's treasury (embargo), disarm it (disarm), or take it over. */
+export type CapitalChoice = 'embargo' | 'disarm' | 'capture';
 
 /**
  * Anything that moves around the map under orders: soldiers, vehicles and
