@@ -110,13 +110,19 @@ export function bridgeStart(map: TileMap, x: number, y: number, rotated: boolean
   const gap = bridgeGap(map, x, y, rotated);
   if (gap === 'bad') return null;
   if (gap === 'joins') return false; // laid from the low end, standing on the bridge there
-  // Bridge cells straight on past one end (the sections it would join).
+  // A section only runs on from a bridge squarely, its whole end against the whole end of that bridge: an end that
+  // touches a bridge with only some of its cells would leave the two decks offset side by side.
+  for (const high of [false, true]) {
+    const n = bridgeEnd(x, y, rotated, high, true).filter((c) => map.inBounds(c.x, c.y) && map.isBridge(c.x, c.y)).length;
+    if (n > 0 && n < across) return null;
+  }
+  // Rows of bridge straight on past one end (the sections it would join), every cell across the row a bridge cell.
   const run = (high: boolean): number => {
-    const start = bridgeEnd(x, y, rotated, high, true)[0]!;
+    const ends = bridgeEnd(x, y, rotated, high, true);
     const step = high ? 1 : -1;
     let n = 0;
-    const at = (k: number): [number, number] => (rotated ? [start.x + k * step, start.y] : [start.x, start.y + k * step]);
-    while (map.inBounds(...at(n)) && map.isBridge(...at(n))) n++;
+    const row = (k: number): boolean => ends.every((c) => (rotated ? map.inBounds(c.x + k * step, c.y) && map.isBridge(c.x + k * step, c.y) : map.inBounds(c.x, c.y + k * step) && map.isBridge(c.x, c.y + k * step)));
+    while (n < 64 && row(n)) n++;
     return n;
   };
   const lowRun = run(false);
