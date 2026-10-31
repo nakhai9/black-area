@@ -513,6 +513,8 @@ export abstract class Unit extends Entity {
     this.blockedFor = blocked ? this.blockedFor + dt : Math.max(0, this.blockedFor - dt * 2);
     // Something stands in the way and re-routing did not help: stop where it is instead of pushing on. Only a truly
     // walled-in unit gets there: being jostled (a crowd, a fight) asks for new routes first, the order is kept.
+    // At a bridge traffic only ever waits its turn (first come, first served): nobody gives up its order there.
+    if (this.bridgeSince >= 0) this.blockedFor = 0;
     if (this.blockedFor > BLOCKED_GIVE_UP) {
       this.stop();
       this.stuckFor = 0;

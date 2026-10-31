@@ -61,7 +61,7 @@ export type VehicleQueueState = 'idle' | 'building' | 'onHold' | 'noFactory' | '
 export type VehicleEnqueueResult = 'ok' | 'full' | 'noFactory' | 'noAirfield' | 'noParking' | 'tech' | 'cap' | 'transportCap' | 'noCapital';
 
 export interface VehicleQueue {
-  /** Vehicles on order: every one of them is built at the same time (parallel production). */
+  /** Vehicles on order, built one at a time in the order they were ordered (first ordered, first finished). */
   items: VehicleKey[];
   /** TB paid so far for each order (same index as `items`). */
   paidEach: number[];
@@ -263,13 +263,17 @@ export class VehicleSystem implements GameSystem {
       let state: VehicleQueueState | null = null;
       let short = false;
       const done: number[] = [];
-      // Every order is built at once; the oldest are paid first when TB runs short. Power no longer stops production.
+      // First ordered, first finished: one order is built at a time, in order (an order that cannot be built right now —
+      // no factory / airfield, no tech — is passed over until it can). Power no longer stops production.
+      let busy = false;
       q.items.forEach((key, i) => {
+        if (busy) return;
         const stuck = this.blocked(p, splitKey(key).base);
         if (stuck) {
           state ??= stuck;
           return;
         }
+        busy = true;
         const option = options.find((o) => o.key === key);
         if (!option) return;
         const paid = q.paidEach[i] ?? 0;

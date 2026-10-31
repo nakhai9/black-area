@@ -234,14 +234,17 @@ export class TrainingSystem implements GameSystem {
       for (let i = q.items.length - 1; i >= 0; i--) if (!options.some((o) => o.key === q.items[i])) this.removeAt(p, i);
       let short = false;
       const done: number[] = [];
-      // Every order trains at once; the oldest are paid first when TB runs short.
+      // First ordered, first finished: one soldier trains at a time, in order (one that needs a High-Tech Center that is
+      // gone meanwhile waits, unpaid, and the next in line trains).
+      let busy = false;
       q.items.forEach((key, i) => {
+        if (busy) return;
         const tier = splitKey(key).base;
-        // Without a High-Tech Center (destroyed meanwhile) second-tier soldiers wait, unpaid.
         if (TECH_TIERS.includes(tier) && !tech) {
           short = true;
           return;
         }
+        busy = true;
         const option = options.find((o) => o.key === key);
         if (!option) return;
         const paid = q.paidEach[i] ?? 0;

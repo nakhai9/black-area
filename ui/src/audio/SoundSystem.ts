@@ -88,6 +88,8 @@ const CRY_COOLDOWN = 7;
 /** Seconds between two "under attack" alarms / two mayday calls (several alerts at once sound only once). */
 const ALARM_COOLDOWN = 4;
 const MAYDAY_COOLDOWN = 3;
+/** Seconds before the same announcement ("Unit ready", "Building lost"…) may be spoken again. */
+const ANNOUNCE_COOLDOWN = 3;
 /** Small-arms fire is boosted so a firefight is clearly heard over the music and engines. */
 const GUN_BOOST = 1.35;
 const MIN_GAP: Readonly<Record<string, number>> = { rifle: 0.05, smg: 0.045, sniper: 0.1, mg: 0.05, cannon: 0.12, autocannon: 0.06, missile: 0.15, explosion: 0.1, board: 0.12 };
@@ -130,7 +132,7 @@ const SFX_DUCK_HOLD = 0.8;
  * The recordings public/sounds/ actually ships (file names with extension). Only these are fetched, so a missing
  * recording costs no 404 request; add a file's name here when you drop one into public/sounds/.
  */
-const SHIPPED_SOUNDS: ReadonlySet<string> = new Set(['rifle.mp3', 'tank-cannon.mp3', 'bomb.mp3', 'engine-tank.mp3']);
+const SHIPPED_SOUNDS: ReadonlySet<string> = new Set(['rifle.mp3', 'tank-cannon.mp3', 'bomb.mp3', 'engine-tank.mp3', 'engine-heli.mp3']);
 /** The shipped file for a sound name (no extension), or null when there is none. */
 const shipped = (path: string): string | null => {
   for (const ext of ['mp3', 'ogg', 'wav']) if (SHIPPED_SOUNDS.has(`${path}.${ext}`)) return `${path}.${ext}`;
@@ -214,6 +216,8 @@ export class SoundSystem {
   /** Audio time until which a weapon / explosion keeps the music ducked. */
   private sfxUntil = 0;
   private lastMayday = -99;
+  /** When each announcement was last spoken (see announce). */
+  private readonly lastLine = new Map<string, number>();
 
   /** `listener` defaults to "hear everything" (menus); the game sets the camera with setListener. */
   constructor(private listener: () => Listener = () => ({ centre: { x: 0, y: 0 }, range: Infinity })) {
@@ -428,6 +432,27 @@ export class SoundSystem {
         osc.stop(t + at + 0.14);
       }
     }
+  }
+
+  /**
+   * The commander's voice (EVA style) for the player's own events: "Construction complete", "Unit ready", "Low power",
+   * "Building lost", "Orders received". The same line is not repeated within ANNOUNCE_COOLDOWN s, and a line waiting
+   * behind another is dropped when the voice is busy (no backlog of stale announcements).
+   */
+  announce(line: string): void {
+    if (this.muted || typeof speechSynthesis === 'undefined' || !this.ctx) return;
+    const now = performance.now() / 1000;
+    if (now - (this.lastLine.get(line) ?? -99) < ANNOUNCE_COOLDOWN) return;
+    if (speechSynthesis.pending) return;
+    this.lastLine.set(line, now);
+    const u = new SpeechSynthesisUtterance(line);
+    u.lang = 'en-US';
+    const voice = this.voices.find((v) => v.lang.toLowerCase().startsWith('en'));
+    if (voice) u.voice = voice;
+    u.rate = 1;
+    u.pitch = 0.8;
+    u.volume = 1;
+    speechSynthesis.speak(u);
   }
 
   /** A pilot's distress call when one of the player's aircraft goes down: "Mayday, mayday, mayday!" */

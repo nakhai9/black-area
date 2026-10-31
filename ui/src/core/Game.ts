@@ -346,9 +346,15 @@ const GIVE_WAY_PER_PASS = 4;
 /** Cell expansions of a stuck ship's re-plan (a fresh order still gets the full sea search). */
 const NAVAL_REPATH_EXPANSIONS = 30_000;
 /** On a bridge deck units keep within this many cells of its centre line (single file between the girders). */
-const BRIDGE_LANE = 0.3;
+const BRIDGE_LANE = 0.3; // margin (cells) kept from each girder: the whole deck width between is the roadway
 /** Gap (world px) a unit on a bridge keeps behind the one ahead of it. */
 const BRIDGE_GAP_PX = 2;
+/** Player commands that give units an order (answered with "Orders received"). */
+const ORDER_COMMANDS: ReadonlySet<string> = new Set(['right', 'forceAttack', 'guard', 'waypoints', 'bridge', 'unload']);
+/** Longest a unit waits at a bridge for oncoming traffic that got there first before it drives on anyway (no deadlock). */
+const BRIDGE_YIELD_SECONDS = 4;
+/** Units within this many cells of a bridge count as at its mouth (queue, slip past each other, never give up). */
+const BRIDGE_MOUTH_CELLS = 2;
 /** Seconds (game time) between two re-routes of the same stuck unit (see repathStuckUnits). */
 const REPATH_COOLDOWN = 1.5;
 /** Attack-move groups of at least this many ground units get their routes from one shared, time-sliced flow field. */
@@ -752,6 +758,8 @@ export class Game {
     if (demo) {
       this.buildDemoBase();
       this.spawnDemoArmy();
+      // DEMO only: the game object on the page, for scripted test runs (headless browser checks).
+      (globalThis as { __demoGame?: Game }).__demoGame = this;
     }
     this.systems.forEach((s) => s.update(0));
     this.camera.setZoom(FOCUS_ZOOM);
@@ -1183,6 +1191,7 @@ export class Game {
 
   /** DEMO: DEMO_UNITS_EACH of every soldier, vehicle and aircraft the nation has, ready at their buildings. */
   private spawnDemoArmy(): void {
+    this.spawningDemo = true;
     const me = this.humanPlayer;
     const barracks = this.production.producerOf(me, 'barracks');
     for (let i = 0; i < DEMO_UNITS_EACH; i++) {
@@ -1193,7 +1202,13 @@ export class Game {
       }
     }
     this.deployDemoArmy();
+    this.spawningDemo = false;
   }
+
+  /** The demo army is being handed out (no "Unit ready" for each of them). */
+  private spawningDemo = false;
+  /** The player's grid was short of power last frame ("Low power" is announced when it runs short). */
+  private wasLowPower = false;
 
   /**
    * DEMO: the ground army waits at its own drop point DEMO_DROP_CELLS from the capital, one unit per cell; the
@@ -1334,26 +1349,39 @@ export class Game {
       this.ghost = null;
       return;
     }
-    const rot = this.placingRotated;
+    // A square section looks the same either way round, so both ways are tried (the player's choice, R, first):
+    // it snaps onto the end of a bridge near the cursor so a new section runs on from it in one line (never beside it);
+    // no bridge end near, it stays under the cursor, turned whichever way can be laid there.
+    const mouse = this.mouseWorld;
+    const square = FOOTPRINT_BRIDGE.w === FOOTPRINT_BRIDGE.d;
+    const ways = square ? [this.placingRotated, !this.placingRotated] : [this.placingRotated];
+    const under = (r: boolean): [number, number] => {
+      const w0 = r ? FOOTPRINT_BRIDGE.d : FOOTPRINT_BRIDGE.w;
+      const d0 = r ? FOOTPRINT_BRIDGE.w : FOOTPRINT_BRIDGE.d;
+      return [Math.floor(mouse.x / CELL_SIZE - w0 / 2 + 0.5), Math.floor(mouse.y / CELL_SIZE - d0 / 2 + 0.5)];
+    };
+    let pick: [number, number, boolean] | null = null;
+    for (const [ox, oy] of BRIDGE_SNAP_OFFSETS) {
+      for (const r of ways) {
+        const [mx, my] = under(r);
+        const sx = mx + ox;
+        const sy = my + oy;
+        if (!bridgeSiteOk(this.map, sx, sy, r)) continue;
+        if ([false, true].some((high) => bridgeEnd(sx, sy, r, high, true).every((c) => this.map.inBounds(c.x, c.y) && this.map.isBridge(c.x, c.y)))) {
+          pick = [sx, sy, r];
+          break;
+        }
+      }
+      if (pick) break;
+    }
+    if (!pick) {
+      const r = ways.find((w0) => bridgeSiteOk(this.map, ...under(w0), w0)) ?? this.placingRotated;
+      pick = [...under(r), r];
+    }
+    const [x, y, rot] = pick;
+    this.bridgeRotated = rot;
     const w = rot ? FOOTPRINT_BRIDGE.d : FOOTPRINT_BRIDGE.w;
     const d = rot ? FOOTPRINT_BRIDGE.w : FOOTPRINT_BRIDGE.d;
-    const mx = Math.floor(this.mouseWorld.x / CELL_SIZE - w / 2 + 0.5);
-    const my = Math.floor(this.mouseWorld.y / CELL_SIZE - d / 2 + 0.5);
-    // Snaps onto the end of a bridge near the cursor, so a new section runs on from it in one line (never beside it);
-    // no bridge end near: it stays under the cursor.
-    let x = mx;
-    let y = my;
-    for (const [ox, oy] of BRIDGE_SNAP_OFFSETS) {
-      const sx = mx + ox;
-      const sy = my + oy;
-      if (!bridgeSiteOk(this.map, sx, sy, rot)) continue;
-      const joins = [false, true].some((high) => bridgeEnd(sx, sy, rot, high, true).every((c) => this.map.inBounds(c.x, c.y) && this.map.isBridge(c.x, c.y)));
-      if (joins) {
-        x = sx;
-        y = sy;
-        break;
-      }
-    }
     const legal = bridgeSiteOk(this.map, x, y, rot);
     const inReach = legal && this.layerInReach(this.selectedBridgeLayers(), x, y, rot) !== null;
     const ok = legal && inReach;
@@ -1425,7 +1453,7 @@ export class Game {
       this.sidebar.notify(g.reason ?? t('Cannot place here.'));
       return;
     }
-    this.issue({ k: 'bridge', x: g.x, y: g.y, rot: this.placingRotated });
+    this.issue({ k: 'bridge', x: g.x, y: g.y, rot: this.bridgeRotated });
     this.stopBridging();
   }
 
@@ -2918,6 +2946,8 @@ export class Game {
 
   /** An order of this screen's player: at once in a solo game, through the server's turns in multiplayer. */
   private issue(cmd: GameCommand): void {
+    // Units of mine given an order: the commander acknowledges it.
+    if (ORDER_COMMANDS.has(cmd.k) && this.selection.selectedUnitList().some((u) => u.owner === this.localId)) this.sound.announce('Orders received');
     cmd.sel = [...this.selection.selectedUnits];
     cmd.sb = this.selection.selectedId;
     if (this.lockstep) this.lockstep.send(cmd);
@@ -3262,6 +3292,8 @@ export class Game {
           if (!cell) continue;
           for (const b of cell) {
             if (b.id <= a.id || a.flies !== b.flies) continue;
+            // Friendly traffic on (or driving onto) a bridge slips past each other instead of shoving: no jam on the deck.
+            if (a.bridgeSince >= 0 && b.bridgeSince >= 0 && !isHostile(a, b)) continue;
             // Vehicles and aircraft hold a little clear air between their hulls; soldiers still close up.
             // Ships are long hulls: two of them keep SHIP_GAP_SCALE times their radii apart, so they never sail over each other.
             const gap = a.naval && b.naval ? (a.radius + b.radius) * SHIP_GAP_SCALE : a.radius + b.radius + (a instanceof Vehicle && b instanceof Vehicle ? VEHICLE_GAP : 0);
@@ -3291,8 +3323,8 @@ export class Game {
   }
 
   /**
-   * Ground units on a bridge keep to the middle of its deck (single file between the girders), never out on the rails:
-   * the across coordinate is held within BRIDGE_LANE cells of the centre line. Player and AI alike.
+   * Ground units on a bridge keep on its deck, never out on the rails: the across coordinate is held BRIDGE_LANE cells
+   * inside the girders (the whole width is roadway, so two-way traffic passes). Player and AI alike.
    */
   private keepOnDeck(): void {
     const bridges = this.bridges;
@@ -3304,7 +3336,10 @@ export class Game {
       if (!this.map.isBridge(cx, cy)) continue;
       const b = bridges.find((q) => q.containsCell(cx, cy));
       if (!b) continue;
-      const lane = BRIDGE_LANE * CELL_SIZE;
+      // Stepping off the deck (its route leaves the bridge from here, e.g. at a corner onto the bank): never held back.
+      const next = u.waypoints()[0];
+      if (next && !this.map.isBridge(Math.floor(next.x / CELL_SIZE), Math.floor(next.y / CELL_SIZE))) continue;
+      const lane = (FOOTPRINT_BRIDGE.w / 2 - BRIDGE_LANE) * CELL_SIZE;
       if (b.rotated) {
         const mid = (b.y + b.d / 2) * CELL_SIZE;
         u.py = Math.max(mid - lane, Math.min(mid + lane, u.py));
@@ -3496,10 +3531,16 @@ export class Game {
     }
     this.status.update(dt, this.mouseWorld, this.camera.zoom);
 
+    const lowPower = this.humanPlayer.powerShort;
+    if (lowPower && !this.wasLowPower) this.sound.announce('Low power');
+    this.wasLowPower = lowPower;
     for (const option of BUILD_OPTIONS) {
       const s = this.construction.slot(this.humanPlayer, option.id);
       if (s.state === (this.lastQueueState.get(option.id) ?? 'idle')) continue;
-      if (s.state === 'ready') this.sidebar.notify(t('{name} complete — click its cameo, then place it.', { name: option.name }));
+      if (s.state === 'ready') {
+        this.sidebar.notify(t('{name} complete — click its cameo, then place it.', { name: option.name }));
+        this.sound.announce('Construction complete');
+      }
       if (s.state === 'onHold') this.sidebar.notify(t('Not enough {currency} — construction on hold.', { currency: CURRENCY }));
       this.lastQueueState.set(option.id, s.state);
       this.sidebarTimer = SIDEBAR_REFRESH;
@@ -4192,6 +4233,8 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
 
   /** The structure being positioned is turned 90° (R). */
   private placingRotated = false;
+  /** Which way round the bridge ghost was laid out (the order goes out that way). */
+  private bridgeRotated = false;
 
   private stopPlacing(): void {
     this.placing = null;
@@ -4432,8 +4475,9 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       if (!u.alive || u.insideId !== null) continue;
       let key: string | null = null;
       if (u instanceof Vehicle) {
-        // Every vehicle and aircraft: ground vehicles while they drive, aircraft whenever they are not parked.
-        if (u.aircraft ? u.flight !== 'parked' : u.moving) {
+        // Every vehicle and aircraft: ground vehicles while they drive, aircraft whenever they are not sitting on the
+        // ground (parked, set down, unloading: rotors and propellers stand still, so their engines are not heard).
+        if (u.aircraft ? u.flight !== 'parked' && u.flight !== 'landed' && u.flight !== 'unloading' : u.moving) {
           key = u.name;
           kinds.set(key, u.type);
         }
@@ -4725,7 +4769,10 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     if (!(e instanceof Building)) return;
     this.crushCrew(e, killer);
     if (e.spec.type === 'capital') this.defeatNation(e);
-    if (e.owner === this.humanPlayer.id) this.sidebar.alert(`${e.spec.name} was destroyed!`, e.centerWorld());
+    if (e.owner === this.humanPlayer.id) {
+      this.sidebar.alert(`${e.spec.name} was destroyed!`, e.centerWorld());
+      this.sound.announce('Building lost');
+    }
     this.removeBuilding(e);
     // One explosion sized to the footprint's area; bigger structures also go up at a few spots round it.
     const f = e.footprintWorld();
@@ -4923,7 +4970,13 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       const fx = (next.x - u.px) / len;
       const fy = (next.y - u.py) / len;
       const onDeck = deckIds.has(u.id);
-      const entering = this.bridges.length > 0 && !onDeck && this.map.isBridge(Math.floor((u.px + fx * CELL_SIZE * 1.5) / CELL_SIZE), Math.floor((u.py + fy * CELL_SIZE * 1.5) / CELL_SIZE));
+      // At the bridge mouth: a bridge cell within BRIDGE_MOUTH_CELLS (the crowd gathering at either end counts too).
+      const cx = Math.floor(u.px / CELL_SIZE);
+      const cy = Math.floor(u.py / CELL_SIZE);
+      let entering = false;
+      if (this.bridges.length > 0 && !onDeck) {
+        for (let dy = -BRIDGE_MOUTH_CELLS; dy <= BRIDGE_MOUTH_CELLS && !entering; dy++) for (let dx = -BRIDGE_MOUTH_CELLS; dx <= BRIDGE_MOUTH_CELLS && !entering; dx++) entering = this.map.isBridge(cx + dx, cy + dy);
+      }
       if (onDeck || entering) {
         if (u.bridgeSince < 0) u.bridgeSince = this.time;
         dirOf.set(u.id, { fx, fy, entering });
@@ -4957,12 +5010,13 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
           if (along <= 0 || along > reach || side > lane) continue;
           const same = od.fx * fx + od.fy * fy;
           if (same < -0.3) {
-            // Oncoming: a unit still waiting to drive on yields to anyone coming the other way who got to the bridge
-            // before it (FIFO); once on the deck it never stops for oncoming traffic (they pass on the wide deck).
-            if (mine.entering && (o.bridgeSince < u.bridgeSince || (o.bridgeSince === u.bridgeSince && o.id < u.id))) factor = 0;
-          } else if (same > 0.3 && side < u.radius + o.radius + 1) {
-            // Same way, in its lane: keep a gap to whoever is ahead, no overtaking in the lane.
-            factor = Math.min(factor, Math.max(0, (along - (u.radius + o.radius) - BRIDGE_GAP_PX) / CELL_SIZE));
+            // Oncoming: a unit still at the mouth slows right down for anyone coming the other way who got to the bridge
+            // before it (FIFO), never to a dead stop (no deadlock); on the deck nobody stops for oncoming traffic.
+            if (mine.entering && this.time - u.bridgeSince < BRIDGE_YIELD_SECONDS && (o.bridgeSince < u.bridgeSince || (o.bridgeSince === u.bridgeSince && o.id < u.id))) factor = Math.min(factor, 0.3);
+          } else if (same > 0.85 && side < u.radius + o.radius + 1 && -rx * od.fx - ry * od.fy < 0) {
+            // (only truly behind it — in its own frame too — so two units can never each wait for the other)
+            // Same way, in its lane: ease off behind whoever is ahead (never a dead stop: friendly units slip past).
+            factor = Math.min(factor, Math.max(0.4, (along - (u.radius + o.radius) - BRIDGE_GAP_PX) / CELL_SIZE));
           }
         }
       }
@@ -5024,6 +5078,8 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
         for (const b of grid.get(key(bx + gx, by + gy)) ?? NO_UNITS) {
           // Enemies never give way to each other: a unit falling back does not stop to let the foe go by.
           if (b.id <= a.id || isHostile(a, b)) continue;
+          // At a bridge the bridge's own first come, first served rule decides (queueInCrowds), not crossing routes.
+          if (a.bridgeSince >= 0 || b.bridgeSince >= 0) continue;
           const lb = leg.get(b.id);
           if (!lb) continue;
           // Where do the two stretches cross? (a + s·da = b + t·db)
@@ -5210,6 +5266,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
   }
 
   private spawnVehicle(player: PlayerState, kind: VehicleKind, producer: Building, faction: FactionId = player.faction as FactionId): void {
+    if (player.id === this.localId && !this.spawningDemo) this.sound.announce('Unit ready');
     if (isAircraftKind(kind)) {
       const craft = this.spawnAircraft(player, kind, producer, -1, faction);
       // Another nation's aircraft (captured Airfield): its design, its new owner's colours.
@@ -5351,6 +5408,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
 
   /** A trained soldier walks out of the barracks' front door to a free rally cell. */
   private spawnSoldier(player: PlayerState, tier: UnitTier, barracks: Building, faction: FactionId = player.faction as FactionId): void {
+    if (player.id === this.localId && !this.spawningDemo) this.sound.announce('Unit ready');
     const doorX = barracks.x + Math.floor(barracks.w / 2);
     const doorY = barracks.y + barracks.d;
     const exit = this.pathfinder.nearestPassable(doorX, doorY, PARADE_MAX_CELLS);
