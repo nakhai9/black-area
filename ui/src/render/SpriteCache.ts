@@ -3,7 +3,7 @@ import type { Rect } from '../types';
 import { createCanvas } from './Canvas';
 import { IsoPainter } from './IsoPainter';
 import { applyRa2Finish } from './Ra2Finish';
-import { flagVariantArt, teamColoredArt, type BuildingArt } from './sprites';
+import { baseKeyOf, flagVariantArt, recolorPixels, teamColorOwner, teamColoredArt, type BuildingArt } from './sprites';
 
 /** Sprites are rasterised at 2× for crisp results when zoomed in / on HiDPI. */
 const RASTER_SCALE = 2;
@@ -126,7 +126,7 @@ export class SpriteCache {
   private build(key: string, mirrored: boolean): Sprite {
     let art = this.registry.get(key);
     if (!art) {
-      art = flagVariantArt(key) ?? teamColoredArt(key);
+      art = flagVariantArt(key) ?? teamColoredArt(key) ?? (teamColorOwner(key) ? this.registry.get(baseKeyOf(key)) : undefined);
       if (art) this.registry.set(key, art);
     }
     if (!art) throw new Error(`No building art registered for '${key}'`);
@@ -160,6 +160,13 @@ export class SpriteCache {
 
     // Red Alert 2 look: grainy, slightly muted pre-rendered surfaces with a dark rim.
     applyRa2Finish(ctx, canvas.width, canvas.height, !art.noRim);
+    // A taken structure: no colour of the nation it was taken from is left (see recolorPixels).
+    const recolor = teamColorOwner(key);
+    if (recolor) {
+      const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      recolorPixels(img.data, recolor);
+      ctx.putImageData(img, 0, 0);
+    }
     const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
     const alpha = new Uint8Array(canvas.width * canvas.height);
     let minX = canvas.width;

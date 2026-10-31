@@ -4910,6 +4910,28 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
         }
       }
     }
+    // Who is at a bridge (on its deck, or about to drive onto it) and which way it is going: bridges are crossed first
+    // come, first served — whoever reached the bridge first has right of way over traffic coming the other way.
+    const dirOf = new Map<number, { fx: number; fy: number; entering: boolean }>();
+    for (const u of movers) {
+      const next = u.moving && !u.flies && u.alive ? u.waypoints()[0] : undefined;
+      const len = next ? Math.hypot(next.x - u.px, next.y - u.py) : 0;
+      if (!next || len < 0.01) {
+        if (!deckIds.has(u.id)) u.bridgeSince = -1;
+        continue;
+      }
+      const fx = (next.x - u.px) / len;
+      const fy = (next.y - u.py) / len;
+      const onDeck = deckIds.has(u.id);
+      const entering = this.bridges.length > 0 && !onDeck && this.map.isBridge(Math.floor((u.px + fx * CELL_SIZE * 1.5) / CELL_SIZE), Math.floor((u.py + fy * CELL_SIZE * 1.5) / CELL_SIZE));
+      if (onDeck || entering) {
+        if (u.bridgeSince < 0) u.bridgeSince = this.time;
+        dirOf.set(u.id, { fx, fy, entering });
+        // Nobody sits down to rest on a bridge deck: it would block the whole column behind.
+        if (onDeck) u.restLeft = 0;
+      } else u.bridgeSince = -1;
+    }
+    const atBridge = this.bridges.length > 0 ? movers.filter((o) => dirOf.has(o.id)) : [];
     for (const u of movers) {
       if (!u.moving || u.flies || !u.alive) continue;
       const next = u.waypoints()[0];
@@ -4921,22 +4943,27 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       const bx = Math.floor(u.px / bucket);
       const by = Math.floor(u.py / bucket);
       let factor = 1;
-      // On a bridge (or driving onto one) it is single file: no overtaking, a gap kept to whoever is ahead on the deck,
-      // and oncoming traffic already on the bridge is let off it first (no shoving on the deck).
-      const onDeck = deckIds.has(u.id);
-      const entering = deck.length > 0 && !onDeck && this.map.isBridge(Math.floor((u.px + fx * CELL_SIZE) / CELL_SIZE), Math.floor((u.py + fy * CELL_SIZE) / CELL_SIZE));
-      if (onDeck || entering) {
+      const mine = dirOf.get(u.id);
+      if (mine) {
         const reach = BRIDGE_MAX_SECTIONS * FOOTPRINT_BRIDGE.d * CELL_SIZE;
-        for (const o of deck) {
+        const lane = FOOTPRINT_BRIDGE.w * CELL_SIZE;
+        for (const o of atBridge) {
           if (o === u) continue;
+          const od = dirOf.get(o.id)!;
           const rx = o.px - u.px;
           const ry = o.py - u.py;
           const along = rx * fx + ry * fy;
-          if (along <= 0 || along > reach || Math.abs(rx * -fy + ry * fx) > FOOTPRINT_BRIDGE.w * CELL_SIZE) continue;
-          const on = o.moving ? o.waypoints()[0] : undefined;
-          const oncoming = on !== undefined && (on.x - o.px) * fx + (on.y - o.py) * fy < 0;
-          if (oncoming && entering) factor = 0;
-          else factor = Math.min(factor, Math.max(0, (along - (u.radius + o.radius) - BRIDGE_GAP_PX) / CELL_SIZE));
+          const side = Math.abs(rx * -fy + ry * fx);
+          if (along <= 0 || along > reach || side > lane) continue;
+          const same = od.fx * fx + od.fy * fy;
+          if (same < -0.3) {
+            // Oncoming: a unit still waiting to drive on yields to anyone coming the other way who got to the bridge
+            // before it (FIFO); once on the deck it never stops for oncoming traffic (they pass on the wide deck).
+            if (mine.entering && (o.bridgeSince < u.bridgeSince || (o.bridgeSince === u.bridgeSince && o.id < u.id))) factor = 0;
+          } else if (same > 0.3 && side < u.radius + o.radius + 1) {
+            // Same way, in its lane: keep a gap to whoever is ahead, no overtaking in the lane.
+            factor = Math.min(factor, Math.max(0, (along - (u.radius + o.radius) - BRIDGE_GAP_PX) / CELL_SIZE));
+          }
         }
       }
       for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {

@@ -263,6 +263,8 @@ export abstract class Unit extends Entity {
   crowdFactor = 1;
   /** Seconds it has been waiting at a crossing for another unit to go by. */
   crossingWait = 0;
+  /** Game time it drove up to (or onto) a bridge, -1 when not at one: bridges are crossed first come, first served. */
+  bridgeSince = -1;
   /** World px it may walk before it must rest (Infinity: never tires — vehicles, special forces). */
   protected marchLimit = Infinity;
   /** Seconds the rest takes. */

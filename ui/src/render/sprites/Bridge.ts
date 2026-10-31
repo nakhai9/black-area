@@ -17,11 +17,8 @@ const GIRDER = 3.2;
 const RAMP = 0.6;
 const LEN = BRIDGE_L;
 const WIDE = BRIDGE_W;
-/** The two treadways (u from, u to) and the side girders' thickness (cells). */
-const TREADS: readonly [number, number][] = [
-  [0.22, 0.88],
-  [1.12, 1.78],
-];
+/** One ribbed treadway per cell across (u from, u to), and the side girders' thickness (cells). */
+const TREADS: readonly [number, number][] = Array.from({ length: WIDE }, (_, i) => [i + 0.17, i + 0.83] as [number, number]);
 const SIDE = 0.12;
 
 /** Deck height at v (cells along the bridge): ramps down to the ground at an open end. */
@@ -78,8 +75,8 @@ function girder(p: IsoPainter, u0: number, low: boolean, high: boolean, steel: s
 }
 
 /**
- * A laid Bridge section (BRIDGE_W × BRIDGE_L cells, long along v) of a nation's bridge layer: painted steel treadway bridge — two
- * ribbed treadways with a gap between, side girders with the team stripe, the deck carried DECK px over the ground or
+ * A laid Bridge section (BRIDGE_W × BRIDGE_L cells, long along v) of a nation's bridge layer: painted steel treadway bridge — one
+ * ribbed treadway per cell across with gaps between, side girders with the team stripe, the deck carried DECK px over the ground or
  * water, ramps down at the open ends only (`joins`: ends running on into another section). Damage: scorch, holes in the
  * deck, then a stretch of rail torn away.
  */
@@ -112,13 +109,13 @@ export function createBridgeArt(faction: FactionId, joins = 0, damage = 0): Buil
       // Front face of the deck at a joined high end: a straight seam (no ramp) into the next section.
       if (high) p.polygon([[u0, LEN, DECK - 1.5], [u1, LEN, DECK - 1.5], [u1, LEN, DECK], [u0, LEN, DECK]], shade(steel, 0.55), null);
       if (damage >= 1) {
-        for (const [u, v, r] of [[0.6, 1.1, 0.22], [1.4, 2.1, 0.18], [1.1, 0.7, 0.14]] as const) {
+        for (const [u, v, r] of [[0.6, 1.1, 0.22], [WIDE - 0.6, 2.1, 0.18], [WIDE / 2, 0.7, 0.14]] as const) {
           const z = deckAt(v, low, high) + 0.15;
           p.polygon(Array.from({ length: 7 }, (_, k) => [u + Math.cos((k / 7) * Math.PI * 2) * r, v + Math.sin((k / 7) * Math.PI * 2) * r, z] as [number, number, number]), 'rgba(30,24,18,0.55)', null);
         }
       }
       if (damage >= 2) {
-        for (const [u, v] of [[0.55, 1.5], [1.45, 0.9]] as const) {
+        for (const [u, v] of [[0.55, 1.5], [WIDE - 0.55, 0.9]] as const) {
           const z = deckAt(v, low, high) + 0.2;
           p.polygon([[u - 0.18, v - 0.2, z], [u + 0.2, v - 0.12, z], [u + 0.14, v + 0.22, z], [u - 0.2, v + 0.16, z]], '#0e0c0a', null);
         }

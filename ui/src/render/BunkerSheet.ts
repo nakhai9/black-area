@@ -1,6 +1,8 @@
 import { CELL_SIZE } from '../constants';
 import type { Bunker } from '../entities/Bunker';
 import type { FactionId } from '../types';
+import { createCanvas } from './Canvas';
+import { recolorPixels } from './sprites';
 import { BUNKER_ANCHOR, BUNKER_BODY_PX, BUNKER_CELL, bunkerCell, bunkerMuzzleCell, bunkerRow } from './BunkerModel';
 
 /**
@@ -37,8 +39,27 @@ function blit(ctx: CanvasRenderingContext2D, cell: HTMLCanvasElement, x: number,
 export function drawBunkerSheet(ctx: CanvasRenderingContext2D, b: Bunker, x: number, y: number): boolean {
   const f = b.origin as FactionId; // a taken bunker keeps its design
   if (!NATIONS.includes(f)) return false;
-  blit(ctx, bunkerCell(f, bunkerRow(b.aimHeading), stage(b.hp / b.maxHp)), x, y);
+  const cell = bunkerCell(f, bunkerRow(b.aimHeading), stage(b.hp / b.maxHp));
+  const owner = b.faction as FactionId;
+  blit(ctx, owner !== f && NATIONS.includes(owner) ? recolored(cell, owner) : cell, x, y);
   return true;
+}
+
+/** A taken bunker in its new owner's colours (its design kept), made once per picture and owner. */
+const RECOLORED = new WeakMap<HTMLCanvasElement, Map<FactionId, HTMLCanvasElement>>();
+function recolored(cell: HTMLCanvasElement, owner: FactionId): HTMLCanvasElement {
+  let byOwner = RECOLORED.get(cell);
+  if (!byOwner) RECOLORED.set(cell, (byOwner = new Map()));
+  let c = byOwner.get(owner);
+  if (!c) {
+    const { canvas, ctx } = createCanvas(cell.width, cell.height);
+    ctx.drawImage(cell, 0, 0);
+    const img = ctx.getImageData(0, 0, cell.width, cell.height);
+    recolorPixels(img.data, owner);
+    ctx.putImageData(img, 0, 0);
+    byOwner.set(owner, (c = canvas));
+  }
+  return c;
 }
 
 /** Placement ghost: the intact bunker facing screen south. */

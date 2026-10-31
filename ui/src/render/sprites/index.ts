@@ -217,7 +217,7 @@ function withTeamColors<T>(design: FactionId, paint: FactionId, fn: () => T): T 
  */
 export function teamColoredKey(key: string, owner: string): string {
   const design = /^\w+:(\w+)/.exec(key)?.[1];
-  if (!isFactionId(design) || !isFactionId(owner) || design === owner || /^(bunker|bridge|wall|gate):/.test(key)) return key;
+  if (!isFactionId(design) || !isFactionId(owner) || design === owner || /^bridge:/.test(key)) return key;
   return `${key}%${owner}`;
 }
 
@@ -236,4 +236,64 @@ export function teamColoredArt(key: string): BuildingArt | undefined {
   const anim = base.drawAnimated?.bind(base);
   if (anim) art.drawAnimated = (p, t, a) => withTeamColors(design, paint, () => anim(p, t, a));
   return art;
+}
+
+/** The owner of a `…%owner` key (see teamColoredKey), or null. */
+export function teamColorOwner(key: string): FactionId | null {
+  const o = /%(\w+)$/.exec(key)?.[1];
+  return isFactionId(o) ? o : null;
+}
+
+/** The key without its `%owner` suffix. */
+export function baseKeyOf(key: string): string {
+  return key.replace(/%\w+$/, '');
+}
+
+/**
+ * A taken structure carries no colour of the nation it was taken from: every coloured pixel of the rendered sprite
+ * (saturation above a small threshold — grey stone, steel, glass and shadow stay as they are) takes the owner's hue,
+ * keeping its lightness, so the architecture reads exactly as before but wholly in the new owner's colours.
+ */
+export function recolorPixels(data: Uint8ClampedArray, owner: FactionId): void {
+  const c = FACTIONS[owner].colors.primary;
+  const n = parseInt(c.slice(1), 16);
+  const [th, ts] = rgbToHs((n >> 16) & 255, (n >> 8) & 255, n & 255);
+  for (let i = 0; i < data.length; i += 4) {
+    if (data[i + 3] === 0) continue;
+    const r = data[i] / 255;
+    const g = data[i + 1] / 255;
+    const b = data[i + 2] / 255;
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    const l = (max + min) / 2;
+    const d = max - min;
+    if (d < 1e-6) continue;
+    const sat = d / (1 - Math.abs(2 * l - 1));
+    if (sat < 0.16) continue;
+    const s2 = Math.min(1, Math.max(sat, ts) * 0.5 + ts * 0.5);
+    const q = (1 - Math.abs(2 * l - 1)) * s2;
+    const hp = th * 6;
+    const x = q * (1 - Math.abs((hp % 2) - 1));
+    const [r1, g1, b1] = hp < 1 ? [q, x, 0] : hp < 2 ? [x, q, 0] : hp < 3 ? [0, q, x] : hp < 4 ? [0, x, q] : hp < 5 ? [x, 0, q] : [q, 0, x];
+    const m = l - q / 2;
+    data[i] = (r1 + m) * 255;
+    data[i + 1] = (g1 + m) * 255;
+    data[i + 2] = (b1 + m) * 255;
+  }
+}
+
+function rgbToHs(r8: number, g8: number, b8: number): [number, number] {
+  const r = r8 / 255;
+  const g = g8 / 255;
+  const b = b8 / 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const d = max - min;
+  if (d === 0) return [0, 0];
+  const l = (max + min) / 2;
+  const s = d / (1 - Math.abs(2 * l - 1));
+  let h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  h /= 6;
+  if (h < 0) h += 1;
+  return [h, s];
 }
