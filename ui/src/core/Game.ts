@@ -1375,8 +1375,10 @@ export class Game {
       if (!b.alive) continue;
       for (const high of [false, true]) {
         const len = FOOTPRINT_BRIDGE.d;
-        const sx = b.rotated ? (high ? b.x + b.w : b.x - len) : b.x;
-        const sy = b.rotated ? b.y : high ? b.y + b.d : b.y - len;
+        // Centred on the end it runs on from (an older, narrower bridge is met in the middle).
+        const off = Math.floor(((b.rotated ? b.d : b.w) - FOOTPRINT_BRIDGE.w) / 2);
+        const sx = b.rotated ? (high ? b.x + b.w : b.x - len) : b.x + off;
+        const sy = b.rotated ? (b.y + off) : high ? b.y + b.d : b.y - len;
         const w0 = b.rotated ? FOOTPRINT_BRIDGE.d : FOOTPRINT_BRIDGE.w;
         const d0 = b.rotated ? FOOTPRINT_BRIDGE.w : FOOTPRINT_BRIDGE.d;
         const dist = Math.hypot((sx + w0 / 2) * CELL_SIZE - mouse.x, (sy + d0 / 2) * CELL_SIZE - mouse.y);
@@ -1611,7 +1613,8 @@ export class Game {
   private joinBridges(x: number, y: number, w: number, d: number): void {
     for (const b of this.entities.buildings()) {
       if (!(b instanceof Bridge) || !b.alive || b.x + b.w < x || b.y + b.d < y || b.x > x + w || b.y > y + d) continue;
-      const on = (high: boolean): boolean => b.endBeyond(high).every((c) => this.map.isBridge(c.x, c.y));
+      // (some, not every: a narrower section laid before bridges were widened still joins a wider one)
+      const on = (high: boolean): boolean => b.endBeyond(high).some((c) => this.map.isBridge(c.x, c.y));
       // Sections laid side by side merge into one wide deck: no girder between them.
       const beside = (high: boolean): boolean => b.sideBeyond(high).every((c) => this.map.isBridge(c.x, c.y));
       b.joins = (on(false) ? BRIDGE_JOIN_LOW : 0) | (on(true) ? BRIDGE_JOIN_HIGH : 0) | (beside(false) ? BRIDGE_JOIN_SIDE_LOW : 0) | (beside(true) ? BRIDGE_JOIN_SIDE_HIGH : 0);
@@ -3379,7 +3382,8 @@ export class Game {
       const b = bridges.find((q) => q.containsCell(cx, cy));
       if (!b) continue;
       // The whole body stays between the girders: the half-width less the girder margin and the unit's own radius.
-      const lane = Math.max(0, (FOOTPRINT_BRIDGE.w / 2 - BRIDGE_LANE) * CELL_SIZE - u.radius * 0.8);
+      const across = b.rotated ? b.d : b.w; // its own width (an older, narrower section keeps its size)
+      const lane = Math.max(0, (across / 2 - BRIDGE_LANE) * CELL_SIZE - u.radius * 0.8);
       if (b.rotated) {
         const mid = (b.y + b.d / 2) * CELL_SIZE;
         u.py = Math.max(mid - lane, Math.min(mid + lane, u.py));

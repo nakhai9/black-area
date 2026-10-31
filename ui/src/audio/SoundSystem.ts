@@ -90,6 +90,8 @@ const ALARM_COOLDOWN = 4;
 const MAYDAY_COOLDOWN = 3;
 /** Seconds before the same announcement ("Unit ready", "Building lost"…) may be spoken again. */
 const ANNOUNCE_COOLDOWN = 3;
+/** Female English voices of the common browsers / systems, preferred for EVA's announcements. */
+const EVA_VOICES = /zira|aria|jenny|michelle|samantha|victoria|karen|moira|tessa|serena|susan|hazel|libby|sonia|natasha|female|google uk english female|google us english/i;
 /** Small-arms fire is boosted so a firefight is clearly heard over the music and engines. */
 const GUN_BOOST = 1.35;
 const MIN_GAP: Readonly<Record<string, number>> = { rifle: 0.05, smg: 0.045, sniper: 0.1, mg: 0.05, cannon: 0.12, autocannon: 0.06, missile: 0.15, explosion: 0.1, board: 0.12 };
@@ -447,10 +449,12 @@ export class SoundSystem {
     this.lastLine.set(line, now);
     const u = new SpeechSynthesisUtterance(line);
     u.lang = 'en-US';
-    const voice = this.voices.find((v) => v.lang.toLowerCase().startsWith('en'));
+    // EVA: a calm female English voice (the first known female voice the browser offers, else any English one).
+    const english = this.voices.filter((v) => v.lang.toLowerCase().startsWith('en'));
+    const voice = english.find((v) => EVA_VOICES.test(v.name)) ?? english.find((v) => /female|woman/i.test(v.name)) ?? english[0];
     if (voice) u.voice = voice;
-    u.rate = 1;
-    u.pitch = 0.8;
+    u.rate = 0.95;
+    u.pitch = voice && EVA_VOICES.test(voice.name) ? 1.05 : 1.35; // a male fallback voice is raised towards a woman's
     u.volume = 1;
     speechSynthesis.speak(u);
   }

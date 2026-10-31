@@ -112,16 +112,32 @@ export function bridgeStart(map: TileMap, x: number, y: number, rotated: boolean
   if (gap === 'joins') return false; // laid from the low end, standing on the bridge there
   // A section only runs on from a bridge squarely, its whole end against the whole end of that bridge: an end that
   // touches a bridge with only some of its cells would leave the two decks offset side by side.
-  for (const high of [false, true]) {
-    const n = bridgeEnd(x, y, rotated, high, true).filter((c) => map.inBounds(c.x, c.y) && map.isBridge(c.x, c.y)).length;
-    if (n > 0 && n < across) return null;
-  }
-  // Rows of bridge straight on past one end (the sections it would join), every cell across the row a bridge cell.
+  // A narrower bridge laid before bridges were widened is joined too, as long as its whole end lies within this end.
+  const isB = (cx: number, cy: number): boolean => map.inBounds(cx, cy) && map.isBridge(cx, cy);
+  const touches = (high: boolean): 'none' | 'whole' | 'part' => {
+    const ends = bridgeEnd(x, y, rotated, high, true);
+    const n = ends.filter((c) => isB(c.x, c.y)).length;
+    if (n === 0) return 'none';
+    if (n === across) return 'whole';
+    // The bridge cells must be one unbroken stretch that ends inside this end on both sides.
+    const flags = ends.map((c) => isB(c.x, c.y));
+    const first = flags.indexOf(true);
+    const last = flags.lastIndexOf(true);
+    if (flags.slice(first, last + 1).some((f) => !f)) return 'part';
+    const a = ends[0]!;
+    const b = ends[ends.length - 1]!;
+    const before = rotated ? isB(a.x, a.y - 1) : isB(a.x - 1, a.y);
+    const after = rotated ? isB(b.x, b.y + 1) : isB(b.x + 1, b.y);
+    return (first === 0 && before) || (last === across - 1 && after) ? 'part' : 'whole';
+  };
+  for (const high of [false, true]) if (touches(high) === 'part') return null;
+  // Rows of bridge straight on past one end (the sections it would join).
   const run = (high: boolean): number => {
+    if (touches(high) === 'none') return 0;
     const ends = bridgeEnd(x, y, rotated, high, true);
     const step = high ? 1 : -1;
     let n = 0;
-    const row = (k: number): boolean => ends.every((c) => (rotated ? map.inBounds(c.x + k * step, c.y) && map.isBridge(c.x + k * step, c.y) : map.inBounds(c.x, c.y + k * step) && map.isBridge(c.x, c.y + k * step)));
+    const row = (k: number): boolean => ends.some((c) => (rotated ? isB(c.x + k * step, c.y) : isB(c.x, c.y + k * step)));
     while (n < 64 && row(n)) n++;
     return n;
   };
