@@ -3,7 +3,7 @@ import type { Rect } from '../types';
 import { createCanvas } from './Canvas';
 import { IsoPainter } from './IsoPainter';
 import { applyRa2Finish } from './Ra2Finish';
-import { flagVariantArt, type BuildingArt } from './sprites';
+import { flagVariantArt, teamColoredArt, type BuildingArt } from './sprites';
 
 /** Sprites are rasterised at 2× for crisp results when zoomed in / on HiDPI. */
 const RASTER_SCALE = 2;
@@ -126,7 +126,7 @@ export class SpriteCache {
   private build(key: string, mirrored: boolean): Sprite {
     let art = this.registry.get(key);
     if (!art) {
-      art = flagVariantArt(key);
+      art = flagVariantArt(key) ?? teamColoredArt(key);
       if (art) this.registry.set(key, art);
     }
     if (!art) throw new Error(`No building art registered for '${key}'`);

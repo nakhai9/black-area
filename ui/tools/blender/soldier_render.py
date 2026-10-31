@@ -47,11 +47,11 @@ LOOKS = {
                        weapon='m4', skin='#c99472', boots='#4f4434', gloves='#2e2b24', extra_pouches=True),
     'ru-regular': dict(camo=['#6f7650', '#4c5338', '#8d8a64', '#2f3324'], cscale=16, digital=True, vest='#4f5638', helmet='#5a6142', head='helmet',
                        weapon='ak', skin='#e0b494', boots='#2c2a26', gloves='#33352a'),
-    'ru-special': dict(camo=['#77724f', '#5a5640', '#8f8a66', '#46432f'], cscale=7, vest='#3e3d30', helmet='#1b1b1b', head='balaclava',
+    'ru-special': dict(camo=['#1f2a3a', '#151d29', '#2c3a4f', '#0c1118'], cscale=7, vest='#34465f', helmet='#1b1b1b', band='#050505', head='balaclava',
                        weapon='ak', skin='#e0b494', boots='#22201d', gloves='#1d1d1b', extra_pouches=True),
-    'cn-regular': dict(camo=['#5d6b4a', '#3f4a33', '#7c845d', '#2c3326'], cscale=18, digital=True, vest='#4a5638', helmet='#56623f', head='helmet',
+    'cn-regular': dict(camo=['#36472a', '#25321c', '#4b5c37', '#1a2314'], cscale=18, digital=True, vest='#2a3820', helmet='#2e3c23', head='helmet',
                        weapon='qbz', skin='#dcb38c', boots='#2b2924', gloves='#3a3f2e'),
-    'cn-special': dict(camo=['#3f5470', '#2b3b52', '#6d7e94', '#1e2838'], cscale=18, digital=True, vest='#2f3d52', helmet='#33445a', head='helmet',
+    'cn-special': dict(camo=['#6b6e70', '#4a4d50', '#8f9294', '#2f3133'], cscale=18, digital=True, vest='#3a3c3f', helmet='#45484b', band='#f2c018', head='helmet',
                        weapon='qbz', skin='#dcb38c', boots='#1f1f22', gloves='#22262c', extra_pouches=True),
     'eu-regular': dict(camo=['#5b3f78', '#3e2a55', '#7d62a0', '#2a1d3a'], cscale=10, flecks=True, vest='#4a3563', helmet='#4f3a68', head='helmet',
                        weapon='g36', skin='#e6c0a2', boots='#2a2723', gloves='#33372b'),
@@ -292,6 +292,10 @@ if look.get('extra_pouches'):
     for i, x in enumerate((-0.15, 0.15)):
         blob(f'side{i}', (x, -0.05, 1.12), (0.07, 0.09, 0.1), 'spine', vest, 0.015)
 blob('pack', (0, 0.17, 1.3), (0.26, 0.12, 0.3), 'chest', vest, 0.04)
+# Nation mark: a bright band right round the plate carrier (China's special forces: yellow on grey camouflage;
+# China's regulars wear dark moss green).
+if look.get('band'):
+    blob('nationband', (0, 0.045, 1.31), (0.355, 0.40, 0.03), 'chest', principled('band', look['band'], 0.5), 0.008)
 if look.get('hivis'):
     for z in (1.24, 1.38):
         blob(f'band{z}', (0, -0.01, z), (0.36, 0.29, 0.025), 'chest', M['strip'], 0.005)

@@ -194,3 +194,24 @@ export function bridgeAnchor(map: TileMap, x: number, y: number, rotated: boolea
   if (beyond.every((c) => map.isBridge(c.x, c.y))) return mid(beyond);
   return beyond.every(walk) ? mid(beyond) : mid(row);
 }
+
+/**
+ * Where a bridge layer may stand to lay the bridge at (x, y), as a segment in cell units: the anchor alone, or — when
+ * the section runs on from an existing bridge — from the anchor back along that bridge to the bank it starts from, so a
+ * layer near any part of the bridge it extends is in reach (it drives over the bridge to the end). Null when illegal.
+ */
+export function bridgeReachSegment(map: TileMap, x: number, y: number, rotated: boolean): { a: { x: number; y: number }; b: { x: number; y: number } } | null {
+  const at = bridgeAnchor(map, x, y, rotated);
+  if (!at) return null;
+  const high = bridgeStart(map, x, y, rotated);
+  if (high === null) return { a: at, b: at };
+  const beyond = bridgeEnd(x, y, rotated, high, true);
+  if (!beyond.every((c) => map.inBounds(c.x, c.y) && map.isBridge(c.x, c.y))) return { a: at, b: at };
+  const step = high ? 1 : -1;
+  // Walk back along the bridge (away from the new section) to the first cell past it (the bank it starts from).
+  let n = 0;
+  const along = (k: number): { x: number; y: number }[] => beyond.map((c) => (rotated ? { x: c.x + k * step, y: c.y } : { x: c.x, y: c.y + k * step }));
+  while (n < 64 && along(n + 1).every((c) => map.inBounds(c.x, c.y) && map.isBridge(c.x, c.y))) n++;
+  const d = n + 1; // one cell past the last bridge row: the bank
+  return { a: at, b: rotated ? { x: at.x + d * step, y: at.y } : { x: at.x, y: at.y + d * step } };
+}

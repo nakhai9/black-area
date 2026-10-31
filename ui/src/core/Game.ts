@@ -193,7 +193,7 @@ import { Flagpole } from '../entities/Flagpole';
 import { Wall } from '../entities/Wall';
 import { Gate } from '../entities/Gate';
 import { squadFilter } from '../systems/Squad';
-import { BRIDGE_JOIN_HIGH, BRIDGE_JOIN_LOW, BRIDGE_JOIN_SIDE_HIGH, BRIDGE_JOIN_SIDE_LOW, Bridge, bridgeAnchor, bridgeEnd, bridgeSiteOk } from '../entities/Bridge';
+import { BRIDGE_JOIN_HIGH, BRIDGE_JOIN_LOW, BRIDGE_JOIN_SIDE_HIGH, BRIDGE_JOIN_SIDE_LOW, Bridge, bridgeAnchor, bridgeEnd, bridgeReachSegment, bridgeSiteOk } from '../entities/Bridge';
 import { WALL_E, WALL_N, WALL_S, WALL_W } from '../render/sprites/Wall';
 import { Bunker } from '../entities/Bunker';
 import { PowerSystem } from '../systems/PowerSystem';
@@ -1372,15 +1372,20 @@ export class Game {
 
   /** The nearest of `layers` standing within BRIDGE_REACH_CELLS of the near end of the bridge site (x, y), or null. */
   layerInReach(layers: readonly Vehicle[], x: number, y: number, rotated: boolean): Vehicle | null {
-    const at = bridgeAnchor(this.map, x, y, rotated);
-    if (!at) return null;
-    const gx = at.x * CELL_SIZE;
-    const gy = at.y * CELL_SIZE;
+    // Counted from the anchor, or from anywhere along the bridge this section runs on from (see bridgeReachSegment).
+    const seg = bridgeReachSegment(this.map, x, y, rotated);
+    if (!seg) return null;
+    const ax = seg.a.x * CELL_SIZE;
+    const ay = seg.a.y * CELL_SIZE;
+    const bx = seg.b.x * CELL_SIZE;
+    const by = seg.b.y * CELL_SIZE;
+    const len2 = (bx - ax) ** 2 + (by - ay) ** 2;
     let best: Vehicle | null = null;
     let bestD = BRIDGE_REACH_CELLS * CELL_SIZE;
     for (const v of layers) {
       if (!v.alive || !v.isBridgeLayer) continue;
-      const d = Math.hypot(v.px - gx, v.py - gy);
+      const t0 = len2 > 0 ? Math.max(0, Math.min(1, ((v.px - ax) * (bx - ax) + (v.py - ay) * (by - ay)) / len2)) : 0;
+      const d = Math.hypot(v.px - (ax + t0 * (bx - ax)), v.py - (ay + t0 * (by - ay)));
       if (d <= bestD) {
         best = v;
         bestD = d;

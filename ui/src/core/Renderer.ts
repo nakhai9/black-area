@@ -1,4 +1,5 @@
 import { BRIDGE_DECK_PX } from '../render/sprites/Bridge';
+import { teamColoredKey } from '../render/sprites';
 import { isViolator } from '../systems/CombatSystem';
 import { t, t as tr } from '../i18n';
 import { drawBunkerGhost, drawBunkerSheet } from '../render/BunkerSheet';
@@ -514,7 +515,7 @@ export class Renderer {
   }
 
   private sprite(b: Building): Sprite {
-    return this.sprites.get(b.spriteKey, b.rotated);
+    return this.sprites.get(teamColoredKey(b.spriteKey, b.faction), b.rotated);
   }
 
   /** Sprite scale: its art diamond is exactly the diamond the grid footprint covers on screen. */

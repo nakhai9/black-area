@@ -344,12 +344,50 @@ export function drawSoldierDeath(ctx: CanvasRenderingContext2D, look: InfantryLo
     row = DIR16_ROW.dying + Math.min(3, Math.floor(p * 4));
   } else return;
   ctx.save();
-  ctx.globalAlpha *= Math.max(0, Math.min(1, (ttl - age) / BODY_FADE_SECONDS));
+  const fade = Math.max(0, Math.min(1, (ttl - age) / BODY_FADE_SECONDS));
+  ctx.globalAlpha *= fade;
+  // Blood: a dark red pool spreading under the body once it is down.
+  const pool = Math.min(1, Math.max(0, (age - FALL_SECONDS * 0.4) / 1.6));
+  if (pool > 0) {
+    const r = 1.7 * Math.sqrt(pool);
+    const g = ctx.createRadialGradient(x + 0.4, y, 0, x + 0.4, y, r);
+    g.addColorStop(0, 'rgba(96,6,6,0.85)');
+    g.addColorStop(0.7, 'rgba(110,10,8,0.7)');
+    g.addColorStop(1, 'rgba(110,10,8,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.ellipse(x + 0.4, y, r, r * 0.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
   ctx.translate(x, y);
   ctx.scale(sh.scale, sh.scale);
   ctx.imageSmoothingEnabled = true;
   ctx.drawImage(sh.image, col * sh.cw, row * sh.ch, sh.cw, sh.ch, -sh.feetX, -sh.feetY, sh.cw, sh.ch);
+  // The body turns black as it falls (a dark copy of the sheet laid over it, fully opaque once down).
+  const dark = Math.min(1, p * 1.15);
+  if (dark > 0) {
+    ctx.globalAlpha = fade * dark;
+    ctx.drawImage(blackened(sh.image, row, sh.ch), col * sh.cw, 0, sh.cw, sh.ch, -sh.feetX, -sh.feetY, sh.cw, sh.ch);
+  }
   ctx.restore();
+}
+
+/** Blackened copy of a sheet's dying row (dead bodies), made on first use: only that row, to keep memory small. */
+const BLACK = new WeakMap<HTMLImageElement, Map<number, HTMLCanvasElement>>();
+function blackened(img: HTMLImageElement, row: number, ch: number): HTMLCanvasElement {
+  let rows = BLACK.get(img);
+  if (!rows) BLACK.set(img, (rows = new Map()));
+  let c = rows.get(row);
+  if (!c) {
+    c = createCanvas(img.naturalWidth, ch).canvas;
+    const g = c.getContext('2d');
+    if (g) {
+      g.filter = 'brightness(0.08)';
+      g.drawImage(img, 0, row * ch, img.naturalWidth, ch, 0, 0, img.naturalWidth, ch);
+    }
+    rows.set(row, c);
+  }
+  return c;
 }
 
 const portraits = new Map<string, HTMLCanvasElement>();

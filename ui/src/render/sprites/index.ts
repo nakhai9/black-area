@@ -161,3 +161,79 @@ export function flagVariantArt(key: string): BuildingArt | undefined {
 }
 
 export type { BuildingArt } from './BuildingArt';
+
+const FACTION_IDS: readonly string[] = ['usa', 'russia', 'china', 'europe', 'islamic'];
+const isFactionId = (s: string | undefined): s is FactionId => s !== undefined && FACTION_IDS.includes(s);
+
+/**
+ * Builds the art of a plain (not recoloured) sprite key from scratch, or undefined for keys that cannot be rebuilt.
+ * Walls / gates / bunkers / bridges are left out: their colours are building materials, a taken one flies a pole.
+ */
+function rebuildArt(key: string): BuildingArt | undefined {
+  const flag = flagVariantArt(key);
+  if (flag) return flag;
+  const m = /^(\w+):(\w+)$/.exec(key);
+  if (!m || !isFactionId(m[2])) return undefined;
+  const f = m[2];
+  switch (m[1]) {
+    case 'capital':
+    case 'alliedBuilding':
+    case 'barracks':
+    case 'warFactory':
+    case 'flagpole':
+    case 'happyCity':
+      return FLAG_VARIANTS[m[1]]!(f, f);
+    case 'oil':
+      return createOilDerrickArt(FACTIONS[f].colors);
+    case 'airfield':
+      return createAirfieldArt(f);
+    case 'techCenter':
+      return createTechCenterArt(f);
+    case 'powerPlant':
+      return createPowerPlantArt(f);
+    case 'radarTower':
+      return createRadarTowerArt(f);
+    default:
+      return undefined;
+  }
+}
+
+/** Runs `fn` while nation `design`'s team colours read as those of `paint` (art reads FACTIONS[...].colors). */
+function withTeamColors<T>(design: FactionId, paint: FactionId, fn: () => T): T {
+  const cfg = FACTIONS[design] as { colors: (typeof FACTIONS)[FactionId]['colors'] };
+  const own = cfg.colors;
+  cfg.colors = FACTIONS[paint].colors;
+  try {
+    return fn();
+  } finally {
+    cfg.colors = own;
+  }
+}
+
+/**
+ * Sprite key of a structure drawn in `owner`'s team colours: a captured (or leased) building keeps its design
+ * (`kind:design…`) and only its team-coloured parts take the holder's colour (`…%owner`). Plain key when it
+ * already matches or the art cannot be recoloured.
+ */
+export function teamColoredKey(key: string, owner: string): string {
+  const design = /^\w+:(\w+)/.exec(key)?.[1];
+  if (!isFactionId(design) || !isFactionId(owner) || design === owner || /^(bunker|bridge|wall|gate):/.test(key)) return key;
+  return `${key}%${owner}`;
+}
+
+/** Art for a `…%owner` key (see teamColoredKey): the design's art, every team colour in it swapped for `owner`'s. */
+export function teamColoredArt(key: string): BuildingArt | undefined {
+  const m = /^((\w+):(\w+).*)%(\w+)$/.exec(key);
+  if (!m || !isFactionId(m[3]) || !isFactionId(m[4])) return undefined;
+  const design = m[3];
+  const paint = m[4];
+  const base = withTeamColors(design, paint, () => rebuildArt(m[1]!));
+  if (!base) return undefined;
+  const art: { -readonly [K in keyof BuildingArt]: BuildingArt[K] } = {
+    ...base,
+    drawStatic: (p) => withTeamColors(design, paint, () => base.drawStatic(p)),
+  };
+  const anim = base.drawAnimated?.bind(base);
+  if (anim) art.drawAnimated = (p, t, a) => withTeamColors(design, paint, () => anim(p, t, a));
+  return art;
+}
