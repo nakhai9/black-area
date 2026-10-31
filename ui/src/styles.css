@@ -1957,3 +1957,12 @@ button,
 .pause-setting .pause-volume {
   margin: 0;
 }
+
+/* Capital choice: one option per row, each with its own colour and icon. */
+.capital-choice-actions { flex-direction: column; align-items: stretch; }
+.end-card button.capital-choice { justify-content: flex-start; display: flex; align-items: center; gap: 10px; color: #fff; }
+.end-card button.capital-choice svg { width: 22px; height: 22px; flex: none; }
+.end-card button.capital-choice-embargo { background: #1f7a4d; border-color: #2fa86a; }
+.end-card button.capital-choice-disarm { background: #8a2c2c; border-color: #c24545; }
+.end-card button.capital-choice-capture { background: #2c4f8a; border-color: #4572c2; }
+.end-card button.capital-choice:hover { filter: brightness(1.15); }

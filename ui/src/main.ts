@@ -234,3 +234,6 @@ if (view === 'buildings') showBuildingGallery(document.body);
 else if (view === 'units') void showUnitGallery(document.body);
 else if (view === 'map') void showMapView(document.body);
 else void boot();
+
+// No browser context menu anywhere in the game (it offers "Inspect", which opens the dev tools).
+window.addEventListener('contextmenu', (e) => e.preventDefault(), { capture: true });
