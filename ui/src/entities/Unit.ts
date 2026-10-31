@@ -265,6 +265,8 @@ export abstract class Unit extends Entity {
   crossingWait = 0;
   /** Game time it drove up to (or onto) a bridge, -1 when not at one: bridges are crossed first come, first served. */
   bridgeSince = -1;
+  /** Its route runs over a bridge (set by the game each tick): it waits its turn there, never giving up the order. */
+  bridgeBound = false;
   /** World px it may walk before it must rest (Infinity: never tires — vehicles, special forces). */
   protected marchLimit = Infinity;
   /** Seconds the rest takes. */
@@ -361,6 +363,12 @@ export abstract class Unit extends Entity {
       const reverse = this.backsUp();
       if (dist > 0.05) this.turnTowards(this.driveBearing(Math.atan2(dy, dx)), dt);
       if (!reverse && Math.abs(dx - dy) > 0.05) this.facing = movesRight(dx, dy) ? 1 : -1; // facing is judged on screen
+      // An intermediate point within a hull's half-width counts as passed: a vehicle held a little off a cell centre
+      // (kept clear of a structure beside it) never circles round trying to reach that exact spot.
+      if (this.path.length > 1 && dist < Math.max(1.2, this.radius * 0.5)) {
+        this.path.shift();
+        continue;
+      }
       // A soldier rounds a corner: close to a bend he already heads for the following point.
       if (!this.drivesForward && this.path.length > 1 && dist < CORNER_CUT && dist > budget) {
         this.path.shift();
@@ -371,7 +379,8 @@ export abstract class Unit extends Entity {
         this.py = next.y;
         budget -= dist;
         this.path.shift();
-      } else if (this.drivesForward && !reverse && (this.naval || !this.insideTurn(dist, Math.atan2(dy, dx)))) {
+      } else if ((this.drivesForward ? !reverse : dist > 2) && (this.naval || !this.insideTurn(dist, Math.atan2(dy, dx)))) {
+        // (Soldiers too walk the way they face, curving onto a new direction as they turn: never a sidestep.)
         // Along the nose, never sideways: the hull (or airframe) carries the machine, so it follows its heading
         // and curves onto the route as it turns instead of gliding straight at the point.
         this.px += Math.cos(this.heading) * budget;
@@ -396,6 +405,15 @@ export abstract class Unit extends Entity {
         this.px = sx;
         this.py = sy;
         budget = total - step;
+      } else if (next && d > 0.05 && !Unit.blocks(this, fromX, fromY, sx, fromY) && Math.abs(sx - fromX) > 0.01) {
+        // Slides along the obstacle (a corner, a bridge's side) on the free axis instead of stopping dead against it.
+        this.px = sx;
+        this.py = fromY;
+        budget = total - Math.abs(sx - fromX);
+      } else if (next && d > 0.05 && !Unit.blocks(this, fromX, fromY, fromX, sy) && Math.abs(sy - fromY) > 0.01) {
+        this.px = fromX;
+        this.py = sy;
+        budget = total - Math.abs(sy - fromY);
       } else {
         this.px = fromX;
         this.py = fromY;
@@ -439,6 +457,11 @@ export abstract class Unit extends Entity {
    */
   private backsUp(): boolean {
     if (!this.drivesForward || !this.turnsToMove || this.naval || this.aircraft) return false;
+    // On a bridge (or at its mouth) a vehicle always drives forwards, nose first along the deck.
+    if (this.bridgeSince >= 0) return false;
+    // Only a short shuffle is driven in reverse: a vehicle with somewhere further to go turns and drives there nose first.
+    const goal = this.path[this.path.length - 1];
+    if (goal && Math.hypot(goal.x - this.px, goal.y - this.py) > REVERSE_RANGE) return false;
     const next = this.path[0];
     if (!next) return false;
     const dist = Math.hypot(next.x - this.px, next.y - this.py);
@@ -514,7 +537,7 @@ export abstract class Unit extends Entity {
     // Something stands in the way and re-routing did not help: stop where it is instead of pushing on. Only a truly
     // walled-in unit gets there: being jostled (a crowd, a fight) asks for new routes first, the order is kept.
     // At a bridge traffic only ever waits its turn (first come, first served): nobody gives up its order there.
-    if (this.bridgeSince >= 0) this.blockedFor = 0;
+    if (this.bridgeSince >= 0 || this.bridgeBound) this.blockedFor = 0;
     if (this.blockedFor > BLOCKED_GIVE_UP) {
       this.stop();
       this.stuckFor = 0;

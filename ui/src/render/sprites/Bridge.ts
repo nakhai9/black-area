@@ -28,6 +28,11 @@ function deckAt(v: number, low: boolean, high: boolean): number {
   return DECK;
 }
 
+/** Deck height (px) at v cells along a section whose low / high ends run on into another section (no ramp there). */
+export function bridgeDeckAt(v: number, low: boolean, high: boolean): number {
+  return deckAt(Math.max(0, Math.min(LEN, v)), low, high);
+}
+
 /** A strip across the deck from v0 to v1 between u0 and u1, following the ramps. */
 function strip(p: IsoPainter, u0: number, u1: number, v0: number, v1: number, low: boolean, high: boolean, color: string, lift = 0): void {
   p.polygon(

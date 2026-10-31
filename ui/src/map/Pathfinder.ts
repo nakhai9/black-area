@@ -353,6 +353,8 @@ export class Pathfinder {
         if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
         const ni = ny * W + nx;
         if (!free(ni)) continue;
+        // Onto / off a bridge only over its ends, straight along the deck.
+        if (bridge[cur] !== bridge[ni] && !map.bridgeStepOk(cur, ni, dx, dy)) continue;
         if (corridor && !inCorridor(corridor, nx, ny)) continue;
         // No corner cutting: both side cells of a diagonal step must be open too (they are in bounds here).
         if (dx !== 0 && dy !== 0 && (!free(cy * W + nx) || !free(ny * W + cx))) continue;
@@ -413,6 +415,8 @@ export class Pathfinder {
       const cy = Math.round(y0 + dy * t);
       if (!this.passable(cx, cy, swim)) return false;
       if (cx !== px && cy !== py && (!this.passable(px, cy, swim) || !this.passable(cx, py, swim))) return false;
+      // A straight line onto / off a bridge must run over its end along the deck (never over the girders).
+      if ((cx !== px || cy !== py) && !this.map.bridgeStepOk(this.map.index(px, py), this.map.index(cx, cy), cx - px, cy - py)) return false;
       // A vehicle's straight line never runs along a structure (only its two ends may touch one).
       if (swim === 'vehicle' && s < steps && !(cx === x0 && cy === y0) && (this.nearStructure(cx, cy) || this.nearWater(cx, cy))) return false;
       px = cx;

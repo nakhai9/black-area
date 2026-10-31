@@ -1,4 +1,5 @@
-import { BRIDGE_DECK_PX } from '../render/sprites/Bridge';
+import { BRIDGE_DECK_PX, bridgeDeckAt } from '../render/sprites/Bridge';
+import { BRIDGE_JOIN_HIGH, BRIDGE_JOIN_LOW, type Bridge } from '../entities/Bridge';
 import { teamColoredKey } from '../render/sprites';
 import { isViolator } from '../systems/CombatSystem';
 import { t, t as tr } from '../i18n';
@@ -7,7 +8,7 @@ import { Bunker } from '../entities/Bunker';
 import { drawExplosion } from '../render/ExplosionSheet';
 import { emblemImage } from '../render/Emblems';
 import { demoActive } from './Demo';
-import { BUILD_RISE_SECONDS, CELL_SIZE, CRUISE_ALTITUDE, ISO_X, ISO_Y } from '../constants';
+import { BUILD_RISE_SECONDS, CELL_SIZE, CRUISE_ALTITUDE, ISO_X, ISO_Y, SPRITE_SCALE } from '../constants';
 import { blitUnit, unitSprite } from '../render/UnitSprites';
 import type { Building } from '../entities/Building';
 import { Infantry } from '../entities/Infantry';
@@ -275,8 +276,10 @@ export class Renderer {
     this.terrain.drawMountains(ctx, view, camera.zoom, this.visiblePeaks);
     this.terrain.drawTrees(ctx, view, camera.zoom);
     // Bridges lie on the ground (or over the water): under every unit, ring and structure, out of the depth pass.
+    this.frameBridges.length = 0;
     for (const b of scene.buildings) {
       if (b.spec.type !== 'bridge') continue;
+      this.frameBridges.push(b as Bridge);
       const c = b.centerWorld();
       if (onScreen(c.x, c.y, (b.w + b.d) * CELL_SIZE)) this.drawBuilding(b, scene.time);
     }
@@ -589,9 +592,10 @@ export class Renderer {
    */
   private drawUnit(u: Unit): void {
     // Ground units on a bridge drive / walk on its deck, not at water level beside its girders.
-    if (!u.flies && !u.naval && this.terrain.onBridge(u.px, u.py)) {
+    const deck = u.flies || u.naval ? 0 : this.deckLift(u.px, u.py);
+    if (deck > 0) {
       this.ctx.save();
-      this.ctx.translate(0, -BRIDGE_DECK_PX);
+      this.ctx.translate(0, -deck);
       try {
         this.drawUnitOnGround(u);
       } finally {
@@ -602,6 +606,27 @@ export class Renderer {
     this.drawUnitOnGround(u);
   }
 
+  /** Bridges drawn this frame (deckLift looks units up in them). */
+  private readonly frameBridges: Bridge[] = [];
+
+  /**
+   * Height (iso px) of the bridge deck under world point (x, y): the full deck height over the span, rising and falling
+   * along the ramps at the open ends exactly as the deck is drawn (bridgeDeckAt), 0 off a bridge — so a vehicle climbs
+   * onto a bridge and down off it like up and down a slope, never jumping.
+   */
+  private deckLift(x: number, y: number): number {
+    if (!this.terrain.onBridge(x, y)) return 0;
+    const cx = x / CELL_SIZE;
+    const cy = y / CELL_SIZE;
+    for (const b of this.frameBridges) {
+      if (cx < b.x || cy < b.y || cx >= b.x + b.w || cy >= b.y + b.d) continue;
+      const v = b.rotated ? cx - b.x : cy - b.y;
+      // Deck heights are bridge-art px: on screen they are drawn at the building scale (SPRITE_SCALE), like the bridge.
+      return bridgeDeckAt(v, (b.joins & BRIDGE_JOIN_LOW) !== 0, (b.joins & BRIDGE_JOIN_HIGH) !== 0) * SPRITE_SCALE;
+    }
+    return BRIDGE_DECK_PX * SPRITE_SCALE;
+  }
+
   private drawUnitOnGround(u: Unit): void {
     if (!(u instanceof Vehicle) || u.aircraft || u.isDrone || u.naval) {
       this.drawUnitBody(u);
@@ -610,7 +635,8 @@ export class Renderer {
     const len = Math.max(2, u.radius * 1.1);
     const c = Math.cos(u.heading) * len;
     const s = Math.sin(u.heading) * len;
-    const rise = (liftAt(u.px + c, u.py + s) - liftAt(u.px - c, u.py - s)) * SLOPE_TILT;
+    // Up or down a bridge ramp it tilts with the ramp (deck height under nose minus tail, true to scale).
+    const rise = (liftAt(u.px + c, u.py + s) - liftAt(u.px - c, u.py - s)) * SLOPE_TILT + (this.deckLift(u.px + c, u.py + s) - this.deckLift(u.px - c, u.py - s));
     // Nose minus tail on the flat iso screen.
     const vx = 2 * (c - s) * ISO_X;
     const vy = 2 * (c + s) * ISO_Y;

@@ -27,7 +27,7 @@ export const DEMO_FACTION = Number(import.meta.env.VITE_DEMO_FACTION) || 2;
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "2.83.24";
+export const GAME_VERSION = "2.83.29";
 
 /** An Allied Building within this many cells of any capital is an embassy; farther out it is a "Pro-<nation> regime". */
 export const EMBASSY_CAPITAL_CELLS = 25;
@@ -139,7 +139,7 @@ export function barracksFootprint(design: string): {
 /** The Global Monitoring Center: 5 × 5 cells. */
 export const FOOTPRINT_GMC = { w: 5, d: 5 } as const;
 /** Bridge laid by a bridge layer: BRIDGE_W cells wide across, BRIDGE_L cells long (Bridge; rotated = long along x). */
-export const BRIDGE_W = 3;
+export const BRIDGE_W = 4;
 export const BRIDGE_L = 3;
 export const FOOTPRINT_BRIDGE = { w: BRIDGE_W, d: BRIDGE_L } as const;
 /** At most this many sections join end to end into one bridge (no bridges across a sea). Player and AI alike. */

@@ -361,6 +361,8 @@ const REPATH_COOLDOWN = 1.5;
 const GROUP_ROUTE_MIN = 4;
 
 /** Bridge ghost: cell offsets round the cursor tried for a legal spot, nearest first (see updateBridgeGhost). */
+/** The bridge ghost snaps onto the straight continuation of a bridge end whose next section lies within this many cells of the cursor. */
+const BRIDGE_SNAP_CELLS = 6;
 const BRIDGE_SNAP_OFFSETS: readonly [number, number][] = (() => {
   const out: [number, number][] = [];
   for (let oy = -2; oy <= 2; oy++) for (let ox = -2; ox <= 2; ox++) out.push([ox, oy]);
@@ -597,6 +599,8 @@ export class Game {
       // Already standing on a structure cell (just out of a structure, a block raised under it): it may walk off it.
       if (solid(ax, ay)) return false;
       if (solid(bx, by)) return true;
+      // Onto / off a bridge deck only over its ends (never over the girders or across a corner of water).
+      if (wet && this.map.inBounds(ax, ay) && this.map.inBounds(bx, by) && Math.abs(bx - ax) <= 1 && Math.abs(by - ay) <= 1 && !this.map.bridgeStepOk(this.map.index(ax, ay), this.map.index(bx, by), bx - ax, by - ay)) return true;
       // A diagonal step never squeezes between two blocks touching at a corner.
       return ax !== bx && ay !== by && solid(bx, ay) && solid(ax, by);
     };
@@ -761,6 +765,8 @@ export class Game {
       // DEMO only: the game object on the page, for scripted test runs (headless browser checks).
       (globalThis as { __demoGame?: Game }).__demoGame = this;
     }
+    // `?debug` in the address: the same hook in a normal game (scripted performance checks).
+    if (new URLSearchParams(location.search).has('debug')) (globalThis as { __demoGame?: Game }).__demoGame = this;
     this.systems.forEach((s) => s.update(0));
     this.camera.setZoom(FOCUS_ZOOM);
     this.focusOwnCapital();
@@ -1328,6 +1334,7 @@ export class Game {
     if (this.placing) this.stopPlacing();
     // The bridge shows under the cursor (R turns it); a left click on a legal spot sends the layer there to lay it.
     this.bridging = true;
+    this.bridgeTurned = false;
     this.placingRotated = false;
     this.updateBridgeGhost();
     this.sidebar.notify(t('Pick where the bridge goes (R turns it), then left-click. Right-click cancels.'), 3);
@@ -1353,7 +1360,7 @@ export class Game {
     // it snaps onto the end of a bridge near the cursor so a new section runs on from it in one line (never beside it);
     // no bridge end near, it stays under the cursor, turned whichever way can be laid there.
     const mouse = this.mouseWorld;
-    const square = FOOTPRINT_BRIDGE.w === FOOTPRINT_BRIDGE.d;
+    const square = (FOOTPRINT_BRIDGE.w as number) === (FOOTPRINT_BRIDGE.d as number);
     const ways = square ? [this.placingRotated, !this.placingRotated] : [this.placingRotated];
     const under = (r: boolean): [number, number] => {
       const w0 = r ? FOOTPRINT_BRIDGE.d : FOOTPRINT_BRIDGE.w;
@@ -1361,7 +1368,26 @@ export class Game {
       return [Math.floor(mouse.x / CELL_SIZE - w0 / 2 + 0.5), Math.floor(mouse.y / CELL_SIZE - d0 / 2 + 0.5)];
     };
     let pick: [number, number, boolean] | null = null;
-    for (const [ox, oy] of BRIDGE_SNAP_OFFSETS) {
+    // First choice: the straight continuation of the nearest open bridge end within BRIDGE_SNAP_CELLS of the cursor
+    // (exactly in line with it, the same way round), so running a bridge on never needs pixel-perfect aiming.
+    let bestD = BRIDGE_SNAP_CELLS * CELL_SIZE;
+    for (const b of this.bridges) {
+      if (!b.alive) continue;
+      for (const high of [false, true]) {
+        const len = FOOTPRINT_BRIDGE.d;
+        const sx = b.rotated ? (high ? b.x + b.w : b.x - len) : b.x;
+        const sy = b.rotated ? b.y : high ? b.y + b.d : b.y - len;
+        const w0 = b.rotated ? FOOTPRINT_BRIDGE.d : FOOTPRINT_BRIDGE.w;
+        const d0 = b.rotated ? FOOTPRINT_BRIDGE.w : FOOTPRINT_BRIDGE.d;
+        const dist = Math.hypot((sx + w0 / 2) * CELL_SIZE - mouse.x, (sy + d0 / 2) * CELL_SIZE - mouse.y);
+        // Once the player has turned the section with R, only bridges running that way are snapped onto.
+        if (this.bridgeTurned && b.rotated !== this.placingRotated) continue;
+        if (dist >= bestD || !bridgeSiteOk(this.map, sx, sy, b.rotated)) continue;
+        bestD = dist;
+        pick = [sx, sy, b.rotated];
+      }
+    }
+    for (const [ox, oy] of pick ? [] : BRIDGE_SNAP_OFFSETS) {
       for (const r of ways) {
         const [mx, my] = under(r);
         const sx = mx + ox;
@@ -1551,9 +1577,25 @@ export class Game {
     const at = this.bridges.indexOf(b);
     if (on && at < 0) this.bridges.push(b);
     else if (!on && at >= 0) this.bridges.splice(at, 1);
-    for (let y = b.y; y < b.y + b.d; y++) for (let x = b.x; x < b.x + b.w; x++) if (map.inBounds(x, y)) map.bridge[map.index(x, y)] = on ? 1 : 0;
+    for (let y = b.y; y < b.y + b.d; y++) {
+      for (let x = b.x; x < b.x + b.w; x++) {
+        if (!map.inBounds(x, y)) continue;
+        map.bridge[map.index(x, y)] = on ? 1 : 0;
+        map.bridgeAxis[map.index(x, y)] = on ? (b.rotated ? 2 : 1) : 0;
+      }
+    }
     // A section that closed a gap overlaps its neighbours: lifting it leaves their cells in place.
-    if (!on) for (const o of this.bridges) for (let y = o.y; y < o.y + o.d; y++) for (let x = o.x; x < o.x + o.w; x++) if (map.inBounds(x, y)) map.bridge[map.index(x, y)] = 1;
+    if (!on) {
+      for (const o of this.bridges) {
+        for (let y = o.y; y < o.y + o.d; y++) {
+          for (let x = o.x; x < o.x + o.w; x++) {
+            if (!map.inBounds(x, y)) continue;
+            map.bridge[map.index(x, y)] = 1;
+            map.bridgeAxis[map.index(x, y)] = o.rotated ? 2 : 1;
+          }
+        }
+      }
+    }
     this.paths.groundChanged(b.x, b.y, b.w, b.d);
     this.joinBridges(b.x - 3, b.y - 3, b.w + 6, b.d + 6);
     if (on) return;
@@ -3336,10 +3378,8 @@ export class Game {
       if (!this.map.isBridge(cx, cy)) continue;
       const b = bridges.find((q) => q.containsCell(cx, cy));
       if (!b) continue;
-      // Stepping off the deck (its route leaves the bridge from here, e.g. at a corner onto the bank): never held back.
-      const next = u.waypoints()[0];
-      if (next && !this.map.isBridge(Math.floor(next.x / CELL_SIZE), Math.floor(next.y / CELL_SIZE))) continue;
-      const lane = (FOOTPRINT_BRIDGE.w / 2 - BRIDGE_LANE) * CELL_SIZE;
+      // The whole body stays between the girders: the half-width less the girder margin and the unit's own radius.
+      const lane = Math.max(0, (FOOTPRINT_BRIDGE.w / 2 - BRIDGE_LANE) * CELL_SIZE - u.radius * 0.8);
       if (b.rotated) {
         const mid = (b.y + b.d / 2) * CELL_SIZE;
         u.py = Math.max(mid - lane, Math.min(mid + lane, u.py));
@@ -3357,6 +3397,10 @@ export class Game {
     const cx = Math.floor(nx / CELL_SIZE);
     const cy = Math.floor(ny / CELL_SIZE);
     // A ship is pushed over water only (so two ships crossing paths shove each other apart instead of overlapping).
+    const ox = Math.floor(u.px / CELL_SIZE);
+    const oy = Math.floor(u.py / CELL_SIZE);
+    // A push never moves a ground unit onto or off a bridge deck sideways (over the girders).
+    if (!u.flies && !u.naval && (cx !== ox || cy !== oy) && Math.abs(cx - ox) <= 1 && Math.abs(cy - oy) <= 1 && this.map.inBounds(cx, cy) && this.map.inBounds(ox, oy) && !this.map.bridgeStepOk(this.map.index(ox, oy), this.map.index(cx, cy), cx - ox, cy - oy)) return false;
     if (u.flies || (u.naval ? this.map.isWater(cx, cy) : this.pathfinder.passable(cx, cy, u.mobility))) {
       u.px = nx;
       u.py = ny;
@@ -4102,6 +4146,7 @@ export class Game {
         // Only while positioning a new structure: turn it 90° (footprint d × w, art mirrored). Once built it stays put.
         if (this.placing || this.bridging) {
           this.placingRotated = !this.placingRotated;
+          if (this.bridging) this.bridgeTurned = true;
           this.updateGhost();
           this.sidebar.notify(this.placingRotated ? t('Turned 90°.') : t('Turned back.'), 1.5);
         }
@@ -4235,6 +4280,8 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
   private placingRotated = false;
   /** Which way round the bridge ghost was laid out (the order goes out that way). */
   private bridgeRotated = false;
+  /** R was pressed while placing this bridge: the player's chosen way round wins over snapping. */
+  private bridgeTurned = false;
 
   private stopPlacing(): void {
     this.placing = null;
@@ -4961,6 +5008,9 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     // come, first served — whoever reached the bridge first has right of way over traffic coming the other way.
     const dirOf = new Map<number, { fx: number; fy: number; entering: boolean }>();
     for (const u of movers) {
+      u.bridgeBound = this.bridges.length > 0 && u.moving && !u.flies && u.waypoints().some((p) => this.map.isBridge(Math.floor(p.x / CELL_SIZE), Math.floor(p.y / CELL_SIZE)));
+    }
+    for (const u of movers) {
       const next = u.moving && !u.flies && u.alive ? u.waypoints()[0] : undefined;
       const len = next ? Math.hypot(next.x - u.px, next.y - u.py) : 0;
       if (!next || len < 0.01) {
@@ -5079,7 +5129,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
           // Enemies never give way to each other: a unit falling back does not stop to let the foe go by.
           if (b.id <= a.id || isHostile(a, b)) continue;
           // At a bridge the bridge's own first come, first served rule decides (queueInCrowds), not crossing routes.
-          if (a.bridgeSince >= 0 || b.bridgeSince >= 0) continue;
+          if (a.bridgeSince >= 0 || b.bridgeSince >= 0 || (a.bridgeBound && b.bridgeBound)) continue;
           const lb = leg.get(b.id);
           if (!lb) continue;
           // Where do the two stretches cross? (a + s·da = b + t·db)
@@ -5216,9 +5266,9 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
         continue;
       }
       const path = this.paths.find({ x: u.px, y: u.py }, goal, u.mobility);
-      // No way on from here: stop instead of being re-routed again every pass.
+      // No way on from here: stop instead of being re-routed again every pass (not on a bridge deck: it keeps trying).
       if (path.length <= 1) {
-        u.stop();
+        if (u.bridgeSince < 0 && !u.bridgeBound) u.stop();
         continue;
       }
       const last = path[path.length - 1];
@@ -5228,7 +5278,9 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       if (lc && (lc.x !== goal.x || lc.y !== goal.y)) {
         const key = goal.y * this.map.width + goal.x;
         const prev = this.shortRepaths.get(u);
-        if (prev && prev.key === key && prev.count >= 1) {
+        // (On or at a bridge it never gives up there: it keeps the shorter route and tries again, so nobody is left
+        // standing on the deck.)
+        if (prev && prev.key === key && prev.count >= 1 && u.bridgeSince < 0 && !u.bridgeBound) {
           this.shortRepaths.delete(u);
           u.stop();
           continue;

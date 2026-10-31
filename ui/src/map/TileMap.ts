@@ -35,6 +35,8 @@ export class TileMap {
   readonly river: Uint8Array;
   /** 1 on a cell spanned by a Bridge: walkable for soldiers and ground vehicles even over water, closed to ships. */
   readonly bridge: Uint8Array;
+  /** Per bridge cell, the way its deck runs: 1 along y, 2 along x (0 off bridges); see bridgeStepOk. */
+  readonly bridgeAxis: Uint8Array;
 
   constructor(
     readonly width: number,
@@ -50,6 +52,7 @@ export class TileMap {
     this.mountainRange = new Uint8Array(n);
     this.river = new Uint8Array(n);
     this.bridge = new Uint8Array(n);
+    this.bridgeAxis = new Uint8Array(n);
   }
 
   inBounds(x: number, y: number): boolean {
@@ -88,6 +91,19 @@ export class TileMap {
   }
 
   /** Is a Bridge laid over (x, y)? */
+  /**
+   * May a ground unit step from cell index `from` to the neighbouring cell `to` (dx, dy apart)? Onto or off a bridge
+   * deck only over its ends, straight along the deck — never sideways over the girders, never diagonally across a
+   * corner (water or bank beside the deck). Steps that stay on or off bridges are unaffected.
+   */
+  bridgeStepOk(from: number, to: number, dx: number, dy: number): boolean {
+    const a = this.bridge[from] === 1;
+    if (a === (this.bridge[to] === 1)) return true;
+    if (dx !== 0 && dy !== 0) return false;
+    const axis = this.bridgeAxis[a ? from : to];
+    return axis === 2 ? dx !== 0 : dy !== 0;
+  }
+
   isBridge(x: number, y: number): boolean {
     return this.inBounds(x, y) && this.bridge[this.index(x, y)] === 1;
   }

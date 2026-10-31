@@ -115,6 +115,8 @@ export function distanceTo(x: number, y: number, e: Entity): number {
 const HASH = 48;
 /** Seconds between two tries of a unit to resume its attack-move (each try is a full path search). */
 const RESUME_RETRY = 1;
+/** Most attack-move route searches (resumeAttackMove) run in one tick. */
+const RESUME_SEARCHES_PER_TICK = 2;
 /** Longest weapon range in the game (world px, before faction multipliers), with room for them. */
 const MAX_WEAPON_RANGE = Math.max(...Object.values(WEAPONS).map((w) => w.range)) * 1.5;
 /** A retreating unit's group (one order = one group), or the unit alone. */
@@ -135,6 +137,8 @@ export class CombatSystem implements GameSystem {
   private readonly chaseAt = new Map<number, number>();
   /** Unit id → game time of its next attack-move resume try. */
   private readonly resumeAt = new Map<number, number>();
+  /** Attack-move route searches run this tick (see RESUME_SEARCHES_PER_TICK). */
+  private resumeSearches = 0;
   private readonly grid = new Map<number, Unit[]>();
   private readonly pool: Unit[][] = [];
   /**
@@ -155,6 +159,7 @@ export class CombatSystem implements GameSystem {
   private chaseBudget = 0;
 
   update(dt: number): void {
+    this.resumeSearches = 0;
     this.time += dt;
     this.chaseBudget = CHASE_ROUTES_PER_TICK;
     if (this.falling.length > 0) {
@@ -732,8 +737,12 @@ export class CombatSystem implements GameSystem {
       s.follow([dest]);
       return;
     }
-    // A full A* search per call: at most one try per RESUME_RETRY seconds per unit (it used to run every tick).
+    // A full A* search per call: at most one try per RESUME_RETRY seconds per unit (it used to run every tick), and
+    // at most RESUME_SEARCHES_PER_TICK of them in one tick (a whole army resuming at once froze the game a moment):
+    // the rest simply try on the following ticks.
     if ((this.resumeAt.get(s.id) ?? 0) > this.time) return;
+    if (this.resumeSearches >= RESUME_SEARCHES_PER_TICK) return;
+    this.resumeSearches++;
     this.resumeAt.set(s.id, this.time + RESUME_RETRY);
     const cell = this.pathfinder.nearestPassable(Math.floor(dest.x / CELL_SIZE), Math.floor(dest.y / CELL_SIZE), 10, undefined, s.mobility);
     const sx = Math.floor(s.px / CELL_SIZE);

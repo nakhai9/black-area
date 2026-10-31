@@ -188,6 +188,25 @@ const CLAIM_SPACING = 30;
 const CLAIM_SAMPLE = 5;
 /** An Allied Building goes up within this many cells of the nation's claim flag. */
 const ALLIED_SEARCH = 9;
+/** Seconds before an AI repeats a claim-site search that found nothing (see claimSiteSearch). */
+const CLAIM_RETRY_SECONDS = 20;
+/** Claim-site candidates checked per think (see pickClaimSite). */
+const CLAIM_SCAN_SLICE = 400;
+/** Offsets round an embassy flag for a w × d Allied Building, nearest first (ties in the old scan order). */
+const ALLIED_OFFSETS = new Map<string, readonly [number, number][]>();
+function alliedOffsets(w: number, d: number): readonly [number, number][] {
+  const key = `${w}x${d}`;
+  let list = ALLIED_OFFSETS.get(key);
+  if (!list) {
+    const all: [number, number, number, number][] = [];
+    let k = 0;
+    for (let dy = -ALLIED_SEARCH; dy <= ALLIED_SEARCH; dy++) for (let dx = -ALLIED_SEARCH; dx <= ALLIED_SEARCH; dx++) all.push([dx, dy, Math.hypot(dx + w / 2, dy + d / 2), k++]);
+    all.sort((a, b) => a[2] - b[2] || a[3] - b[3]);
+    list = all.map(([dx, dy]) => [dx, dy] as [number, number]);
+    ALLIED_OFFSETS.set(key, list);
+  }
+  return list;
+}
 /** Rival structures that make a claim next to them a threat to that rival's economy. */
 const ECONOMY_TYPES: ReadonlySet<BuildingType> = new Set(['oilDerrick', 'happyCity', 'powerPlant']);
 /** From this game time on the nation goes after the contested nations' capitals (one at a time). */
@@ -312,6 +331,12 @@ interface AIState {
   overseas: boolean;
   /** Where the current Squatters is headed (cell), or null while none is picked. */
   claimSite: GridPoint | null;
+  /** Game time a claim-site search last came up empty (the whole-map search is not repeated every think). */
+  claimMissAt?: number;
+  /** A claim-site search in progress (resumed each think). */
+  claimJob?: Generator<void, GridPoint | null, void>;
+  /** Game time an Allied Building site search last came up empty. */
+  alliedMissAt?: number;
   /** Truck id → where it carries its soldiers (they would have to rest on the march on foot). */
   convoys: Map<number, WorldPoint>;
   /** Own derrick id -> its health at the last think (a drop means it is under attack). */
@@ -575,7 +600,7 @@ export class AISystem implements GameSystem {
       }
       const forward = this.forwardAnchor(p, option.id);
       const site =
-        option.id === 'alliedBuilding' ? this.findAlliedSite(p, option, capital) : option.id === 'wall' ? this.findWallSite(p, capital) : this.findSite(p, st, forward ?? capital, option);
+        option.id === 'alliedBuilding' ? this.alliedSiteSearch(p, st, option, capital) : option.id === 'wall' ? this.findWallSite(p, capital) : this.findSite(p, st, forward ?? capital, option);
       if (site) this.host.placeReady(p, option.id, site.x, site.y);
       else this.host.construction.cancel(p, option.id); // nowhere to put it: refund and try the next plan step
     }
@@ -673,26 +698,25 @@ export class AISystem implements GameSystem {
   }
 
   /** Legal spot for the Allied Building beside one of the nation's embassy anchors (closest to it). */
+  /** findAlliedSite, not repeated for CLAIM_RETRY_SECONDS after it found no spot (it checks hundreds of spots). */
+  private alliedSiteSearch(p: PlayerState, st: AIState, option: BuildOption, capital: Building): GridPoint | null {
+    if (st.alliedMissAt !== undefined && this.time - st.alliedMissAt < CLAIM_RETRY_SECONDS) return null;
+    const site = this.findAlliedSite(p, option, capital);
+    st.alliedMissAt = site ? undefined : this.time;
+    return site;
+  }
+
   private findAlliedSite(p: PlayerState, option: BuildOption, capital: Building): GridPoint | null {
     const { w, d } = footprintOf(option, p.faction as Parameters<typeof footprintOf>[1]);
+    // Spots in order of distance from the flag (the same order the old full scan settled on): the first that passes
+    // the placement rules is the nearest, so the costly rule check runs only until then, not over the whole square.
+    const offsets = alliedOffsets(w, d);
     for (const flag of this.embassyAnchors(p, capital)) {
-      let best: GridPoint | null = null;
-      let bestD = Infinity;
-      for (let dy = -ALLIED_SEARCH; dy <= ALLIED_SEARCH; dy++) {
-        for (let dx = -ALLIED_SEARCH; dx <= ALLIED_SEARCH; dx++) {
-          const x = flag.x + dx;
-          const y = flag.y + dy;
-          // Distance first: only a spot nearer than the best so far is worth the full rule check.
-          const dist = Math.hypot(x + w / 2 - flag.x, y + d / 2 - flag.y);
-          if (dist >= bestD) continue;
-          if (!this.host.placement.check({ owner: p.id, x, y, w, d, radius: buildRadius(option.id) }).ok) continue;
-          {
-            bestD = dist;
-            best = { x, y };
-          }
-        }
+      for (const [dx, dy] of offsets) {
+        const x = flag.x + dx;
+        const y = flag.y + dy;
+        if (this.host.placement.check({ owner: p.id, x, y, w, d, radius: buildRadius(option.id) }).ok) return { x, y };
       }
-      if (best) return best;
     }
     return null;
   }
@@ -717,7 +741,7 @@ export class AISystem implements GameSystem {
     // Teams in the field: walk to a site on their own landmass and plant the flag there; a site across the sea
     // (they cannot swim) means flying in by transport.
     for (const u of teams) {
-      st.claimSite ??= this.pickClaimSite(p, st, capital);
+      st.claimSite ??= this.claimSiteSearch(p, st, capital);
       const site = st.claimSite;
       const cx = Math.floor(u.px / CELL_SIZE);
       const cy = Math.floor(u.py / CELL_SIZE);
@@ -752,7 +776,7 @@ export class AISystem implements GameSystem {
     // Loaded transports still at home take off for the site.
     for (const t of aboard) {
       if (t.flight !== 'parked' || t.incoming > 0) continue;
-      st.claimSite ??= this.pickClaimSite(p, st, capital);
+      st.claimSite ??= this.claimSiteSearch(p, st, capital);
       if (!st.claimSite) continue;
       this.host.orderAttackMove([t], this.safeDrop(p, { x: (st.claimSite.x + 0.5) * CELL_SIZE, y: (st.claimSite.y + 0.5) * CELL_SIZE }));
     }
@@ -760,7 +784,7 @@ export class AISystem implements GameSystem {
     if (!wanted || teams.length > 0 || aboard.length > 0 || threat > CLAIM_MAX_THREAT || this.time < CLAIM_FROM) return;
     if (!owned.has('barracks') || p.credits < CLAIM_MIN_CREDITS || p.debt > 0) return;
     if (this.host.training.queue(p).items.includes('squatters')) return;
-    st.claimSite = this.pickClaimSite(p, st, capital);
+    st.claimSite = this.claimSiteSearch(p, st, capital);
     if (!st.claimSite) return;
     // Overseas site: a transport is needed to fly the team over (a site on the home landmass is reached on foot).
     const door = this.host.pathfinder.nearestPassable(capital.x + Math.floor(capital.w / 2), capital.y + capital.d, 8);
@@ -791,7 +815,23 @@ export class AISystem implements GameSystem {
   }
 
   /** Best unclaimed spot for the nation's next ally (see claimLand), or null when there is none. */
-  private pickClaimSite(p: PlayerState, st: AIState, capital: Building): GridPoint | null {
+  /**
+   * pickClaimSite, but a search that found nothing is not run again for CLAIM_RETRY_SECONDS: the whole-map search
+   * costs a tenth of a second and, repeated every think while there was no site, froze the game over and over.
+   */
+  private claimSiteSearch(p: PlayerState, st: AIState, capital: Building): GridPoint | null {
+    if (st.claimMissAt !== undefined && this.time - st.claimMissAt < CLAIM_RETRY_SECONDS) return null;
+    // The search runs a slice per call (see pickClaimSite) until it has an answer; meanwhile there is no site yet.
+    st.claimJob ??= this.pickClaimSite(p, st, capital);
+    const r = st.claimJob.next();
+    if (!r.done) return null;
+    st.claimJob = undefined;
+    const site = r.value;
+    st.claimMissAt = site ? undefined : this.time;
+    return site;
+  }
+
+  private *pickClaimSite(p: PlayerState, st: AIState, capital: Building): Generator<void, GridPoint | null, void> {
     const map = this.host.map;
     const buildings = this.host.entities.buildings().filter((b) => b.alive);
     const enemy = buildings.filter((b) => b.owner !== p.id && b.owner !== NEUTRAL_OWNER);
@@ -808,7 +848,10 @@ export class AISystem implements GameSystem {
     let best: GridPoint | null = null;
     let bestScore = Infinity;
     // Only the sample cells on dry land (precomputed); the cheap tests first, the 7×7 footprint check last.
+    let n = 0;
     for (const i of this.claimCandidates()) {
+      // Spread over several ticks (CLAIM_SCAN_SLICE candidates at a time): the whole map at once took a tenth of a second.
+      if (++n % CLAIM_SCAN_SLICE === 0) yield;
       const x = i % map.width;
       const y = (i / map.width) | 0;
       if (!isClaimable(map, x, y) || !isClaimable(map, x + 5, y + 5)) continue;

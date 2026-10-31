@@ -367,6 +367,9 @@ export class PathService {
         if (f.stamp[ni] === f.run && dc >= (f.dist[ni] ?? Infinity)) continue;
         if (Math.max(Math.abs(nx - goal.x), Math.abs(ny - goal.y)) > limit || !inside(nx, ny) || !pathfinder.freeAt(ni, swim)) continue;
         if (dx !== 0 && dy !== 0 && (!pathfinder.freeAt(cy * W + nx, swim) || !pathfinder.freeAt(ny * W + cx, swim))) continue;
+        // Onto / off a bridge only over its ends, straight along the deck (the field runs from the goal back: the unit
+        // will walk ni → cur).
+        if (!map.bridgeStepOk(ni, cur, -dx, -dy)) continue;
         // Vehicles keep clear of structures where there is room (see NEAR_STRUCTURE_COST).
         const near = swim === 'vehicle' && pathfinder.nearStructure(nx, ny) ? NEAR_STRUCTURE_COST : 1;
         const nd = dc + step * near * (map.mountain[ny * W + nx] === MOUNTAIN_PASS ? MOUNTAIN_PATH_COST : map.hasTrees(nx, ny) ? TREE_COST : 1);
@@ -396,6 +399,7 @@ export class PathService {
         const ni = ny * W + nx;
         if (f.stamp[ni] !== f.run) continue;
         if (dx !== 0 && dy !== 0 && (f.stamp[y * W + nx] !== f.run || f.stamp[ny * W + x] !== f.run)) continue;
+        if (!this.map.bridgeStepOk(i, ni, dx, dy)) continue;
         const d = f.dist[ni] ?? Infinity;
         if (d < bestD) {
           bestD = d;
