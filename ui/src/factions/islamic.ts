@@ -114,7 +114,7 @@ export const ISLAMIC: FactionConfig = {
       description: t("BMP-2 armoured fighting vehicle for infantry support."),
     },
     heli: { name: "Ka-52", description: t("Ka-52 attack helicopter of the Islamic air force: guided missiles against ground vehicles only. Carries up to 8 soldiers (no vehicles) and sets down anywhere on open ground.") },
-    mantis: { name: "Buk-M3", description: t("Buk-M3 (9K317) self-propelled air-defence vehicle: long-range missiles that hit aircraft only (fighters, bombers, helicopters, transports), never ground units or structures. Expensive and slow, armoured like a tank.") },
+    mantis: { name: "PGZ-09", description: t("PGZ-09 self-propelled anti-aircraft gun: twin 35 mm cannons with tracking and search radars on a rotating turret, firing rapid bursts that hit aircraft only (fighters, bombers, helicopters, transports), never ground units or structures. Expensive and slow, armoured like a tank.") },
     awacs: { name: "Al-Basir AEW", description: t("Al-Basir airborne early warning aircraft (an original design): unarmed; its radar marks every enemy combat unit within 15 cells with a red ring.") },
     jet: {
       name: "Su-35",

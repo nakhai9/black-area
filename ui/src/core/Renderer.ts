@@ -39,6 +39,7 @@ import type { FactionId, Rect, VehicleKind } from '../types';
 import type { Camera } from './Camera';
 import { drawBombBlast, drawBombFall } from '../render/BombSheets';
 import { drawMissile, drawMissileBlast } from '../render/MissileSheet';
+import { drawSamMissile } from '../render/SamMissile';
 import { drawShell, drawShellImpact } from '../render/ShellSheet';
 import { drawBullet, drawBulletImpact } from '../render/BulletSheet';
 import { drawCharge, drawDemolitionBlast } from '../render/DemolitionArt';
@@ -366,7 +367,7 @@ export class Renderer {
     }
     // Effects are stored in iso px already.
     const isoIn = (x: number, y: number): boolean => x >= left && x <= right && y >= top && y <= bottom + margin;
-    if (scene.effects) this.drawEffects(scene.effects.filter((e) => (e.kind === 'tracer' || e.kind === 'bombFall' || e.kind === 'missile' || e.kind === 'shell' || e.kind === 'bullet' ? isoIn(e.x0, e.y0) || isoIn(e.x1, e.y1) : isoIn(e.x, e.y))));
+    if (scene.effects) this.drawEffects(scene.effects.filter((e) => (e.kind === 'tracer' || e.kind === 'bombFall' || e.kind === 'missile' || e.kind === 'samMissile' || e.kind === 'shell' || e.kind === 'bullet' ? isoIn(e.x0, e.y0) || isoIn(e.x1, e.y1) : isoIn(e.x, e.y))));
 
     const focused = this.focusedIds;
     focused.clear();
@@ -1237,6 +1238,8 @@ export class Renderer {
         drawShell(ctx, e.x0, e.y0, e.x1, e.y1, t, e.age);
       } else if (e.kind === 'shellImpact') {
         drawShellImpact(ctx, e.x, e.y, e.age, e.ttl, e.armour);
+      } else if (e.kind === 'samMissile') {
+        drawSamMissile(ctx, e.x0, e.y0, e.x1, e.y1, e.age, e.flight, e.buk);
       } else if (e.kind === 'missile') {
         drawMissile(ctx, e.x0, e.y0, e.x1, e.y1, t, e.age);
       } else if (e.kind === 'missileBlast') {

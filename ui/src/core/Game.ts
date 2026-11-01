@@ -158,6 +158,8 @@ import { vehiclePortrait } from '../render/VehicleArt';
 import { REPAIR_DEATH_SECONDS, hasRepairSheet } from '../render/RepairSheets';
 import { BRIDGE_LAYER_DEATH_SECONDS } from '../render/BridgeLayerSheets';
 import { MANTIS_DEATH_SECONDS, hasMantisSheet } from '../render/MantisSheet';
+import { heavyMissile, samGun } from '../render/SamModel';
+import { SAM_TRAIL_SECONDS } from '../render/SamMissile';
 import { TRUCK_DEATH_SECONDS, hasTruckSheet } from '../render/TruckSheets';
 import { TANK_DEATH_SECONDS, hasTankSheet } from '../render/TankSheets';
 import { CRAFT_DEATH_SECONDS, craftKey } from '../render/CraftSheets';
@@ -350,6 +352,9 @@ const BRIDGE_LANE = 0.3; // margin (cells) kept from each girder: the whole deck
 /** Gap (world px) a unit on a bridge keeps behind the one ahead of it. */
 const BRIDGE_GAP_PX = 2;
 /** Player commands that give units an order (answered with "Orders received"). */
+/** PGZ-09 rounds per shot (alternating barrels) and the time between them. */
+const PGZ_BURST = 6;
+const PGZ_ROUND_SECONDS = 0.07;
 const ORDER_COMMANDS: ReadonlySet<string> = new Set(['right', 'forceAttack', 'guard', 'waypoints', 'bridge', 'unload']);
 /** Longest a unit waits at a bridge for oncoming traffic that got there first before it drives on anyway (no deadlock). */
 const BRIDGE_YIELD_SECONDS = 4;
@@ -1517,8 +1522,8 @@ export class Game {
 
   /**
    * Bridge layers on a bridge order: one that reaches the bank end of its site unfolds there into a Bridge and is gone
-   * (used once). Another order given meanwhile (it is headed elsewhere) cancels it; a site that stopped being legal
-   * (another bridge, a structure) too.
+   * (used once). Once ordered it can no longer be moved (other orders are overridden); only a site that stopped being
+   * legal (another bridge, a structure) cancels it.
    */
   private updateBridgeLayers(): void {
     for (const v of this.entities.vehicles()) {
@@ -1532,13 +1537,11 @@ export class Game {
       }
       const gx = at.x * CELL_SIZE;
       const gy = at.y * CELL_SIZE;
-      if (v.destination && Math.hypot(v.destination.x - gx, v.destination.y - gy) > CELL_SIZE) {
-        v.bridgeOrder = null; // sent somewhere else
-        continue;
-      }
+      // Committed to the bridge: any other order (move, attack, stop…) is ignored and it heads back to the site.
+      const offRoute = !!v.destination && Math.hypot(v.destination.x - gx, v.destination.y - gy) > CELL_SIZE;
       if (Math.hypot(v.px - gx, v.py - gy) > CELL_SIZE * BRIDGE_DEPLOY_CELLS) {
-        // Stopped short (pushed off its route): it carries on to the site.
-        if (!v.moving) {
+        // Stopped short (pushed off its route) or sent elsewhere: it carries on to the site.
+        if (!v.moving || offRoute) {
           const path = this.paths.find({ x: v.px, y: v.py }, { x: Math.floor(at.x), y: Math.floor(at.y) }, v.mobility);
           if (path.length === 0) v.bridgeOrder = null;
           else v.follow(path);
@@ -4469,7 +4472,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       }
     }
     // The air-defence vehicle always fires its missile from the missile sheet (below), never a bullet.
-    const mantisMissile = s instanceof Vehicle && s.type === 'mantis' && hasMissileSheet();
+    const mantisMissile = s instanceof Vehicle && s.type === 'mantis';
     if (w.kind !== 'bomb' && !mantisMissile && hasBulletSheet()) {
       // A real bullet from the shared sheet, sized to the gun: rifle < bunker MG < autocannon < aircraft < tank.
       let size: BulletSize = 'rifle';
@@ -4493,7 +4496,35 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       this.sound.play(w.kind, { x: mx, y: my });
       return;
     }
-    if (w.kind === 'missile' && s instanceof Vehicle && (s.flies || s.type === 'mantis') && hasMissileSheet()) {
+    if (s instanceof Vehicle && s.type === 'mantis' && samGun(s.faction as FactionId) === 'twin') {
+      // PGZ-09 (Islamic): a burst from the twin 35 mm cannons, rounds alternating left / right, each with its flash and tracer,
+      // then flak bursts round the aircraft.
+      const ux = (tx - s.px) / dist;
+      const uy = (ty - s.py) / dist;
+      // The barrels point up at the sky: rounds leave well above the hull.
+      const lift = this.aimHeight(s, 1) + 2;
+      for (let i = 0; i < PGZ_BURST; i++) {
+        const side = i % 2 ? 1 : -1;
+        const from = this.fx(s.px + ux * 3.6 - uy * side * 0.9, s.py + uy * 3.6 + ux * side * 0.9, lift);
+        const delay = i * PGZ_ROUND_SECONDS;
+        const to = { x: hit.x + (((i * 5) % 7) - 3) * 0.8, y: hit.y + (((i * 3) % 5) - 2) * 0.8 };
+        this.effects.add({ kind: 'flash', x: from.x, y: from.y, age: -delay, ttl: 0.06, size: 2.4 });
+        this.effects.add({ kind: 'tracer', x0: from.x, y0: from.y, x1: to.x, y1: to.y, age: -delay, ttl: 0.16, color: '#ffd27a', width: 0.7, shell: true });
+        this.effects.add({ kind: 'blast', x: to.x, y: to.y, age: -(delay + 0.16), ttl: 0.22, radius: 2.6 });
+      }
+      this.sound.play('autocannon', { x: mx, y: my });
+      return;
+    }
+    if (s instanceof Vehicle && s.type === 'mantis') {
+      // Air-defence missile: lofted climb with a lingering smoke trail (S-400 / HQ-9 heavier and slower than Patriot / SAMP/T), then a burst on the aircraft.
+      const buk = heavyMissile(s.faction as FactionId);
+      const flight = buk ? 0.55 : 0.4;
+      this.effects.add({ kind: 'samMissile', x0: muzzle.x, y0: muzzle.y, x1: hit.x, y1: hit.y, age: 0, ttl: flight + SAM_TRAIL_SECONDS, flight, buk });
+      if (hasMissileSheet()) this.effects.add({ kind: 'missileBlast', x: hit.x, y: hit.y, age: -flight, ttl: MISSILE_BLAST_SECONDS, air: t instanceof Unit && t.flies });
+      this.sound.play(w.kind, { x: mx, y: my });
+      return;
+    }
+    if (w.kind === 'missile' && s instanceof Vehicle && s.flies && hasMissileSheet()) {
       // Aircraft (or air-defence) missile from the shared sheet: smoke trail in flight, then a burst on aircraft or a blast on the ground.
       const air = t instanceof Unit && t.flies;
       this.effects.add({ kind: 'missile', x0: muzzle.x, y0: muzzle.y, x1: hit.x, y1: hit.y, age: 0, ttl: MISSILE_FLIGHT_SECONDS });

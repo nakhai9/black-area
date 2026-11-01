@@ -135,7 +135,7 @@ export class Minimap {
     for (const u of units) {
       if (!shown(u.owner)) continue;
       const c = this.toMinimap({ x: u.px, y: u.py });
-      ctx.fillStyle = teamColors(u.faction).primary;
+      ctx.fillStyle = teamColors(u.banner).primary;
       ctx.fillRect(c.x - 1, c.y - 1, 2, 2);
     }
 

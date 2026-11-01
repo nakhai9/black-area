@@ -27,7 +27,7 @@ export const DEMO_FACTION = Number(import.meta.env.VITE_DEMO_FACTION) || 2;
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "2.86.3";
+export const GAME_VERSION = "2.88.0";
 
 /** An Allied Building within this many cells of any capital is an embassy; farther out it is a "Pro-<nation> regime". */
 export const EMBASSY_CAPITAL_CELLS = 25;
@@ -662,7 +662,7 @@ export const VEHICLE_BASE = {
   jet: { cost: 1600, trainSeconds: 16, maxHp: 220, speed: 9, radius: 3.2 },
   /** Attack helicopter: slow (well under the fighter and the transport), built at the Airfield like it. */
   heli: { cost: 1300, trainSeconds: 14, maxHp: 200, speed: 3, radius: 3.4 },
-  /** Self-propelled air-defence vehicle (NOMADS for the USA and Europe, Buk-M3 for the others): dear, slow, tank-like health; shoots aircraft only (see MANTIS_FIREPOWER). */
+  /** Self-propelled air-defence vehicle (Patriot for the USA, SAMP/T NG for Europe, S-400 for Russia, HQ-9 for China, PGZ-09 for the Islamic nations): dear, slow, tank-like health; shoots aircraft only (see MANTIS_FIREPOWER). */
   mantis: { cost: 3000, trainSeconds: 18, maxHp: 460, speed: 1.1, radius: 4.4 },
   /** Unarmed cargo aircraft: slower than the fighter. */
   transport: {

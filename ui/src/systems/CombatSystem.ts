@@ -99,7 +99,7 @@ export function canTarget(shooter: Unit, target: Entity): boolean {
   // or aircraft. Self-defence: also the ground attacker that shot it while it stood landed.
   if (shooter instanceof Vehicle && shooter.isHeli)
     return (target instanceof Vehicle && !target.aircraft) || (target instanceof Infantry && !target.flies) || (shooter.heliRevenge === target.id && target instanceof Unit && !target.flies);
-  // Air-defence vehicle (NOMADS / Buk-M3): any enemy aircraft off the ground (altitude > 0), whatever it is doing —
+  // Air-defence vehicle (Patriot / SAMP/T NG / S-400 / HQ-9 / PGZ-09): any enemy aircraft off the ground (altitude > 0), whatever it is doing —
   // cruising, hovering, lifting off, climbing, descending. Never one standing on the ground.
   if (shooter instanceof Vehicle && shooter.type === 'mantis') return target instanceof Vehicle && (target.aircraft || target.isDrone) && target.altitude > 0;
   if (target instanceof Unit && target.flies) return shooter.aircraft && w.hitsAir;
@@ -375,8 +375,8 @@ export class CombatSystem implements GameSystem {
     if (d <= w.range * this.heightReach(s)) {
       // A unit on its way somewhere (plain move order) shoots on the move: only its gun turns to the target (aimHeading),
       // the hull keeps steering along its route (turning it to the target every tick pinned it in place).
-      // A tank keeps its hull where it is: only the turret turns to the target (it fires once the gun is laid).
-      const tank = s instanceof Vehicle && s.type === 'tank';
+      // A tank (or air-defence vehicle) keeps its hull where it is: only the turret / launcher turns to the target (it fires once laid).
+      const tank = s instanceof Vehicle && (s.type === 'tank' || s.type === 'mantis');
       if (!tank && (!s.moving || s.attackTarget !== null || s.attackMove)) {
         s.facing = movesRight(tx - s.px, ty - s.py) ? 1 : -1;
         s.heading = Math.atan2(ty - s.py, tx - s.px);

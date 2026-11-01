@@ -44,7 +44,7 @@ export const USA: FactionConfig = {
     tank: { name: "Abrams", description: t("M1 Abrams main battle tank: heavy armour and a powerful gun.") },
     ifv: { name: "Bradley", description: t("M2 Bradley armoured fighting vehicle for infantry support.") },
     heli: { name: "AH-64 Apache", description: t("AH-64 Apache attack helicopter: anti-tank missiles against ground vehicles only. Carries up to 8 soldiers (no vehicles) and sets down anywhere on open ground.") },
-    mantis: { name: "NOMADS", description: t("NOMADS self-propelled air-defence vehicle: long-range missiles that hit aircraft only (fighters, bombers, helicopters, transports), never ground units or structures. Expensive and slow, armoured like a tank.") },
+    mantis: { name: "Patriot", description: t("Patriot air-defence system: an M903 launching station towed by a HEMTT, four big missile canisters raised to fire long-range missiles that hit aircraft only (fighters, bombers, helicopters, transports), never ground units or structures. Expensive and slow, armoured like a tank.") },
     awacs: { name: "E-3 Sentry", description: t("E-3 Sentry airborne early warning and control aircraft: unarmed; its rotating radar marks every enemy combat unit within 15 cells with a red ring.") },
     jet: { name: "F-22", description: t("F-22 Raptor stealth air superiority fighter.") },
     transport: { name: "C-17", description: t("Heavy transport aircraft: carries soldiers and vehicles; unarmed.") },

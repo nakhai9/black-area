@@ -118,7 +118,7 @@ export class Vehicle extends Unit {
   flight: Flight = 'airborne';
   /** Height above the ground in px: 0 on the ground, CRUISE_ALTITUDE in the air. */
   altitude = 0;
-  /** Tank: world heading of the turret (eases towards `aimHeading` at TURRET_TURN_RATE, independent of the hull). */
+  /** Tank / air-defence vehicle: world heading of the turret (launcher) (eases towards `aimHeading` at TURRET_TURN_RATE, independent of the hull). */
   turretHeading = this.heading;
   /** 0..1: how far it has climbed above cruise height to pass over another aircraft head-on. */
   climb = 0;
@@ -419,8 +419,8 @@ export class Vehicle extends Unit {
     }
     super.update(dt);
     // A tank's turret swings on its own (any way round, right over the engine deck) to the target, and back to the
-    // front once it has none.
-    if (this.type === 'tank') {
+    // front once it has none. The air-defence vehicle's launcher traverses the same way.
+    if (this.type === 'tank' || this.type === 'mantis') {
       const want = this.combatTarget !== null ? this.aimHeading : this.heading;
       let diff = want - this.turretHeading;
       while (diff > Math.PI) diff -= Math.PI * 2;
