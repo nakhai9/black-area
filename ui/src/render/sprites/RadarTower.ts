@@ -579,6 +579,7 @@ export function createRadarTowerArt(faction: FactionId): BuildingArt {
     footprint: { w: 2, d: 2 },
     height: st.pivot + 62,
     fitHeight: true,
+    recolorWhole: true,
 
     drawStatic(p) {
       const s = new Scene(p);

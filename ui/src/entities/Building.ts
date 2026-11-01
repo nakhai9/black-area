@@ -76,7 +76,7 @@ export class Building extends Entity {
     this.faction = faction;
     // A taken structure keeps its design: only the flag changes. Ones whose art flies a flag of its own are redrawn
     // with the new owner's (`kind:design@flag`); the rest keep their art and fly the owner's flag on a pole (Renderer).
-    const f = /^(capital|alliedBuilding|nation|barracks|warFactory|flagpole|happyCity):(\w+)$/.exec(this.spec.spriteKey);
+    const f = /^(capital|alliedBuilding|parallelGov|nation|barracks|warFactory|flagpole|happyCity):(\w+)$/.exec(this.spec.spriteKey);
     if (f) this.spriteKeyOverride = f[2] === faction ? null : `${f[1]}:${f[2]}@${faction}`;
   }
 

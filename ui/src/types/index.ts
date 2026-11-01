@@ -214,6 +214,8 @@ export interface PlayerState {
   embargoUntil?: number;
   /** Military embargo (an enemy engineer in its capital): no Barracks / War Factory / Airfield, no attacks, until this game time (s). */
   disarmedUntil?: number;
+  /** Nations whose capital an engineer of this one entered to set up a parallel government: one Parallel Government of each may be ordered. */
+  parallelGovRights?: FactionId[];
   /** Building id chosen by double-click per producer type (barracks / warFactory / airfield): new units come out there. */
   primaryBuilding?: Partial<Record<string, number>>;
 }
@@ -236,6 +238,7 @@ export type BuildingType =
   | 'happyCity'
   | 'flagpole'
   | 'alliedBuilding'
+  | 'parallelGov'
   | 'oilDerrick'
   | 'bunker'
   | 'wall'

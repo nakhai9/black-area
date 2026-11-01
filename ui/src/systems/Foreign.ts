@@ -39,9 +39,12 @@ export function takenNations(entities: EntityManager, player: PlayerState, type:
 }
 
 /**
- * Another nation's structure (`base@faction`) is on sale only while that nation's capital is held. A captured
- * Ministry of Defence / War Factory / Airfield brings only its soldiers / machines, never its structures.
+ * Another nation's structure (`base@faction`) is on sale only while that nation's capital, or a Parallel Government
+ * in its name, is held. A captured Ministry of Defence / War Factory / Airfield brings only its soldiers / machines,
+ * never its structures. The Parallel Government itself: once per engineer that set one up in that nation's capital.
  */
-export function foreignBuildAllowed(entities: EntityManager, player: PlayerState, _id: string, nation: FactionId): boolean {
+export function foreignBuildAllowed(entities: EntityManager, player: PlayerState, id: string, nation: FactionId): boolean {
+  if (id.startsWith('parallelGov@')) return player.parallelGovRights?.includes(nation) === true;
+  if (entities.buildings().some((b) => b.owner === player.id && b.alive && b.spec.type === 'parallelGov' && b.origin === nation)) return true;
   return takenNations(entities, player, 'capital').includes(nation);
 }

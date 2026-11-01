@@ -6047,6 +6047,10 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
             this.disarmCapital(u, b);
             continue;
           }
+          if (task.choice === 'parallel') {
+            this.parallelGovernment(u, b);
+            continue;
+          }
         }
         // Capture: the engineer is consumed and the building changes sides.
         const before = b.owner;
@@ -6101,6 +6105,18 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       }
       if (theirs > ours) return 'disarm';
     }
+    // A nation with more structures standing than the engineer's: rather set up a parallel government and build its designs.
+    const me = this.players.find((p) => p.id === by);
+    if (me && !me.parallelGovRights?.includes(holder.faction)) {
+      let theirs = 0;
+      let ours = 0;
+      for (const x of this.entities.buildings()) {
+        if (!x.alive) continue;
+        if (x.owner === holder.id) theirs++;
+        else if (x.owner === by) ours++;
+      }
+      if (theirs > ours && !this.entities.buildings().some((x) => x.alive && x.owner === by && x.spec.type === 'parallelGov' && x.origin === holder.faction)) return 'parallel';
+    }
     return 'capture';
   }
 
@@ -6122,6 +6138,22 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     holder.leasedOil = 0;
     holder.embargoUntil = this.time + CAPITAL_EMBARGO_SECONDS;
     this.news.show(t('BREAKING NEWS'), t('{by} has put {nation} under an economic embargo: its treasury is empty and earns nothing for {minutes} minutes.', vars));
+  }
+
+  /**
+   * Parallel government: the engineer is used up, the capital stays with its nation, and the engineer's nation may
+   * order one Parallel Government in that nation's name (Build tab); while it stands it builds that nation's structures.
+   */
+  private parallelGovernment(u: Infantry, b: Building): void {
+    const holder = this.players.find((p) => p.id === b.owner);
+    const by = this.players.find((p) => p.id === u.owner);
+    this.entities.remove(u.id);
+    this.selection.selectedUnits.delete(u.id);
+    if (!holder || !by) return;
+    if (!by.parallelGovRights?.includes(holder.faction)) by.parallelGovRights = [...(by.parallelGovRights ?? []), holder.faction];
+    const vars = { by: FACTIONS[by.faction].name, nation: FACTIONS[holder.faction].name };
+    this.news.show(t('BREAKING NEWS'), t('{by} has set up a parallel government of {nation}.', vars));
+    if (by.id === this.localId) this.sidebar.notify(t('Parallel Government of {nation} on sale in the Build tab: while it stands you may build their structures.', { nation: FACTIONS[holder.faction].shortName }), 6);
   }
 
   /**

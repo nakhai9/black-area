@@ -197,9 +197,9 @@ export class SpriteCache {
     };
     const { canvas, ctx } = paint(art);
     // A taken structure keeps the look of the nation that built it: only its roofs take the new owner's colours
-    // (see recolorPixels), the walls and the rest stay as they were.
+    // (see recolorPixels), the walls and the rest stay as they were — unless the art has no roof (recolorWhole).
     const recolor = teamColorOwner(key);
-    const original = recolor ? this.registry.get(baseKeyOf(key)) : undefined;
+    const original = recolor && !art.recolorWhole ? this.registry.get(baseKeyOf(key)) : undefined;
     if (recolor) {
       const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
       const design = /^\w+:(\w+)/.exec(key)?.[1] as FactionId | undefined;

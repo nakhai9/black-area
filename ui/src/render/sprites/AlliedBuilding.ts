@@ -10,7 +10,7 @@ import { RA2, facade, parapet, roofClutter } from './Ra2Kit';
 
 const PAD = RA2.paving;
 /** Height of the office wing that fills the whole plot; the main hall and the flags stand on it. */
-const WING_H = 6;
+export const WING_H = 6;
 
 /**
  * Two flags side by side along the front edge (on the wing roof), facing each other: the owner's national flag on
@@ -22,7 +22,7 @@ const FLAGS: readonly [number, number][] = [
 ];
 
 /** Plot shared by every nation: a low office wing in the nation's stone covering the whole 4×4 plot edge to edge. */
-function plot(p: IsoPainter, wing: string, seed: number): void {
+export function plot(p: IsoPainter, wing: string, seed: number): void {
   p.box(0, 0, 4, 4, 0, 2, PAD);
   p.box(0.03, 0.03, 3.94, 3.94, 2, WING_H, wing);
   facade(p, 'left', 0.03, 0.03, 3.94, 3.94, 2, WING_H, { cols: 18, floors: 1, frame: shade(wing, 1.12), bandColor: shade(wing, 0.8), seed });
@@ -39,7 +39,7 @@ function plot(p: IsoPainter, wing: string, seed: number): void {
  *  - Europe: a glass office block with a blue band and a ring of gold stars;
  *  - Islamic: a grand mosque with a green dome and two minarets.
  */
-const STYLES: Record<FactionId, { height: number; wing: string; draw: (p: IsoPainter, team: string) => void }> = {
+export const STYLES: Record<FactionId, { height: number; wing: string; draw: (p: IsoPainter, team: string) => void }> = {
   usa: {
     wing: '#d8d2c2',
     height: 70,
@@ -162,7 +162,7 @@ const STYLES: Record<FactionId, { height: number; wing: string; draw: (p: IsoPai
 };
 
 /** Draws `draw` mirrored left-right about the pole at (u, v, z): the flag then flies to the pole's left. */
-function mirrored(p: IsoPainter, u: number, v: number, z: number, draw: () => void): void {
+export function mirrored(p: IsoPainter, u: number, v: number, z: number, draw: () => void): void {
   const [x] = p.project(u, v, z);
   p.ctx.save();
   p.ctx.translate(x, 0);

@@ -26,10 +26,13 @@ import {
   barracksFootprint,
   FOOTPRINT_SMALL,
   POWER_PLANT_COST,
+  PARALLEL_GOV_COST,
+  FOOTPRINT_PARALLEL_GOV,
   WAR_FACTORY_COST,
 } from '../constants';
 import { Airfield } from '../entities/Airfield';
 import { AlliedBuilding } from '../entities/AlliedBuilding';
+import { ParallelGovernment } from '../entities/ParallelGovernment';
 import { FACTIONS } from '../factions';
 import { HappyCity } from '../entities/HappyCity';
 import { Bunker } from '../entities/Bunker';
@@ -46,7 +49,7 @@ import type { BuildingType, FactionId, PlayerState } from '../types';
 import type { GameSystem } from './GameSystem';
 
 /** A structure that can be produced from the sidebar's Build tab. */
-type BaseBuildId = 'powerPlant' | 'barracks' | 'warFactory' | 'airfield' | 'radarTower' | 'techCenter' | 'happyCity' | 'flagpole' | 'alliedBuilding' | 'bunker' | 'wall' | 'gate';
+type BaseBuildId = 'powerPlant' | 'barracks' | 'warFactory' | 'airfield' | 'radarTower' | 'techCenter' | 'happyCity' | 'flagpole' | 'alliedBuilding' | 'parallelGov' | 'bunker' | 'wall' | 'gate';
 
 export interface BuildOption {
   /** `base@faction` for another nation's design (on sale while that nation's capital is held). */
@@ -210,7 +213,28 @@ export const BUILD_OPTIONS: readonly BuildOption[] = [
       },
     })),
   ),
+  // A Parallel Government in each nation's name: on sale once an engineer set one up in that nation's capital.
+  ...(Object.keys(FACTIONS) as FactionId[]).map((nation): BuildOption => ({
+    id: `parallelGov@${nation}`,
+    foreign: nation,
+    name: 'Parallel Government',
+    cost: PARALLEL_GOV_COST,
+    fixedCost: true,
+    footprint: FOOTPRINT_PARALLEL_GOV,
+    spriteKey: (f) => `parallelGov:${nation}@${f}`,
+    create: (owner, faction, x, y) => {
+      const b = new ParallelGovernment(owner, nation, center(x, y, FOOTPRINT_PARALLEL_GOV));
+      b.originFaction = nation;
+      b.capture(owner, faction);
+      return b;
+    },
+  })),
 ];
+
+/** The nation a `parallelGov@nation` order is in the name of (null for any other order). */
+export function parallelGovNation(id: string): FactionId | null {
+  return id.startsWith('parallelGov@') ? (id.slice('parallelGov@'.length) as FactionId) : null;
+}
 
 /** The plot of `option` as `faction` builds it (another nation's design: that nation's plot). */
 export function footprintOf(option: BuildOption, faction: FactionId): { w: number; d: number } {
@@ -299,6 +323,12 @@ export class ConstructionSystem implements GameSystem {
     const s = this.slot(player, option.id);
     if (s.state !== 'idle' || player.capitalLost) return false;
     if (player.disarmedUntil !== undefined && MILITARY_BASES.includes(option.id.split('@')[0] as BuildingType)) return false;
+    // A Parallel Government uses up the right to it (given back if the order is cancelled).
+    const gov = parallelGovNation(option.id);
+    if (gov) {
+      if (!player.parallelGovRights?.includes(gov)) return false;
+      player.parallelGovRights = player.parallelGovRights.filter((n) => n !== gov);
+    }
     Object.assign(s, { option, state: 'building', progress: 0, paid: 0 });
     return true;
   }
@@ -307,6 +337,8 @@ export class ConstructionSystem implements GameSystem {
   cancel(player: PlayerState, id: BuildOption['id']): void {
     const s = this.slot(player, id);
     player.credits += s.paid;
+    const gov = parallelGovNation(id);
+    if (gov && s.state !== 'idle' && !player.parallelGovRights?.includes(gov)) player.parallelGovRights = [...(player.parallelGovRights ?? []), gov];
     Object.assign(s, idleSlot());
   }
 

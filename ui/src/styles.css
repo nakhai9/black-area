@@ -1964,5 +1964,6 @@ button,
 .end-card button.capital-choice svg { width: 22px; height: 22px; flex: none; }
 .end-card button.capital-choice-embargo { background: #1f7a4d; border-color: #2fa86a; }
 .end-card button.capital-choice-disarm { background: #8a2c2c; border-color: #c24545; }
+.end-card button.capital-choice-parallel { background: #6b3f8a; border-color: #9a5fc2; }
 .end-card button.capital-choice-capture { background: #2c4f8a; border-color: #4572c2; }
 .end-card button.capital-choice:hover { filter: brightness(1.15); }

@@ -212,6 +212,7 @@ export function createPowerPlantArt(faction: FactionId): BuildingArt {
   const { pad: PAD, tower: TOWER } = materials(faction);
   return {
     footprint: { w: 4, d: 4 },
+    recolorWhole: true,
     height: 120,
 
     drawStatic(p) {

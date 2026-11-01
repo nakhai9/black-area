@@ -21,6 +21,8 @@ export interface BuildingArt {
   readonly noShadow?: boolean;
   /** The animated layer reaches above the static sprite (a turning antenna): previews fit the full `height`. */
   readonly fitHeight?: boolean;
+  /** No real roof to repaint (towers, stacks): a taken structure takes the new owner's colours all over, not just on its roofs. */
+  readonly recolorWhole?: boolean;
   drawStatic(p: IsoPainter): void;
   drawAnimated?(p: IsoPainter, time: number, active: boolean): void;
 }

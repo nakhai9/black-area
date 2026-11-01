@@ -1,5 +1,6 @@
 import { Airfield } from '../entities/Airfield';
 import { AlliedBuilding } from '../entities/AlliedBuilding';
+import { ParallelGovernment } from '../entities/ParallelGovernment';
 import { Barracks } from '../entities/Barracks';
 import { Capital } from '../entities/Capital';
 import { Entity } from '../entities/Entity';
@@ -54,6 +55,7 @@ const ENTITY_CLASSES: Readonly<Record<string, abstract new (...args: never[]) =>
   PowerPlant,
   Flagpole,
   AlliedBuilding,
+  ParallelGovernment,
   Bunker,
   Wall,
   Gate,

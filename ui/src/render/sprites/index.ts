@@ -1,5 +1,6 @@
 import { createAirfieldArt } from './Airfield';
 import { createAlliedBuildingArt } from './AlliedBuilding';
+import { createParallelGovArt } from './ParallelGovernment';
 import { createBarracksArt } from './Barracks';
 import { createBunkerArt } from './Bunker';
 import { createFlagpoleArt } from './Flagpole';
@@ -107,6 +108,8 @@ export const BUILDING_ART: Readonly<Record<string, BuildingArt>> = {
   'alliedBuilding:china': createAlliedBuildingArt('china'),
   'alliedBuilding:europe': createAlliedBuildingArt('europe'),
   'alliedBuilding:islamic': createAlliedBuildingArt('islamic'),
+  // Parallel Government (4 × 5) in the host nation's architecture.
+  ...Object.fromEntries((['usa', 'russia', 'china', 'europe', 'islamic'] as const).map((f) => [`parallelGov:${f}`, createParallelGovArt(f)] as const)),
   // Bunkers: drawn from render/BunkerSheet (west: USA, Europe; east: Russia, China, Islamic).
   'bunker:usa': createBunkerArt(),
   'bunker:russia': createBunkerArt(),
@@ -146,6 +149,7 @@ const FLAG_VARIANTS: Readonly<Record<string, (design: FactionId, flag: FactionId
             ? createGrandMosqueArt
             : createBrusselsEUHeadquartersArt)(flag),
   alliedBuilding: (design, flag) => createAlliedBuildingArt(design, flag),
+  parallelGov: (design, flag) => createParallelGovArt(design, flag),
   nation: (design, flag) => createNationCapitalArt(design as unknown as ContestedNationId, flag),
   barracks: (design, flag) => createBarracksArt(design, flag),
   warFactory: (design, flag) => createWarFactoryArt(design, flag),
@@ -178,6 +182,7 @@ function rebuildArt(key: string): BuildingArt | undefined {
   switch (m[1]) {
     case 'capital':
     case 'alliedBuilding':
+    case 'parallelGov':
     case 'barracks':
     case 'warFactory':
     case 'flagpole':
