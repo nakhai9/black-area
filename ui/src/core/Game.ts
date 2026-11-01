@@ -6110,7 +6110,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     if (holder.disarmedUntil === undefined) {
       let theirs = 0;
       let ours = 0;
-      for (const x of this.entities.fieldUnits()) {
+      for (const x of this.entities.fieldMovers()) {
         if (!x.alive || !x.weapon) continue;
         if (x.owner === holder.id) theirs++;
         else if (x.owner === by) ours++;
@@ -6196,9 +6196,11 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     }
     if (holder.id === this.localId && this.placing && MILITARY_BASES.includes(this.placing.id.split('@')[0] as BuildingType)) this.placing = null;
     // Every combat unit of the nation is disbanded too (soldiers, vehicles, aircraft, ships); unarmed ones stay.
-    for (const x of this.entities.units()) {
-      if (x.owner !== holder.id) continue;
-      if (x.weapon) {
+    for (const x of this.entities.all()) {
+      if (!(x instanceof Unit) || x.owner !== holder.id) continue;
+      if (x.weapon || (x instanceof Vehicle && (x.maxBombs > 0 || x.isDrone || x.isAircraftCarrier))) {
+        // Blown up where it stands (onDeath removes it next tick with its own death effect).
+        if (x.visible) this.explode(x.px, x.py, x instanceof Vehicle && x.flies ? 2 + x.altitude : 1, Math.max(6, x.radius * 2 * EXPLOSION_PER_BODY));
         x.hp = 0;
         continue;
       }
