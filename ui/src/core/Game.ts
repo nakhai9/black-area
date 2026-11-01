@@ -261,7 +261,7 @@ export type GameCommand = (
   | { k: 'policy'; policy: OilPolicy }
   | { k: 'sellOil' | 'autoSell' | 'loan' | 'unload' | 'turbo' }
   /** My engineer standing in an enemy capital: what he does there (see CapitalChoice). */
-  | { k: 'capitalChoice'; u: number; c: CapitalChoice }
+  | { k: 'capitalChoice'; u: number; c: CapitalChoice | null }
   /** Server-sent: that player left the match. */
   | { k: 'leftMatch' }
 ) & { sel?: number[]; sb?: number | null; pu?: number | null; pb?: number | null };
@@ -3063,7 +3063,12 @@ export class Game {
       }
       case 'capitalChoice': {
         const u = this.entities.get(cmd.u);
-        if (u instanceof Infantry && u.alive && u.owner === me && u.task?.type === 'capture') u.task.choice = cmd.c;
+        if (!(u instanceof Infantry) || !u.alive || u.owner !== me || u.task?.type !== 'capture') break;
+        // The X: the engineer drops the order and waits outside; sent there again, he is asked again.
+        if (cmd.c === null) {
+          u.task = null;
+          this.capitalPrompts.delete(u.id);
+        } else u.task.choice = cmd.c;
         break;
       }
       case 'sellBuilding': {
@@ -6084,6 +6089,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       { capital: b.spec.name, nation: holder ? FACTIONS[holder.faction].name : '', embargoMinutes: CAPITAL_EMBARGO_SECONDS / 60, disarmMinutes: CAPITAL_DISARM_SECONDS / 60 },
       (c) => this.issue({ k: 'capitalChoice', u: u.id, c }),
       () => u.alive && u.task?.type === 'capture' && u.task.buildingId === b.id && !u.task.choice && b.alive && this.isEnemyCapital(b),
+      () => this.issue({ k: 'capitalChoice', u: u.id, c: null }),
     );
   }
 

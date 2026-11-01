@@ -18,6 +18,8 @@ export function askCapitalChoice(
   info: { capital: string; nation: string; embargoMinutes: number; disarmMinutes: number },
   pick: (c: CapitalChoice) => void,
   isOpen: () => boolean,
+  /** The X: the engineer gives up and stays outside the capital. */
+  dismiss: () => void,
   parent: HTMLElement = document.body,
 ): void {
   const root = document.createElement('div');
@@ -56,7 +58,17 @@ export function askCapitalChoice(
   button('disarm', t('2. Military embargo'), t('They lose every Barracks, War Factory and Airfield and cannot attack or rebuild them for {minutes} minutes; then they may re-arm from scratch.', { minutes: info.disarmMinutes }));
   button('parallel', t('3. Parallel government'), t('The capital stays theirs; you may buy a Parallel Government in their architecture, and while it stands you build their structures.'));
   button('capture', t('4. Capture'), t('Take the capital: you unlock all of their structures, soldiers, vehicles and aircraft.'));
-  card.append(title, text, actions);
+  const x = document.createElement('button');
+  x.type = 'button';
+  x.className = 'capital-choice-close';
+  x.textContent = '×';
+  x.title = t('Close');
+  x.setAttribute('aria-label', t('Close'));
+  x.addEventListener('click', () => {
+    close();
+    dismiss();
+  });
+  card.append(x, title, text, actions);
   root.append(card);
   parent.append(root);
   const watch = window.setInterval(() => {

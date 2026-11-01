@@ -3,9 +3,9 @@ import type { FactionId } from '../../types';
 import { RA2 } from './Ra2Kit';
 import { drawFlagOnPole, drawNationalPole } from '../Flags';
 import type { BuildingArt } from './BuildingArt';
-import { STYLES, mirrored, plot } from './AlliedBuilding';
+import { STYLES, plot } from './AlliedBuilding';
 
-/** Two poles side by side on the forecourt: the holder's flag on the left waving right, the host nation's on the right waving left. */
+/** Two poles side by side on the forecourt: the holder's flag on the left, the host nation's on the right, both waving the same way. */
 const FLAGS: readonly [number, number][] = [
   [1.72, 4.55],
   [2.28, 4.55],
@@ -32,7 +32,7 @@ export function createParallelGovArt(faction: FactionId, flag: FactionId = facti
     drawAnimated(p, time) {
       const [[u0, v0], [u1, v1]] = FLAGS as [[number, number], [number, number]];
       drawFlagOnPole(p, flag, u0, v0, 32, time, 0, 15, 9);
-      mirrored(p, u1, v1, 32, () => drawFlagOnPole(p, faction, u1, v1, 32, time, 1.1, 15, 9));
+      drawFlagOnPole(p, faction, u1, v1, 32, time, 0, 15, 9);
     },
   };
 }

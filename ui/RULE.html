@@ -26,7 +26,7 @@
 <body>
 <main>
 <img class="logo" src="/logo.png" alt="Black Area" />
-<h1>Black Area — RULE <small>v2.85.0</small></h1>
+<h1>Black Area — RULE <small>v2.85.2</small></h1>
 <p class="lead">Tài liệu luật chơi + kiến trúc code dành cho AI/dev sửa game. Mọi con số gameplay chính xác nằm trong <code>src/constants.ts</code> và <code>src/factions/*.ts</code>. Nếu tài liệu này khác code thì <b>code đúng</b>. <b>Khi đổi luật/số trong code, phải cập nhật file này.</b></p>
 <nav><a href="#s1">Quy tắc làm việc cho AI</a><a href="#s2">Chạy dự án</a><a href="#s3">Kiến trúc thư mục</a><a href="#s4">Thế giới</a><a href="#s5">Kinh tế (dầu)</a><a href="#s6">Công trình (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Quân đội</a><a href="#s8">Chiến đấu</a><a href="#s9">Điều khiển (Game.handleKey, handleInput)</a><a href="#s10">Giới hạn &amp; hiệu năng</a><a href="#s11">Thắng / thua &amp; AI</a><a href="#s12">Công thức sửa thường gặp</a></nav>
 <h2 id="s1">0. Quy tắc làm việc cho AI</h2>
@@ -697,6 +697,8 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
   <li>v2.59.1: Tab Phương tiện dùng biểu tượng xe tăng thay cho xe tải.</li>
   <li>v2.59.2: Tab Chỉ huy đổi tên thành Chính phủ (Government), biểu tượng toà nhà chính phủ.</li>
   <li>v2.60.0: Thêm hình <b>Tháp Radar</b> (nền 2 × 2) cho mỗi phe, ăng-ten xoay đủ 360°: Mỹ — chảo parabol trên tháp côn trắng; Nga — tấm ra-đa mảng pha trên cột thép giàn; Trung Quốc — chảo Cassegrain trên tháp bát giác; châu Âu — gương phản xạ "vỏ cam" trên tháp tròn; thế giới Hồi giáo — chảo lưới viền vàng trên tháp bát giác có vòm nhọn. Mới chỉ có hình (xem ở <code>?view=buildings</code>), chưa bán / chưa xây được trong trận.</li>
+  <li>v2.85.2: Hộp chọn của kỹ sư trong thủ đô địch có nút × ở góc trên phải: đóng hộp, kỹ sư bỏ lệnh và đứng ngoài thủ đô; ra lệnh vào lại thì được hỏi lại.</li>
+  <li>v2.85.1: Hai lá cờ trước Chính phủ song song bay cùng chiều (trước đây cờ phe bị chiếm bị lật ngược, hai cờ quay mặt vào nhau).</li>
   <li>v2.85.0: Kỹ sư vào thủ đô địch có thêm lựa chọn thứ 3 <b>Chính phủ song song</b> (nút tím; Chiếm thành thành nút 4): thủ đô vẫn thuộc phe kia, kỹ sư mất, phe của kỹ sư được đặt mua một lần <b>Parallel Government</b> (nền 4 × 5, <code>PARALLEL_GOV_COST = 3000</code>, giá cố định, cần nhà máy điện + nhà lính) theo kiến trúc phe bị chiếm, trước toà nhà là cờ phe chiếm và cờ phe bị chiếm đứng sát nhau. Khi toà nhà còn đứng, chủ của nó được xây các công trình của phe bị chiếm (như khi chiếm thủ đô, chỉ có công trình); mất toà nhà thì mất khả năng đó. Hủy đơn đặt mua thì được trả lại quyền mua. AI chọn chính phủ song song khi phe kia có nhiều công trình hơn mình (sau các điều kiện cấm vận), rồi tự xây toà nhà và các công trình của phe đó.</li>
   <li>v2.84.2: Nhà máy điện và Tháp radar bị chiếm đổi sang màu phe chiếm (ống khói, biểu tượng phóng xạ, chòi gác, chân tháp, chảo radar), vì hai công trình này không có mái để đổi màu riêng.</li>
   <li>v2.84.1: Chặn menu chuột phải của trình duyệt (không mở được Inspect / dev tool). Hộp chọn của kỹ sư trong thủ đô địch: 3 nút Cấm vận kinh tế / Cấm vận quân sự / Chiếm xếp theo cột, mỗi nút một màu và có icon trước chữ.</li>

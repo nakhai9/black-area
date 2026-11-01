@@ -164,6 +164,7 @@ export default {
   '2. Military embargo': '2. Cấm vận quân sự',
   '3. Parallel government': '3. Chính phủ song song',
   '4. Capture': '4. Chiếm thành',
+  'Close': 'Đóng',
   'The capital stays theirs; you may buy a Parallel Government in their architecture, and while it stands you build their structures.': 'Thủ đô vẫn thuộc phe đó; bạn được mua một Chính phủ song song theo kiến trúc của họ, và khi nó còn đứng thì bạn xây được công trình của phe đó.',
   '{by} has set up a parallel government of {nation}.': '{by} đã lập chính phủ song song của {nation}.',
   'Parallel Government of {nation} on sale in the Build tab: while it stands you may build their structures.': 'Chính phủ song song của {nation} đã có trong tab Xây dựng: khi nó còn đứng, bạn xây được công trình của phe đó.',
