@@ -15,7 +15,7 @@ const CHOICE_ICONS: Record<CapitalChoice, string> = {
  * once the engineer is gone (killed, or the capital fell meanwhile).
  */
 export function askCapitalChoice(
-  info: { capital: string; nation: string; embargoMinutes: number; disarmMinutes: number },
+  info: { capital: string; nation: string; embargoMinutes: number; disarmMinutes: number; parallel: boolean },
   pick: (c: CapitalChoice) => void,
   isOpen: () => boolean,
   /** The X: the engineer gives up and stays outside the capital. */
@@ -55,9 +55,9 @@ export function askCapitalChoice(
     actions.append(b);
   };
   button('embargo', t('1. Embargo'), t('Their economy is wiped out: treasury and oil stock drop to 0, and they can neither earn nor spend for {minutes} minutes.', { minutes: info.embargoMinutes }));
-  button('disarm', t('2. Military embargo'), t('They lose every Barracks, War Factory and Airfield and cannot attack or rebuild them for {minutes} minutes; then they may re-arm from scratch.', { minutes: info.disarmMinutes }));
-  button('parallel', t('3. Parallel government'), t('The capital stays theirs; you may buy a Parallel Government in their architecture, and while it stands you build their structures.'));
-  button('capture', t('4. Capture'), t('Take the capital: you unlock all of their structures, soldiers, vehicles and aircraft.'));
+  button('disarm', t('2. Military embargo'), t('They lose every Barracks, War Factory, Airfield and combat unit and cannot attack or rebuild them for {minutes} minutes; then they may re-arm from scratch.', { minutes: info.disarmMinutes }));
+  if (info.parallel) button('parallel', t('3. Parallel government'), t('The capital stays theirs; you may buy a Parallel Government in their architecture, and while it stands you build their structures.'));
+  button('capture', info.parallel ? t('4. Capture') : t('3. Capture'), t('Take the capital: you unlock all of their structures, soldiers, vehicles and aircraft.'));
   const x = document.createElement('button');
   x.type = 'button';
   x.className = 'capital-choice-close';

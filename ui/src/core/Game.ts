@@ -6053,6 +6053,12 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
             continue;
           }
           if (task.choice === 'parallel') {
+            // Already holds one (or the right to one) of that nation: no second parallel government; ask again.
+            if (this.hasParallelGov(u.owner, b)) {
+              delete task.choice;
+              this.capitalPrompts.delete(u.id);
+              continue;
+            }
             this.parallelGovernment(u, b);
             continue;
           }
@@ -6086,7 +6092,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     this.capitalPrompts.add(u.id);
     const holder = this.players.find((p) => p.id === b.owner);
     askCapitalChoice(
-      { capital: b.spec.name, nation: holder ? FACTIONS[holder.faction].name : '', embargoMinutes: CAPITAL_EMBARGO_SECONDS / 60, disarmMinutes: CAPITAL_DISARM_SECONDS / 60 },
+      { capital: b.spec.name, nation: holder ? FACTIONS[holder.faction].name : '', embargoMinutes: CAPITAL_EMBARGO_SECONDS / 60, disarmMinutes: CAPITAL_DISARM_SECONDS / 60, parallel: !this.hasParallelGov(u.owner, b) },
       (c) => this.issue({ k: 'capitalChoice', u: u.id, c }),
       () => u.alive && u.task?.type === 'capture' && u.task.buildingId === b.id && !u.task.choice && b.alive && this.isEnemyCapital(b),
       () => this.issue({ k: 'capitalChoice', u: u.id, c: null }),
@@ -6113,7 +6119,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     }
     // A nation with more structures standing than the engineer's: rather set up a parallel government and build its designs.
     const me = this.players.find((p) => p.id === by);
-    if (me && !me.parallelGovRights?.includes(holder.faction)) {
+    if (me && !this.hasParallelGov(by, b)) {
       let theirs = 0;
       let ours = 0;
       for (const x of this.entities.buildings()) {
@@ -6144,6 +6150,16 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     holder.leasedOil = 0;
     holder.embargoUntil = this.time + CAPITAL_EMBARGO_SECONDS;
     this.news.show(t('BREAKING NEWS'), t('{by} has put {nation} under an economic embargo: its treasury is empty and earns nothing for {minutes} minutes.', vars));
+  }
+
+  /** Nation `by` already has a Parallel Government of the nation holding capital `b`, standing or still to be bought. */
+  private hasParallelGov(by: number, b: Building): boolean {
+    const holder = this.players.find((p) => p.id === b.owner);
+    const me = this.players.find((p) => p.id === by);
+    if (!holder || !me) return false;
+    if (me.parallelGovRights?.includes(holder.faction)) return true;
+    if (this.construction.active(me).some((s) => s.option?.id === `parallelGov@${holder.faction}`)) return true;
+    return this.entities.buildings().some((x) => x.alive && x.owner === by && x.spec.type === 'parallelGov' && x.origin === holder.faction);
   }
 
   /**
@@ -6179,15 +6195,20 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       if (s.option && MILITARY_BASES.includes(s.option.id.split('@')[0] as BuildingType)) this.construction.cancel(holder, s.option.id);
     }
     if (holder.id === this.localId && this.placing && MILITARY_BASES.includes(this.placing.id.split('@')[0] as BuildingType)) this.placing = null;
+    // Every combat unit of the nation is disbanded too (soldiers, vehicles, aircraft, ships); unarmed ones stay.
     for (const x of this.entities.units()) {
       if (x.owner !== holder.id) continue;
+      if (x.weapon) {
+        x.hp = 0;
+        continue;
+      }
       x.attackTarget = null;
       x.combatTarget = null;
       x.attackMove = null;
     }
     holder.disarmedUntil = this.time + CAPITAL_DISARM_SECONDS;
     const vars = { by: FACTIONS[by.faction].name, nation: FACTIONS[holder.faction].name, minutes: CAPITAL_DISARM_SECONDS / 60 };
-    this.news.show(t('BREAKING NEWS'), t('{by} has put {nation} under a military embargo: its Barracks, War Factories and Airfields are gone and it cannot attack for {minutes} minutes.', vars));
+    this.news.show(t('BREAKING NEWS'), t('{by} has put {nation} under a military embargo: its Barracks, War Factories, Airfields and combat units are gone and it cannot attack for {minutes} minutes.', vars));
   }
 
   /**

@@ -194,6 +194,9 @@ const OWN_OPTIONS: readonly BuildOption[] = [
 /** Structures that make or power a nation's army: a captured capital lets its holder build that nation's version. */
 const FOREIGN_BUILDS: ReadonlySet<string> = new Set(['powerPlant', 'barracks', 'warFactory', 'airfield', 'techCenter']);
 
+/** Of FOREIGN_BUILDS, the ones whose art flies the owner's flag (render/sprites FLAG_VARIANTS). */
+const FLAG_ART: ReadonlySet<string> = new Set(['barracks', 'warFactory']);
+
 /**
  * Every structure for sale: each nation's own, then another nation's version of FOREIGN_BUILDS (built to that
  * nation's design and stats, so a foreign Ministry of Defence / War Factory / Airfield makes that nation's units).
@@ -205,6 +208,8 @@ export const BUILD_OPTIONS: readonly BuildOption[] = [
       ...o,
       id: `${o.id as BaseBuildId}@${nation}`,
       foreign: nation,
+      // Drawn in that nation's design (cameo, placement ghost), flying the builder's flag where the art has one.
+      spriteKey: (f) => (f !== nation && FLAG_ART.has(o.id) ? `${o.id}:${nation}@${f}` : o.spriteKey(nation)),
       create: (owner, faction, x, y) => {
         const b = o.create(owner, nation, x, y);
         b.originFaction = nation;
