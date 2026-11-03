@@ -186,6 +186,8 @@ export interface SidebarModel {
   /** Vehicles need a War Factory, aircraft an Airfield. */
   hasWarFactory: boolean;
   hasAirfield: boolean;
+  /** Aircraft carriers need a Naval Port. */
+  hasPort: boolean;
   /** Infantry can only be trained while the nation owns a Barracks. */
   hasBarracks: boolean;
   /** The nation's own capital is gone: no structure may be bought (the build cameos are hidden). */
@@ -1036,7 +1038,7 @@ export class Sidebar {
     for (const option of this.vehicleOptions) {
       const c = this.vehicleCameos.get(option.key);
       if (!c) continue;
-      const have = option.needsAirfield ? model.hasAirfield : model.hasWarFactory;
+      const have = option.kind === 'carrier' ? model.hasPort : option.needsAirfield ? model.hasAirfield : model.hasWarFactory;
       const count = q.items.filter((k) => k === option.key).length;
       // Every order is built at once: each cameo shows its own most advanced machine.
       const producing = count > 0;
@@ -1059,11 +1061,15 @@ export class Sidebar {
       setBackground(c.wipe, producing ? `conic-gradient(rgba(0,0,0,0.62) 0 ${Math.round(remaining * 360)}deg, transparent 0)` : 'none');
       setText(c.state, !producing
         ? !have
-            ? option.needsAirfield
-              ? t('NO AIRFIELD')
-              : t('NO FACTORY')
+            ? option.kind === 'carrier'
+              ? t('NO PORT')
+              : option.needsAirfield
+                ? t('NO AIRFIELD')
+                : t('NO FACTORY')
             : `${option.cost} ${CURRENCY}`
-        : q.state === 'noAirfield'
+        : q.state === 'noPort'
+          ? t('NO PORT')
+          : q.state === 'noAirfield'
           ? t('NO AIRFIELD')
           : q.state === 'noFactory'
             ? t('NO FACTORY')

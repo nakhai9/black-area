@@ -17,6 +17,8 @@ import {
   BUILD_STEP_SECONDS,
   CELL_SIZE,
   FOOTPRINT_AIRFIELD,
+  FOOTPRINT_PORT,
+  PORT_COST,
   FOOTPRINT_CITY,
   FOOTPRINT_FLAGPOLE,
   FLAGPOLE_COST,
@@ -31,6 +33,7 @@ import {
   WAR_FACTORY_COST,
 } from '../constants';
 import { Airfield } from '../entities/Airfield';
+import { Port } from '../entities/Port';
 import { AlliedBuilding } from '../entities/AlliedBuilding';
 import { ParallelGovernment } from '../entities/ParallelGovernment';
 import { FACTIONS } from '../factions';
@@ -49,7 +52,7 @@ import type { BuildingType, FactionId, PlayerState } from '../types';
 import type { GameSystem } from './GameSystem';
 
 /** A structure that can be produced from the sidebar's Build tab. */
-type BaseBuildId = 'powerPlant' | 'barracks' | 'warFactory' | 'airfield' | 'radarTower' | 'techCenter' | 'happyCity' | 'flagpole' | 'alliedBuilding' | 'parallelGov' | 'bunker' | 'wall' | 'gate';
+type BaseBuildId = 'powerPlant' | 'barracks' | 'warFactory' | 'airfield' | 'port' | 'radarTower' | 'techCenter' | 'happyCity' | 'flagpole' | 'alliedBuilding' | 'parallelGov' | 'bunker' | 'wall' | 'gate';
 
 export interface BuildOption {
   /** `base@faction` for another nation's design (on sale while that nation's capital is held). */
@@ -151,6 +154,16 @@ const OWN_OPTIONS: readonly BuildOption[] = [
     footprint: FOOTPRINT_AIRFIELD,
     spriteKey: (f) => `airfield:${f}`,
     create: (owner, faction, x, y) => new Airfield(owner, faction, center(x, y, FOOTPRINT_AIRFIELD)),
+  },
+  {
+    // U-shaped harbour on the coast: carriers are launched and repaired in its basin.
+    id: 'port',
+    name: 'Naval Port',
+    requires: 'warFactory',
+    cost: PORT_COST,
+    footprint: FOOTPRINT_PORT,
+    spriteKey: (f) => `port:${f}`,
+    create: (owner, faction, x, y) => new Port(owner, faction, center(x, y, FOOTPRINT_PORT)),
   },
   {
     id: 'techCenter',

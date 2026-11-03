@@ -1,6 +1,7 @@
 import { createAirfieldArt } from './Airfield';
 import { createAlliedBuildingArt } from './AlliedBuilding';
 import { createParallelGovArt } from './ParallelGovernment';
+import { createPortArt } from './Port';
 import { createBarracksArt } from './Barracks';
 import { createBunkerArt } from './Bunker';
 import { createFlagpoleArt } from './Flagpole';
@@ -72,6 +73,8 @@ export const BUILDING_ART: Readonly<Record<string, BuildingArt>> = {
   'airfield:china': createAirfieldArt('china'),
   'airfield:europe': createAirfieldArt('europe'),
   'airfield:islamic': createAirfieldArt('islamic'),
+  // Naval Port (U-shaped harbour, 12 × 8) in each nation's materials.
+  ...Object.fromEntries((['usa', 'russia', 'china', 'europe', 'islamic'] as const).map((f) => [`port:${f}`, createPortArt(f)] as const)),
   // The high-rise High-Tech Center in each nation's team colour.
   'techCenter:usa': createTechCenterArt('usa'),
   'techCenter:russia': createTechCenterArt('russia'),

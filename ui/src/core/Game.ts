@@ -55,6 +55,9 @@ import {
   REPAIR_VEHICLE_REPATH,
   REPAIR_GROUP_CELLS,
   FACTORY_REPAIR_SHARE,
+  FOOTPRINT_PORT,
+  PORT_SLOTS,
+  PORT_REPAIR_SHARE,
   FACTORY_REPAIR_REACH_CELLS,
   VETERAN_REGEN_PER_SECOND,
   VETERAN_REGEN_RANK,
@@ -166,7 +169,7 @@ import { CRAFT_DEATH_SECONDS, craftKey } from '../render/CraftSheets';
 import { SpriteCache } from '../render/SpriteCache';
 import { BUILDING_ART } from '../render/sprites';
 import { AIRFIELD_SLOTS, RUNWAY_D, AIRFIELD_SIZE } from '../render/sprites/Airfield';
-import { AircraftSystem, type AirfieldGeometry } from '../systems/AircraftSystem';
+import { AircraftSystem, isAirBase, type AirfieldGeometry } from '../systems/AircraftSystem';
 import { AISystem } from '../systems/AISystem';
 import { StructureIndex } from '../systems/StructureIndex';
 import { canTarget, CombatSystem, distanceTo, inTruce, isHostile, setDisarmed, setTruce, setViolators } from '../systems/CombatSystem';
@@ -184,7 +187,7 @@ const ALLY_ALERT_SECONDS = 5;
 /** The military ranking is re-counted this often (s): soldiers die and vehicles are lost in between. */
 const MILITARY_RANK_INTERVAL = 240;
 import type { GameSystem } from '../systems/GameSystem';
-import { BUILD_RADIUS, SUPPORT_TYPES, buildRadius, cellGap, OIL_DERRICK_CLEARANCE, type PlacementRequest, type PlacementResult, PlacementSystem, isClaimable } from '../systems/PlacementSystem';
+import { BUILD_RADIUS, SUPPORT_TYPES, buildRadius, isCoastal, cellGap, OIL_DERRICK_CLEARANCE, type PlacementRequest, type PlacementResult, PlacementSystem, isClaimable } from '../systems/PlacementSystem';
 import { bunkerMuzzle, bunkerPreview } from '../render/BunkerSheet';
 import { EXPLOSION_SECONDS } from '../render/ExplosionSheet';
 
@@ -193,6 +196,7 @@ const EXPLOSION_PER_CELL = 1.15;
 const EXPLOSION_PER_BODY = 1.4;
 import { Flagpole } from '../entities/Flagpole';
 import { Wall } from '../entities/Wall';
+import { Port } from '../entities/Port';
 import { Gate } from '../entities/Gate';
 import { squadFilter } from '../systems/Squad';
 import { BRIDGE_JOIN_HIGH, BRIDGE_JOIN_LOW, BRIDGE_JOIN_SIDE_HIGH, BRIDGE_JOIN_SIDE_LOW, Bridge, bridgeAnchor, bridgeEnd, bridgeReachSegment, bridgeSiteOk } from '../entities/Bridge';
@@ -284,6 +288,7 @@ const BLOCK_REASONS: Readonly<Record<string, string>> = {
   trees: 'Trees in the way',
   mountain: 'Cannot build on mountains',
   needsWater: 'Must be built on water',
+  needsCoast: 'A port stands on the shore: its basin and mouth on open water, its quay on land',
   tooFar: 'Too far from your base (max {max} cells)',
   claimed: 'Allied Buildings stand only on unclaimed land claimed with a Squatters team',
   nearOil: 'Too close to an oil derrick (keep {keep} free cells around it)',
@@ -291,6 +296,10 @@ const BLOCK_REASONS: Readonly<Record<string, string>> = {
 };
 /** Map-authored buildings may shift this many cells to find tree-free ground… */
 const PRESET_SNAP_RADIUS = 2;
+/** DEMO: cells from the capital searched for a shore to put the demo Naval Port on. */
+const DEMO_PORT_SEARCH = 120;
+/** Cells round a Naval Port's mouth searched for a free mooring when its basin is taken. */
+const PORT_BERTH_SEARCH = 12;
 /** Crossing routes are checked this many cells ahead; a unit gives way at most CROSSING_MAX_WAIT s. */
 const CROSSING_LOOKAHEAD_CELLS = 4;
 const CROSSING_MAX_WAIT = 6;
@@ -1079,7 +1088,9 @@ export class Game {
     if (!capital) return;
     const cx = capital.x + Math.floor(capital.w / 2);
     const cy = capital.y + Math.floor(capital.d / 2);
-    const ids = ['powerPlant', 'powerPlant', 'barracks', 'warFactory', 'radarTower', 'airfield', 'techCenter', 'alliedBuilding', 'bunker', 'flagpole'];
+    // Plus another nation's Parallel Government (its own architecture), and a Naval Port on the nearest shore (demoPort).
+    const host = (Object.keys(FACTIONS) as FactionId[]).find((f) => f !== me.faction) ?? 'usa';
+    const ids = ['powerPlant', 'powerPlant', 'barracks', 'warFactory', 'radarTower', 'airfield', 'techCenter', 'alliedBuilding', `parallelGov@${host}`, 'bunker', 'flagpole'];
     const placed: Building[] = [capital];
     for (const id of ids) {
       const option = BUILD_OPTIONS.find((o) => o.id === id);
@@ -1098,7 +1109,7 @@ export class Game {
             const y = cy + dy - Math.floor(d / 2);
             if (placed.some((o) => gapTo(x, y, o) < DEMO_SPREAD)) continue;
             if (!this.placement.check({ owner: me.id, x: x - 1, y: y - 1, w: w + 2, d: d + 2, radius: 40 }).ok) continue; // room for its wall ring
-            if (this.placement.check({ owner: me.id, x, y, w, d, radius: buildRadius(option.id) }).ok) spot = { x, y };
+            if (this.placement.check({ owner: me.id, x, y, w, d, radius: buildRadius(option.id), coastal: isCoastal(option.id) }).ok) spot = { x, y };
           }
         }
       }
@@ -1108,6 +1119,38 @@ export class Game {
       placed.push(b);
     }
     for (const b of placed) this.wrapInWall(me, b);
+    this.demoPort(me, cx, cy);
+  }
+
+  /**
+   * DEMO: a Naval Port on the shore nearest the capital (either way round), the coastal rule of a real port but no
+   * build-radius limit (a capital always stands inland), no wall ring.
+   */
+  private demoPort(me: PlayerState, cx: number, cy: number): void {
+    const option = BUILD_OPTIONS.find((o) => o.id === 'port');
+    if (!option) return;
+    for (let r = 0; r <= DEMO_PORT_SEARCH; r++) {
+      for (let dy = -r; dy <= r; dy++) {
+        for (let dx = -r; dx <= r; dx++) {
+          if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+          for (const rotated of [false, true]) {
+            const w = rotated ? FOOTPRINT_PORT.d : FOOTPRINT_PORT.w;
+            const d = rotated ? FOOTPRINT_PORT.w : FOOTPRINT_PORT.d;
+            const x = cx + dx;
+            const y = cy + dy;
+            if (!(rotated ? this.map.isWater(x + w, y + (d >> 1)) : this.map.isWater(x + (w >> 1), y + d))) continue;
+            if (!this.placement.check({ owner: me.id, x, y, w, d, radius: DEMO_PORT_SEARCH * 2, coastal: true }).ok) continue;
+            const b = this.entities.add(option.create(me.id, me.faction, x, y));
+            b.rotated = rotated;
+            b.moveTo(x, y);
+            this.occupyBuilding(b);
+            // A carrier nation's demo fleet: one aircraft carrier moored in the port's U basin.
+            if (b instanceof Port && FACTIONS[me.faction as FactionId].vehicles.carrier) this.launchCarrier(me, me.faction as FactionId, b);
+            return;
+          }
+        }
+      }
+    }
   }
 
   /**
@@ -1635,7 +1678,7 @@ export class Game {
     const ofp = footprintOf(option, player.faction as FactionId);
     const w = rotated ? ofp.d : ofp.w;
     const d = rotated ? ofp.w : ofp.d;
-    if (!this.placement.check({ owner: player.id, x, y, w, d, radius: buildRadius(option.id) }).ok) return false;
+    if (!this.placement.check({ owner: player.id, x, y, w, d, radius: buildRadius(option.id), coastal: isCoastal(option.id) }).ok) return false;
     if (!this.construction.takeReady(player, option.id)) return false;
     const b = this.entities.add(option.create(player.id, player.faction, x, y));
     if (rotated) {
@@ -1960,7 +2003,7 @@ export class Game {
     const m = AIRFIELD_CLICK_MARGIN;
     const near = (owner: number): Building | undefined =>
       this.entities.buildings().find(
-        (b) => b.alive && b.owner === owner && b.spec.type === 'airfield' && cell.x >= b.x - m && cell.x < b.x + b.w + m && cell.y >= b.y - m && cell.y < b.y + b.d + m,
+        (b) => b.alive && b.owner === owner && isAirBase(b) && cell.x >= b.x - m && cell.x < b.x + b.w + m && cell.y >= b.y - m && cell.y < b.y + b.d + m,
       );
     return units.filter((u) => {
       if (!(u instanceof Vehicle) || !u.aircraft) return true;
@@ -2524,6 +2567,57 @@ export class Game {
     return true;
   }
 
+  /** Ships moored in the basin of one of their nation's Naval Ports are repaired PORT_REPAIR_SHARE of max HP per second. */
+  private processPortRepairs(dt: number): void {
+    const ports = this.entities.buildings().filter((b): b is Port => b instanceof Port && b.alive);
+    if (ports.length === 0) return;
+    for (const v of this.entities.vehicles()) {
+      if (!v.alive || !v.naval || v.hp >= v.maxHp) continue;
+      const cx = v.px / CELL_SIZE;
+      const cy = v.py / CELL_SIZE;
+      const moored = ports.some((p) => {
+        const s = p.basin();
+        return p.owner === v.owner && cx >= s.x && cx < s.x + s.w && cy >= s.y && cy < s.y + s.d;
+      });
+      if (moored) v.hp = Math.min(v.maxHp, v.hp + v.maxHp * PORT_REPAIR_SHARE * dt);
+    }
+  }
+
+  /**
+   * A new aircraft carrier moored at `port` with its fighters aboard: in the U basin when no ship lies there yet, else
+   * on the open water just beside the port (nearest its mouth). Null when there is no water room at all.
+   */
+  private launchCarrier(player: PlayerState, faction: FactionId, port: Port): Vehicle | null {
+    const s = port.basin();
+    const berth = { x: (s.x + s.w / 2) * CELL_SIZE, y: (s.y + s.d / 2) * CELL_SIZE };
+    const ships = this.entities.vehicles().filter((v) => v.alive && v.naval);
+    const free = (p: WorldPoint): boolean => !ships.some((v) => Math.hypot(v.px - p.x, v.py - p.y) < v.radius * 2.2);
+    let at: WorldPoint | null = free(berth) ? berth : null;
+    if (!at) {
+      // Beside the port: ring by ring round the mouth, the first open-water cell no ship lies on.
+      const mx = port.rotated ? port.x + port.w : Math.floor(s.x + s.w / 2);
+      const my = port.rotated ? Math.floor(s.y + s.d / 2) : port.y + port.d;
+      for (let r = 1; r <= PORT_BERTH_SEARCH && !at; r++) {
+        for (let dy = -r; dy <= r && !at; dy++) {
+          for (let dx = -r; dx <= r && !at; dx++) {
+            if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+            const cx = mx + dx;
+            const cy = my + dy;
+            if (!this.pathfinder.navigable(cx, cy) || this.map.occupantAt(cx, cy) !== null) continue;
+            const p = { x: (cx + 0.5) * CELL_SIZE, y: (cy + 0.5) * CELL_SIZE };
+            if (free(p)) at = p;
+          }
+        }
+      }
+    }
+    if (!at) return null;
+    const ship = this.entities.add(new Vehicle(player.id, faction, 'carrier', at));
+    // Bow toward the mouth, ready to sail out.
+    ship.heading = port.rotated ? 0 : Math.PI / 2;
+    this.crewCarrier(ship);
+    return ship;
+  }
+
   /**
    * War Factory workshop: vehicles sent there drive up to the door and in (hidden inside), are repaired at
    * FACTORY_REPAIR_SHARE of their max HP per second, then drive out to a parking spot in front when whole.
@@ -2900,6 +2994,7 @@ export class Game {
     this.processRepairs(dt);
     this.processMends(dt);
     this.processFactoryRepairs(dt);
+    this.processPortRepairs(dt);
     this.processPatients(dt);
     this.regenVeterans(dt);
     this.janitorTimer += dt;
@@ -3639,6 +3734,7 @@ export class Game {
           disarmed: this.humanPlayer.disarmedUntil !== undefined,
           hasWarFactory: this.production.producerOf(this.humanPlayer, 'warFactory') !== null,
           hasAirfield: this.production.producerOf(this.humanPlayer, 'airfield') !== null,
+          hasPort: this.production.producerOf(this.humanPlayer, 'port') !== null,
           hasBarracks: this.training.barracksOf(this.humanPlayer) !== null,
           capitalLost: this.humanPlayer.capitalLost,
           army: this.training.army(this.humanPlayer),
@@ -4316,7 +4412,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     const d = this.placingRotated ? fp.w : fp.d;
     const x = Math.floor(this.mouseWorld.x / CELL_SIZE - w / 2 + 0.5);
     const y = Math.floor(this.mouseWorld.y / CELL_SIZE - d / 2 + 0.5);
-    const result = this.placement.check({ owner: this.humanPlayer.id, x, y, w, d, radius: buildRadius(this.placing.id) });
+    const result = this.placement.check({ owner: this.humanPlayer.id, x, y, w, d, radius: buildRadius(this.placing.id), coastal: isCoastal(this.placing.id) });
     this.ghost = {
       spriteKey: this.placing.spriteKey(this.humanPlayer.faction),
       faction: this.humanPlayer.faction,
@@ -4351,7 +4447,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     const fp = footprintOf(option, player.faction as FactionId);
     const w = rotated ? fp.d : fp.w;
     const d = rotated ? fp.w : fp.d;
-    if (!this.placement.check({ owner: player.id, x, y, w, d, radius: buildRadius(option.id) }).ok) {
+    if (!this.placement.check({ owner: player.id, x, y, w, d, radius: buildRadius(option.id), coastal: isCoastal(option.id) }).ok) {
       this.sidebar.notify(t('Cannot place here.'));
       return;
     }
@@ -4924,6 +5020,8 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
             ? t('Transport aircraft are at their limit of {max}.', { max: MAX_TRANSPORTS })
             : result === 'noParking'
             ? t('No free parking spot — build another {name} or send aircraft out.', { name: 'Airfield' })
+            : result === 'noPort'
+              ? t('Aircraft carriers are bought once you have a {name}.', { name: 'Naval Port' })
             : result === 'noAirfield'
               ? t('Aircraft are built at an {name} — build one first.', { name: 'Airfield' })
               : t('Requires a {name}.', { name: 'War Factory' }),
@@ -4950,7 +5048,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     const end = pt(AIRFIELD_SIZE.w - 0.5, RUNWAY_D / 2);
     const heading = Math.atan2(end.y - start.y, end.x - start.x);
     return {
-      slots: AIRFIELD_SLOTS.map(([u, v]) => pt(u, v)),
+      slots: (b.spec.type === 'port' ? PORT_SLOTS : AIRFIELD_SLOTS).map(([u, v]) => pt(u, v)),
       runwayStart: start,
       runwayEnd: end,
       heading,
@@ -4991,7 +5089,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     let slot = this.aircraft.freeSlot(null, airfield, prefer);
     if (slot < 0) {
       for (const b of this.entities.buildings()) {
-        if (b.owner !== player.id || !b.alive || b.spec.type !== 'airfield') continue;
+        if (b.owner !== player.id || !b.alive || !isAirBase(b)) continue;
         slot = this.aircraft.freeSlot(null, b);
         if (slot >= 0) {
           airfield = b;
@@ -5366,15 +5464,11 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       if (craft) this.toRally(craft, producer);
       return;
     }
-    // An aircraft carrier is launched on the nearest open sea to the factory (or the capital), fighters aboard.
+    // An aircraft carrier is launched at its Naval Port, fighters aboard (see launchCarrier).
     if (kind === 'carrier') {
-      const at = this.map.cellAt(producer.centerWorld().x, producer.centerWorld().y);
-      const sea = at ? this.openSeaNear(at.x, at.y, 5) : null;
-      if (!sea) return;
-      const ship = this.entities.add(new Vehicle(player.id, faction, 'carrier', { x: (sea.x + 0.5) * CELL_SIZE, y: (sea.y + 0.5) * CELL_SIZE }));
+      const ship = producer instanceof Port ? this.launchCarrier(player, faction, producer) : null;
+      if (!ship) return;
       if (faction !== player.faction) ship.ownerFaction = player.faction;
-      ship.heading = Math.atan2(sea.y - at!.y, sea.x - at!.x);
-      this.crewCarrier(ship);
       if (player.id === this.localId) this.sidebar.notify(t('{name} launched with {n} fighters aboard.', { name: ship.name, n: CARRIER_JETS }), 3);
       return;
     }
@@ -5641,7 +5735,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       ordered++;
     }
     // Aircraft selected + click on an own airfield: they come in to land there (from the nearer runway end).
-    if (b.owner === me.id && b.spec.type === 'airfield') {
+    if (b.owner === me.id && isAirBase(b)) {
       const planes = this.selection.selectedUnitList().filter((u): u is Vehicle => u instanceof Vehicle && u.aircraft);
       for (const u of planes) if (this.aircraft.land(u, b)) ordered++;
       if (ordered > 0) return true;

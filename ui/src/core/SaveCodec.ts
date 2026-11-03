@@ -1,4 +1,5 @@
 import { Airfield } from '../entities/Airfield';
+import { Port } from '../entities/Port';
 import { AlliedBuilding } from '../entities/AlliedBuilding';
 import { ParallelGovernment } from '../entities/ParallelGovernment';
 import { Barracks } from '../entities/Barracks';
@@ -48,6 +49,7 @@ const ENTITY_CLASSES: Readonly<Record<string, abstract new (...args: never[]) =>
   Barracks,
   WarFactory,
   Airfield,
+  Port,
   TechCenter,
   RadarTower,
   OilDerrick,

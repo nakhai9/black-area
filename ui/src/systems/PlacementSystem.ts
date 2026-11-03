@@ -1,5 +1,5 @@
 import type { EntityManager } from '../entities/EntityManager';
-import { BUNKER_BUILD_RADIUS, CELL_SIZE, GATE_BUILD_RADIUS, GRID_HEIGHT, WALL_BUILD_RADIUS } from '../constants';
+import { BUNKER_BUILD_RADIUS, CELL_SIZE, GATE_BUILD_RADIUS, GRID_HEIGHT, PORT_MIN_LAND, PORT_PIER, PORT_QUAY, WALL_BUILD_RADIUS } from '../constants';
 import type { PlacementBlocker, TileMap } from '../map/TileMap';
 
 /** Max gap (in cells) between a new building and the nearest friendly building. */
@@ -15,6 +15,11 @@ export const SUPPORT_TYPES: ReadonlySet<string> = new Set(['bunker', 'wall', 'ga
 /** How far (cells) from an own structure's edge a structure of this kind may be placed. */
 export function buildRadius(type: string): number {
   return type === 'bunker' ? BUNKER_BUILD_RADIUS : type === 'wall' ? WALL_BUILD_RADIUS : type === 'gate' ? GATE_BUILD_RADIUS : BUILD_RADIUS;
+}
+
+/** Coastal structures (the Naval Port): placed across the shoreline, see PlacementSystem.coastBlocker. */
+export function isCoastal(type: string): boolean {
+  return type === 'port';
 }
 
 export type PlacementResult = { ok: true } | { ok: false; reason: PlacementBlocker | 'units' | 'tooFar' | 'claimed' | 'nearOil' | 'antarctica' };
@@ -43,6 +48,8 @@ export interface PlacementRequest {
   w: number;
   d: number;
   naval?: boolean;
+  /** Naval Port: quay on the shore, basin and mouth on water (see coastBlocker). */
+  coastal?: boolean;
   /** Allied Building: every cell must be unclaimed land (see isClaimable). */
   unclaimedOnly?: boolean;
   /** Cells it may stand from an own structure's edge (default BUILD_RADIUS). */
@@ -77,7 +84,7 @@ export class PlacementSystem {
   ) {}
 
   check(req: PlacementRequest): PlacementResult {
-    const blocker = this.map.placementBlocker(req.x, req.y, req.w, req.d, req.naval === true);
+    const blocker = req.coastal ? this.coastBlocker(req) : this.map.placementBlocker(req.x, req.y, req.w, req.d, req.naval === true);
     if (blocker) return { ok: false, reason: blocker };
     // No structure may overlap another one, not even in the margin ring round the art.
     if (this.overlapsBuilding(req)) return { ok: false, reason: 'occupied' };
@@ -86,6 +93,44 @@ export class PlacementSystem {
     if (this.nearDerrick(req)) return { ok: false, reason: 'nearOil' };
     if (this.unitsInside(req)) return { ok: false, reason: 'units' };
     return this.nearOwnBase(req) ? { ok: true } : { ok: false, reason: 'tooFar' };
+  }
+
+  /**
+   * A Naval Port's plot (12 × 8, turned 8 × 12 when deeper than wide): its basin between the piers and the row just
+   * beyond the mouth must be open water, the quay and piers may stand on land (land rules) or water, and at least
+   * PORT_MIN_LAND quay cells must be dry land so it sits against the shore.
+   */
+  private coastBlocker(req: PlacementRequest): PlacementBlocker | null {
+    const map = this.map;
+    const turned = req.w < req.d;
+    const inBasin = (x: number, y: number): boolean =>
+      turned
+        ? x >= req.x + PORT_QUAY && y >= req.y + PORT_PIER && y < req.y + req.d - PORT_PIER
+        : y >= req.y + PORT_QUAY && x >= req.x + PORT_PIER && x < req.x + req.w - PORT_PIER;
+    const inQuay = (x: number, y: number): boolean => (turned ? x < req.x + PORT_QUAY : y < req.y + PORT_QUAY);
+    const openWater = (x: number, y: number): boolean => map.isOpenWater(x, y);
+    let land = 0;
+    for (let y = req.y; y < req.y + req.d; y++) {
+      for (let x = req.x; x < req.x + req.w; x++) {
+        if (!map.inBounds(x, y)) return 'outOfBounds';
+        if (map.occupantAt(x, y) !== null) return 'occupied';
+        if (map.isWater(x, y)) {
+          if (!openWater(x, y)) return 'occupied';
+          continue;
+        }
+        if (inBasin(x, y)) return 'needsCoast';
+        const b = map.placementBlocker(x, y, 1, 1);
+        if (b) return b;
+        if (inQuay(x, y)) land++;
+      }
+    }
+    // The mouth: the row (column, turned) just past the open end, in front of the basin.
+    if (turned) {
+      for (let y = req.y + PORT_PIER; y < req.y + req.d - PORT_PIER; y++) if (!openWater(req.x + req.w, y)) return 'needsCoast';
+    } else {
+      for (let x = req.x + PORT_PIER; x < req.x + req.w - PORT_PIER; x++) if (!openWater(x, req.y + req.d)) return 'needsCoast';
+    }
+    return land >= PORT_MIN_LAND ? null : 'needsCoast';
   }
 
   /** Does the footprint share a cell with any standing structure's whole footprint (margin included)? */

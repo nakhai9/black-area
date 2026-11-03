@@ -233,6 +233,7 @@ export type BuildingType =
   | 'bridge'
   | 'warFactory'
   | 'airfield'
+  | 'port'
   | 'radarTower'
   | 'techCenter'
   | 'happyCity'

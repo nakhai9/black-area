@@ -46,8 +46,8 @@ export function drawMantisSheet(ctx: CanvasRenderingContext2D, v: Vehicle, x: nu
   ctx.imageSmoothingEnabled = true;
   const alpha = ctx.globalAlpha;
   ctx.globalAlpha = alpha * 0.35;
-  // The launcher traverses on its own (turretHeading), turning on its pivot over the chassis.
-  const t = direction(v.turretHeading);
+  // The launcher is fixed to the chassis (drawn at the hull heading).
+  const t = d;
   const o = samPivotOffset(f, d);
   const lx = x + o.x * scale(f);
   const ly = y + o.y * scale(f);

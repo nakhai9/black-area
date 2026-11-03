@@ -31,15 +31,19 @@ interface Look {
   glass: string;
   canister: string;
   stripe: string;
+  /** Camouflage blotch colours (two accents), when the vehicle wears them. */
+  camo?: [string, string];
 }
 
 function look(f: FactionId): Look {
   const stripe = FACTIONS[f].colors.primary;
   switch (f) {
     case 'usa':
-      return { faction: f, kind: 'patriot', body: '#a38f63', dark: '#4a4234', steel: '#8a8478', rubber: '#24221e', glass: '#2c3a46', canister: '#b9a87c', stripe };
+      // Desert three-tone, matte CARC: sand-tan base with brown and pale-sand blotches (camo).
+      return { faction: f, kind: 'patriot', body: '#b09a6c', dark: '#4a4234', steel: '#8a8478', rubber: '#24221e', glass: '#2c3a46', canister: '#b9a679', stripe, camo: ['#8a6c45', '#d6c79f'] };
     case 'europe':
-      return { faction: f, kind: 'sampt', body: '#5e6852', dark: '#33372e', steel: '#80847a', rubber: '#232421', glass: '#2a3842', canister: '#717a64', stripe };
+      // Blue-grey paint (slate with a cool tint).
+      return { faction: f, kind: 'sampt', body: '#5f6b72', dark: '#30373c', steel: '#848b90', rubber: '#232426', glass: '#26343e', canister: '#6e7b83', stripe };
     case 'china':
       return { faction: f, kind: 'hq9', body: '#4b5c45', dark: '#2b2e29', steel: '#74786c', rubber: '#212320', glass: '#2a3640', canister: '#5a6b52', stripe };
     case 'islamic':
@@ -72,11 +76,35 @@ function pack(m: Mesh, L: Look, p: V3, elev: number, len: number, size: number, 
       else m.prism(at(len * 0.42, y, k), at(len * 0.5, y, k), chamfer(size + 0.08, size + 0.08, size * 0.12), L.stripe);
       // Reinforcing hoops along round tubes.
       if (round) for (const t of [len * 0.15, len * 0.75]) m.cyl(at(t, y, k), at(t + 0.5, y, k), size / 2 + 0.12, shade(L.canister, 0.85), 12);
+      // Square canisters: stiffening ribs along the corners, flanged ends.
+      else {
+        for (const t of [len * 0.08, len * 0.3, len * 0.62, len * 0.9]) m.prism(at(t, y, k), at(t + 0.35, y, k), chamfer(size + 0.16, size + 0.16, size * 0.14), shade(L.canister, 0.82));
+        m.prism(at(len - 0.4, y, k), at(len, y, k), chamfer(size + 0.24, size + 0.24, size * 0.14), shade(L.canister, 0.7));
+      }
+      // Frangible exit cover: cross ribs over the cap; data stencil on the canister side.
+      const cr = size * 0.34;
+      m.bar(at(len + 0.3, y - cr, k), at(len + 0.3, y + cr, k), 0.16, 0.16, shade(L.canister, 1.15));
+      m.bar(at(len + 0.3, y, k - cr), at(len + 0.3, y, k + cr), 0.16, 0.16, shade(L.canister, 1.15));
+      if (c === 0 || c === cols - 1) {
+        const sy = y + (c === 0 ? -1 : 1) * (size / 2 + 0.03);
+        const n: V3 = [0, c === 0 ? -1 : 1, 0];
+        m.decal([at(len * 0.58, sy, k - size * 0.2), at(len * 0.72, sy, k - size * 0.2), at(len * 0.72, sy, k - size * 0.05), at(len * 0.58, sy, k - size * 0.05)], n, '#d9d6c8', 1);
+        m.decal([at(len * 0.58, sy, k + size * 0.05), at(len * 0.66, sy, k + size * 0.05), at(len * 0.66, sy, k + size * 0.14), at(len * 0.58, sy, k + size * 0.14)], n, '#c9a227', 1);
+      }
     }
   }
   const w = (cols * gap) / 2 + 0.3;
   for (const s of [-1, 1]) m.bar(at(-1.4, s * w, gap), at(len + 0.2, s * w, gap), 0.5, gap * 2 + 0.4, shade(L.steel, 0.85));
   m.bar(at(-1.4, 0, -0.4), at(len * 0.85, 0, -0.4), w * 2, 0.8, shade(L.body, 0.9));
+  // Clamp frames round the whole pack, lifting lugs on top, rear trunnion across the cradle.
+  for (const t of [len * 0.22, len * 0.55, len * 0.86]) {
+    for (const s of [-1, 1]) m.bar(at(t, s * (w + 0.35), gap), at(t + 0.6, s * (w + 0.35), gap), 0.3, gap * 2 + 0.9, shade(L.steel, 0.7));
+    m.bar(at(t, 0, gap * 2 + 0.15), at(t + 0.6, 0, gap * 2 + 0.15), w * 2 + 1, 0.3, shade(L.steel, 0.7));
+    for (const s of [-1, 1]) m.cyl(at(t + 0.3, s * (w - 0.6), gap * 2 + 0.3), at(t + 0.3, s * (w - 0.6), gap * 2 + 0.8), 0.22, shade(L.steel, 1.1), 6);
+  }
+  m.cyl(at(-1, -w - 0.9, -0.6), at(-1, w + 0.9, -0.6), 0.8, shade(L.steel, 0.65), 12);
+  // Umbilical cables down each side rail.
+  for (const s of [-1, 1]) m.cyl(at(-1.2, s * (w + 0.4), 0.2), at(len * 0.9, s * (w + 0.4), 0.2), 0.14, '#151513', 6);
   return at(len, 0, gap);
 }
 
@@ -86,12 +114,48 @@ function ram(m: Mesh, L: Look, a: V3, b: V3, r = 0.9): void {
   m.cyl(a, b, r * 0.55, shade(L.steel, 1.2), 10);
 }
 
-/** Wheel with tyre, rim and hub across the y axis at (x, y). */
+/** Off-road wheel across the y axis at (x, y): tyre with staggered tread lugs, dished rim with stud ring, hub and CTIS valve line. */
 function wheel(m: Mesh, L: Look, x: number, y: number, r: number): void {
   const s = Math.sign(y);
-  m.cyl([x, y - s * 1, r], [x, y + s * 1, r], r, L.rubber, 16, shade(L.rubber, 1.3));
-  m.cyl([x, y + s * 1, r], [x, y + s * 1.15, r], r * 0.6, L.steel, 12);
-  m.cyl([x, y + s * 1.15, r], [x, y + s * 1.4, r], r * 0.2, shade(L.steel, 0.75), 8);
+  const o = y + s * 1;
+  m.cyl([x, y - s * 1, r], [x, o, r], r, L.rubber, 18, shade(L.rubber, 1.3));
+  // Sidewall bead ring and tread lugs alternating from each shoulder.
+  m.cyl([x, o, r], [x, o + s * 0.06, r], r * 0.86, shade(L.rubber, 1.15), 18);
+  for (let i = 0; i < 18; i++) {
+    const a = (i / 18) * Math.PI * 2;
+    const px = x + Math.cos(a) * r;
+    const pz = r + Math.sin(a) * r;
+    const y0 = i % 2 ? y - s * 1 : y - s * 0.1;
+    m.bar([px, y0, pz], [px, y0 + s * 1.1, pz], 0.42, 0.42, shade(L.rubber, 0.78));
+  }
+  m.cyl([x, o + s * 0.06, r], [x, o + s * 0.16, r], r * 0.64, shade(L.steel, 0.72), 16);
+  m.cyl([x, o + s * 0.16, r], [x, o + s * 0.26, r], r * 0.5, L.steel, 16);
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2;
+    const p: V3 = [x + Math.cos(a) * r * 0.33, o + s * 0.26, r + Math.sin(a) * r * 0.33];
+    m.cyl(p, [p[0], o + s * 0.4, p[2]], 0.11, shade(L.steel, 1.25), 6);
+  }
+  m.cyl([x, o + s * 0.26, r], [x, o + s * 0.55, r], r * 0.2, shade(L.steel, 0.75), 10, shade(L.steel, 1.1));
+  m.bar([x, o + s * 0.5, r], [x + r * 0.45, o + s * 0.3, r + r * 0.45], 0.12, 0.12, '#151513');
+}
+
+/** Arched mudguard over the wheel at x on both sides of a truck `half` wide, tyre radius r. */
+function fender(m: Mesh, L: Look, x: number, half: number, r: number): void {
+  const arc: P2[] = [];
+  const n = 8;
+  for (let i = 0; i <= n; i++) {
+    const a = 0.25 + (i / n) * (Math.PI - 0.5);
+    arc.push([Math.cos(a) * (r + 0.95), Math.sin(a) * (r + 0.95)]);
+  }
+  for (let i = n; i >= 0; i--) {
+    const a = 0.25 + (i / n) * (Math.PI - 0.5);
+    arc.push([Math.cos(a) * (r + 0.55), Math.sin(a) * (r + 0.55)]);
+  }
+  for (const s of [-1, 1]) {
+    m.prism([x, s * (half - 1.3), r], [x, s * (half + 1.25), r], arc, shade(L.body, 0.86), shade(L.body, 0.7));
+    // Rubber mud flap behind the wheel.
+    m.box(x - r - 0.9, x - r - 0.7, s * (half - 1), s * (half + 1.1), 0.9, r + 0.4, L.rubber);
+  }
 }
 
 /** Track loop, road wheels, sprocket and idler on both sides of a light tracked chassis. */
@@ -166,64 +230,289 @@ function pgzTurret(m: Mesh, L: Look): void {
   m.cyl([c - 6, -4.5, 18.4], [c - 6, -4.5, 30], 0.08, '#222', 4);
 }
 
-/** Flat-fronted truck cab from x0 to x1 (front): windscreen, side windows, roof, grille, headlights, mirrors. */
+/**
+ * Armoured truck cab from x0 to x1 (front): side profile with a raked windscreen, split panes and wipers, framed doors with
+ * windows, handles and steps, grille with guard, bumper with headlights and tow hooks, mirrors on arms, roof hatch, beacon
+ * and air-intake snorkel.
+ */
 function cab(m: Mesh, L: Look, x0: number, x1: number, half = 7.8, top = 15.5): void {
-  m.cbox(x0, x1, -half, half, 5.5, top, 0.6, L.body);
-  m.decal([[x1 + 0.02, -half + 0.8, top - 4.4], [x1 + 0.02, half - 0.8, top - 4.4], [x1 + 0.02, half - 0.8, top - 0.8], [x1 + 0.02, -half + 0.8, top - 0.8]], [1, 0, 0], L.glass, 0);
-  for (const s of [-1, 1]) m.decal([[x1 - 1, s * (half + 0.02), top - 4.4], [x1 - 4.5, s * (half + 0.02), top - 4.4], [x1 - 4.5, s * (half + 0.02), top - 1], [x1 - 1, s * (half + 0.02), top - 1]], [0, s, 0], L.glass, 0);
-  for (let i = -3; i <= 3; i++) m.box(x1, x1 + 0.2, i * 1.1 - 0.3, i * 1.1 + 0.3, 7, 9.6, shade(L.body, 0.55));
+  const hood = top - 4.6;
+  const rake = 1.6;
+  const side: P2[] = [[x0, 5.5], [x1, 5.5], [x1, hood], [x1 - rake, top - 0.4], [x1 - rake - 0.6, top], [x0 + 0.6, top], [x0, top - 0.6]];
+  const mid = (x0 + x1) / 2;
+  // Profile (x, z) extruded across y; prism's side axis is +x along +y.
+  m.prism([mid, -half, 5.5], [mid, half, 5.5], side.map(([x, z]) => [x - mid, z - 5.5] as P2), L.body, shade(L.body, 0.95));
+  // Windscreen on the raked face: two panes with a centre pillar, rubber frame, wipers.
+  const nx = Math.cos(Math.atan2(rake, 4.2));
+  const nz = Math.sin(Math.atan2(rake, 4.2));
+  const ws = (t: number, y: number): V3 => [x1 - rake * t + nx * 0.03, y, hood + (top - 0.4 - hood) * t + nz * 0.03];
   for (const s of [-1, 1]) {
-    m.cyl([x1, s * (half - 1.6), 7.2], [x1 + 0.4, s * (half - 1.6), 7.2], 0.8, '#eee8c8', 10);
-    m.bar([x1 - 1.4, s * (half + 1), top - 3], [x1 - 1.4, s * (half + 1), top - 1], 0.3, 0.5, L.dark);
+    const a = s * 0.4;
+    const b = s * (half - 0.9);
+    m.decal([ws(0.12, a), ws(0.12, b), ws(0.9, b), ws(0.9, a)], [nx, 0, nz], shade(L.dark, 0.8), 0);
+    m.decal([ws(0.17, a + s * 0.2), ws(0.17, b - s * 0.2), ws(0.85, b - s * 0.2), ws(0.85, a + s * 0.2)], [nx, 0, nz], L.glass, 1);
+    // Glint across the upper pane.
+    m.decal([ws(0.6, a + s * 0.6), ws(0.6, a + s * 1.6), ws(0.8, a + s * 1.2), ws(0.8, a + s * 0.4)], [nx, 0, nz], shade(L.glass, 1.8), 2);
+    m.bar(ws(0.16, s * 2.6), ws(0.55, s * 1.4), 0.12, 0.12, '#151513');
+  }
+  // Doors: seams, window, handle, two steps below; door hinge line.
+  for (const s of [-1, 1]) {
+    const y = s * (half + 0.02);
+    const n: V3 = [0, s, 0];
+    const d0 = x1 - 8.4;
+    const d1 = x1 - 1.6;
+    m.decal([[d0, y, 6], [d0 + 0.14, y, 6], [d0 + 0.14, y, top - 0.8], [d0, y, top - 0.8]], n, shade(L.body, 0.55), 0);
+    m.decal([[d1 - 0.14, y, 6], [d1, y, 6], [d1, y, top - 0.8], [d1 - 0.14, y, top - 0.8]], n, shade(L.body, 0.55), 0);
+    m.decal([[d1 - 0.6, y, top - 4.4], [d0 + 1.6, y, top - 4.4], [d0 + 1.6, y, top - 1.2], [d1 - 1.4, y, top - 1.2], [d1 - 0.6, y, top - 2]], n, L.glass, 1);
+    m.bar([d0 + 1, s * (half + 0.15), top - 5.2], [d0 + 2, s * (half + 0.15), top - 5.2], 0.25, 0.25, shade(L.steel, 0.6));
+    for (const z of [2.6, 4.4]) m.box(d0 + 0.6, d0 + 3.6, s * (half - 0.6), s * (half + 0.5), z, z + 0.3, shade(L.steel, 0.65));
+    m.bar([d0 + 0.6, s * (half + 0.3), 2.6], [d0 + 0.6, s * (half + 0.3), 5.5], 0.2, 0.2, shade(L.steel, 0.65));
+    // Mirror on a bent arm.
+    m.bar([x1 - 1.2, s * half, top - 2], [x1 - 0.6, s * (half + 1.4), top - 1.4], 0.15, 0.15, L.dark);
+    m.cbox(x1 - 1, x1 - 0.4, s * (half + 1) - 0.4, s * (half + 1) + 0.4, top - 2.8, top - 0.8, 0.15, L.dark);
+    m.decal([[x1 - 0.38, s * (half + 1) - 0.3, top - 2.6], [x1 - 0.38, s * (half + 1) + 0.3, top - 2.6], [x1 - 0.38, s * (half + 1) + 0.3, top - 1], [x1 - 0.38, s * (half + 1) - 0.3, top - 1]], [1, 0, 0], shade(L.glass, 1.5), 0);
+  }
+  // Grille slats with a brush guard, headlight pods, blackout lights, bumper with tow hooks.
+  for (let i = -3; i <= 3; i++) m.box(x1, x1 + 0.2, i * 1.1 - 0.3, i * 1.1 + 0.3, 6.8, hood - 0.6, shade(L.body, 0.5));
+  for (const z of [7, hood - 0.8]) m.cyl([x1 + 0.7, -4.2, z], [x1 + 0.7, 4.2, z], 0.16, shade(L.steel, 0.7), 6);
+  for (const y of [-4.2, -1.4, 1.4, 4.2]) m.bar([x1 + 0.7, y, 6.2], [x1 + 0.7, y, hood - 0.4], 0.16, 0.16, shade(L.steel, 0.7));
+  for (const s of [-1, 1]) {
+    m.cbox(x1 - 0.2, x1 + 0.6, s * (half - 1.6) - 1, s * (half - 1.6) + 1, 6.2, 8.2, 0.3, shade(L.body, 0.75));
+    m.cyl([x1 + 0.6, s * (half - 1.6), 7.2], [x1 + 0.8, s * (half - 1.6), 7.2], 0.75, '#eee8c8', 12, '#fffbe0');
+    m.cyl([x1 + 0.6, s * (half - 0.4), 8.8], [x1 + 0.8, s * (half - 0.4), 8.8], 0.3, '#d8902a', 8);
+    m.bar([x1 + 1.4, s * 4.2, 4.2], [x1 + 2.1, s * 4.2, 4.2], 0.5, 0.9, shade(L.steel, 0.55));
   }
   m.cbox(x1 - 0.4, x1 + 1.4, -half, half, 3.2, 5.8, 0.3, shade(L.body, 0.8));
-  m.cbox(x0 + 1, x1 - 2, -half + 1, half - 1, top, top + 0.8, 0.3, shade(L.body, 1.06));
+  m.decal([[x1 + 1.42, -2, 4], [x1 + 1.42, 2, 4], [x1 + 1.42, 2, 5], [x1 + 1.42, -2, 5]], [1, 0, 0], '#d9d6c8', 1);
+  // Roof: raised panel, round crew hatch, amber beacon, whip mount; snorkel up the right A-pillar.
+  m.cbox(x0 + 1, x1 - rake - 1, -half + 1, half - 1, top, top + 0.6, 0.3, shade(L.body, 1.06));
+  m.cyl([x0 + 3.2, 2.4, top + 0.6], [x0 + 3.2, 2.4, top + 1], 1.5, shade(L.body, 1.12), 14);
+  m.cyl([x0 + 3.2, 2.4, top + 1], [x0 + 3.2, 2.4, top + 1.15], 0.9, shade(L.body, 0.9), 10);
+  m.cyl([x1 - rake - 1.6, -half + 1.8, top + 0.6], [x1 - rake - 1.6, -half + 1.8, top + 1.4], 0.45, '#e09a22', 8, '#f4c24a');
+  m.cyl([x1 - 1.4, half + 0.5, 6], [x1 - 1.4, half + 0.5, top + 1.5], 0.55, shade(L.body, 0.8), 10);
+  m.cyl([x1 - 1.4, half + 0.5, top + 1.5], [x1 - 0.6, half + 0.5, top + 2], 0.65, shade(L.dark, 1.2), 10);
 }
 
-/** Chassis rails from x0 to x1 and road wheels on each axle in `axles`. */
+/** Chassis rails from x0 to x1, road wheels with mudguards on each axle in `axles`, axle beams and differentials. */
 function running(m: Mesh, L: Look, x0: number, x1: number, axles: readonly number[], r = 3.2): void {
   for (const y of [-3.4, 3.4]) m.bar([x0, y, 4.6], [x1, y, 4.6], 1.2, 1.8, L.dark);
+  // Cross members.
+  for (let x = x0 + 2; x < x1 - 1; x += 6) m.bar([x, -3.4, 4.6], [x, 3.4, 4.6], 0.6, 1.2, shade(L.dark, 0.85));
   for (const x of axles) {
     for (const s of [-1, 1]) wheel(m, L, x, s * 7.6, r);
     m.bar([x, -6.6, r], [x, 6.6, r], 1.2, 1.2, L.dark);
+    m.cyl([x - 1, 0, r], [x + 1, 0, r], 1.2, shade(L.dark, 1.15), 10);
+    // Leaf spring pack above the axle.
+    for (const s of [-1, 1]) m.bar([x - 2.2, s * 4.6, r + 1.2], [x + 2.2, s * 4.6, r + 1.2], 0.9, 0.5, shade(L.steel, 0.55), 0.15);
+    fender(m, L, x, 7.6, r);
   }
 }
 
-/** Patriot: HEMTT tractor towing the M903 launching station (outriggers down, generator at the front of the trailer). */
-function patriot(m: Mesh, L: Look): void {
-  running(m, L, 6, 24, [20, 14, 9.5]);
-  cab(m, L, 15, 24, 7.6, 14.5);
-  m.cbox(6, 15, -7.4, 7.4, 6, 8.4, 0.3, shade(L.body, 0.85));
-  m.cyl([9.5, 0, 8.4], [9.5, 0, 9.2], 3, shade(L.steel, 0.7), 14);
-  // Semi-trailer: gooseneck over the fifth wheel, long deck, two rear axles, outriggers.
-  m.cbox(5, 12, -6.5, 6.5, 9.2, 11, 0.3, shade(L.body, 0.95));
-  m.cbox(-26, 6, -7.6, 7.6, 6.6, 8.4, 0.3, L.body);
-  running(m, L, -26, 5, [-17, -21.5]);
-  for (const x of [-25, 4]) for (const s of [-1, 1]) m.bar([x, s * 8, 7.6], [x, s * 10.5, 1], 0.9, 0.9, L.steel);
-  // Generator / electronics module at the front of the trailer.
-  m.cbox(-1, 5, -7, 7, 8.4, 14.2, 0.4, shade(L.body, 0.92));
-  for (let i = 0; i < 4; i++) m.box(-0.5 + i * 1.3, 0.1 + i * 1.3, -7.05, 7.05, 10, 13, shade(L.body, 0.66));
-  m.cyl([2, -5, 14.2], [2, -5, 27], 0.08, '#222', 4);
+/** Side kit between the axles at x0–x1 on one side s: strapped fuel tank, battery / tool lockers, step. */
+function sideKit(m: Mesh, L: Look, x0: number, x1: number, s: number, half: number): void {
+  const len = x1 - x0;
+  if (s > 0) {
+    m.cyl([x0, s * (half - 1.4), 4.2], [x0 + len * 0.6, s * (half - 1.4), 4.2], 1.4, shade(L.body, 0.85), 14, shade(L.body, 0.7));
+    for (const t of [0.15, 0.45]) m.cyl([x0 + len * t, s * (half - 1.4), 4.2], [x0 + len * t + 0.3, s * (half - 1.4), 4.2], 1.48, shade(L.steel, 0.55), 14);
+    m.cyl([x0 + len * 0.5, s * (half - 1.4), 5.6], [x0 + len * 0.5, s * (half - 1.4), 6], 0.4, shade(L.steel, 0.9), 8);
+    m.cbox(x0 + len * 0.66, x1, s * (half - 2.6), s * (half - 0.2), 2.6, 5.6, 0.25, shade(L.body, 0.8));
+  } else {
+    m.cbox(x0, x0 + len * 0.45, s * (half - 0.2), s * (half - 2.6), 2.6, 5.6, 0.25, shade(L.body, 0.8));
+    m.cbox(x0 + len * 0.5, x1, s * (half - 0.2), s * (half - 2.6), 2.8, 5.6, 0.25, shade(L.dark, 1.15));
+    for (const x of [x0 + len * 0.6, x0 + len * 0.85]) m.bar([x, s * (half - 0.15), 4.6], [x + 0.8, s * (half - 0.15), 4.6], 0.2, 0.25, shade(L.steel, 0.6));
+  }
+  for (const x of [x0 + 0.6, x1 - 0.6]) m.bar([x, s * (half - 0.3), 2.8], [x, s * (half - 0.3), 5.6], 0.3, 0.3, shade(L.steel, 0.6));
 }
 
-/** Patriot launcher (pivot PATRIOT_PIVOT): four big square canisters raised 38° on their cradle. */
+/** Equipment shelter x0–x1 (front), half-width `half`, z0–z1: louvred sides, door seams and handles, roof air conditioner, grab rails. */
+function shelter(m: Mesh, L: Look, x0: number, x1: number, half: number, z0: number, z1: number): void {
+  m.cbox(x0, x1, -half, half, z0, z1, 0.4, shade(L.body, 0.92));
+  const h = z1 - z0;
+  for (const s of [-1, 1]) {
+    const y = s * (half + 0.02);
+    const n: V3 = [0, s, 0];
+    for (let i = 0; i < 5; i++) {
+      const z = z0 + h * 0.55 + i * 0.6;
+      m.bar([x0 + 0.8, s * (half + 0.08), z], [x0 + (x1 - x0) * 0.42, s * (half + 0.08), z], 0.16, 0.26, shade(L.body, 0.62));
+    }
+    const dx = x0 + (x1 - x0) * 0.5;
+    m.decal([[dx, y, z0 + 0.6], [dx + 0.12, y, z0 + 0.6], [dx + 0.12, y, z1 - 0.6], [dx, y, z1 - 0.6]], n, shade(L.body, 0.55), 0);
+    m.decal([[x1 - 0.7, y, z0 + 0.6], [x1 - 0.58, y, z0 + 0.6], [x1 - 0.58, y, z1 - 0.6], [x1 - 0.7, y, z1 - 0.6]], n, shade(L.body, 0.55), 0);
+    m.decal([[dx, y, z1 - 0.6], [x1 - 0.58, y, z1 - 0.6], [x1 - 0.58, y, z1 - 0.72], [dx, y, z1 - 0.72]], n, shade(L.body, 0.55), 0);
+    m.bar([dx + 0.8, s * (half + 0.15), z0 + h * 0.5], [dx + 0.8, s * (half + 0.15), z0 + h * 0.5 + 1.2], 0.22, 0.22, shade(L.steel, 0.6));
+    for (const z of [z0 + 1.2, z1 - 1.4]) m.box(x1 - 0.8, x1 - 0.3, s * half, s * (half + 0.2), z, z + 0.6, shade(L.steel, 0.6));
+    // Grab rail along the roof edge.
+    m.bar([x0 + 0.6, s * (half - 0.5), z1 + 0.6], [x1 - 0.6, s * (half - 0.5), z1 + 0.6], 0.15, 0.15, shade(L.steel, 0.8));
+    for (const x of [x0 + 0.6, x1 - 0.6]) m.bar([x, s * (half - 0.5), z1], [x, s * (half - 0.5), z1 + 0.6], 0.15, 0.15, shade(L.steel, 0.8));
+  }
+  // Roof air conditioner with fan grille.
+  const cx = (x0 + x1) / 2;
+  m.cbox(cx - 2, cx + 2, -2.6, 2.6, z1, z1 + 1.4, 0.3, shade(L.body, 0.85));
+  m.cyl([cx, 0, z1 + 1.4], [cx, 0, z1 + 1.55], 1.6, shade(L.dark, 1.1), 14);
+  for (const a of [0, Math.PI / 3, (2 * Math.PI) / 3]) m.bar([cx - Math.cos(a) * 1.5, -Math.sin(a) * 1.5, z1 + 1.6], [cx + Math.cos(a) * 1.5, Math.sin(a) * 1.5, z1 + 1.6], 0.12, 0.08, shade(L.steel, 0.7));
+}
+
+/** Stabiliser jack at x on side s: box beam out of the deck at height z, vertical ram, round foot pad, hazard stripes. */
+function jack(m: Mesh, L: Look, x: number, s: number, z: number, half: number): void {
+  const out = half + 2.6;
+  m.bar([x, s * (half - 0.5), z], [x, s * out, z], 1.1, 1.1, L.steel, 0.15);
+  for (let i = 0; i < 3; i++) {
+    const y0 = half + 0.4 + i * 0.75;
+    m.decal([[x - 0.56, s * y0, z + 0.57], [x + 0.56, s * y0, z + 0.57], [x + 0.56, s * (y0 + 0.35), z + 0.57], [x - 0.56, s * (y0 + 0.35), z + 0.57]], [0, 0, 1], '#c9a227', 1);
+  }
+  m.cbox(x - 0.8, x + 0.8, s * out - 0.8, s * out + 0.8, z - 0.6, z + 1.4, 0.2, shade(L.steel, 0.85));
+  ram(m, L, [x, s * out, z - 0.6], [x, s * out, 0.6], 0.5);
+  m.cyl([x, s * out, 0], [x, s * out, 0.5], 1.2, shade(L.steel, 0.55), 12);
+}
+
+/** Launcher deck x0–x1, half-width `half`, z0–z1: tread-plate top, rivet line, tie-down rings, rear lights and a step ladder. */
+function deck(m: Mesh, L: Look, x0: number, x1: number, half: number, z0: number, z1: number): void {
+  m.cbox(x0, x1, -half, half, z0, z1, 0.2, shade(L.body, 0.88));
+  for (let x = x0 + 1; x < x1 - 0.5; x += 1.8) {
+    for (const s of [-1, 1]) m.cyl([x, s * half, (z0 + z1) / 2], [x, s * (half + 0.12), (z0 + z1) / 2], 0.13, shade(L.steel, 1.1), 6);
+  }
+  for (let x = x0 + 1.5; x < x1 - 1; x += 2.4) m.decal([[x, -half + 0.6, z1 + 0.01], [x + 0.25, -half + 0.6, z1 + 0.01], [x + 0.25, half - 0.6, z1 + 0.01], [x, half - 0.6, z1 + 0.01]], [0, 0, 1], shade(L.body, 0.72), 0);
+  for (const x of [x0 + 3, x1 - 3]) for (const s of [-1, 1]) m.cyl([x, s * (half + 0.1), z1 - 0.4], [x, s * (half + 0.45), z1 - 0.4], 0.3, shade(L.steel, 0.6), 8);
+  for (const s of [-1, 1]) {
+    m.cbox(x0 - 0.3, x0 + 0.2, s * (half - 2.4), s * (half - 0.6), z0 - 0.4, z0 + 0.8, 0.1, shade(L.dark, 1.1));
+    m.box(x0 - 0.35, x0 - 0.3, s * (half - 2.2), s * (half - 1.5), z0 - 0.2, z0 + 0.6, '#b0221c');
+    m.box(x0 - 0.35, x0 - 0.3, s * (half - 1.4), s * (half - 0.8), z0 - 0.2, z0 + 0.6, '#d8902a');
+  }
+  for (const s of [-1, 1]) m.bar([x0 - 0.4, s * 1.4, 1.2], [x0 - 0.4, s * 1.4, z0], 0.2, 0.3, shade(L.steel, 1.05));
+  for (let z = 2; z < z0; z += 1.4) m.bar([x0 - 0.4, -1.4, z], [x0 - 0.4, 1.4, z], 0.18, 0.18, shade(L.steel, 1.05));
+}
+
+/** Vertical exhaust stack at (x, y) from z0 to z1 with perforated heat shield and a rain cap. */
+function exhaust(m: Mesh, L: Look, x: number, y: number, z0: number, z1: number): void {
+  m.cyl([x, y, z0], [x, y, z1], 0.45, shade(L.steel, 0.5), 10);
+  m.cyl([x, y, z0 + (z1 - z0) * 0.3], [x, y, z0 + (z1 - z0) * 0.75], 0.7, shade(L.steel, 0.8), 10);
+  m.bar([x, y, z1], [x + 0.6, y, z1 + 0.5], 0.9, 0.12, '#1e1c1a');
+}
+
+/** Irregular camouflage blotch centred (x, z) on the side face y = ±`y` (both sides), w × h. */
+function blot(m: Mesh, x: number, y: number, z: number, w: number, h: number, color: string, seed: number): void {
+  const n = 7;
+  const poly: P2[] = Array.from({ length: n }, (_, i) => {
+    const a = (i / n) * Math.PI * 2;
+    const k = 0.7 + 0.3 * Math.abs(Math.sin(seed * 3.1 + i * 1.7));
+    return [Math.cos(a) * (w / 2) * k, Math.sin(a) * (h / 2) * k];
+  });
+  for (const s of [-1, 1]) m.decal(poly.map(([u, v]) => [x + u * s, s * y, z + v] as V3), [0, s, 0], color, 0);
+}
+
+/** Irregular camouflage blotch on the top face z = `z`, centred (x, y), w × h. */
+function blotTop(m: Mesh, x: number, y: number, z: number, w: number, h: number, color: string, seed: number): void {
+  const n = 7;
+  const pts: V3[] = Array.from({ length: n }, (_, i) => {
+    const a = (i / n) * Math.PI * 2;
+    const k = 0.7 + 0.3 * Math.abs(Math.sin(seed * 2.3 + i * 1.9));
+    return [x + Math.cos(a) * (w / 2) * k, y + Math.sin(a) * (h / 2) * k, z];
+  });
+  m.decal(pts, [0, 0, 1], color, 0);
+}
+
+/** Mud splashed on a wheel's outer face and the chassis just above it. */
+function mud(m: Mesh, x: number, half: number, r: number): void {
+  for (const s of [-1, 1]) {
+    m.decal(disc(r * 0.95, 12).filter(([, v]) => v < r * 0.2).map(([u, v]) => [x + u, s * (half + 1.02), r + v] as V3), [0, s, 0], '#5a4b37', 1);
+  }
+}
+
+/** Patriot: 8 × 8 HEMTT tractor towing the M903 launching station on its semi-trailer (outriggers down, generator at the front). */
+function patriot(m: Mesh, L: Look): void {
+  const [brown, black] = L.camo ?? [L.dark, L.dark];
+  const axles = [21.4, 15.6, 10.4, 4.6];
+  running(m, L, 2, 24, axles, 2.9);
+  for (const x of axles) mud(m, x, 7.6, 2.9);
+  cab(m, L, 15, 24, 7.6, 14.5);
+  m.cbox(3, 15, -7.4, 7.4, 6, 8.4, 0.3, shade(L.body, 0.85));
+  // Fifth wheel, fuel tank and air tanks on the frame, exhaust stack and grab handles behind the cab.
+  m.cyl([7.5, 0, 8.4], [7.5, 0, 9.2], 3, shade(L.steel, 0.7), 14);
+  for (const s of [-1, 1]) m.cyl([13.6, s * 6.4, 6.6], [7.8, s * 6.4, 6.6], 1.3, shade(L.body, 0.8), 10);
+  m.cyl([14.6, -6.2, 8.4], [14.6, -6.2, 17.5], 0.45, shade(L.steel, 0.55), 8);
+  for (const s of [-1, 1]) m.bar([15.1, s * 6.4, 9], [15.1, s * 6.4, 13.5], 0.25, 0.25, L.steel);
+  // Semi-trailer: gooseneck over the fifth wheel, long deck, two rear axles, outriggers with jack pads.
+  m.cbox(3, 11, -6.5, 6.5, 9.2, 11, 0.3, shade(L.body, 0.95));
+  m.cbox(-26, 4, -7.6, 7.6, 6.6, 8.4, 0.3, L.body);
+  running(m, L, -26, 3, [-17, -21.5]);
+  for (const x of [-17, -21.5]) mud(m, x, 7.6, 3.2);
+  for (const x of [-25, 2]) {
+    for (const s of [-1, 1]) {
+      m.bar([x, s * 8, 7.6], [x, s * 10.5, 1], 0.9, 0.9, L.steel);
+      ram(m, L, [x, s * 10.5, 4.2], [x, s * 10.5, 0.6], 0.45);
+      m.box(x - 1, x + 1, s * 9.5, s * 11.5, 0, 0.4, shade(L.steel, 0.6));
+    }
+  }
+  // Rivet / bolt line along the deck sides and the panel seams.
+  for (let x = -25; x <= 3; x += 2) for (const s of [-1, 1]) m.cyl([x, s * 7.6, 7.5], [x, s * 7.75, 7.5], 0.14, shade(L.steel, 1.1), 6);
+  // Generator / electronics module at the front of the trailer: louvres, doors, cable reels.
+  m.cbox(-3, 3, -7, 7, 8.4, 14.2, 0.4, shade(L.body, 0.92));
+  for (let i = 0; i < 4; i++) m.box(-2.5 + i * 1.3, -1.9 + i * 1.3, -7.05, 7.05, 10, 13, shade(L.body, 0.66));
+  for (const s of [-1, 1]) m.cyl([-3.6, s * 4.5, 9.4], [-3.6, s * 3, 9.4], 1.3, shade(L.dark, 1.2), 12);
+  m.cyl([0, -5, 14.2], [0, -5, 27], 0.08, '#222', 4);
+  // Cables and hoses from the generator to the launcher base.
+  for (const [s, z] of [[-1, 9.2], [1, 9.6]] as const) {
+    m.cyl([-3, s * 5.8, z], [-5.5, s * 5.2, 8.7], 0.25, '#151513', 6);
+    m.cyl([-5.5, s * 5.2, 8.7], [-6, s * 3.6, 9], 0.25, '#151513', 6);
+  }
+  // Steel ladder at the rear of the trailer.
+  for (const s of [-1, 1]) m.bar([-26.4, s * 1.6, 1], [-26.4, s * 1.6, 8.4], 0.2, 0.3, shade(L.steel, 1.05));
+  for (let z = 2; z < 8.4; z += 1.5) m.bar([-26.4, -1.6, z], [-26.4, 1.6, z], 0.18, 0.18, shade(L.steel, 1.05));
+  // Camouflage on the cab, generator module and trailer deck (clear of the cab-door marking).
+  blot(m, 22, 7.62, 12.6, 3.6, 2.2, brown, 1);
+  blot(m, 16.2, 7.62, 7.6, 2.4, 3, black, 2);
+  blot(m, 9, 7.42, 7.2, 4, 1.6, black, 3);
+  blot(m, -1.2, 7.02, 12.4, 3.4, 2.6, brown, 4);
+  blot(m, 1.6, 7.02, 9.6, 2.2, 1.8, black, 5);
+  for (const [x, c, k] of [[-22, brown, 6], [-14, black, 7], [-8, brown, 8]] as const) blot(m, x, 7.62, 7.5, 4.2, 1.6, c, k);
+  blotTop(m, 19, -2.5, 15.32, 4, 3, brown, 9);
+  blotTop(m, 0, 2.4, 14.22, 3.4, 4, black, 10);
+  blotTop(m, -18, -3, 8.42, 6, 4, brown, 11);
+  blotTop(m, -10, 3.5, 8.42, 4, 3, black, 12);
+  // Yellow warning stencils on the outriggers' deck edge and white data stencil on the generator.
+  for (const s of [-1, 1]) {
+    for (const x of [-25, 2]) m.decal([[x - 1, s * 7.62, 6.9], [x + 1, s * 7.62, 6.9], [x + 1, s * 7.62, 7.4], [x - 1, s * 7.62, 7.4]], [0, s, 0], '#c9a227', 1);
+    m.decal([[-2.4, s * 7.02, 13.3], [2.4, s * 7.02, 13.3], [2.4, s * 7.02, 13.7], [-2.4, s * 7.02, 13.7]], [0, s, 0], '#d9d6c8', 1);
+  }
+}
+
+/** Patriot launcher (pivot PATRIOT_PIVOT): 2 × 2 block of big square canisters raised 38° on their cradle, twin rams. */
 function patriotLauncher(m: Mesh, L: Look): void {
   const c = PATRIOT_PIVOT;
+  const [brown, black] = L.camo ?? [L.dark, L.dark];
   m.cyl([c, 0, 8.4], [c, 0, 9.4], 4.6, shade(L.steel, 0.8), 18);
   m.cbox(c - 3, c + 3, -4, 4, 9.4, 11, 0.3, shade(L.body, 0.9));
-  ram(m, L, [c - 4, 0, 10], [c - 10, 0, 15.6], 1.1);
-  pack(m, L, [c + 2, 0, 11], 0.66, 22, 4.6, 2, false);
+  for (const s of [-1, 1]) ram(m, L, [c - 4, s * 2.6, 10], [c - 10, s * 2.6, 15.6], 1);
+  const elev = (38 * Math.PI) / 180;
+  pack(m, L, [c + 2, 0, 11], elev, 22, 4.6, 2, false);
+  // Camouflage bands across the canister block (brown and black) and the hydraulic lines along its sides.
+  const dir: V3 = [-Math.cos(elev), 0, Math.sin(elev)];
+  const up: V3 = [Math.sin(elev), 0, Math.cos(elev)];
+  const at = (t: number, y: number, k: number): V3 => [c + 2 + dir[0] * t + up[0] * k, y, 11 + dir[2] * t + up[2] * k];
+  const gap = 4.6 + 0.35;
+  for (const [t0, t1, col] of [[3, 6.5, brown], [13, 15, black], [17.5, 20.5, brown]] as const) {
+    for (let row = 0; row < 2; row++) {
+      for (const y of [-gap / 2, gap / 2]) m.prism(at(t0, y, 2.3 + row * gap), at(t1, y, 2.3 + row * gap), chamfer(4.68, 4.68, 0.55), col);
+    }
+  }
+  for (const s of [-1, 1]) m.cyl(at(0, s * (gap + 0.5), 1), at(18, s * (gap + 0.5), 1), 0.18, '#151513', 6);
 }
 
 /** SAMP/T NG: 8 × 8 truck, crew cab, equipment box, launcher deck with stabiliser jacks. */
 function sampt(m: Mesh, L: Look): void {
   running(m, L, -24, 22, [17, 11.5, -10, -16]);
   cab(m, L, 13, 22);
-  m.cbox(5, 12.5, -7.4, 7.4, 6, 15.5, 0.4, shade(L.body, 0.92));
-  for (let i = 0; i < 4; i++) m.box(5.5 + i * 1.6, 6.2 + i * 1.6, -7.45, 7.45, 9, 13, shade(L.body, 0.66));
-  m.cbox(-25, 5, -7.8, 7.8, 5.6, 7.4, 0.2, shade(L.body, 0.88));
-  for (const x of [-24, 3]) for (const s of [-1, 1]) m.bar([x, s * 8.2, 6.4], [x, s * 9.6, 1], 0.9, 0.9, L.steel);
-  m.cyl([9, 5.5, 15.5], [9, 5.5, 27], 0.08, '#222', 4);
+  shelter(m, L, 5, 12.5, 7.4, 6, 15.5);
+  deck(m, L, -25, 5, 7.8, 5.6, 7.4);
+  for (const s of [-1, 1]) sideKit(m, L, -7, 8.2, s, 7.8);
+  for (const x of [-24, 3]) for (const s of [-1, 1]) jack(m, L, x, s, 6.4, 7.8);
+  exhaust(m, L, 12.8, -6.4, 7, 18);
+  // Spare wheel standing behind the shelter, cable reels and the comms mast.
+  m.cyl([4.2, -3, 10.6], [3.2, -3, 10.6], 3, L.rubber, 16, shade(L.rubber, 1.3));
+  m.cyl([4.25, -3, 10.6], [4.35, -3, 10.6], 1.8, L.steel, 12);
+  for (const y of [2, 5]) m.cyl([4.2, y, 9.2], [2.8, y, 9.2], 1.3, shade(L.dark, 1.2), 12, shade(L.steel, 0.7));
+  m.cyl([9, 5.5, 17], [9, 5.5, 18.4], 0.35, L.steel, 8);
+  m.cyl([9, 5.5, 18.4], [9, 5.5, 29], 0.08, '#222', 4);
 }
 
 /** SAMP/T NG launcher (pivot SAMPT_PIVOT): eight round canisters in two rows, erected near-vertical at the rear. */
@@ -239,13 +528,27 @@ function s400(m: Mesh, L: Look): void {
   running(m, L, 8, 26, [22, 15, 10.5]);
   cab(m, L, 17, 26, 7.6, 15);
   m.cbox(8, 17, -7.4, 7.4, 6, 8.6, 0.3, shade(L.body, 0.85));
-  m.cbox(11, 16.5, -7.2, 7.2, 8.6, 13, 0.3, shade(L.body, 0.92));
+  shelter(m, L, 11, 16.5, 7.2, 8.6, 13);
   m.cyl([10, 0, 8.6], [10, 0, 9.4], 3, shade(L.steel, 0.7), 14);
-  m.cbox(-27, 9, -7.6, 7.6, 6.6, 8.4, 0.3, L.body);
+  exhaust(m, L, 16.8, -6.2, 8.6, 17.5);
+  // Semi-trailer: gooseneck over the fifth wheel, deck, three rear axles, jacks, landing legs, ladder.
+  deck(m, L, -27, 9, 7.6, 6.6, 8.4);
   m.cbox(4, 10, -6.4, 6.4, 8.4, 10.4, 0.3, shade(L.body, 0.95));
+  for (const s of [-1, 1]) m.bar([3, s * 6, 8.4], [9.5, s * 6, 10.2], 0.4, 0.6, shade(L.body, 0.8));
   running(m, L, -27, 4, [-14, -18.5, -23]);
-  for (const x of [-26, 6]) for (const s of [-1, 1]) m.bar([x, s * 8, 7.6], [x, s * 10.5, 1], 0.9, 0.9, L.steel);
-  m.cyl([14, 5.5, 13], [14, 5.5, 26], 0.08, '#222', 4);
+  for (const s of [-1, 1]) sideKit(m, L, -10.5, 3.5, s, 7.6);
+  for (const x of [-26, 6]) for (const s of [-1, 1]) jack(m, L, x, s, 7.6, 7.6);
+  for (const s of [-1, 1]) {
+    m.bar([1.5, s * 5, 6.6], [1.5, s * 5, 1], 0.6, 0.6, shade(L.steel, 0.75));
+    m.box(0.8, 2.2, s * 5 - 0.7, s * 5 + 0.7, 0.6, 1, shade(L.steel, 0.55));
+  }
+  // Hoses from the tractor to the trailer.
+  for (const [y, c] of [[-1.2, '#151513'], [1.2, '#7a2a1c']] as const) {
+    m.cyl([11, y, 9], [9.6, y, 10.6], 0.2, c, 6);
+    m.cyl([9.6, y, 10.6], [8.8, y, 9.8], 0.2, c, 6);
+  }
+  m.cyl([14, 5.5, 13.6], [14, 5.5, 14.8], 0.35, L.steel, 8);
+  m.cyl([14, 5.5, 14.8], [14, 5.5, 27], 0.08, '#222', 4);
 }
 
 /** S-400 launcher (pivot S400_PIVOT): four long round tubes erected near-vertical, the erector arm and its ram. */
@@ -260,11 +563,18 @@ function s400Launcher(m: Mesh, L: Look): void {
 function hq9(m: Mesh, L: Look): void {
   running(m, L, -24, 22, [17.5, 12, -9.5, -15.5]);
   cab(m, L, 12, 22, 7.8, 16);
-  m.cbox(4, 11.5, -7.4, 7.4, 6, 13.5, 0.4, shade(L.body, 0.9));
-  m.cyl([7.5, -4.5, 13.5], [7.5, -4.5, 15.5], 1, shade(L.dark, 1.3), 10);
-  m.cbox(-25, 4, -7.8, 7.8, 5.6, 7.4, 0.2, shade(L.body, 0.88));
-  for (const x of [-24, 2]) for (const s of [-1, 1]) m.bar([x, s * 8.2, 6.4], [x, s * 9.6, 1], 0.9, 0.9, L.steel);
-  m.cyl([10, 5.5, 16], [10, 5.5, 28], 0.08, '#222', 4);
+  shelter(m, L, 4, 11.5, 7.4, 6, 13.5);
+  m.cyl([7.5, -4.5, 15], [7.5, -4.5, 16.4], 1, shade(L.dark, 1.3), 10);
+  deck(m, L, -25, 4, 7.8, 5.6, 7.4);
+  for (const s of [-1, 1]) sideKit(m, L, -6.5, 8.8, s, 7.8);
+  for (const x of [-24, 2]) for (const s of [-1, 1]) jack(m, L, x, s, 6.4, 7.8);
+  exhaust(m, L, 11.8, 6.4, 7, 18.5);
+  // Generator set on the front of the deck: radiator grille and fuel filler.
+  m.cbox(-1.5, 3.6, -6.4, -1.6, 7.4, 11, 0.3, shade(L.body, 0.95));
+  for (let i = 0; i < 4; i++) m.box(-1.2 + i * 1.1, -0.7 + i * 1.1, -6.45, -6.35, 8, 10.4, shade(L.body, 0.6));
+  m.cyl([1, -3, 11], [1, -3, 11.5], 0.4, shade(L.steel, 0.9), 8);
+  m.cyl([10, 5.5, 17.5], [10, 5.5, 18.8], 0.35, L.steel, 8);
+  m.cyl([10, 5.5, 18.8], [10, 5.5, 30], 0.08, '#222', 4);
 }
 
 /** HQ-9 launcher (pivot HQ9_PIVOT): four long tubes erected vertical with their erector ram. */
@@ -346,7 +656,7 @@ export type SamCell = { kind: 'drive' | 'shadow' | 'launcher' | 'launcherShadow'
 /** The burnt-out wreck: every colour charred dark. */
 function charred(L: Look): Look {
   const c = (x: string): string => shade(x, 0.42);
-  return { ...L, body: c(L.body), dark: c(L.dark), steel: c(L.steel), rubber: c(L.rubber), glass: c(L.glass), canister: c(L.canister), stripe: c(L.stripe) };
+  return { ...L, body: c(L.body), dark: c(L.dark), steel: c(L.steel), rubber: c(L.rubber), glass: c(L.glass), canister: c(L.canister), stripe: c(L.stripe), camo: L.camo && [c(L.camo[0]), c(L.camo[1])] };
 }
 
 const cells = new Map<string, HTMLCanvasElement>();

@@ -1,6 +1,6 @@
 import { squadFilter } from './Squad';
 import { bridgeAnchor } from '../entities/Bridge';
-import { AI_AIR_DEFENCE, FOOTPRINT_BRIDGE, AI_AIR_DEFENCE_PER_CITIES, AI_AIR_DEFENCE_RING, AI_BUNKERS, AI_WALL_ALERT_SECONDS, AI_WALL_ENEMY_UNITS, AI_WALL_GAP, AI_WALL_WATCH_CELLS, AI_WALL_RING, AI_WALL_SEGMENT, BUNKER_RANGE, CELL_SIZE, INFANTRY_BASE, INFANTRY_MARCH_CELLS, EMBASSY_CAPITAL_CELLS, MAX_ALLIES, NATION_GARRISON, NATION_GARRISON_CELLS, NEUTRAL_OWNER, OIL_DERRICK_OUTPUT, OIL_LEASE_CARTEL_SHARE, OIL_LEASE_SECONDS, TECH_VEHICLES, TRUCE_ZONE_CELLS, TRUCK_MIN_RIDERS, TRUCK_SOLDIERS, NATION_PRESENCE_FEE, presenceFee } from '../constants';
+import { AI_AIR_DEFENCE, FOOTPRINT_BRIDGE, AI_AIR_DEFENCE_PER_CITIES, AI_AIR_DEFENCE_RING, AI_BUNKERS, AI_WALL_ALERT_SECONDS, AI_WALL_ENEMY_UNITS, AI_WALL_GAP, AI_WALL_WATCH_CELLS, AI_WALL_RING, AI_WALL_SEGMENT, BUNKER_RANGE, CELL_SIZE, INFANTRY_BASE, INFANTRY_MARCH_CELLS, EMBASSY_CAPITAL_CELLS, MAX_ALLIES, NATION_GARRISON, NATION_GARRISON_CELLS, NEUTRAL_OWNER, OIL_DERRICK_OUTPUT, OIL_LEASE_CARTEL_SHARE, OIL_LEASE_SECONDS, TECH_VEHICLES, TRUCE_ZONE_CELLS, TRUCK_MIN_RIDERS, TRUCK_SOLDIERS, NATION_PRESENCE_FEE, presenceFee, FOOTPRINT_PORT, AI_FLEET } from '../constants';
 import { FACTIONS } from '../factions';
 import { StructureIndex } from './StructureIndex';
 import { OilDerrick } from '../entities/OilDerrick';
@@ -21,7 +21,7 @@ import type { BuildingType, GridPoint, PlayerState, UnitTier, VehicleKind, World
 import { foreignBuildAllowed } from './Foreign';
 import { BUILD_OPTIONS, type BuildOption, type ConstructionSystem, buildCost, footprintOf, missingRequirement } from './ConstructionSystem';
 import type { GameSystem } from './GameSystem';
-import { type PlacementSystem, buildRadius, isClaimable } from './PlacementSystem';
+import { type PlacementSystem, buildRadius, isClaimable, isCoastal } from './PlacementSystem';
 import type { SafeZone, SafeZoneSystem } from './SafeZoneSystem';
 import type { TrainingSystem } from './TrainingSystem';
 import type { VehicleSystem } from './VehicleSystem';
@@ -337,6 +337,8 @@ interface AIState {
   claimJob?: Generator<void, GridPoint | null, void>;
   /** Game time an Allied Building site search last came up empty. */
   alliedMissAt?: number;
+  /** Last time no coastal spot for a Naval Port was found (the search is retried after CLAIM_RETRY_SECONDS). */
+  portMissAt?: number;
   /** Truck id → where it carries its soldiers (they would have to rest on the march on foot). */
   convoys: Map<number, WorldPoint>;
   /** Own derrick id -> its health at the last think (a drop means it is under attack). */
@@ -598,6 +600,12 @@ export class AISystem implements GameSystem {
         else this.host.construction.cancel(p, 'gate');
         continue;
       }
+      if (option.id === 'port') {
+        const s = this.findPortSite(p);
+        if (s) this.host.placeReady(p, 'port', s.x, s.y, s.rotated);
+        else this.host.construction.cancel(p, 'port');
+        continue;
+      }
       const forward = this.forwardAnchor(p, option.id);
       const site =
         option.id === 'alliedBuilding' ? this.alliedSiteSearch(p, st, option, capital) : option.id === 'wall' ? this.findWallSite(p, capital) : this.findSite(p, st, forward ?? capital, option);
@@ -623,6 +631,10 @@ export class AISystem implements GameSystem {
     if (!next && owned.has('barracks')) {
       const bunkers = this.host.entities.buildings().filter((b) => b.owner === p.id && b.alive && b.spec.type === 'bunker').length;
       if (bunkers < AI_BUNKERS + Math.floor(this.cities(p) / 3)) next = BUILD_OPTIONS.find((o) => o.id === 'bunker');
+    }
+    // A coastal base: one Naval Port on the shore, where its carriers are launched and repaired (player rule too).
+    if (!next && threat === 0 && owned.has('warFactory') && !owned.has('port') && !busy('port') && this.portSiteSearch(p, st)) {
+      next = BUILD_OPTIONS.find((o) => o.id === 'port');
     }
     // A claim flag stands on new land without its ally yet: raise the Allied Building next to it.
     if (!next && threat === 0 && this.embassyAnchors(p, capital).length > 0 && this.host.alliesOf(p) < MAX_ALLIES) {
@@ -715,7 +727,7 @@ export class AISystem implements GameSystem {
       for (const [dx, dy] of offsets) {
         const x = flag.x + dx;
         const y = flag.y + dy;
-        if (this.host.placement.check({ owner: p.id, x, y, w, d, radius: buildRadius(option.id) }).ok) return { x, y };
+        if (this.host.placement.check({ owner: p.id, x, y, w, d, radius: buildRadius(option.id), coastal: isCoastal(option.id) }).ok) return { x, y };
       }
     }
     return null;
@@ -1119,6 +1131,34 @@ export class AISystem implements GameSystem {
     }
   }
 
+  /** findPortSite, not repeated for CLAIM_RETRY_SECONDS after it found no spot. */
+  private portSiteSearch(p: PlayerState, st: AIState): boolean {
+    if (st.portMissAt !== undefined && this.time - st.portMissAt < CLAIM_RETRY_SECONDS) return false;
+    const ok = this.findPortSite(p) !== null;
+    st.portMissAt = ok ? undefined : this.time;
+    return ok;
+  }
+
+  /** A legal Naval Port plot (either way round) within build range of one of the nation's structures, or null. */
+  private findPortSite(p: PlayerState): (GridPoint & { rotated: boolean }) | null {
+    const r = buildRadius('port');
+    const anchors = this.host.entities.buildings().filter((b) => b.owner === p.id && b.alive && !['bunker', 'wall', 'gate'].includes(b.spec.type));
+    for (const rotated of [false, true]) {
+      const w = rotated ? FOOTPRINT_PORT.d : FOOTPRINT_PORT.w;
+      const d = rotated ? FOOTPRINT_PORT.w : FOOTPRINT_PORT.d;
+      for (const b of anchors) {
+        for (let y = b.y - r - d; y <= b.y + b.d + r; y++) {
+          for (let x = b.x - r - w; x <= b.x + b.w + r; x++) {
+            // Cheap test first: the middle of the mouth must be water.
+            if (!(rotated ? this.host.map.isWater(x + w, y + (d >> 1)) : this.host.map.isWater(x + (w >> 1), y + d))) continue;
+            if (this.host.placement.check({ owner: p.id, x, y, w, d, radius: r, coastal: true }).ok) return { x, y, rotated };
+          }
+        }
+      }
+    }
+    return null;
+  }
+
   /** A legal spot near the capital (preferring close ones, with some randomness). */
   private findSite(p: PlayerState, st: AIState, capital: Building, option: BuildOption): GridPoint | null {
     const home = this.findSiteNear(p, st, capital, option);
@@ -1147,7 +1187,7 @@ export class AISystem implements GameSystem {
       const y = capital.y + dy;
       // The cheap grid test first (one free cell all round, so AI buildings never crowd), the full rule check after.
       if (!this.host.map.isAreaBuildable(x - 1, y - 1, w + 2, d + 2, false, true)) continue;
-      if (!this.host.placement.check({ owner: p.id, x, y, w, d, radius: buildRadius(option.id) }).ok) continue;
+      if (!this.host.placement.check({ owner: p.id, x, y, w, d, radius: buildRadius(option.id), coastal: isCoastal(option.id) }).ok) continue;
       found.push({ x, y });
       if (found.length >= SITE_PICK) break;
     }
@@ -1230,6 +1270,12 @@ export class AISystem implements GameSystem {
         const awacs = (f.vehicles.get('awacs') ?? 0) + q.items.filter((k) => k === 'awacs').length;
         if (able('awacs') && awacs < AI_AWACS && vehicleCount >= AI_AWACS_AFTER) {
           production.enqueue(p, 'awacs');
+          return;
+        }
+        // A coastal nation with a Naval Port keeps its own fleet of AI_FLEET carriers (they sail with every attack).
+        const fleet = (f.vehicles.get('carrier') ?? 0) + q.items.filter((k) => k === 'carrier').length;
+        if (able('carrier') && fleet < AI_FLEET && vehicleCount >= AI_AWACS_AFTER) {
+          production.enqueue(p, 'carrier');
           return;
         }
         // Pick the kind furthest below its wanted share of the fleet.

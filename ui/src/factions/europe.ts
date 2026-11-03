@@ -40,7 +40,7 @@ export const EUROPE: FactionConfig = {
     },
   },
   vehicles: {
-    carrier: { name: "HMS Queen Elizabeth (R08)", description: t("Queen Elizabeth-class aircraft carrier: sails the open sea only. Carries up to 4 fighters on its deck (right-click it with fighters selected); they sink with it. Bought at the War Factory, it is launched on the nearest open sea with 4 fighters aboard; they take off from it to attack and are rearmed and repaired on its deck.") },
+    carrier: { name: "HMS Queen Elizabeth (R08)", description: t("Queen Elizabeth-class aircraft carrier: sails the open sea only. Carries up to 4 fighters on its deck (right-click it with fighters selected); they sink with it. Bought once the nation has a Naval Port, it is launched in the U basin of the port (or beside it when that is taken) with 4 fighters aboard; they take off from it to attack and are rearmed and repaired on its deck.") },
     light: { name: "VBL Scout", description: t("Light armoured European reconnaissance vehicle.") },
     tank: { name: "Leopard 2", description: t("Leopard 2 main battle tank, precise and well protected.") },
     ifv: { name: "Puma", description: t("Puma armoured fighting vehicle, modern and fast.") },

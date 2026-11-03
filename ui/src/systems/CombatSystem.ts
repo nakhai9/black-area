@@ -383,7 +383,9 @@ export class CombatSystem implements GameSystem {
       }
       // Units on attack orders stand and fight; ones just passing through keep walking and shooting.
       if (s.attackTarget !== null || s.attackMove) s.stop();
-      if (s.cooldown <= 0 && (!tank || (s as Vehicle).turretOnTarget) && this.canHit(s, w, target)) this.fire(s, target, w);
+      // The air-defence launcher is fixed to the hull and fires straight up: it needs no laying.
+      const laid = !tank || (s as Vehicle).type === 'mantis' || (s as Vehicle).turretOnTarget;
+      if (s.cooldown <= 0 && laid && this.canHit(s, w, target)) this.fire(s, target, w);
       return;
     }
 

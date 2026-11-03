@@ -1,4 +1,4 @@
-import { BOMB_COST, BOMB_LOAD_SECONDS, CARRIER_JETS, JET_BOMB_COST, CELL_SIZE, TURBO_RECHARGE_SECONDS, TURBO_SECONDS, TRANSPORT_FUEL_CELLS } from '../constants';
+import { BOMB_COST, BOMB_LOAD_SECONDS, CARRIER_JETS, JET_BOMB_COST, CELL_SIZE, TURBO_RECHARGE_SECONDS, TURBO_SECONDS, TRANSPORT_FUEL_CELLS, PORT_AIR_SLOTS } from '../constants';
 import type { Building } from '../entities/Building';
 import type { EntityManager } from '../entities/EntityManager';
 import { CRUISE_ALTITUDE, type Vehicle } from '../entities/Vehicle';
@@ -19,6 +19,10 @@ export interface AirfieldGeometry {
 }
 
 export const PARKING_SLOTS = 9;
+/** Structures aircraft land, park and are repaired at: the Airfield and the Naval Port (its pier pads). */
+export const isAirBase = (b: Building): boolean => b.spec.type === 'airfield' || b.spec.type === 'port';
+/** Parking spots of an air base: PARKING_SLOTS on an Airfield, PORT_AIR_SLOTS on a Naval Port. */
+export const parkingSlots = (b: Building): number => (b.spec.type === 'port' ? PORT_AIR_SLOTS : PARKING_SLOTS);
 /** Spots per apron row; within a row the next spot lies ahead (towards the runway end). */
 const SLOTS_PER_ROW = 3;
 const TAXI_SPEED = 11;
@@ -473,7 +477,7 @@ export class AircraftSystem implements GameSystem {
    * comes in over whichever runway end is nearer. False when it cannot land there.
    */
   land(v: Vehicle, airfield: Building): boolean {
-    if (!v.aircraft || !v.alive || airfield.owner !== v.owner || !airfield.alive || airfield.spec.type !== 'airfield') return false;
+    if (!v.aircraft || !v.alive || airfield.owner !== v.owner || !airfield.alive || !isAirBase(airfield)) return false;
     // A transport aircraft only comes in to an airfield empty: its riders are set down first.
     if (v.isTransport && v.cargo.length > 0) return false;
     const slot = this.freeSlot(v.homeId === airfield.id ? v : null, airfield);
@@ -854,8 +858,8 @@ export class AircraftSystem implements GameSystem {
     const taken = this.takenSlots(v, home);
     if (v && v.slot >= 0 && !taken.has(v.slot)) return v.slot;
     // `prefer` is the spot ahead of another one: only meaningful within the same row.
-    if (prefer > 0 && prefer < PARKING_SLOTS && prefer % SLOTS_PER_ROW !== 0 && !taken.has(prefer)) return prefer;
-    for (let i = 0; i < PARKING_SLOTS; i++) if (!taken.has(i)) return i;
+    if (prefer > 0 && prefer < parkingSlots(home) && prefer % SLOTS_PER_ROW !== 0 && !taken.has(prefer)) return prefer;
+    for (let i = 0; i < parkingSlots(home); i++) if (!taken.has(i)) return i;
     return -1;
   }
 
@@ -1047,7 +1051,7 @@ export class AircraftSystem implements GameSystem {
     let best: Building | null = null;
     let bestD = Infinity;
     for (const b of this.entities.buildings()) {
-      if (b.owner !== v.owner || !b.alive || b.spec.type !== 'airfield' || this.freeSlot(v, b) < 0) continue;
+      if (b.owner !== v.owner || !b.alive || !isAirBase(b) || this.freeSlot(v, b) < 0) continue;
       const c = b.centerWorld();
       const d = Math.hypot(c.x - v.px, c.y - v.py);
       if (d < bestD) {

@@ -130,7 +130,7 @@ function bombRow(v: Vehicle): { x0: number; y: number; bar: number; gap: number;
   return { x0: P.x - w / 2, y: P.y - v.altitude - h / 2, bar, gap, h };
 }
 /** Structures whose art has no flag of its own (sprite key kinds): the renderer gives them a flag pole. */
-const FLAGLESS_ART: ReadonlySet<string> = new Set(['oil', 'airfield', 'radarTower', 'techCenter', 'powerPlant', 'happyCity']);
+const FLAGLESS_ART: ReadonlySet<string> = new Set(['oil', 'airfield', 'port', 'radarTower', 'techCenter', 'powerPlant', 'happyCity']);
 /** Structures without a flag that get one only once taken from another nation. */
 const CAPTURE_POLE_ART: ReadonlySet<string> = new Set(['bunker', 'wall', 'gate']);
 const FLAG_POLE_HEIGHT = 30;
@@ -460,7 +460,7 @@ export class Renderer {
           const mixed = a.d.kind === 'building' !== (b.d.kind === 'building');
           const type = mixed ? ((a.d.kind === 'building' ? a.d : b.d) as Building).spec.type : null;
           let aFirst: boolean;
-          if (!aBehind && (type === 'airfield' || type === 'gate')) aFirst = (a.d.kind === 'building') !== (type === 'gate');
+          if (!aBehind && (type === 'airfield' || type === 'port' || type === 'gate')) aFirst = (a.d.kind === 'building') !== (type === 'gate');
           else aFirst = a.depth <= b.depth;
           if (aFirst) {
             a.after.push(j);

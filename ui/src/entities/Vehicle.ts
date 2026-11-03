@@ -419,8 +419,9 @@ export class Vehicle extends Unit {
     }
     super.update(dt);
     // A tank's turret swings on its own (any way round, right over the engine deck) to the target, and back to the
-    // front once it has none. The air-defence vehicle's launcher traverses the same way.
-    if (this.type === 'tank' || this.type === 'mantis') {
+    // front once it has none. The air-defence vehicle's launcher is fixed to its hull.
+    if (this.type === 'mantis') this.turretHeading = this.heading;
+    else if (this.type === 'tank') {
       const want = this.combatTarget !== null ? this.aimHeading : this.heading;
       let diff = want - this.turretHeading;
       while (diff > Math.PI) diff -= Math.PI * 2;

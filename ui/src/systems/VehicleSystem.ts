@@ -4,7 +4,7 @@ import type { Building } from '../entities/Building';
 import type { EntityManager } from '../entities/EntityManager';
 import { FACTIONS } from '../factions';
 import type { BuildingType, FactionId, PlayerState, VehicleKind } from '../types';
-import { PARKING_SLOTS } from './AircraftSystem';
+import { isAirBase, parkingSlots } from './AircraftSystem';
 import type { GameSystem } from './GameSystem';
 import { fixPaidEach } from './TrainingSystem';
 import { type ForeignKey, splitKey, takenNations } from './Foreign';
@@ -30,7 +30,7 @@ export interface VehicleOption {
   needsAirfield: boolean;
 }
 
-const KINDS: readonly VehicleKind[] = ['light', 'tank', 'ifv', 'jet', 'heli', 'bomber', 'transport', 'repair', 'truck', 'mantis', 'drone', 'bridgeLayer', 'awacs'];
+const KINDS: readonly VehicleKind[] = ['light', 'tank', 'ifv', 'jet', 'heli', 'bomber', 'transport', 'repair', 'truck', 'mantis', 'drone', 'bridgeLayer', 'awacs', 'carrier'];
 
 function vehicleOptions(faction: FactionId, foreign = false): VehicleOption[] {
   const f = FACTIONS[faction];
@@ -44,7 +44,7 @@ function vehicleOptions(faction: FactionId, foreign = false): VehicleOption[] {
     description: f.vehicles[kind as keyof typeof f.vehicles]?.description ?? '',
     cost: demoPrice(vehiclePrice(faction, kind)),
     trainSeconds: VEHICLE_BASE[kind].trainSeconds + f.stats.trainDelay,
-    requires: needsAirfield(kind) ? 'airfield' : 'warFactory',
+    requires: kind === 'carrier' ? 'port' : needsAirfield(kind) ? 'airfield' : 'warFactory',
     needsAirfield: needsAirfield(kind),
   }));
 }
@@ -57,8 +57,8 @@ function foreignOptions(faction: FactionId): VehicleOption[] {
   return list;
 }
 
-export type VehicleQueueState = 'idle' | 'building' | 'onHold' | 'noFactory' | 'noAirfield' | 'noPower' | 'exitBlocked';
-export type VehicleEnqueueResult = 'ok' | 'full' | 'noFactory' | 'noAirfield' | 'noParking' | 'tech' | 'cap' | 'transportCap' | 'noCapital';
+export type VehicleQueueState = 'idle' | 'building' | 'onHold' | 'noFactory' | 'noAirfield' | 'noPort' | 'noPower' | 'exitBlocked';
+export type VehicleEnqueueResult = 'ok' | 'full' | 'noFactory' | 'noAirfield' | 'noPort' | 'noParking' | 'tech' | 'cap' | 'transportCap' | 'noCapital';
 
 export interface VehicleQueue {
   /** Vehicles on order, built one at a time in the order they were ordered (first ordered, first finished). */
@@ -130,8 +130,11 @@ export class VehicleSystem implements GameSystem {
   }
 
   /** Why `kind` cannot be ordered right now (ground vehicle without a War Factory / aircraft without an Airfield), or null. */
-  private missingBuilding(player: PlayerState, kind: VehicleKind): 'noFactory' | 'noAirfield' | null {
-    if (needsAirfield(kind)) {
+  private missingBuilding(player: PlayerState, kind: VehicleKind): 'noFactory' | 'noAirfield' | 'noPort' | null {
+    // Aircraft carriers are bought only once the nation has a Naval Port (they are launched there).
+    if (kind === 'carrier') {
+      if (!this.producerOf(player, 'port')) return 'noPort';
+    } else if (needsAirfield(kind)) {
       if (!this.producerOf(player, 'airfield')) return 'noAirfield';
     } else if (!this.producerOf(player, 'warFactory')) return 'noFactory';
     return null;
@@ -139,12 +142,12 @@ export class VehicleSystem implements GameSystem {
 
   /** Where the finished machine appears: the War Factory for vehicles, an Airfield for aircraft. */
   private deliveryPoint(player: PlayerState, kind: VehicleKind): Building | null {
-    return this.producerOf(player, needsAirfield(kind) ? 'airfield' : 'warFactory');
+    return this.producerOf(player, kind === 'carrier' ? 'port' : needsAirfield(kind) ? 'airfield' : 'warFactory');
   }
 
-  /** Aircraft parking spots: PARKING_SLOTS per living airfield. */
+  /** Aircraft parking spots: PARKING_SLOTS per living airfield, PORT_AIR_SLOTS per Naval Port. */
   parkingCapacity(player: PlayerState): number {
-    return this.entities.buildings().filter((b) => b.owner === player.id && b.alive && b.spec.type === 'airfield').length * PARKING_SLOTS;
+    return this.entities.buildings().filter((b) => b.owner === player.id && b.alive && isAirBase(b)).reduce((n, b) => n + parkingSlots(b), 0);
   }
 
 

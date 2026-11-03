@@ -3,7 +3,7 @@ import { CELL_SIZE } from '../constants';
 import type { GridPoint, TerrainType } from '../types';
 import { hillHeight } from './Relief';
 
-export type PlacementBlocker = 'outOfBounds' | 'occupied' | 'water' | 'ice' | 'trees' | 'mountain' | 'needsWater';
+export type PlacementBlocker = 'outOfBounds' | 'occupied' | 'water' | 'ice' | 'trees' | 'mountain' | 'needsWater' | 'needsCoast';
 
 const TERRAIN_TYPES: readonly TerrainType[] = ['water', 'sand', 'grass', 'forest', 'desert', 'rock', 'snow'];
 const TERRAIN_INDEX = Object.fromEntries(TERRAIN_TYPES.map((t, i) => [t, i])) as Record<TerrainType, number>;

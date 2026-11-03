@@ -27,7 +27,7 @@ export const DEMO_FACTION = Number(import.meta.env.VITE_DEMO_FACTION) || 2;
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "2.88.0";
+export const GAME_VERSION = "2.93.0";
 
 /** An Allied Building within this many cells of any capital is an embassy; farther out it is a "Pro-<nation> regime". */
 export const EMBASSY_CAPITAL_CELLS = 25;
@@ -197,6 +197,34 @@ export function capitalFootprint(faction: FactionId): {
 }
 /** Airfield: a long runway + an apron with nine parking spots, 12×8 tiles. */
 export const FOOTPRINT_AIRFIELD = { w: 12, d: 8 } as const;
+/**
+ * Naval Port: a harbour complex the size of the Airfield (12 × 8, R turns it 8 × 12). Its back quay (PORT_QUAY rows)
+ * stands on the shore and carries an airstrip along the back edge; its two piers (PORT_PIER cells wide) reach out into
+ * the sea with PORT_AIR_SLOTS aircraft parking pads on them (two per pier), and the U-shaped basin between them, open
+ * at the front, is water where ships moor. Aircraft land, park and are repaired there like at an Airfield (they are
+ * still built at the Airfield). Every basin cell and the row just beyond the mouth must be water, and at
+ * least PORT_MIN_LAND quay cells dry land. Aircraft carriers bought at the War Factory are launched in the nation's
+ * nearest port; a ship moored in the basin is repaired PORT_REPAIR_SHARE of its max HP per second.
+ */
+export const FOOTPRINT_PORT = { w: 12, d: 8 } as const;
+export const PORT_QUAY = 3;
+export const PORT_PIER = 3;
+export const PORT_AIR_SLOTS = 4;
+/** Aircraft parking pads on a Naval Port's piers (tile u, v of the unturned 12 × 8 art), mirror-symmetric about u = 6. */
+export const PORT_SLOTS: readonly (readonly [number, number])[] = [
+  [1.5, 4.4],
+  [10.5, 4.4],
+  [1.5, 6.8],
+  [10.5, 6.8],
+];
+export const PORT_MIN_LAND = 6;
+export const PORT_COST = 8000;
+export const PORT_HP = 2500;
+export const PORT_REPAIR_SHARE = 0.02;
+/** Power a Naval Port draws (an Airfield draws 4). */
+export const PORT_POWER_DRAIN = 6;
+/** AI: aircraft carriers a nation with a Naval Port keeps (its own fleet, sailing with every attack). */
+export const AI_FLEET = 2;
 /** Happy City: a whole city block, 8×8 tiles. */
 export const FOOTPRINT_CITY = { w: 8, d: 8 } as const;
 
@@ -1259,6 +1287,7 @@ export const BUILDING_VALUE: Readonly<Partial<Record<BuildingType, number>>> = {
   gate: GATE_COST,
   warFactory: WAR_FACTORY_COST,
   airfield: AIRFIELD_COST,
+  port: PORT_COST,
   radarTower: RADAR_TOWER_COST,
   techCenter: TECH_CENTER_COST,
   happyCity: HAPPY_CITY_COST,
