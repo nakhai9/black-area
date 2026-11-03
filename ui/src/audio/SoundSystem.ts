@@ -144,6 +144,10 @@ const shipped = (path: string): string | null => {
 const VEHICLE_BED_GAIN = 0.75;
 /** Share the music is turned down by while vehicles are heard. */
 const MUSIC_DUCK = 0.55;
+/** Peak gain of the open-sea ambience (public/sounds/sea-waves.mp3): soft, under the music. */
+const SEA_GAIN = 0.55;
+/** Seconds the sea ambience takes to fade in or out as the camera reaches or leaves open water. */
+const SEA_FADE = 1.5;
 /** Seconds between the footstep sounds of a marching group. */
 const STEP_GAP = 0.32;
 
@@ -214,6 +218,10 @@ export class SoundSystem {
   /** Recordings of single vehicle models (public/sounds/engine-<name>.*): loading, found, or not there. */
   private readonly vehicleSamples = new Map<string, AudioBuffer | 'loading' | 'none'>();
   private nextStep = 0;
+  /** Gentle waves heard while the camera shows only open sea (see sea). */
+  private seaGain: GainNode | null = null;
+  private seaLoading = false;
+  private seaLevel = 0;
   private lastAlarm = -99;
   /** Audio time until which a weapon / explosion keeps the music ducked. */
   private sfxUntil = 0;
@@ -282,6 +290,46 @@ export class SoundSystem {
     this.music?.setMuted(this.muted);
     if (this.muted && typeof speechSynthesis !== 'undefined') speechSynthesis.cancel();
     return this.muted;
+  }
+
+  /**
+   * Open-sea ambience: `level` 1 while the view shows nothing but water, 0 otherwise. The recording
+   * (sounds/sea-waves.mp3) is fetched on first need and loops, fading in and out over SEA_FADE seconds.
+   */
+  sea(level: number): void {
+    const ctx = this.ctx;
+    if (!ctx || !this.master) return;
+    const target = this.muted ? 0 : Math.min(1, Math.max(0, level));
+    if (!this.seaGain) {
+      if (target <= 0 || this.seaLoading) return;
+      this.seaLoading = true;
+      void (async () => {
+        try {
+          const res = await fetch(`${import.meta.env.BASE_URL}sounds/sea-waves.mp3`);
+          if (!res.ok) return;
+          const buf = await ctx.decodeAudioData(await res.arrayBuffer());
+          const g = ctx.createGain();
+          g.gain.value = 0;
+          g.connect(this.master!);
+          const src = ctx.createBufferSource();
+          src.buffer = buf;
+          src.loop = true;
+          src.connect(g);
+          src.start();
+          this.seaGain = g;
+          this.seaLevel = -1; // ramp to the current level on the next call
+        } catch {
+          /* no sea ambience */
+        }
+      })();
+      return;
+    }
+    if (target === this.seaLevel) return;
+    this.seaLevel = target;
+    const now = ctx.currentTime;
+    this.seaGain.gain.cancelScheduledValues(now);
+    this.seaGain.gain.setValueAtTime(this.seaGain.gain.value, now);
+    this.seaGain.gain.linearRampToValueAtTime(target * SEA_GAIN, now + SEA_FADE);
   }
 
   /** Plays a weapon / explosion sound at a world position. */

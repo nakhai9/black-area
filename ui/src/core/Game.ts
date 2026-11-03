@@ -298,6 +298,8 @@ const BLOCK_REASONS: Readonly<Record<string, string>> = {
 const PRESET_SNAP_RADIUS = 2;
 /** DEMO: cells from the capital searched for a shore to put the demo Naval Port on. */
 const DEMO_PORT_SEARCH = 120;
+/** Open-sea ambience: the screen is tested on a grid of (SEA_SAMPLES + 1)² points. */
+const SEA_SAMPLES = 10;
 /** Cells round a Naval Port's mouth searched for a free mooring when its basin is taken. */
 const PORT_BERTH_SEARCH = 12;
 /** Crossing routes are checked this many cells ahead; a unit gives way at most CROSSING_MAX_WAIT s. */
@@ -4680,6 +4682,21 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     const engines = new Map<string, { kind: VehicleKind; level: number }>();
     for (const [name, kind] of kinds) if (best.has(name)) engines.set(name, { kind, level: level(name) });
     this.sound.motion({ foot: level('foot'), engines });
+    this.sound.sea(this.viewAllSea() ? 1 : 0);
+  }
+
+  /** Does the screen show open sea only (no land, bridge or structure)? Sampled on a SEA_SAMPLES × SEA_SAMPLES grid. */
+  private viewAllSea(): boolean {
+    const cam = this.camera;
+    for (let j = 0; j <= SEA_SAMPLES; j++) {
+      for (let i = 0; i <= SEA_SAMPLES; i++) {
+        const w = cam.screenToWorld((cam.viewWidth * i) / SEA_SAMPLES, (cam.viewHeight * j) / SEA_SAMPLES);
+        const cx = Math.floor(w.x / CELL_SIZE);
+        const cy = Math.floor(w.y / CELL_SIZE);
+        if (this.map.inBounds(cx, cy) && (!this.map.isOpenWater(cx, cy) || this.map.occupantAt(cx, cy) !== null)) return false;
+      }
+    }
+    return true;
   }
 
   /** Throttled "under attack" alerts for everything the player owns. */
