@@ -27,7 +27,7 @@ export const DEMO_FACTION = Number(import.meta.env.VITE_DEMO_FACTION) || 2;
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "2.94.0";
+export const GAME_VERSION = "2.95.0";
 
 /** An Allied Building within this many cells of any capital is an embassy; farther out it is a "Pro-<nation> regime". */
 export const EMBASSY_CAPITAL_CELLS = 25;
@@ -793,6 +793,14 @@ export const MANTIS_VS_JET_SHARE = 1 / 4;
 export const MANTIS_VS_HELI_SHARE = 1 / 3;
 /** Air-defence vehicle: seconds between two missiles (longer than a missile's flight, so no missile chases a dead aircraft). */
 export const MANTIS_RELOAD = 0.5;
+/**
+ * Gun air-defence (the Islamic PGZ-09, twin 35 mm cannons): a light, fast-firing gun instead of a missile. It fires
+ * without pause, one round every PGZ_RELOAD s, each hitting PGZ_HIT_FACTOR of a missile hit (≈ 2/3 of a missile
+ * launcher's damage per second). Player and AI alike.
+ */
+export const MANTIS_GUN_NATIONS: readonly FactionId[] = ["islamic"];
+export const PGZ_RELOAD = 0.15;
+export const PGZ_HIT_FACTOR = 0.2;
 /** AI air defence: at least this many air-defence vehicles at home, plus one for every AI_AIR_DEFENCE_PER_CITIES Happy Cities. */
 export const AI_AIR_DEFENCE = 2;
 export const AI_AIR_DEFENCE_PER_CITIES = 4;

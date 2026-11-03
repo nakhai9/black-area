@@ -364,7 +364,7 @@ const BRIDGE_LANE = 0.3; // margin (cells) kept from each girder: the whole deck
 const BRIDGE_GAP_PX = 2;
 /** Player commands that give units an order (answered with "Orders received"). */
 /** PGZ-09 rounds per shot (alternating barrels) and the time between them. */
-const PGZ_BURST = 6;
+const PGZ_BURST = 2;
 const PGZ_ROUND_SECONDS = 0.07;
 const ORDER_COMMANDS: ReadonlySet<string> = new Set(['right', 'forceAttack', 'guard', 'waypoints', 'bridge', 'unload']);
 /** Longest a unit waits at a bridge for oncoming traffic that got there first before it drives on anyway (no deadlock). */

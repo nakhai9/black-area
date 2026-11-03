@@ -7,10 +7,11 @@ import { shade } from './Color';
 /**
  * Air-defence vehicle (`mantis`) of every nation as a detailed polygon model (same renderer as the ARV and bridge layer),
  * after its real-world system; the launcher (or gun turret) is a separate part that traverses on its own:
- *  - USA: Patriot — HEMTT tractor towing the M903 launching station: four big square canisters raised at 38°;
- *  - Europe: SAMP/T NG — 8 × 8 truck with eight round canisters in two rows, erected near-vertical at the rear;
- *  - Russia: S-400 — tractor with the 5P85 semi-trailer launcher: four long round tubes erected near-vertical;
- *  - China: HQ-9 — 8 × 8 truck with four long tubes erected vertical at the rear;
+ *  - USA: Patriot — HEMTT tractor towing the M903 launching station: four big square canisters raised at 30°;
+ *  - Europe: SAMP/T NG — 8 × 8 truck with eight round canisters in two rows, raised 30° at the rear;
+ *  - Russia: S-400 — tractor with the 5P85 semi-trailer launcher: four long round tubes raised 30°;
+ *  - China: HQ-9 — Taian forward-control 8 × 8 (flat-faced cab over the front axles, 2 + 2 axles far apart) in green
+ *    digital camouflage, a tall power module and armoured side lockers, four round metal tubes in a square raised 30°;
  *  - Islamic: PGZ-09 — olive tracked chassis, turret with twin 35 mm cannons raised at the sky, tracking and search radars.
  * MantisSheet draws it in the game.
  */
@@ -45,7 +46,8 @@ function look(f: FactionId): Look {
       // Blue-grey paint (slate with a cool tint).
       return { faction: f, kind: 'sampt', body: '#5f6b72', dark: '#30373c', steel: '#848b90', rubber: '#232426', glass: '#26343e', canister: '#6e7b83', stripe };
     case 'china':
-      return { faction: f, kind: 'hq9', body: '#4b5c45', dark: '#2b2e29', steel: '#74786c', rubber: '#212320', glass: '#2a3640', canister: '#5a6b52', stripe };
+      // PLA Type 07 woodland digital: mid green with dark green and khaki pixels (camo).
+      return { faction: f, kind: 'hq9', body: '#56694a', dark: '#2b2e29', steel: '#74786c', rubber: '#212320', glass: '#2a3640', canister: '#8d9290', stripe, camo: ['#2f3f2a', '#8f8d62'] };
     case 'islamic':
       return { faction: f, kind: 'pgz', body: '#5d6b3a', dark: '#2c2f26', steel: '#76786a', rubber: '#212320', glass: '#2a3640', canister: '#66753f', stripe };
     default:
@@ -54,13 +56,13 @@ function look(f: FactionId): Look {
 }
 
 /**
- * Launcher pack: `cols` × 2 canisters from the pivot at `p`, raised `elev` rad and `len` long, rising towards the rear
- * (−x); the second row sits in front of the first. Each has an exit cover and a band of team colour; side rails and a
+ * Launcher pack: `cols` × 2 canisters from the pivot at `p` (the rear of the truck), raised `elev` rad and `len` long,
+ * rising towards the front of the vehicle (+x); the second row sits in front of the first. Each has an exit cover and a band of team colour; side rails and a
  * cradle hold them. Returns the middle of the pack's upper end.
  */
 function pack(m: Mesh, L: Look, p: V3, elev: number, len: number, size: number, cols: number, round: boolean): V3 {
-  const dir: V3 = [-Math.cos(elev), 0, Math.sin(elev)];
-  const up: V3 = [Math.sin(elev), 0, Math.cos(elev)];
+  const dir: V3 = [Math.cos(elev), 0, Math.sin(elev)];
+  const up: V3 = [-Math.sin(elev), 0, Math.cos(elev)];
   const at = (t: number, y: number, k: number): V3 => [p[0] + dir[0] * t + up[0] * k, p[1] + y, p[2] + dir[2] * t + up[2] * k];
   const gap = size + 0.35;
   for (let row = 0; row < 2; row++) {
@@ -476,18 +478,18 @@ function patriot(m: Mesh, L: Look): void {
   }
 }
 
-/** Patriot launcher (pivot PATRIOT_PIVOT): 2 × 2 block of big square canisters raised 38° on their cradle, twin rams. */
+/** Patriot launcher (pivot PATRIOT_PIVOT): 2 × 2 block of big square canisters raised 30° on their cradle, twin rams. */
 function patriotLauncher(m: Mesh, L: Look): void {
   const c = PATRIOT_PIVOT;
   const [brown, black] = L.camo ?? [L.dark, L.dark];
   m.cyl([c, 0, 8.4], [c, 0, 9.4], 4.6, shade(L.steel, 0.8), 18);
   m.cbox(c - 3, c + 3, -4, 4, 9.4, 11, 0.3, shade(L.body, 0.9));
-  for (const s of [-1, 1]) ram(m, L, [c - 4, s * 2.6, 10], [c - 10, s * 2.6, 15.6], 1);
-  const elev = (38 * Math.PI) / 180;
-  pack(m, L, [c + 2, 0, 11], elev, 22, 4.6, 2, false);
+  for (const s of [-1, 1]) ram(m, L, [c + 15, s * 2.6, 9.4], [c + 9.7, s * 2.6, 17.7], 1);
+  const elev = LAUNCH_ELEVATION;
+  pack(m, L, [c + 2, 0, 11], elev, 26, 4.6, 2, false);
   // Camouflage bands across the canister block (brown and black) and the hydraulic lines along its sides.
-  const dir: V3 = [-Math.cos(elev), 0, Math.sin(elev)];
-  const up: V3 = [Math.sin(elev), 0, Math.cos(elev)];
+  const dir: V3 = [Math.cos(elev), 0, Math.sin(elev)];
+  const up: V3 = [-Math.sin(elev), 0, Math.cos(elev)];
   const at = (t: number, y: number, k: number): V3 => [c + 2 + dir[0] * t + up[0] * k, y, 11 + dir[2] * t + up[2] * k];
   const gap = 4.6 + 0.35;
   for (const [t0, t1, col] of [[3, 6.5, brown], [13, 15, black], [17.5, 20.5, brown]] as const) {
@@ -515,12 +517,12 @@ function sampt(m: Mesh, L: Look): void {
   m.cyl([9, 5.5, 18.4], [9, 5.5, 29], 0.08, '#222', 4);
 }
 
-/** SAMP/T NG launcher (pivot SAMPT_PIVOT): eight round canisters in two rows, erected near-vertical at the rear. */
+/** SAMP/T NG launcher (pivot SAMPT_PIVOT): eight round canisters in two rows, raised 30° at the rear. */
 function samptLauncher(m: Mesh, L: Look): void {
   const c = SAMPT_PIVOT;
   m.cbox(c - 2, c + 2, -6, 6, 7.4, 9.4, 0.3, shade(L.steel, 0.85));
-  ram(m, L, [c + 20, 0, 7.6], [c + 3.6, 0, 18], 1.1);
-  pack(m, L, [c, 0, 9.4], 1.4, 20, 2.6, 4, true);
+  ram(m, L, [c + 13, 0, 7.6], [c + 7.7, 0, 16.1], 1.1);
+  pack(m, L, [c, 0, 9.4], LAUNCH_ELEVATION, 26, 2.6, 4, true);
 }
 
 /** S-400: tractor with the long 5P85 semi-trailer launcher. */
@@ -551,42 +553,112 @@ function s400(m: Mesh, L: Look): void {
   m.cyl([14, 5.5, 14.8], [14, 5.5, 27], 0.08, '#222', 4);
 }
 
-/** S-400 launcher (pivot S400_PIVOT): four long round tubes erected near-vertical, the erector arm and its ram. */
+/** S-400 launcher (pivot S400_PIVOT): four long round tubes raised 30°, the erector arm and its ram. */
 function s400Launcher(m: Mesh, L: Look): void {
   const c = S400_PIVOT;
   m.cbox(c - 2, c + 2, -6, 6, 8.4, 10.4, 0.3, shade(L.steel, 0.85));
-  ram(m, L, [c + 22, 0, 8.6], [c + 4.4, 0, 21], 1.2);
-  pack(m, L, [c, 0, 10.4], 1.45, 26, 3.2, 2, true);
+  ram(m, L, [c + 13, 0, 8.6], [c + 7.7, 0, 17.1], 1.2);
+  pack(m, L, [c, 0, 10.4], LAUNCH_ELEVATION, 30, 3.2, 2, true);
 }
 
-/** HQ-9: 8 × 8 truck with crew cab, power unit and launcher deck. */
+/** Flat-faced forward-control cab x0–x1 over the front axles (Taian TAS5501): vertical front, wraparound windscreen. */
+function flatCab(m: Mesh, L: Look, x0: number, x1: number, half: number, top: number): void {
+  m.cbox(x0, x1, -half, half, 5.2, top, 0.6, L.body);
+  const n: V3 = [1, 0, 0];
+  const f = x1 + 0.03;
+  // Three-pane windscreen across the whole front, dark frame, wipers; a sun visor over it.
+  m.decal([[f, -half + 0.6, top - 5.4], [f, half - 0.6, top - 5.4], [f, half - 0.6, top - 0.9], [f, -half + 0.6, top - 0.9]], n, shade(L.dark, 0.8), 0);
+  for (const [a, b] of [[-half + 0.9, -2.3], [-2, 2], [2.3, half - 0.9]] as const) {
+    m.decal([[f, a, top - 5.1], [f, b, top - 5.1], [f, b, top - 1.2], [f, a, top - 1.2]], n, L.glass, 1);
+    m.decal([[f, a + 0.4, top - 2.4], [f, a + 1.3, top - 2.4], [f, a + 1, top - 1.4], [f, a + 0.3, top - 1.4]], n, shade(L.glass, 1.8), 2);
+  }
+  for (const y of [-3.6, 0.4]) m.bar([f + 0.05, y, top - 5], [f + 0.05, y + 2.4, top - 3.2], 0.12, 0.12, '#151513');
+  m.cbox(x1 - 0.3, x1 + 0.6, -half, half, top - 0.7, top - 0.3, 0.1, shade(L.body, 0.8));
+  // Grille band, headlights in the bumper, tow eyes, a winch drum in the middle.
+  for (let i = -4; i <= 4; i++) m.box(f, f + 0.15, i * 1.4 - 0.4, i * 1.4 + 0.4, top - 8.6, top - 6.2, shade(L.body, 0.5));
+  m.cbox(x1 - 0.2, x1 + 1.2, -half - 0.2, half + 0.2, 3.4, 6.2, 0.3, shade(L.dark, 1.15));
+  for (const sd of [-1, 1]) {
+    m.cyl([x1 + 1.2, sd * (half - 1.6), 5.2], [x1 + 1.4, sd * (half - 1.6), 5.2], 0.7, '#eee8c8', 12, '#fffbe0');
+    m.cyl([x1 + 1.2, sd * (half - 3.2), 5.2], [x1 + 1.4, sd * (half - 3.2), 5.2], 0.35, '#d8902a', 8);
+    m.bar([x1 + 1.3, sd * 2.6, 3.2], [x1 + 2, sd * 2.6, 3.2], 0.5, 0.8, shade(L.steel, 0.55));
+  }
+  m.cyl([x1 + 1.3, -1.6, 4.8], [x1 + 1.3, 1.6, 4.8], 0.8, shade(L.steel, 0.7), 12);
+  // Doors with windows, steps, mirrors on long arms; roof hatch, beacon and antenna.
+  for (const sd of [-1, 1]) {
+    const y = sd * (half + 0.02);
+    const nn: V3 = [0, sd, 0];
+    m.decal([[x1 - 5.2, y, 6.2], [x1 - 5.06, y, 6.2], [x1 - 5.06, y, top - 0.8], [x1 - 5.2, y, top - 0.8]], nn, shade(L.body, 0.55), 0);
+    m.decal([[x1 - 4.6, y, top - 4.6], [x1 - 1, y, top - 4.6], [x1 - 1, y, top - 1.2], [x1 - 4.6, y, top - 1.2]], nn, L.glass, 1);
+    for (const z of [2.6, 4.2]) m.box(x1 - 4.6, x1 - 1.6, sd * (half - 0.6), sd * (half + 0.5), z, z + 0.3, shade(L.steel, 0.65));
+    m.bar([x1 - 0.2, sd * half, top - 1.5], [x1 + 0.8, sd * (half + 1.8), top - 1.2], 0.15, 0.15, L.dark);
+    m.cbox(x1 + 0.4, x1 + 1, sd * (half + 1.6) - 0.4, sd * (half + 1.6) + 0.4, top - 3, top - 0.9, 0.15, L.dark);
+  }
+  m.cyl([x0 + 2.5, -2.5, top], [x0 + 2.5, -2.5, top + 0.5], 1.4, shade(L.body, 1.1), 14);
+  m.cyl([x0 + 1.5, 5.6, top], [x0 + 1.5, 5.6, top + 13], 0.08, '#222', 4);
+  m.cyl([x1 - 1.5, -half + 1.5, top], [x1 - 1.5, -half + 1.5, top + 0.8], 0.45, '#e09a22', 8, '#f4c24a');
+}
+
+/** HQ-9: Taian forward-control 8 × 8, power module behind the cab, armoured side lockers, launcher deck and jacks. */
 function hq9(m: Mesh, L: Look): void {
-  running(m, L, -24, 22, [17.5, 12, -9.5, -15.5]);
-  cab(m, L, 12, 22, 7.8, 16);
-  shelter(m, L, 4, 11.5, 7.4, 6, 13.5);
-  m.cyl([7.5, -4.5, 15], [7.5, -4.5, 16.4], 1, shade(L.dark, 1.3), 10);
-  deck(m, L, -25, 4, 7.8, 5.6, 7.4);
-  for (const s of [-1, 1]) sideKit(m, L, -6.5, 8.8, s, 7.8);
-  for (const x of [-24, 2]) for (const s of [-1, 1]) jack(m, L, x, s, 6.4, 7.8);
-  exhaust(m, L, 11.8, 6.4, 7, 18.5);
-  // Generator set on the front of the deck: radiator grille and fuel filler.
-  m.cbox(-1.5, 3.6, -6.4, -1.6, 7.4, 11, 0.3, shade(L.body, 0.95));
-  for (let i = 0; i < 4; i++) m.box(-1.2 + i * 1.1, -0.7 + i * 1.1, -6.45, -6.35, 8, 10.4, shade(L.body, 0.6));
-  m.cyl([1, -3, 11], [1, -3, 11.5], 0.4, shade(L.steel, 0.9), 8);
-  m.cyl([10, 5.5, 17.5], [10, 5.5, 18.8], 0.35, L.steel, 8);
-  m.cyl([10, 5.5, 18.8], [10, 5.5, 30], 0.08, '#222', 4);
+  const H = 8.2;
+  const [darkG, khaki] = L.camo ?? [L.dark, L.dark];
+  const axles = [19.5, 14.5, -9, -14.5];
+  running(m, L, -25, 23, axles, 3.4);
+  for (const x of axles) mud(m, x, 7.6, 3.4);
+  flatCab(m, L, 15.5, 24, H, 17);
+  // Tall power / fire-control module, full width, louvred, with two air-filter drums on its roof.
+  m.cbox(5, 15, -H + 0.2, H - 0.2, 6, 18.5, 0.4, shade(L.body, 0.94));
+  for (const sd of [-1, 1]) {
+    for (let i = 0; i < 6; i++) m.box(6 + i * 1.4, 6.8 + i * 1.4, sd * (H - 0.25), sd * (H - 0.1), 12, 17, shade(L.body, 0.62));
+    m.decal([[11.5, sd * (H - 0.18), 7], [11.62, sd * (H - 0.18), 7], [11.62, sd * (H - 0.18), 11], [11.5, sd * (H - 0.18), 11]], [0, sd, 0], shade(L.body, 0.5), 0);
+  }
+  for (const y of [-3.6, 3.6]) {
+    m.cyl([9, y, 18.5], [9, y, 21], 1.6, shade(L.steel, 0.8), 14);
+    m.cyl([9, y, 21], [9, y, 21.4], 1.8, shade(L.dark, 1.1), 14);
+  }
+  exhaust(m, L, 14.4, H - 0.8, 7, 21);
+  // Launcher deck with long armoured lockers down both sides (no side fuel tanks), jacks fore and aft.
+  deck(m, L, -25.5, 5, H, 5.6, 7.4);
+  for (const sd of [-1, 1]) {
+    m.cbox(-7, 13, sd * (H - 2.4), sd * (H + 0.1), 2.4, 5.8, 0.25, shade(L.body, 0.82));
+    for (const x of [-4, 1, 6, 10.5]) m.decal([[x, sd * (H + 0.12), 2.9], [x + 0.12, sd * (H + 0.12), 2.9], [x + 0.12, sd * (H + 0.12), 5.3], [x, sd * (H + 0.12), 5.3]], [0, sd, 0], shade(L.body, 0.55), 0);
+  }
+  for (const x of [-24.5, 3.5]) for (const sd of [-1, 1]) jack(m, L, x, sd, 6.4, H);
+  // Digital camouflage: square pixels of dark green and khaki on the sides and the tops.
+  const px = (x: number, z: number, w: number, h: number, c: string): void => {
+    for (const sd of [-1, 1]) m.decal([[x, sd * (H + 0.06), z], [x + w, sd * (H + 0.06), z], [x + w, sd * (H + 0.06), z + h], [x, sd * (H + 0.06), z + h]], [0, sd, 0], c, 0);
+  };
+  for (const [x, z, w, h, c] of [
+    [16.4, 12.6, 1.6, 1.2, darkG],
+    [17.6, 11.6, 1.2, 1, khaki],
+    [6, 7.2, 2, 1.4, darkG],
+    [7.6, 8.4, 1.2, 1.2, khaki],
+    [12.2, 13, 1.6, 1.6, darkG],
+    [13.4, 7.4, 1.2, 1.2, khaki],
+    [-20, 5.8, 2.4, 1.2, darkG],
+    [-12, 5.9, 1.6, 1.2, khaki],
+    [-4, 6, 2, 1, darkG],
+    [2, 6, 1.4, 1.2, khaki],
+  ] as const) px(x, z, w, h, c);
+  const top = (x: number): number => (x > 15 ? 17.01 : x > 4 ? 18.51 : 7.41);
+  for (const [x, y, w, h, c] of [[18, -3, 3, 2.4, darkG], [9, 1, 3, 3, khaki], [-18, -2, 4, 3, darkG], [-6, 2, 3, 2.4, khaki]] as const) {
+    const z = top(x);
+    m.decal([[x, y, z], [x + w, y, z], [x + w, y + h, z], [x, y + h, z]], [0, 0, 1], c, 0);
+  }
 }
 
-/** HQ-9 launcher (pivot HQ9_PIVOT): four long tubes erected vertical with their erector ram. */
+/** HQ-9 launcher (pivot HQ9_PIVOT): four round metal tubes in a square, raised 30° toward the cab by twin rams. */
 function hq9Launcher(m: Mesh, L: Look): void {
   const c = HQ9_PIVOT;
-  m.cbox(c - 2, c + 2, -6, 6, 7.4, 9.4, 0.3, shade(L.steel, 0.85));
-  ram(m, L, [c + 19, 0, 7.6], [c + 4.6, 0, 20], 1.2);
-  pack(m, L, [c, 0, 9.4], 1.5, 24, 3.4, 2, true);
+  m.cbox(c - 2.5, c + 2.5, -7, 7, 7.4, 9.6, 0.3, shade(L.steel, 0.85));
+  for (const sd of [-1, 1]) ram(m, L, [c + 13, sd * 3, 7.6], [c + 7.7, sd * 3, 16.3], 1);
+  pack(m, L, [c, 0, 9.6], LAUNCH_ELEVATION, 28, 4, 2, true);
 }
 
 /** Model x (forward) of the launcher's traverse axis on each chassis. */
-const PATRIOT_PIVOT = -6;
+/** Every missile launcher is raised 30° toward the cab. */
+const LAUNCH_ELEVATION = Math.PI / 6;
+const PATRIOT_PIVOT = -24;
 const SAMPT_PIVOT = -22;
 const S400_PIVOT = -24;
 const HQ9_PIVOT = -22;
@@ -617,9 +689,9 @@ function markings(m: Mesh, L: Look): void {
             ? [{ poly: disc(1.05, 18), color: '#1f3f9a' }, ...Array.from({ length: 12 }, (_, i) => ({ poly: star(Math.cos((i / 12) * Math.PI * 2) * 0.7, Math.sin((i / 12) * Math.PI * 2) * 0.7, 0.17), color: '#f2c94c' }))]
             : [{ poly: disc(1.05, 18), color: '#1f8a44' }, { poly: star(0.1, 0, 0.5), color: '#f2f0e6' }];
   // Trucks: on the cab doors; PGZ-09: on the hull sides under the turret.
-  const front = { patriot: 24, sampt: 22, s400: 26, hq9: 22, pgz: 0 }[L.kind];
-  const half = L.kind === 'sampt' || L.kind === 'hq9' ? 7.8 : 7.6;
-  const [x, y, z] = L.kind === 'pgz' ? [-6, 8.62, 8] : [front - 6.5, half + 0.04, 9];
+  const front = { patriot: 24, sampt: 22, s400: 26, hq9: 24, pgz: 0 }[L.kind];
+  const half = L.kind === 'hq9' ? 8.2 : L.kind === 'sampt' ? 7.8 : 7.6;
+  const [x, y, z] = L.kind === 'pgz' ? [-6, 8.62, 8] : L.kind === 'hq9' ? [10, half + 0.04, 9.4] : [front - 6.5, half + 0.04, 9];
   marks.forEach((d, i) => {
     for (const s of [-1, 1]) m.decal(d.poly.map(([u, v]) => [x + u * s * 1.7, s * y, z + v * 1.7] as V3), [0, s, 0], d.color, i);
   });

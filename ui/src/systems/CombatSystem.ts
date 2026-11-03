@@ -1,7 +1,8 @@
+import type { FactionId } from '../types';
 import type { Mobility } from '../map/Pathfinder';
 import { demoActive } from '../core/Demo';
 import { movesRight } from '../core/IsoView';
-import { BOMB_FALL_SECONDS, HIGH_GROUND_DAMAGE, HIGH_GROUND_RANGE, LOW_GROUND_DAMAGE, BUNKER_COOLDOWN, BUNKER_DAMAGE, BUNKER_RANGE, BUNKER_VS_VEHICLE, MANTIS_HIT_SHARE, MANTIS_RANGE_CELLS, MANTIS_RANK_BONUS, MANTIS_EVADE_CELLS, HELI_VS_MANTIS_SHARE, JET_VS_MANTIS_SHARE, MANTIS_VS_JET_SHARE, MANTIS_VS_HELI_SHARE, MANTIS_RELOAD, JET_BOMB_VS_STRUCTURE, JET_BOMB_VS_VEHICLE, ACQUIRE_PERIOD, RANK_FIREPOWER, RANK_RELOAD, BOMB_GROUP_RADIUS_CELLS, BOMB_GROUP_SIZE, BOMB_TOUGH_DAMAGE, BOMB_TOUGH_STRUCTURES, BOMBS_PER_DROP, CELL_SIZE, CHASE_GIVE_UP_SECONDS, CHASE_LIMIT_CELLS, CHASE_PERIOD, FIGHT_MEMORY_SECONDS, GUARD_VISION_FACTOR, NEUTRAL_OWNER, RETALIATE_RANGE_FACTOR, WEAPONS, FIGHTER_DRONE_ALERT } from '../constants';
+import { BOMB_FALL_SECONDS, HIGH_GROUND_DAMAGE, HIGH_GROUND_RANGE, LOW_GROUND_DAMAGE, BUNKER_COOLDOWN, BUNKER_DAMAGE, BUNKER_RANGE, BUNKER_VS_VEHICLE, MANTIS_HIT_SHARE, MANTIS_RANGE_CELLS, MANTIS_RANK_BONUS, MANTIS_EVADE_CELLS, HELI_VS_MANTIS_SHARE, JET_VS_MANTIS_SHARE, MANTIS_VS_JET_SHARE, MANTIS_VS_HELI_SHARE, MANTIS_RELOAD, MANTIS_GUN_NATIONS, PGZ_RELOAD, PGZ_HIT_FACTOR, JET_BOMB_VS_STRUCTURE, JET_BOMB_VS_VEHICLE, ACQUIRE_PERIOD, RANK_FIREPOWER, RANK_RELOAD, BOMB_GROUP_RADIUS_CELLS, BOMB_GROUP_SIZE, BOMB_TOUGH_DAMAGE, BOMB_TOUGH_STRUCTURES, BOMBS_PER_DROP, CELL_SIZE, CHASE_GIVE_UP_SECONDS, CHASE_LIMIT_CELLS, CHASE_PERIOD, FIGHT_MEMORY_SECONDS, GUARD_VISION_FACTOR, NEUTRAL_OWNER, RETALIATE_RANGE_FACTOR, WEAPONS, FIGHTER_DRONE_ALERT } from '../constants';
 import { Building } from '../entities/Building';
 import { Bunker } from '../entities/Bunker';
 import type { Entity } from '../entities/Entity';
@@ -620,7 +621,9 @@ export class CombatSystem implements GameSystem {
   private fire(s: Unit, t: Entity, w: WeaponSpec): void {
     // The air-defence vehicle reloads in MANTIS_RELOAD (one missile at a time, so it never keeps firing at an aircraft it
     // has already brought down).
-    s.cooldown = s instanceof Vehicle && s.type === 'mantis' ? MANTIS_RELOAD : w.cooldown * RANK_RELOAD[s.rank];
+    // has already brought down); the gun-armed PGZ-09 keeps firing every PGZ_RELOAD instead, lighter rounds.
+    const flakGun = s instanceof Vehicle && s.type === 'mantis' && MANTIS_GUN_NATIONS.includes(s.faction as FactionId);
+    s.cooldown = flakGun ? PGZ_RELOAD : s instanceof Vehicle && s.type === 'mantis' ? MANTIS_RELOAD : w.cooldown * RANK_RELOAD[s.rank];
     s.fightingWith.set(t.owner, this.time);
     if (t instanceof Unit) t.fightingWith.set(s.owner, this.time);
     const impact = this.impactPoint(t);
@@ -646,7 +649,7 @@ export class CombatSystem implements GameSystem {
     const flakShare = !(t instanceof Vehicle) ? MANTIS_HIT_SHARE : t.type === 'jet' ? MANTIS_VS_JET_SHARE : t.isHeli ? MANTIS_VS_HELI_SHARE : MANTIS_HIT_SHARE;
     // Attack helicopter on an air-defence vehicle: HELI_VS_MANTIS_SHARE of its full health per hit.
     const heliOnFlak = s instanceof Vehicle && s.isHeli && t instanceof Vehicle && t.type === 'mantis';
-    const dmg = flak ? t.maxHp * flakShare * (1 + MANTIS_RANK_BONUS * s.rank) : heliOnFlak ? t.maxHp * HELI_VS_MANTIS_SHARE : w.damage * RANK_FIREPOWER[s.rank] * (t instanceof Building ? w.vsBuilding : 1) * this.heightFactor(s, t);
+    const dmg = flak ? t.maxHp * flakShare * (1 + MANTIS_RANK_BONUS * s.rank) * (flakGun ? PGZ_HIT_FACTOR : 1) : heliOnFlak ? t.maxHp * HELI_VS_MANTIS_SHARE : w.damage * RANK_FIREPOWER[s.rank] * (t instanceof Building ? w.vsBuilding : 1) * this.heightFactor(s, t);
     t.damage(dmg);
     t.lastAttackerId = s.id;
     t.lastAttackedAt = this.time;
