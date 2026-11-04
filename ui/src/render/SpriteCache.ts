@@ -192,7 +192,7 @@ export class SpriteCache {
       a.drawStatic(painter);
       c.restore();
       // Red Alert 2 look: grainy, slightly muted pre-rendered surfaces with a dark rim.
-      if (!mask) applyRa2Finish(out.ctx, out.canvas.width, out.canvas.height, !a.noRim);
+      if (!mask && !a.noFinish) applyRa2Finish(out.ctx, out.canvas.width, out.canvas.height, !a.noRim);
       return out;
     };
     const { canvas, ctx } = paint(art);

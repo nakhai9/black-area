@@ -1,4 +1,5 @@
 import { GAME_VERSION } from "../constants";
+import { loadPictureArts } from "../render/sprites/PictureArt";
 import { t } from "../i18n";
 import { showBuildingGallery } from "./BuildingGallery";
 import { showMapView } from "./MapView";
@@ -67,6 +68,12 @@ function showShop(host: HTMLElement): void {
     });
     bar.append(b);
   }
+  // The galleries cache each picture the first time they draw it: wait for the rendered pictures to arrive first.
+  content.textContent = t("Loading pictures…");
+  content.style.cssText = "padding: 24px; color: #d8dee4";
   host.replaceChildren(content, bar);
-  (bar.children[1] as HTMLButtonElement).click();
+  void loadPictureArts().then(() => {
+    content.style.cssText = "";
+    (bar.children[1] as HTMLButtonElement).click();
+  });
 }

@@ -15,12 +15,14 @@ import sys
 
 import bmesh
 import bpy
+from mathutils import Vector
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 OUT = os.path.join(ROOT, "ui", "public", "sprites")
 SCALE = 3
 ZS = 1.35
 PX_PER_BU = 32 / math.sqrt(0.5)  # art px per BU across the screen
+GROUND_PLATE_MAX = 4  # art px: a thicker slab is a podium, not paving
 Z_PX_PER_BU = PX_PER_BU * math.cos(math.radians(30))
 
 
@@ -273,9 +275,48 @@ def reset():
     so.rotation_euler = (math.radians(42), 0, math.radians(205))
 
 
+def sink_ground_plate(footprint):
+    """Sinks the structure's ground plate into the ground: the plot's paving / pad (a flat slab from z = 0, at most
+    GROUND_PLATE_MAX art px thick, covering most of the plot) is lowered with everything on it until its top is level
+    with the map's ground, and a holdout plane at z = 0 hides what went below — so the plot lies flush with the
+    surrounding terrain instead of standing on it like a raised tile. Done once per scene."""
+    sc = bpy.context.scene
+    if sc.get("ground_sunk"):
+        return
+    sc["ground_sunk"] = True
+    w, d = footprint
+    top = 0.0
+    meshes = [o for o in sc.objects if o.type == "MESH"]
+    for o in meshes:
+        bb = [o.matrix_world @ Vector(c) for c in o.bound_box]
+        z0, z1 = min(c.z for c in bb), max(c.z for c in bb)
+        area = (max(c.x for c in bb) - min(c.x for c in bb)) * (max(c.y for c in bb) - min(c.y for c in bb))
+        if abs(z0) < 1e-4 and z1 <= zp(GROUND_PLATE_MAX) and area >= 0.5 * w * d:
+            top = max(top, z1)
+    if top > 0:
+        for o in meshes:
+            if o.parent is None:
+                o.location.z -= top
+        for o in sc.objects:
+            if o.type == "EMPTY" and o.parent is None:
+                o.location.z -= top
+    bm = bmesh.new()
+    pad = 0.02
+    corners = [(-pad, -pad), (w + pad, -pad), (w + pad, d + pad), (-pad, d + pad)]
+    bm.faces.new([bm.verts.new((u, v, -0.0005)) for u, v in corners])
+    hold = bpy.data.materials.new("holdout")
+    hold.use_nodes = True
+    nt = hold.node_tree
+    nt.nodes.clear()
+    out = nt.nodes.new("ShaderNodeOutputMaterial")
+    nt.links.new(nt.nodes.new("ShaderNodeHoldout").outputs[0], out.inputs["Surface"])
+    _obj("ground_holdout", bm, hold)
+
+
 def render(name, footprint, height):
     """Frames footprint (w, d) and height (art px), renders, writes the PNG and prints its origin (for the PictureSpec)."""
     w, d = footprint
+    sink_ground_plate(footprint)
     m = 6
     x0, x1 = -d * 32 - m, w * 32 + m
     y0, y1 = -height * ZS - m, (w + d) * 16 + m

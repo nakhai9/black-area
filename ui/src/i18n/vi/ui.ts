@@ -39,6 +39,7 @@ export default {
   'Generating Earth…': 'Đang tạo Trái Đất…',
   'Shop': 'Cửa hàng',
   'Play demo': 'Chơi demo',
+  'Loading pictures…': 'Đang tải hình…',
   'Buildings': 'Công trình',
   'Units': 'Đơn vị',
   'World map': 'Bản đồ thế giới',

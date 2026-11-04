@@ -106,7 +106,8 @@ async function boot(): Promise<void> {
   loadCarrierSprites().catch(() => undefined);
   const repairs = loadRepairSprites();
   repairs.catch(() => undefined);
-  loadBunkerSprites().catch(() => undefined);
+  const bunkers = loadBunkerSprites();
+  bunkers.catch(() => undefined);
   const trucks = loadTruckSprites();
   trucks.catch(() => undefined);
   loadBombSprites().catch(() => undefined);
@@ -169,7 +170,7 @@ async function boot(): Promise<void> {
     byId('loading-text').textContent = t('Generating Earth…');
     loading.hidden = false;
     // Downloads fill the bar to 80%; the terrain bake (synchronous) takes it to 100%.
-    const steps = [earth, soldiers, aircraft, tanks, repairs, trucks, pictures]; // sidebar cameos and units draw from the GI sheet
+    const steps = [earth, soldiers, aircraft, tanks, repairs, trucks, bunkers, pictures]; // sidebar cameos and units draw from the GI sheet
     let done = 0;
     setProgress(0);
     await Promise.all(steps.map((p) => p.then(() => setProgress((++done / steps.length) * 80))));

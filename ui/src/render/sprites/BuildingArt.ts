@@ -19,6 +19,8 @@ export interface BuildingArt {
   readonly noRim?: boolean;
   /** Casts no shadow on the ground (symbol landmarks). */
   readonly noShadow?: boolean;
+  /** Skip the RA2 finish (grain, foot grime, dark rim): pre-rendered pictures are finished already and their plot lies flush with the ground. */
+  readonly noFinish?: boolean;
   /** The animated layer reaches above the static sprite (a turning antenna): previews fit the full `height`. */
   readonly fitHeight?: boolean;
   /** No real roof to repaint (towers, stacks): a taken structure takes the new owner's colours all over, not just on its roofs. */

@@ -68,6 +68,7 @@ export function pictureArt(spec: PictureSpec, extra: Partial<Pick<BuildingArt, '
     height: Math.ceil(spec.originY / spec.zScale) + 4,
     noRim: extra.noRim,
     noShadow: extra.noShadow,
+    noFinish: true,
     // A picture has no roof layer to mask by: a taken one recolours every pixel in the old nation's hues (see recolorPixels).
     recolorWhole: extra.recolorWhole ?? true,
     drawStatic(p) {

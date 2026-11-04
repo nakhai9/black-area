@@ -3,20 +3,20 @@ import type { Bunker } from '../entities/Bunker';
 import type { FactionId } from '../types';
 import { createCanvas } from './Canvas';
 import { recolorPixels } from './sprites';
-import { BUNKER_ANCHOR, BUNKER_BODY_PX, BUNKER_CELL, bunkerCell, bunkerMuzzleCell, bunkerRow } from './BunkerModel';
+import { BUNKER_ANCHOR, BUNKER_BODY_PX, BUNKER_CELL, bunkerCell, bunkerMuzzleCell, bunkerRow, loadBunkerImages } from './BunkerModel';
 
 /**
  * Bunkers: every nation's own model (BunkerModel — USA hexagonal pillbox with HESCO ring, Europe casemate with a steel cloche, Russia
- * DOT in an earth berm, China crenellated blockhouse, Islamic sandbag sangar), each with its firing embrasures, drawn
+ * DOT in an earth berm, China crenellated blockhouse, Islamic sandbag sangar), each with its firing embrasures, rendered in Blender and drawn
  * from cached cells per gun facing (8) and damage stage (intact, light, heavy, burning, ruin).
  */
 /** Iso px per cell px: the bunker with its sandbags is drawn one grid cell wide. */
 const SCALE = CELL_SIZE / BUNKER_BODY_PX;
 const NATIONS: readonly FactionId[] = ['usa', 'russia', 'china', 'europe', 'islamic'];
 
-/** Nothing to download any more (the models are built in code); kept so the loaders stay uniform. */
+/** Downloads the Blender-rendered bunker sheets (one per nation). */
 export function loadBunkerSprites(): Promise<void> {
-  return Promise.resolve();
+  return loadBunkerImages();
 }
 
 /** Damage stage for a health share: intact, light (≤ 75%), heavy (≤ 50%), burning (≤ 25%); 4 = ruin. */
