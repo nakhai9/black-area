@@ -248,34 +248,6 @@ function build(L: Look): Mesh {
 
 const cells = new Map<string, HTMLCanvasElement>();
 
-/** One picture of a nation's bridge layer at world heading `h` (BRIDGE_CELL px, ground centre in the middle), cached. */
-export function bridgeLayerCell(faction: FactionId, h: number): HTMLCanvasElement {
-  const key = `${faction}:${h.toFixed(3)}`;
-  let canvas = cells.get(key);
-  if (canvas) return canvas;
-  const made = createCanvas(BRIDGE_CELL * RES, BRIDGE_CELL * RES);
-  canvas = made.canvas;
-  const ctx = made.ctx;
-  ctx.scale(RES, RES);
-  const mid = BRIDGE_CELL / 2;
-  const mesh = build(look(faction));
-  ctx.globalAlpha = 0.35;
-  drawMesh(ctx, mesh, h, mid, mid + 6, true, false);
-  ctx.globalAlpha = 1;
-  drawMesh(ctx, mesh, h, mid, mid + 6, false, false, true);
-  cells.set(key, canvas);
-  return canvas;
-}
-
-/** Sidebar picture (w × h canvas) of the nation's bridge layer, three-quarter view. */
-export function bridgeLayerPortrait(faction: FactionId, w = 128, h = 96): HTMLCanvasElement {
-  const { canvas, ctx } = createCanvas(w, h);
-  const size = Math.min(w, h) * 2.3;
-  ctx.imageSmoothingEnabled = true;
-  ctx.drawImage(bridgeLayerCell(faction, 0.45), (w - size) / 2, (h - size) / 2, size, size);
-  return canvas;
-}
-
 export type BridgeLayerCell = { kind: 'drive' | 'shadow' | 'wreck'; dir: number } | { kind: 'blast'; frame: number };
 
 /** The burnt-out wreck: every colour charred dark. */

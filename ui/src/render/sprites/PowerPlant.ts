@@ -1,19 +1,7 @@
 import type { FactionId } from '../../types';
-import type { IsoPainter } from '../IsoPainter';
 import type { BuildingArt } from './BuildingArt';
 import { type PictureSpec, pictureArt } from './PictureArt';
 
-
-/** Flat star on a horizontal plane at height z (u, v centre, radius r tiles). */
-export function roofStar(p: IsoPainter, cu: number, cv: number, z: number, r: number, color: string, points = 5): void {
-  const pts: [number, number, number][] = [];
-  for (let k = 0; k < points * 2; k++) {
-    const a = -Math.PI * 0.75 + (k * Math.PI) / points;
-    const rr = k % 2 ? r * 0.42 : r;
-    pts.push([cu + Math.cos(a) * rr, cv + Math.sin(a) * rr, z]);
-  }
-  p.polygon(pts, color, null);
-}
 
 /** Cooling towers: height (px) and their centres on the plot (where the steam rises). */
 const TOWER_H = 80;

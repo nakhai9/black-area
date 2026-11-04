@@ -36,17 +36,3 @@ export function starPath(
   }
   ctx.closePath();
 }
-
-/**
- * Arched doorway path in a y-up local space (see IsoPainter.faceTransform):
- * base centred at (x, 0), total height h including the semicircular top.
- */
-export function archPath(ctx: CanvasRenderingContext2D, x: number, w: number, h: number): void {
-  const r = w / 2;
-  ctx.beginPath();
-  ctx.moveTo(x - r, 0);
-  ctx.lineTo(x - r, h - r);
-  ctx.arc(x, h - r, r, Math.PI, 0, true);
-  ctx.lineTo(x + r, 0);
-  ctx.closePath();
-}
