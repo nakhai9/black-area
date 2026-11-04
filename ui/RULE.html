@@ -26,7 +26,7 @@
 <body>
 <main>
 <img class="logo" src="/logo.png" alt="Black Area" />
-<h1>Black Area — RULE <small>v2.95.0</small></h1>
+<h1>Black Area — RULE <small>v2.102.0</small></h1>
 <p class="lead">Tài liệu luật chơi + kiến trúc code dành cho AI/dev sửa game. Mọi con số gameplay chính xác nằm trong <code>src/constants.ts</code> và <code>src/factions/*.ts</code>. Nếu tài liệu này khác code thì <b>code đúng</b>. <b>Khi đổi luật/số trong code, phải cập nhật file này.</b></p>
 <nav><a href="#s1">Quy tắc làm việc cho AI</a><a href="#s2">Chạy dự án</a><a href="#s3">Kiến trúc thư mục</a><a href="#s4">Thế giới</a><a href="#s5">Kinh tế (dầu)</a><a href="#s6">Công trình (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Quân đội</a><a href="#s8">Chiến đấu</a><a href="#s9">Điều khiển (Game.handleKey, handleInput)</a><a href="#s10">Giới hạn &amp; hiệu năng</a><a href="#s11">Thắng / thua &amp; AI</a><a href="#s12">Công thức sửa thường gặp</a></nav>
 <h2 id="s1">0. Quy tắc làm việc cho AI</h2>
@@ -698,6 +698,13 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
   <li>v2.59.1: Tab Phương tiện dùng biểu tượng xe tăng thay cho xe tải.</li>
   <li>v2.59.2: Tab Chỉ huy đổi tên thành Chính phủ (Government), biểu tượng toà nhà chính phủ.</li>
   <li>v2.60.0: Thêm hình <b>Tháp Radar</b> (nền 2 × 2) cho mỗi phe, ăng-ten xoay đủ 360°: Mỹ — chảo parabol trên tháp côn trắng; Nga — tấm ra-đa mảng pha trên cột thép giàn; Trung Quốc — chảo Cassegrain trên tháp bát giác; châu Âu — gương phản xạ "vỏ cam" trên tháp tròn; thế giới Hồi giáo — chảo lưới viền vàng trên tháp bát giác có vòm nhọn. Mới chỉ có hình (xem ở <code>?view=buildings</code>), chưa bán / chưa xây được trong trận.</li>
+  <li>v2.102.0: Tàu sân bay chậm lại: tốc độ gốc 0,9 → 0,4 ô/giây (trước đó tàu Mỹ chạy nhanh ngang xe tăng). Áp dụng cho cả người chơi và AI.</li>
+  <li>v2.101.0: Thay tiếng sóng biển (<code>sounds/sea-waves.mp3</code>) bằng bản thu "Âm thanh của Đại dương".</li>
+  <li>v2.100.0: Ra biển, tiếng sóng to hơn nhạc nền: âm lượng sóng tăng (0,55 → 1,4) và nhạc nền giảm 70% khi khung nhìn chỉ thấy biển.</li>
+  <li>v2.99.0: Sọc màu phe quanh áo giáp cho mọi lính bộ binh: Trung Quốc (PLA, Tiger) vàng, Nga đỏ, Mỹ xanh dương, Hồi giáo xanh lá (cả lính cảm tử và đội chiếm đất). Công binh giữ áo phản quang.</li>
+  <li>v2.98.0: Ống phóng S-400 (Nga) to ra (đường kính 3.8 → 7) để bó 2 × 2 rộng bằng thân xe.</li>
+  <li>v2.97.0: Ống phóng S-400 (Nga) chi tiết hơn: ống to hơn, tách rời rõ từng trụ, mặt bích bắt bu-lông, nắp trước có lòng ống tối và gân chữ thập, đuôi vòm với bộ sinh khí, đai kẹp yên ngựa thay vòng ôm cả bó.</li>
+  <li>v2.96.0: Xe phóng S-400 (Nga) vẽ lại bó 4 ống phóng hình trụ (2 × 2) với vòng kẹp tròn, bỏ khung/gối hộp vuông.</li>
   <li>v2.95.0: Pháo phòng không PGZ-09 (Hồi giáo) bắn liên tục như pháo hạng nhẹ: mỗi <code>PGZ_RELOAD 0.15</code> s một phát (loạt 2 viên luân phiên hai nòng, trước là loạt 6 viên mỗi 0,5 s), mỗi phát chỉ bằng <code>PGZ_HIT_FACTOR 0.2</code> phát tên lửa — tổng sát thương mỗi giây ≈ 2/3 xe tên lửa. Áp dụng cho cả người chơi và AI.</li>
   <li>v2.94.3: Ống phóng của cả 4 xe tên lửa phòng không đều nâng 30° (<code>LAUNCH_ELEVATION</code>) về phía đầu xe và dài hơn (Patriot 26, SAMP/T 26, S-400 30, HQ-9 28 đơn vị).</li>
   <li>v2.94.2: Xe tên lửa phòng không (Patriot, SAMP/T, S-400, HQ-9): cụm ống phóng đặt ở đuôi xe, nâng lên chĩa về phía đầu xe (trước chĩa về phía đuôi); Patriot dời bệ phóng ra cuối rơ-moóc. PGZ-09 (pháo) không đổi.</li>

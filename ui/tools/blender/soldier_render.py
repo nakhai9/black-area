@@ -41,15 +41,15 @@ def srgb(h):
 # ------------------------------------------------------------------ looks
 # camo: up to four colours (base first) and a pattern scale; gear colours; headgear; weapon.
 LOOKS = {
-    'us-regular': dict(camo=['#9a8f6e', '#6f6a4a', '#b7a983', '#4d4a36'], cscale=9, vest='#8a7b5a', helmet='#7d7458', head='helmet',
+    'us-regular': dict(camo=['#9a8f6e', '#6f6a4a', '#b7a983', '#4d4a36'], cscale=9, vest='#8a7b5a', helmet='#7d7458', band='#2f6fe0', head='helmet',
                        weapon='m4', skin='#d2a17f', boots='#6b5a42', gloves='#4a4236'),
-    'us-special': dict(camo=['#7d7758', '#565239', '#9c9270', '#3a382a'], cscale=11, vest='#5f5a45', helmet='#6e6a50', head='boonie',
+    'us-special': dict(camo=['#7d7758', '#565239', '#9c9270', '#3a382a'], cscale=11, vest='#5f5a45', helmet='#6e6a50', band='#2f6fe0', head='boonie',
                        weapon='m4', skin='#c99472', boots='#4f4434', gloves='#2e2b24', extra_pouches=True),
-    'ru-regular': dict(camo=['#6f7650', '#4c5338', '#8d8a64', '#2f3324'], cscale=16, digital=True, vest='#4f5638', helmet='#5a6142', head='helmet',
+    'ru-regular': dict(camo=['#6f7650', '#4c5338', '#8d8a64', '#2f3324'], cscale=16, digital=True, vest='#4f5638', helmet='#5a6142', band='#d22b2b', head='helmet',
                        weapon='ak', skin='#e0b494', boots='#2c2a26', gloves='#33352a'),
-    'ru-special': dict(camo=['#1f2a3a', '#151d29', '#2c3a4f', '#0c1118'], cscale=7, vest='#34465f', helmet='#1b1b1b', band='#050505', head='balaclava',
+    'ru-special': dict(camo=['#1f2a3a', '#151d29', '#2c3a4f', '#0c1118'], cscale=7, vest='#34465f', helmet='#1b1b1b', band='#d22b2b', head='balaclava',
                        weapon='ak', skin='#e0b494', boots='#22201d', gloves='#1d1d1b', extra_pouches=True),
-    'cn-regular': dict(camo=['#36472a', '#25321c', '#4b5c37', '#1a2314'], cscale=18, digital=True, vest='#2a3820', helmet='#2e3c23', head='helmet',
+    'cn-regular': dict(camo=['#36472a', '#25321c', '#4b5c37', '#1a2314'], cscale=18, digital=True, vest='#2a3820', helmet='#2e3c23', band='#f2c018', head='helmet',
                        weapon='qbz', skin='#dcb38c', boots='#2b2924', gloves='#3a3f2e'),
     'cn-special': dict(camo=['#6b6e70', '#4a4d50', '#8f9294', '#2f3133'], cscale=18, digital=True, vest='#3a3c3f', helmet='#45484b', band='#f2c018', head='helmet',
                        weapon='qbz', skin='#dcb38c', boots='#1f1f22', gloves='#22262c', extra_pouches=True),
@@ -57,9 +57,9 @@ LOOKS = {
                        weapon='g36', skin='#e6c0a2', boots='#2a2723', gloves='#33372b'),
     'eu-special': dict(camo=['#3a2650', '#271a38', '#4d3768', '#18101f'], cscale=7, vest='#151318', helmet='#1a171e', head='cap',
                        weapon='g36', skin='#e2bb9a', boots='#24252a', gloves='#25282c', extra_pouches=True),
-    'islamic-regular': dict(camo=['#a8946a', '#857250', '#c4b087', '#5f5236'], cscale=12, vest='#6e6448', helmet='#6f6a48', head='helmet',
+    'islamic-regular': dict(camo=['#a8946a', '#857250', '#c4b087', '#5f5236'], cscale=12, vest='#6e6448', helmet='#6f6a48', band='#1f9d4a', head='helmet',
                             weapon='ak', skin='#b98a63', boots='#5a4a35', gloves='#4a3f2e'),
-    'islamic-special': dict(camo=['#4c5236', '#363b27', '#6a6e4c', '#25281b'], cscale=12, vest='#2f3324', helmet='#1c1d18', head='balaclava',
+    'islamic-special': dict(camo=['#4c5236', '#363b27', '#6a6e4c', '#25281b'], cscale=12, vest='#2f3324', helmet='#1c1d18', band='#1f9d4a', head='balaclava',
                             weapon='ak', skin='#b98a63', boots='#24221d', gloves='#1f1e19', extra_pouches=True),
 }
 for f, u in (('us', '#8a7a55'), ('ru', '#6c6a4c'), ('cn', '#5f6a48'), ('eu', '#5b3f78'), ('islamic', '#8a7a5a')):
@@ -292,8 +292,7 @@ if look.get('extra_pouches'):
     for i, x in enumerate((-0.15, 0.15)):
         blob(f'side{i}', (x, -0.05, 1.12), (0.07, 0.09, 0.1), 'spine', vest, 0.015)
 blob('pack', (0, 0.17, 1.3), (0.26, 0.12, 0.3), 'chest', vest, 0.04)
-# Nation mark: a bright band right round the plate carrier (China's special forces: yellow on grey camouflage;
-# China's regulars wear dark moss green).
+# Nation mark: a bright band right round the plate carrier — China yellow, Russia red, USA blue, Islamic world green.
 if look.get('band'):
     blob('nationband', (0, 0.045, 1.31), (0.355, 0.40, 0.03), 'chest', principled('band', look['band'], 0.5), 0.008)
 if look.get('hivis'):

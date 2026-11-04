@@ -558,7 +558,72 @@ function s400Launcher(m: Mesh, L: Look): void {
   const c = S400_PIVOT;
   m.cbox(c - 2, c + 2, -6, 6, 8.4, 10.4, 0.3, shade(L.steel, 0.85));
   ram(m, L, [c + 13, 0, 8.6], [c + 7.7, 0, 17.1], 1.2);
-  pack(m, L, [c, 0, 10.4], LAUNCH_ELEVATION, 30, 3.2, 2, true);
+  tubes(m, L, [c, 0, 10.4], LAUNCH_ELEVATION, 30, 7);
+}
+
+/**
+ * S-400 tube pack: four long round transport-launch tubes in a 2 × 2 bundle from the pivot at `p`, raised `elev`, with a
+ * clear gap between tubes so each reads as its own cylinder. Per tube: domed rear cap with the gas-generator housing, bolted
+ * flanges, raised hoops, team band, seam line, stencils, and a front end cap with a rim, cross ribs and a dark bore. Two
+ * slim saddle yokes and a tubular spine under the bundle hold it; no box frame.
+ */
+function tubes(m: Mesh, L: Look, p: V3, elev: number, len: number, size: number): void {
+  const dir: V3 = [Math.cos(elev), 0, Math.sin(elev)];
+  const up: V3 = [-Math.sin(elev), 0, Math.cos(elev)];
+  const at = (t: number, y: number, k: number): V3 => [p[0] + dir[0] * t + up[0] * k, p[1] + y, p[2] + dir[2] * t + up[2] * k];
+  const r = size / 2;
+  const gap = size + 0.7;
+  const hoop = shade(L.canister, 0.78);
+  const lite = shade(L.canister, 1.18);
+  for (let row = 0; row < 2; row++) {
+    for (const y of [-gap / 2, gap / 2]) {
+      const k = r + 1.2 + row * gap;
+      // Body, lighter top strip (seam) so the roundness shows.
+      m.cyl(at(-0.6, y, k), at(len, y, k), r, L.canister, 20, shade(L.canister, 0.7));
+      m.bar(at(0.5, y, k + r - 0.05), at(len - 0.6, y, k + r - 0.05), 0.5, 0.12, lite);
+      // Domed rear: stepped caps and the gas-generator housing with its cable plug.
+      m.cyl(at(-1.2, y, k), at(-0.6, y, k), r * 0.92, shade(L.canister, 0.72), 18);
+      m.cyl(at(-1.7, y, k), at(-1.2, y, k), r * 0.7, shade(L.canister, 0.62), 16);
+      m.cyl(at(-2.1, y, k), at(-1.7, y, k), r * 0.38, shade(L.steel, 0.6), 12);
+      // Bolted flanges at both ends, raised hoops, team-colour band.
+      for (const t of [0, len - 0.8]) {
+        m.cyl(at(t, y, k), at(t + 0.5, y, k), r + 0.22, hoop, 20);
+        for (let i = 0; i < 8; i++) {
+          const a = (i / 8) * Math.PI * 2;
+          m.cyl(at(t + 0.5, y + Math.cos(a) * (r + 0.1), k + Math.sin(a) * (r + 0.1)), at(t + 0.65, y + Math.cos(a) * (r + 0.1), k + Math.sin(a) * (r + 0.1)), 0.09, shade(L.steel, 1.2), 5);
+        }
+      }
+      for (const t of [len * 0.22, len * 0.62, len * 0.8]) m.cyl(at(t, y, k), at(t + 0.35, y, k), r + 0.14, hoop, 20);
+      m.cyl(at(len * 0.42, y, k), at(len * 0.5, y, k), r + 0.08, L.stripe, 20);
+      // Front end cap: rim, dark bore, cross ribs, lifting eye.
+      m.cyl(at(len, y, k), at(len + 0.3, y, k), r + 0.12, shade(L.canister, 0.65), 20, shade(L.canister, 0.9));
+      m.cyl(at(len + 0.3, y, k), at(len + 0.34, y, k), r * 0.78, '#1a1b18', 18);
+      const cr = r * 0.75;
+      m.bar(at(len + 0.38, y - cr, k), at(len + 0.38, y + cr, k), 0.18, 0.18, lite);
+      m.bar(at(len + 0.38, y, k - cr), at(len + 0.38, y, k + cr), 0.18, 0.18, lite);
+      m.cyl(at(len + 0.38, y, k), at(len + 0.48, y, k), r * 0.2, lite, 10);
+      // Stencils on the outer side of each tube.
+      const sd = Math.sign(y);
+      const sy = y + sd * (r + 0.02);
+      const n: V3 = [0, sd, 0];
+      m.decal([at(len * 0.55, sy, k - 0.5), at(len * 0.75, sy, k - 0.5), at(len * 0.75, sy, k + 0.1), at(len * 0.55, sy, k + 0.1)], n, '#d9d6c8', 1);
+      m.decal([at(len * 0.3, sy, k - 0.3), at(len * 0.38, sy, k - 0.3), at(len * 0.38, sy, k + 0.3), at(len * 0.3, sy, k + 0.3)], n, '#c9a227', 1);
+    }
+  }
+  // Saddle yokes: thin straps hugging each tube pair, joined by a post between them.
+  const k0 = r + 1.2;
+  for (const t of [len * 0.3, len * 0.7]) {
+    for (const y of [-gap / 2, gap / 2]) {
+      m.cyl(at(t, y, k0), at(t + 0.4, y, k0), r + 0.26, shade(L.steel, 0.65), 20);
+      m.cyl(at(t, y, k0 + gap), at(t + 0.4, y, k0 + gap), r + 0.26, shade(L.steel, 0.65), 20);
+    }
+    m.bar(at(t + 0.2, 0, 0.2), at(t + 0.2, 0, k0 + gap + r), 0.5, 0.5, shade(L.steel, 0.65));
+    m.bar(at(t + 0.2, -gap / 2, k0 + gap / 2), at(t + 0.2, gap / 2, k0 + gap / 2), 0.4, 0.4, shade(L.steel, 0.65));
+  }
+  // Tubular spine, rear trunnion, cables to the gas generators.
+  m.cyl(at(-1.4, 0, 0.4), at(len * 0.8, 0, 0.4), 0.8, shade(L.steel, 0.8), 14);
+  m.cyl(at(-0.6, -gap - 0.8, 0.2), at(-0.6, gap + 0.8, 0.2), 0.9, shade(L.steel, 0.6), 14);
+  for (const s of [-1, 1]) m.cyl(at(-2, s * gap / 2, k0 + gap / 2), at(-2.4, s * gap / 2, 0.6), 0.16, '#151513', 6);
 }
 
 /** Flat-faced forward-control cab x0–x1 over the front axles (Taian TAS5501): vertical front, wraparound windscreen. */

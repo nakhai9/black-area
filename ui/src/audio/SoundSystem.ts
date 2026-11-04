@@ -144,8 +144,10 @@ const shipped = (path: string): string | null => {
 const VEHICLE_BED_GAIN = 0.75;
 /** Share the music is turned down by while vehicles are heard. */
 const MUSIC_DUCK = 0.55;
-/** Peak gain of the open-sea ambience (public/sounds/sea-waves.mp3): soft, under the music. */
-const SEA_GAIN = 0.55;
+/** Peak gain of the open-sea ambience (public/sounds/sea-waves.mp3): over the music. */
+const SEA_GAIN = 1.4;
+/** Share the music is turned down by while the view is out at sea, so the waves sit above it. */
+const SEA_MUSIC_DUCK = 0.7;
 /** Seconds the sea ambience takes to fade in or out as the camera reaches or leaves open water. */
 const SEA_FADE = 1.5;
 /** Seconds between the footstep sounds of a marching group. */
@@ -443,7 +445,8 @@ export class SoundSystem {
     const engines = Math.min(1, loudest * 1.5);
     // Weapons and explosions sit on top of the music too: it stays ducked for a moment after each.
     const sfx = ctx.currentTime < this.sfxUntil ? SFX_DUCK : 1;
-    this.music?.setDuck(Math.min(sfx, 1 - MUSIC_DUCK * engines));
+    const sea = Math.max(0, this.seaLevel);
+    this.music?.setDuck(Math.min(sfx, 1 - MUSIC_DUCK * engines, 1 - SEA_MUSIC_DUCK * sea));
     const now = ctx.currentTime;
     if (on && levels.foot > 0 && now >= this.nextStep) {
       this.nextStep = now + STEP_GAP * (0.85 + Math.random() * 0.3);
