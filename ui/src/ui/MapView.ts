@@ -11,7 +11,7 @@ import { buildWorld } from '../map/WorldGenerator';
 import type { FactionId } from '../types';
 
 /**
- * `?view=map`: the whole world map seen from above (the smooth base terrain the game draws when zoomed out, rivers
+ * Demo Shop → World map: the whole world map seen from above (the smooth base terrain the game draws when zoomed out, rivers
  * included), with capitals and river names. Drag to pan, wheel to zoom, double click to fit.
  */
 export async function showMapView(root: HTMLElement): Promise<void> {
@@ -47,7 +47,7 @@ export async function showMapView(root: HTMLElement): Promise<void> {
 
   const bar = document.createElement('div');
   bar.className = 'mv-bar';
-  bar.innerHTML = `<b>WORLD MAP</b><a href="?">Back to the game</a><a href="?view=buildings">Buildings</a><a href="?view=units">Units</a>
+  bar.innerHTML = `<b>WORLD MAP</b>
     <label><input type="checkbox" data-layer="capital" checked> Capitals</label>
     <label><input type="checkbox" data-layer="river" checked> Rivers</label>
     <span style="opacity:.7">Drag: pan · Wheel: zoom · Double click: fit</span>`;

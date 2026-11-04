@@ -1,9 +1,8 @@
-import { ISLAMIC_GREEN } from './IslamicPalette';
 import type { FactionId } from '../../types';
-import { shade } from '../Color';
 import { drawFlagOnPole, drawNationalPole } from '../Flags';
 import type { IsoPainter } from '../IsoPainter';
 import type { BuildingArt } from './BuildingArt';
+import { type PictureSpec, drawPicture, pictureArt } from './PictureArt';
 
 /** A landmark pole: twice as tall as the poles on other buildings, thicker, with a big flag. */
 const POLE_H = 84;
@@ -15,55 +14,18 @@ const FLAG_H = 22;
 interface Plaza {
   /** Height of the podium top, where the pole stands. */
   top: number;
-  podium: (p: IsoPainter) => void;
   /** Extra animation (flame, lights…), drawn under the flag. */
   animate?: (p: IsoPainter, time: number) => void;
 }
 
-/** Square step centred in the cell. */
-const step = (p: IsoPainter, inset: number, z: number, h: number, color: string, top?: string): void =>
-  p.box(inset, inset, 1 - 2 * inset, 1 - 2 * inset, z, h, color, top ? { top } : {});
-
-/** Small post with a lamp on top. */
-const lamp = (p: IsoPainter, u: number, v: number, z: number, glow: string): void => {
-  p.pole(u, v, z, 7, '#3b3f44');
-  const [x, y] = p.project(u, v, z + 7);
-  p.ctx.fillStyle = glow;
-  p.ctx.beginPath();
-  p.ctx.arc(x, y, 1.1, 0, Math.PI * 2);
-  p.ctx.fill();
-};
-
 const PLAZAS: Record<FactionId, Plaza> = {
   // USA: three granite steps (a memorial plinth), a bronze plaque, lamp posts at the front corners.
-  usa: {
-    top: 6.8,
-    podium: (p) => {
-      step(p, 0, 0, 2, '#9c9a90');
-      p.topRect(0.04, 0.04, 0.96, 0.96, 2, '#a6a397');
-      step(p, 0.18, 2, 1.6, '#b2aea2');
-      step(p, 0.28, 3.6, 1.6, '#bfbbae');
-      step(p, 0.36, 5.2, 1.6, '#cbc6b8');
-      p.faceRect('left', 0.18, 0.18, 0.64, 0.64, 2, 1.6, 0.35, 0.65, 0.15, 0.85, '#8a6a3a');
-      lamp(p, 0.12, 0.88, 2, '#fff2c0');
-      lamp(p, 0.88, 0.12, 2, '#fff2c0');
-    },
-  },
+  usa: { top: 6.8 },
   // Russia: red granite podium on a black stone base, with the Eternal Flame in front of it.
   russia: {
     top: 6.8,
-    podium: (p) => {
-      step(p, 0, 0, 2, '#77706a');
-      p.topRect(0.04, 0.04, 0.96, 0.96, 2, '#5b5650');
-      step(p, 0.22, 2, 2.4, '#7d2a22', '#8f3329');
-      step(p, 0.3, 4.4, 2.4, '#8f3329', '#a23d31');
-      // Eternal Flame bowl (front).
-      p.cylinder(0.72, 0.72, 0.1, 2, 1.4, '#2f2b28');
-      // Low chain posts round the podium.
-      for (const [u, v] of [[0.1, 0.9], [0.5, 0.92], [0.9, 0.9], [0.92, 0.5], [0.9, 0.1]] as const) p.box(u - 0.025, v - 0.025, 0.05, 0.05, 2, 3, '#2f2b28');
-    },
     animate: (p, time) => {
-      const [x, y] = p.project(0.72, 0.72, 3.4);
+      const [x, y] = p.project(0.84, 0.84, 3.4);
       const f = 0.8 + Math.sin(time * 11) * 0.15 + Math.sin(time * 7.3) * 0.1;
       const g = p.ctx.createRadialGradient(x, y - 1.5, 0.2, x, y - 1.5, 3.2 * f);
       g.addColorStop(0, 'rgba(255,240,170,0.95)');
@@ -75,39 +37,11 @@ const PLAZAS: Record<FactionId, Plaza> = {
       p.ctx.fill();
     },
   },
-  // China: white marble terrace in two tiers with a balustrade all round and red lanterns at the front.
-  china: {
-    top: 6.4,
-    podium: (p) => {
-      step(p, 0, 0, 2, '#cfcabd');
-      step(p, 0.08, 2, 2.4, '#d2ccbd');
-      // Balustrade along the two front edges: a rail on little posts.
-      for (let t = 0.1; t <= 0.91; t += 0.135) {
-        p.box(t - 0.02, 0.88, 0.04, 0.04, 4.4, 2.2, '#ded8ca');
-        p.box(0.88, t - 0.02, 0.04, 0.04, 4.4, 2.2, '#ded8ca');
-      }
-      p.box(0.08, 0.88, 0.84, 0.04, 6.6, 0.6, '#ded8ca');
-      p.box(0.88, 0.08, 0.04, 0.84, 6.6, 0.6, '#ded8ca');
-      step(p, 0.3, 4.4, 2, '#dcd6c8');
-      for (const [u, v] of [[0.2, 0.85], [0.85, 0.2]] as const) {
-        p.pole(u, v, 4.4, 8, '#5a2a1a');
-        const [x, y] = p.project(u, v, 10.5);
-        p.ctx.fillStyle = '#d42a1e';
-        p.ctx.beginPath();
-        p.ctx.ellipse(x, y, 1.4, 1.7, 0, 0, Math.PI * 2);
-        p.ctx.fill();
-      }
-    },
-  },
+  // China: white marble terrace in two tiers with a balustrade and red lanterns at the front.
+  china: { top: 6.4 },
   // Europe: modern round blue-glass podium on a steel plate, with twelve star lights round its rim.
   europe: {
     top: 5.5,
-    podium: (p) => {
-      step(p, 0, 0, 2, '#aeb4ba');
-      p.topRect(0.04, 0.04, 0.96, 0.96, 2, '#c9ced3');
-      p.cylinder(0.5, 0.5, 0.4, 2, 2, '#3c4f78');
-      p.cylinder(0.5, 0.5, 0.3, 4, 1.5, shade('#3c4f78', 1.2));
-    },
     animate: (p, time) => {
       for (let i = 0; i < 12; i++) {
         const a = (i / 12) * Math.PI * 2;
@@ -120,25 +54,25 @@ const PLAZAS: Record<FactionId, Plaza> = {
       }
     },
   },
-  // Islamic: sand-stone plinth wrapped in a band of green tile, filling the whole cell.
-  islamic: {
-    top: 6,
-    podium: (p) => {
-      step(p, 0, 0, 2, '#cdb98e');
-      p.topRect(0.04, 0.04, 0.96, 0.96, 2, '#cdb994');
-      step(p, 0.12, 2, 2, ISLAMIC_GREEN);
-      step(p, 0.3, 4, 2, '#cdb994');
-    },
-  },
+  // Islamic: sand-stone plinth wrapped in a band of green tile.
+  islamic: { top: 6 },
 };
 
+/** Rendered in Blender (tools/blender/models/flagpole.py, flagpole-<nation>): the podium only; pole and flag are drawn on top. */
+const PICTURE = (f: FactionId): PictureSpec => ({ file: `building-flagpole-${f}`, originX: 38, originY: 20, scale: 3, footprint: { w: 1, d: 1 }, zScale: 1 });
+const PICTURES: Record<FactionId, PictureSpec> = {
+  usa: PICTURE('usa'),
+  russia: PICTURE('russia'),
+  china: PICTURE('china'),
+  europe: PICTURE('europe'),
+  islamic: PICTURE('islamic'),
+};
+for (const spec of Object.values(PICTURES)) pictureArt(spec);
+
 /**
- * Flagpole (1 × 1 cell): each nation's flag plaza — a stepped granite memorial plinth with lamps (USA), a red
- * granite podium with the Eternal Flame (Russia), a white marble terrace with a balustrade and red lanterns
- * (China), a round blue-glass podium ringed by twelve star lights (Europe) — with the nation's own pole
- * (see drawNationalPole) and its flag waving on top.
+ * Flagpole (1 × 1 cell): each nation's flag plaza with the nation's own pole (see drawNationalPole) and its flag
+ * waving on top. `flagOf`: the nation whose flag flies (its owner after a capture; the plaza stays `faction`'s).
  */
-/** `flagOf`: the nation whose flag flies (its owner after a capture; the plaza stays `faction`'s). */
 export function createFlagpoleArt(faction: FactionId, flagOf: FactionId = faction): BuildingArt {
   const plaza = PLAZAS[faction];
   const base = plaza.top;
@@ -147,7 +81,7 @@ export function createFlagpoleArt(faction: FactionId, flagOf: FactionId = factio
     height: POLE_H + 30,
 
     drawStatic(p) {
-      plaza.podium(p);
+      drawPicture(p, PICTURES[faction]);
       drawNationalPole(p, faction, 0.5, 0.5, base, POLE_H, POLE_K);
     },
 

@@ -31,6 +31,11 @@ function image(file: string): HTMLImageElement {
   return i;
 }
 
+/** Registers a picture drawn only later (e.g. animation frames) so loadPictureArts downloads it too. */
+export function preloadPicture(file: string): void {
+  image(file);
+}
+
 /** Starts (once) and returns the downloads of every picture registered so far (failures are skipped). */
 export function loadPictureArts(): Promise<void> {
   loading ??= Promise.all(
@@ -55,7 +60,7 @@ export function drawPicture(p: IsoPainter, spec: PictureSpec): void {
 }
 
 /** A structure that is just its picture (plus optional extra layers drawn on top, e.g. a flag). */
-export function pictureArt(spec: PictureSpec, extra: Partial<Pick<BuildingArt, 'drawAnimated' | 'noRim' | 'noShadow'>> & { overlay?: (p: IsoPainter) => void } = {}): BuildingArt {
+export function pictureArt(spec: PictureSpec, extra: Partial<Pick<BuildingArt, 'drawAnimated' | 'noRim' | 'noShadow' | 'recolorWhole'>> & { overlay?: (p: IsoPainter) => void } = {}): BuildingArt {
   image(spec.file);
   return {
     footprint: spec.footprint,
@@ -63,6 +68,8 @@ export function pictureArt(spec: PictureSpec, extra: Partial<Pick<BuildingArt, '
     height: Math.ceil(spec.originY / spec.zScale) + 4,
     noRim: extra.noRim,
     noShadow: extra.noShadow,
+    // A picture has no roof layer to mask by: a taken one recolours every pixel in the old nation's hues (see recolorPixels).
+    recolorWhole: extra.recolorWhole ?? true,
     drawStatic(p) {
       drawPicture(p, spec);
       extra.overlay?.(p);

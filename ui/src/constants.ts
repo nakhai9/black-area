@@ -16,8 +16,10 @@ import type {
  * (VITE_DEMO_MODE=true in .env.local); off when unset, so production builds never start in demo.
  */
 export const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === "true";
-/** DEMO_MODE nation, by number (VITE_DEMO_FACTION): 1 USA, 2 Russia, 3 China, 4 Europe, 5 Islamic (the FACTION_ORDER position, from 1). Default 2. */
-export const DEMO_FACTION = Number(import.meta.env.VITE_DEMO_FACTION) || 2;
+/** Short nation codes (VITE_DEMO_FACTION): us USA, ru Russia, cn China, eu Europe, ui Islamic union. */
+export const NATION_CODES: Readonly<Record<string, FactionId>> = { us: "usa", ru: "russia", cn: "china", eu: "europe", ui: "islamic" };
+/** DEMO_MODE nation, by code (VITE_DEMO_FACTION, see NATION_CODES). Default ru. */
+export const DEMO_FACTION: FactionId = NATION_CODES[(import.meta.env.VITE_DEMO_FACTION ?? "").trim().toLowerCase()] ?? "russia";
 
 /**
  * Version of the game, x.y.z (semantic versioning):
@@ -27,7 +29,7 @@ export const DEMO_FACTION = Number(import.meta.env.VITE_DEMO_FACTION) || 2;
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "2.102.0";
+export const GAME_VERSION = "3.0.0";
 
 /** An Allied Building within this many cells of any capital is an embassy; farther out it is a "Pro-<nation> regime". */
 export const EMBASSY_CAPITAL_CELLS = 25;

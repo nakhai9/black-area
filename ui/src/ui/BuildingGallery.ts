@@ -4,7 +4,7 @@ import { FACTIONS } from '../factions';
 import { bunkerPreview, loadBunkerSprites } from '../render/BunkerSheet';
 import { IsoPainter } from '../render/IsoPainter';
 import { type Sprite, SpriteCache } from '../render/SpriteCache';
-import { BUILDING_ART, teamColoredKey } from '../render/sprites';
+import { BUILDING_ART, flagVariantArt, teamColoredKey } from '../render/sprites';
 import { BUILD_OPTIONS } from '../systems/ConstructionSystem';
 
 /** Card picture size (CSS px). */
@@ -18,6 +18,10 @@ function displayName(type: string, owner: string): string {
   if (type === 'bank') return 'Global Monitoring Center';
   if (type === 'monument') return 'Pyramids of Giza';
   if (type === 'oil') return 'Oil Derrick';
+  if (type === 'parallelGov') {
+    const [host = '', holder = host] = owner.split('@');
+    return `Parallel Government (${FACTIONS[holder as FactionId]?.shortName ?? holder}–${FACTIONS[host as FactionId]?.shortName ?? host})`;
+  }
   return BUILD_OPTIONS.find((o) => o.id === type)?.name ?? type;
 }
 
@@ -29,7 +33,7 @@ interface Card {
 }
 
 /**
- * `?view=buildings`: a gallery of every structure in the game, grouped by nation (plus the contested nations' capitals
+ * Demo Shop → Buildings: a gallery of every structure in the game, grouped by nation (plus the contested nations' capitals
  * and the neutral ones), each
  * drawn with its animated layer (flags, lights, pumpjacks) running.
  */
@@ -58,7 +62,7 @@ export function showBuildingGallery(root: HTMLElement): void {
   loadBunkerSprites().catch(() => undefined);
   const page = document.createElement('div');
   page.className = 'bg-page';
-  page.innerHTML = `<h1>BUILDINGS</h1><p>Every structure of every nation. <a href="?">Back to the game</a> · <a href="?view=units">Units</a></p>`;
+  page.innerHTML = `<h1>BUILDINGS</h1><p>Every structure of every nation.</p>`;
   root.replaceChildren(page);
 
   const groups: { name: string; color: string; match: (type: string, owner: string) => boolean }[] = [
@@ -70,8 +74,11 @@ export function showBuildingGallery(root: HTMLElement): void {
   for (const g of groups) {
     const keys = Object.keys(BUILDING_ART).filter((k) => {
       const [type = '', owner = ''] = k.split(':');
-      return g.match(type, owner);
+      return type !== 'parallelGov' && g.match(type, owner);
     });
+    // Parallel Government: one card per nation it can be set up in, the holder's hall beside that nation's.
+    const holder = FACTION_ORDER.find((f) => g.match('', f));
+    if (holder) keys.push(...FACTION_ORDER.filter((f) => f !== holder).map((host) => `parallelGov:${host}@${holder}`));
     if (keys.length === 0) continue;
     const h = document.createElement('h2');
     h.className = 'bg-nation';
@@ -81,7 +88,7 @@ export function showBuildingGallery(root: HTMLElement): void {
     page.append(h, grid);
     for (const key of keys) {
       const [type = '', owner = ''] = key.split(':');
-      const art = BUILDING_ART[key];
+      const art = BUILDING_ART[key] ?? flagVariantArt(key);
       if (!art) continue;
       // `&owner=<nation>`: every structure as if taken by that nation (captured colours).
       const sprite = cache.get(paintAs ? teamColoredKey(key, paintAs) : key);

@@ -37,6 +37,11 @@ export default {
   'New game': 'Ván mới',
   // Loading
   'Generating Earth…': 'Đang tạo Trái Đất…',
+  'Shop': 'Cửa hàng',
+  'Play demo': 'Chơi demo',
+  'Buildings': 'Công trình',
+  'Units': 'Đơn vị',
+  'World map': 'Bản đồ thế giới',
   // Status bar
   Ocean: 'Đại dương',
   Coast: 'Bờ biển',

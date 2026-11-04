@@ -4,7 +4,7 @@ import { drawFlagOnPole } from '../Flags';
 import type { IsoPainter } from '../IsoPainter';
 import type { Allegiance } from '../../types';
 import type { BuildingArt } from './BuildingArt';
-import { parapet } from './Ra2Kit';
+import { type PictureSpec, pictureArt } from './PictureArt';
 
 const SAND = '#cbb58a';
 const STONE = '#ad9b78';
@@ -15,11 +15,6 @@ const TILE_DEEP = ISLAMIC_GREEN_DARK;
 /** Screen px per tile along a building face (HALF_TW). */
 const SCREEN_PX = 32;
 
-/** The capital's one flag, on the crown of the great dome: pole foot (u, v, z) and pole height. */
-const TOP_FLAG: readonly [number, number, number] = [2.0, 1.1, 3 + 90];
-const TOP_POLE_H = 22;
-/** Art-space depth: the sanctuary plot only (no courtyard/gate forecourt). */
-const ART_D = 4;
 
 /** Minaret: tall sand shaft, tiled balcony, slimmer top, small green dome and gold finial. */
 function minaret(p: IsoPainter, u: number, v: number, s: number, z: number): void {
@@ -114,22 +109,6 @@ export function arcade(p: IsoPainter, face: 'left' | 'right', b: Box, n: number,
   }
 }
 
-/** Sand box with a band of tile along the top of both visible faces. */
-function tiledBox(p: IsoPainter, b: Box): void {
-  const [u, v, w, d, z, h] = b;
-  p.box(u, v, w, d, z, h, SAND);
-  // Weathered plinth and stone courses.
-  p.faceRect('left', u, v, w, d, z, h, 0, 1, 0, 0.08, shade(SAND, 0.75));
-  p.faceRect('right', u, v, w, d, z, h, 0, 1, 0, 0.08, shade(SAND, 0.75));
-  for (let k = 1; k < 4; k++) {
-    p.faceRect('left', u, v, w, d, z, h, 0, 1, k / 4.4, k / 4.4 + 0.012, shade(SAND, 0.88));
-    p.faceRect('right', u, v, w, d, z, h, 0, 1, k / 4.4, k / 4.4 + 0.012, shade(SAND, 0.88));
-  }
-  parapet(p, u, v, w, d, z + h, shade(SAND, 0.95), 0.05, 1.8);
-  p.faceRect('left', u, v, w, d, z, h, 0, 1, 0.9, 0.97, TILE);
-  p.faceRect('right', u, v, w, d, z, h, 0, 1, 0.9, 0.97, shade(TILE, 0.85));
-}
-
 /** Iwan: a tall portal block whose `face` holds a deep pointed arch in a tiled frame, with a gold muqarnas hood. */
 export function iwan(p: IsoPainter, face: 'left' | 'right', b: Box): void {
   const [u, v, w, d, z, h] = b;
@@ -142,116 +121,22 @@ export function iwan(p: IsoPainter, face: 'left' | 'right', b: Box): void {
   p.faceRect(face, u, v, w, d, z, h, 0.08, 0.92, 0.94, 1, GOLD);
 }
 
-/** Great dome clad in green tile, dotted with rows of gold and cream arabesque points, an inscription band at its foot. */
-function tiledDome(p: IsoPainter, cu: number, cv: number, r: number, z: number, h: number): void {
-  p.dome(cu, cv, r, z, h, TILE);
-  const [cx, cy] = p.project(cu, cv, z);
-  const rx = r * Math.SQRT2 * SCREEN_PX;
-  const ry = rx / 2;
-  const { ctx } = p;
-  for (let k = 1; k <= 5; k++) {
-    const t = (k / 6) * (Math.PI / 2);
-    const n = Math.max(4, Math.round(16 * Math.cos(t)));
-    for (let i = 0; i <= n; i++) {
-      const phi = (i / n) * Math.PI;
-      const x = cx - Math.cos(phi) * rx * Math.cos(t);
-      const y = cy - Math.sin(t) * h + Math.sin(phi) * ry * Math.cos(t) * 0.9;
-      ctx.fillStyle = (i + k) % 2 ? '#f2e6c4' : GOLD;
-      ctx.beginPath();
-      ctx.arc(x, y, 0.9, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  }
-  ctx.strokeStyle = '#f2e6c4';
-  ctx.lineWidth = 1.2;
-  ctx.beginPath();
-  ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI);
-  ctx.stroke();
-}
+/** The capital's one flag, on the crown of the great dome (plot coordinates, the old 4-unit art × 1.25). */
+const TOP_FLAG: readonly [number, number, number] = [2.5, 1.375, 124];
+const TOP_POLE_H = 24;
 
-/** Gold crescent on a pole. */
-function finial(p: IsoPainter, u: number, v: number, z: number, k = 1): void {
-  p.pole(u, v, z, 8 * k, GOLD);
-  const [x, y] = p.project(u, v, z + 10 * k);
-  p.ctx.fillStyle = GOLD;
-  p.ctx.beginPath();
-  p.ctx.arc(x, y, 2.6 * k, 0, Math.PI * 2);
-  p.ctx.fill();
-  p.ctx.fillStyle = TILE;
-  p.ctx.beginPath();
-  p.ctx.arc(x + 1.1 * k, y - 0.5 * k, 2.2 * k, 0, Math.PI * 2);
-  p.ctx.fill();
-}
-
-/** Slim tiled minaret standing on top of the main iwan. */
-function iwanMinaret(p: IsoPainter, u: number, v: number, z: number): void {
-  p.cylinder(u, v, 0.13, z, 34, TILE, 8);
-  p.cylinder(u, v, 0.19, z + 34, 3, TILE_DEEP);
-  p.cylinder(u, v, 0.1, z + 37, 9, SAND);
-  p.dome(u, v, 0.12, z + 46, 6, TILE);
-  p.pole(u, v, z + 52, 4, GOLD);
-}
+/** Rendered in Blender (tools/blender/building_render.py capital-islamic). */
+const PICTURE: PictureSpec = { file: 'building-capital-islamic', originX: 166, originY: 200.0625, scale: 3, footprint: { w: 5, d: 5 }, zScale: 1.35 };
 
 /**
- * Riyadh — the Islamic world's capital landmark, a grand mosque in the Isfahan four-iwan plan: the sanctuary under a huge tiled
- * dome at the back; the main iwan with its pair of minarets, the old court roofed over
- * by covered prayer halls filling the plot, with the nation's flags on the front corner roofs.
+ * Riyadh — the Islamic world's capital landmark, a grand mosque in the Isfahan four-iwan plan: the sanctuary under a
+ * huge ribbed green-tiled dome at the back; the main iwan with its pair of minarets, the old court roofed over by
+ * arcaded prayer halls filling the plot, the one flag flying from the crown of the great dome.
  */
 /** The landmark with `flag` flying over it (its own nation's, until it is captured). */
 export function createGrandMosqueArt(flag: Allegiance = 'islamic'): BuildingArt {
-  const Z = 3;
-  return {
-    footprint: { w: 4, d: ART_D },
-    // Same 5 × 5 plot as every capital: authored in 4 × 4 units and drawn 1.25× to fill it.
-    scale: 5 / 4,
-    height: 150,
-
-    drawStatic(p) {
-      p.box(0, 0, 4, ART_D, 0, Z, STONE);
-
-      // Back side halls flanking the sanctuary.
-      const westBack: Box = [0.02, 0.02, 0.7, 2.28, Z, 20];
-      tiledBox(p, westBack);
-      arcade(p, 'left', westBack, 2, 2);
-
-      // Sanctuary and its great dome.
-      tiledBox(p, [0.72, 0.02, 2.56, 2.03, Z, 30]);
-      p.windows('right', 0.72, 0.02, 2.56, 2.03, Z, 30, 4, 1, TILE_DEEP, 0.15, 0.5);
-      p.cylinder(2.0, 1.1, 0.8, Z + 30, 14, SAND, 16);
-      p.cylinder(2.0, 1.1, 0.8, Z + 38, 4, TILE_DEEP);
-      tiledDome(p, 2.0, 1.1, 0.88, Z + 44, 46);
-      finial(p, 2.0, 1.1, Z + 90, 1.2);
-
-      const eastBack: Box = [3.28, 0.02, 0.7, 2.28, Z, 20];
-      tiledBox(p, eastBack);
-      arcade(p, 'right', eastBack, 4, 2);
-
-      // West covered prayer hall (the old court is roofed over).
-      const west: Box = [0.02, 2.3, 1.13, 1.68, Z, 20];
-      tiledBox(p, west);
-      arcade(p, 'left', west, 3, 2);
-
-      // Main (north) iwan, and the covered prayer hall in front of it.
-      iwan(p, 'left', [1.15, 1.95, 1.7, 0.6, Z, 56]);
-      const front: Box = [1.15, 2.55, 1.7, 1.43, Z, 14];
-      tiledBox(p, front);
-      arcade(p, 'left', front, 5, 1);
-      iwanMinaret(p, 1.3, 2.25, Z + 56);
-      iwanMinaret(p, 2.7, 2.25, Z + 56);
-
-      // East covered prayer hall.
-      const east: Box = [2.85, 2.3, 1.13, 1.68, Z, 20];
-      tiledBox(p, east);
-      arcade(p, 'left', east, 3, 2);
-      arcade(p, 'right', east, 4, 2);
-
-      // The one flag flies from the crown of the great dome.
-      p.pole(TOP_FLAG[0], TOP_FLAG[1], TOP_FLAG[2], TOP_POLE_H, '#d8d8d8');
-    },
-
-    drawAnimated(p, time) {
-      drawFlagOnPole(p, flag, TOP_FLAG[0], TOP_FLAG[1], TOP_FLAG[2] + TOP_POLE_H, time, 0, 16, 10);
-    },
-  };
+  return pictureArt(PICTURE, {
+    overlay: (p) => p.pole(TOP_FLAG[0], TOP_FLAG[1], TOP_FLAG[2], TOP_POLE_H, '#d8d8d8'),
+    drawAnimated: (p, time) => drawFlagOnPole(p, flag, TOP_FLAG[0], TOP_FLAG[1], TOP_FLAG[2] + TOP_POLE_H, time, 0, 18, 11),
+  });
 }
-

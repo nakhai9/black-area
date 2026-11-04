@@ -20,9 +20,7 @@ import { loadBunkerSprites } from './render/BunkerSheet';
 import { loadSoldierSprites } from './render/InfantryArt';
 import type { FactionId } from './types';
 import { FactionPicker } from './ui/FactionPicker';
-import { showBuildingGallery } from './ui/BuildingGallery';
-import { showUnitGallery } from './ui/UnitGallery';
-import { showMapView } from './ui/MapView';
+import { showDemoMenu } from './ui/DemoMenu';
 import type { SaveFile } from './core/SaveCodec';
 import { LANGUAGE_RELOAD_KEY, PENDING_SAVE_KEY } from './ui/PauseMenu';
 import { confirmLoadedGame } from './ui/LoadConfirm';
@@ -141,7 +139,7 @@ async function boot(): Promise<void> {
       : (FACTION_ORDER as readonly string[]).includes(preset ?? '')
       ? { faction: preset as FactionId, demo: false }
       : DEMO_MODE
-        ? { faction: FACTION_ORDER[DEMO_FACTION - 1] ?? 'russia', demo: true } // DEMO_MODE: straight into a demo game as DEMO_FACTION
+        ? await showDemoMenu(document.body).then(() => ({ faction: DEMO_FACTION, demo: true, mp: undefined as MultiplayerStart | undefined })) // DEMO_MODE: demo menu (Shop / Play demo), then a demo game as DEMO_FACTION
         : await new FactionPicker(document.body).choose();
 
     // A picked save is confirmed first; only then is the world generated and the game loaded into it.
@@ -226,14 +224,7 @@ async function boot(): Promise<void> {
   }
 }
 
-// `?view=buildings`: gallery of every structure of every nation instead of the game.
-// `?view=units`: gallery of every soldier, vehicle and aircraft of every nation.
-// `?view=map`: the whole world map (terrain, rivers, capitals) to pan and zoom.
-const view = new URLSearchParams(location.search).get('view');
-if (view === 'buildings') showBuildingGallery(document.body);
-else if (view === 'units') void showUnitGallery(document.body);
-else if (view === 'map') void showMapView(document.body);
-else void boot();
+void boot();
 
 // No browser context menu anywhere in the game (it offers "Inspect", which opens the dev tools).
 window.addEventListener('contextmenu', (e) => e.preventDefault(), { capture: true });

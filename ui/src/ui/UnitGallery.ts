@@ -36,7 +36,7 @@ function stats(u: Unit): string {
 }
 
 /**
- * `?view=units`: a gallery of every soldier, vehicle and aircraft of every nation, drawn with the in-game art
+ * Demo Shop → Units: a gallery of every soldier, vehicle and aircraft of every nation, drawn with the in-game art
  * (sprite sheets, or the vector art where a nation has none), slowly turning through all headings.
  */
 export async function showUnitGallery(root: HTMLElement): Promise<void> {
@@ -60,7 +60,7 @@ export async function showUnitGallery(root: HTMLElement): Promise<void> {
   document.head.append(style);
   const page = document.createElement('div');
   page.className = 'ug-page';
-  page.innerHTML = `<h1>UNITS</h1><p>Every soldier, vehicle and aircraft of every nation. <a href="?">Back to the game</a> · <a href="?view=buildings">Buildings</a></p>`;
+  page.innerHTML = `<h1>UNITS</h1><p>Every soldier, vehicle and aircraft of every nation.</p>`;
   root.replaceChildren(page);
 
   // The pictures come from the same sheets the game draws with (missing ones fall back to the vector art).

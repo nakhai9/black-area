@@ -26,7 +26,7 @@
 <body>
 <main>
 <img class="logo" src="/logo.png" alt="Black Area" />
-<h1>Black Area — RULE <small>v2.102.0</small></h1>
+<h1>Black Area — RULE <small>v3.0.0</small></h1>
 <p class="lead">Game rules + code architecture document for AI/devs modifying the game. All exact gameplay numbers live in <code>src/constants.ts</code> and <code>src/factions/*.ts</code>. If this document differs from the code, <b>the code is right</b>. <b>When changing rules/numbers in code, this file must be updated.</b></p>
 <nav><a href="#s1">Working rules for AI</a><a href="#s2">Running the project</a><a href="#s3">Folder architecture</a><a href="#s4">World</a><a href="#s5">Economy (oil)</a><a href="#s6">Buildings (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Military</a><a href="#s8">Combat</a><a href="#s9">Controls (Game.handleKey, handleInput)</a><a href="#s10">Limits &amp; performance</a><a href="#s11">Victory / defeat &amp; AI</a><a href="#s12">Common edit recipes</a></nav>
 <h2 id="s1">0. Working rules for AI</h2>
@@ -49,8 +49,8 @@ npm run build        # typecheck + vite build
 npm run build:earth  # regenerate public/data/earth.png (scripts/build-earth.mjs)</pre>
 <ul>
   <li>URL <code>?faction=usa|russia|china|europe|islamic</code> skips the faction picker (<code>src/main.ts</code>).</li>
-  <li><code>DEMO_MODE</code> (constants, read from env <code>VITE_DEMO_MODE=true</code>; <code>DEMO_FACTION</code> from <code>VITE_DEMO_FACTION</code>, default 2. Set in <code>.env.local</code> (not committed, sample in <code>.env.example</code>); missing variable → off, so production builds never enter demo. Changing env requires restarting <code>npm run dev</code>): jumps straight into a solo test match with faction number <code>DEMO_FACTION</code> (1 USA, 2 Russia, 3 China, 4 Europe, 5 Islamic); everything costs <code>DEMO_PRICE = 100</code>, money/oil held at <code>DEMO_CREDITS = 999_999</code>, each unit type starts with <code>DEMO_UNITS_EACH = 2</code>.</li>
-  <li>URL <code>?view=buildings</code>: page showing every building by faction, with a <b>Contested nations</b> group (capitals of the contested nations: North Korea, South Korea, Japan, Australia, Brazil, UK, Canada) (<code>ui/BuildingGallery.ts</code>); <code>?view=units</code>: page showing every soldier, vehicle and aircraft of every faction, drawn with in-game sprites, rotating through directions, with display name and cost / HP / speed / weapon (<code>ui/UnitGallery.ts</code>).</li>
+  <li><code>DEMO_MODE</code> (constants, read from env <code>VITE_DEMO_MODE=true</code>; <code>DEMO_FACTION</code> from <code>VITE_DEMO_FACTION</code>, default <code>ru</code>. Set in <code>.env.local</code> (not committed, sample in <code>.env.example</code>); missing variable → off, so production builds never enter demo. Changing env requires restarting <code>npm run dev</code>): jumps straight into a solo test match with faction code <code>DEMO_FACTION</code> (<code>us</code> USA, <code>ru</code> Russia, <code>cn</code> China, <code>eu</code> Europe, <code>ui</code> Islamic union); everything costs <code>DEMO_PRICE = 100</code>, money/oil held at <code>DEMO_CREDITS = 999_999</code>, each unit type starts with <code>DEMO_UNITS_EACH = 2</code>.</li>
+  <li>Demo mode (<code>VITE_DEMO_MODE=true</code>): the start screen has two buttons — <b>Shop</b> (every building by faction incl. Contested nations, every soldier / vehicle / aircraft, and the world map; <code>ui/DemoMenu.ts</code>, <code>ui/BuildingGallery.ts</code>, <code>ui/UnitGallery.ts</code>, <code>ui/MapView.ts</code>) and <b>Play demo</b> (straight into the demo game). Outside demo mode the faction picker is unchanged. The <code>?view=</code> routes are removed.</li>
   <li>Alt+F: toggle fullscreen.</li>
 </ul>
 <h2 id="s3">2. Folder architecture</h2>
