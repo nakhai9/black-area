@@ -19,6 +19,10 @@ from mathutils import Vector
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 OUT = os.path.join(ROOT, "ui", "public", "sprites")
+# LAB=<id>: render into the Research Lab's product folder (ui/public/research-lab/<id>/) instead of the game's sprites.
+if os.environ.get("LAB"):
+    OUT = os.path.join(ROOT, "ui", "public", "research-lab", os.environ["LAB"])
+    os.makedirs(OUT, exist_ok=True)
 SCALE = 3
 ZS = 1.35
 PX_PER_BU = 32 / math.sqrt(0.5)  # art px per BU across the screen

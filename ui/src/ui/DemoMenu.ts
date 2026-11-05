@@ -3,11 +3,13 @@ import { loadPictureArts } from "../render/sprites/PictureArt";
 import { t } from "../i18n";
 import { showBuildingGallery } from "./BuildingGallery";
 import { showMapView } from "./MapView";
+import { showResearchLab } from "./ResearchLab";
 import { showUnitGallery } from "./UnitGallery";
 
 /**
- * DEMO_MODE start screen (shown only in demo mode; the normal game keeps its faction picker): two buttons —
- * Shop opens the galleries (buildings, units, world map), Play demo goes straight into the demo game.
+ * DEMO_MODE start screen (shown only in demo mode; the normal game keeps its faction picker): three buttons —
+ * Shop opens the galleries (buildings, units, world map), Play demo goes straight into the demo game, Research Lab
+ * previews generated products before they go into the game (see ResearchLab).
  * Resolves when Play demo is clicked.
  */
 export function showDemoMenu(host: HTMLElement): Promise<void> {
@@ -22,6 +24,7 @@ export function showDemoMenu(host: HTMLElement): Promise<void> {
       <footer class="fp-footer dm-footer">
         <button class="fp-load dm-shop" type="button">${t("Shop")}</button>
         <button class="fp-deploy dm-play" type="button">${t("Play demo")}</button>
+        <button class="fp-load dm-lab" type="button">${t("Research Lab")}</button>
       </footer>
     </div>`;
   host.append(root);
@@ -29,6 +32,10 @@ export function showDemoMenu(host: HTMLElement): Promise<void> {
     root.querySelector(".dm-shop")?.addEventListener("click", () => {
       root.remove();
       showShop(host);
+    });
+    root.querySelector(".dm-lab")?.addEventListener("click", () => {
+      root.remove();
+      void showResearchLab(host);
     });
     root.querySelector(".dm-play")?.addEventListener("click", () => {
       root.remove();
