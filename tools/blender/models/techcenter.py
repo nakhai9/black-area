@@ -135,7 +135,7 @@ def usa(f):
     panes(1.7, 1.55, 0.6, 0.5, 150, 12, 6, 2, g, fr, fill=0.4)
     lathe(2.0, 1.8, 162, [(0.2, 0), (0.18, 6), (0.12, 10), (0.08, 12)], mat("#d8d4c8", 0.6, grain=0.05), 32, cap_top=True)
     antenna(2.0, 1.8, 172, 28, 0.035)
-    render(f"techcenter-{f}", (4, 4), 210)
+    render("techcenter-usa-artdeco", (4, 4), 210)
 
 
 def russia(f):
@@ -203,7 +203,7 @@ def china(f):
     box(1.8, 1.7, 0.4, 0.3, 161, 7, gold)
     roof(1.85, 1.7, 0.3, 0.3, 168, 10, mat(team, 0.4, metal=0.5, grain=0.03), kind="pyramid", overhang=0.02)
     lathe(2.0, 1.85, 178, [(0.04, 0), (0.025, 6), (0.06, 8), (0.0, 18)], gold, 12)
-    render(f"techcenter-{f}", (4, 4), 210)
+    render("techcenter-china-pagoda", (4, 4), 210)
 
 
 def europe(f):
@@ -288,4 +288,4 @@ def islamic(f):
 
 
 _BUILD = {"usa": usa, "russia": russia, "china": china, "europe": europe, "islamic": islamic}
-MODELS = {f"techcenter-{f}": (lambda f=f: _BUILD[f](f)) for f in TEAM}
+MODELS = {({"usa": "techcenter-usa-artdeco", "china": "techcenter-china-pagoda"}.get(f, f"techcenter-{f}")): (lambda f=f: _BUILD[f](f)) for f in TEAM}

@@ -26,6 +26,7 @@ import {
   FOOTPRINT_LARGE,
   FOOTPRINT_BARRACKS,
   barracksFootprint,
+  techCenterFootprint,
   FOOTPRINT_SMALL,
   POWER_PLANT_COST,
   PARALLEL_GOV_COST,
@@ -171,8 +172,9 @@ const OWN_OPTIONS: readonly BuildOption[] = [
     requires: 'warFactory',
     cost: TECH_CENTER_COST,
     footprint: FOOTPRINT_SMALL,
+    footprintFor: (f) => techCenterFootprint(f),
     spriteKey: (f) => `techCenter:${f}`,
-    create: (owner, faction, x, y) => new TechCenter(owner, faction, center(x, y, FOOTPRINT_SMALL)),
+    create: (owner, faction, x, y) => new TechCenter(owner, faction, center(x, y, techCenterFootprint(faction))),
   },
   {
     id: 'happyCity',

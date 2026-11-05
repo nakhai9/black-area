@@ -140,7 +140,7 @@ export const BUILDING_DESIGNS: Readonly<Record<string, Readonly<Record<string, R
   warFactory: { usa: { standard: true }, russia: { standard: true }, china: { standard: true }, europe: { standard: true }, islamic: { standard: true } },
   airfield: { usa: { standard: true }, russia: { standard: true }, china: { standard: true }, europe: { standard: true }, islamic: { standard: true } },
   port: { usa: { standard: true }, russia: { standard: true }, china: { standard: true }, europe: { standard: true }, islamic: { standard: true } },
-  techCenter: { usa: { standard: true }, russia: { standard: true }, china: { standard: true }, europe: { standard: true }, islamic: { standard: true } },
+  techCenter: { usa: { applePark: true, artDeco: false }, russia: { standard: true }, china: { pekingUniversity: true, pagoda: false }, europe: { standard: true }, islamic: { standard: true } },
   powerPlant: { usa: { twinTowers: true }, russia: { coolingTower: true }, china: { coolingTower: true }, europe: { twinTowers: true }, islamic: { coolingTower: true } },
   radarTower: { usa: { standard: true }, russia: { standard: true }, china: { standard: true }, europe: { standard: true }, islamic: { standard: true } },
   happyCity: { usa: { standard: true }, russia: { standard: true }, china: { standard: true }, europe: { standard: true }, islamic: { standard: true } },
@@ -168,6 +168,13 @@ export function barracksFootprint(design: string): {
   readonly d: number;
 } {
   return design === "usa" && activeDesign("barracks", "usa") === "pentagon" ? FOOTPRINT_PENTAGON : FOOTPRINT_BARRACKS;
+}
+/** High-Tech Center plot: 4 × 4 cells; the USA's Apple Park design stands on 5 × 5, China's Peking University on 4 × 5. */
+export function techCenterFootprint(design: string): { readonly w: number; readonly d: number } {
+  const active = activeDesign("techCenter", design);
+  if (active === "applePark") return { w: 5, d: 5 };
+  if (active === "pekingUniversity") return { w: 4, d: 5 };
+  return FOOTPRINT_SMALL;
 }
 /** The Global Monitoring Center: 5 × 5 cells. */
 export const FOOTPRINT_GMC = { w: 5, d: 5 } as const;

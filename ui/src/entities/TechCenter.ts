@@ -1,4 +1,4 @@
-import { FOOTPRINT_SMALL } from '../constants';
+import { techCenterFootprint } from '../constants';
 import type { FactionId, WorldPoint } from '../types';
 import { Building } from './Building';
 
@@ -11,7 +11,7 @@ export class TechCenter extends Building {
     super(owner, faction, center, {
       type: 'techCenter',
       name: 'High-Tech Center',
-      footprint: FOOTPRINT_SMALL,
+      footprint: techCenterFootprint(faction),
       maxHp: 2500,
       powerOutput: 0,
       powerDrain: 6,

@@ -3,6 +3,7 @@ import math
 
 import bmesh
 
+from models._chinese_roof import curved_roof
 from kit import _obj, cylinder, dome, lathe, mat, render, rod, roof, zp, TEAM
 
 
@@ -310,25 +311,27 @@ def bayi():
     for vv in (0.1 - 0.005, 1.6 - 0.005):
         B.box(M0 + 0.6, vv, MW - 1.2, 0.01, 36.5, 3.5, glass)
     B.box(M0 - 0.06, 0.04, MW + 0.12, 1.62, 41.2, 1.4, trim)
-    roof(M0, 0.1, MW, 1.5, 42.6, 8, tile, kind="hip", ridge="u", overhang=0.14)
+    tile_d = mat("#3e4246", 0.7, grain=0.1, scale=30)
+    eave = mat("#5a1e16", 0.7, grain=0)
+    curved_roof(M0, 0.1, MW, 1.5, 42.6, 11, 0.2, tile, tile_d, eave, lift=2.6)
     # Corner bays at both ends, a little taller with their own roofs.
     for u in (M0, M0 + MW - 0.6):
         B.box(u, 0.1, 0.6, 1.5, 1.2, 44, stone)
         B.box(u - 0.01, 0.09, 0.62, 1.52, 1.2, 2.5, frame)
         rect_windows(B, u, 0.1, 0.6, 1.5, 4, 38, 3, 6, 9, glass, frame, fill=0.55, wfill=0.5)
         B.box(u - 0.06, 0.04, 0.72, 1.62, 45.2, 1.4, trim)
-        roof(u, 0.1, 0.6, 1.5, 46.6, 6, tile, kind="hip", ridge="v", overhang=0.12)
+        curved_roof(u, 0.1, 0.6, 1.5, 46.6, 8, 0.14, tile, tile_d, eave, lift=2.2)
     # Two low pavilion wings in front, with a set-back upper storey.
     for u in (0.2, W - 0.2 - 1.75):
         v, w, d = 1.85, 1.75, 1.05
         B.box(u, v, w, d, 1.2, 12, stone)
         rect_windows(B, u, v, w, d, 2.2, 10, 9, 5, 1, glass, frame, fill=0.8, wfill=0.45)
         B.box(u - 0.05, v - 0.05, w + 0.1, d + 0.1, 13.2, 1, trim)
-        roof(u, v, w, d, 14.2, 3, tile, kind="hip", ridge="u", overhang=0.1)
+        curved_roof(u, v, w, d, 14.2, 4, 0.12, tile, tile_d, eave, lift=1.6)
         k = 0.18
         B.box(u + k, v + k, w - 2 * k, d - 2 * k, 14, 7.5, stone)
         rect_windows(B, u + k, v + k, w - 2 * k, d - 2 * k, 15.5, 5, 6, 3, 1, glass, frame, fill=0.8, wfill=0.5)
-        roof(u + k, v + k, w - 2 * k, d - 2 * k, 21.5, 4, tile, kind="hip", ridge="u", overhang=0.1)
+        curved_roof(u + k, v + k, w - 2 * k, d - 2 * k, 21.5, 6, 0.12, tile, tile_d, eave, lift=2.0)
     # Pillared entrance between the wings: dark hall behind white columns, red lintel with the emblem, steps.
     E0, EW = 2.05, W - 4.1
     B.box(E0, 1.6, EW, 1.0, 1.2, 16, stone)
@@ -338,7 +341,7 @@ def bayi():
         cylinder(E0 + 0.04 + i * (EW - 0.08) / 4, 2.72, 0.035, 1.2, 10.6, col, 16)
     B.box(E0 - 0.02, 1.6, EW + 0.04, 1.2, 11.8, 4.4, red)
     B.box(E0 - 0.05, 1.56, EW + 0.1, 1.28, 16.2, 1.0, trim)
-    roof(E0, 1.6, EW, 1.2, 17.2, 3.5, tile, kind="hip", ridge="u", overhang=0.1)
+    curved_roof(E0, 1.6, EW, 1.2, 17.2, 5, 0.12, tile, tile_d, eave, lift=1.8)
     disc(MU, 2.8, 14, 0.12, 0.015, gold)
     disc(MU, 2.81, 14, 0.1, 0.015, red)
     B.box(MU - 0.04, 2.825, 0.08, 0.01, 13.2, 1.8, star)

@@ -1,3 +1,4 @@
+import { activeDesign } from '../../constants';
 import type { FactionId } from '../../types';
 import type { BuildingArt } from './BuildingArt';
 import { type PictureSpec, pictureArt } from './PictureArt';
@@ -21,9 +22,15 @@ const BEACON: Record<FactionId, [number, number, number]> = {
   islamic: [2.0, 1.85, 198],
 };
 
-/** Rendered in Blender (tools/blender/models/techcenter.py techcenter-<nation>). */
+/** USA's Apple Park ring (5 × 5, tools/blender/models/techcenter_applepark.py): no shaft lights, no mast. */
+const APPLE_PARK: PictureSpec = { file: 'building-techcenter-usa-applepark', originX: 166, originY: 70.8, scale: 3, footprint: { w: 5, d: 5 }, zScale: 1.35 };
+
+/** China's Peking University Library (4 × 5, tools/blender/models/techcenter_pku.py): no shaft lights, no mast. */
+const PEKING_UNIVERSITY: PictureSpec = { file: 'building-techcenter-china-pku', originX: 166, originY: 97.8, scale: 3, footprint: { w: 4, d: 5 }, zScale: 1.35 };
+
+/** Rendered in Blender (tools/blender/models/techcenter.py techcenter-<nation>; USA's Art Deco tower and China's pagoda are hidden designs, see BUILDING_DESIGNS). */
 const PICTURE = (faction: FactionId): PictureSpec => ({
-  file: `building-techcenter-${faction}`,
+  file: faction === 'usa' ? 'building-techcenter-usa-artdeco' : faction === 'china' ? 'building-techcenter-china-pagoda' : `building-techcenter-${faction}`,
   originX: 134,
   originY: faction === 'europe' ? 235.5 : 289.5,
   scale: 3,
@@ -32,14 +39,16 @@ const PICTURE = (faction: FactionId): PictureSpec => ({
 });
 
 /**
- * High-Tech Center (4×4 tiles): each nation's own skyscraper, no two alike.
- *  - USA: Art Deco limestone tower with setbacks and a needle mast (Empire State style);
+ * High-Tech Center (4×4 tiles; USA's Apple Park 5×5): each nation's own design, no two alike.
+ *  - USA: Apple Park, a five-storey glass ring round a wooded courtyard (hidden design: Art Deco limestone tower with setbacks and a needle mast, Empire State style);
  *  - Russia: Stalinist "Seven Sisters" high-rise: corner wings, central stepped tower, gilded spire and red star;
- *  - China: tiered pagoda tower (Jin Mao style): tapering glass tiers under curled red eaves, golden finial;
+ *  - China: Peking University Library, cream stone wings and centre under a great grey-tiled hip roof (4×5; hidden design: tiered pagoda tower (Jin Mao style), tapering glass tiers under curled red eaves, golden finial);
  *  - Europe: Vienna International Centre: a concave curved glass tower between two white pylons, flags in front;
  *  - Islamic: slender clustered tower (Burj style) on an arched podium, green domes, needle spire.
  */
 export function createTechCenterArt(faction: FactionId): BuildingArt {
+  if (faction === 'usa' && activeDesign('techCenter', 'usa') === 'applePark') return pictureArt(APPLE_PARK);
+  if (faction === 'china' && activeDesign('techCenter', 'china') === 'pekingUniversity') return pictureArt(PEKING_UNIVERSITY);
   return pictureArt(PICTURE(faction), {
     drawAnimated(p, time) {
       // Lit windows flickering on the main shaft.
