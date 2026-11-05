@@ -202,7 +202,7 @@ def pentagon():
     roof(mu - 0.33, mv - 0.05, 0.66, 0.27, Z + 11.1, 3, slate, kind="gable", ridge="v", overhang=0.02)
     B.box(mu - 0.25, mv + 0.22, 0.5, 0.01, Z + 9.9, 1.0, team)
     B.flush()
-    render("barracks-usa", (4, 4), 40)
+    render("barracks-usa-pentagon", (4, 4), 40)
 
 
 # ---------------------------------------------------------------- Russia: Frunzenskaya Ministry of Defence
@@ -419,7 +419,7 @@ def islamic_fort():
 
 
 MODELS = {
-    "barracks-usa": pentagon,
+    "barracks-usa-pentagon": pentagon,
     "barracks-russia": stalinist,
     "barracks-china": bayi,
     "barracks-islamic": islamic_fort,

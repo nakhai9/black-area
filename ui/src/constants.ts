@@ -129,14 +129,45 @@ export const CRUISE_ALTITUDE =
 /** Large structures (War Factory) occupy 5×4 cells, everything else 4×4 (7 px cells). */
 export const FOOTPRINT_LARGE = { w: 5, d: 4 } as const;
 export const FOOTPRINT_SMALL = { w: 4, d: 4 } as const;
-/** Ministry of Defence (barracks) plot: 5 × 3 cells; the USA's Pentagon stands on 4 × 4 (barracksFootprint). */
+/**
+ * Design switches of every structure: kind → nation → design → shown (true) or hidden (false). A hidden design stays
+ * in the source (its model and picture are kept) and is turned back on by setting it to true; the first shown design
+ * of the list is the one built. Add a design by adding its art and an entry here.
+ */
+export const BUILDING_DESIGNS: Readonly<Record<string, Readonly<Record<string, Readonly<Record<string, boolean>>>>>> = {
+  capital: { usa: { whiteHouse: true }, russia: { kremlin: true }, china: { zhongnanhai: true }, europe: { berlaymont: true }, islamic: { grandMosque: true } },
+  barracks: { usa: { westPoint: true, pentagon: false }, russia: { frunzenskaya: true }, china: { bayi: true }, europe: { nato: true }, islamic: { fort: true } },
+  warFactory: { usa: { standard: true }, russia: { standard: true }, china: { standard: true }, europe: { standard: true }, islamic: { standard: true } },
+  airfield: { usa: { standard: true }, russia: { standard: true }, china: { standard: true }, europe: { standard: true }, islamic: { standard: true } },
+  port: { usa: { standard: true }, russia: { standard: true }, china: { standard: true }, europe: { standard: true }, islamic: { standard: true } },
+  techCenter: { usa: { standard: true }, russia: { standard: true }, china: { standard: true }, europe: { standard: true }, islamic: { standard: true } },
+  powerPlant: { usa: { twinTowers: true }, russia: { coolingTower: true }, china: { coolingTower: true }, europe: { twinTowers: true }, islamic: { coolingTower: true } },
+  radarTower: { usa: { standard: true }, russia: { standard: true }, china: { standard: true }, europe: { standard: true }, islamic: { standard: true } },
+  happyCity: { usa: { standard: true }, russia: { standard: true }, china: { standard: true }, europe: { standard: true }, islamic: { standard: true } },
+  alliedBuilding: { usa: { standard: true }, russia: { standard: true }, china: { standard: true }, europe: { standard: true }, islamic: { standard: true } },
+  parallelGov: { usa: { standard: true }, russia: { standard: true }, china: { standard: true }, europe: { standard: true }, islamic: { standard: true } },
+  flagpole: { usa: { standard: true }, russia: { standard: true }, china: { standard: true }, europe: { standard: true }, islamic: { standard: true } },
+  bunker: { usa: { standard: true }, russia: { standard: true }, china: { standard: true }, europe: { standard: true }, islamic: { standard: true } },
+  wall: { usa: { standard: true }, russia: { standard: true }, china: { greatWall: true }, europe: { standard: true }, islamic: { standard: true } },
+  gate: { usa: { standard: true }, russia: { standard: true }, china: { standard: true }, europe: { standard: true }, islamic: { standard: true } },
+  oil: { all: { tank: true } },
+};
+
+/** The design of `kind` built by `nation`: the first one switched on in BUILDING_DESIGNS (the first listed if none is). */
+export function activeDesign(kind: string, nation: string): string {
+  const list = BUILDING_DESIGNS[kind]?.[nation] ?? {};
+  const names = Object.keys(list);
+  return names.find((n) => list[n]) ?? names[0] ?? "standard";
+}
+
+/** Ministry of Defence (barracks) plot: 5 × 3 cells; the USA's Pentagon design stands on 4 × 4 (barracksFootprint). */
 export const FOOTPRINT_BARRACKS = { w: 5, d: 3 } as const;
 export const FOOTPRINT_PENTAGON = { w: 4, d: 4 } as const;
 export function barracksFootprint(design: string): {
   readonly w: number;
   readonly d: number;
 } {
-  return design === "usa" ? FOOTPRINT_PENTAGON : FOOTPRINT_BARRACKS;
+  return design === "usa" && activeDesign("barracks", "usa") === "pentagon" ? FOOTPRINT_PENTAGON : FOOTPRINT_BARRACKS;
 }
 /** The Global Monitoring Center: 5 × 5 cells. */
 export const FOOTPRINT_GMC = { w: 5, d: 5 } as const;

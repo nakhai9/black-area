@@ -16,7 +16,7 @@ POWER_TOWERS = [(1.15, 1.0), (2.85, 1.2)]
 
 def cooling_tower(cu, cv, z, base, h, concrete):
     """Hyperboloid shell (waist at 72 %) on a ring of slanted legs, open at the top."""
-    legs = 5.0
+    legs = max(5.0, h * 0.07)
     prof = []
     for i in range(25):
         t = i / 24
@@ -28,15 +28,40 @@ def cooling_tower(cu, cv, z, base, h, concrete):
     lathe(cu, cv, z, [(prof[-1][0] * 0.97, h - 6), (prof[-1][0] * 0.97, h - 0.5)], mat("#3a3834", 0.95, grain=0), segs=64)
     lathe(cu, cv, z, [(0, h - 14), (prof[-1][0] * 0.97, h - 14)], mat("#2a2926", 0.95, grain=0), segs=64)
     leg = mat(concrete, 0.9, grain=0.08)
-    n = 28
+    n = 28 if base < 1 else 40
     for i in range(n):
         a = 2 * math.pi * i / n
         b = a + 0.18
         r = base
-        rod((cu + r * math.cos(a), cv + r * math.sin(a), zp(z)), (cu + r * math.cos(b), cv + r * math.sin(b), zp(z + legs)), 0.018, leg)
+        rod((cu + r * math.cos(a), cv + r * math.sin(a), zp(z)), (cu + r * math.cos(b), cv + r * math.sin(b), zp(z + legs)), 0.018 * max(1, base / 0.85), leg)
+
+
+SINGLE_TOWER = ("russia", "china", "islamic")
+SINGLE_H = 130
+LEGS = SINGLE_H * 0.07
+
+
+def single_tower(faction):
+    """Russia, China, Islamic world: one huge cooling tower filling the plot on a concrete apron, nothing else; a team-colour band near its lip."""
+    pad, tower = POWER_MATERIALS[faction]
+    base = 1.86
+    # Concrete apron over the whole plot (sunk flush with the ground by kit.render), joint lines across it.
+    box(0.02, 0.02, 3.96, 3.96, 0, 1.2, mat(pad, 0.95, grain=0.15, scale=8))
+    joint = mat("#5f5c55", 0.95, grain=0)
+    for k in (1, 2, 3):
+        box(k - 0.008, 0.02, 0.016, 3.96, 1.2, 0.05, joint)
+        box(0.02, k - 0.008, 3.96, 0.016, 1.2, 0.05, joint)
+    cooling_tower(2, 2, 1.2, base, SINGLE_H, tower)
+    # Painted band round the upper shell (radius follows the hyperboloid there).
+    t0, t1 = 0.86, 0.9
+    r = lambda t: base * (0.6 + 0.4 * ((abs(t - 0.72) / 0.72) ** 1.6) * 0.55) + 0.006
+    lathe(2, 2, 1.2, [(r(t0), LEGS + t0 * (SINGLE_H - LEGS)), (r(t1), LEGS + t1 * (SINGLE_H - LEGS))], mat(TEAM[faction], 0.6, grain=0.05), segs=64)
+    render(f"powerplant-{faction}", (4, 4), SINGLE_H + 8)
 
 
 def power_plant(faction):
+    if faction in SINGLE_TOWER:
+        return single_tower(faction)
     pad, tower = POWER_MATERIALS[faction]
     team = TEAM[faction]
     box(0.04, 0.04, 3.92, 3.92, 0, 1.2, mat(pad, 0.95, grain=0.15, scale=8))
