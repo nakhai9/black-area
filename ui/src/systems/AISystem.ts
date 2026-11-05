@@ -19,7 +19,7 @@ import type { TileMap } from '../map/TileMap';
 import { mulberry32 } from '../core/Random';
 import type { BuildingType, GridPoint, PlayerState, UnitTier, VehicleKind, WorldPoint } from '../types';
 import { foreignBuildAllowed } from './Foreign';
-import { BUILD_OPTIONS, type BuildOption, type ConstructionSystem, buildCost, footprintOf, missingRequirement } from './ConstructionSystem';
+import { BUILD_OPTIONS, type BuildOption, type ConstructionSystem, buildCost, buildOffered, footprintOf, missingRequirement } from './ConstructionSystem';
 import type { GameSystem } from './GameSystem';
 import { type PlacementSystem, buildRadius, isClaimable, isCoastal } from './PlacementSystem';
 import type { SafeZone, SafeZoneSystem } from './SafeZoneSystem';
@@ -664,6 +664,8 @@ export class AISystem implements GameSystem {
     // Base complete (or waiting): grow the economy with Happy Cities when nobody is attacking.
     if (!next && threat === 0 && this.savingForCity(p, owned, st)) next = BUILD_OPTIONS.find((o) => o.id === 'happyCity');
     if (next && busy(next.id)) next = undefined;
+    // Game assets configuration: a structure deleted from (or moved out of) this nation's shop is not built.
+    if (next && buildOffered(next, p.faction) === false) next = undefined;
     if (next && p.credits >= buildCost(next, p.faction) * (next.id === 'happyCity' ? 1 : next.id === 'alliedBuilding' ? 0.6 : 0.3)) this.host.construction.start(p, next);
   }
 

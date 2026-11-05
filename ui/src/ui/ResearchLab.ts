@@ -1,7 +1,7 @@
 import { t } from "../i18n";
 
 /**
- * Research Lab (demo menu): previews generated products — soldiers, structures, vehicles — before they are added to
+ * Research Lab (Assets page tab): previews generated products — soldiers, structures, vehicles — before they are added to
  * the game, laid out like a store's product page: one large view on top, six thumbnails under it (click one to show
  * it large), the product's name and notes beside them. Everything lives in public/research-lab/: one folder per
  * product (research-lab/<id>/ with its pictures) and products.json, the one file to edit to add, hide (enabled:
@@ -34,13 +34,13 @@ async function loadProducts(): Promise<LabProduct[]> {
   }
 }
 
-export async function showResearchLab(host: HTMLElement): Promise<void> {
+/** Fills `host` (the Assets page's Research Lab tab); `onAdd` opens the Add dialog for the product shown. */
+export async function showResearchLab(host: HTMLElement, onAdd: (id: string, name: string) => void): Promise<void> {
   const style = document.createElement("style");
   style.textContent = `
-    html, body { height: auto; overflow: auto; }
-    .rl-page { max-width: 1200px; margin: 0 auto; padding: 24px 16px 48px; color: #d8dee4; font: 14px system-ui, sans-serif; }
+    .rl-page { color: #d8dee4; font: 14px system-ui, sans-serif; }
     .rl-top { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
-    .rl-top h1 { margin: 0; font-size: 22px; letter-spacing: 1px; flex: 1; }
+    .rl-top h1 { margin: 0; font-size: 18px; letter-spacing: 1px; flex: 1; }
     .rl-top button, .rl-top select { padding: 6px 14px; border: 1px solid #56626d; border-radius: 6px; background: #1d2731; color: #d8dee4; font: inherit; cursor: pointer; }
     .rl-body { display: grid; grid-template-columns: minmax(0, 3fr) minmax(220px, 2fr); gap: 24px; }
     @media (max-width: 760px) { .rl-body { grid-template-columns: 1fr; } }
@@ -62,7 +62,7 @@ export async function showResearchLab(host: HTMLElement): Promise<void> {
     <div class="rl-top">
       <h1>${t("Research Lab")}</h1>
       <select class="rl-pick" hidden></select>
-      <button class="rl-back" type="button">← ${t("Back")}</button>
+      <button class="rl-add" type="button" disabled>+ ${t("Add")}</button>
     </div>
     <div class="rl-body">
       <div>
@@ -72,7 +72,9 @@ export async function showResearchLab(host: HTMLElement): Promise<void> {
       <div class="rl-info"><h2></h2><div class="rl-kind"></div><p></p></div>
     </div>`;
   host.replaceChildren(page);
-  page.querySelector(".rl-back")?.addEventListener("click", () => location.reload());
+  let shown: LabProduct | undefined;
+  const add = page.querySelector<HTMLButtonElement>(".rl-add")!;
+  add.addEventListener("click", () => shown && onAdd(shown.id, shown.name));
 
   const main = page.querySelector<HTMLElement>(".rl-main")!;
   const thumbs = page.querySelector<HTMLElement>(".rl-thumbs")!;
@@ -89,6 +91,8 @@ export async function showResearchLab(host: HTMLElement): Promise<void> {
   const show = (p: LabProduct | undefined): void => {
     const images = p?.images ?? [];
     folder = p?.id ?? "";
+    shown = p;
+    add.disabled = !p;
     info.querySelector("h2")!.textContent = p?.name ?? "";
     info.querySelector(".rl-kind")!.textContent = p?.kind ?? "";
     info.querySelector("p")!.textContent = p?.notes ?? "";

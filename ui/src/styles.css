@@ -554,7 +554,7 @@ kbd {
   margin-left: auto;
 }
 .fp-load + .fp-deploy,
-.fp-deploy + .dm-lab,
+.fp-deploy + .dm-assets,
 .fp-desktop + .fp-guide,
 .fp-demo + .fp-desktop,
 .fp-guide + .fp-load,

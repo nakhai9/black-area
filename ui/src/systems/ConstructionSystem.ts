@@ -51,6 +51,7 @@ import { Gate } from '../entities/Gate';
 import type { Building } from '../entities/Building';
 import type { BuildingType, FactionId, PlayerState } from '../types';
 import type { GameSystem } from './GameSystem';
+import { isDeleted, sellerOf } from '../core/GameAssets';
 
 /** A structure that can be produced from the sidebar's Build tab. */
 type BaseBuildId = 'powerPlant' | 'barracks' | 'warFactory' | 'airfield' | 'port' | 'radarTower' | 'techCenter' | 'happyCity' | 'flagpole' | 'alliedBuilding' | 'parallelGov' | 'bunker' | 'wall' | 'gate';
@@ -207,7 +208,7 @@ const OWN_OPTIONS: readonly BuildOption[] = [
 ];
 
 /** Structures that make or power a nation's army: a captured capital lets its holder build that nation's version. */
-const FOREIGN_BUILDS: ReadonlySet<string> = new Set(['powerPlant', 'barracks', 'warFactory', 'airfield', 'techCenter']);
+export const FOREIGN_BUILDS: ReadonlySet<string> = new Set(['powerPlant', 'barracks', 'warFactory', 'airfield', 'techCenter']);
 
 /** Of FOREIGN_BUILDS, the ones whose art flies the owner's flag (render/sprites FLAG_VARIANTS). */
 const FLAG_ART: ReadonlySet<string> = new Set(['barracks', 'warFactory']);
@@ -250,6 +251,19 @@ export const BUILD_OPTIONS: readonly BuildOption[] = [
     },
   })),
 ];
+
+/**
+ * Game assets configuration (GameAssets) for a structure offered to `nation`: false when deleted or moved to another
+ * nation's shop, true for another nation's design moved into this shop, null when it is up to the usual rules
+ * (another nation's design: its captured capital or Parallel Government).
+ */
+export function buildOffered(option: BuildOption, nation: FactionId): boolean | null {
+  const base = option.id.split('@')[0]!;
+  const design = option.foreign ?? nation;
+  if (isDeleted('building', design, base)) return false;
+  if (!option.foreign) return sellerOf('building', design, base) === nation;
+  return sellerOf('building', design, base) === nation ? true : null;
+}
 
 /** The nation a `parallelGov@nation` order is in the name of (null for any other order). */
 export function parallelGovNation(id: string): FactionId | null {

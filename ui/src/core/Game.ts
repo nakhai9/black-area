@@ -179,7 +179,7 @@ import { EndScreen } from '../ui/EndScreen';
 import { LANGUAGE_RELOAD_KEY, PENDING_SAVE_KEY, PauseMenu } from '../ui/PauseMenu';
 import { type Lang, setLang, t } from '../i18n';
 import { NewsToast } from '../ui/NewsToast';
-import { BUILD_OPTIONS, type BuildOption, ConstructionSystem, footprintOf, type QueueState, buildCost, missingRequirement } from '../systems/ConstructionSystem';
+import { BUILD_OPTIONS, type BuildOption, ConstructionSystem, buildOffered, footprintOf, type QueueState, buildCost, missingRequirement } from '../systems/ConstructionSystem';
 import { EconomySystem } from '../systems/EconomySystem';
 
 /** An ally hit within this many seconds shows as under attack in the Allies tab. */
@@ -4335,8 +4335,9 @@ export class Game {
   /** Cameo left-click: start building, or pick up a finished structure to place it. */
   /** Another nation's design is on sale only while its capital, or a structure of that type of it, taken by an engineer, is held. */
   private buildAvailable(player: PlayerState, option: BuildOption): boolean {
-    if (!option.foreign) return true;
-    return foreignBuildAllowed(this.entities, player, option.id, option.foreign);
+    const offered = buildOffered(option, player.faction);
+    if (offered !== null) return offered;
+    return foreignBuildAllowed(this.entities, player, option.id, option.foreign!);
   }
 
   private onBuildClick(option: BuildOption): void {

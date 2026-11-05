@@ -1,123 +1,25 @@
-import { CONTESTED_NATIONS, type ContestedNationId, FACTION_ORDER } from '../constants';
 import type { FactionId } from '../types';
-import { FACTIONS } from '../factions';
-import { bunkerPreview, loadBunkerSprites } from '../render/BunkerSheet';
+import { bunkerPreview } from '../render/BunkerSheet';
 import { IsoPainter } from '../render/IsoPainter';
-import { type Sprite, SpriteCache } from '../render/SpriteCache';
-import { BUILDING_ART, flagVariantArt, teamColoredKey } from '../render/sprites';
-import { BUILD_OPTIONS } from '../systems/ConstructionSystem';
+import type { Sprite } from '../render/SpriteCache';
 
 /** Card picture size (CSS px). */
 const PIC_W = 280;
 const PIC_H = 220;
 
-/** Display name of a sprite key ("type:owner"). */
-function displayName(type: string, owner: string): string {
-  if (type === 'capital') return FACTIONS[owner as keyof typeof FACTIONS]?.capital.name ?? 'Capital';
-  if (type === 'nation') return `${CONTESTED_NATIONS[owner as ContestedNationId]?.capital ?? 'Capital'} (${CONTESTED_NATIONS[owner as ContestedNationId]?.name ?? owner})`;
-  if (type === 'bank') return 'Global Monitoring Center';
-  if (type === 'monument') return 'Pyramids of Giza';
-  if (type === 'oil') return 'Oil Derrick';
-  if (type === 'parallelGov') {
-    const [host = '', holder = host] = owner.split('@');
-    return `Parallel Government (${FACTIONS[holder as FactionId]?.shortName ?? holder}–${FACTIONS[host as FactionId]?.shortName ?? host})`;
-  }
-  return BUILD_OPTIONS.find((o) => o.id === type)?.name ?? type;
-}
-
-interface Card {
+export interface BuildingCard {
   readonly canvas: HTMLCanvasElement;
   readonly sprite: Sprite;
   /** Bunkers are drawn from their pre-drawn sheet, not from building art. */
   readonly bunker?: FactionId;
 }
 
-/**
- * Demo Shop → Buildings: a gallery of every structure in the game, grouped by nation (plus the contested nations' capitals
- * and the neutral ones), each
- * drawn with its animated layer (flags, lights, pumpjacks) running.
- */
-export function showBuildingGallery(root: HTMLElement): void {
-  document.title = 'Black Area — Buildings';
-  const style = document.createElement('style');
-  style.textContent = `
-    html, body { height: auto; overflow: auto; }
-    .bg-page { max-width: 1280px; margin: 0 auto; padding: 24px 16px 48px; }
-    .bg-page h1 { margin: 0 0 4px; font-size: 22px; letter-spacing: 1px; }
-    .bg-page > p { margin: 0 0 20px; color: var(--muted, #9aa4ad); }
-    .bg-page a { color: inherit; }
-    .bg-nation { margin: 28px 0 10px; display: flex; align-items: center; gap: 10px; font-size: 16px; text-transform: uppercase; letter-spacing: 1px; }
-    .bg-swatch { width: 14px; height: 14px; border-radius: 3px; }
-    .bg-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(${PIC_W}px, 1fr)); gap: 12px; }
-    .bg-card { background: #c3cbd3; color: #1a2128; border: 1px solid #7d8994; border-radius: 8px; overflow: hidden; }
-    .bg-card canvas { display: block; width: 100%; height: ${PIC_H}px; background: #8e9aa6; }
-    .bg-card div { padding: 8px 10px; display: flex; justify-content: space-between; gap: 8px; }
-    .bg-card b { font-weight: 600; }
-    .bg-card small { color: #5f6b76; white-space: nowrap; }
-  `;
-  document.head.append(style);
-
-  const cache = new SpriteCache(BUILDING_ART);
-  const paintAs = new URLSearchParams(location.search).get('owner') ?? '';
-  loadBunkerSprites().catch(() => undefined);
-  const page = document.createElement('div');
-  page.className = 'bg-page';
-  page.innerHTML = `<h1>BUILDINGS</h1><p>Every structure of every nation.</p>`;
-  root.replaceChildren(page);
-
-  const groups: { name: string; color: string; match: (type: string, owner: string) => boolean }[] = [
-    ...FACTION_ORDER.map((f) => ({ name: FACTIONS[f].name, color: FACTIONS[f].colors.primary, match: (_t: string, o: string) => o === f })),
-    { name: 'Contested nations', color: '#8a8f96', match: (t: string) => t === 'nation' },
-    { name: 'Neutral', color: '#c9c3b2', match: (_t: string, o: string) => o === 'world' || o === 'giza' },
-  ];
-  const cards: Card[] = [];
-  for (const g of groups) {
-    const keys = Object.keys(BUILDING_ART).filter((k) => {
-      const [type = '', owner = ''] = k.split(':');
-      return type !== 'parallelGov' && g.match(type, owner);
-    });
-    // Parallel Government: one card per nation it can be set up in, the holder's hall beside that nation's.
-    const holder = FACTION_ORDER.find((f) => g.match('', f));
-    if (holder) keys.push(...FACTION_ORDER.filter((f) => f !== holder).map((host) => `parallelGov:${host}@${holder}`));
-    if (keys.length === 0) continue;
-    const h = document.createElement('h2');
-    h.className = 'bg-nation';
-    h.innerHTML = `<span class="bg-swatch" style="background:${g.color}"></span>${g.name}`;
-    const grid = document.createElement('div');
-    grid.className = 'bg-grid';
-    page.append(h, grid);
-    for (const key of keys) {
-      const [type = '', owner = ''] = key.split(':');
-      const art = BUILDING_ART[key] ?? flagVariantArt(key);
-      if (!art) continue;
-      // `&owner=<nation>`: every structure as if taken by that nation (captured colours).
-      const sprite = cache.get(paintAs ? teamColoredKey(key, paintAs) : key);
-      const card = document.createElement('figure');
-      card.className = 'bg-card';
-      card.style.margin = '0';
-      const canvas = document.createElement('canvas');
-      const size = `${Math.round(art.footprint.w * (art.scale ?? 1))} × ${Math.round(art.footprint.d * (art.scale ?? 1))}`;
-      const label = document.createElement('div');
-      label.innerHTML = `<b>${displayName(type, owner)}</b><small>${size} cells · ${key}</small>`;
-      card.append(canvas, label);
-      grid.append(card);
-      cards.push({ canvas, sprite, bunker: type === 'bunker' ? (owner as FactionId) : undefined });
-    }
-  }
-
-  const frame = (now: number): void => {
-    for (const c of cards) draw(c, now / 1000);
-    requestAnimationFrame(frame);
-  };
-  requestAnimationFrame(frame);
-}
-
-/** Static sprite fitted into the card, then its animated layer in the same art space. */
-function draw(card: Card, time: number): void {
+/** Static sprite fitted into the card's canvas, then its animated layer in the same art space (mirrored: turned). */
+export function drawBuildingCard(card: BuildingCard, time: number): void {
   const { canvas, sprite: s } = card;
   const dpr = window.devicePixelRatio || 1;
   const w = canvas.clientWidth || PIC_W;
-  const h = PIC_H;
+  const h = canvas.clientHeight || PIC_H;
   if (canvas.width !== Math.round(w * dpr)) {
     canvas.width = Math.round(w * dpr);
     canvas.height = Math.round(h * dpr);

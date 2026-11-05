@@ -6,6 +6,7 @@ import { FACTIONS } from '../factions';
 import type { FactionId, PlayerState, UnitTier } from '../types';
 import type { GameSystem } from './GameSystem';
 import { type ForeignKey, splitKey, takenNations } from './Foreign';
+import { isDeleted, movedInto, ownOffered } from '../core/GameAssets';
 
 /** A soldier order: `tier` (own nation) or `tier@faction` (from a captured foreign Ministry of Defence). */
 export type TrainKey = ForeignKey<UnitTier>;
@@ -45,8 +46,16 @@ function trainOptions(faction: FactionId, foreign = false): TrainOption[] {
 const FOREIGN = new Map<FactionId, TrainOption[]>();
 function foreignOptions(faction: FactionId): TrainOption[] {
   let list = FOREIGN.get(faction);
-  if (!list) FOREIGN.set(faction, (list = trainOptions(faction, true)));
+  if (!list) FOREIGN.set(faction, (list = trainOptions(faction, true).filter((o) => !isDeleted('infantry', faction, o.tier))));
   return list;
+}
+
+/** A nation's shop as configured (GameAssets): its own soldiers still sold by it, then other nations' moved into it. */
+function shopOptions(faction: FactionId): TrainOption[] {
+  if (FACTIONS[faction].peaceful) return [];
+  const own = trainOptions(faction).filter((o) => ownOffered('infantry', faction, o.tier));
+  const moved = movedInto('infantry', faction).flatMap(([design, tier]) => foreignOptions(design).filter((o) => o.tier === tier));
+  return [...own, ...moved];
 }
 
 export type TrainingState = 'idle' | 'training' | 'onHold' | 'noBarracks';
@@ -99,7 +108,7 @@ export class TrainingSystem implements GameSystem {
   ) {
     for (const p of players) {
       this.queues.set(p.id, { items: [], paidEach: [], state: 'idle', progress: 0, paid: 0 });
-      this.options.set(p.id, trainOptions(p.faction));
+      this.options.set(p.id, shopOptions(p.faction));
     }
   }
 
@@ -117,7 +126,8 @@ export class TrainingSystem implements GameSystem {
     if (taken.length === 0 || own.length === 0) return own;
     // Every captured Ministry of Defence brings its nation's soldiers into the shop next to the own ones (each foreign
     // design has its own key and shows that nation's flag).
-    return [...own, ...taken.flatMap((f) => foreignOptions(f))];
+    const keys = new Set(own.map((o) => o.key));
+    return [...own, ...taken.flatMap((f) => foreignOptions(f)).filter((o) => !keys.has(o.key))];
   }
 
   /** First living Barracks of the player (soldiers exit there). */

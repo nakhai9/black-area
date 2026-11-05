@@ -9,6 +9,7 @@ import type { GameSystem } from './GameSystem';
 import { fixPaidEach } from './TrainingSystem';
 import { type ForeignKey, splitKey, takenNations } from './Foreign';
 import { vehiclePrice } from '../entities/Vehicle';
+import { isDeleted, movedInto, ownOffered } from '../core/GameAssets';
 
 /** A vehicle order: `kind` (own nation) or `kind@faction` (from a captured foreign War Factory / Airfield). */
 export type VehicleKey = ForeignKey<VehicleKind>;
@@ -53,8 +54,16 @@ function vehicleOptions(faction: FactionId, foreign = false): VehicleOption[] {
 const FOREIGN = new Map<FactionId, VehicleOption[]>();
 function foreignOptions(faction: FactionId): VehicleOption[] {
   let list = FOREIGN.get(faction);
-  if (!list) FOREIGN.set(faction, (list = vehicleOptions(faction, true)));
+  if (!list) FOREIGN.set(faction, (list = vehicleOptions(faction, true).filter((o) => !isDeleted('vehicle', faction, o.kind))));
   return list;
+}
+
+/** A nation's shop as configured (GameAssets): its own machines still sold by it, then other nations' moved into it. */
+function shopOptions(faction: FactionId): VehicleOption[] {
+  if (FACTIONS[faction].peaceful) return [];
+  const own = vehicleOptions(faction).filter((o) => ownOffered('vehicle', faction, o.kind));
+  const moved = movedInto('vehicle', faction).flatMap(([design, kind]) => foreignOptions(design).filter((o) => o.kind === kind));
+  return [...own, ...moved];
 }
 
 export type VehicleQueueState = 'idle' | 'building' | 'onHold' | 'noFactory' | 'noAirfield' | 'noPort' | 'noPower' | 'exitBlocked';
@@ -92,7 +101,7 @@ export class VehicleSystem implements GameSystem {
   ) {
     for (const p of players) {
       this.queues.set(p.id, { items: [], paidEach: [], state: 'idle', progress: 0, paid: 0 });
-      this.options.set(p.id, vehicleOptions(p.faction));
+      this.options.set(p.id, shopOptions(p.faction));
     }
   }
 
@@ -118,7 +127,8 @@ export class VehicleSystem implements GameSystem {
     );
     // Every captured nation's designs join the shop next to the own ones (a captured factory brings its technology;
     // each foreign design has its own key `kind@faction` and shows that nation's flag).
-    return [...own, ...foreign];
+    const keys = new Set(own.map((o) => o.key));
+    return [...own, ...foreign.filter((o) => !keys.has(o.key))];
   }
 
   /** First living building of `type` owned by the player. */
