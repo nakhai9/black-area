@@ -259,6 +259,8 @@ export const BUILD_OPTIONS: readonly BuildOption[] = [
  */
 export function buildOffered(option: BuildOption, nation: FactionId): boolean | null {
   const base = option.id.split('@')[0]!;
+  // `powerPlant@russia` for Russia is its own Power Plant a second time: never offered (it showed as a duplicate cameo).
+  if (option.foreign === nation && FOREIGN_BUILDS.has(base)) return false;
   const design = option.foreign ?? nation;
   if (isDeleted('building', design, base)) return false;
   if (!option.foreign) return sellerOf('building', design, base) === nation;
