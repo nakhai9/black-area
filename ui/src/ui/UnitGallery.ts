@@ -12,6 +12,7 @@ import { drawTankSheet } from '../render/TankSheets';
 import { SQUASH, drawVehicle } from '../render/VehicleArt';
 import { drawBridgeLayerSheet } from '../render/BridgeLayerSheets';
 import type { FactionId } from '../types';
+import { ISO_X, ISO_Y } from '../constants';
 
 /** Card picture size (CSS px). */
 const PIC_W = 220;
@@ -26,6 +27,48 @@ export interface UnitCard {
   readonly unit: Unit;
   /** A fixed heading (radians) instead of the slow showcase turn. */
   readonly heading?: number;
+}
+
+/** World heading whose picture points `screen` radians clockwise from screen north (inverse of the sheets' direction()). */
+export function headingForScreen(screen: number): number {
+  const c = Math.sin(screen) / ISO_X - Math.cos(screen) / ISO_Y;
+  const s = -Math.cos(screen) / ISO_Y - Math.sin(screen) / ISO_X;
+  return Math.atan2(s, c);
+}
+
+/** Vehicle showcase in Red Alert style: the vehicle in its 8 main facings (N, NE, … NW, clockwise) round a ring, standing still. */
+export function drawVehicleRing(canvas: HTMLCanvasElement, u: Vehicle): void {
+  const dpr = window.devicePixelRatio || 1;
+  const w = canvas.clientWidth || PIC_W;
+  const h = canvas.clientHeight || PIC_H;
+  if (canvas.width !== Math.round(w * dpr)) {
+    canvas.width = Math.round(w * dpr);
+    canvas.height = Math.round(h * dpr);
+  }
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, w, h);
+  ctx.imageSmoothingQuality = 'high';
+  const fit = Math.min(w / PIC_W, h / PIC_H);
+  const air = u.aircraft || u.isDrone;
+  const zoom = (air ? ZOOM.air : ZOOM.ground) * 0.5 * fit;
+  const rx = 78 * fit;
+  const ry = 56 * fit;
+  // Back row first so nearer vehicles overlap the ones behind them.
+  const slots = Array.from({ length: 8 }, (_, k) => (k * Math.PI) / 4).sort((a, b) => -Math.cos(a) + Math.cos(b));
+  for (const a of slots) {
+    const heading = headingForScreen(a);
+    u.heading = heading;
+    u.turretHeading = heading;
+    ctx.save();
+    ctx.translate(w / 2 + Math.sin(a) * rx, h / 2 - Math.cos(a) * ry);
+    ctx.scale(zoom, zoom);
+    const y = air ? u.altitude / 2 : 0;
+    const sheet = (air && drawAircraftSheet(ctx, u, 0, u.altitude + 1.5)) || (u.type === 'tank' && drawTankSheet(ctx, u, 0, y)) || (u.type === 'repair' && drawRepairSheet(ctx, u, 0, y)) || (u.type === 'mantis' && drawMantisSheet(ctx, u, 0, y)) || (u.type === 'truck' && drawTruckSheet(ctx, u, 0, y)) || (u.type === 'bridgeLayer' && drawBridgeLayerSheet(ctx, u, 0, y));
+    if (!sheet) drawVehicle(ctx, { x: 0, y, heading: isoHeading(heading, air ? 0.8 : SQUASH), phase: 0, moving: false, altitude: air ? u.altitude : undefined }, u.type, u.faction as FactionId);
+    ctx.restore();
+  }
 }
 
 /** Draws the card's unit turning slowly (soldiers walking), as the game would draw it. */
@@ -44,6 +87,7 @@ export function drawUnitCard(card: UnitCard, time: number): void {
   ctx.clearRect(0, 0, w, h);
   const heading = card.heading ?? ((time % TURN_SECONDS) / TURN_SECONDS) * Math.PI * 2;
   u.heading = heading;
+  if (u instanceof Vehicle) u.turretHeading = heading;
   ctx.save();
   ctx.translate(w / 2, h / 2);
   // Pictures larger or smaller than a gallery card scale with it.

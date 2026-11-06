@@ -22,8 +22,8 @@ const sheet = (file: string): HTMLImageElement => {
   return img;
 };
 const FACTIONS: FactionId[] = ['usa', 'europe', 'russia', 'islamic', 'china'];
-/** Sheet name per nation: M1A1 Abrams, Leopard 2A4M, T-14 Armata, Karrar (T-90), ZTZ-96. */
-const MODEL: Record<FactionId, string> = { usa: 'm1a1', europe: 'leopard2', russia: 't14', islamic: 't90', china: 'ztz96' };
+/** Sheet name per nation: M1A2 Abrams (Blender, tools/blender/abrams_sheet.py), Leopard 2A4M, T-90M (Blender, tools/blender/t90m_sheet.py), Karrar (T-90), Type 99A (Blender, tools/blender/type99_sheet.py). */
+const MODEL: Record<FactionId, string> = { usa: 'm1a2', europe: 'leopard2', russia: 't90m', islamic: 't90', china: 'type99' };
 const SHEETS = Object.fromEntries(FACTIONS.map((f) => [f, sheet(`tank-${MODEL[f]}-hull.png`)])) as Record<FactionId, HTMLImageElement>;
 const TURRETS = Object.fromEntries(FACTIONS.map((f) => [f, sheet(`tank-${MODEL[f]}-turret.png`)])) as Record<FactionId, HTMLImageElement>;
 /** Tank explosion shared by every nation (tools/tank_fx_sheet.py): 16 frames of BLAST_CELL px in one row. */
@@ -95,7 +95,10 @@ function burnt(img: HTMLImageElement): HTMLCanvasElement {
 function blit(ctx: CanvasRenderingContext2D, img: CanvasImageSource, dir: number, frame: number, x: number, y: number, size: number): void {
   const prevSmooth = ctx.imageSmoothingEnabled;
   ctx.imageSmoothingEnabled = true;
-  ctx.drawImage(img, dir * CELL, frame * CELL, CELL, CELL, x - size / 2, y - size / 2, size, size);
+  // Sheets may be rendered sharper than CELL (e.g. 256 px cells): the source cell is the image width / DIRS, the on-screen size stays CELL * SCALE.
+  const w = img instanceof HTMLImageElement ? img.naturalWidth : (img as HTMLCanvasElement).width;
+  const src = w > 0 ? w / DIRS : CELL;
+  ctx.drawImage(img, dir * src, frame * src, src, src, x - size / 2, y - size / 2, size, size);
   ctx.imageSmoothingEnabled = prevSmooth;
 }
 

@@ -1,3 +1,19 @@
 {
-  "products": []
+  "products": [
+    {
+      "id": "m1a2-abrams",
+      "name": "M1A2 Abrams",
+      "kind": "vehicle",
+      "notes": "Xe tăng chủ lực M1A2 (SEP), sơn cát sa mạc CARC Tan 686A.\nMô hình Blender dựng thủ tục: tools/blender/abrams_render.py → tools/blender/m1a2_abrams.blend.\nTháp pháo xoay được (empty \"Turret\", trục Z), nòng nâng hạ (empty \"Gun\", trục Y).\n6 góc: 3/4 trước, cạnh, chính diện, 3/4 sau, từ trên, tháp xoay 45°.",
+      "enabled": true,
+      "images": [
+        "1-hero.png",
+        "2-side.png",
+        "3-front.png",
+        "4-rear.png",
+        "5-top.png",
+        "6-turret-45.png"
+      ]
+    }
+  ]
 }

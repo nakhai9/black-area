@@ -67,6 +67,8 @@ export abstract class Unit extends Entity {
   heading = 0.6;
   /** Heading to turn to once the current path ends (formations); cleared by any new order. */
   faceOnArrival: number | null = null;
+  /** Pulling over to let another vehicle pass (Game.giveWay): the only time a ground vehicle may drive in reverse. */
+  givingWay = false;
   /** Advances while moving; drives leg swing / track animation. */
   walkPhase = 0;
   /** Actually covering ground (a short grace bridges one-tick stalls): soldiers swing their legs only then. */
@@ -291,6 +293,7 @@ export abstract class Unit extends Entity {
     this.pathTicket++;
     this.routePending = false;
     this.path = [...path];
+    this.givingWay = false;
     if (!keepFacing) this.faceOnArrival = null;
     this.destination = path.length > 0 ? (path[path.length - 1] ?? null) : null;
     this.stuckFor = 0;
@@ -302,6 +305,7 @@ export abstract class Unit extends Entity {
     this.routePending = false;
     this.blockedFor = 0;
     this.path = [];
+    this.givingWay = false;
     this.destination = null;
     this.needsRepath = false;
   }
@@ -455,10 +459,11 @@ export abstract class Unit extends Entity {
   }
 
   /**
-   * A ground vehicle whose next waypoint lies close behind it backs up to it, nose kept pointing where it was going,
-   * instead of swinging round (pulling over, a waypoint just behind at the start of a route, being nudged back).
+   * A ground vehicle drives in reverse only while pulling over for another vehicle (givingWay) and its next waypoint lies
+   * close behind it: nose kept pointing where it stood. Every other move turns and drives nose first.
    */
   private backsUp(): boolean {
+    if (!this.givingWay) return false;
     if (!this.drivesForward || !this.turnsToMove || this.naval || this.aircraft) return false;
     // On a bridge (or at its mouth) a vehicle always drives forwards, nose first along the deck.
     if (this.bridgeSince >= 0) return false;

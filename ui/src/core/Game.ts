@@ -5370,6 +5370,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
         // The spot is a short hop to the side (freeStandSpot checked it): driven straight, no route search.
         const facing = o.faceOnArrival ?? o.heading;
         o.follow([spot]);
+        o.givingWay = true; // the one case a vehicle may back up (Unit.backsUp)
         o.faceOnArrival = facing; // pulls over and lines up again the way it stood
       }
     }

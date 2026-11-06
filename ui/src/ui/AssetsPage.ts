@@ -17,7 +17,7 @@ import { BUILD_OPTIONS, FOREIGN_BUILDS, buildCost, footprintOf } from "../system
 import type { FactionId, UnitTier, VehicleKind } from "../types";
 import { type BuildingCard, drawBuildingCard } from "./BuildingGallery";
 import { showResearchLab } from "./ResearchLab";
-import { type UnitCard, drawUnitCard } from "./UnitGallery";
+import { type UnitCard, drawUnitCard, drawVehicleRing, headingForScreen } from "./UnitGallery";
 
 /** Reopens the Assets page after a save reloads the game (sessionStorage flag). */
 export const ASSETS_REOPEN_KEY = "blackArea.assetsPage";
@@ -48,8 +48,14 @@ function unitAsset(kind: "infantry" | "vehicle", design: FactionId, base: string
     base,
     name,
     lines,
-    // Six headings round the unit (the main view turns slowly).
+    // Vehicles: main view = the 8 main facings round a ring (Red Alert style), thumbnails = single fixed facings
+    // (N, NE, E, SE, S); nothing turns. Soldiers: the main view turns slowly, thumbnails at fixed headings.
     picture: (view) => (canvas, time) => {
+      if (unit instanceof Vehicle) {
+        if (view === 0) drawVehicleRing(canvas, unit);
+        else drawUnitCard({ canvas, unit, heading: headingForScreen(((view - 1) * Math.PI) / 4) }, time);
+        return;
+      }
       const card: UnitCard = { canvas, unit, heading: view === 0 ? undefined : ((view - 1) * Math.PI * 2) / (VIEWS - 1) };
       drawUnitCard(card, time);
     },
