@@ -130,7 +130,7 @@ export default {
   'Room not found': 'Sai tên phòng hoặc mã phòng',
   You: 'Bạn',
   SETTINGS: 'CÀI ĐẶT',
-  'Stop scrolling the screen when the mouse leaves the browser window': 'Ngừng cuộn màn hình khi chuột ra khỏi cửa sổ trình duyệt',
+  'No scrolling when mouse is outside': 'Không cuộn khi chuột ra ngoài',
   'Screen lock': 'Khóa chuyển động màn hình',
   Volume: 'Âm lượng',
   'Settings: screen lock, volume, language (pause menu, Esc).': 'Cài đặt: khóa chuyển động màn hình, âm lượng, ngôn ngữ (menu tạm dừng, Esc).',

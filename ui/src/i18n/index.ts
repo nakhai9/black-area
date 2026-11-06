@@ -47,11 +47,12 @@ export function t(en: string, vars?: Record<string, string | number>): string {
 }
 
 /** A small language picker (select box) that calls `onChange` with the new language. */
-export function languageSelect(onChange: (lang: Lang) => void): HTMLLabelElement {
+export function languageSelect(onChange: (lang: Lang) => void, showLabel = true): HTMLLabelElement {
   const label = document.createElement('label');
   label.className = 'lang-select';
   const text = document.createElement('span');
   text.textContent = t('Language');
+  text.hidden = !showLabel;
   const select = document.createElement('select');
   for (const l of LANGS) {
     const o = document.createElement('option');

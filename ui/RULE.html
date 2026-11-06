@@ -26,7 +26,7 @@
 <body>
 <main>
 <img class="logo" src="/logo.png" alt="Black Area" />
-<h1>Black Area — RULE <small>v3.0.5</small></h1>
+<h1>Black Area — RULE <small>v3.0.7</small></h1>
 <p class="lead">Tài liệu luật chơi + kiến trúc code dành cho AI/dev sửa game. Mọi con số gameplay chính xác nằm trong <code>src/constants.ts</code> và <code>src/factions/*.ts</code>. Nếu tài liệu này khác code thì <b>code đúng</b>. <b>Khi đổi luật/số trong code, phải cập nhật file này.</b></p>
 <nav><a href="#s1">Quy tắc làm việc cho AI</a><a href="#s2">Chạy dự án</a><a href="#s3">Kiến trúc thư mục</a><a href="#s4">Thế giới</a><a href="#s5">Kinh tế (dầu)</a><a href="#s6">Công trình (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Quân đội</a><a href="#s8">Chiến đấu</a><a href="#s9">Điều khiển (Game.handleKey, handleInput)</a><a href="#s10">Giới hạn &amp; hiệu năng</a><a href="#s11">Thắng / thua &amp; AI</a><a href="#s12">Công thức sửa thường gặp</a></nav>
 <h2 id="s1">0. Quy tắc làm việc cho AI</h2>
@@ -698,6 +698,8 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
   <li>v2.59.1: Tab Phương tiện dùng biểu tượng xe tăng thay cho xe tải.</li>
   <li>v2.59.2: Tab Chỉ huy đổi tên thành Chính phủ (Government), biểu tượng toà nhà chính phủ.</li>
   <li>v2.60.0: Thêm hình <b>Tháp Radar</b> (nền 2 × 2) cho mỗi phe, ăng-ten xoay đủ 360°: Mỹ — chảo parabol trên tháp côn trắng; Nga — tấm ra-đa mảng pha trên cột thép giàn; Trung Quốc — chảo Cassegrain trên tháp bát giác; châu Âu — gương phản xạ "vỏ cam" trên tháp tròn; thế giới Hồi giáo — chảo lưới viền vàng trên tháp bát giác có vòm nhọn. Mới chỉ có hình (xem ở <code>?view=buildings</code>), chưa bán / chưa xây được trong trận.</li>
+  <li>v3.0.7: Rút gọn chữ ô khóa cuộn màn hình trong bảng Cài đặt: "Không cuộn khi chuột ra ngoài".</li>
+  <li>v3.0.6: Bảng Cài đặt (Esc) gọn hơn: bỏ dòng "Trò chơi đang tạm dừng…", bỏ chữ "Âm lượng nhạc: x%" (chỉ còn thanh trượt) và bỏ chữ "Ngôn ngữ" cạnh ô chọn ngôn ngữ.</li>
   <li>v3.0.5: Xe tăng phe Trung Quốc (tên hiển thị giữ "Type 99") đổi hình từ ZTZ-96 sang <b>Type 99A</b> dựng 3D hoàn toàn mới bằng Blender theo ảnh duyệt binh (rằn ri kỹ thuật số, tháp pháo nêm giáp phản ứng nổ hình mũi tên, giỏ hàng sau tháp, 2 thùng dầu phụ sau thân, 6 bánh chịu lực, váy xích có giáp ERA; <code>tools/blender/type99_sheet.py</code>); ảnh ZTZ-96 cũ đã xóa. Sửa xe tăng mờ khi zoom gần (mức 7–9): sheet xe tăng render ở 256 px mỗi ô thay vì 64 px (M1A2, T-90M, Type 99A), <code>TankSheets.ts</code> đọc kích thước ô theo bề ngang ảnh / 32 nên kích thước trên màn hình không đổi. Áp dụng cho cả người chơi lẫn AI.</li>
   <li>v3.0.4: Xe tăng phe Nga trong game (tên hiển thị giữ "T-90") đổi hình từ T-14 sang <b>T-90M Proryv</b> màu xanh quân đội, dựng 3D bằng Blender (<code>tools/blender/t90m_render.py</code>, file <code>tools/blender/t90m.blend</code>): sheet 32 hướng kiểu Red Alert 2 (frame 0 hướng Bắc, xoay theo chiều kim đồng hồ), thân và tháp pháo tách riêng, tháp xoay độc lập (<code>tools/blender/t90m_sheet.py</code>); áp dụng cho cả người chơi lẫn AI.</li>
   <li>v3.0.3: Trang Asset game, mục Phương tiện: phương tiện bày đứng yên theo 8 hướng chính quanh một vòng kiểu Red Alert 2 (Bắc ở trên cùng, theo chiều kim đồng hồ), không còn xoay động; ảnh nhỏ là từng hướng cố định (Bắc, Đông Bắc, Đông, Đông Nam, Nam). Tháp pháo quay cùng hướng thân xe trong ảnh.</li>

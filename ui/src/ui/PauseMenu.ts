@@ -61,28 +61,21 @@ export class PauseMenu {
     card.style.setProperty('--end-color', '#f5c542');
     const title = document.createElement('h1');
     title.textContent = t('SETTINGS');
-    const text = document.createElement('p');
-    text.textContent = t('The game is paused. Press Esc or Continue to resume.');
     const volume = document.createElement('label');
     volume.className = 'pause-volume';
-    const volumeText = document.createElement('span');
     const slider = document.createElement('input');
     slider.type = 'range';
     slider.min = '0';
     slider.max = '100';
     slider.step = '1';
-    const showVolume = (): void => {
-      volumeText.textContent = t('Music volume: {value}%', { value: slider.value });
-    };
+    slider.setAttribute('aria-label', t('Volume'));
     this.syncVolume = (): void => {
       slider.value = String(Math.round(music.get() * 100));
-      showVolume();
     };
     slider.addEventListener('input', () => {
       music.set(Number(slider.value) / 100);
-      showVolume();
     });
-    volume.append(volumeText, slider);
+    volume.append(slider);
     // Screen lock: stop scrolling when the mouse leaves the browser window.
     const lock = document.createElement('label');
     lock.className = 'pause-check';
@@ -91,7 +84,7 @@ export class PauseMenu {
     lockBox.checked = settings.edgeLock;
     lockBox.addEventListener('change', () => setEdgeLock(lockBox.checked));
     const lockText = document.createElement('span');
-    lockText.textContent = t('Stop scrolling the screen when the mouse leaves the browser window');
+    lockText.textContent = t('No scrolling when mouse is outside');
     lock.append(lockBox, lockText);
     // Settings, one per line: icon, then its control.
     const row = (icon: IconNode, title: string, control: HTMLElement): HTMLDivElement => {
@@ -107,7 +100,7 @@ export class PauseMenu {
     settingsBox.append(
       row(ScreenShareOff, t('Screen lock'), lock),
       row(Volume2, t('Volume'), volume),
-      row(Globe, t('Language'), languageSelect((lang) => saves.onLanguage(lang))),
+      row(Globe, t('Language'), languageSelect((lang) => saves.onLanguage(lang), false)),
     );
     const resume = document.createElement('button');
     resume.type = 'button';
@@ -126,7 +119,7 @@ export class PauseMenu {
     const actions = document.createElement('div');
     actions.className = 'pause-actions';
     actions.append(resume, save, quit);
-    card.append(title, text, settingsBox, actions);
+    card.append(title, settingsBox, actions);
     this.root.append(card);
     parent.append(this.root);
   }
