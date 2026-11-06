@@ -28,6 +28,10 @@ const SLOTS_PER_ROW = 3;
 const TAXI_SPEED = 11;
 const TAKEOFF_SECONDS = 2.4;
 const LANDING_SECONDS = 2.2;
+/** Carrier deck: half its length (world px, stern to centre), the catapult run and the landing roll (s). */
+const DECK_HALF = 8;
+const DECK_LAUNCH_SECONDS = 1.6;
+const DECK_RECOVERY_SECONDS = 1.0;
 /** An aircraft parked at its airfield is serviced: it regains REPAIR_FRACTION of its health every REPAIR_INTERVAL seconds. */
 const REPAIR_INTERVAL = 4;
 const REPAIR_FRACTION = 0.02;
@@ -81,7 +85,7 @@ const LANDED_WAIT = 40;
 /** Radius (px) of the circle an idle selected fighter flies while it waits for orders. */
 const ORBIT_RADIUS = 3 * CELL_SIZE;
 /** An AWACS circles this many times over the point it was sent to, then flies home (unless given a new order). */
-const AWACS_LOOPS = 5;
+const AWACS_LOOPS = 3;
 /** Aircraft closer than this (px) and closing in take avoiding action; the climber goes this share above cruise. */
 const AVOID_RANGE = 3 * CELL_SIZE;
 const AVOID_CLIMB = 0.6;
@@ -426,9 +430,17 @@ export class AircraftSystem implements GameSystem {
       return;
     }
     if (v.idleFor < RETURN_AFTER) return;
-    // An AWACS keeps its radar watch where it was sent for AWACS_LOOPS circles, then (no new order meanwhile) flies
-    // home. A loaded transport aircraft never heads home with its riders aboard: it circles until sent to set them down.
+    // An AWACS keeps its radar watch over the point it was sent to: while selected it circles there for as long as the
+    // player keeps it selected; once deselected (unfocused) it flies AWACS_LOOPS more circles, then heads home — the
+    // mission is done. On its way home it still takes a new order (any move sends it on; see returningHome above).
+    // A loaded transport aircraft never heads home with its riders aboard: it circles until sent to set them down.
     if (v.type === 'awacs' && !v.returningHome) {
+      if (this.hooks.selected(v)) {
+        this.orbit(v, dt);
+        const held = this.orbits.get(v.id);
+        if (held) held.start = held.angle; // the loops count from the moment it is let go
+        return;
+      }
       const o = this.orbits.get(v.id);
       if (!o || o.angle - (o.start ??= o.angle) < AWACS_LOOPS * Math.PI * 2) {
         this.orbit(v, dt);
@@ -590,6 +602,8 @@ export class AircraftSystem implements GameSystem {
       v.deckTarget = null;
       v.deckId = ship.id;
       v.homeCarrierId = ship.id;
+      v.recovery = DECK_RECOVERY_SECONDS; // rolls out on the deck, then goes below
+      v.catapult = 0;
       v.slot = -1;
       v.flight = 'parked';
       v.altitude = 0;
@@ -612,12 +626,39 @@ export class AircraftSystem implements GameSystem {
       v.hp = 0;
       return;
     }
+    v.slot = -1;
+    const dir = { x: Math.cos(ship.heading), y: Math.sin(ship.heading) };
+    // Catapult launch: the fighter comes up from the hangar and runs from the stern to the bow, lifting off at the end.
+    if (v.catapult > 0) {
+      this.stashOrders(v);
+      v.catapult = Math.max(0, v.catapult - dt);
+      const p = 1 - v.catapult / DECK_LAUNCH_SECONDS;
+      const along = -DECK_HALF + p * p * DECK_HALF * 2.6; // accelerating
+      this.place(v, ship.px + dir.x * along, ship.py + dir.y * along);
+      v.heading = ship.heading;
+      v.facing = dir.x < 0 ? -1 : 1;
+      v.altitude = p > 0.7 ? (CRUISE_ALTITUDE * (p - 0.7)) / 0.3 : 0;
+      v.drawDepth = p > 0.7 ? null : ship.depth + 0.02;
+      if (v.catapult > 0) return;
+      v.deckId = null;
+      v.homeCarrierId = ship.id;
+      v.drawDepth = null;
+      v.flight = 'airborne';
+      v.altitude = CRUISE_ALTITUDE;
+      v.idleFor = 0;
+      if (v.mission) v.follow(v.mission);
+      v.mission = null;
+      return;
+    }
     v.flight = 'parked';
     v.altitude = 0;
-    v.slot = -1;
-    const mates = this.entities.vehicles().filter((o) => o.alive && o.deckId === ship.id).sort((a, b) => a.id - b.id);
-    const along = (mates.indexOf(v) - (CARRIER_JETS - 1) / 2) * 4;
-    this.place(v, ship.px + Math.cos(ship.heading) * along, ship.py + Math.sin(ship.heading) * along);
+    // Landing roll: touches down near the stern and slows to a stop mid-deck, then goes below (stowed).
+    if (v.recovery > 0) {
+      v.recovery = Math.max(0, v.recovery - dt);
+      const p = 1 - v.recovery / DECK_RECOVERY_SECONDS;
+      const along = -DECK_HALF + (1 - (1 - p) * (1 - p)) * DECK_HALF;
+      this.place(v, ship.px + dir.x * along, ship.py + dir.y * along);
+    } else this.place(v, ship.px, ship.py); // below deck, riding with the ship
     v.heading = ship.heading;
     v.facing = Math.cos(ship.heading) < 0 ? -1 : 1;
     v.drawDepth = ship.depth + 0.02;
@@ -634,16 +675,10 @@ export class AircraftSystem implements GameSystem {
       v.mission = null;
     }
     if (!v.moving && v.attackTarget === null && v.attackMove === null) return;
-    // Catapult launch: straight into the air, no runway needed.
+    // An order: up from the hangar onto the catapult (see the launch run above).
     this.stashOrders(v);
-    v.deckId = null;
-    v.homeCarrierId = ship.id;
-    v.drawDepth = null;
-    v.flight = 'airborne';
-    v.altitude = CRUISE_ALTITUDE;
-    v.idleFor = 0;
-    if (v.mission) v.follow(v.mission);
-    v.mission = null;
+    v.recovery = 0;
+    v.catapult = DECK_LAUNCH_SECONDS;
   }
 
   /** Lands from the runway end nearer to the aircraft. */

@@ -339,19 +339,47 @@ def star(cu, v, cz, r, color):
 
 
 def curled_roof(u, v, w, d, z, h, tile, ridge_col="#c89a30", over=0.2):
-    roof(u, v, w, d, z, h, tile, kind="hip", ridge="u", overhang=over)
-    # Eave fascia and golden ridge.
-    box(u - over, v - over, w + 2 * over, d + 2 * over, z - 1, 1, mat("#5a2a1c", 0.7))
-    rod((u + min(w, d) / 2, v + d / 2, zp(z + h)), (u + w - min(w, d) / 2, v + d / 2, zp(z + h)), 0.03, mat(ridge_col, 0.35, metal=0.7, grain=0), 8)
+    """Chinese hall roof: a flared lower skirt (shallow, wide eaves) under a steeper upper hip, so the slope curves
+    up at the eaves; glazed tile ribs down the two visible slopes, a gilded main ridge with upturned end ornaments
+    and swept-up corners."""
+    e = min(w, d) * 0.16  # where the skirt meets the upper roof
+    zk = z + h * 0.24
+    roof(u, v, w, d, z, h * 0.3, tile, kind="hip", ridge="u", overhang=over)
+    roof(u + e, v + e, w - 2 * e, d - 2 * e, zk, h * 0.76, tile, kind="hip", ridge="u", overhang=0.02)
+    # Eave fascia (red-brown) and a thin gold band at the joint of the two slopes.
+    box(u - over, v - over, w + 2 * over, d + 2 * over, z - 1, 1, mat("#6a2418", 0.7))
+    gold = mat(ridge_col, 0.3, metal=0.8, grain=0)
+    box(u + e - 0.03, v + e - 0.03, w - 2 * e + 0.06, d - 2 * e + 0.06, zk - 0.2, 0.7, gold)
+    # Tile ribs on the front (+v) and right (+u) skirts.
+    rib = mat("#1d463e", 0.8, grain=0.05)
+    n = max(2, int((w - 2 * e) / 0.13))
+    for i in range(n + 1):
+        x = u + e + (w - 2 * e) * i / n
+        rod((x, v + d + over, zp(z + 0.25)), (x, v + d - e, zp(zk + 0.25)), 0.012, rib, 4)
+    n = max(2, int((d - 2 * e) / 0.13))
+    for i in range(n + 1):
+        y = v + e + (d - 2 * e) * i / n
+        rod((u + w + over, y, zp(z + 0.25)), (u + w - e, y, zp(zk + 0.25)), 0.012, rib, 4)
+    # Main ridge with chiwen-like upturned ends.
+    r0 = u + min(w, d) / 2
+    r1 = u + w - min(w, d) / 2
+    top = z + h * 0.24 + h * 0.76
+    box(r0 - 0.04, v + d / 2 - 0.035, max(0.08, r1 - r0 + 0.08), 0.07, top - 0.2, 1.6, gold)
+    for x, sgn in ((r0, -1), (r1, 1)):
+        rod((x, v + d / 2, zp(top + 1.2)), (x + sgn * 0.06, v + d / 2, zp(top + 4.2)), 0.03, gold, 6)
+    # Swept-up corners.
     for cu, cv in ((u - over, v - over), (u + w + over, v - over), (u - over, v + d + over), (u + w + over, v + d + over)):
-        rod((cu, cv, zp(z)), (cu + (0.08 if cu > u else -0.08), cv + (0.08 if cv > v else -0.08), zp(z + 3)), 0.025, tile, 6)
+        su = 0.14 if cu > u else -0.14
+        sv = 0.14 if cv > v else -0.14
+        rod((cu, cv, zp(z)), (cu + su, cv + sv, zp(z + 2.2)), 0.03, tile, 6)
+        rod((cu + su, cv + sv, zp(z + 2.2)), (cu + su * 1.3, cv + sv * 1.3, zp(z + 5.0)), 0.022, gold, 6)
 
 
 def china():
     team = TEAM["china"]
     brick = mat("#8a8478", 0.9, grain=0.18, scale=50)
     red = mat("#a8281c", 0.55, grain=0.06)
-    tile = mat("#3e3a36", 0.6, grain=0.25, scale=90)
+    tile = mat("#2f6b5c", 0.35, metal=0.1, grain=0.15, scale=90)  # glazed green-teal tiles
     plinth("#c8c0ac", 3)
     box(0.55, 0.25, 3.9, 3.7, 3, 1.5, mat("#b0a894", 0.9))
     box(0.6, 0.3, 3.8, 3.0, 3, 20, brick)
@@ -371,7 +399,7 @@ def china():
         cylinder(0.65 + i * 3.7 / 6, 3.82, 0.05, 4.5, 14.5, red, 12)
     box(0.6, 3.3, 3.8, 0.62, 16.5, 2.5, mat(team, 0.5, grain=0.04))
     roller_doors(0.6, 3.6, 3.8, 3, 12, 3, red, width=0.55)
-    curled_roof(0.6, 3.3, 3.8, 0.6, 19, 4, mat("#4a4540", 0.7, grain=0.12, scale=40), over=0.15)
+    curled_roof(0.6, 3.3, 3.8, 0.6, 19, 5, tile, over=0.15)
     for u in (0.05, 4.05):
         box(u, 2.6, 0.8, 1.3, 3, 26, red)
         box(u - 0.02, 2.58, 0.84, 1.34, 3, 4, mat("#b0a894", 0.9))

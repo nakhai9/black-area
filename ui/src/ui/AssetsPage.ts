@@ -1,4 +1,4 @@
-import { AVAILABLE_VEHICLES, CELL_SIZE, FACTION_ORDER } from "../constants";
+import { AVAILABLE_VEHICLES, CELL_SIZE, FACTION_ORDER, capitalFootprint, isAircraftKind } from "../constants";
 import { type AssetKind, assetId, gameAssets, saveGameAssets } from "../core/GameAssets";
 import { Infantry } from "../entities/Infantry";
 import { Vehicle } from "../entities/Vehicle";
@@ -16,7 +16,6 @@ import { loadPictureArts } from "../render/sprites/PictureArt";
 import { BUILD_OPTIONS, FOREIGN_BUILDS, buildCost, footprintOf } from "../systems/ConstructionSystem";
 import type { FactionId, UnitTier, VehicleKind } from "../types";
 import { type BuildingCard, drawBuildingCard } from "./BuildingGallery";
-import { showResearchLab } from "./ResearchLab";
 import { type UnitCard, drawUnitCard, drawVehicleRing, headingForScreen } from "./UnitGallery";
 
 /** Reopens the Assets page after a save reloads the game (sessionStorage flag). */
@@ -31,6 +30,8 @@ interface Asset {
   lines: string[];
   /** Draws picture `view` (0 = main) into a canvas; `null` when there is no such view. */
   picture: (view: number) => ((canvas: HTMLCanvasElement, time: number) => void) | null;
+  /** Shown only (no delete / move): the nation's capital, which every game needs. */
+  viewOnly?: boolean;
 }
 
 const VIEWS = 6;
@@ -62,6 +63,27 @@ function unitAsset(kind: "infantry" | "vehicle", design: FactionId, base: string
   };
 }
 
+/** A nation's capital (government seat, e.g. the Kremlin): view only, it is not a structure the shop sells. */
+function capitalAsset(design: FactionId): Asset | null {
+  const key = `capital:${design}`;
+  if (!BUILDING_ART[key]) return null;
+  const fp = capitalFootprint(design);
+  const nation = FACTIONS[design];
+  return {
+    kind: "building",
+    design,
+    base: "capital",
+    name: nation.capital.name,
+    lines: [`${t("Capital")}: ${nation.capital.city}`, `${t("Health")}: ${nation.capital.maxHp ?? "—"} HP`, `${t("Plot")}: ${fp.w} × ${fp.d} ${t("cells")}`],
+    picture: (view) => {
+      const sprite = view === 0 ? cache.get(key) : null;
+      if (!sprite) return null;
+      return (canvas, time) => drawBuildingCard({ canvas, sprite } as BuildingCard, time);
+    },
+    viewOnly: true,
+  };
+}
+
 function buildingAsset(design: FactionId, optionId: string): Asset | null {
   const option = BUILD_OPTIONS.find((o) => o.id === optionId);
   if (!option) return null;
@@ -90,14 +112,23 @@ function buildingAsset(design: FactionId, optionId: string): Asset | null {
   };
 }
 
-function assetsOf(kind: AssetKind): Asset[] {
+/** Vehicle tabs of the Assets page: ground vehicles, ships (aircraft carriers), aircraft. */
+type VehicleGroup = "ground" | "naval" | "air";
+const NAVAL_KINDS: readonly VehicleKind[] = ["carrier"];
+const groupOf = (v: VehicleKind): VehicleGroup => (NAVAL_KINDS.includes(v) ? "naval" : isAircraftKind(v) ? "air" : "ground");
+
+function assetsOf(kind: AssetKind, group?: VehicleGroup): Asset[] {
   const out: Asset[] = [];
   for (const f of FACTION_ORDER) {
     const nation = FACTIONS[f];
     if (kind === "infantry") for (const tier of Object.keys(nation.infantry)) out.push(unitAsset("infantry", f, tier));
     else if (kind === "vehicle") {
-      for (const v of Object.keys(nation.vehicles) as VehicleKind[]) if (AVAILABLE_VEHICLES.includes(v)) out.push(unitAsset("vehicle", f, v));
-    } else for (const o of BUILD_OPTIONS) if (!o.foreign) {
+      for (const v of Object.keys(nation.vehicles) as VehicleKind[]) if (AVAILABLE_VEHICLES.includes(v) && (!group || groupOf(v) === group)) out.push(unitAsset("vehicle", f, v));
+    } else {
+      const cap = capitalAsset(f);
+      if (cap) out.push(cap);
+    }
+    if (kind === "building") for (const o of BUILD_OPTIONS) if (!o.foreign) {
       const a = buildingAsset(f, o.id);
       if (a) out.push(a);
     }
@@ -260,11 +291,12 @@ function configTab(root: HTMLElement): void {
   const tabs = root.querySelector<HTMLElement>(".ap-sub-tabs")!;
   const grid = root.querySelector<HTMLElement>(".ap-grid")!;
   let stop = (): void => undefined;
-  const open = (kind: AssetKind): void => {
+  const open = (tab: string): void => {
     stop();
-    tabs.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.kind === kind));
+    tabs.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.kind === tab));
     const file = gameAssets();
-    const items = assetsOf(kind).map((a) => {
+    const [kind, group] = tab.includes(":") ? (tab.split(":") as [AssetKind, VehicleGroup]) : [tab as AssetKind, undefined];
+    const items = assetsOf(kind, group).map((a) => {
       const o = file.assets[assetId(a.kind, a.design, a.base)] ?? {};
       const card = document.createElement("div");
       card.className = `ap-card${o.deleted ? " deleted" : ""}`;
@@ -275,7 +307,7 @@ function configTab(root: HTMLElement): void {
       card.append(canvas, label);
       if (o.deleted) card.insertAdjacentHTML("beforeend", `<span class="ap-tag" style="background:#a5463b">${t("Deleted")}</span>`);
       else if (o.faction) card.insertAdjacentHTML("beforeend", `<span class="ap-tag" style="background:${FACTIONS[o.faction].colors.primary}">${t("Moved")}</span>`);
-      card.addEventListener("click", () => openAssetModal(a));
+      if (!a.viewOnly) card.addEventListener("click", () => openAssetModal(a));
       grid.append(card);
       return { canvas, draw: a.picture(0) };
     });
@@ -288,7 +320,14 @@ function configTab(root: HTMLElement): void {
     };
     requestAnimationFrame(frame);
   };
-  for (const [kind, label] of [["infantry", t("Soldiers")], ["vehicle", t("Vehicles")], ["building", t("Structures")]] as const) {
+  const tabList = [
+    ["infantry", t("Soldiers")],
+    ["vehicle:ground", t("Ground vehicles")],
+    ["vehicle:naval", t("Naval vessels")],
+    ["vehicle:air", t("Aircraft")],
+    ["building", t("Structures")],
+  ] as const;
+  for (const [kind, label] of tabList) {
     const b = document.createElement("button");
     b.className = "ap-tab";
     b.dataset.kind = kind;
@@ -302,71 +341,7 @@ function configTab(root: HTMLElement): void {
   open("infantry");
 }
 
-/** Research Lab → Add: pick the nation whose shop gets the product and tick what must stand / exist before it can be bought. */
-export function openResearchAdd(productId: string, productName: string): void {
-  const bg = document.createElement("div");
-  bg.className = "ap-modal-bg";
-  bg.innerHTML = `
-    <div class="ap-modal" style="width:min(560px,100%)">
-      <div style="padding:18px" class="ap-info">
-        <h2></h2>
-        <div class="ap-sub">${t("Add to a nation's shop")}</div>
-        <label>${t("Nation")}</label>
-        <div class="ap-sel"></div>
-        <div class="ap-reqs"></div>
-        <div class="ap-note">${t("Saved to the game assets file only: the product does nothing in a game until it is programmed.")}</div>
-      </div>
-      <div class="ap-foot">
-        <button class="ap-btn ap-close" type="button">${t("Close")}</button>
-        <span class="grow"></span>
-        <button class="ap-btn primary ap-apply" type="button">${t("Apply")}</button>
-      </div>
-    </div>`;
-  bg.querySelector("h2")!.textContent = productName;
-  const select = factionSelect(FACTION_ORDER[0]!);
-  bg.querySelector(".ap-sel")!.append(select);
-  const reqs = bg.querySelector<HTMLElement>(".ap-reqs")!;
-  const fill = (): void => {
-    const f = select.value as FactionId;
-    const nation = FACTIONS[f];
-    const groups: [string, AssetKind, string[], (b: string) => string][] = [
-      [t("Structures"), "building", BUILD_OPTIONS.filter((o) => !o.foreign).map((o) => o.id), (b) => BUILD_OPTIONS.find((o) => o.id === b)?.name ?? b],
-      [t("Vehicles"), "vehicle", (Object.keys(nation.vehicles) as VehicleKind[]).filter((v) => AVAILABLE_VEHICLES.includes(v)), (b) => nation.vehicles[b as VehicleKind]?.name ?? b],
-      [t("Soldiers"), "infantry", Object.keys(nation.infantry), (b) => nation.infantry[b as UnitTier]?.name ?? b],
-    ];
-    reqs.replaceChildren(
-      ...groups.map(([title, kind, bases, name]) => {
-        const d = document.createElement("details");
-        d.className = "ap-acc";
-        d.innerHTML = `<summary>${title}</summary><div></div>`;
-        const list = d.querySelector("div")!;
-        for (const b of bases) {
-          const l = document.createElement("label");
-          const cb = document.createElement("input");
-          cb.type = "checkbox";
-          cb.value = assetId(kind, f, b);
-          l.append(cb, ` ${name(b)}`);
-          list.append(l);
-        }
-        return d;
-      }),
-    );
-  };
-  select.addEventListener("change", fill);
-  fill();
-  document.body.append(bg);
-  bg.addEventListener("click", (e) => e.target === bg && bg.remove());
-  bg.querySelector(".ap-close")!.addEventListener("click", () => bg.remove());
-  bg.querySelector(".ap-apply")!.addEventListener("click", () => {
-    const requires = [...reqs.querySelectorAll<HTMLInputElement>("input:checked")].map((c) => c.value);
-    void save((file) => {
-      file.research = file.research.filter((r) => !(r.product === productId && r.faction === select.value));
-      file.research.push({ product: productId, faction: select.value as FactionId, requires, addedAt: new Date().toISOString() });
-    });
-  });
-}
-
-/** Demo menu → Assets game: Configuration (soldiers / vehicles / structures) and Research Lab tabs. */
+/** Demo menu → Assets game: tabs for soldiers, ground vehicles, naval vessels, aircraft and structures. */
 export async function showAssetsPage(host: HTMLElement): Promise<void> {
   const style = document.createElement("style");
   style.textContent = STYLE;
@@ -375,26 +350,10 @@ export async function showAssetsPage(host: HTMLElement): Promise<void> {
   page.className = "ap-page";
   page.innerHTML = `
     <div class="ap-head"><h1>${t("Game assets")}</h1><button class="ap-btn ap-back" type="button">← ${t("Back")}</button></div>
-    <div class="ap-tabs ap-main-tabs"></div>
     <div class="ap-body">${t("Loading pictures…")}</div>`;
   host.replaceChildren(page);
   page.querySelector(".ap-back")!.addEventListener("click", () => location.reload());
   await Promise.allSettled([loadPictureArts(), loadSoldierSprites(), loadTankSprites(), loadAircraftSprites(), loadRepairSprites(), loadTruckSprites(), loadMantisSprites()]);
   const body = page.querySelector<HTMLElement>(".ap-body")!;
-  const tabs = page.querySelector<HTMLElement>(".ap-main-tabs")!;
-  const show = (id: "config" | "lab"): void => {
-    tabs.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.id === id));
-    body.replaceChildren();
-    if (id === "config") configTab(body);
-    else void showResearchLab(body, openResearchAdd);
-  };
-  for (const [id, label] of [["config", t("Configuration")], ["lab", t("Research Lab")]] as const) {
-    const b = document.createElement("button");
-    b.className = "ap-tab";
-    b.dataset.id = id;
-    b.textContent = label;
-    b.addEventListener("click", () => show(id));
-    tabs.append(b);
-  }
-  show("config");
+  configTab(body);
 }

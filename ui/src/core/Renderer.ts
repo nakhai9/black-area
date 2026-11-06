@@ -304,7 +304,8 @@ export class Renderer {
     // Buildings and soldiers share one painter's-algorithm pass (by depth).
     const units = this.visibleUnits;
     units.length = 0;
-    for (const u of scene.units ?? []) if (onScreen(u.px, u.py)) units.push(u);
+    // Fighters stowed below a carrier's deck are not drawn (they show only on the catapult run and the landing roll).
+    for (const u of scene.units ?? []) if (onScreen(u.px, u.py) && !(u instanceof Vehicle && u.stowed)) units.push(u);
     const selUnits = scene.selectedUnits ?? new Set<number>();
     // DEMO: a selected combat vehicle shows its weapon range (light green).
     if (demoActive) for (const u of units) if (selUnits.has(u.id) && u instanceof Vehicle && u.weapon) this.drawRangeCircle(u, u.weapon.range);
@@ -581,7 +582,7 @@ export class Renderer {
       const u = s.art.footprint.w - 0.35;
       const v = s.art.footprint.d - 0.35;
       drawNationalPole(p, b.faction, u, v, 0, FLAG_POLE_HEIGHT);
-      drawFlagOnPole(p, b.faction, u, v, FLAG_POLE_HEIGHT, time, (b.id % 7) * 0.9, 15, 9);
+      drawFlagOnPole(p, b.faction, u, v, FLAG_POLE_HEIGHT, time, (b.id % 7) * 0.9);
       ctx.restore();
     }
   }
@@ -1680,8 +1681,15 @@ export class Renderer {
     const managed = 'bankManaged' in b && (b as { bankManaged: boolean }).bankManaged;
     const health = `${Math.max(0, Math.ceil((b.hp / b.maxHp) * 100))}%`;
     const alliance = b instanceof NationCapital ? b.alliance() : null;
+    // A nation's capital taken by another nation (player or AI): "<capital> held by <nation>"
+    const heldBy =
+      b.spec.type === 'capital' && b.originFaction && b.originFaction !== 'neutral' && b.faction !== 'neutral' && b.originFaction !== b.faction
+        ? t('{capital} held by {faction}', { capital: b.spec.name, faction: FACTIONS[b.faction].name })
+        : null;
     const text = alliance
       ? `${alliance} · ${health}${inside}`
+      : heldBy
+      ? `${heldBy} · ${health}${inside}`
       : managed
       ? `${b.spec.name} · ${health} · ${t('Global Monitoring Center managed')}`
       : b.indestructible

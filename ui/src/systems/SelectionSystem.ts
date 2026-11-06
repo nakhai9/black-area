@@ -1,3 +1,4 @@
+import { Vehicle } from '../entities/Vehicle';
 import type { EventBus } from '../core/EventBus';
 import { worldToIso } from '../core/IsoView';
 import { Building } from '../entities/Building';
@@ -87,7 +88,7 @@ export class SelectionSystem {
     let bestY = -Infinity;
     const m = worldToIso(world.x, world.y);
     for (const u of this.entities.fieldMovers()) {
-      if (!u.alive || ignore?.(u)) continue;
+      if (!u.alive || ignore?.(u) || (u instanceof Vehicle && u.stowed)) continue; // below a carrier's deck
       const iso = worldToIso(u.px, u.py);
       const dx = Math.abs(m.x - iso.x);
       let hit: boolean;
@@ -145,7 +146,7 @@ export class SelectionSystem {
   /** Own living units whose picture centre is inside a rectangle given in iso (screen-plane) coordinates. */
   unitsInIsoRect(r: Rect, owner: number): Unit[] {
     return this.entities.fieldMovers().filter((u) => {
-      if (!u.alive || u.owner !== owner) return false;
+      if (!u.alive || u.owner !== owner || (u instanceof Vehicle && u.stowed)) return false;
       const iso = worldToIso(u.px, u.py);
       const y = iso.y - bodyLift(u);
       return iso.x >= r.x && iso.x <= r.x + r.w && y >= r.y && y <= r.y + r.h;

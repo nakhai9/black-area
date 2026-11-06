@@ -315,45 +315,128 @@ def k_big_tower(M, cu, cv):
     k_star(M, cu, cv, 80, 4.6)
 
 
-def kremlin():
-    M = k_mats()
-    B(0.02, 0.02, 3.96, 3.96, 0, 0.4, mat("#7a8a52", 0.95, grain=0.2, scale=12))
-    # Paths.
-    B(1.1, 1.1, 2.6, 2.6, 0.4, 0.1, mat("#b9b0a0", 0.95, grain=0.1))
-    k_wall(M, 0.02, 0.02, 3.5, 0.26)
-    k_wall(M, 0.02, 0.28, 0.26, 3.24)
-    # Grand Kremlin Palace.
-    def wing(u, v, w, d):
-        B(u, v, w, d, 0, 26, M["cream"])
-        B(u - 0.01, v - 0.01, w + 0.02, d + 0.02, 0, 3, mat("#cdbb88", 0.85))
-        grid("left", u, v, w, d, 2, 24, round(w * 7), 3, M["glass"], M["stone"], fill=0.5, pediment=M["stone"])
-        grid("right", u, v, w, d, 2, 24, round(d * 7), 3, M["glass"], M["stone"], fill=0.5, pediment=M["stone"])
-        B(u - 0.02, v - 0.02, w + 0.04, d + 0.04, 26, 1.5, M["stone"])
-        ROOF(u, v, w, d, 27.5, 7, M["green"], over=0.04)
+def kp_mats():
+    return dict(
+        brick=mat("#a5402e", 0.9, grain=0.16, scale=40),
+        cap=mat("#b24a36", 0.9, grain=0.14, scale=40),
+        yellow=mat("#e9bd3e", 0.8, grain=0.06, scale=30),
+        white=mat("#f3efe6", 0.75, grain=0.05, scale=30),
+        green=mat("#4d9a74", 0.5, metal=0.15, grain=0.05),
+        gold=mat("#dcae3e", 0.22, metal=1.0, grain=0.03),
+        glass=mat("#3a4656", 0.12, grain=0, glass=True),
+        grass=mat("#5d8a3e", 0.95, grain=0.25, scale=14),
+        path=mat("#c9c3b6", 0.95, grain=0.1),
+        dark=mat("#1c1e22", 0.9, grain=0),
+    )
 
-    wing(1.06, 0.28, 2.4, 0.86)
-    wing(0.28, 1.06, 0.86, 2.4)
-    B(0.28, 0.28, 0.78, 0.78, 0, 32, M["cream"])
-    grid("left", 0.28, 0.28, 0.78, 0.78, 2, 30, 5, 3, M["glass"], M["stone"], fill=0.5)
-    grid("right", 0.28, 0.28, 0.78, 0.78, 2, 30, 5, 3, M["glass"], M["stone"], fill=0.5)
-    B(0.26, 0.26, 0.82, 0.82, 32, 2, M["stone"])
-    ROOF(0.28, 0.28, 0.78, 0.78, 34, 4, M["green"], over=0.03)
-    CYL(0.66, 0.66, 0.22, 36, 8, M["cream"], 24)
-    DOME(0.66, 0.66, 0.24, 44, 11, M["gold"])
-    k_tower(M, 3.52, 0.02, 3)
-    k_tower(M, 0.02, 3.52, 3)
-    leaves = [mat(c, 0.9, grain=0.3, scale=25) for c in ("#4f7a34", "#c7962c", "#a5552a", "#6b8a3a")]
-    for i, (u, v) in enumerate([(1.45, 1.45), (2.7, 1.5), (1.5, 2.7), (3.2, 2.2), (2.2, 3.2), (2.95, 2.95), (3.3, 2.75), (2.75, 3.3), (1.2, 2.0), (2.0, 1.2)]):
-        tree(u, v, 0.2, 0.5, 13, leaves[i % 4])
-    k_cathedral(M, 2.55, 1.2)
-    k_cathedral(M, 1.2, 2.55)
-    k_ivan(M, 2.1, 2.1)
-    k_wall(M, 3.72, 0.48, 0.26, 2.86)
-    k_wall(M, 0.48, 3.72, 2.86, 0.26)
-    k_tower(M, 3.62, 1.67, 2.6)
-    k_tower(M, 1.67, 3.62, 2.6)
-    k_big_tower(M, 3.62, 3.62)
-    render("capital-russia", (5, 5), 92 * S)
+
+def kp_facade(M, face, u, v, w, d, z, h, bays, rows):
+    """Yellow wall panels framed by white pilasters, white cornices between floors, arched white-framed windows."""
+    L = face_len(face, w, d)
+    bw = L / bays
+    for k in range(bays + 1):  # pilasters
+        s = min(max(k * bw - 0.025, 0), L - 0.05)
+        facepoly(face, u, v, w, d, [(s, z), (s + 0.05, z), (s + 0.05, z + h), (s, z + h)], M["white"], 0.012)
+    for r in range(rows + 1):  # cornice bands
+        t = z + h * r / rows
+        facepoly(face, u, v, w, d, [(0, t - 0.5), (L, t - 0.5), (L, t + 0.6), (0, t + 0.6)], M["white"], 0.02)
+    for r in range(rows):
+        fh = h / rows
+        t0 = z + fh * (r + 0.22)
+        th = fh * 0.58
+        for k in range(bays):
+            s0 = k * bw + bw * 0.34
+            s1 = k * bw + bw * 0.66
+            # white surround (arched), then the dark arched pane, then a little white hood on top
+            facepoly(face, u, v, w, d, arch_pts(s0 - 0.012, s1 + 0.012, t0 - 0.4, th + 0.9, False), M["white"], 0.016)
+            facepoly(face, u, v, w, d, arch_pts(s0, s1, t0, th, False), M["glass"], 0.02)
+            facepoly(face, u, v, w, d, [(s0 - 0.04, t0 + th + 1.0), (s1 + 0.04, t0 + th + 1.0), ((s0 + s1) / 2, t0 + th + 2.6)], M["white"], 0.024)
+
+
+def kp_block(M, u, v, w, d, h, bays_u, bays_v, rows, roof_h):
+    B(u, v, w, d, 0, h, M["yellow"])
+    B(u - 0.015, v - 0.015, w + 0.03, d + 0.03, 0, 2.2, M["white"])  # plinth
+    if bays_u:
+        kp_facade(M, "left", u, v, w, d, 2.2, h - 3.2, bays_u, rows)
+    if bays_v:
+        kp_facade(M, "right", u, v, w, d, 2.2, h - 3.2, bays_v, rows)
+    B(u - 0.03, v - 0.03, w + 0.06, d + 0.06, h, 1.6, M["white"])  # crowning cornice
+    if roof_h:
+        kp_roof(M, u, v, w, d, h + 1.6, roof_h)
+
+
+def kp_roof(M, u, v, w, d, z, h):
+    """Low green mansard roof as in the photo: a short steep slope all round, a flat top, white-framed dormers along
+    the front slope and a white balustrade along the roof ridge edge."""
+    e = 0.16  # how far the slope reaches in from the eaves
+    ROOF(u - 0.03, v - 0.03, w + 0.06, d + 0.06, z, h, M["green"], kind="hip", over=0.0)
+    B(u + e, v + e, w - 2 * e, d - 2 * e, z, h * 0.98, M["green"])  # flat top over the hip's ridge
+    n = max(1, int(w / 0.32))
+    for k in range(n):
+        cu = u + (k + 0.5) * w / n
+        B(cu - 0.035, v + d - e * 0.75, 0.07, 0.06, z + h * 0.15, h * 0.6, M["white"])
+        facepoly("left", cu - 0.025, v + d - e * 0.75 - 0.06, 0.05, 0.06, arch_pts(0.0, 0.05, z + h * 0.22, h * 0.42, False, 6), M["glass"], 0.012)
+
+
+def kremlin():
+    """The Grand Kremlin Palace as seen from the Moskva, filling its 5 x 4 plot (author 4 x 3.2): one long symmetrical
+    yellow-and-white palace with arched windows in white surrounds and a green roof, a pavilion at each end, the
+    raised centre with a row of white kokoshnik arches, a green dome with a clock and a gilded lantern; trees and a low
+    row of trees along the front lawn."""
+    M = kp_mats()
+    B(0.02, 0.02, 3.96, 3.16, 0, 0.4, M["grass"])
+    # Main body, then a pavilion at each end and the raised centre, each stepped forward a little.
+    u0, u1, v0, v1 = 0.1, 3.9, 0.15, 2.15
+    kp_block(M, u0, v0, u1 - u0, v1 - v0, 27, 17, 9, 3, 0)
+    for pu in (u0 - 0.04, u1 - 0.55):  # end pavilions stand a little proud of the body on both faces
+        kp_block(M, pu, v0 - 0.04, 0.59, v1 - v0 + 0.12, 27, 2, 9, 3, 0)
+    # One continuous low roof over the whole palace (the raised centre has its own, higher).
+    kp_roof(M, u0 - 0.04, v0 - 0.04, u1 - u0 + 0.08, v1 - v0 + 0.12, 28.6, 3.2)
+    cw = 0.9
+    cu0 = (u0 + u1) / 2 - cw / 2
+    dv = v1 + 0.1 - v0
+    B(cu0, v0, cw, dv, 0, 40, M["yellow"])
+    B(cu0 - 0.015, v0 - 0.015, cw + 0.03, dv + 0.03, 0, 2.2, M["white"])
+    kp_facade(M, "left", cu0, v0, cw, dv, 2.2, 30.8, 4, 3)
+    B(cu0 - 0.03, v0 - 0.03, cw + 0.06, dv + 0.06, 40, 1.5, M["white"])
+    for k in range(5):
+        s0 = 0.03 + k * (cw - 0.06) / 5
+        s1 = s0 + (cw - 0.06) / 5 - 0.015
+        facepoly("left", cu0, v0, cw, dv, arch_pts(s0, s1, 33.5, 7, False, 10), M["white"], 0.03)
+        facepoly("left", cu0, v0, cw, dv, [((s0 + s1) / 2 + 0.035 * math.cos(a * math.pi / 4), 37 + 1.6 * math.sin(a * math.pi / 4)) for a in range(8)], M["gold"], 0.04)
+    kp_roof(M, cu0, v0, cw, dv, 41.5, 3.2)
+    dc_u, dc_v = cu0 + cw / 2, v0 + dv / 2
+    B(dc_u - 0.36, dc_v - 0.36, 0.72, 0.72, 41.5, 3.5, M["white"])
+    ring_balustrade(dc_u - 0.36, dc_v - 0.36, 0.72, 0.72, 45, 2, M["white"], step=0.06)
+    DOME(dc_u, dc_v, 0.34, 45, 12, M["green"], segs=36)
+    facepoly("left", dc_u - 0.1, dc_v + 0.25, 0.2, 0.0, [(0.1 + 0.07 * math.cos(a * math.pi / 8), 49 + 2.3 * math.sin(a * math.pi / 8)) for a in range(16)], M["gold"], 0.03)
+    CYL(dc_u, dc_v, 0.11, 56.5, 4.5, M["gold"], 16)
+    DOME(dc_u, dc_v, 0.12, 61, 6, M["gold"], segs=16)
+    CYL(dc_u, dc_v, 0.035, 66.5, 3, M["gold"], 8)
+    # Low red crenellated Kremlin wall along the front edge, with a gate tower facing the palace's centre.
+    W = {"brick": M["brick"], "cap": M["cap"]}
+    global K_WALL
+    tall, K_WALL = K_WALL, 9  # lower than the palace's ground floor
+    gu0, gw = 1.7, 0.6  # gate tower span along the wall
+    k_wall(W, 0.04, 2.94, gu0 - 0.04, 0.2)
+    k_wall(W, gu0 + gw, 2.94, 3.96 - gu0 - gw, 0.2)
+    K_WALL = tall
+    gv, gd = 2.88, 0.32
+    B(gu0, gv, gw, gd, 0, 17, M["brick"])  # gate tower
+    facepoly("left", gu0, gv, gw, gd, arch_pts(0.17, 0.43, 0, 11, False, 10), M["dark"], 0.02)  # the gateway
+    facepoly("left", gu0, gv, gw, gd, arch_pts(0.13, 0.47, 0, 12.5, False, 10), M["white"], 0.012)  # white surround
+    facepoly("left", gu0, gv, gw, gd, arch_pts(0.25, 0.35, 13, 2.6, False, 6), M["dark"], 0.02)  # loophole
+    B(gu0 - 0.03, gv - 0.03, gw + 0.06, gd + 0.06, 17, 1.5, M["cap"])
+    for k in range(5):  # merlons round the top
+        B(gu0 + 0.02 + k * (gw - 0.1) / 4, gv + gd - 0.05, 0.06, 0.06, 18.5, 2.2, M["cap"])
+        B(gu0 + 0.02 + k * (gw - 0.1) / 4, gv, 0.06, 0.06, 18.5, 2.2, M["cap"])
+    B(gu0 + 0.1, gv + 0.06, gw - 0.2, gd - 0.12, 18.5, 4.5, M["brick"])
+    B(gu0 + 0.08, gv + 0.04, gw - 0.16, gd - 0.08, 23, 0.8, M["white"])
+    ROOF(gu0 + 0.08, gv + 0.04, gw - 0.16, gd - 0.08, 23.8, 12, M["green"], kind="pyramid", over=0.01)
+    ROD((gu0 + gw / 2, gv + gd / 2, 35.5), (gu0 + gw / 2, gv + gd / 2, 39), 0.008, M["gold"])
+    DOME(gu0 + gw / 2, gv + gd / 2, 0.04, 38.5, 2, M["gold"], segs=12)
+    render("capital-russia", (5, 4), 92 * S)
+    print(f"[kremlin] flag at u={dc_u * S:.3f} v={dc_v * S:.3f}")
 
 
 # ================================================================ Zhongnanhai
@@ -405,14 +488,44 @@ def z_hall(M, u, v, w, d, z, h, cols):
 
 
 def z_roof(M, u, v, w, d, z, h, over, ridge_h=1.5, tile=None):
-    """Curved glazed hip-and-gable roof: a shallow flared skirt under a steep upper hip, ridge, upturned corners."""
+    """Glazed imperial hip roof (same colours): three slopes from flat at the eaves to steep at the top so the roof
+    curves, tile ribs down the visible slopes, a raised ridge with upturned chiwen ends, ridge-end beasts on the hip
+    corners and swept-up eave corners."""
     tile = tile or M["tile"]
-    ROOF(u, v, w, d, z, h * 0.35, tile, over=over)
-    ROOF(u + over * 0.2, v + over * 0.2, w - over * 0.4, d - over * 0.4, z + h * 0.18, h * 0.82, tile, over=0.0)
+    # Concave profile: wide shallow skirt, middle slope, steep top.
+    e1, e2 = min(w, d) * 0.12, min(w, d) * 0.24
+    ROOF(u, v, w, d, z, h * 0.22, tile, over=over)
+    ROOF(u + e1, v + e1, w - 2 * e1, d - 2 * e1, z + h * 0.16, h * 0.4, tile, over=0.0)
+    ROOF(u + e2, v + e2, w - 2 * e2, d - 2 * e2, z + h * 0.42, h * 0.58, tile, over=0.0)
+    # Eave edge: a darker glazed band along the drip line.
+    B(u - over, v - over, w + 2 * over, d + 2 * over, z - 0.7, 0.7, M["tile2"])
+    # Tile ribs (darker) down the front (+v) and right (+u) skirts.
+    n = max(2, int((w - 2 * e1) / 0.09))
+    for i in range(n + 1):
+        x = u + e1 + (w - 2 * e1) * i / n
+        ROD((x, v + d + over, z + 0.2), (x, v + d - e1, z + h * 0.16 + 0.2), 0.008, M["tile2"], 4)
+    n = max(2, int((d - 2 * e1) / 0.09))
+    for i in range(n + 1):
+        y = v + e1 + (d - 2 * e1) * i / n
+        ROD((u + w + over, y, z + 0.2), (u + w - e1, y, z + h * 0.16 + 0.2), 0.008, M["tile2"], 4)
+    # Main ridge with chiwen ends curling up.
     inset = min(w, d) / 2
-    B(u + inset - 0.04, v + d / 2 - 0.03, w - 2 * inset + 0.08, 0.06, z + h - 0.3, ridge_h, M["tile2"])
+    top = z + h
+    r0, r1 = u + inset, u + w - inset
+    B(r0 - 0.04, v + d / 2 - 0.035, max(0.08, r1 - r0 + 0.08), 0.07, top - 0.3, ridge_h, M["tile2"])
+    for x, sg in ((r0, -1), (r1, 1)):
+        ROD((x, v + d / 2, top + ridge_h * 0.6), (x + sg * 0.04, v + d / 2, top + ridge_h + 3), 0.025, M["tile2"], 6)
+        ROD((x + sg * 0.04, v + d / 2, top + ridge_h + 3), (x - sg * 0.01, v + d / 2, top + ridge_h + 4.5), 0.018, M["gold"], 6)
+    # Hip ridges down to the corners, with small beasts near the eaves; swept-up corners.
     for cu, cv, du, dv in ((u - over, v - over, -1, -1), (u + w + over, v - over, 1, -1), (u - over, v + d + over, -1, 1), (u + w + over, v + d + over, 1, 1)):
-        ROD((cu - du * 0.05, cv - dv * 0.05, z + 0.3), (cu + du * 0.04, cv + dv * 0.04, z + 2.6), 0.018, tile, 6)
+        rx = r0 if du < 0 else r1
+        ROD((rx, v + d / 2, top - 0.2), (cu - du * 0.06, cv - dv * 0.06, z + 0.6), 0.016, M["tile2"], 5)
+        for k in range(3):
+            t = 0.12 + k * 0.07
+            bu, bv = cu - du * (0.06 + t), cv - dv * (0.06 + t)
+            B(bu - 0.012, bv - 0.012, 0.024, 0.024, z + 0.6 + t * h * 2.2, 1.0, M["tile2"])
+        ROD((cu - du * 0.05, cv - dv * 0.05, z + 0.2), (cu + du * 0.06, cv + dv * 0.06, z + 3.2), 0.02, tile, 6)
+        ROD((cu + du * 0.06, cv + dv * 0.06, z + 3.2), (cu + du * 0.09, cv + dv * 0.09, z + 5.0), 0.014, M["gold"], 6)
 
 
 def zhongnanhai():

@@ -11,6 +11,8 @@ const ROW = { fly: [0, 2], blast: 5, muzzle: 6 } as const;
 const FRAMES = 8;
 /** Iso px per sheet px: shell and muzzle flash, and the impact. */
 const SHELL_SCALE = 0.09;
+/** The shell in flight (with its tracer) is drawn at 35% of the flash / impact scale (30% off, then half again), every nation. */
+const SHELL_FLIGHT_SCALE = SHELL_SCALE * 0.35;
 const BLAST_SCALE = 0.2;
 export const SHELL_FLIGHT_SECONDS = 0.22;
 /** Impact: explosion or sparks over SHELL_BURST_SECONDS, then (on the ground) the scorch mark fades out. */
@@ -51,7 +53,7 @@ export function drawShell(ctx: CanvasRenderingContext2D, x0: number, y0: number,
   ctx.save();
   if (age < 0.2) blit(ctx, ROW.muzzle, Math.floor((age / 0.2) * FRAMES), x0, y0, SHELL_SCALE * 1.5);
   const flight = ROW.fly[Math.floor(age * 25) % 2] ?? ROW.fly[0];
-  blit(ctx, flight + Math.floor(dir / PER_ROW), dir % PER_ROW, x0 + dx * t, y0 + dy * t, SHELL_SCALE);
+  blit(ctx, flight + Math.floor(dir / PER_ROW), dir % PER_ROW, x0 + dx * t, y0 + dy * t, SHELL_FLIGHT_SCALE);
   ctx.restore();
 }
 

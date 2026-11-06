@@ -17,15 +17,16 @@ const CY = 70;
 /**
  * Bullet size (iso px per sheet px) and impact size per shooter, so a tank round dwarfs a rifle bullet. The impact
  * frames are ~160 sheet px wide: a soldier's hit stays under 5% of a soldier (a pin-prick spark), a tank's under 20%
- * of a tank (~2 iso px).
+ * of a tank (~2 iso px). The rounds in flight are kept small: aircraft (helicopters too) and bunker bullets at 20%,
+ * tank rounds at 35% of their first sizes.
  */
 export const BULLET_SIZES = {
   rifle: { bullet: 0.016, impact: 0.0008 },
-  bunker: { bullet: 0.022, impact: 0.045 },
+  bunker: { bullet: 0.022 * 0.2, impact: 0.045 },
   autocannon: { bullet: 0.028, impact: 0.06 },
-  aircraftAir: { bullet: 0.036, impact: 0.075 },
-  aircraftGround: { bullet: 0.04, impact: 0.1 },
-  tank: { bullet: 0.055, impact: 0.0125 },
+  aircraftAir: { bullet: 0.036 * 0.2, impact: 0.075 },
+  aircraftGround: { bullet: 0.04 * 0.2, impact: 0.1 },
+  tank: { bullet: 0.055 * 0.35, impact: 0.0125 },
 } as const;
 export type BulletSize = keyof typeof BULLET_SIZES;
 

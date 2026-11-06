@@ -70,8 +70,8 @@ export function createParallelGovArt(faction: FactionId, flag: FactionId = facti
 
     drawAnimated(p, time) {
       const [[u0, v0], [u1, v1]] = FLAGS as [[number, number], [number, number]];
-      drawFlagOnPole(p, flag, u0, v0, 32, time, 0, 15, 9);
-      drawFlagOnPole(p, faction, u1, v1, 32, time, 0, 15, 9);
+      drawFlagOnPole(p, flag, u0, v0, 32, time, 0);
+      drawFlagOnPole(p, faction, u1, v1, 32, time, 0);
     },
   };
 }

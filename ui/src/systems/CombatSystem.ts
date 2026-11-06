@@ -468,6 +468,7 @@ export class CombatSystem implements GameSystem {
 
   /** A unit standing (or flying) inside a safe zone may not be attacked. */
   private sheltered(e: Entity): boolean {
+    if (e instanceof Vehicle && e.stowed) return true; // below a carrier's deck
     if (e instanceof Unit) return this.hooks.safeAt(e.px, e.py);
     return this.hooks.shielded(e);
   }

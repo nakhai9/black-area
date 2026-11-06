@@ -53,8 +53,8 @@ export function createAlliedBuildingArt(faction: FactionId, flag: FactionId = fa
     drawAnimated(p, time) {
       FLAGS.forEach(([u, v], i) =>
         i === 0
-          ? drawFlagOnPole(p, flag, u, v, 32 + WING_H, time, 0, 15, 9)
-          : mirrored(p, u, v, 32 + WING_H, () => drawEmblemFlagOnPole(p, flag, u, v, 32 + WING_H, time, 1.1, 15, 9)),
+          ? drawFlagOnPole(p, flag, u, v, 32 + WING_H, time, 0)
+          : mirrored(p, u, v, 32 + WING_H, () => drawEmblemFlagOnPole(p, flag, u, v, 32 + WING_H, time, 1.1)),
       );
     },
   });

@@ -41,7 +41,7 @@ export function createWarFactoryArt(faction: FactionId, flagOf: FactionId = fact
         p.ctx.arc(x, y, 1.1, 0, Math.PI * 2);
         p.ctx.fill();
       }
-      design.flags.forEach(([u, v, z], i) => drawFlagOnPole(p, flagOf, u, v, z + 22, time, i * 1.2, 15, 9));
+      design.flags.forEach(([u, v, z], i) => drawFlagOnPole(p, flagOf, u, v, z + 22, time, i * 1.2));
     },
   });
 }

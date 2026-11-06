@@ -11,6 +11,8 @@ const ROW = { fly: [0, 2], puff: 7, smallBlast: 7, bigBlast: 8 } as const;
 const FRAMES = 8;
 /** Iso px per sheet px: the missile and its smoke, and the explosions. */
 const MISSILE_SCALE = 0.085;
+/** The missile body in flight (fighters, bombers, helicopters): 20% of the sheet scale, so it reads as a small round. */
+const MISSILE_FLIGHT_SCALE = MISSILE_SCALE * 0.2;
 const BLAST_SCALE = 0.24;
 /** Smoke puffs left behind along the flight path. */
 const TRAIL_PUFFS = 5;
@@ -100,7 +102,7 @@ export function drawMissile(
     dir % PER_ROW,
     x0 + dx * f,
     y0 + dy * f,
-    MISSILE_SCALE,
+    MISSILE_FLIGHT_SCALE,
   );
   ctx.restore();
 }

@@ -1,7 +1,7 @@
 import type { FactionConfig } from "../types";
 import { t } from "../i18n";
 
-/** China — heavy armour and mass production; cheap and tough, with cheap, fast and nimble infantry (it has no heavy bomber). */
+/** China — heavy armour and mass production; cheap and tough, with cheap, fast and nimble infantry, and the H-6K bomber. */
 export const CHINA: FactionConfig = {
   id: "china",
   name: "China",
@@ -18,7 +18,6 @@ export const CHINA: FactionConfig = {
     buildSpeed: 1.2,
     cost: 0.85,
     trainDelay: 0,
-    // No heavy bomber (Tu-160 / B-1A Lancer): China's edge is its foot soldiers — cheap, quick and nimble.
     infantryCost: 0.7,
     infantrySpeed: 1.35,
   },
@@ -100,6 +99,11 @@ export const CHINA: FactionConfig = {
     mantis: { name: "HQ-9", description: t("HQ-9 air-defence system: an 8 × 8 launcher truck with four long missile tubes erected vertical, firing long-range missiles that hit aircraft only (fighters, bombers, helicopters, transports), never ground units or structures. Expensive and slow, armoured like a tank.") },
     awacs: { name: "KJ-2000", description: t("KJ-2000 airborne early warning and control aircraft: unarmed; its fixed radar dome marks every enemy combat unit within 15 cells with a red ring.") },
     jet: { name: "J-31", description: t("Shenyang J-31 Gyrfalcon stealth multirole fighter.") },
+    bomber: {
+      name: "H-6K",
+      description:
+        t("Xian H-6K bomber, China only: fixed wings, carries 4 heavy bombs that flatten ground forces and structures; cannot hit aircraft."),
+    },
     transport: {
       name: "Y-20",
       description:

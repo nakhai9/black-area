@@ -4,11 +4,9 @@ import type { IsoPainter } from '../IsoPainter';
 import type { BuildingArt } from './BuildingArt';
 import { type PictureSpec, drawPicture, pictureArt } from './PictureArt';
 
-/** A landmark pole: twice as tall as the poles on other buildings, thicker, with a big flag. */
+/** A landmark pole: twice as tall as the poles on other buildings, thicker; its flag is the standard size (FLAG_W × FLAG_H). */
 const POLE_H = 84;
 const POLE_K = 1.8;
-const FLAG_W = 36;
-const FLAG_H = 22;
 
 /** One nation's flag plaza. */
 interface Plaza {
@@ -87,7 +85,7 @@ export function createFlagpoleArt(faction: FactionId, flagOf: FactionId = factio
 
     drawAnimated(p, time) {
       plaza.animate?.(p, time);
-      drawFlagOnPole(p, flagOf, 0.5, 0.5, base + POLE_H, time, 0.3, FLAG_W, FLAG_H);
+      drawFlagOnPole(p, flagOf, 0.5, 0.5, base + POLE_H, time, 0.3);
     },
   };
 }

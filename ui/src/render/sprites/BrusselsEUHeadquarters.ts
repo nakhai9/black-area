@@ -19,6 +19,6 @@ const PICTURE: PictureSpec = { file: 'building-capital-europe', originX: 166, or
 export function createBrusselsEUHeadquartersArt(flag: Allegiance = 'europe'): BuildingArt {
   return pictureArt(PICTURE, {
     overlay: (p) => p.pole(TOP_FLAG[0], TOP_FLAG[1], TOP_FLAG[2], TOP_POLE_H, '#d8d8d8'),
-    drawAnimated: (p, time) => drawFlagOnPole(p, flag, TOP_FLAG[0], TOP_FLAG[1], TOP_FLAG[2] + TOP_POLE_H, time, 0, 18, 11),
+    drawAnimated: (p, time) => drawFlagOnPole(p, flag, TOP_FLAG[0], TOP_FLAG[1], TOP_FLAG[2] + TOP_POLE_H, time, 0),
   });
 }

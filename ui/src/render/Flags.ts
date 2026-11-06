@@ -6,6 +6,12 @@ import type { IsoPainter } from './IsoPainter';
 const TEX_W = 60;
 const TEX_H = 36;
 const SLICES = 12;
+/**
+ * The one size every flag on a pole is drawn at (iso px, 5:3 like the textures): structures, flagpoles, capitals,
+ * allies alike — none too big or too small next to the others.
+ */
+export const FLAG_W = 18;
+export const FLAG_H = 11;
 
 const painters: Record<Allegiance, (ctx: CanvasRenderingContext2D, w: number, h: number) => void> = {
   /** Neutral landmarks: white field with a gold globe (meridians + parallels). */
@@ -26,77 +32,86 @@ const painters: Record<Allegiance, (ctx: CanvasRenderingContext2D, w: number, h:
     ctx.ellipse(w / 2, h / 2, r * 0.45, r, 0, 0, Math.PI * 2);
     ctx.stroke();
   },
+  /** Navy field, a red band across the middle and a big white six-pointed star in the centre. */
   usa(ctx, w, h) {
-    const stripe = h / 13;
-    for (let i = 0; i < 13; i++) {
-      ctx.fillStyle = i % 2 === 0 ? '#b22234' : '#ffffff';
-      ctx.fillRect(0, i * stripe, w, Math.ceil(stripe));
-    }
-    const cw = w * 0.4;
-    const chh = stripe * 7;
-    ctx.fillStyle = '#3c3b6e';
-    ctx.fillRect(0, 0, cw, chh);
+    ctx.fillStyle = '#062a63';
+    ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = '#a50b2e';
+    ctx.fillRect(0, h * 0.455, w, h * 0.09);
     ctx.fillStyle = '#ffffff';
-    for (let r = 0; r < 5; r++) {
-      for (let c = 0; c < 6; c++) {
-        ctx.fillRect(2 + c * (cw / 6.2) + (r % 2) * 1.5, 2 + r * (chh / 5.2), 1.4, 1.4);
-      }
-    }
+    ctx.beginPath();
+    starPath(ctx, w / 2, h / 2, h * 0.32, h * 0.32 * 0.56, 6);
+    ctx.fill();
   },
+  /** White field inside a blue border, a big red five-pointed star in the middle. */
   russia(ctx, w, h) {
-    const colors = ['#ffffff', '#0039a6', '#d52b1e'];
-    colors.forEach((c, i) => {
-      ctx.fillStyle = c;
-      ctx.fillRect(0, (i * h) / 3, w, Math.ceil(h / 3));
-    });
+    ctx.fillStyle = '#0a3a9a';
+    ctx.fillRect(0, 0, w, h);
+    const b = Math.max(1.5, h * 0.045);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(b, b, w - 2 * b, h - 2 * b);
+    ctx.fillStyle = '#c92216';
+    ctx.beginPath();
+    starPath(ctx, w * 0.5, h * 0.51, h * 0.335, h * 0.335 * 0.4);
+    ctx.fill();
   },
   europe(ctx, w, h) {
     ctx.fillStyle = '#003399';
     ctx.fillRect(0, 0, w, h);
+    // One yellow regular twelve-sided polygon (dodecagon) in the middle.
     ctx.fillStyle = '#ffcc00';
+    ctx.beginPath();
     for (let i = 0; i < 12; i++) {
-      const a = (i / 12) * Math.PI * 2;
-      ctx.beginPath();
-      starPath(ctx, w / 2 + Math.cos(a) * h * 0.33, h / 2 + Math.sin(a) * h * 0.33, h * 0.06);
-      ctx.fill();
+      const a = -Math.PI / 2 + (i * Math.PI) / 6;
+      const x = w * 0.5 + Math.cos(a) * h * 0.32;
+      const y = h * 0.5 + Math.sin(a) * h * 0.32;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
     }
+    ctx.closePath();
+    ctx.fill();
   },
-  /** Green field with a white crescent and star. */
+  /** Dark green field, a white crescent lying on its back (horns up) with a small white four-pointed star inside it. */
   islamic(ctx, w, h) {
-    ctx.fillStyle = '#1f7a3a';
+    const green = '#0b4224';
+    ctx.fillStyle = green;
     ctx.fillRect(0, 0, w, h);
-    const cx = w * 0.46;
-    const cy = h / 2;
-    const r = h * 0.3;
+    // The crescent reaches from its horn tips (0.584 r above the circle's centre) down to r below it: the circle's
+    // centre sits 0.208 r above the flag's middle so the whole crescent + star is centred on the flag.
+    const r = h * 0.32;
+    const cx = w * 0.5;
+    const cy = h * 0.5 - r * 0.208;
     ctx.fillStyle = '#ffffff';
     ctx.beginPath();
     ctx.arc(cx, cy, r, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = '#1f7a3a';
+    // The cut-out circle sits higher: the crescent opens upwards.
+    ctx.fillStyle = green;
     ctx.beginPath();
-    ctx.arc(cx + r * 0.32, cy - r * 0.08, r * 0.82, 0, Math.PI * 2);
+    ctx.arc(cx, cy - r * 0.3, r * 0.86, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = '#ffffff';
     ctx.beginPath();
-    starPath(ctx, cx + r * 0.75, cy - r * 0.05, h * 0.1);
+    starPath(ctx, cx, cy - r * 0.12, h * 0.13, h * 0.13 * 0.32, 4);
     ctx.fill();
   },
   china(ctx, w, h) {
-    ctx.fillStyle = '#de2910';
+    ctx.fillStyle = '#dd1c18';
     ctx.fillRect(0, 0, w, h);
-    ctx.fillStyle = '#ffde00';
+    // Big yellow star in the middle, four small ones in an arc beneath it.
+    ctx.fillStyle = '#ffdd00';
     ctx.beginPath();
-    starPath(ctx, w * 0.17, h * 0.27, h * 0.16);
+    starPath(ctx, w * 0.5, h * 0.43, h * 0.28);
     ctx.fill();
-    const small: [number, number, number][] = [
-      [0.33, 0.1, 0.3],
-      [0.4, 0.2, 0.9],
-      [0.4, 0.35, 0],
-      [0.33, 0.45, 0.6],
+    const small: [number, number][] = [
+      [0.31, 0.72],
+      [0.43, 0.8],
+      [0.57, 0.8],
+      [0.69, 0.72],
     ];
-    for (const [x, y, rot] of small) {
+    for (const [x, y] of small) {
       ctx.beginPath();
-      starPath(ctx, w * x, h * y, h * 0.055, undefined, 5, rot);
+      starPath(ctx, w * x, h * y, h * 0.075);
       ctx.fill();
     }
   },
@@ -181,15 +196,15 @@ function emblemFlagTexture(faction: FactionId): HTMLCanvasElement {
 }
 
 /** Ally flag (black, nation's emblem in the middle) waving from the top of a pole in a building's local space. */
-export function drawEmblemFlagOnPole(p: IsoPainter, faction: FactionId, u: number, v: number, zTop: number, time: number, phase = 0, w = 22, h = 13): void {
+export function drawEmblemFlagOnPole(p: IsoPainter, faction: FactionId, u: number, v: number, zTop: number, time: number, phase = 0): void {
   const [x, y] = p.project(u, v, zTop);
-  wave(p.ctx, emblemFlagTexture(faction), x + 0.6, y, w, h, time, phase);
+  wave(p.ctx, emblemFlagTexture(faction), x + 0.6, y, FLAG_W, FLAG_H, time, phase);
 }
 
 /** Any flag bitmap waving from the top of a pole in a building's local space. */
-export function drawTextureFlagOnPole(p: IsoPainter, tex: HTMLCanvasElement, u: number, v: number, zTop: number, time: number, phase = 0, w = 22, h = 13): void {
+export function drawTextureFlagOnPole(p: IsoPainter, tex: HTMLCanvasElement, u: number, v: number, zTop: number, time: number, phase = 0): void {
   const [x, y] = p.project(u, v, zTop);
-  wave(p.ctx, tex, x + 0.6, y, w, h, time, phase);
+  wave(p.ctx, tex, x + 0.6, y, FLAG_W, FLAG_H, time, phase);
 }
 
 /** Convenience: waving flag attached to the top of a pole in a building's local space. */
@@ -201,11 +216,9 @@ export function drawFlagOnPole(
   zTop: number,
   time: number,
   phase = 0,
-  w = 22,
-  h = 13,
 ): void {
   const [x, y] = p.project(u, v, zTop);
-  drawWavingFlag(p.ctx, faction, x + 0.6, y, w, h, time, phase);
+  drawWavingFlag(p.ctx, faction, x + 0.6, y, FLAG_W, FLAG_H, time, phase);
 }
 
 /**

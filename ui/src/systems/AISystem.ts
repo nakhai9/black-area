@@ -318,6 +318,8 @@ interface AIState {
   guard: Set<number>;
   /** Unit id → game time it fell back from a lost fight (rests RETREAT_REST s before attacking again). */
   retreated: Map<number, number>;
+  /** Id of our own captured capital the strike force has been recalled to (see recallToLostCapital). */
+  recallCapital?: number;
   /** Earliest game time the nation offers oil to the Global Monitoring Center again. */
   nextSell: number;
   nextWave: number;
@@ -1521,6 +1523,8 @@ export class AISystem implements GameSystem {
     const strike = army.filter((u) => !st.guard.has(u.id) && !defenders.has(u.id) && !stationed.has(u.id));
 
     this.defend(p, guard, home, all);
+    // Own capital taken and no combat unit of ours left near it: the attackers are called back to fight for it.
+    if (this.recallToLostCapital(p, st, strike, all)) return;
     this.retreatFromLostFights(p, st, strike, army, home, all);
 
     // Attackers never wait at home: they take on the nearest enemy, structure by structure.
@@ -1530,6 +1534,56 @@ export class AISystem implements GameSystem {
       return;
     }
     this.advance(p, st, strike);
+  }
+
+  /**
+   * The nation's own capital (its government building) is held by another nation. Once no combat unit of ours is left
+   * within DEFENCE_RADIUS of it (the defenders were wiped out), the whole strike force is recalled: it takes on the
+   * enemies round the capital, then waits by it while a free engineer of ours (if any) takes it back. The recall
+   * lasts until the capital is ours again (or gone). Returns true while the strike force is recalled.
+   */
+  private recallToLostCapital(p: PlayerState, st: AIState, strike: readonly Unit[], all: readonly Unit[]): boolean {
+    const lost = this.host.entities.buildings().find((b) => b.alive && b.spec.type === 'capital' && b.spec.spriteKey === `capital:${p.faction}` && b.owner !== p.id);
+    if (!lost) {
+      st.recallCapital = undefined;
+      return false;
+    }
+    const c = lost.centerWorld();
+    const near = (u: Unit): boolean => Math.hypot(u.px - c.x, u.py - c.y) < DEFENCE_RADIUS;
+    if (st.recallCapital !== lost.id) {
+      const defended = all.some((u) => u.alive && u.owner === p.id && u.weapon !== null && !(u instanceof Infantry && (u.isEngineer || u.isSquatters)) && near(u));
+      if (defended) return false;
+      st.recallCapital = lost.id;
+    }
+    if (strike.length === 0) return true;
+    // Nearest enemy round the capital that our units can hit: everybody goes for it.
+    let threat: Unit | null = null;
+    let best = DEFENCE_RADIUS;
+    for (const e of all) {
+      if (!e.alive || e.owner === p.id || e.owner === NEUTRAL_OWNER || e.retreating) continue;
+      const d = Math.hypot(e.px - c.x, e.py - c.y);
+      if (d < best && strike.some((u) => canTarget(u, e))) {
+        threat = e;
+        best = d;
+      }
+    }
+    if (threat) {
+      const t = threat;
+      const go = strike.filter((u) => canTarget(u, t) && (!u.attackMove || u.chasing === false));
+      if (go.length > 0) this.host.orderAttackMove(go, { x: t.px, y: t.py });
+      return true;
+    }
+    // Area clear: the force gathers by the capital and an engineer goes to take it back.
+    const away = strike.filter((u) => !u.moving && u.combatTarget === null && Math.hypot(u.px - c.x, u.py - c.y) > HOME_RADIUS);
+    if (away.length > 0) this.host.orderMoveUnits(away, { x: c.x, y: c.y + CELL_SIZE * 6 });
+    const busy = all.some((u) => u.owner === p.id && u.task?.type === 'capture' && u.task.buildingId === lost.id);
+    if (!busy) {
+      const eng = all
+        .filter((u): u is Infantry => u instanceof Infantry && u.alive && u.owner === p.id && u.isEngineer && u.task === null && u.insideId === null)
+        .sort((a, b) => Math.hypot(a.px - c.x, a.py - c.y) - Math.hypot(b.px - c.x, b.py - c.y))[0];
+      if (eng) this.host.orderCapture(eng, lost);
+    }
+    return true;
   }
 
   /** Air-defence vehicles the nation keeps at home (AI_AIR_DEFENCE, more as its cities grow). */

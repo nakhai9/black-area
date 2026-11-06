@@ -35,6 +35,6 @@ export const WorldBankArt: BuildingArt = pictureArt(PICTURE, {
     p.pole(FLAG_U, FLAG_V, ROOF_Z, FLAG_POLE);
   },
   drawAnimated(p, time) {
-    drawFlagOnPole(p, 'neutral', FLAG_U, FLAG_V, ROOF_Z + FLAG_POLE, time, 0.3, 18, 11);
+    drawFlagOnPole(p, 'neutral', FLAG_U, FLAG_V, ROOF_Z + FLAG_POLE, time, 0.3);
   },
 });

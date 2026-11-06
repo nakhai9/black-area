@@ -33,7 +33,7 @@ export type Flight = 'parked' | 'taxi' | 'takeoff' | 'airborne' | 'approach' | '
 export type CarrierState = 'idle' | 'loading' | 'carrying' | 'unloading';
 
 /** Cruise height of an aircraft above the ground (world px, drawn offset). */
-import { NATION_STRENGTH, STRENGTH_REF, VEHICLE_PRICE, TURBO_MULT, AIR_BOOST_FAR_CELLS, AIR_BOOST_NEAR_CELLS, AIR_SPEED_SCALE, GROUND_SPEED_SCALE, BOMBER_BOMBS, BOMB_LOAD_SLOWDOWN, CRUISE_ALTITUDE, JET_BOMBS, TRUCK_MIN_RIDERS, TRUCK_SOLDIERS } from '../constants';
+import { NATION_STRENGTH, STRENGTH_REF, VEHICLE_PRICE, TURBO_MULT, AIR_BOOST_FAR_CELLS, AIR_BOOST_NEAR_CELLS, AIR_SPEED_SCALE, GROUND_SPEED_SCALE, BOMBER_BOMBS, BOMBER_BOMBS_BY_FACTION, BOMB_LOAD_SLOWDOWN, CRUISE_ALTITUDE, JET_BOMBS, TRUCK_MIN_RIDERS, TRUCK_SOLDIERS } from '../constants';
 export { CRUISE_ALTITUDE };
 
 /** Handling per vehicle kind: seconds to full speed, turn rate (rad/s), whether it must face where it drives. */
@@ -131,6 +131,14 @@ export class Vehicle extends Unit {
   slot = -1;
   /** Fighter on an aircraft carrier's deck (the carrier's id): it rides along with the ship and goes down with it. */
   deckId: number | null = null;
+  /** Seconds left of the catapult run off the carrier deck (shown on deck while it runs), 0 when none. */
+  catapult = 0;
+  /** Seconds left of the landing roll on the carrier deck (shown on deck), then it goes below; 0 when none. */
+  recovery = 0;
+  /** Parked below in the carrier's hangar: not drawn, not clickable, cannot be shot. */
+  get stowed(): boolean {
+    return this.deckId !== null && this.catapult <= 0 && this.recovery <= 0;
+  }
   /** Fighter on its way to land on this aircraft carrier (id), or null. */
   deckTarget: number | null = null;
   /** Carrier the fighter last flew off: it lands back there (room permitting) instead of on an airfield. */
@@ -268,7 +276,7 @@ export class Vehicle extends Unit {
 
   /** Bombs a full load holds: the bomber's payload, a fighter's pair, none for anything else. */
   get maxBombs(): number {
-    return this.type === 'bomber' ? BOMBER_BOMBS : this.type === 'jet' ? JET_BOMBS : 0;
+    return this.type === 'bomber' ? (BOMBER_BOMBS_BY_FACTION[this.faction as FactionId] ?? BOMBER_BOMBS) : this.type === 'jet' ? JET_BOMBS : 0;
   }
 
   /** Armoured recovery vehicle: unarmed, mends friendly ground vehicles. */

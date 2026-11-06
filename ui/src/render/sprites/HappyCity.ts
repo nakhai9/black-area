@@ -59,7 +59,7 @@ export function createHappyCityArt(faction: FactionId, flagOf: FactionId = facti
       if (pole > 0) p.pole(fu, fv, fz, pole, '#e8e8e8');
     },
     drawAnimated(p, time) {
-      drawFlagOnPole(p, flagOf, fu, fv, fz + pole, time, 0, 16, 10);
+      drawFlagOnPole(p, flagOf, fu, fv, fz + pole, time, 0);
       // A few windows of the landmark light up and go dark again.
       const [lu, lv, lw, ld, lz, lh] = plan.lit;
       for (let i = 0; i < 6; i++) {

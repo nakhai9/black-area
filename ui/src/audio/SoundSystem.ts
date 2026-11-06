@@ -22,11 +22,15 @@ export interface MotionLevels {
  *  - turbineTank: the M1 Abrams' AGT1500 gas turbine — a high jet-like whine over the tracks;
  *  - recovery: heavy, slower diesel of an armoured recovery vehicle, loud track clank (BREM-1, M88, Type 99II);
  *  - wheeled: truck engine, no tracks (KamAZ, Humvee, jeeps, scouts);
- *  - fighter: afterburning turbofans, a sharp roar with a high whine (F-22, Su-57, J-31, Rafale, Su-35);
- *  - bomber: many big jet engines beating against each other, deep and heavy (B-1A Lancer, Tu-160);
- *  - airlifter: four big turbofans, a broad steady drone (C-17, Il-76, Y-20, A400M).
+ *  - fighter / bomber / airlifter: generic jet sounds, only for aircraft without an entry of their own.
+ * Every fixed-wing aircraft (helicopters excepted) has its own profile, so each one sounds different in flight:
+ * fighters by their engines, the bombers, the airlifters (the C-130's turboprops beat and hum), the AWACS (radome
+ * swish) and the B-767 drone's piston buzz.
  */
-type EngineProfile = 'dieselTank' | 'turbineTank' | 'recovery' | 'wheeled' | 'fighter' | 'bomber' | 'airlifter';
+type EngineProfile =
+  | 'dieselTank' | 'turbineTank' | 'recovery' | 'wheeled' | 'fighter' | 'bomber' | 'airlifter'
+  | 'f22' | 'su57' | 'j31' | 'rafale' | 'su35' | 'b1' | 'tu160' | 'h6' | 'c17' | 'il76' | 'y20' | 'c130'
+  | 'e3' | 'a50' | 'kj2000' | 'a330aew' | 'albasir' | 'b767';
 const ENGINE_BY_NAME: Readonly<Record<string, EngineProfile>> = {
   Abrams: 'turbineTank',
   'T-90': 'dieselTank',
@@ -36,13 +40,24 @@ const ENGINE_BY_NAME: Readonly<Record<string, EngineProfile>> = {
   'BREM-1': 'recovery',
   M88: 'recovery',
   'Type 99II': 'recovery',
-  'F-22': 'fighter',
-  'Su-57': 'fighter',
-  'J-31': 'fighter',
-  Rafale: 'fighter',
-  'Su-35': 'fighter',
-  'B-1A Lancer': 'bomber',
-  'Tu-160': 'bomber',
+  'F-22': 'f22',
+  'Su-57': 'su57',
+  'J-31': 'j31',
+  Rafale: 'rafale',
+  'Su-35': 'su35',
+  'B-1A Lancer': 'b1',
+  'Tu-160': 'tu160',
+  'H-6K': 'h6',
+  'C-17': 'c17',
+  'Il-76': 'il76',
+  'Y-20': 'y20',
+  'C-130': 'c130',
+  'E-3 Sentry': 'e3',
+  'A-50': 'a50',
+  'KJ-2000': 'kj2000',
+  'A330 AEW': 'a330aew',
+  'Al-Basir AEW': 'albasir',
+  'B-767': 'b767',
   KamAZ: 'wheeled',
   MTVR: 'wheeled',
   Zetros: 'wheeled',
@@ -58,13 +73,27 @@ const ENGINE_BY_KIND: Readonly<Record<VehicleKind, EngineProfile>> = {
   bomber: 'bomber',
   transport: 'airlifter',
   truck: 'wheeled',
-  drone: 'fighter',
+  drone: 'b767',
   carrier: 'recovery',
   bridgeLayer: 'recovery',
   awacs: 'airlifter',
 };
-/** Synthesis recipe per engine: rumble (low-passed noise, pulsed by an LFO), a whine band and a track-clank band. */
-const ENGINE_RECIPES: Readonly<Record<EngineProfile, { rumble: number; pulse: number; depth: number; whine: number; whineGain: number; clank: number; clankGain: number; gain: number }>> = {
+/**
+ * Synthesis recipe per engine: rumble (low-passed noise, pulsed by an LFO), a whine band and a track-clank band, plus
+ * an optional tone (oscillator: propeller blade-pass, piston buzz, fan tone) whose pitch wobbles by `wobble` Hz.
+ */
+interface EngineRecipe {
+  rumble: number;
+  pulse: number;
+  depth: number;
+  whine: number;
+  whineGain: number;
+  clank: number;
+  clankGain: number;
+  gain: number;
+  tone?: { freq: number; type: OscillatorType; gain: number; wobble: number };
+}
+const ENGINE_RECIPES: Readonly<Record<EngineProfile, EngineRecipe>> = {
   dieselTank: { rumble: 150, pulse: 11, depth: 0.45, whine: 0, whineGain: 0, clank: 2200, clankGain: 0.2, gain: 1 },
   turbineTank: { rumble: 220, pulse: 0, depth: 0, whine: 2900, whineGain: 0.4, clank: 2200, clankGain: 0.16, gain: 0.95 },
   recovery: { rumble: 110, pulse: 7, depth: 0.55, whine: 0, whineGain: 0, clank: 1800, clankGain: 0.28, gain: 1 },
@@ -72,6 +101,29 @@ const ENGINE_RECIPES: Readonly<Record<EngineProfile, { rumble: number; pulse: nu
   fighter: { rumble: 1100, pulse: 0, depth: 0, whine: 4200, whineGain: 0.28, clank: 0, clankGain: 0, gain: 0.8 },
   bomber: { rumble: 480, pulse: 3, depth: 0.22, whine: 1800, whineGain: 0.12, clank: 0, clankGain: 0, gain: 0.95 },
   airlifter: { rumble: 750, pulse: 1.5, depth: 0.1, whine: 3000, whineGain: 0.18, clank: 0, clankGain: 0, gain: 0.85 },
+  // Fighters
+  f22: { rumble: 900, pulse: 0, depth: 0, whine: 3600, whineGain: 0.22, clank: 0, clankGain: 0, gain: 0.85, tone: { freq: 62, type: 'sawtooth', gain: 0.05, wobble: 2 } },
+  su57: { rumble: 1300, pulse: 0, depth: 0, whine: 5200, whineGain: 0.32, clank: 0, clankGain: 0, gain: 0.8 },
+  j31: { rumble: 1000, pulse: 0.8, depth: 0.12, whine: 4600, whineGain: 0.26, clank: 0, clankGain: 0, gain: 0.8 },
+  rafale: { rumble: 1500, pulse: 0, depth: 0, whine: 6200, whineGain: 0.3, clank: 0, clankGain: 0, gain: 0.75, tone: { freq: 1240, type: 'sine', gain: 0.025, wobble: 15 } },
+  su35: { rumble: 1200, pulse: 0.5, depth: 0.08, whine: 3900, whineGain: 0.36, clank: 0, clankGain: 0, gain: 0.82 },
+  // Bombers
+  b1: { rumble: 420, pulse: 2.2, depth: 0.25, whine: 2400, whineGain: 0.16, clank: 0, clankGain: 0, gain: 1 },
+  tu160: { rumble: 320, pulse: 3.4, depth: 0.3, whine: 1500, whineGain: 0.14, clank: 0, clankGain: 0, gain: 1, tone: { freq: 48, type: 'sawtooth', gain: 0.05, wobble: 1.5 } },
+  h6: { rumble: 560, pulse: 2.6, depth: 0.2, whine: 2200, whineGain: 0.2, clank: 0, clankGain: 0, gain: 0.95, tone: { freq: 74, type: 'sawtooth', gain: 0.04, wobble: 2 } },
+  // Airlifters
+  c17: { rumble: 650, pulse: 1.2, depth: 0.1, whine: 2600, whineGain: 0.2, clank: 0, clankGain: 0, gain: 0.85 },
+  il76: { rumble: 560, pulse: 1.8, depth: 0.15, whine: 3400, whineGain: 0.26, clank: 0, clankGain: 0, gain: 0.85 },
+  y20: { rumble: 700, pulse: 1, depth: 0.08, whine: 2900, whineGain: 0.16, clank: 0, clankGain: 0, gain: 0.85, tone: { freq: 92, type: 'triangle', gain: 0.04, wobble: 2 } },
+  c130: { rumble: 260, pulse: 6.5, depth: 0.35, whine: 1100, whineGain: 0.1, clank: 0, clankGain: 0, gain: 0.9, tone: { freq: 68, type: 'sawtooth', gain: 0.09, wobble: 3 } },
+  // AWACS
+  e3: { rumble: 600, pulse: 0.6, depth: 0.28, whine: 3200, whineGain: 0.2, clank: 0, clankGain: 0, gain: 0.8 },
+  a50: { rumble: 520, pulse: 0.5, depth: 0.3, whine: 3600, whineGain: 0.24, clank: 0, clankGain: 0, gain: 0.8 },
+  kj2000: { rumble: 680, pulse: 0.9, depth: 0.12, whine: 2700, whineGain: 0.18, clank: 0, clankGain: 0, gain: 0.8, tone: { freq: 110, type: 'triangle', gain: 0.03, wobble: 2 } },
+  a330aew: { rumble: 800, pulse: 0, depth: 0, whine: 2300, whineGain: 0.14, clank: 0, clankGain: 0, gain: 0.75, tone: { freq: 140, type: 'sine', gain: 0.04, wobble: 1 } },
+  albasir: { rumble: 580, pulse: 1.4, depth: 0.18, whine: 3800, whineGain: 0.22, clank: 0, clankGain: 0, gain: 0.8 },
+  // Kamikaze drone: small piston engine and pusher propeller — a buzzing "moped"
+  b767: { rumble: 900, pulse: 22, depth: 0.4, whine: 0, whineGain: 0, clank: 0, clankGain: 0, gain: 0.7, tone: { freq: 115, type: 'sawtooth', gain: 0.12, wobble: 6 } },
 };
 /** File name of a vehicle's own recording: "Leopard 2" → "leopard-2" (public/sounds/engine-leopard-2.mp3). */
 const slug = (name: string): string => name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
@@ -678,6 +730,22 @@ export class SoundSystem {
           lfo.start();
         }
         src.connect(low).connect(throb).connect(g);
+        if (r.tone) {
+          // Propeller blade-pass / piston buzz / fan tone, its pitch slowly wobbling
+          const osc = ctx.createOscillator();
+          osc.type = r.tone.type;
+          osc.frequency.value = r.tone.freq;
+          const wob = ctx.createOscillator();
+          wob.frequency.value = 0.3 + Math.random() * 0.3;
+          const wobGain = ctx.createGain();
+          wobGain.gain.value = r.tone.wobble;
+          wob.connect(wobGain).connect(osc.frequency);
+          const tg = ctx.createGain();
+          tg.gain.value = r.tone.gain;
+          osc.connect(tg).connect(throb);
+          osc.start();
+          wob.start();
+        }
         for (const [freq, level, q] of [
           [r.whine, r.whineGain, 7],
           [r.clank, r.clankGain, 3],

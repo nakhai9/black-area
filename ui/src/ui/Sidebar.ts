@@ -1,5 +1,5 @@
 import { AlertToast } from './NewsToast';
-import { type IconNode, Settings, ArrowUpFromLine, Clock, House, Handshake, Wallet, Info, Keyboard, Droplet, Hammer, LogIn, LogOut, Minus, Plane, Rocket, Shield, TrendingDown, TrendingUp, Trophy, Zap, createElement } from 'lucide';
+import { type IconNode, Settings, ArrowUpFromLine, Clock, House, Handshake, Newspaper, X, Wallet, Info, Keyboard, Droplet, Hammer, LogIn, LogOut, Minus, Plane, Rocket, Shield, TrendingDown, TrendingUp, Zap, createElement } from 'lucide';
 
 /** Government building (Emoji One v1, CC BY-SA 4.0): in full colour, 64×64 grid scaled to the 24×24 icon box. */
 const Government: IconNode = [
@@ -23,7 +23,7 @@ const Soldier: IconNode = [
 const Tank: IconNode = [
   ['path', { fill: 'currentColor', stroke: 'none', d: 'M20 12H4v-1h2l1-5h5l1 5h7zm-6.78-5l.4 2H22V7zM22 16a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3a3 3 0 0 1 3-3h14a3 3 0 0 1 3 3M6 16a1 1 0 0 0-1-1a1 1 0 0 0-1 1a1 1 0 0 0 1 1a1 1 0 0 0 1-1m7 0a1 1 0 0 0-1-1a1 1 0 0 0-1 1a1 1 0 0 0 1 1a1 1 0 0 0 1-1m7 0a1 1 0 0 0-1-1a1 1 0 0 0-1 1a1 1 0 0 0 1 1a1 1 0 0 0 1-1' }],
 ];
-import { BUILD_LIMIT_VEHICLES, CURRENCY, MAX_ALLIES, OIL_GRID_MARKUP, OIL_POLICIES, POWER_PER_BARREL, TECH_TIERS, TECH_VEHICLES, isAircraftKind } from '../constants';
+import { BUILD_LIMIT_VEHICLES, CURRENCY, MAX_ALLIES, OIL_GRID_MARKUP, OIL_POLICIES, POWER_PER_BARREL, TECH_TIERS, TECH_VEHICLES, isAircraftKind, PEACE_SECONDS, WAR_SECONDS } from '../constants';
 import { FACTIONS } from '../factions';
 import { getFlagTexture } from '../render/Flags';
 import { factionBadgeHtml } from './FactionBadge';
@@ -87,7 +87,7 @@ type TabId = 'build' | 'defense' | 'infantry' | 'vehicles' | 'aircraft';
 /** Sidebar pages: the command centre (budget, oil, alerts), production (build, train) and the world ranking with oil & power prices. */
 type ViewId = 'command' | 'production';
 /** Tabs of the row above the alerts on the Command page: what shows under it. */
-type InfoId = 'finance' | 'rank' | 'allies' | 'controls';
+type InfoId = 'finance' | 'controls';
 
 /** One of the player's allies (Allied Building) or a claim flag still waiting for its ally, for the Allies tab. */
 export interface AllyInfo {
@@ -108,6 +108,17 @@ export interface AllyInfo {
   maxHp: number;
   /** Hit within the last few seconds. */
   underAttack: boolean;
+}
+
+/** A capital held by another nation (News window): the capital, the nation it belongs to and the one holding it. */
+export interface OccupiedCapital {
+  id: number;
+  capital: string;
+  /** The nation whose capital it is (a playable faction or an independent nation). */
+  origin: NationId;
+  originName: string;
+  holder: FactionId;
+  holderName: string;
 }
 
 /** One nation in the ranking tab. */
@@ -199,6 +210,10 @@ export interface SidebarModel {
   parkingFree: number;
   /** Every nation, for the Rank tab (null while that tab is hidden: nothing to compute). */
   ranking: readonly RankRow[] | null;
+  /** Capitals held by another nation, for the News window (null while it is closed). */
+  occupied: readonly OccupiedCapital[] | null;
+  /** Capture / destruction / embargo events between nations, newest first (null while the News window is closed). */
+  newsLog: readonly { at: string; text: string }[] | null;
   /** The selected transport of the player, or null (hides the Transport panel). */
   transport: TransportInfo | null;
   /** A bridge layer of mine is selected: the Bridge button is lit (B). */
@@ -306,10 +321,17 @@ export class Sidebar {
   private lastRanking: readonly RankRow[] = [];
   /** What the lists show now: the DOM is rebuilt only when this changes. */
   private rankKey = '';
+  private occupiedKey = '';
+  private occupiedList: HTMLElement | null = null;
+  private eventList: HTMLElement | null = null;
+  private eventKey = '';
   private allyList!: HTMLElement;
   private allyCount!: HTMLElement;
   private allyKey = '';
   private rankTimer = 0;
+  /** The News window (Rank | Allies) and the sidebar button that opens it. */
+  private newsOverlay: HTMLElement | null = null;
+  private newsButton: HTMLButtonElement | null = null;
   private readonly flagUrls = new Map<FactionId, string>();
   private readonly tabButtons = new Map<TabId, HTMLButtonElement>();
   private readonly opener: HTMLButtonElement;
@@ -387,7 +409,7 @@ export class Sidebar {
           <div class="sb-price-row" title="${t('Oil: what the Global Monitoring Center pays per barrel')}"><i data-icon="oil"></i><b class="sb-price"></b><i class="sb-price-trend"></i></div>
           <div class="sb-price-row" title="${t('Power: what the Global Monitoring Center charges when your grid runs dry (oil at +{p}%, per 1 kJ)', { p: Math.round((OIL_GRID_MARKUP - 1) * 100) })}"><i data-icon="power"></i><b class="sb-power-price"></b></div>
           <div class="sb-price-row" title="${t('Next price revision')}"><i data-icon="clock"></i><b class="sb-price-clock"></b></div>
-          <div class="sb-price-row" title="${t('War cycle: 6 minutes of war, then 4 minutes of ceasefire (no attacks, no takeovers)')}"><i data-icon="clock"></i><b class="sb-war-clock"></b></div>
+          <div class="sb-price-row" title="${t('War cycle: {war} minutes of war, then {peace} seconds of ceasefire (no attacks, no takeovers)', { war: WAR_SECONDS / 60, peace: PEACE_SECONDS })}"><i data-icon="clock"></i><b class="sb-war-clock"></b></div>
           <svg class="sb-price-chart" viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="${t('Oil price, last 5 minutes')}"><polyline fill="none" stroke-width="1.5" vector-effect="non-scaling-stroke"></polyline></svg>
         </section>
       </div>
@@ -510,7 +532,7 @@ export class Sidebar {
     this.buildMainTabs(q('.sb-main-tabs'), q('.sb-page-links'));
     this.views.set('command', q('[data-page=command]'));
     this.views.set('production', q('[data-page=production]'));
-    for (const id of ['finance', 'rank', 'allies', 'controls'] as const) this.infoPanes.set(id, q(`[data-info=${id}]`));
+    for (const id of ['finance', 'controls'] as const) this.infoPanes.set(id, q(`[data-info=${id}]`));
     this.allyList = q('.sb-ally-list');
     this.allyCount = q('.sb-allies-count');
     this.powerPrice = q('.sb-power-price');
@@ -525,6 +547,8 @@ export class Sidebar {
     }
     this.rankEconomy = q('[data-rank=economy]');
     this.rankMilitary = q('[data-rank=military]');
+    // After every lookup inside them: the Rank and Allies panels leave the sidebar for the News window.
+    this.buildNewsModal(q('.sb-rank'), q('.sb-allies'));
     this.buildTabs(q('.sb-main-tabs'));
     const buildPanel = q('[data-panel=build]');
     const infantryPanel = q('[data-panel=infantry]');
@@ -604,6 +628,10 @@ export class Sidebar {
     if (model.ranking) {
       this.lastRanking = model.ranking;
       this.renderRanking(model.ranking);
+    }
+    if (model.newsLog) this.renderEvents(model.newsLog);
+    if (model.occupied) {
+      this.renderOccupied(model.occupied);
     }
     this.income.textContent = `+${model.oilRate.toFixed(2)} bbl/s`;
     this.stock.textContent = `${player.oil.toFixed(1)} bbl`;
@@ -753,16 +781,140 @@ export class Sidebar {
     this.mainTabs.set('command', command);
     const infos: readonly { id: InfoId; label: string; icon: IconNode }[] = [
       { id: 'finance', label: 'Finance', icon: Wallet },
-      { id: 'rank', label: 'Rank', icon: Trophy },
-      { id: 'allies', label: 'Allies', icon: Handshake },
       { id: 'controls', label: 'Controls', icon: Keyboard },
     ];
     for (const info of infos) {
       const btn = tabButton(t(info.label), info.icon, info.id === this.activeInfo, () => this.switchInfo(info.id));
-      // The Allies tab only shows up once the nation has its first ally.
-      if (info.id === 'allies') btn.hidden = true;
       links.append(btn);
       this.infoTabs.set(info.id, btn);
+    }
+    // News: opens the world news window (ranking on the left, allies on the right) instead of a pane.
+    const news = tabButton(t('News'), Newspaper, false, () => this.toggleNews(true));
+    links.insertBefore(news, links.lastElementChild);
+    this.newsButton = news;
+  }
+
+  /** News window: who captured, destroyed or put under embargo whom, newest first, with the game time. */
+  private renderEvents(rows: readonly { at: string; text: string }[]): void {
+    const list = this.eventList;
+    if (!list) return;
+    const key = rows.map((r) => r.at + r.text).join('|');
+    if (key === this.eventKey) return;
+    this.eventKey = key;
+    if (rows.length === 0) {
+      const li = document.createElement('li');
+      li.className = 'news-empty';
+      li.textContent = t('Nothing has happened yet.');
+      list.replaceChildren(li);
+      return;
+    }
+    list.replaceChildren(
+      ...rows.map((r) => {
+        const li = document.createElement('li');
+        li.className = 'news-event';
+        const at = document.createElement('span');
+        at.className = 'news-occ-by';
+        at.textContent = r.at;
+        const text = document.createElement('span');
+        text.className = 'news-occ-name';
+        text.textContent = r.text;
+        li.append(at, text);
+        return li;
+      }),
+    );
+  }
+
+  /** News window: one row per capital held by another nation — "<capital> (flag nation) → held by (flag nation)". */
+  private renderOccupied(rows: readonly OccupiedCapital[]): void {
+    const list = this.occupiedList;
+    if (!list) return;
+    const key = rows.map((r) => `${r.id}:${r.holder}`).join('|');
+    if (key === this.occupiedKey) return;
+    this.occupiedKey = key;
+    if (rows.length === 0) {
+      const li = document.createElement('li');
+      li.className = 'news-empty';
+      li.textContent = t('No capital is occupied.');
+      list.replaceChildren(li);
+      return;
+    }
+    const flag = (src: string, title: string): HTMLImageElement => {
+      const img = document.createElement('img');
+      img.className = 'sb-rank-flag';
+      img.src = src;
+      img.alt = '';
+      img.title = title;
+      return img;
+    };
+    list.replaceChildren(
+      ...rows.map((r) => {
+        const li = document.createElement('li');
+        const originSrc = isFactionNation(r.origin) ? this.flagUrl(r.origin) : nationFlag(r.origin).toDataURL();
+        const name = document.createElement('span');
+        name.className = 'news-occ-name';
+        name.textContent = t('{capital} ({nation})', { capital: r.capital, nation: r.originName });
+        const by = document.createElement('span');
+        by.className = 'news-occ-by';
+        by.textContent = t('held by');
+        const holder = document.createElement('span');
+        holder.className = 'news-occ-holder';
+        holder.textContent = r.holderName;
+        li.append(flag(originSrc, r.originName), name, by, flag(this.flagUrl(r.holder), r.holderName), holder);
+        return li;
+      }),
+    );
+  }
+
+  /** The News window: a two-column board (Rank | Allies), the existing panels moved into it. */
+  private buildNewsModal(rank: HTMLElement, allies: HTMLElement): void {
+    const overlay = document.createElement('div');
+    overlay.className = 'news-overlay';
+    overlay.hidden = true;
+    overlay.innerHTML = `
+      <div class="news-modal" role="dialog" aria-modal="true" aria-label="${t('News')}">
+        <header class="news-head"><h2>${t('WORLD NEWS')}</h2><button type="button" class="news-close" aria-label="${t('Close')}"></button></header>
+        <div class="news-cols">
+          <section class="news-col"><h3 class="news-col-title">${t('RANK')}</h3><div class="news-col-body" data-col="rank"></div></section>
+          <section class="news-col"><h3 class="news-col-title">${t('ALLIES')}</h3><div class="news-col-body" data-col="allies"></div></section>
+        </div>
+        <section class="news-col news-occupied"><h3 class="news-col-title">${t('OCCUPIED CAPITALS')}</h3><div class="news-col-body"><ol class="news-occupied-list"></ol></div></section>
+        <section class="news-col news-occupied news-events"><h3 class="news-col-title">${t('WORLD EVENTS')}</h3><div class="news-col-body"><ol class="news-event-list"></ol></div></section>
+      </div>`;
+    this.occupiedList = overlay.querySelector<HTMLElement>('.news-occupied-list');
+    this.eventList = overlay.querySelector<HTMLElement>('.news-event-list');
+    overlay.querySelector('[data-col=rank]')!.append(rank);
+    overlay.querySelector('[data-col=allies]')!.append(allies);
+    // The allies' own heading would repeat the column title: its count moves up into the column title instead.
+    const alliesHead = allies.querySelector('h3');
+    const count = alliesHead?.querySelector('small');
+    if (count) overlay.querySelector('[data-col=allies]')!.previousElementSibling!.append(' ', count);
+    alliesHead?.remove();
+    const close = overlay.querySelector<HTMLButtonElement>('.news-close')!;
+    close.append(createElement(X, { width: 18, height: 18, 'stroke-width': 2.5, 'aria-hidden': 'true' }));
+    close.addEventListener('click', () => this.toggleNews(false));
+    overlay.addEventListener('pointerdown', (e) => {
+      if (e.target === overlay) this.toggleNews(false);
+    });
+    overlay.addEventListener('contextmenu', (e) => e.preventDefault());
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !overlay.hidden) {
+        e.stopImmediatePropagation();
+        this.toggleNews(false);
+      }
+    }, true);
+    document.body.append(overlay);
+    this.newsOverlay = overlay;
+  }
+
+  private toggleNews(open: boolean): void {
+    if (!this.newsOverlay) return;
+    this.newsOverlay.hidden = !open;
+    this.newsButton?.classList.toggle('active', open);
+    this.newsButton?.setAttribute('aria-pressed', String(open));
+    if (open) {
+      this.newsButton?.classList.remove('blink');
+      this.rankTimer = 0;
+      this.renderRanking(this.lastRanking);
     }
   }
 
@@ -841,17 +993,11 @@ export class Sidebar {
   }
 
   /**
-   * Allies tab: one row per Allied Building (health, under attack) and per claim flag still waiting for its
-   * building. The tab button appears with the first ally (and blinks until opened); it goes away if all are lost.
+   * Allies column of the News window: one row per Allied Building (health, under attack) and per claim flag still
+   * waiting for its building.
    */
   private renderAllies(allies: readonly AllyInfo[]): void {
-    const tab = this.infoTabs.get('allies');
     const built = allies.filter((a) => a.built && !a.capital).length;
-    if (tab) {
-      const show = allies.some((a) => a.built);
-      tab.hidden = !show;
-      if (!show && this.activeInfo === 'allies') this.switchInfo('finance');
-    }
     const key = allies.map((a) => `${a.id}:${a.built}:${Math.ceil((a.hp / a.maxHp) * 20)}:${a.underAttack}`).join('|');
     if (key === this.allyKey) return;
     this.allyKey = key;
@@ -908,7 +1054,7 @@ export class Sidebar {
 
   /** True when the Rank tab is open and its 1 s refresh is due (the ranking is only computed then). */
   wantsRanking(dt: number): boolean {
-    if (this.activeView !== 'command' || this.activeInfo !== 'rank') return false;
+    if (!this.newsOverlay || this.newsOverlay.hidden) return false;
     this.rankTimer -= dt;
     if (this.rankTimer > 0) return false;
     this.rankTimer = 1;
@@ -933,7 +1079,6 @@ export class Sidebar {
       btn.setAttribute('aria-pressed', String(info === id));
     }
     for (const [info, pane] of this.infoPanes) pane.hidden = info !== id;
-    if (id === 'rank') this.renderRanking(this.lastRanking);
   }
 
   /** Picks the production panel; `open` also brings the production page up (a click on its tab). */

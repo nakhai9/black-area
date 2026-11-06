@@ -29,14 +29,14 @@ export const DEMO_FACTION: FactionId = NATION_CODES[(import.meta.env.VITE_DEMO_F
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "3.0.7";
+export const GAME_VERSION = "3.31.0";
 
 /** An Allied Building within this many cells of any capital is an embassy; farther out it is a "Pro-<nation> regime". */
 export const EMBASSY_CAPITAL_CELLS = 25;
 
 /** War / ceasefire cycle: WAR_SECONDS of war between the nations, then PEACE_SECONDS of peace to build up, over and over. */
 export const WAR_SECONDS = 10 * 60;
-export const PEACE_SECONDS = 2 * 60;
+export const PEACE_SECONDS = 90;
 /**
  * Ceasefire zone: during the peace, a unit (soldier, vehicle, aircraft) within TRUCE_ZONE_CELLS of the edge of another
  * nation's structure breaks the ceasefire: every other nation may destroy it and it may not fight back. Units have
@@ -229,11 +229,13 @@ export const FOOTPRINT_WHITE_HOUSE = { w: 5, d: 3 } as const;
 /** Contested-nation capitals: a long, shallow 5 × 3 plot like the White House (art 4 × 2.4 units, drawn 1.25×). */
 export const FOOTPRINT_NATION_CAPITAL = { w: 5, d: 3 } as const;
 /** Plot of a faction's capital. */
+/** Russia's capital, the Grand Kremlin Palace: a long palace on a 5 × 4 plot. */
+export const FOOTPRINT_KREMLIN = { w: 5, d: 4 } as const;
 export function capitalFootprint(faction: FactionId): {
   readonly w: number;
   readonly d: number;
 } {
-  return faction === "usa" ? FOOTPRINT_WHITE_HOUSE : FOOTPRINT_CAPITAL;
+  return faction === "usa" ? FOOTPRINT_WHITE_HOUSE : faction === "russia" ? FOOTPRINT_KREMLIN : FOOTPRINT_CAPITAL;
 }
 /** Airfield: a long runway + an apron with nine parking spots, 12×8 tiles. */
 export const FOOTPRINT_AIRFIELD = { w: 12, d: 8 } as const;
@@ -742,7 +744,7 @@ export const VEHICLE_BASE = {
   },
   /** AWACS (every nation): unarmed airborne radar; loiters where it is sent and rings the enemy combat units in its sweep (AWACS_RADIUS_CELLS). */
   awacs: { cost: 3000, trainSeconds: 24, maxHp: 300, speed: 5.0, radius: 4.0 },
-  /** National heavy bomber (Russia's Tu-160, the USA's B-1A Lancer; no other nation has one): tough, flattens ground targets and structures; cannot hit aircraft. */
+  /** National heavy bomber (Russia's Tu-160, the USA's B-1A Lancer, China's H-6K; no other nation has one): tough, flattens ground targets and structures; cannot hit aircraft. */
   bomber: {
     cost: 2600,
     trainSeconds: 22,
@@ -802,6 +804,8 @@ export const AIR_BOOST_FAR_CELLS = 400;
 
 /** Bomber payload: bombs carried per sortie (reloaded on its airfield) and bombs released per drop. */
 export const BOMBER_BOMBS = 6;
+/** Bomb load per nation where it differs from BOMBER_BOMBS: China's H-6K is a lighter, older bomber. */
+export const BOMBER_BOMBS_BY_FACTION: Partial<Record<FactionId, number>> = { china: 4 };
 export const BOMBS_PER_DROP = 2;
 /** Seconds from release until a bomb hits the ground and explodes: its damage lands only then. */
 export const BOMB_FALL_SECONDS = 0.9;
@@ -1038,7 +1042,7 @@ export const VEHICLE_PRICE: Readonly<
     transport: 870,
     bomber: 5200,
   },
-  china: { tank: 1200, heli: 1260, mantis: 3000, jet: 3420, transport: 1550 },
+  china: { tank: 1200, heli: 1260, mantis: 3000, jet: 3420, transport: 1550, bomber: 4200 }, // H-6K: older, 4 bombs, cheaper
   europe: { tank: 1780, heli: 1920, mantis: 2680, jet: 3940, transport: 1230 },
   // The B-767 kamikaze drone is cheap: the Islamic world fields it in numbers.
   islamic: { tank: 760, heli: 1300, mantis: 3000, jet: 3600, drone: 500 },
@@ -1355,7 +1359,7 @@ export const DEMO_PRICE = 100;
 /** In a DEMO game finances are off: the budget (and oil stock) is held at this amount all the time. */
 export const DEMO_CREDITS = 999_999;
 /** In a DEMO game the player starts with this many of every soldier, vehicle and aircraft. */
-export const DEMO_UNITS_EACH = 2;
+export const DEMO_UNITS_EACH = 1;
 /** DEMO: free cells kept between the starting structures (the most the build radius BUILD_RADIUS = 3 allows), room for their wall rings. */
 export const DEMO_SPREAD = 3;
 /** Capitals keep this many cells of land (more than 3) between their footprint and the sea. */

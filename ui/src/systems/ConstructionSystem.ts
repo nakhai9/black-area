@@ -197,9 +197,10 @@ const OWN_OPTIONS: readonly BuildOption[] = [
   },
   {
     // Seat of an ally (embassy / Pro-<nation> regime): built like any structure, next to an own flag or building, no cap.
+    // Locked until the nation plants its first flag (Squatters or a Flagpole; see Game.ownedTypesOf).
     id: 'alliedBuilding',
     name: 'Allied Building',
-    requires: ['barracks', 'warFactory'],
+    requires: ['barracks', 'warFactory', 'flagpole'],
     cost: ALLIED_BUILDING_COST,
     footprint: FOOTPRINT_SMALL,
     spriteKey: (f) => `alliedBuilding:${f}`,

@@ -214,7 +214,7 @@ import type { BuildingType, FactionId, GameEvents, GridPoint, OilPolicy, PlayerS
 import { HASH_EVERY_TURNS, type Lockstep, type Turn } from '../net/Lockstep';
 import { Minimap } from '../ui/Minimap';
 import { sweepUnitSprites, unitSpriteBytes } from '../render/UnitSprites';
-import { type AircraftInfo, type TransportInfo, type RankRow, type AllyInfo, Sidebar } from '../ui/Sidebar';
+import { type AircraftInfo, type TransportInfo, type RankRow, type AllyInfo, type OccupiedCapital, Sidebar } from '../ui/Sidebar';
 import { StatusBar } from '../ui/StatusBar';
 import { Camera } from './Camera';
 import { EffectsLayer } from './Effects';
@@ -1850,6 +1850,9 @@ export class Game {
   ownedTypesOf(player: PlayerState): Set<BuildingType> {
     const set = new Set<BuildingType>();
     for (const b of this.entities.buildings()) if (b.owner === player.id && b.alive) set.add(b.spec.type);
+    // The first flag planted (Squatters or a Flagpole) unlocks Allied Buildings for good, even if that flag falls later.
+    if (set.has('flagpole')) player.flagPlanted = true;
+    else if (player.flagPlanted) set.add('flagpole');
     return set;
   }
 
@@ -1888,7 +1891,8 @@ export class Game {
         : prev === null ? t('{taker} has taken {city}, capital of {nation}.', vars)
         : prev === 'You' ? t('{taker} has taken {city}, capital of {nation} from you.', vars)
         : t('{taker} has taken {city}, capital of {nation} from {from}.', vars);
-    this.news.show(t('BREAKING NEWS'), text);
+    const holderName = FACTIONS[(this.players.find((p) => p.id === b.owner)?.faction ?? 'usa') as FactionId].name;
+    this.breaking(text, t('{by} captured {capital} ({nation})', { by: holderName, capital: b.city, nation }));
     if (before === this.humanPlayer.id) this.sidebar.notify(t('{name} was taken from you!', { name: b.spec.name }), 5);
   }
 
@@ -3295,7 +3299,7 @@ export class Game {
           if (b instanceof Building && this.captureBanned(b)) u.task = null;
         }
       }
-      this.news.show(t('CEASEFIRE'), t('{minutes} minutes of peace: no attacks; engineers keep working as usual. Build up your nation.', { minutes: PEACE_SECONDS / 60 }));
+      this.news.show(t('CEASEFIRE'), t('{seconds} seconds of peace: no attacks; engineers keep working as usual. Build up your nation.', { seconds: PEACE_SECONDS }));
     } else {
       this.news.show(t('WAR'), t('The ceasefire is over: {minutes} minutes of war.', { minutes: WAR_SECONDS / 60 }));
     }
@@ -3742,7 +3746,7 @@ export class Game {
           army: this.training.army(this.humanPlayer),
           vehicleQueued: this.production.queue(this.humanPlayer).items.length,
           parkingFree: this.production.parkingFree(this.humanPlayer),
-          ranking: this.sidebar.wantsRanking(elapsed) ? this.ranking() : null,
+          ...(this.sidebar.wantsRanking(elapsed) ? { ranking: this.ranking(), occupied: this.occupiedCapitals(), newsLog: this.newsLog } : { ranking: null, occupied: null, newsLog: null }),
           transport: this.transportInfo(),
           bridgeReady: this.selectedBridgeLayers().length > 0,
           bridging: this.bridging,
@@ -3923,6 +3927,16 @@ export class Game {
       this.unloadCarriers([unit]);
       return;
     }
+    // Double-click on one of my aircraft carriers: selects the fighters stowed below its deck (any order then sends
+    // them up the catapult).
+    if (double && !shift && unit instanceof Vehicle && unit.isAircraftCarrier && unit.owner === me) {
+      const jets = this.entities.vehicles().filter((v) => v.alive && v.deckId === unit.id && v.owner === me);
+      if (jets.length > 0) {
+        this.selection.selectUnits(jets.map((v) => v.id));
+        this.sidebar.notify(t('{n} fighters aboard selected: give them an order to launch.', { n: jets.length }), 3);
+      } else this.sidebar.notify(t('No fighters aboard.'), 2);
+      return;
+    }
     if (this.waypoints) {
       if (this.selection.selectedUnits.size === 0) this.waypoints = null;
       else {
@@ -4086,7 +4100,7 @@ export class Game {
     this.moveMarker = { x: world.x, y: world.y, at: this.time };
   }
 
-  /** X key (RA2 scatter): the selected units spread out a few cells away from the middle of the group. */
+  /** X key (RA2 scatter): the selected units dodge a few cells forwards (the way each faces), fanning out to the sides. */
   private scatterSelected(): void {
     const units = this.selection.selectedUnitList().filter((u) => !u.fixed);
     if (units.length === 0) return;
@@ -4098,9 +4112,10 @@ export class Game {
       u.attackTarget = null;
       u.attackMove = null;
       u.chasing = false;
-      // Away from the middle of the group; units standing right on it fan out by the golden angle.
-      const away = Math.hypot(u.px - cx, u.py - cy);
-      const angle = away > 0.5 ? Math.atan2(u.py - cy, u.px - cx) + (((k * 37) % 7) - 3) * 0.12 : k * 2.39996;
+      // Dodge forwards, never backwards: each unit runs on along the way it faces, fanned a little to the side
+      // (left of the group's middle bears left, right bears right) so they do not bunch up.
+      const side = Math.sign(Math.cos(u.heading) * (u.py - cy) - Math.sin(u.heading) * (u.px - cx)) || (k % 2 ? 1 : -1);
+      const angle = u.heading + side * (0.25 + ((k * 37) % 5) * 0.08);
       const dist = SCATTER_CELLS * CELL_SIZE * (u.aircraft ? 2 : 1);
       const goal = { x: u.px + Math.cos(angle) * dist, y: u.py + Math.sin(angle) * dist };
       if (u.aircraft) {
@@ -4481,9 +4496,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
 
   /** Building types the human player currently has standing. */
   private ownedTypes(): Set<BuildingType> {
-    const set = new Set<BuildingType>();
-    for (const b of this.entities.buildings()) if (b.owner === this.humanPlayer.id && b.alive) set.add(b.spec.type);
-    return set;
+    return this.ownedTypesOf(this.humanPlayer);
   }
 
   // ------------------------------------------------------------------ combat feedback
@@ -4632,7 +4645,9 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       return;
     }
     const color = heavy ? '#ffb347' : w.kind === 'sniper' ? '#ffffff' : '#ffe9a0';
-    this.effects.add({ kind: 'tracer', x0: muzzle.x, y0: muzzle.y, x1: hit.x, y1: hit.y, age: 0, ttl, color, width: heavy ? 1.1 : 0.45, shell: heavy });
+    // Rounds from aircraft (fighters, bombers, helicopters) are drawn at 20% of the usual tracer width.
+    const small = s instanceof Vehicle && s.flies ? 0.2 : 1;
+    this.effects.add({ kind: 'tracer', x0: muzzle.x, y0: muzzle.y, x1: hit.x, y1: hit.y, age: 0, ttl, color, width: (heavy ? 1.1 : 0.45) * small, shell: heavy });
     this.effects.add({ kind: 'flash', x: muzzle.x, y: muzzle.y, age: 0, ttl: 0.07, size: heavy ? 3.6 : 1.8 });
     this.effects.add({ kind: 'blast', x: hit.x, y: hit.y, age: -ttl, ttl: heavy ? 0.35 : 0.18, radius: w.kind === 'bomb' ? 14 : heavy ? 6 : 1.6 });
     this.sound.play(w.kind, { x: mx, y: my });
@@ -4760,6 +4775,26 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
    *    + budget + unused stored power (valued at the oil it was made from).
    *  - Military: price of the living soldiers and working vehicles, re-counted only every MILITARY_RANK_INTERVAL s.
    */
+  /**
+   * Capitals held by another nation, for the News window: a nation's own government building taken by another
+   * nation, and an independent nation's capital held by anyone.
+   */
+  private occupiedCapitals(): OccupiedCapital[] {
+    const out: OccupiedCapital[] = [];
+    for (const b of this.entities.buildings()) {
+      if (!b.alive || b.faction === 'neutral') continue;
+      const holder = b.faction;
+      if (b instanceof NationCapital) {
+        if (b.owner === NEUTRAL_OWNER) continue;
+        const n = nationInfo(b.nation);
+        out.push({ id: b.id, capital: n.capital, origin: b.nation, originName: n.name, holder, holderName: FACTIONS[holder].name });
+      } else if (b.spec.type === 'capital' && b.originFaction && b.originFaction !== 'neutral' && b.originFaction !== holder) {
+        out.push({ id: b.id, capital: b.spec.name, origin: b.originFaction, originName: FACTIONS[b.originFaction].name, holder, holderName: FACTIONS[holder].name });
+      }
+    }
+    return out;
+  }
+
   private ranking(): RankRow[] {
     const units = new Map<number, number>();
     const add = (owner: number, value: number): void => {
@@ -4866,8 +4901,23 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     const text = nation.id === this.localId
       ? fights ? t('Your capital has fallen — but your army fights on.') : t('Your capital has fallen.')
       : fights ? t("{name}'s capital, {capital}, has fallen — but its army fights on.", vars) : t("{name}'s capital, {capital}, has fallen.", vars);
-    this.news.show(t('BREAKING NEWS'), text);
+    const killer = capital.lastAttackerId === null ? undefined : this.entities.get(capital.lastAttackerId);
+    const byP = killer ? this.players.find((p) => p.id === killer.owner) : undefined;
+    const line = byP && byP.id !== nation.id
+      ? t('{by} destroyed {capital} ({name})', { ...vars, by: FACTIONS[byP.faction].name })
+      : t('{capital} ({name}) was destroyed', vars);
+    this.breaking(text, line);
   }
+
+  /** Breaking news on screen, also written into the News window's event log (newest first, NEWS_LOG_MAX kept). */
+  private breaking(text: string, line: string): void {
+    this.news.show(t('BREAKING NEWS'), text);
+    const left = Math.max(0, Math.floor(this.time));
+    this.newsLog.unshift({ at: `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`, text: line });
+    if (this.newsLog.length > 30) this.newsLog.length = 30;
+  }
+  /** Capture / destruction / embargo events between nations, for the News window. */
+  private readonly newsLog: { at: string; text: string }[] = [];
 
   /**
    * A nation is defeated when its capital is gone AND it has no soldiers or combat vehicles. The player loses
@@ -6214,6 +6264,10 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
           this.selection.selectedUnits.delete(u.id);
           if (u.owner === this.humanPlayer.id) this.sidebar.notify(t('{name} captured!', { name: b.spec.name }));
           if (b instanceof NationCapital) this.announceNationCapture(b, before);
+          else if (b.spec.type === 'capital' && b.originFaction && b.originFaction !== 'neutral' && b.originFaction !== b.faction) {
+            const vars = { by: FACTIONS[b.faction as FactionId].name, capital: b.spec.name, nation: FACTIONS[b.originFaction].name };
+            this.breaking(t('{by} has captured {capital}, capital of {nation}.', vars), t('{by} captured {capital} ({nation})', vars));
+          }
           this.razeFlagsAround(b);
         } else u.task = null;
       }
@@ -6293,7 +6347,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     holder.oil = 0;
     holder.leasedOil = 0;
     holder.embargoUntil = this.time + CAPITAL_EMBARGO_SECONDS;
-    this.news.show(t('BREAKING NEWS'), t('{by} has put {nation} under an economic embargo: its treasury is empty and earns nothing for {minutes} minutes.', vars));
+    this.breaking(t('{by} has put {nation} under an economic embargo: its treasury is empty and earns nothing for {minutes} minutes.', vars), t('{by} put {nation} under an economic embargo', vars));
   }
 
   /** Nation `by` already has a Parallel Government of the nation holding capital `b`, standing or still to be bought. */
@@ -6318,7 +6372,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     if (!holder || !by) return;
     if (!by.parallelGovRights?.includes(holder.faction)) by.parallelGovRights = [...(by.parallelGovRights ?? []), holder.faction];
     const vars = { by: FACTIONS[by.faction].name, nation: FACTIONS[holder.faction].name };
-    this.news.show(t('BREAKING NEWS'), t('{by} has set up a parallel government of {nation}.', vars));
+    this.breaking(t('{by} has set up a parallel government of {nation}.', vars), t('{by} set up a parallel government of {nation}', vars));
     if (by.id === this.localId) this.sidebar.notify(t('Parallel Government of {nation} on sale in the Build tab: while it stands you may build their structures.', { nation: FACTIONS[holder.faction].shortName }), 6);
   }
 
@@ -6354,7 +6408,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     }
     holder.disarmedUntil = this.time + CAPITAL_DISARM_SECONDS;
     const vars = { by: FACTIONS[by.faction].name, nation: FACTIONS[holder.faction].name, minutes: CAPITAL_DISARM_SECONDS / 60 };
-    this.news.show(t('BREAKING NEWS'), t('{by} has put {nation} under a military embargo: its Barracks, War Factories, Airfields and combat units are gone and it cannot attack for {minutes} minutes.', vars));
+    this.breaking(t('{by} has put {nation} under a military embargo: its Barracks, War Factories, Airfields and combat units are gone and it cannot attack for {minutes} minutes.', vars), t('{by} put {nation} under a military embargo', vars));
   }
 
   /**

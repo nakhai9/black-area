@@ -56,6 +56,6 @@ export function createBarracksArt(faction: FactionId, flagOf: FactionId = factio
   const f = ALT_FLAGS[alt] ?? FLAGS[faction];
   return pictureArt(ALT_PICTURES[alt] ?? PICTURES[faction], {
     overlay: (p) => drawNationalPole(p, faction, f.u, f.v, f.z, f.h),
-    drawAnimated: (p, time) => drawFlagOnPole(p, flagOf, f.u, f.v, f.z + f.h, time, 0.6, 16, 10),
+    drawAnimated: (p, time) => drawFlagOnPole(p, flagOf, f.u, f.v, f.z + f.h, time, 0.6),
   });
 }

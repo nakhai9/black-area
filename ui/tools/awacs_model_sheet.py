@@ -24,6 +24,8 @@ import aircraft_model_sheet as am  # noqa: E402
 import tank_model_sheet as tm  # noqa: E402
 
 CELL = 128
+# Fuselages drawn this much fatter than true scale (wings unchanged): a full, round body that reads at sprite size.
+BODY = 1.55
 am.CELL = CELL  # the shared renderer draws into cells of this size
 
 
@@ -129,25 +131,49 @@ def ellipsoid(m, c, rx, ry, rz, part, n=40, k=14):
     m.grid(rows, part, closed=True, out=lambda p: np.array(p) - np.array(c))
 
 
-def fuselage(m, L, R, nose=0.12, tail=0.27, upsweep=0.55, belly=1.0, cz=None, n=32):
-    """Main body: ogive nose, straight barrel, tail cone tapering and sweeping up. Returns the body's top z at mid."""
+def fuselage(m, L, R, nose=0.17, tail=0.27, upsweep=0.55, belly=1.0, cz=None, n=32):
+    """Main body: airliner nose, straight barrel, tail cone tapering and sweeping up. Returns the body's top z at mid.
+    The nose is Boeing-like: the crown curves down in a long arc to a low, round tip while the belly stays nearly
+    level; a wrap-round windscreen (separate 'glass' panes, slightly proud of the skin) sits where the crown bends."""
     cz = R if cz is None else cz
     secs = []
-    for k in range(41):
-        f = k / 40  # 0 nose → 1 tail
+    for k in range(61):
+        f = k / 60  # 0 nose → 1 tail
         u = L / 2 - f * L
         if f < nose:
             g = f / nose
-            r = R * (1 - (1 - g) ** 2.2) ** 0.5
-            z = cz - R * 0.18 * (1 - g)
+            rv = R * (1 - (1 - g) ** 2.0) ** 0.5
+            top = cz + R * math.sin(math.pi / 2 * g) ** 0.75 - R * 0.55 * (1 - g) ** 1.4  # crown arcs down to the tip
+            bot = cz - R * belly * (1 - (1 - g) ** 3.5) ** 0.5 - R * 0.55 * (1 - g) ** 1.4 * 0.35
+            z, rz = (top + bot) / 2, max((top - bot) / 2, 0.05)
         elif f > 1 - tail:
             g = (f - (1 - tail)) / tail
-            r = R * (1 - 0.82 * g ** 1.15)
-            z = cz + R * upsweep * g ** 1.6
+            rv = R * (1 - 0.82 * g ** 1.15)
+            z, rz = cz + R * upsweep * g ** 1.6, rv * belly
         else:
-            r, z = R, cz
-        secs.append((u, 0, z, max(r, 0.05), max(r * belly, 0.05)))
+            rv, z, rz = R, cz, R * belly
+        secs.append((u, 0, z, max(rv, 0.05), max(rz, 0.05)))
     loft(m, secs, 'body', n=n, cap_back='body')
+    # Windscreen: six panes round the crown's bend (front, corner and side windows), each a curved patch a hair above
+    # the skin, framed by the gaps between them.
+    panes = [(-75, -50), (-47, -24), (-21, -2), (2, 21), (24, 47), (50, 75)]
+    for a0, a1 in panes:
+        rows = []
+        for gi in range(5):
+            g = 0.36 + gi * 0.055
+            f = g * nose
+            u = L / 2 - f * L
+            rv = R * (1 - (1 - g) ** 2.0) ** 0.5
+            top = cz + R * math.sin(math.pi / 2 * g) ** 0.75 - R * 0.55 * (1 - g) ** 1.4
+            bot = cz - R * belly * (1 - (1 - g) ** 3.5) ** 0.5 - R * 0.55 * (1 - g) ** 1.4 * 0.35
+            zc, rz = (top + bot) / 2, (top - bot) / 2
+            row = []
+            for ai in range(5):
+                a = math.radians(90 + a0 + (a1 - a0) * ai / 4)  # 90° = straight up, ± towards the sides
+                # the side panes sit lower: ease the angle out towards the waist
+                row.append((u + 0.02, rv * 1.015 * math.cos(a), zc + rz * 1.015 * math.sin(a) - (0.0 if abs(a0) < 30 else 0.0)))
+            rows.append(row)
+        m.grid(rows, 'glass', out=lambda p, zc=cz: (0.3, p[1], p[2] - zc))
     return cz + R
 
 
@@ -184,7 +210,7 @@ def rotodome(m, u, ztop, rd, hd, lift, struts, pedestal=False):
 # ------------------------------------------------------------------ the five aircraft
 
 def usa():
-    m, L, R = Mesh(), 46.6, 1.9
+    m, L, R = Mesh(), 46.6, 1.9 * BODY
     top = fuselage(m, L, R, nose=0.1, tail=0.24, upsweep=0.5)
     zw = R * 0.55
     for s in (1, -1):
@@ -200,7 +226,7 @@ def usa():
 
 
 def europe():
-    m, L, R = Mesh(), 53.0, 2.75
+    m, L, R = Mesh(), 53.0, 2.75 * BODY
     top = fuselage(m, L, R, nose=0.09, tail=0.26, upsweep=0.42)
     zw = R * 0.5
     for s in (1, -1):
@@ -241,7 +267,7 @@ def il76(m, L, R, tail_gun=False):
 
 def china():
     m = Mesh()
-    top = il76(m, 46.6, 2.45)
+    top = il76(m, 46.6, 2.45 * BODY)
     rotodome(m, -3.5, top, 6.6, 1.15, 1.9, (), pedestal=True)  # fixed radome on a broad pedestal
     for du in (9.0, -8.0):
         box(m, (du, 0, top), (du - 0.5, 0, top + 0.55), 0.1, 0.6, 'antenna')
@@ -250,19 +276,20 @@ def china():
 
 def russia():
     m = Mesh()
-    top = il76(m, 46.6, 2.45, tail_gun=True)
+    top = il76(m, 46.6, 2.45 * BODY, tail_gun=True)
     rotodome(m, -3.0, top, 5.2, 1.0, 2.2, (1.6, -1.6))
     for du in (10.5, 7.0):
         box(m, (du, 0, top), (du - 0.6, 0, top + 0.6), 0.1, 0.6, 'antenna')
     for s in (1, -1):  # cheek antenna fairings
-        loft(m, [(14.0, s * 2.3, 2.6, 0.05, 0.05), (12.0, s * 2.45, 2.6, 0.3, 0.45), (6.0, s * 2.45, 2.6, 0.3, 0.45), (4.5, s * 2.3, 2.6, 0.05, 0.05)], 'pylon', n=10)
+        R = 2.45 * BODY
+        loft(m, [(14.0, s * (R - 0.15), R * 1.06, 0.05, 0.05), (12.0, s * R, R * 1.06, 0.3, 0.45), (6.0, s * R, R * 1.06, 0.3, 0.45), (4.5, s * (R - 0.15), R * 1.06, 0.05, 0.05)], 'pylon', n=10)
     return m
 
 
 def islamic():
     """Original design: a heavy high-wing airlifter with twin tail fins on a broad tailplane, a thimble nose radar and a
     rotodome on a single swept pylon."""
-    m, L, R = Mesh(), 44.0, 2.55
+    m, L, R = Mesh(), 44.0, 2.55 * BODY
     top = fuselage(m, L, R, nose=0.13, tail=0.25, upsweep=0.45, belly=1.02)
     zw = 2 * R - 0.15
     for s in (1, -1):
@@ -321,7 +348,7 @@ def paint(faction, pos, nrm, parts, col):
     col[parts == 'antenna'] = (70, 72, 76)
     col[parts == 'intake'] = (34, 36, 40)
     col[parts == 'exhaust'] = (58, 50, 44)
-    col[parts == 'glass'] = (40, 58, 74)
+    col[parts == 'glass'] = (24, 34, 48)
     if faction == 'russia':
         camo = body & (noise(pos, 3.2, 1.7) > 0.35) & ~low
         col[camo] = s['accent']
@@ -346,9 +373,9 @@ def paint(faction, pos, nrm, parts, col):
     bz = z[parts == 'body']
     nose = u[parts == 'body'].max()
     top_b = bz.max() if faction in ('usa', 'europe') else np.percentile(bz[u[parts == 'body'] > nose - 6], 95)
-    win = (parts == 'body') & (u > nose - 4.4) & (u < nose - 2.7) & (z > top_b - 1.25) & (z < top_b - 0.55) & (np.abs(v) > 0.25)
-    col[win] = (34, 44, 58)
-    col[win & (np.mod(u * 2.2, 1) < 0.18)] = (90, 96, 104)  # window frames
+    body_l = nose - u[parts == 'body'].min()
+    # Dark anti-glare panel on the crown just ahead of the windscreen.
+    col[(parts == 'body') & (u > nose - body_l * 0.06) & (u < nose - body_l * 0.035) & (nrm[:, 2] > 0.55)] *= 0.5
     if faction in ('china', 'russia'):
         glaze = (parts == 'body') & (u > nose - 2.2) & (z < top_b - 1.6) & (z > top_b - 3.2)
         col[glaze] = (52, 70, 86)
@@ -385,13 +412,14 @@ def insignia(f, pos, nrm, parts, col):
         disc = wing_top & (np.hypot(du, dv) < 1.45)
         col[disc] = (50, 58, 78)
         col[disc & star(dv, du, 1.25)] = (214, 214, 210)
-        bar = body_side & (np.abs(u + 9) < 1.8) & (np.abs(z - 2.4) < 0.42)
+        bar = body_side & (np.abs(u + 9) < 1.8) & (np.abs(z - 2.4 * BODY) < 0.42)
         col[bar] = (214, 214, 210)
-        col[bar & (np.abs(z - 2.4) < 0.15)] = (50, 58, 78)
+        col[bar & (np.abs(z - 2.4 * BODY) < 0.15)] = (50, 58, 78)
+        # US flag (the game's design): navy field, red band across the middle, white six-pointed star.
         flag = fin_side & (np.abs(u - fu - 0.6) < 0.9) & (np.abs(z - fz) < 0.55)
-        col[flag] = (176, 46, 46)
-        col[flag & (np.mod((z - fz) * 5, 1) < 0.5)] = (214, 214, 210)
-        col[flag & (u - fu - 0.6 > 0) & (z - fz > 0)] = (50, 58, 90)
+        col[flag] = (6, 42, 99)
+        col[flag & (np.abs(z - fz) < 0.06)] = (165, 11, 46)
+        col[flag & star(u - fu - 0.6, z - fz, 0.36, points=6, inner=0.56)] = (240, 240, 240)
     elif f == 'europe':
         disc = wing_top & (np.hypot(du, dv) < 1.7)
         col[disc] = (40, 60, 120)
@@ -407,7 +435,7 @@ def insignia(f, pos, nrm, parts, col):
         col[mark] = (200, 40, 34)
         col[fin_side & star(u - fu, z - fz, 1.3)] = (200, 40, 34)
         col[fin_side & (np.abs(z - fz + 2.0) < 0.25)] = (200, 40, 34)
-        stripe = body_side & (np.abs(z - 2.9) < 0.12)
+        stripe = body_side & (np.abs(z - 2.9 * BODY) < 0.12)
         col[stripe] = (200, 40, 34)
     elif f == 'russia':
         out = wing_top & star(dv, du, 1.75)
@@ -416,10 +444,11 @@ def insignia(f, pos, nrm, parts, col):
         st = fin_side & star(u - fu, z - fz, 1.45)
         col[st] = (230, 230, 226)
         col[st & star(u - fu, z - fz, 1.15)] = (196, 30, 30)
-        flag = body_side & (np.abs(u + 13) < 1.0) & (np.abs(z - 3.4) < 0.6)
-        col[flag] = (232, 232, 230)
-        col[flag & (z < 3.2)] = (40, 70, 160)
-        col[flag & (z < 3.0)] = (196, 30, 30)
+        # Russian flag (the game's design): white inside a blue border, red star in the middle.
+        flag = body_side & (np.abs(u + 13) < 1.0) & (np.abs(z - 3.4 * BODY) < 0.6)
+        col[flag] = (10, 58, 154)
+        col[flag & (np.abs(u + 13) < 0.88) & (np.abs(z - 3.4 * BODY) < 0.48)] = (236, 236, 234)
+        col[flag & star(u + 13, z - 3.4 * BODY, 0.4)] = (201, 34, 22)
     elif f == 'islamic':
         disc = wing_top & (np.hypot(du, dv) < 1.55)
         col[disc] = (28, 110, 60)

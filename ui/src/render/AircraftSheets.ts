@@ -6,9 +6,9 @@ import { drawCraftPortrait, drawCraftSheet, loadCraftSprites } from './CraftShee
 /**
  * Fighter and bomber sheets (transports and helicopters: see CraftSheets), rendered from 3D models by
  * tools/aircraft_model_sheet.py at 96 px cells.
- * Columns: 16 screen headings, clockwise from N (nose up the screen). Rows below.
+ * Columns: screen headings clockwise from N (nose up the screen) — 16 on the old fighter / drone sheets, 32 (Red Alert 2
+ * facings, like the tanks) on the Blender-rendered bombers, AWACS and transports; read from the sheet width. Rows below.
  */
-const COLS = 16;
 const ROW = { parked: 0, flyA: 1, flyB: 2, ramp: 3, bankLeft: 4, bankRight: 5, crash1: 6, crash2: 7, shadow: 8 } as const;
 
 interface AircraftSheet {
@@ -28,6 +28,11 @@ const sheet = (file: string, cell: number, length: number): AircraftSheet => ({
   scale: length / (cell * 0.74),
 });
 
+/** Every national bomber (Tu-160, B-1A, H-6K) is drawn this long (iso px): the Tu-160 is the standard. */
+const BOMBER_LENGTH = 15.2;
+/** AWACS are drawn no longer than a fighter (iso px, the fighters' length). */
+const AWACS_LENGTH = 9.5;
+
 const SHEETS: Partial<Record<`${FactionId}:${VehicleKind}`, AircraftSheet>> = {
   'usa:jet': sheet('jet-usa.png', 96, 9.5),
   'russia:jet': sheet('jet-russia.png', 96, 9.5),
@@ -35,16 +40,28 @@ const SHEETS: Partial<Record<`${FactionId}:${VehicleKind}`, AircraftSheet>> = {
   'europe:jet': sheet('jet-europe.png', 96, 9.5),
   'islamic:jet': sheet('jet-islamic.png', 96, 9.5),
   // National bombers, one nation each (rendered from 3D models by tools/aircraft_model_sheet.py).
-  'russia:bomber': sheet('tu160-russia.png', 96, 15.2),
-  'usa:bomber': sheet('b1-usa.png', 96, 14.25),
-  // AWACS, every nation (built in code and rendered by tools/awacs_model_sheet.py at 128 px cells).
-  'usa:awacs': sheet('awacs-usa.png', 128, 14.5),
-  'europe:awacs': sheet('awacs-europe.png', 128, 15.5),
-  'china:awacs': sheet('awacs-china.png', 128, 14.5),
-  'russia:awacs': sheet('awacs-russia.png', 128, 14.5),
-  'islamic:awacs': sheet('awacs-islamic.png', 128, 14),
+  // Tu-160: wings spread (192 px cells, sharp when zoomed); swept back only while the turbo runs (TURBO_SHEETS).
+  'russia:bomber': sheet('tu160-russia.png', 192, BOMBER_LENGTH),
+  'china:bomber': sheet('h6-china.png', 192, BOMBER_LENGTH), // H-6K: fixed wing, no turbo sheet (tools/h6_model_sheet.py)
+  'usa:bomber': sheet('b1-usa.png', 192, BOMBER_LENGTH), // B-1 Lancer: the same, after its blueprint (tools/b1_model_sheet.py)
+  // The USA's C-17 Globemaster III transport: its own model (tools/c17_model_sheet.py), Blender, 192 px cells.
+  'usa:transport': sheet('c17-usa.png', 192, 13),
+  // Russia's Il-76MD transport: its own model (tools/il76_model_sheet.py), white with a blue cheatline.
+  'russia:transport': sheet('il76-russia.png', 192, 13),
+  // AWACS, every nation (built in code, rendered in Blender by tools/awacs_blender_sheet.py at 192 px cells), as long as a fighter.
+  'usa:awacs': sheet('awacs-usa.png', 192, AWACS_LENGTH),
+  'europe:awacs': sheet('awacs-europe.png', 192, AWACS_LENGTH),
+  'china:awacs': sheet('awacs-china.png', 192, AWACS_LENGTH),
+  'russia:awacs': sheet('awacs-russia.png', 192, AWACS_LENGTH),
+  'islamic:awacs': sheet('awacs-islamic.png', 192, AWACS_LENGTH),
   // Kamikaze drone (Islamic world's B-767).
   'islamic:drone': sheet('drone-islamic.png', 96, 9.5), // same size as the fighters
+};
+
+/** Variable-geometry aircraft: the sheet drawn while the turbo runs (wings swept back). */
+const TURBO_SHEETS: Partial<Record<`${FactionId}:${VehicleKind}`, AircraftSheet>> = {
+  'russia:bomber': sheet('tu160-russia-turbo.png', 192, BOMBER_LENGTH),
+  'usa:bomber': sheet('b1-usa-turbo.png', 192, BOMBER_LENGTH),
 };
 
 /** Turn rate (rad/s) above which an airborne aircraft is drawn banked. */
@@ -58,7 +75,7 @@ let loaded: Promise<void> | null = null;
 export function loadAircraftSprites(): Promise<void> {
   loaded ??= Promise.all([
     loadCraftSprites(),
-    ...[...new Set(Object.values(SHEETS))].filter((s, i, all) => all.findIndex((o) => o.image === s.image) === i).map(
+    ...[...new Set([...Object.values(SHEETS), ...Object.values(TURBO_SHEETS)])].filter((s, i, all) => all.findIndex((o) => o.image === s.image) === i).map(
       (s) =>
         new Promise<void>((resolve, reject) => {
           s.image.onload = () => resolve();
@@ -93,13 +110,13 @@ function turnRate(v: Vehicle): number {
 }
 
 /** Sheet column for a world heading: its direction on screen, clockwise from straight up. */
-function column(heading: number): number {
+function column(heading: number, cols: number): number {
   const c = Math.cos(heading);
   const s = Math.sin(heading);
   const sx = (c - s) * ISO_X;
   const sy = (c + s) * ISO_Y;
   const a = Math.atan2(sx, -sy);
-  return ((Math.round((a / (Math.PI * 2)) * COLS) % COLS) + COLS) % COLS;
+  return ((Math.round((a / (Math.PI * 2)) * cols) % cols) + cols) % cols;
 }
 
 function pickRow(v: Vehicle): number {
@@ -124,11 +141,12 @@ function pickRow(v: Vehicle): number {
  */
 export function drawAircraftSheet(ctx: CanvasRenderingContext2D, v: Vehicle, x: number, y: number): boolean {
   if (drawCraftSheet(ctx, v, x, y)) return true;
-  const sh = SHEETS[`${v.faction as FactionId}:${v.type}`];
+  const key = `${v.faction as FactionId}:${v.type}` as const;
+  const sh = (v.turboLeft > 0 && v.flight === 'airborne' ? TURBO_SHEETS[key] : undefined) ?? SHEETS[key];
   if (!sh) return false;
   const img = sh.image;
   if (!img.complete || img.naturalWidth === 0) return false;
-  const col = column(v.heading);
+  const col = column(v.heading, Math.round(img.naturalWidth / sh.cell));
   const row = pickRow(v);
   const size = sh.cell * sh.scale;
   const half = size / 2;
@@ -158,7 +176,7 @@ export function drawAircraftPortrait(ctx: CanvasRenderingContext2D, faction: Fac
   if (!sh) return false;
   const img = sh.image;
   if (!img.complete || img.naturalWidth === 0) return false;
-  const col = column(heading);
+  const col = column(heading, Math.round(img.naturalWidth / sh.cell));
   const size = Math.min(w / 0.74, h * 1.35);
   ctx.save();
   ctx.imageSmoothingEnabled = true;

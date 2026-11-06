@@ -25,6 +25,7 @@ const sheet = (file: string): BombSheet => ({ url: `${import.meta.env.BASE_URL}s
 const SHEETS: Partial<Record<FactionId, BombSheet>> = {
   russia: sheet('bomb-tu160.png'),
   usa: sheet('bomb-b1a.png'),
+  china: sheet('bomb-tu160.png'), // H-6K: the Tu-160's bombs (same Soviet-style iron bombs)
 };
 
 let loaded: Promise<void> | null = null;

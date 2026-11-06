@@ -177,6 +177,8 @@ export interface FactionConfig {
 // ---------------------------------------------------------------- Players & buildings
 
 export interface PlayerState {
+  /** The nation has planted its first flag (Squatters or a Flagpole structure): Allied Buildings are unlocked for good. */
+  flagPlanted?: boolean;
   id: number;
   name: string;
   faction: FactionId;

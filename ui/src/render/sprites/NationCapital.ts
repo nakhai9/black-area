@@ -220,8 +220,8 @@ export function createNationCapitalArt(nation: ContestedNationId, holder: Allegi
   return {
     ...pictureArt(PICTURE(nation), {
       drawAnimated(p, time) {
-        drawTextureFlagOnPole(p, nationFlag(nation), 0.15, 2.25, 37, time, 0.3, 18, 11);
-        drawFlagOnPole(p, holder, 3.85, 2.25, 37, time, 1.4, 18, 11);
+        drawTextureFlagOnPole(p, nationFlag(nation), 0.15, 2.25, 37, time, 0.3);
+        drawFlagOnPole(p, holder, 3.85, 2.25, 37, time, 1.4);
       },
     }),
     // Authored in 4 × 2.4 units and drawn 1.25× to fill the 5 × 3 plot.
