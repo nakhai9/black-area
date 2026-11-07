@@ -29,7 +29,7 @@ export const DEMO_FACTION: FactionId = NATION_CODES[(import.meta.env.VITE_DEMO_F
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "3.36.4";
+export const GAME_VERSION = "3.37.0";
 
 /** An Allied Building within this many cells of any capital is an embassy; farther out it is a "Pro-<nation> regime". */
 export const EMBASSY_CAPITAL_CELLS = 25;
@@ -709,7 +709,7 @@ export const RETALIATE_RANGE_FACTOR = 2.2;
 /** Idle armed units notice enemies up to this many times their weapon range away and move in to fight. */
 export const GUARD_VISION_FACTOR = 1.8;
 /** AWACS: enemy combat units within this many cells of one of the player's airborne AWACS are ringed in red on the battlefield. */
-export const AWACS_RADIUS_CELLS = 15;
+export const AWACS_RADIUS_CELLS = 24; // 15 * sqrt(2.5): 2.5x the old sweep area
 
 // ---------------------------------------------------------------- Vehicles & aircraft
 /**

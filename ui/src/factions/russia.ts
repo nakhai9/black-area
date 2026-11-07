@@ -96,7 +96,7 @@ export const RUSSIA: FactionConfig = {
     },
     heli: { name: "Ka-52", description: t("Ka-52 Alligator attack helicopter: coaxial rotors and guided missiles against ground vehicles only. Carries up to 8 soldiers (no vehicles) and sets down anywhere on open ground.") },
     mantis: { name: "S-400", description: t("S-400 air-defence system: a tractor with the semi-trailer launcher, four long missile tubes erected vertical, firing long-range missiles that hit aircraft only (fighters, bombers, helicopters, transports), never ground units or structures. Expensive and slow, armoured like a tank.") },
-    awacs: { name: "A-50", description: t("Beriev A-50 airborne early warning and control aircraft: unarmed; its radar marks every enemy combat unit within 15 cells with a red ring.") },
+    awacs: { name: "A-50", description: t("Beriev A-50 airborne early warning and control aircraft: unarmed; its radar marks every enemy combat unit within 24 cells with a red ring.") },
     jet: {
       name: "Su-57",
       description: t("Su-57 stealth air superiority fighter."),

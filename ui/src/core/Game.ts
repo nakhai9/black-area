@@ -1371,7 +1371,8 @@ export class Game {
     const r = AWACS_RADIUS_CELLS * CELL_SIZE;
     const radar = eyes.map((a) => ({ x: a.px, y: a.py, r, alert: false }));
     for (const u of movers) {
-      if (!u.alive || !u.visible || u.weapon === null || !isHostile(eyes[0]!, u)) continue;
+      // Combat units only (never buildings), of any other nation — in peace time too (the ceasefire does not blind the radar).
+      if (!u.alive || !u.visible || u.weapon === null || u.owner === me || u.owner === NEUTRAL_OWNER) continue;
       for (const c of radar) {
         if (Math.hypot(c.x - u.px, c.y - u.py) > r) continue;
         c.alert = true;
