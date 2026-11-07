@@ -26,7 +26,7 @@
 <body>
 <main>
 <img class="logo" src="/logo.png" alt="Black Area" />
-<h1>Black Area — RULE <small>v3.31.0</small></h1>
+<h1>Black Area — RULE <small>v3.32.0</small></h1>
 <p class="lead">Tài liệu luật chơi + kiến trúc code dành cho AI/dev sửa game. Mọi con số gameplay chính xác nằm trong <code>src/constants.ts</code> và <code>src/factions/*.ts</code>. Nếu tài liệu này khác code thì <b>code đúng</b>. <b>Khi đổi luật/số trong code, phải cập nhật file này.</b></p>
 <nav><a href="#s1">Quy tắc làm việc cho AI</a><a href="#s2">Chạy dự án</a><a href="#s3">Kiến trúc thư mục</a><a href="#s4">Thế giới</a><a href="#s5">Kinh tế (dầu)</a><a href="#s6">Công trình (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Quân đội</a><a href="#s8">Chiến đấu</a><a href="#s9">Điều khiển (Game.handleKey, handleInput)</a><a href="#s10">Giới hạn &amp; hiệu năng</a><a href="#s11">Thắng / thua &amp; AI</a><a href="#s12">Công thức sửa thường gặp</a></nav>
 <h2 id="s1">0. Quy tắc làm việc cho AI</h2>
@@ -698,6 +698,7 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
   <li>v2.59.1: Tab Phương tiện dùng biểu tượng xe tăng thay cho xe tải.</li>
   <li>v2.59.2: Tab Chỉ huy đổi tên thành Chính phủ (Government), biểu tượng toà nhà chính phủ.</li>
   <li>v2.60.0: Thêm hình <b>Tháp Radar</b> (nền 2 × 2) cho mỗi phe, ăng-ten xoay đủ 360°: Mỹ — chảo parabol trên tháp côn trắng; Nga — tấm ra-đa mảng pha trên cột thép giàn; Trung Quốc — chảo Cassegrain trên tháp bát giác; châu Âu — gương phản xạ "vỏ cam" trên tháp tròn; thế giới Hồi giáo — chảo lưới viền vàng trên tháp bát giác có vòm nhọn. Mới chỉ có hình (xem ở <code>?view=buildings</code>), chưa bán / chưa xây được trong trận.</li>
+  <li>v3.32.0: (1) Các nước AI chia tiền theo tỉ lệ <b>40% kinh tế</b> (nhà máy điện, thành phố, radar, trung tâm công nghệ…) / <b>60% quân sự</b> (nhà lính, nhà máy xe, sân bay, cảng, công sự và mọi đơn vị chiến đấu) — <code>ECONOMY_SHARE = 0.4</code>. (2) AI <b>bành trướng</b>: điểm cắm cờ mới ưu tiên xa các công trình đã có của mình, để đồng minh rải đều khắp thế giới. (3) Khi một nước thua trận, các <b>Allied Building</b> của nước đó không biến mất mà trở thành <b>trung lập</b>; bất kỳ nước nào (người chơi hoặc AI) đều có thể dùng kỹ sư chiếm lại — AI tự cử kỹ sư đi chiếm.</li>
   <li>v3.31.0: (1) Phím X (né / tản ra): các đơn vị <b>né tiến</b> — chạy tiếp về phía trước theo hướng đang quay, toả nhẹ sang hai bên, không còn né lùi. (2) Thời gian hòa bình giảm còn <b>90 giây</b> (<code>PEACE_SECONDS = 90</code>). (3) Cửa sổ Tin tức thêm mục <b>Sự kiện thế giới</b>: ghi lại (kèm giờ trong trận) nước nào chiếm thủ đô, phá huỷ thủ đô, cấm vận kinh tế / quân sự hay lập chính phủ song song của nước nào, mới nhất ở trên, giữ 30 sự kiện.</li>
   <li>v3.30.3: Đạn nhỏ lại: đạn pháo xe tăng khi bay còn 35% (giảm thêm 50%, mọi phe); tên lửa đang bay của tiêm kích, máy bay ném bom và <b>trực thăng</b> còn 20%; viên đạn bay của súng máy bay, trực thăng và <b>bunker</b> còn 20% (<code>BULLET_SIZES</code>), vệt đạn của máy bay/trực thăng còn 20% bề rộng. Chớp lửa đầu nòng và vụ nổ giữ nguyên.</li>
   <li>v3.30.2: Viên đạn pháo xe tăng khi bay (kèm vệt sáng) vẽ nhỏ đi 30% (<code>SHELL_FLIGHT_SCALE</code> trong <code>ShellSheet.ts</code>); chớp lửa đầu nòng và vụ nổ khi trúng giữ nguyên cỡ.</li>

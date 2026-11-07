@@ -209,6 +209,20 @@ function alliedOffsets(w: number, d: number): readonly [number, number][] {
 }
 /** Rival structures that make a claim next to them a threat to that rival's economy. */
 const ECONOMY_TYPES: ReadonlySet<BuildingType> = new Set(['oilDerrick', 'happyCity', 'powerPlant']);
+/**
+ * Spending split of every AI nation: ECONOMY_SHARE of what it orders goes to the economy and civil structures
+ * (power, cities, radar, tech...), the rest to the military: Barracks, War Factory, Airfield, Naval Port, defences
+ * and every soldier / vehicle / aircraft.
+ */
+const ECONOMY_SHARE = 0.4;
+/** Structures that count as military spending (everything else built counts as economy). */
+const MILITARY_BUILDS: ReadonlySet<string> = new Set(['barracks', 'warFactory', 'airfield', 'port', 'bunker', 'wall', 'gate']);
+/** Below this much spent in all, the split is not enforced yet (the opening base is built as planned). */
+const SPLIT_FROM = 3000;
+/** Expansion: weight of the distance from the nation's own structures in the claim-site score (spread out). */
+const CLAIM_SPREAD = 0.35;
+/** ...counted up to this many cells (beyond that a site is far enough from everything the nation holds). */
+const CLAIM_SPREAD_CAP = 80;
 /** From this game time on the nation goes after the contested nations' capitals (one at a time). */
 const NATION_FROM = 90;
 
@@ -343,6 +357,9 @@ interface AIState {
   portMissAt?: number;
   /** Truck id → where it carries its soldiers (they would have to rest on the march on foot). */
   convoys: Map<number, WorldPoint>;
+  /** Credits ordered so far for the economy / for the military (see ECONOMY_SHARE). */
+  ecoSpent?: number;
+  milSpent?: number;
   /** Own derrick id -> its health at the last think (a drop means it is under attack). */
   derrickHp: Map<number, number>;
   /** The nation this government has chosen to make war on (AI or the player), re-weighed every RIVAL_PERIOD s. */
@@ -526,6 +543,7 @@ export class AISystem implements GameSystem {
     if (st.overseas) this.loadTransports(p, st, capital);
     this.leaseOil(p, owned, threat);
     this.captureOil(p, threat);
+    this.captureAllies(p, owned, threat);
     this.driveConvoys(st);
     this.layBridges(p, st, capital, owned);
     this.evacuate(p, capital);
@@ -619,7 +637,7 @@ export class AISystem implements GameSystem {
     const plants = this.host.entities.buildings().filter((b) => b.owner === p.id && b.alive && b.spec.type === 'powerPlant').length;
     const plant = BUILD_OPTIONS.find((o) => o.id === 'powerPlant');
     if (plant && !busy('powerPlant') && plants > 0 && p.powerConsumed > p.powerSupply && p.credits >= buildCost(plant, p.faction) * 0.3) {
-      this.host.construction.start(p, plant);
+      this.order(p, st, plant);
       return;
     }
     let next = BUILD_PLAN.map((id) => BUILD_OPTIONS.find((o) => o.id === id)).find(
@@ -664,11 +682,28 @@ export class AISystem implements GameSystem {
       }
     }
     // Base complete (or waiting): grow the economy with Happy Cities when nobody is attacking.
-    if (!next && threat === 0 && this.savingForCity(p, owned, st)) next = BUILD_OPTIONS.find((o) => o.id === 'happyCity');
+    // Only while the economy is under its ECONOMY_SHARE of the spending (or money piles up the military cannot use).
+    const city = BUILD_OPTIONS.find((o) => o.id === 'happyCity');
+    if (!next && threat === 0 && city && this.savingForCity(p, owned, st) && (this.economyDue(st) || p.credits >= buildCost(city, p.faction) * 2)) next = city;
     if (next && busy(next.id)) next = undefined;
     // Game assets configuration: a structure deleted from (or moved out of) this nation's shop is not built.
     if (next && buildOffered(next, p.faction) === false) next = undefined;
-    if (next && p.credits >= buildCost(next, p.faction) * (next.id === 'happyCity' ? 1 : next.id === 'alliedBuilding' ? 0.6 : 0.3)) this.host.construction.start(p, next);
+    if (next && p.credits >= buildCost(next, p.faction) * (next.id === 'happyCity' ? 1 : next.id === 'alliedBuilding' ? 0.6 : 0.3)) this.order(p, st, next);
+  }
+
+  /** Starts a structure order and books its price as economy or military spending. */
+  private order(p: PlayerState, st: AIState, option: BuildOption): void {
+    if (!this.host.construction.start(p, option)) return;
+    const cost = buildCost(option, p.faction);
+    if (MILITARY_BUILDS.has(option.id.split('@')[0])) st.milSpent = (st.milSpent ?? 0) + cost;
+    else st.ecoSpent = (st.ecoSpent ?? 0) + cost;
+  }
+
+  /** Is the economy below its ECONOMY_SHARE of the nation's spending (so it gets the money next)? */
+  private economyDue(st: AIState): boolean {
+    const eco = st.ecoSpent ?? 0;
+    const total = eco + (st.milSpent ?? 0);
+    return total < SPLIT_FROM || eco < total * ECONOMY_SHARE;
   }
 
   // ------------------------------------------------------------------ allies (new land)
@@ -861,6 +896,9 @@ export class AISystem implements GameSystem {
     // with the war and froze the game for a tenth of a second late on.
     const nearestOf = this.nearestFinder(enemy, map.width, map.height);
     const nearestEconomy = this.nearestFinder(economy, map.width, map.height);
+    // Expansion: away from everything the nation already holds, so its allies spread over the whole world.
+    const nearestOwn = this.nearestFinder(buildings.filter((b) => b.owner === p.id), map.width, map.height);
+    const spread = (x: number, y: number): number => CLAIM_SPREAD * Math.min(CLAIM_SPREAD_CAP, nearestOwn(x, y));
     let best: GridPoint | null = null;
     let bestScore = Infinity;
     // Only the sample cells on dry land (precomputed); the cheap tests first, the 7×7 footprint check last.
@@ -877,7 +915,7 @@ export class AISystem implements GameSystem {
       let nearEconomy = nearestEconomy(x, y);
       if (!Number.isFinite(nearEconomy)) nearEconomy = nearEnemy;
       // The score below never drops under this: a site that cannot beat the best one so far skips the dear checks.
-      if (nearEnemy + 0.5 * nearEconomy + 0.1 * Math.hypot(x - home.x, y - home.y) >= bestScore) continue;
+      if (nearEnemy + 0.5 * nearEconomy + 0.1 * Math.hypot(x - home.x, y - home.y) - CLAIM_SPREAD * CLAIM_SPREAD_CAP >= bestScore) continue;
       // Room for the flag and the Allied Building beside it, all on unclaimed land.
       if (!map.isAreaBuildable(x - 1, y - 1, 7, 7)) continue;
       // As close to a rival as the rules allow (its structures and above all its economy are threatened), the trip
@@ -885,7 +923,7 @@ export class AISystem implements GameSystem {
       // A site across the sea needs a free transport: only without an Airfield it is out, else it ranks well behind.
       const overland = door !== null && pf.sameLandmass(door.x, door.y, x, y);
       if (!overland && !canFly) continue;
-      const score = nearEnemy + 0.5 * nearEconomy + 0.1 * Math.hypot(x - home.x, y - home.y) + st.rng() * 6 + (overland ? 0 : CLAIM_OVERSEAS_PENALTY);
+      const score = nearEnemy + 0.5 * nearEconomy + 0.1 * Math.hypot(x - home.x, y - home.y) - spread(x, y) + st.rng() * 6 + (overland ? 0 : CLAIM_OVERSEAS_PENALTY);
       if (score < bestScore) {
         bestScore = score;
         best = { x, y };
@@ -1206,13 +1244,27 @@ export class AISystem implements GameSystem {
    */
   private train(p: PlayerState, st: AIState, owned: Set<BuildingType>, threat: number): void {
     const { training, production } = this.host;
+    // Whatever this call adds to the two queues is booked as military spending.
+    const soldiersBefore = training.queue(p).items.length;
+    const vehiclesBefore = production.queue(p).items.length;
+    this.trainOrders(p, st, owned, threat);
+    let cost = 0;
+    const t = training.optionsFor(p);
+    for (const k of training.queue(p).items.slice(soldiersBefore)) cost += t.find((o) => o.key === k)?.cost ?? 0;
+    const v = production.optionsFor(p);
+    for (const k of production.queue(p).items.slice(vehiclesBefore)) cost += v.find((o) => o.key === k)?.cost ?? 0;
+    if (cost > 0) st.milSpent = (st.milSpent ?? 0) + cost;
+  }
+
+  private trainOrders(p: PlayerState, st: AIState, owned: Set<BuildingType>, threat: number): void {
+    const { training, production } = this.host;
     const depth = threat > 0 ? 4 : 2;
     const f = this.forces(p);
     const city = BUILD_OPTIONS.find((o) => o.id === 'happyCity');
     // Money is only put aside for the next city once the army is comfortably above its floor: battle losses
     // are replaced first, so investing never leaves the nation defenceless.
     const reserve =
-      threat === 0 && f.total >= MIN_ARMY * INVEST_ARMY_FACTOR && city && this.savingForCity(p, owned, st)
+      threat === 0 && f.total >= MIN_ARMY * INVEST_ARMY_FACTOR && city && this.economyDue(st) && this.savingForCity(p, owned, st)
         ? buildCost(city, p.faction) * st.style.save
         : 0;
     const budget = p.credits - reserve;
@@ -1720,6 +1772,38 @@ export class AISystem implements GameSystem {
       .filter((b): b is OilDerrick => b instanceof OilDerrick && b.alive && b.owner !== p.id && b.owner !== NEUTRAL_OWNER && !b.spec.uncapturable && !this.host.isShielded(b))
       .map((b) => ({ b, d: Math.hypot(b.centerWorld().x - eng.px, b.centerWorld().y - eng.py) }))
       .filter(({ b, d }) => d < OIL_CAPTURE_CELLS * CELL_SIZE && pf.sameLandmass(ex, ey, b.x, b.y + b.d))
+      .sort((a, b) => a.d - b.d);
+    for (const { b } of targets) if (this.host.orderCapture(eng, b)) return;
+  }
+
+  /**
+   * Allied Buildings left neutral by a fallen nation are up for grabs: one free engineer at a time walks to the
+   * nearest it can reach and takes it over (a new ally, spreading the nation across the world). No engineer free:
+   * one is trained.
+   */
+  private captureAllies(p: PlayerState, owned: Set<BuildingType>, threat: number): void {
+    if (threat > 0) return;
+    const free = this.host.entities
+      .buildings()
+      .filter((b) => b.alive && b.owner === NEUTRAL_OWNER && b.spec.type === 'alliedBuilding' && !this.host.isShielded(b));
+    if (free.length === 0) return;
+    const units = this.host.entities.fieldUnits();
+    const going = (id: number): boolean => {
+      const e = this.host.entities.get(id);
+      return !!e && 'spec' in e && (e as Building).spec.type === 'alliedBuilding';
+    };
+    if (units.some((u) => u.owner === p.id && u.task?.type === 'capture' && going(u.task.buildingId))) return;
+    const eng = units.find((u) => u.owner === p.id && u.alive && u.isEngineer && u.task === null && u.insideId === null && !u.moving && u.boardTarget === null);
+    if (!eng) {
+      if (owned.has('barracks') && p.credits > 800 && !this.host.training.queue(p).items.includes('engineer')) this.host.training.enqueue(p, 'engineer');
+      return;
+    }
+    const pf = this.host.pathfinder;
+    const ex = Math.floor(eng.px / CELL_SIZE);
+    const ey = Math.floor(eng.py / CELL_SIZE);
+    const targets = free
+      .filter((b) => pf.sameLandmass(ex, ey, b.x, b.y + b.d))
+      .map((b) => ({ b, d: Math.hypot(b.centerWorld().x - eng.px, b.centerWorld().y - eng.py) }))
       .sort((a, b) => a.d - b.d);
     for (const { b } of targets) if (this.host.orderCapture(eng, b)) return;
   }

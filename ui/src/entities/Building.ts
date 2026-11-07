@@ -70,6 +70,18 @@ export class Building extends Entity {
     return true;
   }
 
+  /**
+   * Its nation fell: the structure stays standing as a neutral one (NEUTRAL_OWNER = 0, its own art, no flag) that any
+   * other nation's engineer may take over.
+   */
+  release(): void {
+    this.originFaction ??= this.faction;
+    this.owner = 0;
+    this.faction = 'neutral';
+    this.spriteKeyOverride = null;
+    this.rally = null;
+  }
+
   /** Hands it to `owner` / `faction`, whatever its protection (a lease, a lease ending), team colours included. */
   protected changeHands(owner: number, faction: FactionId): void {
     this.owner = owner;

@@ -4864,7 +4864,8 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
   }
 
   /**
-   * A nation is beaten: every structure it holds disappears, except its oil derricks — a leased one goes back to the
+   * A nation is beaten: every structure it holds disappears, except its Allied Buildings (they turn neutral, free to
+   * capture) and its oil derricks — a leased one goes back to the
    * nation that leased it out, all others to the Global Monitoring Center, which pumps them for the world market
    * (OilMarket: the extra supply and a shock to the market mood move the price).
    */
@@ -4878,6 +4879,11 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
           b.handOver(NEUTRAL_OWNER, 'neutral', true);
           derricks++;
         }
+        continue;
+      }
+      // Its allies (Allied Buildings) do not vanish: they turn neutral, for any other nation to take over.
+      if (b.owner === p.id && b.spec.type === 'alliedBuilding') {
+        b.release();
         continue;
       }
       if (b.owner === p.id) this.removeBuilding(b);
