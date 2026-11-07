@@ -29,7 +29,7 @@ export const DEMO_FACTION: FactionId = NATION_CODES[(import.meta.env.VITE_DEMO_F
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "3.34.1";
+export const GAME_VERSION = "3.35.0";
 
 /** An Allied Building within this many cells of any capital is an embassy; farther out it is a "Pro-<nation> regime". */
 export const EMBASSY_CAPITAL_CELLS = 25;
@@ -1097,7 +1097,9 @@ export type ContestedNationId =
   | "unitedKingdom"
   | "canada"
   | "cuba"
-  | "belarus";
+  | "belarus"
+  | "india"
+  | "ukraine";
 export interface ContestedNation {
   name: string;
   /** Name of the capital building shown in game. */
@@ -1155,6 +1157,18 @@ export const CONTESTED_NATIONS: Readonly<
     capital: "Palace of Independence",
     site: { lon: 27.56, lat: 53.9, name: "Minsk" },
   },
+  // India: a buffer state between China and the Islamic world, outside every faction's territory.
+  india: {
+    name: "India",
+    capital: "Rashtrapati Bhavan",
+    site: { lon: 77.2, lat: 28.61, name: "New Delhi" },
+  },
+  // Ukraine: a buffer state between Europe and Russia, outside every faction's territory.
+  ukraine: {
+    name: "Ukraine",
+    capital: "Verkhovna Rada",
+    site: { lon: 30.52, lat: 50.45, name: "Kyiv" },
+  },
 };
 /** Presence fee of an occupied capital with no entry in NATION_PRESENCE_FEES (an unplayed faction's capital). */
 export const NATION_PRESENCE_FEE = 1200;
@@ -1175,6 +1189,8 @@ export const NATION_PRESENCE_FEES: Readonly<Record<ContestedNationId, number>> =
     cuba: 560,
     northKorea: 320,
     belarus: 520,
+    india: 1980,
+    ukraine: 640,
   };
 export function presenceFee(nation: string): number {
   return (

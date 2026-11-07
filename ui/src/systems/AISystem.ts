@@ -636,7 +636,7 @@ export class AISystem implements GameSystem {
     // Another nuclear plant once the drain outgrows what the plants can generate (oil from the Center is dear).
     const plants = this.host.entities.buildings().filter((b) => b.owner === p.id && b.alive && b.spec.type === 'powerPlant').length;
     const plant = BUILD_OPTIONS.find((o) => o.id === 'powerPlant');
-    if (plant && !busy('powerPlant') && plants > 0 && p.powerConsumed > p.powerSupply && p.credits >= buildCost(plant, p.faction) * 0.3) {
+    if (plant && !busy('powerPlant') && plants > 0 && p.powerConsumed > p.powerSupply) {
       this.order(p, st, plant);
       return;
     }
@@ -669,7 +669,6 @@ export class AISystem implements GameSystem {
           !busy(o.id) &&
           foreignBuildAllowed(this.host.entities, p, o.id, o.foreign) &&
           missingRequirement(o, owned, p.disarmedUntil !== undefined) === null &&
-          p.credits >= buildCost(o, p.faction) * 1.5 &&
           !this.host.entities.buildings().some((b) => b.owner === p.id && b.alive && b.spec.type === o.id.split('@')[0] && b.origin === o.foreign),
       );
     }
@@ -688,7 +687,10 @@ export class AISystem implements GameSystem {
     if (next && busy(next.id)) next = undefined;
     // Game assets configuration: a structure deleted from (or moved out of) this nation's shop is not built.
     if (next && buildOffered(next, p.faction) === false) next = undefined;
-    if (next && p.credits >= buildCost(next, p.faction) * (next.id === 'happyCity' ? 1 : next.id === 'alliedBuilding' ? 0.6 : 0.3)) this.order(p, st, next);
+    // Every structure is ordered even when cash is short: an order is paid little by little as money comes in (same
+    // rule as the player), so the army queues draining the treasury to ~0 every tick never block a building (Europe
+    // never got its Airfield: it needed 30% of 7500 TB in hand at once while tanks swallowed every TB as it arrived).
+    if (next) this.order(p, st, next);
   }
 
   /** Starts a structure order and books its price as economy or military spending. */

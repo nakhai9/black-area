@@ -976,14 +976,15 @@ export class Sidebar {
           value.className = 'sb-rank-value';
           value.textContent = compactMoney(r[key]);
           value.title = detail(r);
-          li.append(pos, flag, value);
-          // Every nation's debt to the Global Monitoring Center, beside its wealth.
+          // Every nation's debt to the Global Monitoring Center on the same line as its wealth: "48.43 KTB / −7.7 KTB".
+          value.style.whiteSpace = 'nowrap';
           const debt = document.createElement('span');
           debt.className = 'sb-rank-debt';
-          debt.textContent = r.debt > 0 ? `${t('Debt')} −${compactMoney(r.debt)}` : t('No debt');
-          debt.style.cssText = `margin-left:6px;font-size:0.85em;color:${r.debt > 0 ? '#ff6b5e' : '#8fbf8f'}`;
-          debt.title = t('Debt {v} {c}', { v: Math.round(r.debt).toLocaleString('en-US'), c: CURRENCY });
-          li.append(debt);
+          debt.textContent = r.debt > 0 ? ` / −${compactMoney(r.debt)}` : ` / 0`;
+          debt.style.color = r.debt > 0 ? '#ff6b5e' : '#8fbf8f';
+          debt.title = r.debt > 0 ? t('Debt {v} {c}', { v: Math.round(r.debt).toLocaleString('en-US'), c: CURRENCY }) : t('No debt');
+          value.append(debt);
+          li.append(pos, flag, value);
           return li;
         }),
       );

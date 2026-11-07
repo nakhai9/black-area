@@ -10,6 +10,31 @@ const FLAG_H = 36;
 
 /** National flags of the contested nations (simplified). */
 const FLAG_PAINTERS: Record<ContestedNationId, (ctx: CanvasRenderingContext2D, w: number, h: number) => void> = {
+  india(ctx, w, h) {
+    // Saffron, white, green, a navy Ashoka Chakra in the middle.
+    ctx.fillStyle = '#ff9933';
+    ctx.fillRect(0, 0, w, h / 3);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, h / 3, w, h / 3);
+    ctx.fillStyle = '#138808';
+    ctx.fillRect(0, h * 2 / 3, w, h / 3);
+    ctx.strokeStyle = '#000080';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(w / 2, h / 2, h * 0.14, 0, Math.PI * 2);
+    for (let k = 0; k < 12; k++) {
+      const a = (k / 12) * Math.PI * 2;
+      ctx.moveTo(w / 2, h / 2);
+      ctx.lineTo(w / 2 + Math.cos(a) * h * 0.14, h / 2 + Math.sin(a) * h * 0.14);
+    }
+    ctx.stroke();
+  },
+  ukraine(ctx, w, h) {
+    ctx.fillStyle = '#0057b7';
+    ctx.fillRect(0, 0, w, h / 2);
+    ctx.fillStyle = '#ffd700';
+    ctx.fillRect(0, h / 2, w, h / 2);
+  },
   belarus(ctx, w, h) {
     // Red over green (2 : 1), a red-on-white ornament band at the hoist.
     ctx.fillStyle = '#c8313e';
@@ -188,6 +213,8 @@ const ART_D = 2.4;
 
 /** Picture height (art px) of each nation's palace, as rendered (tools/blender/models/nations.py). */
 const HEIGHTS: Record<ContestedNationId, number> = {
+  india: 76,
+  ukraine: 76,
   belarus: 60,
   northKorea: 64,
   southKorea: 62,

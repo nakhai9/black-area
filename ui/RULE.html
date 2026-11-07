@@ -26,7 +26,7 @@
 <body>
 <main>
 <img class="logo" src="/logo.png" alt="Black Area" />
-<h1>Black Area — RULE <small>v3.34.1</small></h1>
+<h1>Black Area — RULE <small>v3.35.0</small></h1>
 <p class="lead">Tài liệu luật chơi + kiến trúc code dành cho AI/dev sửa game. Mọi con số gameplay chính xác nằm trong <code>src/constants.ts</code> và <code>src/factions/*.ts</code>. Nếu tài liệu này khác code thì <b>code đúng</b>. <b>Khi đổi luật/số trong code, phải cập nhật file này.</b></p>
 <nav><a href="#s1">Quy tắc làm việc cho AI</a><a href="#s2">Chạy dự án</a><a href="#s3">Kiến trúc thư mục</a><a href="#s4">Thế giới</a><a href="#s5">Kinh tế (dầu)</a><a href="#s6">Công trình (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Quân đội</a><a href="#s8">Chiến đấu</a><a href="#s9">Điều khiển (Game.handleKey, handleInput)</a><a href="#s10">Giới hạn &amp; hiệu năng</a><a href="#s11">Thắng / thua &amp; AI</a><a href="#s12">Công thức sửa thường gặp</a></nav>
 <h2 id="s1">0. Quy tắc làm việc cho AI</h2>
@@ -698,6 +698,10 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
   <li>v2.59.1: Tab Phương tiện dùng biểu tượng xe tăng thay cho xe tải.</li>
   <li>v2.59.2: Tab Chỉ huy đổi tên thành Chính phủ (Government), biểu tượng toà nhà chính phủ.</li>
   <li>v2.60.0: Thêm hình <b>Tháp Radar</b> (nền 2 × 2) cho mỗi phe, ăng-ten xoay đủ 360°: Mỹ — chảo parabol trên tháp côn trắng; Nga — tấm ra-đa mảng pha trên cột thép giàn; Trung Quốc — chảo Cassegrain trên tháp bát giác; châu Âu — gương phản xạ "vỏ cam" trên tháp tròn; thế giới Hồi giáo — chảo lưới viền vàng trên tháp bát giác có vòm nhọn. Mới chỉ có hình (xem ở <code>?view=buildings</code>), chưa bán / chưa xây được trong trận.</li>
+  <li>v3.35.0: Thêm 2 quốc gia độc lập làm <b>vùng đệm</b>, ai cũng có thể cho kỹ sư chiếm: <b>Ấn Độ</b> (Rashtrapati Bhavan, New Delhi — giữa Trung Quốc và thế giới Hồi giáo, phí hiện diện 1980 TB / 2 phút) và <b>Ukraine</b> (Verkhovna Rada, Kyiv — giữa châu Âu và Nga, 640 TB / 2 phút).</li>
+  <li>v3.34.4: AI: <b>mọi</b> công trình (cả nhà máy điện bổ sung, Thành phố Hạnh phúc, Allied Building, công trình của phe khác, tường, cổng, bunker, cảng) đều được đặt xây khi ngân khố gần 0 — tiền trả dần như người chơi, không còn đòi phải có sẵn 30% / 60% / 100% / 150% giá.</li>
+  <li>v3.34.3: AI: các công trình nền (Nhà máy điện, Bộ Quốc phòng, Nhà máy xe, Radar, Sân bay, Trung tâm Công nghệ cao) được đặt xây ngay cả khi ngân khố gần 0 — tiền trả dần khi có thu nhập, không còn bị hàng đợi quân đội "ăn" hết tiền khiến không bao giờ xây được (lỗi châu Âu không xây sân bay).</li>
+  <li>v3.34.2: Bảng xếp hạng Kinh tế: nợ hiển thị cùng dòng với tài sản, dạng <b>48.43 KTB / −7.7 KTB</b> (không nợ: <b>/ 0</b>).</li>
   <li>v3.34.1: Máy bay vận tải: chỉ chở lính thì tối đa <b>20 lính</b>; có phương tiện thì <b>10 lính + tối đa 6 phương tiện</b>; chỉ chở phương tiện thì vẫn tối đa <b>6</b>.</li>
   <li>v3.34.0: (1) Máy bay vận tải chở được <b>10 lính và 6 phương tiện bất kỳ</b> cùng lúc, kể cả <b>trực thăng</b> (trực thăng bay tới, đáp vào khoang; khi dỡ xuống thì đứng trên mặt đất). Khi đầy, nhãn chỉ hiện chữ <b>FULL</b> nền đỏ chữ trắng. (2) Bảng xếp hạng kinh tế trong cửa sổ Tin tức hiện thêm <b>nợ</b> của từng quốc gia.</li>
   <li>v3.33.0: Vẽ lại 3 máy bay vận tải bằng Blender theo ART_GUIDE (32 hướng, 9 hàng, ô 192 px, mỗi máy bay một script riêng trong <code>tools/blender/</code>): <b>C-17</b> (Mỹ, xám xanh, cờ Mỹ trên đuôi, càng đáp, cửa hàng hạ), <b>Il-76MD</b> (Nga, thân trắng, sọc xanh, mũi kính hoa tiêu, sao đỏ trên cánh, đầu cánh đỏ), <b>Y-20</b> (Trung Quốc, xám PLAAF, cờ Trung Quốc, số hiệu vàng, phù hiệu sao đỏ viền vàng). Trung Quốc giờ dùng sprite Y-20 nét cao riêng.</li>
