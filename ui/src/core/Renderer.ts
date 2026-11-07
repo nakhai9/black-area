@@ -1084,7 +1084,8 @@ export class Renderer {
     if (vehicles > 0 && !t.isTruck) parts.push(`${vehicles}/${t.vehicleCapacity} ${tr('veh')}`);
     const state = t.carrierState;
     const prefix = t.full ? `${tr('FULL')} · ` : state === 'loading' ? `${tr('LOADING')} · ` : state === 'unloading' ? `${tr('UNLOADING')} · ` : '';
-    const text = `${prefix}${parts.join(' + ')}`;
+    // Full: only the red "FULL" label.
+    const text = t.full ? tr('FULL') : `${prefix}${parts.join(' + ')}`;
     ctx.save();
     ctx.font = `700 ${10 * k}px "Segoe UI", system-ui, sans-serif`;
     const w = ctx.measureText(text).width + 8 * k;

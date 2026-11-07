@@ -4,8 +4,8 @@ import {
   MANTIS_FIREPOWER,
   MANTIS_RANGE_CELLS,
   CELL_SIZE,
-  TRANSPORT_MIXED_SOLDIERS,
   TRANSPORT_SOLDIERS,
+  TRANSPORT_SOLDIERS_ONLY,
   TRANSPORT_VEHICLES,
   HELI_SOLDIERS,
   VEHICLE_BASE,
@@ -56,9 +56,8 @@ const HANDLING: Readonly<Record<VehicleKind, { accel: number; turn: number; pivo
 
 /** Can `soldiers` soldiers and `vehicles` vehicles travel together in one transport? */
 function transportFits(soldiers: number, vehicles: number): boolean {
-  if (vehicles === 0) return soldiers <= TRANSPORT_SOLDIERS;
-  if (vehicles === 1) return soldiers <= TRANSPORT_MIXED_SOLDIERS;
-  return vehicles <= TRANSPORT_VEHICLES && soldiers === 0;
+  if (vehicles === 0) return soldiers <= TRANSPORT_SOLDIERS_ONLY;
+  return soldiers <= TRANSPORT_SOLDIERS && vehicles <= TRANSPORT_VEHICLES;
 }
 
 /** Price (TB) of a nation's machine: its own entry in VEHICLE_PRICE, else VEHICLE_BASE cost × the nation's cost factor. */
@@ -353,10 +352,14 @@ export class Vehicle extends Unit {
     return this.isTruck || this.flight === 'parked' || this.flight === 'landed';
   }
 
-  /** Could this unit ride in this carrier at all? A truck takes soldiers only; nothing carries aircraft. */
+  /**
+   * Could this unit ride in this carrier at all? A truck or a helicopter takes soldiers only; a transport aircraft any
+   * vehicle, helicopters included — never a fixed-wing aircraft or a ship.
+   */
   accepts(u: Unit): boolean {
     if (!(u instanceof Vehicle)) return true;
-    return !u.aircraft && !this.isHeli && !this.isTruck;
+    if (!this.isTransport || u === this || u.naval) return false;
+    return !u.aircraft || u.isHeli;
   }
 
   get soldiersAboard(): number {
@@ -383,19 +386,17 @@ export class Vehicle extends Unit {
     return transportFits(soldiers, vehicles);
   }
 
-  /** Soldier seats with the vehicles now aboard (12 alone, 8 beside one vehicle, none beside two or more; a helicopter: 8). */
+  /** Soldier seats (a transport: 20 with no vehicle aboard, 10 beside vehicles; a helicopter: 8). */
   get soldierCapacity(): number {
     if (this.isTruck) return TRUCK_SOLDIERS;
     if (this.isHeli) return HELI_SOLDIERS;
-    const v = this.vehiclesAboard;
-    return v === 0 ? TRANSPORT_SOLDIERS : v === 1 ? TRANSPORT_MIXED_SOLDIERS : 0;
+    return this.vehiclesAboard === 0 ? TRANSPORT_SOLDIERS_ONLY : TRANSPORT_SOLDIERS;
   }
 
-  /** Vehicle places with the soldiers now aboard (4 when empty of soldiers, 1 beside up to 8 soldiers, else none; a helicopter: none). */
+  /** Vehicle places with the soldiers now aboard (a transport: 6, while 10 soldiers or fewer are aboard; a helicopter or a truck: none). */
   get vehicleCapacity(): number {
     if (this.isHeli || this.isTruck) return 0;
-    const s = this.soldiersAboard;
-    return s === 0 ? TRANSPORT_VEHICLES : s <= TRANSPORT_MIXED_SOLDIERS ? 1 : 0;
+    return this.soldiersAboard <= TRANSPORT_SOLDIERS ? TRANSPORT_VEHICLES : 0;
   }
 
   /** Idle / loading / carrying / unloading (for the badge and the sidebar). */

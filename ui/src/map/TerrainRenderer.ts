@@ -94,7 +94,7 @@ export interface Peak {
  */
 const ROCK_SHEET = (() => {
   const i = new Image();
-  i.src = `${import.meta.env.BASE_URL}sprites/rocks.png`;
+  i.src = `${import.meta.env.BASE_URL}sprites/rocks.webp`;
   return i;
 })();
 /** Crest: the tall, jagged massifs (sheet columns 0–6). Ledge (foothills): the low, wide rock heaps (7–10). The

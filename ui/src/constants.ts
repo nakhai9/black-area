@@ -29,7 +29,7 @@ export const DEMO_FACTION: FactionId = NATION_CODES[(import.meta.env.VITE_DEMO_F
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "3.32.0";
+export const GAME_VERSION = "3.34.1";
 
 /** An Allied Building within this many cells of any capital is an embassy; farther out it is a "Pro-<nation> regime". */
 export const EMBASSY_CAPITAL_CELLS = 25;
@@ -47,7 +47,7 @@ export const TRUCE_GRACE_SECONDS = 15;
 
 // ---------------------------------------------------------------- World (real Earth)
 /** Packed Earth texture built by `npm run build:earth` (see scripts/build-earth.mjs). */
-export const EARTH_TEXTURE_URL = `${import.meta.env.BASE_URL}data/earth.png`;
+export const EARTH_TEXTURE_URL = `${import.meta.env.BASE_URL}data/earth.webp`;
 /** Earth data resolution (equirectangular, 1 texel ≈ 9.8 km at the equator). */
 const EARTH_SOURCE_WIDTH = 4096;
 const EARTH_TEX_HEIGHT = 2048;
@@ -947,12 +947,12 @@ export const FACTORY_REPAIR_SHARE = 0.08;
 export const FACTORY_REPAIR_REACH_CELLS = 1.5;
 
 /**
- * Transport aircraft load: soldiers only → 12; soldiers + a vehicle → 8 soldiers and 1 vehicle;
- * vehicles only → 4 (2 to 4 vehicles leave no room for soldiers).
+ * Transport aircraft load: soldiers only → 20; with any vehicle aboard → 10 soldiers beside up to 6 vehicles of any
+ * kind (helicopters too); vehicles only → still 6.
  */
-export const TRANSPORT_SOLDIERS = 12;
-export const TRANSPORT_MIXED_SOLDIERS = 8;
-export const TRANSPORT_VEHICLES = 4;
+export const TRANSPORT_SOLDIERS_ONLY = 20;
+export const TRANSPORT_SOLDIERS = 10;
+export const TRANSPORT_VEHICLES = 6;
 /** Attack helicopter load: up to 8 soldiers; it carries no vehicles. */
 export const HELI_SOLDIERS = 8;
 /**

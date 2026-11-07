@@ -34,34 +34,36 @@ const BOMBER_LENGTH = 15.2;
 const AWACS_LENGTH = 9.5;
 
 const SHEETS: Partial<Record<`${FactionId}:${VehicleKind}`, AircraftSheet>> = {
-  'usa:jet': sheet('jet-usa.png', 96, 9.5),
-  'russia:jet': sheet('jet-russia.png', 96, 9.5),
-  'china:jet': sheet('jet-china.png', 96, 9.5),
-  'europe:jet': sheet('jet-europe.png', 96, 9.5),
-  'islamic:jet': sheet('jet-islamic.png', 96, 9.5),
+  'usa:jet': sheet('jet-usa.webp', 96, 9.5),
+  'russia:jet': sheet('jet-russia.webp', 96, 9.5),
+  'china:jet': sheet('jet-china.webp', 96, 9.5),
+  'europe:jet': sheet('jet-europe.webp', 96, 9.5),
+  'islamic:jet': sheet('jet-islamic.webp', 96, 9.5),
   // National bombers, one nation each (rendered from 3D models by tools/aircraft_model_sheet.py).
   // Tu-160: wings spread (192 px cells, sharp when zoomed); swept back only while the turbo runs (TURBO_SHEETS).
-  'russia:bomber': sheet('tu160-russia.png', 192, BOMBER_LENGTH),
-  'china:bomber': sheet('h6-china.png', 192, BOMBER_LENGTH), // H-6K: fixed wing, no turbo sheet (tools/h6_model_sheet.py)
-  'usa:bomber': sheet('b1-usa.png', 192, BOMBER_LENGTH), // B-1 Lancer: the same, after its blueprint (tools/b1_model_sheet.py)
-  // The USA's C-17 Globemaster III transport: its own model (tools/c17_model_sheet.py), Blender, 192 px cells.
-  'usa:transport': sheet('c17-usa.png', 192, 13),
-  // Russia's Il-76MD transport: its own model (tools/il76_model_sheet.py), white with a blue cheatline.
-  'russia:transport': sheet('il76-russia.png', 192, 13),
+  'russia:bomber': sheet('tu160-russia.webp', 192, BOMBER_LENGTH),
+  'china:bomber': sheet('h6-china.webp', 192, BOMBER_LENGTH), // H-6K: fixed wing, no turbo sheet (tools/h6_model_sheet.py)
+  'usa:bomber': sheet('b1-usa.webp', 192, BOMBER_LENGTH), // B-1 Lancer: the same, after its blueprint (tools/b1_model_sheet.py)
+  // The USA's C-17 Globemaster III transport: its own Blender model (tools/blender/c17_render.py), 192 px cells.
+  'usa:transport': sheet('c17-usa.webp', 192, 13),
+  // Russia's Il-76MD transport: its own Blender model (tools/blender/il76_render.py), white with a blue cheatline.
+  'russia:transport': sheet('il76-russia.webp', 192, 13),
+  // China's Y-20A Kunpeng transport: its own Blender model (tools/blender/y20_render.py), PLAAF grey.
+  'china:transport': sheet('y20-china.webp', 192, 13),
   // AWACS, every nation (built in code, rendered in Blender by tools/awacs_blender_sheet.py at 192 px cells), as long as a fighter.
-  'usa:awacs': sheet('awacs-usa.png', 192, AWACS_LENGTH),
-  'europe:awacs': sheet('awacs-europe.png', 192, AWACS_LENGTH),
-  'china:awacs': sheet('awacs-china.png', 192, AWACS_LENGTH),
-  'russia:awacs': sheet('awacs-russia.png', 192, AWACS_LENGTH),
-  'islamic:awacs': sheet('awacs-islamic.png', 192, AWACS_LENGTH),
+  'usa:awacs': sheet('awacs-usa.webp', 192, AWACS_LENGTH),
+  'europe:awacs': sheet('awacs-europe.webp', 192, AWACS_LENGTH),
+  'china:awacs': sheet('awacs-china.webp', 192, AWACS_LENGTH),
+  'russia:awacs': sheet('awacs-russia.webp', 192, AWACS_LENGTH),
+  'islamic:awacs': sheet('awacs-islamic.webp', 192, AWACS_LENGTH),
   // Kamikaze drone (Islamic world's B-767).
-  'islamic:drone': sheet('drone-islamic.png', 96, 9.5), // same size as the fighters
+  'islamic:drone': sheet('drone-islamic.webp', 96, 9.5), // same size as the fighters
 };
 
 /** Variable-geometry aircraft: the sheet drawn while the turbo runs (wings swept back). */
 const TURBO_SHEETS: Partial<Record<`${FactionId}:${VehicleKind}`, AircraftSheet>> = {
-  'russia:bomber': sheet('tu160-russia-turbo.png', 192, BOMBER_LENGTH),
-  'usa:bomber': sheet('b1-usa-turbo.png', 192, BOMBER_LENGTH),
+  'russia:bomber': sheet('tu160-russia-turbo.webp', 192, BOMBER_LENGTH),
+  'usa:bomber': sheet('b1-usa-turbo.webp', 192, BOMBER_LENGTH),
 };
 
 /** Turn rate (rad/s) above which an airborne aircraft is drawn banked. */

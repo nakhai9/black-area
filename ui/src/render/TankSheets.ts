@@ -24,10 +24,10 @@ const sheet = (file: string): HTMLImageElement => {
 const FACTIONS: FactionId[] = ['usa', 'europe', 'russia', 'islamic', 'china'];
 /** Sheet name per nation: M1A2 Abrams (Blender, tools/blender/abrams_sheet.py), Leopard 2A8 (Blender, tools/blender/leopard2a8_sheet.py), T-90M (Blender, tools/blender/t90m_sheet.py), Karrar (Blender, tools/blender/karrar_sheet.py), Type 99A (Blender, tools/blender/type99_sheet.py). */
 const MODEL: Record<FactionId, string> = { usa: 'm1a2', europe: 'leopard2a8', russia: 't90m', islamic: 'karrar', china: 'type99' };
-const SHEETS = Object.fromEntries(FACTIONS.map((f) => [f, sheet(`tank-${MODEL[f]}-hull.png`)])) as Record<FactionId, HTMLImageElement>;
-const TURRETS = Object.fromEntries(FACTIONS.map((f) => [f, sheet(`tank-${MODEL[f]}-turret.png`)])) as Record<FactionId, HTMLImageElement>;
+const SHEETS = Object.fromEntries(FACTIONS.map((f) => [f, sheet(`tank-${MODEL[f]}-hull.webp`)])) as Record<FactionId, HTMLImageElement>;
+const TURRETS = Object.fromEntries(FACTIONS.map((f) => [f, sheet(`tank-${MODEL[f]}-turret.webp`)])) as Record<FactionId, HTMLImageElement>;
 /** Tank explosion shared by every nation (tools/tank_fx_sheet.py): 16 frames of BLAST_CELL px in one row. */
-const TANK_BLAST = sheet('tank-blast.png');
+const TANK_BLAST = sheet('tank-blast.webp');
 const BLAST_CELL = 64;
 const BLAST_FRAMES = 16;
 const BLAST_FRAME_SECONDS = 0.09;

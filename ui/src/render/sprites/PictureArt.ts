@@ -25,7 +25,7 @@ function image(file: string): HTMLImageElement {
   let i = images.get(file);
   if (!i) {
     i = new Image();
-    i.dataset.src = `${import.meta.env.BASE_URL}sprites/${file}.png`;
+    i.dataset.src = `${import.meta.env.BASE_URL}sprites/${file}.webp`;
     images.set(file, i);
   }
   return i;

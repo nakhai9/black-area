@@ -35,7 +35,7 @@ export const BULLET_FLIGHT_SECONDS = 0.16;
 export const BULLET_IMPACT_SECONDS = 0.7;
 
 const image = new Image();
-const url = `${import.meta.env.BASE_URL}sprites/bullet.png`;
+const url = `${import.meta.env.BASE_URL}sprites/bullet.webp`;
 let loaded: Promise<void> | null = null;
 
 /** Starts (once) and returns the bullet sheet download. */

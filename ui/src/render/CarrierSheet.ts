@@ -17,7 +17,7 @@ const img = (file: string): HTMLImageElement => {
   i.dataset.src = `${import.meta.env.BASE_URL}sprites/${file}`;
   return i;
 };
-const SHEETS: Partial<Record<FactionId, HTMLImageElement>> = { usa: img('ship-cvn80.png'), europe: img('ship-r08.png'), china: img('ship-type004.png') };
+const SHEETS: Partial<Record<FactionId, HTMLImageElement>> = { usa: img('ship-cvn80.webp'), europe: img('ship-r08.webp'), china: img('ship-type004.webp') };
 let loaded: Promise<void> | null = null;
 
 /** Starts (once) and returns the carrier sheet downloads. */

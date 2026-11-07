@@ -20,7 +20,7 @@ const SHELL_BURST_SECONDS = 0.45;
 export const SHELL_IMPACT_SECONDS = 1.8;
 
 const image = new Image();
-const url = `${import.meta.env.BASE_URL}sprites/shell-tank.png`;
+const url = `${import.meta.env.BASE_URL}sprites/shell-tank.webp`;
 let loaded: Promise<void> | null = null;
 
 /** Starts (once) and returns the shell sheet download. */

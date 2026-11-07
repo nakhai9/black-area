@@ -20,14 +20,14 @@ const sheet = (file: string): HTMLImageElement => {
   img.dataset.src = `${import.meta.env.BASE_URL}sprites/${file}`;
   return img;
 };
-const KAMAZ = sheet('truck-kamaz.png');
+const KAMAZ = sheet('truck-kamaz.webp');
 /** Sheet per nation that fields a truck. */
 const SHEETS: Partial<Record<FactionId, HTMLImageElement>> = {
   russia: KAMAZ,
   china: KAMAZ,
   islamic: KAMAZ,
-  usa: sheet('truck-mtvr.png'),
-  europe: sheet('truck-zetros.png'),
+  usa: sheet('truck-mtvr.webp'),
+  europe: sheet('truck-zetros.webp'),
 };
 let loaded: Promise<void> | null = null;
 

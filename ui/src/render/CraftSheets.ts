@@ -30,9 +30,9 @@ const img = (file: string): HTMLImageElement => {
   i.dataset.src = `${import.meta.env.BASE_URL}sprites/${file}`;
   return i;
 };
-const air = (model: string, span: number): CraftSheet => ({ image: img(`air-${model}.png`), fx: img(`air-${model}-fx.png`), cell: 96, fxCell: 128, fxFrames: 20, span, heli: false });
+const air = (model: string, span: number): CraftSheet => ({ image: img(`air-${model}.webp`), fx: img(`air-${model}-fx.webp`), cell: 96, fxCell: 128, fxFrames: 20, span, heli: false });
 /** `fx`: the model whose explosion sheet it uses (the Z-10 blows up with the old Z-19E explosion). */
-const heli = (model: string, span: number, fx = model): CraftSheet => ({ image: img(`heli-${model}.png`), fx: img(`heli-${fx}-fx.png`), cell: 80, fxCell: 128, fxFrames: 16, span, heli: true });
+const heli = (model: string, span: number, fx = model): CraftSheet => ({ image: img(`heli-${model}.webp`), fx: img(`heli-${fx}-fx.webp`), cell: 80, fxCell: 128, fxFrames: 16, span, heli: true });
 
 /** Every model, by key ('air:c17', 'heli:apache', …). Spans as measured by the build script. */
 const MODELS: Readonly<Record<string, CraftSheet>> = {
@@ -44,8 +44,8 @@ const MODELS: Readonly<Record<string, CraftSheet>> = {
   'heli:ka52': heli('ka52', 0.85),
   'heli:z10': heli('z10', 0.825, 'z19e'),
 };
-/** The USA's C-17 and Russia's Il-76 have their own sharp sheets in AircraftSheets.ts (c17-usa.png, il76-russia.png). */
-const TRANSPORT: Partial<Record<FactionId, string>> = { europe: 'air:c130j', islamic: 'air:y20', china: 'air:y20' };
+/** The USA's C-17, Russia's Il-76 and China's Y-20 have their own sharp sheets in AircraftSheets.ts. */
+const TRANSPORT: Partial<Record<FactionId, string>> = { europe: 'air:c130j', islamic: 'air:y20' };
 const HELI: Record<FactionId, string> = { usa: 'heli:apache', europe: 'heli:apache', russia: 'heli:ka52', islamic: 'heli:ka52', china: 'heli:z10' };
 /** Iso px each kind is drawn long. */
 const LENGTH: Partial<Record<VehicleKind, number>> = { transport: 13, heli: 11.4 };

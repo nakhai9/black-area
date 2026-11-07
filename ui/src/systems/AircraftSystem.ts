@@ -154,6 +154,7 @@ export class AircraftSystem implements GameSystem {
         this.last.delete(v.id);
         continue;
       }
+      if (v.insideId !== null) continue; // a helicopter riding in a transport's hold
       const prev = this.last.get(v.id);
       this.last.set(v.id, { hp: v.hp, x: v.px, y: v.py });
       // Turbo burns for TURBO_SECONDS, then recharges over TURBO_RECHARGE_SECONDS.

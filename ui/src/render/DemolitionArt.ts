@@ -10,7 +10,7 @@ const CHARGE_SCALE = 0.12;
 const BLAST_SCALE = 0.42;
 
 const image = new Image();
-image.src = `${import.meta.env.BASE_URL}sprites/islamic-demolition-8dir.png`;
+image.src = `${import.meta.env.BASE_URL}sprites/islamic-demolition-8dir.webp`;
 
 const ready = (): boolean => image.complete && image.naturalWidth > 0;
 

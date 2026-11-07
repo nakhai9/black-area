@@ -32,7 +32,7 @@ const MUZZLE: Partial<Record<FactionId, readonly [number, number, number]>> = {
 const sheets = new Map<FactionId, HTMLImageElement>();
 for (const f of NATIONS) {
   const i = new Image();
-  i.dataset.src = `${import.meta.env.BASE_URL}sprites/bunker-${f}.png`;
+  i.dataset.src = `${import.meta.env.BASE_URL}sprites/bunker-${f}.webp`;
   sheets.set(f, i);
 }
 let loaded: Promise<void> | null = null;

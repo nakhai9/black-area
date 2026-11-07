@@ -132,6 +132,8 @@ export interface RankRow {
   economy: number;
   /** Price of the living soldiers and working vehicles (snapshot, refreshed every 4 min); only the rank is shown. */
   military: number;
+  /** What the nation owes the Global Monitoring Center (TB, 0 = no debt). */
+  debt: number;
 }
 
 /** Construction tabs (RA2 sidebar), shown as Lucide icons. */
@@ -944,7 +946,7 @@ export class Sidebar {
 
   /** Fills both ranking lists, best nation first. */
   private renderRanking(rows: readonly RankRow[]): void {
-    const key = rows.map((r) => `${r.playerId}:${Math.round(r.economy)}:${r.military}:${r.defeated}`).join('|');
+    const key = rows.map((r) => `${r.playerId}:${Math.round(r.economy)}:${r.military}:${r.defeated}:${Math.round(r.debt)}`).join('|');
     if (key === this.rankKey) return;
     this.rankKey = key;
     const fill = (list: HTMLElement, key: 'economy' | 'military', detail: ((r: RankRow) => string) | null): void => {
@@ -975,6 +977,13 @@ export class Sidebar {
           value.textContent = compactMoney(r[key]);
           value.title = detail(r);
           li.append(pos, flag, value);
+          // Every nation's debt to the Global Monitoring Center, beside its wealth.
+          const debt = document.createElement('span');
+          debt.className = 'sb-rank-debt';
+          debt.textContent = r.debt > 0 ? `${t('Debt')} −${compactMoney(r.debt)}` : t('No debt');
+          debt.style.cssText = `margin-left:6px;font-size:0.85em;color:${r.debt > 0 ? '#ff6b5e' : '#8fbf8f'}`;
+          debt.title = t('Debt {v} {c}', { v: Math.round(r.debt).toLocaleString('en-US'), c: CURRENCY });
+          li.append(debt);
           return li;
         }),
       );

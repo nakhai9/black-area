@@ -2227,6 +2227,10 @@ export class Game {
     u.insideId = null;
     u.boardTarget = null;
     u.stop();
+    if (u instanceof Vehicle && u.isHeli) {
+      u.flight = 'landed'; // rolled out of the hold: it stands on the ground until ordered up
+      u.altitude = 0;
+    }
     if (u instanceof Infantry && u.isSquatters) u.airlifted = true;
     t.cargo.shift();
     this.hatch(u.px, u.py);
@@ -2399,6 +2403,19 @@ export class Game {
         left++;
         continue;
       }
+      // A helicopter flies over and lands in the hold: no path, no landmass to share.
+      if (u instanceof Vehicle && u.isHeli) {
+        vehicles++;
+        u.task = null;
+        u.attackTarget = null;
+        u.attackMove = null;
+        u.heliHome = null;
+        u.boardTarget = t.id;
+        this.orderMove(spot, [u], false);
+        u.boardTarget = t.id;
+        sent++;
+        continue;
+      }
       const cell = this.pathfinder.nearestPassable(here.x, here.y, 16, undefined, u.mobility);
       if (!cell || !(u.swims ? this.pathfinder.sameSwimArea(Math.floor(u.px / CELL_SIZE), Math.floor(u.py / CELL_SIZE), cell.x, cell.y) : this.pathfinder.sameLandmass(Math.floor(u.px / CELL_SIZE), Math.floor(u.py / CELL_SIZE), cell.x, cell.y))) {
         left++;
@@ -2446,8 +2463,9 @@ export class Game {
       if (settingDown) continue; // wait beside the landing spot until it touches down
       // Boarding needs contact: right up to a transport that stands in the field, or to the wall of the airfield.
       const home = t.homeId === null ? undefined : this.entities.get(t.homeId);
+      const heli = u instanceof Vehicle && u.isHeli;
       const reach = !t.isTruck && t.flight === 'parked' && home instanceof Building ? distanceTo(u.px, u.py, home) : Math.hypot(u.px - t.px, u.py - t.py) - t.radius * 0.5;
-      if (reach > CELL_SIZE * 1.3) {
+      if (reach > CELL_SIZE * (heli ? 3 : 1.3)) {
         if (!u.moving) u.boardTarget = null; // could not get close enough
         continue;
       }
@@ -2460,6 +2478,11 @@ export class Game {
       t.cargo.push(u);
       u.insideId = t.id;
       u.stop();
+      if (heli) {
+        // Folded into the hold: on the ground, rotor stopped.
+        u.flight = 'landed';
+        u.altitude = 0;
+      }
       this.selection.selectedUnits.delete(u.id);
       this.hatch(t.px, t.py);
     }
@@ -4823,6 +4846,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       economy:
         p.oil * price + (structures.get(p.id) ?? 0) + (units.get(p.id) ?? 0) + p.credits + (p.powerStored / POWER_PER_BARREL) * price,
       military: this.militarySnapshot?.get(p.id) ?? 0,
+      debt: Math.max(0, p.debt ?? 0),
     }));
   }
 

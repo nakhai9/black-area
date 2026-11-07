@@ -15,7 +15,7 @@ const BODY_PX = 115;
 export const EXPLOSION_SECONDS = 1.8;
 const FADE_SECONDS = 0.5;
 
-const url = `${import.meta.env.BASE_URL}sprites/explosion.png`;
+const url = `${import.meta.env.BASE_URL}sprites/explosion.webp`;
 const image = new Image();
 let ready = false;
 let loaded: Promise<void> | null = null;

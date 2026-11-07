@@ -20,7 +20,7 @@ export const MISSILE_FLIGHT_SECONDS = 0.3;
 export const MISSILE_BLAST_SECONDS = 0.6;
 
 const image = new Image();
-const url = `${import.meta.env.BASE_URL}sprites/missile-air.png`;
+const url = `${import.meta.env.BASE_URL}sprites/missile-air.webp`;
 let loaded: Promise<void> | null = null;
 
 /** Starts (once) and returns the missile sheet download. */
