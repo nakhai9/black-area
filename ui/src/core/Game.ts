@@ -3159,15 +3159,16 @@ export class Game {
   private pilotOrAnnounce(cmd: GameCommand): void {
     const mine = this.selection.selectedUnitList().filter((u) => u.owner === this.localId);
     const aircraft = mine.filter((u): u is Vehicle => u instanceof Vehicle && u.aircraft);
-    if (cmd.k === 'right' || cmd.k === 'forceAttack') {
-      const target = cmd.k === 'forceAttack' ? this.entities.get(cmd.t) : (this.selection.pickUnit(cmd.w) ?? this.selection.pick(cmd.w));
+    const move = cmd.k === 'right' || cmd.k === 'left' || cmd.k === 'minimap';
+    if (move || cmd.k === 'forceAttack') {
+      const target = cmd.k === 'forceAttack' ? this.entities.get(cmd.t) : cmd.k === 'minimap' ? null : (this.selection.pickUnit(cmd.w) ?? this.selection.pick(cmd.w));
       const hostile = !!target && target.alive && target.owner !== this.localId;
       if (hostile && aircraft.some((v) => v.canFight && !v.isTransport)) return this.sound.pilot('Target locked!', true);
     }
-    if (cmd.k === 'right' && aircraft.some((v) => v.isTransport && v.cargo.length > 0)) return this.sound.pilot("Let's go!");
+    if (move && aircraft.some((v) => v.isTransport && v.cargo.length > 0)) return this.sound.pilot("Let's go!");
     // Ground vehicles / soldiers sent somewhere (not at an enemy): the female voice answers "Moving" or "Orders received" (one at random).
-    if (cmd.k === 'right' || cmd.k === 'waypoints') {
-      const target = cmd.k === 'right' ? (this.selection.pickUnit(cmd.w) ?? this.selection.pick(cmd.w)) : null;
+    if (move || cmd.k === 'waypoints') {
+      const target = cmd.k === 'right' || cmd.k === 'left' ? (this.selection.pickUnit(cmd.w) ?? this.selection.pick(cmd.w)) : null;
       const atEnemy = !!target && target.alive && target.owner !== this.localId;
       if (!atEnemy && mine.some((u) => !(u instanceof Vehicle && u.aircraft))) return this.sound.announce(Math.random() < 0.5 ? 'Moving' : 'Orders received');
     }
@@ -3177,7 +3178,9 @@ export class Game {
   /** An order of this screen's player: at once in a solo game, through the server's turns in multiplayer. */
   private issue(cmd: GameCommand): void {
     // Units of mine given an order: the commander acknowledges it.
-    if (ORDER_COMMANDS.has(cmd.k) && this.selection.selectedUnitList().some((u) => u.owner === this.localId)) this.pilotOrAnnounce(cmd);
+    // RA2 default: a left click with units selected is an order too (unless it only adds a waypoint or re-selects one of mine).
+    const leftOrder = (cmd.k === 'left' && !cmd.shift && !this.waypoints && !(cmd.pu != null && this.entities.get(cmd.pu)?.owner === this.localId)) || cmd.k === 'minimap';
+    if ((ORDER_COMMANDS.has(cmd.k) || leftOrder) && this.selection.selectedUnitList().some((u) => u.owner === this.localId)) this.pilotOrAnnounce(cmd);
     cmd.sel = [...this.selection.selectedUnits];
     cmd.sb = this.selection.selectedId;
     if (this.lockstep) this.lockstep.send(cmd);
@@ -3387,6 +3390,7 @@ export class Game {
         }
       }
       this.dismissPeaceNews?.();
+      this.sound.announce('Ceasefire. Peace time has begun.');
       this.dismissPeaceNews = this.news.show(t('CEASEFIRE'), t('At peace for {seconds}s', { seconds: PEACE_SECONDS }), null, 'peace');
     } else {
       this.dismissPeaceNews?.();
