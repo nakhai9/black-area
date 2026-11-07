@@ -318,68 +318,9 @@ def cuba():
     rod((2.0, 1.05, zp(88)), (2.0, 1.05, zp(94)), 0.01, mat("#c9b46a", 0.3, metal=0.9, grain=0))
 
 
-def india():
-    """Rashtrapati Bhavan (New Delhi): red sandstone base, cream upper storey, a great copper-tinted dome on a drum,
-    small domed chhatris at the corners."""
-    red = stone("#b2523a", 24, 0.12)
-    cream = stone("#e8d9b8", 24, 0.1)
-    box(0.15, 0.15, 3.7, 2.0, 3, 6, red)
-    box(0.3, 0.3, 3.4, 1.6, 9, 9, red)
-    facade(0.3, 0.3, 3.4, 1.6, 9, 9, 20, 9, 1, glass="#3b2a22", frame="#c7735a")
-    box(0.3, 0.3, 3.4, 1.6, 18, 10, cream)
-    facade(0.3, 0.3, 3.4, 1.6, 18, 10, 20, 9, 1, glass="#3b2f28", frame="#f1e6cc")
-    box(0.25, 0.25, 3.5, 1.7, 28, 1, red)  # chhajja (deep cornice)
-    parapet(0.3, 0.3, 3.4, 1.6, 29, cream, 0.04, 1.5)
-    # Colonnaded front portico and wide stair.
-    colonnade("left", 1.2, 1.9, 1.6, 0.0, 9, 19, 10, cream, r=0.04)
-    box(1.15, 1.75, 1.7, 0.3, 28, 1.5, red)
-    for k in range(6):
-        box(1.25, 1.95 + k * 0.04, 1.5, 0.05, 3, 6 - k, red)
-    # Drum and the great dome (Sanchi-stupa shaped), with a red band.
-    cylinder(2.0, 1.1, 0.55, 29, 10, cream, 32)
-    cylinder(2.0, 1.1, 0.58, 39, 2, red, 32)
-    dome(2.0, 1.1, 0.5, 41, 22, mat("#8c6b52", 0.55, metal=0.2, grain=0.08, scale=30), 48, 14)
-    cylinder(2.0, 1.1, 0.05, 63, 4, cream, 12)
-    rod((2.0, 1.1, zp(67)), (2.0, 1.1, zp(72)), 0.01, mat("#d4b24a", 0.3, metal=0.9, grain=0))
-    # Corner chhatris.
-    for u, v in ((0.55, 0.55), (3.45, 0.55), (0.55, 1.65), (3.45, 1.65)):
-        for i in range(4):
-            a = i / 4 * 2 * math.pi + math.pi / 4
-            cylinder(u + math.cos(a) * 0.1, v + math.sin(a) * 0.1, 0.015, 29, 6, cream, 6)
-        cylinder(u, v, 0.15, 35, 1, red, 16)
-        dome(u, v, 0.12, 36, 6, cream, 16, 6)
-
-
-def ukraine():
-    """Verkhovna Rada building (Kyiv): grey neoclassical block, a tall Corinthian portico, a glass dome on a drum."""
-    S = stone("#c9c6bd", 24, 0.1)
-    base = stone("#8f8b82", 22, 0.12)
-    box(0.2, 0.15, 3.6, 2.0, 3, 5, base)
-    box(0.3, 0.3, 3.4, 1.55, 8, 20, S)
-    facade(0.3, 0.3, 3.4, 1.55, 8, 20, 18, 9, 2, glass="#36424c", frame="#e6e3da")
-    box(0.27, 0.27, 3.46, 1.61, 28, 1, stone("#b5b1a7"))
-    parapet(0.3, 0.3, 3.4, 1.55, 29, S, 0.04, 1.5)
-    # Six-column portico with pediment over the stair.
-    colonnade("left", 1.35, 2.05, 1.3, 0.0, 8, 20, 6, stone("#e9e6de"), r=0.05)
-    box(1.3, 1.85, 1.4, 0.3, 28, 2.5, S)
-    roof(1.3, 1.85, 1.4, 0.3, 30.5, 5, stone("#d8d5cc"), kind="gable", ridge="v", overhang=0.02)
-    for k in range(5):
-        box(1.35, 2.1 + k * 0.04, 1.3, 0.05, 3, 5 - k, base)
-    # Drum with pilasters and the glass dome, Ukrainian flag colours on the lantern.
-    cylinder(2.0, 1.05, 0.5, 29, 10, S, 32)
-    for i in range(16):
-        a = i / 16 * 2 * math.pi
-        cylinder(2.0 + math.cos(a) * 0.51, 1.05 + math.sin(a) * 0.51, 0.02, 29, 10, stone("#e9e6de"), 8)
-    cylinder(2.0, 1.05, 0.53, 39, 2, stone("#b5b1a7"), 32)
-    dome(2.0, 1.05, 0.46, 41, 20, mat("#5f7f92", 0.1, metal=0.3, grain=0, glass=True), 48, 14)
-    cylinder(2.0, 1.05, 0.08, 61, 3, mat("#0057b7", 0.5, grain=0), 12)
-    cylinder(2.0, 1.05, 0.08, 64, 3, mat("#ffd700", 0.5, grain=0), 12)
-    rod((2.0, 1.05, zp(67)), (2.0, 1.05, zp(72)), 0.01, mat("#d8d8d8", 0.3, metal=0.9, grain=0))
-
-
+# India and Ukraine have their own scripts (ART_GUIDE: one self-contained script per asset):
+# tools/blender/india_capital_render.py, tools/blender/ukraine_capital_render.py.
 PALACES = {
-    "india": (india, 76),
-    "ukraine": (ukraine, 76),
     "belarus": (belarus, 60),
     "northKorea": (north_korea, 64),
     "southKorea": (south_korea, 62),
