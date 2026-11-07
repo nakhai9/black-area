@@ -594,15 +594,9 @@ export class Sidebar {
   }
 
   /** Shows the seconds left in the peace as mm:ss, or hides the countdown (null) while the war is on. */
-  setPeaceTimer(left: number | null): void {
-    if (left === null) {
-      this.peaceTimer.hidden = true;
-      return;
-    }
-    const s = Math.max(0, Math.ceil(left));
-    const text = `${t('Peace time left')} ${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
-    if (this.peaceTimer.textContent !== text) this.peaceTimer.textContent = text;
-    this.peaceTimer.hidden = false;
+  setPeaceTimer(_left: number | null): void {
+    // The map countdown is no longer shown; the sidebar peace button already carries the time left.
+    this.peaceTimer.hidden = true;
   }
 
   /** Short EVA-style message under the cameos (e.g. "Construction complete"). */

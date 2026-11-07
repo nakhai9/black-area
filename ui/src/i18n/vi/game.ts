@@ -71,7 +71,7 @@ export default {
   '{count} vehicles are heading to the {name} for repair.': '{count} xe đang tới {name} để sửa chữa.',
   'CEASEFIRE': 'NGỪNG BẮN',
   '{minutes} minutes of peace: no attacks; engineers keep working as usual. Build up your nation.': '{minutes} phút hòa bình: không tấn công; kỹ sư vẫn hoạt động bình thường. Hãy xây dựng đất nước.',
-  '{seconds} seconds of peace: no attacks; engineers keep working as usual. Build up your nation.': '{seconds} giây hòa bình: không tấn công; kỹ sư vẫn hoạt động bình thường. Hãy xây dựng đất nước.',
+  'At peace for {seconds}s': 'Đang hòa bình trong {seconds}s',
   'WAR': 'CHIẾN TRANH',
   'The ceasefire is over: {minutes} minutes of war.': 'Lệnh ngừng bắn đã hết: {minutes} phút chiến tranh.',
   'Ceasefire violation: {count} of your units are within {cells} cells of another nation\'s structures — anyone may destroy them and they cannot fire back. Pull them out!': 'Vi phạm ngừng bắn: {count} đơn vị của bạn đang ở trong phạm vi {cells} ô quanh công trình của quốc gia khác — ai cũng có thể tiêu diệt chúng và chúng không được bắn trả. Rút quân ngay!',

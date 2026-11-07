@@ -951,6 +951,12 @@ kbd {
   animation: news-in 0.35s ease-out;
   transition: opacity 0.5s, transform 0.5s;
 }
+.news.peace {
+  border-color: #2e9d47;
+}
+.news.peace .news-tag {
+  background: #2e9d47;
+}
 .news.leaving {
   opacity: 0;
   transform: translateX(-24px);

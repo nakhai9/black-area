@@ -448,6 +448,8 @@ export class Game {
   /** Global Monitoring Center oil market (one price for every nation) and the news toasts. */
   readonly oilMarket: OilMarket;
   private readonly news: NewsToast;
+  /** Hides the ceasefire toast, which stays up for the whole peace. */
+  private dismissPeaceNews: (() => void) | null = null;
   private readonly endScreen = new EndScreen();
   private readonly pauseMenu = new PauseMenu(
     () => this.togglePause(),
@@ -769,6 +771,8 @@ export class Game {
     });
     this.bus.on('selection:changed', () => {
       this.sidebarTimer = SIDEBAR_REFRESH;
+      // Focusing one of my transport aircraft: its pilot asks where to.
+      if (this.selection.selectedUnitList().some((u) => u instanceof Vehicle && u.isTransport && u.owner === this.localId)) this.sound.pilot('Where to, sir?');
       this.showSelectedRoutes();
     });
     new ResizeObserver(() => this.renderer.resize()).observe(dom.canvas);
@@ -3148,10 +3152,32 @@ export class Game {
     }
   }
 
+  /**
+   * Voice for an order: a fighter sent at an enemy — "Target locked!" and a smug laugh; a loaded transport aircraft sent
+   * off — "Let's go!"; anything else — the commander's "Orders received".
+   */
+  private pilotOrAnnounce(cmd: GameCommand): void {
+    const mine = this.selection.selectedUnitList().filter((u) => u.owner === this.localId);
+    const aircraft = mine.filter((u): u is Vehicle => u instanceof Vehicle && u.aircraft);
+    if (cmd.k === 'right' || cmd.k === 'forceAttack') {
+      const target = cmd.k === 'forceAttack' ? this.entities.get(cmd.t) : (this.selection.pickUnit(cmd.w) ?? this.selection.pick(cmd.w));
+      const hostile = !!target && target.alive && target.owner !== this.localId;
+      if (hostile && aircraft.some((v) => v.canFight && !v.isTransport)) return this.sound.pilot('Target locked!', true);
+    }
+    if (cmd.k === 'right' && aircraft.some((v) => v.isTransport && v.cargo.length > 0)) return this.sound.pilot("Let's go!");
+    // Ground vehicles / soldiers sent somewhere (not at an enemy): the female voice answers "Moving" or "Orders received" (one at random).
+    if (cmd.k === 'right' || cmd.k === 'waypoints') {
+      const target = cmd.k === 'right' ? (this.selection.pickUnit(cmd.w) ?? this.selection.pick(cmd.w)) : null;
+      const atEnemy = !!target && target.alive && target.owner !== this.localId;
+      if (!atEnemy && mine.some((u) => !(u instanceof Vehicle && u.aircraft))) return this.sound.announce(Math.random() < 0.5 ? 'Moving' : 'Orders received');
+    }
+    this.sound.announce('Orders received');
+  }
+
   /** An order of this screen's player: at once in a solo game, through the server's turns in multiplayer. */
   private issue(cmd: GameCommand): void {
     // Units of mine given an order: the commander acknowledges it.
-    if (ORDER_COMMANDS.has(cmd.k) && this.selection.selectedUnitList().some((u) => u.owner === this.localId)) this.sound.announce('Orders received');
+    if (ORDER_COMMANDS.has(cmd.k) && this.selection.selectedUnitList().some((u) => u.owner === this.localId)) this.pilotOrAnnounce(cmd);
     cmd.sel = [...this.selection.selectedUnits];
     cmd.sb = this.selection.selectedId;
     if (this.lockstep) this.lockstep.send(cmd);
@@ -3360,8 +3386,11 @@ export class Game {
           if (b instanceof Building && this.captureBanned(b)) u.task = null;
         }
       }
-      this.news.show(t('CEASEFIRE'), t('{seconds} seconds of peace: no attacks; engineers keep working as usual. Build up your nation.', { seconds: PEACE_SECONDS }));
+      this.dismissPeaceNews?.();
+      this.dismissPeaceNews = this.news.show(t('CEASEFIRE'), t('At peace for {seconds}s', { seconds: PEACE_SECONDS }), null, 'peace');
     } else {
+      this.dismissPeaceNews?.();
+      this.dismissPeaceNews = null;
       this.news.show(t('WAR'), t('The ceasefire is over: {minutes} minutes of war.', { minutes: WAR_SECONDS / 60 }));
     }
   }

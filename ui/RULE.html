@@ -26,7 +26,7 @@
 <body>
 <main>
 <img class="logo" src="/logo.png" alt="Black Area" />
-<h1>Black Area — RULE <small>v3.40.2</small></h1>
+<h1>Black Area — RULE <small>v3.41.2</small></h1>
 <p class="lead">Tài liệu luật chơi + kiến trúc code dành cho AI/dev sửa game. Mọi con số gameplay chính xác nằm trong <code>src/constants.ts</code> và <code>src/factions/*.ts</code>. Nếu tài liệu này khác code thì <b>code đúng</b>. <b>Khi đổi luật/số trong code, phải cập nhật file này.</b></p>
 <nav><a href="#s1">Quy tắc làm việc cho AI</a><a href="#s2">Chạy dự án</a><a href="#s3">Kiến trúc thư mục</a><a href="#s4">Thế giới</a><a href="#s5">Kinh tế (dầu)</a><a href="#s6">Công trình (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Quân đội</a><a href="#s8">Chiến đấu</a><a href="#s9">Điều khiển (Game.handleKey, handleInput)</a><a href="#s10">Giới hạn &amp; hiệu năng</a><a href="#s11">Thắng / thua &amp; AI</a><a href="#s12">Công thức sửa thường gặp</a></nav>
 <h2 id="s1">0. Quy tắc làm việc cho AI</h2>
@@ -699,6 +699,12 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
   <li>v2.59.2: Tab Chỉ huy đổi tên thành Chính phủ (Government), biểu tượng toà nhà chính phủ.</li>
   <li>v2.60.0: Thêm hình <b>Tháp Radar</b> (nền 2 × 2) cho mỗi phe, ăng-ten xoay đủ 360°: Mỹ — chảo parabol trên tháp côn trắng; Nga — tấm ra-đa mảng pha trên cột thép giàn; Trung Quốc — chảo Cassegrain trên tháp bát giác; châu Âu — gương phản xạ "vỏ cam" trên tháp tròn; thế giới Hồi giáo — chảo lưới viền vàng trên tháp bát giác có vòm nhọn. Mới chỉ có hình (xem ở <code>?view=buildings</code>), chưa bán / chưa xây được trong trận.</li>
   <li>v3.36.3: <b>Thủ đô bị chiếm đóng</b> vẫn bị tấn công nhưng không bị phá hủy; khi hết máu sẽ trở về <b>trung lập</b> như ban đầu (đầy máu, phe chiếm mất quyền sở hữu, kỹ sư phe nào cũng có thể chiếm lại).</li>
+  <li>v3.41.2: Lệnh di chuyển cho phương tiện mặt đất / lính: giọng nữ nói ngẫu nhiên "Moving" hoặc "Orders received".</li>
+  <li>v3.41.1: Ra lệnh di chuyển cho phương tiện mặt đất / lính (không phải tấn công địch): giọng nữ nói "Moving" thay cho "Orders received".</li>
+  <li>v3.41.0: Giọng phi công (nam, tiếng Anh): chọn máy bay vận tải — "Where to, sir?"; ra lệnh bay cho máy bay vận tải đang chở quân — "Let's go!"; máy bay chiến đấu được lệnh tấn công kẻ địch — "Target locked!" kèm tiếng cười đắc ý. Chỉ phát cho máy bay của người chơi trên máy này.</li>
+  <li>v3.40.5: Máy bay vận tải (và mọi máy bay) không còn xoay thân tại chỗ khi tới điểm thả / đón quân: hạ cánh trượt nhẹ vào chỗ giữ nguyên hướng mũi như xe mặt đất (kiểu RA2). Máy bay trên không luôn bay tiến khi rẽ, không quay tròn tại chỗ; chiến đấu cơ hộ tống xoay dần theo hướng máy bay được hộ tống thay vì giật. Áp dụng cho người chơi và AI.</li>
+  <li>v3.40.4: Thông báo NGỪNG BẮN rút gọn thành "Đang hòa bình trong 90s" và hiện suốt thời gian hòa bình, tự tắt khi chiến tranh trở lại.</li>
+  <li>v3.40.3: Bỏ dòng chữ "Thời gian hòa bình còn lại" trên bản đồ; thông báo NGỪNG BẮN 90 giây hiện màu <b>xanh lá</b> thay vì đỏ.</li>
   <li>v3.40.2: Đồng hồ chiến tranh / hòa bình chuyển xuống <b>cuối sidebar</b> (dưới Finance), có icon phía trước: hai thanh kiếm (chiến tranh, nền đỏ) / biểu tượng hòa bình (nền xanh lá).</li>
   <li>v3.40.1: Đồng hồ chiến tranh / hòa bình to hơn, nằm sát góc trái dưới minimap (la bàn dời lên trên nó).</li>
   <li>v3.40.0: Đồng hồ chiến tranh / hòa bình chuyển vào <b>góc trái dưới minimap</b>, chỉ ghi thời gian: <b>nền đỏ chữ trắng</b> khi chiến tranh, <b>nền xanh lá chữ trắng</b> khi hòa bình.</li>

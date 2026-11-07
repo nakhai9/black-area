@@ -17,9 +17,10 @@ export class NewsToast {
     parent.append(this.stack);
   }
 
-  show(headline: string, detail: string, seconds = 9): void {
+  /** seconds = null keeps the toast up until the returned function is called. */
+  show(headline: string, detail: string, seconds: number | null = 9, tone: 'alert' | 'peace' = 'alert'): () => void {
     const el = document.createElement('div');
-    el.className = 'news';
+    el.className = tone === 'peace' ? 'news peace' : 'news';
     const tag = document.createElement('span');
     tag.className = 'news-tag';
     tag.textContent = headline;
@@ -28,8 +29,13 @@ export class NewsToast {
     text.textContent = detail;
     el.append(tag, text);
     this.stack.append(el);
-    window.setTimeout(() => el.classList.add('leaving'), seconds * 1000);
-    window.setTimeout(() => el.remove(), seconds * 1000 + 600);
+    const dismiss = (): void => {
+      if (el.classList.contains('leaving')) return;
+      el.classList.add('leaving');
+      window.setTimeout(() => el.remove(), 600);
+    };
+    if (seconds !== null) window.setTimeout(dismiss, seconds * 1000);
+    return dismiss;
   }
 }
 

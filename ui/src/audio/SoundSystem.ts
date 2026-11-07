@@ -562,6 +562,31 @@ export class SoundSystem {
     speechSynthesis.speak(u);
   }
 
+  /**
+   * A pilot's radio line (male English voice) for the player's own aircraft: "Where to, sir?", "Let's go!",
+   * "Target locked!" (+ a smug laugh). Rate-limited per line like announce; never cuts into a line being spoken.
+   */
+  pilot(line: string, laugh = false): void {
+    if (this.muted || typeof speechSynthesis === 'undefined' || !this.ctx) return;
+    const now = performance.now() / 1000;
+    if (now - (this.lastLine.get(line) ?? -99) < ANNOUNCE_COOLDOWN) return;
+    if (speechSynthesis.pending) return;
+    this.lastLine.set(line, now);
+    const english = this.voices.filter((v) => v.lang.toLowerCase().startsWith('en'));
+    const voice = english.find((v) => /(male|man|david|mark|guy|george|james|daniel|fred|alex)/i.test(v.name) && !/female/i.test(v.name)) ?? english[0];
+    const say = (text: string, rate: number, pitch: number): void => {
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = 'en-US';
+      if (voice) u.voice = voice;
+      u.rate = rate;
+      u.pitch = pitch;
+      u.volume = 1;
+      speechSynthesis.speak(u);
+    };
+    say(line, 1.05, 0.8); // cheerful but deep: a man's voice even when only a neutral one is installed
+    if (laugh) say('Heh heh heh!', 0.9, 0.6);
+  }
+
   /** A pilot's distress call when one of the player's aircraft goes down: "Mayday, mayday, mayday!" */
   mayday(): void {
     if (this.muted || typeof speechSynthesis === 'undefined' || !this.ctx) return;

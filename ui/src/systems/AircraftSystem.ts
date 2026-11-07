@@ -925,10 +925,24 @@ export class AircraftSystem implements GameSystem {
     v.heading += Math.max(-4 * dt, Math.min(4 * dt, diff));
     v.facing = dx < 0 ? -1 : 1;
     // On its wheels an aircraft rolls the way its nose points: a sharp corner is turned on the spot first, so it
-    // never slides sideways across the apron.
-    if (Math.abs(diff) > 0.6) return false;
+    // never slides sideways across the apron. In the air it keeps flying forward through the turn (never spins in place).
+    if (Math.abs(diff) > 0.6 && v.altitude <= 0) return false;
     this.place(v, v.px + Math.cos(v.heading) * step, v.py + Math.sin(v.heading) * step);
     v.walkPhase += step;
+    return false;
+  }
+
+  /** Slides towards `target` at `speed` px/s without turning the nose; true once there. */
+  private drift(v: Vehicle, target: WorldPoint, speed: number, dt: number): boolean {
+    const dx = target.x - v.px;
+    const dy = target.y - v.py;
+    const d = Math.hypot(dx, dy);
+    if (d < 0.6) {
+      this.place(v, target.x, target.y);
+      return true;
+    }
+    const step = Math.min(d, speed * dt);
+    this.place(v, v.px + (dx / d) * step, v.py + (dy / d) * step);
     return false;
   }
 
@@ -1056,8 +1070,10 @@ export class AircraftSystem implements GameSystem {
     if (Math.hypot(v.px - spot.x, v.py - spot.y) > 1) v.follow([spot]);
     else {
       v.stop();
-      v.heading = w.heading;
-      v.facing = Math.cos(w.heading) < 0 ? -1 : 1;
+      let diff = w.heading - v.heading;
+      diff = Math.atan2(Math.sin(diff), Math.cos(diff));
+      v.heading += Math.max(-0.05, Math.min(0.05, diff)); // eases round to the ward's heading, no snap
+      v.facing = Math.cos(v.heading) < 0 ? -1 : 1;
     }
     return true;
   }
@@ -1135,7 +1151,8 @@ export class AircraftSystem implements GameSystem {
     }
     v.phaseTime += dt;
     const t = v.phaseTime;
-    if (v.dropSpot && t < DESCEND_SECONDS) this.moveTo(v, v.dropSpot, 10, dt);
+    // Settling onto the spot it slides there nose unchanged (RA2: no pivot on arrival), like the ground vehicles.
+    if (v.dropSpot && t < DESCEND_SECONDS) this.drift(v, v.dropSpot, 10, dt);
     if (t < DESCEND_SECONDS) {
       v.altitude = CRUISE_ALTITUDE * (1 - clamp01(t / DESCEND_SECONDS));
     } else if (v.pickup) {
