@@ -119,6 +119,8 @@ export interface OccupiedCapital {
   originName: string;
   holder: FactionId;
   holderName: string;
+  /** Held by the local player: shown as "held by You". */
+  mine?: boolean;
 }
 
 /** One nation in the ranking tab. */
@@ -271,6 +273,10 @@ type Cameo = { el: HTMLElement; wipe: HTMLElement; state: HTMLElement; badge?: H
  * Right-hand command centre (DOM overlay): the map (radar), the national budget & income, oil and
  * power, an alert section ("under attack"), and the purchasing tabs (buildings, soldiers, vehicles).
  */
+/** War / ceasefire clock icons (Material Design Icons "peace"; Akar Icons "sword" pair). */
+const PEACE_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2A10 10 0 0 0 2 12a10 10 0 0 0 10 10a10 10 0 0 0 10-10A10 10 0 0 0 12 2m-1 12.41v5.52a8 8 0 0 1-3.9-1.62zm2 0l3.9 3.9a8 8 0 0 1-3.9 1.62zM4 12c0-4.03 3-7.43 7-7.93v7.52L5.69 16.9A7.9 7.9 0 0 1 4 12m14.31 4.9L13 11.59V4.07c4 .5 7 3.9 7 7.93c0 1.78-.59 3.5-1.69 4.9"/></svg>';
+const WAR_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M2 19.2L3.8 21m.9-7.2l.9 3.6m0 0l3.6.9m-3.6-.9l-2.7 2.7M16.4 3.9l-9 9l.45 2.25l2.25.45l9-9L20 3z"/><path d="M22 19.2L20.2 21m-.9-7.2l-.9 3.6m0 0l2.7 2.7m-2.7-2.7l-1.8.45l-1.8.45M9.3 11L4.9 6.6L4 3l3.6.9L12 8.3m.1 5.5l1.8 1.8l2.25-.45l.45-2.25l-1.8-1.8"/></g></svg>';
+
 export class Sidebar {
   readonly minimapCanvas: HTMLCanvasElement;
 
@@ -411,7 +417,6 @@ export class Sidebar {
           <div class="sb-price-row" title="${t('Oil: what the Global Monitoring Center pays per barrel')}"><i data-icon="oil"></i><b class="sb-price"></b><i class="sb-price-trend"></i></div>
           <div class="sb-price-row" title="${t('Power: what the Global Monitoring Center charges when your grid runs dry (oil at +{p}%, per 1 kJ)', { p: Math.round((OIL_GRID_MARKUP - 1) * 100) })}"><i data-icon="power"></i><b class="sb-power-price"></b></div>
           <div class="sb-price-row" title="${t('Next price revision')}"><i data-icon="clock"></i><b class="sb-price-clock"></b></div>
-          <div class="sb-price-row" title="${t('War cycle: {war} minutes of war, then {peace} seconds of ceasefire (no attacks, no takeovers)', { war: WAR_SECONDS / 60, peace: PEACE_SECONDS })}"><i data-icon="clock"></i><b class="sb-war-clock"></b></div>
           <svg class="sb-price-chart" viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="${t('Oil price, last 5 minutes')}"><polyline fill="none" stroke-width="1.5" vector-effect="non-scaling-stroke"></polyline></svg>
         </section>
       </div>
@@ -427,7 +432,6 @@ export class Sidebar {
         <section class="sb-panel sb-allies">
           <h3 class="sb-rank-title">${t('ALLIES ')}<small class="sb-allies-count"></small></h3>
           <ol class="sb-ally-list"></ol>
-          <p class="sb-muted sb-allies-hint">${t('Captured capitals and embassies are listed here. Click one to look at it. Build up to {n} embassies next to your flags or buildings: far from every capital they become Pro-regimes.', { n: MAX_ALLIES })}</p>
         </section>
       </div>
       <div class="sb-info" data-info="controls" hidden>
@@ -448,6 +452,7 @@ export class Sidebar {
           </ul>
         </section>
       </div>
+      <section class="sb-panel sb-war"><b class="sb-war-clock" title="${t('War cycle: {war} minutes of war, then {peace} seconds of ceasefire (no attacks, no takeovers)', { war: WAR_SECONDS / 60, peace: PEACE_SECONDS })}"><i class="sb-war-icon"></i><span class="sb-war-time"></span></b></section>
       </div>
       <div class="sb-view" data-page="production" hidden>
       <section class="sb-panel sb-build">
@@ -550,7 +555,7 @@ export class Sidebar {
     this.rankEconomy = q('[data-rank=economy]');
     this.rankMilitary = q('[data-rank=military]');
     // After every lookup inside them: the Rank and Allies panels leave the sidebar for the News window.
-    this.buildNewsModal(q('.sb-rank'), q('.sb-allies'));
+    this.buildNewsModal(q('.sb-rank'), q('.sb-allies'), q('.sb-prices'));
     this.buildTabs(q('.sb-main-tabs'));
     const buildPanel = q('[data-panel=build]');
     const infantryPanel = q('[data-panel=infantry]');
@@ -800,34 +805,34 @@ export class Sidebar {
   private renderEvents(rows: readonly { at: string; text: string; category?: 'military' | 'economy' | 'politics' | 'society' }[]): void {
     const list = this.eventList;
     if (!list) return;
+    // At most 8 reports on show: the newest.
+    rows = rows.slice(0, 8);
     const key = rows.map((r) => r.at + r.text).join('|');
     if (key === this.eventKey) return;
     this.eventKey = key;
     if (rows.length === 0) {
-      const li = document.createElement('li');
-      li.className = 'news-empty';
-      li.textContent = t('Nothing has happened yet.');
-      list.replaceChildren(li);
+      const empty = document.createElement('li');
+      empty.className = 'news-empty';
+      empty.textContent = t('Nothing has happened yet.');
+      list.replaceChildren(empty);
       return;
     }
+    // Breaking news: one row per report, newest on top.
     list.replaceChildren(
       ...rows.map((r) => {
-        const li = document.createElement('li');
-        li.className = 'news-event';
+        const item = document.createElement('li');
+        item.className = 'news-event';
         const at = document.createElement('span');
         at.className = 'news-occ-by';
         at.textContent = r.at;
-        // Intelligence section tag: military / economy / politics / society.
         const cat = r.category ?? 'politics';
         const tag = document.createElement('span');
-        tag.className = `news-tag news-tag-${cat}`;
+        tag.className = `news-cat news-tag-${cat}`;
         tag.textContent = { military: t('MIL'), economy: t('ECO'), politics: t('POL'), society: t('SOC') }[cat];
-        tag.title = { military: t('Military intelligence'), economy: t('Economic intelligence'), politics: t('Political intelligence'), society: t('Social intelligence') }[cat];
         const text = document.createElement('span');
-        text.className = 'news-occ-name';
         text.textContent = r.text;
-        li.append(at, tag, text);
-        return li;
+        item.append(at, tag, text);
+        return item;
       }),
     );
   }
@@ -866,7 +871,8 @@ export class Sidebar {
         by.textContent = t('held by');
         const holder = document.createElement('span');
         holder.className = 'news-occ-holder';
-        holder.textContent = r.holderName;
+        holder.textContent = r.mine ? t('You') : r.holderName;
+        li.classList.toggle('mine', !!r.mine);
         li.append(flag(originSrc, r.originName), name, by, flag(this.flagUrl(r.holder), r.holderName), holder);
         return li;
       }),
@@ -874,7 +880,7 @@ export class Sidebar {
   }
 
   /** The News window: a two-column board (Rank | Allies), the existing panels moved into it. */
-  private buildNewsModal(rank: HTMLElement, allies: HTMLElement): void {
+  private buildNewsModal(rank: HTMLElement, allies: HTMLElement, prices: HTMLElement): void {
     const overlay = document.createElement('div');
     overlay.className = 'news-overlay';
     overlay.hidden = true;
@@ -883,15 +889,18 @@ export class Sidebar {
         <header class="news-head"><h2>${t('WORLD NEWS')}</h2><button type="button" class="news-close" aria-label="${t('Close')}"></button></header>
         <div class="news-cols">
           <section class="news-col"><h3 class="news-col-title">${t('RANK')}</h3><div class="news-col-body" data-col="rank"></div></section>
-          <section class="news-col"><h3 class="news-col-title">${t('ALLIES')}</h3><div class="news-col-body" data-col="allies"></div></section>
+          <section class="news-col"><h3 class="news-col-title">${t('OCCUPIED CAPITALS & ALLIES')}</h3><div class="news-col-body" data-col="allies"><ol class="news-occupied-list"></ol></div></section>
         </div>
-        <section class="news-col news-occupied"><h3 class="news-col-title">${t('OCCUPIED CAPITALS')}</h3><div class="news-col-body"><ol class="news-occupied-list"></ol></div></section>
-        <section class="news-col news-occupied news-events"><h3 class="news-col-title">${t('WORLD EVENTS')}</h3><div class="news-col-body"><ol class="news-event-list"></ol></div></section>
+        <div class="news-bottom">
+          <section class="news-col news-occupied news-events"><h3 class="news-col-title news-events-head"><span>${t('BREAKING NEWS')}</span><span class="news-market" data-col="market"></span></h3><div class="news-col-body news-feed"><ul class="news-event-list"></ul></div></section>
+        </div>
       </div>`;
     this.occupiedList = overlay.querySelector<HTMLElement>('.news-occupied-list');
     this.eventList = overlay.querySelector<HTMLElement>('.news-event-list');
     overlay.querySelector('[data-col=rank]')!.append(rank);
-    overlay.querySelector('[data-col=allies]')!.append(allies);
+    overlay.querySelector('[data-col=allies]')!.prepend(allies);
+    // Oil / power prices, revision countdown, war clock and chart: under the breaking-news ticker.
+    overlay.querySelector('[data-col=market]')!.append(prices);
     // The allies' own heading would repeat the column title: its count moves up into the column title instead.
     const alliesHead = allies.querySelector('h3');
     const count = alliesHead?.querySelector('small');
@@ -932,8 +941,15 @@ export class Sidebar {
     this.powerPrice.textContent = compactMoney(((model.oilPrice * OIL_GRID_MARKUP) / POWER_PER_BARREL) * 1000);
     this.priceClock.textContent = `${model.priceChangeIn} s`;
     const left = Math.ceil(model.warPhase.left);
-    this.warClock.textContent = `${model.warPhase.peace ? t('Peace') : t('War')} ${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
-    this.warClock.style.color = model.warPhase.peace ? '#7fd17f' : '#ff7a6b';
+    // Minimap corner badge: time only — white on red at war, white on green in the ceasefire.
+    const time = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
+    const timeEl = this.warClock.querySelector('.sb-war-time')!;
+    if (timeEl.textContent !== time) timeEl.textContent = time;
+    if (this.warClock.classList.contains('peace') !== model.warPhase.peace || !this.warClock.dataset.ready) {
+      this.warClock.dataset.ready = '1';
+      this.warClock.classList.toggle('peace', model.warPhase.peace);
+      this.warClock.querySelector('.sb-war-icon')!.innerHTML = model.warPhase.peace ? PEACE_ICON : WAR_ICON;
+    }
     const trend = Math.sign(model.oilPrice - model.previousPrice);
     if (trend !== this.trendKey || this.priceTrend.childElementCount === 0) {
       this.trendKey = trend;

@@ -2173,20 +2173,180 @@ button,
   border-color: transparent;
 }
 
-/* News window: intelligence section tags. */
-.news-tag {
-  display: inline-block;
-  min-width: 2.6em;
-  margin: 0 6px 0 4px;
-  padding: 0 4px;
-  border-radius: 3px;
-  font-size: 0.72em;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-align: center;
-  color: #0d0f12;
-}
+/* News window: intelligence section tag colours (on .news-cat in the ticker). */
 .news-tag-military { background: #e0594c; }
 .news-tag-economy { background: #e3b341; }
 .news-tag-politics { background: #6fa8dc; }
 .news-tag-society { background: #7cc47f; }
+
+/* News window, bottom strip: breaking-news ticker on top, oil / power market below. */
+.news-events {
+  max-height: none;
+}
+.news-ticker {
+  position: relative;
+  overflow: hidden;
+  height: 30px;
+  background: linear-gradient(90deg, #3a0f0c, #1a0b0a);
+  border-bottom: 1px solid #5a2a22;
+}
+.news-ticker-track {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  gap: 36px;
+  height: 100%;
+  padding-left: 10px;
+  white-space: nowrap;
+  font-size: 13px;
+  color: #f2f5f8;
+}
+.news-ticker-track.run {
+  padding-left: 0;
+  animation: news-ticker linear infinite;
+}
+.news-ticker:hover .news-ticker-track {
+  animation-play-state: paused;
+}
+@keyframes news-ticker {
+  from { transform: translateX(var(--ticker-w, 420px)); }
+  to { transform: translateX(-100%); }
+}
+.news-ticker-track .news-event {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.news-ticker-track .news-empty {
+  color: #8a97a3;
+}
+.news-cat {
+  padding: 0 5px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #0d0f12;
+}
+/* Bottom row: Occupied capitals | Breaking news side by side. */
+.news-bottom {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin: 0 10px 10px;
+  flex-shrink: 0;
+}
+.news-bottom .news-occupied {
+  margin: 0;
+  min-width: 0;
+}
+/* Breaking news title bar: the name on the left, the market figures inline on the right. */
+.news-events-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.news-market .sb-prices {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  background: none;
+  border: 0;
+  letter-spacing: 0;
+}
+.news-market .sb-price-row {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+.news-market .sb-price-row b {
+  font-size: 12px;
+}
+.news-market .sb-price-row svg {
+  width: 12px;
+  height: 12px;
+}
+.news-market .sb-price-chart {
+  width: 60px;
+  height: 16px;
+}
+.news-ticker {
+  flex: 1;
+  min-height: 30px;
+}
+@media (max-width: 760px) {
+  .news-bottom {
+    grid-template-columns: 1fr;
+  }
+}
+.news-occupied-list li.mine .news-occ-holder {
+  color: #7dff8a;
+}
+/* News window, Rank column: Economy | Military side by side. */
+.news-col-body .sb-rank {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: auto auto;
+  grid-auto-flow: column;
+  column-gap: 10px;
+  align-items: start;
+}
+.news-col-body .sb-rank > * {
+  min-width: 0;
+}
+@media (max-width: 760px) {
+  .news-col-body .sb-rank {
+    grid-template-columns: 1fr;
+    grid-auto-flow: row;
+  }
+}
+/* Allies column: the occupied capitals follow the allies, under their own sub-title. */
+.news-col-body .news-occupied-list {
+  margin-top: 6px;
+}
+.news-bottom {
+  grid-template-columns: 1fr;
+}
+/* Breaking news: a list, newest report on top; the market figures stay on one line in the title bar. */
+.news-market .sb-prices {
+  flex-direction: row;
+  flex-wrap: nowrap;
+}
+.news-feed {
+  max-height: 150px;
+}
+.news-event-list li.news-event {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: normal;
+}
+.news-event-list li.news-event:first-child {
+  border-color: #d62d20;
+}
+/* War / ceasefire clock: its own panel at the bottom of the sidebar's main page — icon + time,
+   white on red at war, white on green in the ceasefire. */
+.sb-war .sb-war-clock {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 4px;
+  font: 700 18px/1 Consolas, monospace;
+  color: #fff;
+  background: #c62828;
+}
+.sb-war .sb-war-clock.peace {
+  background: #2e7d32;
+}
+.sb-war-icon,
+.sb-war-icon svg {
+  display: block;
+  width: 22px;
+  height: 22px;
+}

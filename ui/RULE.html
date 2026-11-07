@@ -26,7 +26,7 @@
 <body>
 <main>
 <img class="logo" src="/logo.png" alt="Black Area" />
-<h1>Black Area — RULE <small>v3.37.0</small></h1>
+<h1>Black Area — RULE <small>v3.40.2</small></h1>
 <p class="lead">Tài liệu luật chơi + kiến trúc code dành cho AI/dev sửa game. Mọi con số gameplay chính xác nằm trong <code>src/constants.ts</code> và <code>src/factions/*.ts</code>. Nếu tài liệu này khác code thì <b>code đúng</b>. <b>Khi đổi luật/số trong code, phải cập nhật file này.</b></p>
 <nav><a href="#s1">Quy tắc làm việc cho AI</a><a href="#s2">Chạy dự án</a><a href="#s3">Kiến trúc thư mục</a><a href="#s4">Thế giới</a><a href="#s5">Kinh tế (dầu)</a><a href="#s6">Công trình (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Quân đội</a><a href="#s8">Chiến đấu</a><a href="#s9">Điều khiển (Game.handleKey, handleInput)</a><a href="#s10">Giới hạn &amp; hiệu năng</a><a href="#s11">Thắng / thua &amp; AI</a><a href="#s12">Công thức sửa thường gặp</a></nav>
 <h2 id="s1">0. Quy tắc làm việc cho AI</h2>
@@ -699,6 +699,17 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
   <li>v2.59.2: Tab Chỉ huy đổi tên thành Chính phủ (Government), biểu tượng toà nhà chính phủ.</li>
   <li>v2.60.0: Thêm hình <b>Tháp Radar</b> (nền 2 × 2) cho mỗi phe, ăng-ten xoay đủ 360°: Mỹ — chảo parabol trên tháp côn trắng; Nga — tấm ra-đa mảng pha trên cột thép giàn; Trung Quốc — chảo Cassegrain trên tháp bát giác; châu Âu — gương phản xạ "vỏ cam" trên tháp tròn; thế giới Hồi giáo — chảo lưới viền vàng trên tháp bát giác có vòm nhọn. Mới chỉ có hình (xem ở <code>?view=buildings</code>), chưa bán / chưa xây được trong trận.</li>
   <li>v3.36.3: <b>Thủ đô bị chiếm đóng</b> vẫn bị tấn công nhưng không bị phá hủy; khi hết máu sẽ trở về <b>trung lập</b> như ban đầu (đầy máu, phe chiếm mất quyền sở hữu, kỹ sư phe nào cũng có thể chiếm lại).</li>
+  <li>v3.40.2: Đồng hồ chiến tranh / hòa bình chuyển xuống <b>cuối sidebar</b> (dưới Finance), có icon phía trước: hai thanh kiếm (chiến tranh, nền đỏ) / biểu tượng hòa bình (nền xanh lá).</li>
+  <li>v3.40.1: Đồng hồ chiến tranh / hòa bình to hơn, nằm sát góc trái dưới minimap (la bàn dời lên trên nó).</li>
+  <li>v3.40.0: Đồng hồ chiến tranh / hòa bình chuyển vào <b>góc trái dưới minimap</b>, chỉ ghi thời gian: <b>nền đỏ chữ trắng</b> khi chiến tranh, <b>nền xanh lá chữ trắng</b> khi hòa bình.</li>
+  <li>v3.39.5: Breaking News chỉ hiện tối đa <b>8 tin</b> mới nhất.</li>
+  <li>v3.39.4: Breaking News đổi thành danh sách (tin mới nhất ở trên cùng, cuộn được); các con số giá trên thanh tiêu đề nằm trên một hàng.</li>
+  <li>v3.39.3: World News: cột gộp mang tiêu đề <b>OCCUPIED CAPITALS &amp; ALLIES</b> (bỏ tiêu đề phụ).</li>
+  <li>v3.39.2: World News: <b>Occupied Capitals</b> gộp vào cột Allies (ngay dưới danh sách đồng minh); Breaking News chiếm cả hàng dưới.</li>
+  <li>v3.39.1: World News: bảng xếp hạng <b>Economy</b> và <b>Military</b> nằm cạnh nhau trên một hàng.</li>
+  <li>v3.39.0: World News: bỏ dòng hướng dẫn trong cột Allies; <b>Occupied Capitals</b> và <b>Breaking News</b> nằm cạnh nhau trên một hàng; giá dầu / điện / đếm ngược / đồng hồ chiến tranh / biểu đồ thu gọn vào thanh tiêu đề Breaking News.</li>
+  <li>v3.38.1: Sửa nhãn <b>BREAKING NEWS</b> của banner tin trên màn hình bị lỗi hiển thị (chữ nhỏ, màu tối, lệch).</li>
+  <li>v3.38.0: Cửa sổ World News: mục World Events đổi thành <b>BREAKING NEWS</b> dạng dòng tin chạy ngang (rê chuột để dừng); bên dưới là bảng <b>giá dầu / giá điện / đếm ngược đổi giá / đồng hồ chiến tranh + biểu đồ</b> (chuyển từ sidebar vào). Thủ đô do người chơi chiếm hiện <b>held by You</b>.</li>
   <li>v3.37.0: AWACS: vùng quét rộng gấp <b>2,5 lần diện tích</b> (bán kính 15 → <b>24 ô</b>, <code>AWACS_RADIUS_CELLS</code>); chỉ đánh dấu <b>đơn vị chiến đấu</b> (có vũ khí), không quét công trình; <b>vẫn quét trong thời gian hòa bình</b>. Người chơi và AI như nhau.</li>
   <li>v3.36.4: sửa lỗi <b>không bắn / ném bom được thủ đô bị chiếm đóng</b>: bỏ chặn <code>nationCapital</code> trong <code>canTarget</code> (luật cũ v2.27.3). Thủ đô trung lập (chưa ai chiếm) vẫn không bị tấn công. Người chơi và AI như nhau.</li>
   <li>v3.36.2: <b>Cổng quốc gia</b> nối liền với tường cùng phe ở hai đầu (khối tường sát cổng không còn là đầu cụt có vạch đứt). <b>AI</b> chiếm các quốc gia trung lập bên kia biển (Úc, Nhật, Anh, Cuba...) ngay khi còn trống, không đợi chiếm hết các nước trên đất liền đang bị phe khác giữ; vượt biển vẫn tính xa gấp đôi.</li>

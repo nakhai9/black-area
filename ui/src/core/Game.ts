@@ -4849,9 +4849,9 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       if (b instanceof NationCapital) {
         if (b.owner === NEUTRAL_OWNER) continue;
         const n = nationInfo(b.nation);
-        out.push({ id: b.id, capital: n.capital, origin: b.nation, originName: n.name, holder, holderName: FACTIONS[holder].name });
+        out.push({ id: b.id, capital: n.capital, origin: b.nation, originName: n.name, holder, holderName: FACTIONS[holder].name, mine: holder === this.humanPlayer.faction });
       } else if (b.spec.type === 'capital' && b.originFaction && b.originFaction !== 'neutral' && b.originFaction !== holder) {
-        out.push({ id: b.id, capital: b.spec.name, origin: b.originFaction, originName: FACTIONS[b.originFaction].name, holder, holderName: FACTIONS[holder].name });
+        out.push({ id: b.id, capital: b.spec.name, origin: b.originFaction, originName: FACTIONS[b.originFaction].name, holder, holderName: FACTIONS[holder].name, mine: holder === this.humanPlayer.faction });
       }
     }
     return out;
