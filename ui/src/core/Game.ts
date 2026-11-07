@@ -173,7 +173,7 @@ import { AircraftSystem, isAirBase, type AirfieldGeometry } from '../systems/Air
 import { AISystem } from '../systems/AISystem';
 import { StructureIndex } from '../systems/StructureIndex';
 import { canTarget, CombatSystem, distanceTo, inTruce, isHostile, setDisarmed, setTruce, setViolators } from '../systems/CombatSystem';
-import { MIN_SALE_STOCK, OilMarket } from '../systems/OilMarket';
+import { MIN_SALE_STOCK, type NewsCategory, OilMarket } from '../systems/OilMarket';
 import { TaxSystem } from '../systems/TaxSystem';
 import { EndScreen } from '../ui/EndScreen';
 import { LANGUAGE_RELOAD_KEY, PENDING_SAVE_KEY, PauseMenu } from '../ui/PauseMenu';
@@ -389,6 +389,9 @@ const BRIDGE_SNAP_OFFSETS: readonly [number, number][] = (() => {
  * Composition root: loads the Earth, builds the world, wires systems/UI
  * through the event bus and drives everything from the game loop.
  */
+/** Intelligence reports kept in the News window. */
+const NEWS_LOG_MAX = 60;
+
 export class Game {
   readonly bus = new EventBus<GameEvents>();
   readonly map = new TileMap(GRID_WIDTH, GRID_HEIGHT);
@@ -589,6 +592,7 @@ export class Game {
     this.input.boxSelectEnabled = () => this.selection.selectedUnits.size === 0;
     this.economy = new EconomySystem(this.players, this.entities, (p) => this.oilMarket.outputFactor(p));
     this.oilMarket = new OilMarket(this.players, this.entities);
+    this.oilMarket.news = (category, text) => this.intel(category, text);
     this.news = new NewsToast();
     this.placement = new PlacementSystem(this.map, this.entities);
     this.construction = new ConstructionSystem(this.players);
@@ -1690,7 +1694,23 @@ export class Game {
     b.placedAt = this.time;
     this.occupyBuilding(b);
     if (b instanceof Wall) this.orientWalls(b.x, b.y);
+    this.reportBuilt(player, b.spec.type);
     return true;
+  }
+
+  /** Intelligence on a structure a nation has just raised (strategic ones only). */
+  private reportBuilt(player: PlayerState, type: string): void {
+    const name = FACTIONS[player.faction].name;
+    const report: Partial<Record<string, [NewsCategory, string]>> = {
+      airfield: ['military', t('{name} has built an Airfield', { name })],
+      port: ['military', t('{name} has built a Naval Port', { name })],
+      techCenter: ['military', t('{name} has built a High-Tech Center', { name })],
+      happyCity: ['society', t('{name} has opened a new Happy City', { name })],
+      alliedBuilding: ['politics', t('{name} has won a new ally (Allied Building)', { name })],
+      parallelGov: ['politics', t('{name} has raised a Parallel Government', { name })],
+    };
+    const r = report[type];
+    if (r) this.intel(r[0], r[1]);
   }
 
   /** Allies the nation leads: its Allied Buildings standing, plus one under construction. */
@@ -4917,7 +4937,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     for (const u of [...this.entities.units(), ...this.entities.vehicles()]) if (u.owner === p.id && u.alive) u.damage(u.maxHp * 100); // well past any veteran armour
     if (derricks > 0) {
       this.oilMarket.takeOver(derricks);
-      this.news.show(t('BREAKING NEWS'), t("The Global Monitoring Center takes over {n} of {name}'s oil derricks — the oil market is in turmoil.", { n: derricks, name: FACTIONS[p.faction].name }));
+      this.breaking(t("The Global Monitoring Center takes over {n} of {name}'s oil derricks — the oil market is in turmoil.", { n: derricks, name: FACTIONS[p.faction].name }), t("Center takes over {n} oil derricks of {name}", { n: derricks, name: FACTIONS[p.faction].name }), 'economy');
     }
   }
 
@@ -4936,18 +4956,23 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     const line = byP && byP.id !== nation.id
       ? t('{by} destroyed {capital} ({name})', { ...vars, by: FACTIONS[byP.faction].name })
       : t('{capital} ({name}) was destroyed', vars);
-    this.breaking(text, line);
+    this.breaking(text, line, 'military');
   }
 
-  /** Breaking news on screen, also written into the News window's event log (newest first, NEWS_LOG_MAX kept). */
-  private breaking(text: string, line: string): void {
+  /** Breaking news on screen, also written into the News window's intelligence log (political: between nations). */
+  private breaking(text: string, line: string, category: NewsCategory = 'politics'): void {
     this.news.show(t('BREAKING NEWS'), text);
-    const left = Math.max(0, Math.floor(this.time));
-    this.newsLog.unshift({ at: `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`, text: line });
-    if (this.newsLog.length > 30) this.newsLog.length = 30;
+    this.intel(category, line);
   }
-  /** Capture / destruction / embargo events between nations, for the News window. */
-  private readonly newsLog: { at: string; text: string }[] = [];
+  /** An intelligence report in the News window only (no on-screen banner), newest first, NEWS_LOG_MAX kept. */
+  private intel(category: NewsCategory, line: string): void {
+    const left = Math.max(0, Math.floor(this.time));
+    this.newsLog.unshift({ at: `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`, text: line, category });
+    if (this.newsLog.length > NEWS_LOG_MAX) this.newsLog.length = NEWS_LOG_MAX;
+  }
+  /** Military, economic, political and social intelligence (NEWS_LOG_MAX newest kept) on every nation, for the News window. */
+  private readonly newsLog: { at: string; text: string; category?: NewsCategory }[] = [];
+
 
   /**
    * A nation is defeated when its capital is gone AND it has no soldiers or combat vehicles. The player loses
@@ -6377,7 +6402,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     holder.oil = 0;
     holder.leasedOil = 0;
     holder.embargoUntil = this.time + CAPITAL_EMBARGO_SECONDS;
-    this.breaking(t('{by} has put {nation} under an economic embargo: its treasury is empty and earns nothing for {minutes} minutes.', vars), t('{by} put {nation} under an economic embargo', vars));
+    this.breaking(t('{by} has put {nation} under an economic embargo: its treasury is empty and earns nothing for {minutes} minutes.', vars), t('{by} put {nation} under an economic embargo', vars), 'economy');
   }
 
   /** Nation `by` already has a Parallel Government of the nation holding capital `b`, standing or still to be bought. */
@@ -6438,7 +6463,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     }
     holder.disarmedUntil = this.time + CAPITAL_DISARM_SECONDS;
     const vars = { by: FACTIONS[by.faction].name, nation: FACTIONS[holder.faction].name, minutes: CAPITAL_DISARM_SECONDS / 60 };
-    this.breaking(t('{by} has put {nation} under a military embargo: its Barracks, War Factories, Airfields and combat units are gone and it cannot attack for {minutes} minutes.', vars), t('{by} put {nation} under a military embargo', vars));
+    this.breaking(t('{by} has put {nation} under a military embargo: its Barracks, War Factories, Airfields and combat units are gone and it cannot attack for {minutes} minutes.', vars), t('{by} put {nation} under a military embargo', vars), 'military');
   }
 
   /**

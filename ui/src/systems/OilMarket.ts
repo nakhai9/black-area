@@ -61,6 +61,11 @@ export const MIN_SALE_STOCK = 0.5;
  *
  * Credit — a nation at 0 TB may take an emergency loan (DEBT); income from oil sales pays the debt back first.
  */
+/** Section of an intelligence report in the News window. */
+export type NewsCategory = 'military' | 'economy' | 'politics' | 'society';
+/** A price revision this much (share) or more off the previous one makes the news. */
+const PRICE_NEWS_SHARE = 0.06;
+
 export class OilMarket implements GameSystem {
   /** Current price and the one before it (TB per barrel). */
   price = OIL_PRICE_START;
@@ -81,6 +86,8 @@ export class OilMarket implements GameSystem {
   /** The oil cartel's production policy (see OIL_POLICIES) and when it last changed (market time). */
   policy: OilPolicy = 'hold';
   private policyAt = -Infinity;
+  /** Economic intelligence for the News window (set by Game): price swings, cartel decisions, emergency loans. */
+  news: ((category: NewsCategory, text: string) => void) | null = null;
 
   constructor(
     private readonly players: readonly PlayerState[],
@@ -164,8 +171,10 @@ export class OilMarket implements GameSystem {
     if (policy === this.policy) return { kind: 'refused', reason: t('the policy is already "{label}"', { label: OIL_POLICIES[policy].label }) };
     const wait = this.policyWait();
     if (wait > 0) return { kind: 'refused', reason: t('the cartel can change policy again in {wait} s', { wait }) };
+    const before = this.policy;
     this.policy = policy;
     this.policyAt = this.now;
+    this.news?.('economy', t('Oil cartel ({name}): production policy "{from}" → "{to}"', { name: FACTIONS[player.faction].name, from: OIL_POLICIES[before].label, to: OIL_POLICIES[policy].label }));
     return { kind: 'set', policy };
   }
 
@@ -177,6 +186,13 @@ export class OilMarket implements GameSystem {
     this.price = Math.round(this.price + (target - this.price) * OIL_PRICE_EASE);
     this.history.push(this.price);
     if (this.history.length > PRICE_HISTORY) this.history.shift();
+    const change = this.previous > 0 ? (this.price - this.previous) / this.previous : 0;
+    if (Math.abs(change) >= PRICE_NEWS_SHARE) {
+      const pct = `${change > 0 ? '+' : '−'}${Math.round(Math.abs(change) * 100)}%`;
+      this.news?.('economy', change > 0
+        ? t('Oil price up: {from} → {to} TB/bbl ({pct})', { from: this.previous, to: this.price, pct })
+        : t('Oil price down: {from} → {to} TB/bbl ({pct})', { from: this.previous, to: this.price, pct }));
+    }
   }
 
   /** Seconds until the nation may sell again (0 when it can sell now): OIL_SALE_BURST offers, then OIL_SALE_COOLDOWN s rest. */
@@ -295,6 +311,8 @@ export class OilMarket implements GameSystem {
     player.credits += amount;
     player.debt += amount;
     if (player.debt >= this.creditLine(player) - 100) player.creditFrozen = true;
+    this.news?.('economy', t('{name} takes an emergency loan of {amount} TB (debt {debt} TB)', { name: FACTIONS[player.faction].name, amount, debt: Math.round(player.debt) }));
+    if (player.creditFrozen) this.news?.('economy', t("{name}'s credit is frozen by the Center", { name: FACTIONS[player.faction].name }));
     return { kind: 'granted', amount, debt: player.debt };
   }
 }

@@ -26,7 +26,7 @@
 <body>
 <main>
 <img class="logo" src="/logo.png" alt="Black Area" />
-<h1>Black Area — RULE <small>v3.35.1</small></h1>
+<h1>Black Area — RULE <small>v3.36.0</small></h1>
 <p class="lead">Tài liệu luật chơi + kiến trúc code dành cho AI/dev sửa game. Mọi con số gameplay chính xác nằm trong <code>src/constants.ts</code> và <code>src/factions/*.ts</code>. Nếu tài liệu này khác code thì <b>code đúng</b>. <b>Khi đổi luật/số trong code, phải cập nhật file này.</b></p>
 <nav><a href="#s1">Quy tắc làm việc cho AI</a><a href="#s2">Chạy dự án</a><a href="#s3">Kiến trúc thư mục</a><a href="#s4">Thế giới</a><a href="#s5">Kinh tế (dầu)</a><a href="#s6">Công trình (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Quân đội</a><a href="#s8">Chiến đấu</a><a href="#s9">Điều khiển (Game.handleKey, handleInput)</a><a href="#s10">Giới hạn &amp; hiệu năng</a><a href="#s11">Thắng / thua &amp; AI</a><a href="#s12">Công thức sửa thường gặp</a></nav>
 <h2 id="s1">0. Quy tắc làm việc cho AI</h2>
@@ -698,6 +698,7 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
   <li>v2.59.1: Tab Phương tiện dùng biểu tượng xe tăng thay cho xe tải.</li>
   <li>v2.59.2: Tab Chỉ huy đổi tên thành Chính phủ (Government), biểu tượng toà nhà chính phủ.</li>
   <li>v2.60.0: Thêm hình <b>Tháp Radar</b> (nền 2 × 2) cho mỗi phe, ăng-ten xoay đủ 360°: Mỹ — chảo parabol trên tháp côn trắng; Nga — tấm ra-đa mảng pha trên cột thép giàn; Trung Quốc — chảo Cassegrain trên tháp bát giác; châu Âu — gương phản xạ "vỏ cam" trên tháp tròn; thế giới Hồi giáo — chảo lưới viền vàng trên tháp bát giác có vòm nhọn. Mới chỉ có hình (xem ở <code>?view=buildings</code>), chưa bán / chưa xây được trong trận.</li>
+  <li>v3.36.0: <b>Xe phòng không</b> của cả 5 phe (Patriot, SAMP/T NG, S-400, HQ-9, PGZ-09 của phe Hồi giáo) dựng lại bằng Blender theo ART_GUIDE: mỗi xe một script riêng, 32 hướng, render Cycles, bóng đổ thật, dải màu nhận diện phe; SAMP/T NG, S-400, HQ-9 dựng ống phóng thẳng đứng. <b>News</b> thành bản tin tình báo có nhãn QS / KT / CT / XH: giá dầu biến động ≥ 6%, cartel đổi chính sách, vay khẩn cấp, đóng băng tín dụng, xây Sân bay / Cảng / Trung tâm Công nghệ cao, Thành phố Hạnh phúc, đồng minh mới, Chính phủ song song.</li>
   <li>v3.35.1: Dựng lại thủ đô <b>Ấn Độ</b> (Rashtrapati Bhavan) và <b>Ukraine</b> (Verkhovna Rada) bằng Blender theo ART_GUIDE: mỗi công trình một script riêng, cửa sổ có khung, bậu và kính lùi vào, gờ phào, trụ áp tường, bậc thềm; Ấn Độ có chhajja đỏ, lan can jali, cổng 12 cột, mái vòm đồng trên trống có hàng cột, 4 chhatri; Ukraine có nền đá granite xẻ rãnh, cổng 6 cột Corinthian có trán tường, trống có cửa sổ giữa các cặp trụ, mái vòm kính có sườn kim loại.</li>
   <li>v3.35.0: Thêm 2 quốc gia độc lập làm <b>vùng đệm</b>, ai cũng có thể cho kỹ sư chiếm: <b>Ấn Độ</b> (Rashtrapati Bhavan, New Delhi — giữa Trung Quốc và thế giới Hồi giáo, phí hiện diện 1980 TB / 2 phút) và <b>Ukraine</b> (Verkhovna Rada, Kyiv — giữa châu Âu và Nga, 640 TB / 2 phút).</li>
   <li>v3.34.4: AI: <b>mọi</b> công trình (cả nhà máy điện bổ sung, Thành phố Hạnh phúc, Allied Building, công trình của phe khác, tường, cổng, bunker, cảng) đều được đặt xây khi ngân khố gần 0 — tiền trả dần như người chơi, không còn đòi phải có sẵn 30% / 60% / 100% / 150% giá.</li>

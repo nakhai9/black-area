@@ -2172,3 +2172,21 @@ button,
   background: none;
   border-color: transparent;
 }
+
+/* News window: intelligence section tags. */
+.news-tag {
+  display: inline-block;
+  min-width: 2.6em;
+  margin: 0 6px 0 4px;
+  padding: 0 4px;
+  border-radius: 3px;
+  font-size: 0.72em;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-align: center;
+  color: #0d0f12;
+}
+.news-tag-military { background: #e0594c; }
+.news-tag-economy { background: #e3b341; }
+.news-tag-politics { background: #6fa8dc; }
+.news-tag-society { background: #7cc47f; }

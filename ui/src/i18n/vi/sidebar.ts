@@ -131,4 +131,12 @@ export default {
   "Aircraft": "Máy bay",
   "Rank": "Xếp hạng",
   "Allies": "Đồng minh",
+  "MIL": "QS",
+  "ECO": "KT",
+  "POL": "CT",
+  "SOC": "XH",
+  "Military intelligence": "Tình báo quân sự",
+  "Economic intelligence": "Tình báo kinh tế",
+  "Political intelligence": "Tình báo chính trị",
+  "Social intelligence": "Tình báo xã hội",
 } satisfies Record<string, string>;

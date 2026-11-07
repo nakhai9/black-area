@@ -17,9 +17,49 @@ const BLOW_FRAME_SECONDS = 0.1;
 const FADE_SECONDS = 0.8;
 export const MANTIS_DEATH_SECONDS = 3;
 
-/** Built in code: nothing to download (kept for the loaders that still call it). */
+/**
+ * Blender sheets (tools/blender/mantis_<model>_sheet.py, vehiclekit contract): one row of 32 cells, column 0 = nose
+ * up the screen, clockwise; LAYOUT layout px per cell with the vehicle's ground centre at ANCHOR and its overall length
+ * spanning LENGTH layout px; the ground shadow is baked in. The polygon models stay as the fallback while a sheet loads.
+ */
+const SHEET_MODEL: Record<FactionId, string> = { usa: 'patriot', europe: 'sampt', russia: 's400', china: 'hq9', islamic: 'pgz09' };
+const LAYOUT = 128;
+const ANCHOR = { x: 64, y: 84 };
+const LENGTH = 80;
+/** On-screen length (iso px) of every nation's air-defence vehicle: about a supply truck long. */
+const SHEET_LENGTH_ISO = 9;
+const SHEETS = new Map<FactionId, HTMLImageElement>();
+function sheet(f: FactionId): HTMLImageElement | null {
+  let img = SHEETS.get(f);
+  if (!img) {
+    img = new Image();
+    img.src = `${import.meta.env.BASE_URL}sprites/mantis-${SHEET_MODEL[f]}.webp`;
+    SHEETS.set(f, img);
+  }
+  return img.complete && img.naturalWidth > 0 ? img : null;
+}
+
+/** Draws cell `d` of the nation's sheet with the ground centre at (x, y), `iso` iso px per vehicle length. */
+function blitSheet(ctx: CanvasRenderingContext2D, img: CanvasImageSource & { naturalWidth: number; naturalHeight: number }, d: number, x: number, y: number, iso: number): void {
+  const src = img.naturalWidth / DIRS;
+  const k = iso / LENGTH; // iso px per layout px
+  const size = LAYOUT * k;
+  ctx.drawImage(img, d * src, 0, src, img.naturalHeight, x - ANCHOR.x * k, y - ANCHOR.y * k, size, size);
+}
+
+/** Starts the sheet downloads (the polygon models are used until they arrive, or if one is missing). */
 export function loadMantisSprites(): Promise<void> {
-  return Promise.resolve();
+  return Promise.all(
+    (Object.keys(SHEET_MODEL) as FactionId[]).map(
+      (f) =>
+        new Promise<void>((resolve) => {
+          const img = new Image();
+          img.onload = img.onerror = () => resolve();
+          img.src = `${import.meta.env.BASE_URL}sprites/mantis-${SHEET_MODEL[f]}.webp`;
+          SHEETS.set(f, img);
+        }),
+    ),
+  ).then(() => undefined);
 }
 
 /** Always true: the models are drawn in code (its air-defence vehicles die with its wreck). */
@@ -40,6 +80,14 @@ export function drawMantisSheet(ctx: CanvasRenderingContext2D, v: Vehicle, x: nu
   if (v.type !== 'mantis') return false;
   const f = v.faction as FactionId;
   const d = direction(v.heading);
+  const img = sheet(f);
+  if (img) {
+    const prev = ctx.imageSmoothingEnabled;
+    ctx.imageSmoothingEnabled = true;
+    blitSheet(ctx, img, d, x, y, SHEET_LENGTH_ISO);
+    ctx.imageSmoothingEnabled = prev;
+    return true;
+  }
   const size = SAM_CELL * scale(f);
   const half = size / 2;
   const prevSmooth = ctx.imageSmoothingEnabled;
@@ -62,8 +110,16 @@ export function drawMantisSheet(ctx: CanvasRenderingContext2D, v: Vehicle, x: nu
 
 /** Sidebar cameo of the nation's air-defence vehicle (`heading` world radians). */
 export function drawMantisPortrait(ctx: CanvasRenderingContext2D, faction: FactionId, w: number, h: number, heading: number): boolean {
-  const size = Math.min(w, h) * 1.6;
   const d = direction(heading);
+  const img = sheet(faction);
+  if (img) {
+    ctx.save();
+    ctx.imageSmoothingEnabled = true;
+    blitSheet(ctx, img, d, w / 2, h * 0.62, w * 0.8);
+    ctx.restore();
+    return true;
+  }
+  const size = Math.min(w, h) * 1.6;
   const o = samPivotOffset(faction, d);
   const k = size / SAM_CELL;
   ctx.save();
@@ -82,7 +138,14 @@ export function drawMantisDeath(ctx: CanvasRenderingContext2D, faction: FactionI
   const prevAlpha = ctx.globalAlpha;
   ctx.imageSmoothingEnabled = true;
   ctx.globalAlpha = Math.max(0, Math.min(1, (ttl - age) / FADE_SECONDS));
-  ctx.drawImage(samSheetCell(faction, { kind: 'wreck', dir: (Math.round(direction(heading) / 4) % 8) * 4 }), x - half, y - half, size, size);
+  const img = sheet(faction);
+  if (img) {
+    // Burnt-out wreck: the vehicle's own cell, darkened and desaturated.
+    const prevFilter = ctx.filter;
+    ctx.filter = 'brightness(0.32) saturate(0.4)';
+    blitSheet(ctx, img, direction(heading), x, y, SHEET_LENGTH_ISO);
+    ctx.filter = prevFilter;
+  } else ctx.drawImage(samSheetCell(faction, { kind: 'wreck', dir: (Math.round(direction(heading) / 4) % 8) * 4 }), x - half, y - half, size, size);
   if (age < BLOW_FRAMES * BLOW_FRAME_SECONDS) ctx.drawImage(samSheetCell(faction, { kind: 'blast', frame: Math.floor(age / BLOW_FRAME_SECONDS) }), x - half, y - half, size, size);
   ctx.globalAlpha = prevAlpha;
   ctx.imageSmoothingEnabled = prevSmooth;

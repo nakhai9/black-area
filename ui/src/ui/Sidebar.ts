@@ -215,7 +215,7 @@ export interface SidebarModel {
   /** Capitals held by another nation, for the News window (null while it is closed). */
   occupied: readonly OccupiedCapital[] | null;
   /** Capture / destruction / embargo events between nations, newest first (null while the News window is closed). */
-  newsLog: readonly { at: string; text: string }[] | null;
+  newsLog: readonly { at: string; text: string; category?: 'military' | 'economy' | 'politics' | 'society' }[] | null;
   /** The selected transport of the player, or null (hides the Transport panel). */
   transport: TransportInfo | null;
   /** A bridge layer of mine is selected: the Bridge button is lit (B). */
@@ -797,7 +797,7 @@ export class Sidebar {
   }
 
   /** News window: who captured, destroyed or put under embargo whom, newest first, with the game time. */
-  private renderEvents(rows: readonly { at: string; text: string }[]): void {
+  private renderEvents(rows: readonly { at: string; text: string; category?: 'military' | 'economy' | 'politics' | 'society' }[]): void {
     const list = this.eventList;
     if (!list) return;
     const key = rows.map((r) => r.at + r.text).join('|');
@@ -817,10 +817,16 @@ export class Sidebar {
         const at = document.createElement('span');
         at.className = 'news-occ-by';
         at.textContent = r.at;
+        // Intelligence section tag: military / economy / politics / society.
+        const cat = r.category ?? 'politics';
+        const tag = document.createElement('span');
+        tag.className = `news-tag news-tag-${cat}`;
+        tag.textContent = { military: t('MIL'), economy: t('ECO'), politics: t('POL'), society: t('SOC') }[cat];
+        tag.title = { military: t('Military intelligence'), economy: t('Economic intelligence'), politics: t('Political intelligence'), society: t('Social intelligence') }[cat];
         const text = document.createElement('span');
         text.className = 'news-occ-name';
         text.textContent = r.text;
-        li.append(at, text);
+        li.append(at, tag, text);
         return li;
       }),
     );
