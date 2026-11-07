@@ -26,7 +26,7 @@
 <body>
 <main>
 <img class="logo" src="/logo.png" alt="Black Area" />
-<h1>Black Area — RULE <small>v3.36.2</small></h1>
+<h1>Black Area — RULE <small>v3.36.3</small></h1>
 <p class="lead">Tài liệu luật chơi + kiến trúc code dành cho AI/dev sửa game. Mọi con số gameplay chính xác nằm trong <code>src/constants.ts</code> và <code>src/factions/*.ts</code>. Nếu tài liệu này khác code thì <b>code đúng</b>. <b>Khi đổi luật/số trong code, phải cập nhật file này.</b></p>
 <nav><a href="#s1">Quy tắc làm việc cho AI</a><a href="#s2">Chạy dự án</a><a href="#s3">Kiến trúc thư mục</a><a href="#s4">Thế giới</a><a href="#s5">Kinh tế (dầu)</a><a href="#s6">Công trình (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Quân đội</a><a href="#s8">Chiến đấu</a><a href="#s9">Điều khiển (Game.handleKey, handleInput)</a><a href="#s10">Giới hạn &amp; hiệu năng</a><a href="#s11">Thắng / thua &amp; AI</a><a href="#s12">Công thức sửa thường gặp</a></nav>
 <h2 id="s1">0. Quy tắc làm việc cho AI</h2>
@@ -698,6 +698,7 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
   <li>v2.59.1: Tab Phương tiện dùng biểu tượng xe tăng thay cho xe tải.</li>
   <li>v2.59.2: Tab Chỉ huy đổi tên thành Chính phủ (Government), biểu tượng toà nhà chính phủ.</li>
   <li>v2.60.0: Thêm hình <b>Tháp Radar</b> (nền 2 × 2) cho mỗi phe, ăng-ten xoay đủ 360°: Mỹ — chảo parabol trên tháp côn trắng; Nga — tấm ra-đa mảng pha trên cột thép giàn; Trung Quốc — chảo Cassegrain trên tháp bát giác; châu Âu — gương phản xạ "vỏ cam" trên tháp tròn; thế giới Hồi giáo — chảo lưới viền vàng trên tháp bát giác có vòm nhọn. Mới chỉ có hình (xem ở <code>?view=buildings</code>), chưa bán / chưa xây được trong trận.</li>
+  <li>v3.36.3: <b>Thủ đô bị chiếm đóng</b> vẫn bị tấn công nhưng không bị phá hủy; khi hết máu sẽ trở về <b>trung lập</b> như ban đầu (đầy máu, phe chiếm mất quyền sở hữu, kỹ sư phe nào cũng có thể chiếm lại).</li>
   <li>v3.36.2: <b>Cổng quốc gia</b> nối liền với tường cùng phe ở hai đầu (khối tường sát cổng không còn là đầu cụt có vạch đứt). <b>AI</b> chiếm các quốc gia trung lập bên kia biển (Úc, Nhật, Anh, Cuba...) ngay khi còn trống, không đợi chiếm hết các nước trên đất liền đang bị phe khác giữ; vượt biển vẫn tính xa gấp đôi.</li>
   <li>v3.36.1: Lệnh di chuyển: phương tiện dừng lại giữ nguyên hướng đang chạy tới (như RA2), không còn xoay 90–180° khi tới đích. Lệnh dàn đội hình (Form up) vẫn quay cùng một hướng.</li>
   <li>v3.36.0: <b>Xe phòng không</b> của cả 5 phe (Patriot, SAMP/T NG, S-400, HQ-9, PGZ-09 của phe Hồi giáo) dựng lại bằng Blender theo ART_GUIDE: mỗi xe một script riêng, 32 hướng, render Cycles, bóng đổ thật, dải màu nhận diện phe; SAMP/T NG, S-400, HQ-9 dựng ống phóng thẳng đứng. <b>News</b> thành bản tin tình báo có nhãn QS / KT / CT / XH: giá dầu biến động ≥ 6%, cartel đổi chính sách, vay khẩn cấp, đóng băng tín dụng, xây Sân bay / Cảng / Trung tâm Công nghệ cao, Thành phố Hạnh phúc, đồng minh mới, Chính phủ song song.</li>

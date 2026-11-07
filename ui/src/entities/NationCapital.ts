@@ -26,8 +26,7 @@ export function nationInfo(id: NationId): { name: string; capital: string; city:
  * Capital of a contested independent nation (North / South Korea, Japan, Australia, Brazil). It starts neutral; an
  * engineer of any nation takes it over (from nobody or from its holder). The holder is paid a military presence fee
  * every NATION_PRESENCE_PERIOD seconds (see TaxSystem) and may build its own structures next to it. Enemies can attack
- * it but never destroy it: knocked down to no health it stands `down` — no presence fee — until it has mended itself
- * back to full health (NATION_CAPITAL_REGEN).
+ * it but never destroy it: knocked down to no health it goes back to neutral at full health, as at the start (free()).
  */
 export class NationCapital extends Building {
   readonly city: string;
@@ -53,7 +52,7 @@ export class NationCapital extends Building {
       spriteKey: n.spriteKey,
     });
     this.city = n.city;
-    this.description = t('Capital of {name}, an independent nation. An engineer takes it over; its holder earns a military presence fee every {minutes} minutes and may build next to it. Enemies can attack it but never destroy it: knocked down to no health, it pays no fee until it has mended itself back to full health.', { name: n.name, minutes: NATION_PRESENCE_PERIOD / 60 });
+    this.description = t('Capital of {name}, an independent nation. An engineer takes it over; its holder earns a military presence fee every {minutes} minutes and may build next to it. Enemies can attack it but never destroy it: knocked down to no health, it goes back to neutral as at the start.', { name: n.name, minutes: NATION_PRESENCE_PERIOD / 60 });
   }
 
   /** Attackable (older saves stored it as indestructible): damage is capped instead, see damage(). */
@@ -61,11 +60,19 @@ export class NationCapital extends Building {
     return false;
   }
 
-  /** Never destroyed: its health stops just above nothing, and it is down (no fee) until fully mended. */
+  /** Never destroyed: knocked down to no health, it is freed — back to neutral and full health, as at the start. */
   override damage(amount: number): void {
     if (this.owner === NEUTRAL_OWNER) return; // an unheld capital is nobody's to fight over
-    this.hp = Math.max(NATION_CAPITAL_FLOOR_HP, this.hp - amount);
-    if (this.hp <= NATION_CAPITAL_FLOOR_HP) this.down = true;
+    this.hp -= amount;
+    if (this.hp <= NATION_CAPITAL_FLOOR_HP) this.free();
+  }
+
+  /** Back to its starting state: neutral, full health, any nation's engineer may take it over again. */
+  free(): void {
+    this.release();
+    this.hp = this.maxHp;
+    this.down = false;
+    this.presenceClock = NATION_PRESENCE_PERIOD;
   }
 
   /** Mends itself: NATION_CAPITAL_REGEN of its max health per second; back to full, it pays again. */
