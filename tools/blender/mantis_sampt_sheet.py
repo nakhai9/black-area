@@ -105,4 +105,4 @@ def build(root):
 
 if __name__ == "__main__":
     vk.render_sheet("mantis-sampt", build, LENGTH, centre_x=0.6, samples=int(os.environ.get("SAMPT_SAMPLES", "32")),
-                    preview=os.environ.get("SAMPT_PREVIEW"), preview_dir=int(os.environ.get("SAMPT_DIR", "4")))
+                    preview=os.environ.get("SAMPT_PREVIEW"), width_scale=1.6, preview_dir=int(os.environ.get("SAMPT_DIR", "4")))

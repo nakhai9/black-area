@@ -88,16 +88,16 @@ def build(root):
     vk.box("hinge", (bx, 0, 1.6), (0.45, 2.4, 0.35), steel, root)
     # open lifting frame behind the pack: two posts and cross braces (the canisters show through)
     for s in (-1, 1):
-        vk.box(f"post{s}", (bx - 0.05, s * 1.0, 5.35), (0.16, 0.16, 7.5), green_dk, root, 0.01)
-    for z in (2.0, 5.35, 8.799999999999999):
+        vk.box(f"post{s}", (bx - 0.05, s * 1.0, 5.15), (0.16, 0.16, 7.1), green_dk, root, 0.01)
+    for z in (2.0, 5.15, 8.4):
         vk.box(f"brace{z}", (bx - 0.05, 0, z), (0.12, 2.0, 0.14), green_dk, root, 0.005)
     for row, x in enumerate((bx + 0.45, bx + 1.25)):
         for k, y in enumerate((-0.42, 0.42)):
-            vk.cyl(f"tube{row}{k}", (x, y, 5.45), 0.38, 7.4, "Z", tube, root, 32)
+            vk.cyl(f"tube{row}{k}", (x, y, 5.25), 0.38, 7.0, "Z", tube, root, 32)
             for z in (2.3, 4.2, 6.1, 8.0):
                 vk.cyl(f"tube_ring{row}{k}{z}", (x, y, z), 0.4, 0.1, "Z", green_dk, root, 32)
-            vk.cyl(f"tube_band{row}{k}", (x, y, 8.8), 0.402, 0.22, "Z", team, root, 32)
-            vk.cyl(f"tube_cap{row}{k}", (x, y, 9.2), 0.36, 0.1, "Z", dark, root, 32)
+            vk.cyl(f"tube_band{row}{k}", (x, y, 8.4), 0.402, 0.22, "Z", team, root, 32)
+            vk.cyl(f"tube_cap{row}{k}", (x, y, 8.8), 0.36, 0.1, "Z", dark, root, 32)
     for z in (3.0, 7.6):
         vk.box(f"clamp{z}", (bx + 0.85, 0, z), (1.75, 1.75, 0.14), steel, root, 0.01)
     for s in (-1, 1):
@@ -108,4 +108,4 @@ def build(root):
 
 if __name__ == "__main__":
     vk.render_sheet("mantis-s400", build, LENGTH, centre_x=0.5, samples=int(os.environ.get("S400_SAMPLES", "32")),
-                    preview=os.environ.get("S400_PREVIEW"), preview_dir=int(os.environ.get("S400_DIR", "4")))
+                    preview=os.environ.get("S400_PREVIEW"), width_scale=1.7, preview_dir=int(os.environ.get("S400_DIR", "4")))

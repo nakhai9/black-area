@@ -108,4 +108,4 @@ def build(root):
 
 if __name__ == "__main__":
     vk.render_sheet("mantis-patriot", build, LENGTH, centre_x=0.0, samples=int(os.environ.get("PATRIOT_SAMPLES", "32")),
-                    preview=os.environ.get("PATRIOT_PREVIEW"), preview_dir=int(os.environ.get("PATRIOT_DIR", "4")))
+                    preview=os.environ.get("PATRIOT_PREVIEW"), width_scale=1.7, preview_dir=int(os.environ.get("PATRIOT_DIR", "4")))

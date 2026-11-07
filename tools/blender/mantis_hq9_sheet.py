@@ -83,17 +83,17 @@ def build(root):
     vk.box("hinge", (bx, 0, 1.55), (0.4, 2.4, 0.3), steel, root)
     # open lifting frame behind the pack: two posts and cross braces (the canisters show through)
     for s in (-1, 1):
-        vk.box(f"post{s}", (bx - 0.05, s * 0.95, 4.6), (0.16, 0.16, 6.2), green_dk, root, 0.01)
-    for z in (1.9, 4.6, 7.4):
+        vk.box(f"post{s}", (bx - 0.05, s * 0.95, 4.3), (0.16, 0.16, 5.6), green_dk, root, 0.01)
+    for z in (1.9, 4.3, 6.8):
         vk.box(f"brace{z}", (bx - 0.05, 0, z), (0.12, 1.9, 0.14), green_dk, root, 0.005)
     for row, x in enumerate((bx + 0.42, bx + 1.18)):
         for k, y in enumerate((-0.4, 0.4)):
-            vk.cyl(f"can{row}{k}", (x, y, 4.65), 0.35, 6.2, "Z", metal, root, 32)
-            for z in (2.2, 3.9, 5.6, 7.1):
+            vk.cyl(f"can{row}{k}", (x, y, 4.35), 0.35, 5.6, "Z", metal, root, 32)
+            for z in (2.2, 3.7, 5.2, 6.6):
                 vk.cyl(f"can_ring{row}{k}{z}", (x, y, z), 0.37, 0.09, "Z", steel, root, 32)
-            vk.cyl(f"can_band{row}{k}", (x, y, 7.45), 0.372, 0.2, "Z", team, root, 32)
-            vk.cyl(f"can_cap{row}{k}", (x, y, 7.8), 0.33, 0.08, "Z", dark, root, 32)
-    for z in (2.8, 6.4):
+            vk.cyl(f"can_band{row}{k}", (x, y, 6.85), 0.372, 0.2, "Z", team, root, 32)
+            vk.cyl(f"can_cap{row}{k}", (x, y, 7.2), 0.33, 0.08, "Z", dark, root, 32)
+    for z in (2.8, 5.9):
         vk.box(f"clamp{z}", (bx + 0.8, 0, z), (1.65, 1.65, 0.14), green_dk, root, 0.01)
     for s in (-1, 1):
         vk.tube_between(f"ram{s}", (-2.4, s * 0.9, 1.45), (bx + 0.1, s * 0.9, 4.3), 0.11, steel, root)
@@ -103,4 +103,4 @@ def build(root):
 
 if __name__ == "__main__":
     vk.render_sheet("mantis-hq9", build, LENGTH, centre_x=0.7, samples=int(os.environ.get("HQ9_SAMPLES", "32")),
-                    preview=os.environ.get("HQ9_PREVIEW"), preview_dir=int(os.environ.get("HQ9_DIR", "4")))
+                    preview=os.environ.get("HQ9_PREVIEW"), width_scale=1.6, preview_dir=int(os.environ.get("HQ9_DIR", "4")))

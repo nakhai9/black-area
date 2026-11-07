@@ -1230,13 +1230,29 @@ export class Game {
     this.joinWalls(x, y);
   }
 
+  /**
+   * A Nation Gate of `owner` has an end pillar at (x, y) and runs along the axis looked along (E-W when `alongX`):
+   * its built-in wall stub meets a wall block there, so that block joins it like another block of the line.
+   */
+  private gateEndAt(x: number, y: number, alongX: boolean, owner: number): boolean {
+    const id = this.map.occupantAt(x, y);
+    const g = id === null ? undefined : this.entities.get(id);
+    return g instanceof Gate && g.alive && g.owner === owner && g.rotated !== alongX;
+  }
+
+  /** Wall blocks at both ends of a gate (re)join it when it is placed or taken off the map. */
+  private joinGate(g: Gate): void {
+    this.joinWalls(g.x, g.y);
+    this.joinWalls(g.x + g.w - 1, g.y + g.d - 1);
+  }
+
   /** Re-picks the joined sprite (straight, corner, T, cross, single post) of every wall block round (x, y). */
   private joinWalls(x: number, y: number): void {
     for (let cy = y - WALL_FILL_GAP - 1; cy <= y + WALL_FILL_GAP + 1; cy++) {
       for (let cx = x - WALL_FILL_GAP - 1; cx <= x + WALL_FILL_GAP + 1; cx++) {
         const w = this.wallAt(cx, cy);
         if (!w) continue;
-        const mate = (ox: number, oy: number): boolean => this.wallAt(ox, oy)?.owner === w.owner;
+        const mate = (ox: number, oy: number): boolean => this.wallAt(ox, oy)?.owner === w.owner || this.gateEndAt(ox, oy, ox !== cx, w.owner);
         w.joins = (mate(cx, cy - 1) ? WALL_N : 0) | (mate(cx + 1, cy) ? WALL_E : 0) | (mate(cx, cy + 1) ? WALL_S : 0) | (mate(cx - 1, cy) ? WALL_W : 0);
       }
     }
@@ -1694,6 +1710,7 @@ export class Game {
     b.placedAt = this.time;
     this.occupyBuilding(b);
     if (b instanceof Wall) this.orientWalls(b.x, b.y);
+    else if (b instanceof Gate) this.joinGate(b);
     this.reportBuilt(player, b.spec.type);
     return true;
   }
@@ -4519,6 +4536,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     b.placedAt = this.time;
     this.occupyBuilding(b);
     if (b instanceof Wall) this.orientWalls(b.x, b.y);
+    else if (b instanceof Gate) this.joinGate(b);
     this.sidebar.notify(t('{name} placed.', { name: option.name }));
     this.sidebarTimer = SIDEBAR_REFRESH;
   }
@@ -6649,6 +6667,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     this.entities.remove(e.id);
     // A destroyed / sold wall block: its neighbours rejoin without it (a line end, a corner turned straight...).
     if (e instanceof Wall) this.joinWalls(e.x, e.y);
+    else if (e instanceof Gate) this.joinGate(e);
     const i = this.derricks.indexOf(e as OilDerrick);
     if (i >= 0) this.derricks.splice(i, 1);
   }
@@ -7000,8 +7019,8 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
             last.x = mm.goal.x;
             last.y = mm.goal.y;
           } else path.push(mm.goal);
+          // RA2: it stops facing the way it drove in (no pivot on arrival).
           mm.unit.follow(path);
-          mm.unit.faceOnArrival = mm.facing; // the whole group ends up facing the same way
         }, this.humanOwned(lead.unit)),
         this.humanOwned(lead.unit),
       );

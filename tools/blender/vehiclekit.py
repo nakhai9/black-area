@@ -26,7 +26,7 @@ CELL_PX, OVERSAMPLE = 256, 2
 ANCHOR = (64, 84)
 LENGTH_PX = 80
 VIEW_ELEV = math.radians(30)
-STRETCH_Z = 1.3  # RA2-style chunky look, kept low so raised launchers stay inside the cell
+STRETCH_Z = 1.6  # RA2-style chunky look, same as the tank sheets (ART_GUIDE 5 HEIGHT_SCALE)
 
 
 # ------------------------------------------------------------------ materials
@@ -255,7 +255,7 @@ def smooth_round(root):
         o.select_set(False)
 
 
-def render_sheet(sheet, build, length_m, centre_x=0.0, samples=32, preview=None, preview_dir=4):
+def render_sheet(sheet, build, length_m, centre_x=0.0, samples=32, preview=None, preview_dir=4, width_scale=1.0):
     """Builds the model (build(root) under a turntable), renders 32 headings and writes ui/public/sprites/<sheet>.png.
     centre_x: the model's ground centre along +X (the turntable pivot)."""
     sc, floor = setup(512 if preview else CELL_PX * OVERSAMPLE, samples)
@@ -264,7 +264,9 @@ def render_sheet(sheet, build, length_m, centre_x=0.0, samples=32, preview=None,
     root = node("Model", (-centre_x, 0, 0), turntable)
     build(root)
     smooth_round(root)
-    turntable.scale = (1, 1, STRETCH_Z)
+    # Long vehicles squeezed to the group length look thin: their width is widened (like the aircraft fuselages,
+    # ART_GUIDE 5) so the body reads chunky next to the tanks.
+    turntable.scale = (1, width_scale, STRETCH_Z)
     scratch = os.path.join(THIS_DIR, f"_{sheet}_tmp.png")
     if preview:
         turntable.rotation_euler = (0, 0, model_yaw(preview_dir))

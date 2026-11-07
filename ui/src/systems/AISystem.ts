@@ -1860,7 +1860,7 @@ export class AISystem implements GameSystem {
       const home = cellOf(capital);
       const homeW = capital.centerWorld();
       // Order of prizes: Antarctic derricks first when the engineer can get there now (on foot, or a free transport
-      // parked at home); otherwise they never hold up the rest: prizes on foot, then overseas. Within a tier the
+      // parked at home); otherwise they never hold up the rest: free prizes (on foot or overseas), then held ones. Within a tier the
       // nearest (free oil, richer capitals pull harder).
       const canLift = owned.has('airfield') && this.homeTransports(p).some((v) => !this.carriesSquatters(v) && v.cargo.length < TRANSPORT_LOAD);
       let wantsLift = false;
@@ -1877,7 +1877,9 @@ export class AISystem implements GameSystem {
         const antarctic = c instanceof OilDerrick && c.antarctic;
         if (antarctic && !overland) wantsLift = true;
         if (!overland && !owned.has('airfield')) continue;
-        const tier = antarctic && (overland || canLift) ? 0 : overland ? 1 : 2;
+        // Free prizes before ones another nation holds, wherever they lie: across the sea only weighs as twice as far
+        // (score below), so a nearby island nation is taken early instead of after every rival on the home continent.
+        const tier = antarctic && (overland || canLift) ? 0 : c.owner === NEUTRAL_OWNER ? 1 : 2;
         const rival = this.isRivalCapital(p, c) ? RIVAL_CAPITAL_PULL : 1;
         const rich = rival * (c instanceof NationCapital ? Math.sqrt(NATION_PRESENCE_FEE / presenceFee(c.nation)) : 1);
         const score = Math.hypot(w.x - homeW.x, w.y - homeW.y) * (overland ? 1 : 2) * (c.owner === NEUTRAL_OWNER ? 0.8 : 1) * (freeOil ? FREE_OIL_PULL : 1) * rich;
