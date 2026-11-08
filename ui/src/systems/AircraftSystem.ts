@@ -2,7 +2,7 @@ import { BOMB_COST, BOMB_LOAD_SECONDS, CARRIER_JETS, JET_BOMB_COST, CELL_SIZE, T
 import type { Building } from '../entities/Building';
 import type { EntityManager } from '../entities/EntityManager';
 import { CRUISE_ALTITUDE, type Vehicle } from '../entities/Vehicle';
-import type { WorldPoint } from '../types';
+import type { VehicleKind, WorldPoint } from '../types';
 import type { GameSystem } from './GameSystem';
 
 /** Layout of an airfield in world px (derived from its sprite, scale and rotation). */
@@ -19,8 +19,15 @@ export interface AirfieldGeometry {
 }
 
 export const PARKING_SLOTS = 9;
-/** Structures aircraft land, park and are repaired at: the Airfield and the Naval Port (its pier pads). */
-export const isAirBase = (b: Building): boolean => b.spec.type === 'airfield' || b.spec.type === 'port';
+/**
+ * Aircraft kinds allowed to park on a Naval Port's pier pads. Empty for now: no aircraft uses a port as its base
+ * (convention still to be decided — add kinds here, e.g. 'heli'). Every other aircraft only bases at an Airfield.
+ */
+export const PORT_AIRCRAFT: ReadonlySet<VehicleKind> = new Set<VehicleKind>([]);
+/** Structures some aircraft can land, park and be repaired at: the Airfield, and the Naval Port when PORT_AIRCRAFT allows. */
+export const isAirBase = (b: Building): boolean => b.spec.type === 'airfield' || (b.spec.type === 'port' && PORT_AIRCRAFT.size > 0);
+/** Can an aircraft of `kind` take `b` as its base (land, park, be rearmed there)? */
+export const canBaseAt = (b: Building, kind: VehicleKind): boolean => b.spec.type === 'airfield' || (b.spec.type === 'port' && PORT_AIRCRAFT.has(kind));
 /** Parking spots of an air base: PARKING_SLOTS on an Airfield, PORT_AIR_SLOTS on a Naval Port. */
 export const parkingSlots = (b: Building): number => (b.spec.type === 'port' ? PORT_AIR_SLOTS : PARKING_SLOTS);
 /** Spots per apron row; within a row the next spot lies ahead (towards the runway end). */
@@ -231,7 +238,8 @@ export class AircraftSystem implements GameSystem {
   /** The airfield this aircraft belongs to (alive, same owner), if any. */
   private home(v: Vehicle): Building | null {
     const b = v.homeId === null ? undefined : this.entities.get(v.homeId);
-    return b && b.alive && b.owner === v.owner && 'spec' in b ? (b as Building) : null;
+    // A base it may no longer use (e.g. a Naval Port for a kind not in PORT_AIRCRAFT) counts as lost: it re-homes.
+    return b && b.alive && b.owner === v.owner && 'spec' in b && (v.isHeli || canBaseAt(b as Building, v.type)) ? (b as Building) : null;
   }
 
   /** Orders given while it cannot lift off yet are remembered. */
@@ -490,7 +498,7 @@ export class AircraftSystem implements GameSystem {
    * comes in over whichever runway end is nearer. False when it cannot land there.
    */
   land(v: Vehicle, airfield: Building): boolean {
-    if (!v.aircraft || !v.alive || airfield.owner !== v.owner || !airfield.alive || !isAirBase(airfield)) return false;
+    if (!v.aircraft || !v.alive || airfield.owner !== v.owner || !airfield.alive || !canBaseAt(airfield, v.type)) return false;
     // A transport aircraft only comes in to an airfield empty: its riders are set down first.
     if (v.isTransport && v.cargo.length > 0) return false;
     const slot = this.freeSlot(v.homeId === airfield.id ? v : null, airfield);
@@ -1111,7 +1119,7 @@ export class AircraftSystem implements GameSystem {
     let best: Building | null = null;
     let bestD = Infinity;
     for (const b of this.entities.buildings()) {
-      if (b.owner !== v.owner || !b.alive || !isAirBase(b) || this.freeSlot(v, b) < 0) continue;
+      if (b.owner !== v.owner || !b.alive || !canBaseAt(b, v.type) || this.freeSlot(v, b) < 0) continue;
       const c = b.centerWorld();
       const d = Math.hypot(c.x - v.px, c.y - v.py);
       if (d < bestD) {
@@ -1153,6 +1161,16 @@ export class AircraftSystem implements GameSystem {
     // and only then glides down — a transport never sets down on the water.
     // "Arrived" within a cell: aircraft keep apart in the air, so two transports sent to the same spot shoved each
     // other about and neither ever came within a pixel of it, hanging there for ever with their passengers aboard.
+    // A new order while still at cruise height on the way to the spot: the landing is called off and it flies on
+    // (before, the order was silently ignored while it kept heading for the spot).
+    if (v.phaseTime === 0 && (v.moving || v.attackTarget !== null || v.attackMove !== null)) {
+      v.flight = 'airborne';
+      v.dropSpot = null;
+      v.pickup = false;
+      v.altitude = CRUISE_ALTITUDE;
+      v.idleFor = 0;
+      return;
+    }
     if (v.dropSpot && v.phaseTime === 0 && Math.hypot(v.dropSpot.x - v.px, v.dropSpot.y - v.py) > DROP_ARRIVE) {
       this.moveTo(v, v.dropSpot, Math.max(10, v.speed), dt);
       return;

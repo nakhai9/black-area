@@ -169,7 +169,7 @@ import { CRAFT_DEATH_SECONDS, craftKey } from '../render/CraftSheets';
 import { SpriteCache } from '../render/SpriteCache';
 import { BUILDING_ART } from '../render/sprites';
 import { AIRFIELD_SLOTS, RUNWAY_D, AIRFIELD_SIZE } from '../render/sprites/Airfield';
-import { AircraftSystem, isAirBase, type AirfieldGeometry } from '../systems/AircraftSystem';
+import { AircraftSystem, canBaseAt, isAirBase, type AirfieldGeometry } from '../systems/AircraftSystem';
 import { AISystem } from '../systems/AISystem';
 import { StructureIndex } from '../systems/StructureIndex';
 import { canTarget, CombatSystem, distanceTo, inTruce, isHostile, setDisarmed, setTruce, setViolators } from '../systems/CombatSystem';
@@ -2049,13 +2049,13 @@ export class Game {
     const cell = this.map.cellAt(world.x, world.y);
     if (!cell || !units.some((u) => u.aircraft)) return [...units];
     const m = AIRFIELD_CLICK_MARGIN;
-    const near = (owner: number): Building | undefined =>
+    const near = (u: Vehicle): Building | undefined =>
       this.entities.buildings().find(
-        (b) => b.alive && b.owner === owner && isAirBase(b) && cell.x >= b.x - m && cell.x < b.x + b.w + m && cell.y >= b.y - m && cell.y < b.y + b.d + m,
+        (b) => b.alive && b.owner === u.owner && canBaseAt(b, u.type) && cell.x >= b.x - m && cell.x < b.x + b.w + m && cell.y >= b.y - m && cell.y < b.y + b.d + m,
       );
     return units.filter((u) => {
       if (!(u instanceof Vehicle) || !u.aircraft) return true;
-      const field = near(u.owner);
+      const field = near(u);
       if (!field) return true;
       // A loaded transport aircraft never lands at an airfield: the click is an ordinary move order for it.
       if (u.isTransport && u.cargo.length > 0) return true;
@@ -5264,7 +5264,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     let slot = this.aircraft.freeSlot(null, airfield, prefer);
     if (slot < 0) {
       for (const b of this.entities.buildings()) {
-        if (b.owner !== player.id || !b.alive || !isAirBase(b)) continue;
+        if (b.owner !== player.id || !b.alive || !canBaseAt(b, kind)) continue;
         slot = this.aircraft.freeSlot(null, b);
         if (slot >= 0) {
           airfield = b;
