@@ -927,6 +927,14 @@ export class AircraftSystem implements GameSystem {
     // On its wheels an aircraft rolls the way its nose points: a sharp corner is turned on the spot first, so it
     // never slides sideways across the apron. In the air it keeps flying forward through the turn (never spins in place).
     if (Math.abs(diff) > 0.6 && v.altitude <= 0) return false;
+    // In the air a target inside its turning circle can never be reached nose-first (it would circle it for ever,
+    // e.g. a transport over its drop-off point): it then heads straight for it.
+    const turnRadius = speed / 4;
+    if (v.altitude > 0 && d < turnRadius * 2.2 * Math.sin(Math.min(Math.abs(diff), Math.PI / 2))) {
+      this.place(v, v.px + (dx / d) * step, v.py + (dy / d) * step);
+      v.walkPhase += step;
+      return false;
+    }
     this.place(v, v.px + Math.cos(v.heading) * step, v.py + Math.sin(v.heading) * step);
     v.walkPhase += step;
     return false;
