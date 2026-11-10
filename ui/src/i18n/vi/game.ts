@@ -15,6 +15,7 @@ export default {
   'Cannot build on water': 'Không thể xây trên mặt nước',
   'Cannot build on ice': 'Không thể xây trên băng',
   'Trees in the way': 'Cây cối cản đường',
+  'Clearing the woods: {n} units open fire on the trees.': 'Phát quang: {n} đơn vị nổ súng vào rừng cây.',
   'Cannot build on mountains': 'Không thể xây trên núi',
   'Aircraft carriers are bought once you have a {name}.': 'Tàu sân bay chỉ mua được khi đã có {name}.',
   'NO PORT': 'CHƯA CÓ CẢNG',

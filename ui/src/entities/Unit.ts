@@ -1,7 +1,7 @@
 import type { Mobility } from '../map/Pathfinder';
 import { CELL_SIZE, RANK_ARMOR, RANK_KILL_MULTIPLES, RANK_SPEED, STEP_PHASE_PER_PX } from '../constants';
 import { movesRight } from '../core/IsoView';
-import type { Allegiance, WeaponSpec, WorldPoint } from '../types';
+import type { Allegiance, GridPoint, WeaponSpec, WorldPoint } from '../types';
 import { Entity } from './Entity';
 
 /** Seconds a unit stays blocked (re-routes included) before it gives up and stops. */
@@ -82,6 +82,11 @@ export abstract class Unit extends Entity {
   parade: { barracks: number; slot: number } | null = null;
   /** Building order in progress (enter / repair / capture). */
   task: UnitTask | null = null;
+  /**
+   * Clearing order: the wooded cell the unit was sent to fire on; it fells that cell and every wooded cell within
+   * FELL_SPREAD_CELLS of it (enemies in range are fought first), then the order ends (CombatSystem.fell).
+   */
+  fellTarget: GridPoint | null = null;
   /** RA2 order line: flashed for a moment after a player order (green = move, red = attack). */
   orderFlash: { kind: 'move' | 'attack'; at: number; target: Entity | null } | null = null;
   /** Id of the building this person is stationed inside (hidden from the map), or null. */

@@ -66,6 +66,10 @@ import {
   MAX_TRANSPORTS,
   JANITOR_INTERVAL,
   CELL_SIZE,
+  CAPITAL_CLEARING_CELLS,
+  PRESET_CLEARING_CELLS,
+  TREE_CHARGE_RADIUS_CELLS,
+  FELL_SPREAD_CELLS,
   CURRENCY,
   EARTH_TEXTURE_URL,
   FACTION_ORDER,
@@ -255,6 +259,8 @@ export type GameCommand = (
   | { k: 'rally'; b: number; x: number; y: number; clear: boolean }
   /** DEMO only: Ctrl+click on one of my own structures / units: the selection fires on it (force fire). */
   | { k: 'forceAttack'; t: number }
+  /** Clearing order: the armed selection fires on wooded cell (x, y) and the wooded cells round it (TREE_* in constants). */
+  | { k: 'fell'; x: number; y: number }
   | { k: 'key'; code: 'KeyF' | 'KeyU' | 'KeyT' | 'KeyX' | 'KeyG' }
   | { k: 'waypoints'; pts: WorldPoint[] }
   | { k: 'minimap'; w: WorldPoint }
@@ -294,6 +300,10 @@ const BLOCK_REASONS: Readonly<Record<string, string>> = {
   nearOil: 'Too close to an oil derrick (keep {keep} free cells around it)',
   antarctica: 'Nothing can be built on Antarctica',
 };
+/** Structures of a defeated nation that stay on the map as they are (standing, same owner) instead of being destroyed. */
+const KEPT_AFTER_DEFEAT: ReadonlySet<BuildingType> = new Set<BuildingType>(['wall', 'gate']);
+/** Ctrl+click on the woods: the wooded cell nearest the clicked cell within this many cells takes the order (a tall tree's canopy is drawn well above its trunk's cell). */
+const FELL_CLICK_CELLS = 2;
 /** Map-authored buildings may shift this many cells to find tree-free ground… */
 const PRESET_SNAP_RADIUS = 2;
 /** DEMO: cells from the capital searched for a shore to put the demo Naval Port on. */
@@ -366,7 +376,7 @@ const BRIDGE_GAP_PX = 2;
 /** PGZ-09 rounds per shot (alternating barrels) and the time between them. */
 const PGZ_BURST = 2;
 const PGZ_ROUND_SECONDS = 0.07;
-const ORDER_COMMANDS: ReadonlySet<string> = new Set(['right', 'forceAttack', 'guard', 'waypoints', 'bridge', 'unload']);
+const ORDER_COMMANDS: ReadonlySet<string> = new Set(['right', 'forceAttack', 'fell', 'guard', 'waypoints', 'bridge', 'unload']);
 /** Longest a unit waits at a bridge for oncoming traffic that got there first before it drives on anyway (no deadlock). */
 const BRIDGE_YIELD_SECONDS = 4;
 /** Units within this many cells of a bridge count as at its mouth (queue, slip past each other, never give up). */
@@ -403,6 +413,10 @@ export class Game {
   readonly derricks: OilDerrick[] = [];
 
   private readonly terrain: TerrainRenderer;
+  /** The forest: every tree of the world with its health (TREE_* in constants.ts). Rebuilt from the seed, not saved. */
+  private readonly trees: TreeLayer;
+  /** Trees felled in play, as indices into the forest (saved; replayed on load, see importSave). */
+  private felledTrees: number[] = [];
   private readonly sprites = new SpriteCache(BUILDING_ART);
   private readonly input: InputHandler;
   private readonly renderer: Renderer;
@@ -579,11 +593,18 @@ export class Game {
     const biomes = computeBiomes(GRID_WIDTH, GRID_HEIGHT, MAP_SEED);
     buildWorld(earth, biomes, this.map);
     const trees = new TreeLayer(this.map, biomes, MAP_SEED);
+    this.trees = trees;
     this.placeOnGrid(this.entities.buildings(), trees);
     // The Statue of Liberty in New York harbour (on the nearest dry ground if the island is not on the map).
     this.placeOnGrid([this.entities.add(new Monument('liberty', geoToWorld(STATUE_OF_LIBERTY_LOCATION)))], trees);
     this.placeOilRows(trees);
     this.placeAntarcticOil(trees);
+    this.clearStartingGround(trees);
+    trees.felledLog = this.felledTrees;
+    trees.onFell = (x, y) => {
+      const p = this.fx(x, y, 0);
+      this.effects.add({ kind: 'blast', x: p.x, y: p.y, age: 0, ttl: 0.3, radius: 3 });
+    };
     this.terrain = new TerrainRenderer(earth, this.map, biomes, trees, MAP_SEED);
 
     // Rendering, systems & input.
@@ -678,6 +699,8 @@ export class Game {
       shielded: (t) => t instanceof Building && this.isShielded(t),
       powerShort: (owner) => this.players.find((p) => p.id === owner)?.powerShort ?? false,
       findPath: (start, goal, swim) => this.paths.find(start, goal, swim),
+      trees: this.trees,
+      onFellFire: (s, w, at) => this.onFellFire(s, w, at),
     });
     this.ai = new AISystem(
       this.players.filter((p) => !p.isHuman),
@@ -827,7 +850,7 @@ export class Game {
   }
 
   /** Game fields never written back from a save (screen / input state). */
-  private static readonly UNSAVED = ['systems', 'paths', 'paused', 'ended', 'dom', 'lastCursor', 'mouseWorld', 'ghost', 'placing', 'placingRotated', 'waypoints', 'moveMarker', 'pathPeekId', 'lastBuildingClick', 'shortRepaths', 'lastRepath', 'localId', 'actorId', 'lockstep', 'desyncWarned', 'capitalPrompts'];
+  private static readonly UNSAVED = ['systems', 'paths', 'paused', 'ended', 'dom', 'lastCursor', 'mouseWorld', 'ghost', 'placing', 'placingRotated', 'waypoints', 'moveMarker', 'pathPeekId', 'lastBuildingClick', 'shortRepaths', 'lastRepath', 'localId', 'actorId', 'lockstep', 'desyncWarned', 'capitalPrompts', 'trees'];
 
   /**
    * Everything needed to continue this game later, as plain JSON-ready data: players, every entity, the state of
@@ -921,6 +944,9 @@ export class Game {
       if (part) codec.restore(part, data);
     }
     codec.restore(this, save.game);
+    // The forest was rebuilt from the seed: the trees felled in the saved game fall again (no effects).
+    this.trees.restoreFelled(this.felledTrees);
+    this.trees.felledLog = this.felledTrees;
     // Saves from before 2.2.0 kept the derrick grace and auto sell for the one human player only.
     const old = save.game as { attacksOnPlayer?: unknown; autoSellOil?: unknown };
     if (typeof old.attacksOnPlayer === 'number') this.graceHits[this.localId] = old.attacksOnPlayer;
@@ -1303,6 +1329,7 @@ export class Game {
       taken.add(map.index(x, y));
       u.stop();
       u.parade = null;
+      u.fellTarget = null;
       if (u instanceof Vehicle) u.parking = false;
       u.px = (x + 0.5) * CELL_SIZE;
       u.py = (y + 0.5) * CELL_SIZE;
@@ -1952,6 +1979,7 @@ export class Game {
         u.heliRevenge = null;
       }
       u.parade = null;
+      u.fellTarget = null;
       u.task = null;
       u.attackMove = null;
       u.retreating = false;
@@ -2089,6 +2117,7 @@ export class Game {
         u.heliRevenge = null;
       }
       u.parade = null;
+      u.fellTarget = null;
       u.task = null;
       if (u instanceof Infantry) u.charge = null;
       if (u instanceof Vehicle) u.guardId = null;
@@ -2160,6 +2189,7 @@ export class Game {
     p.capitalLost = true;
     for (const b of this.entities.buildings().filter((e) => e.owner === p.id)) {
       if (b instanceof OilDerrick) continue; // handed over below (dissolveNation)
+      if (KEPT_AFTER_DEFEAT.has(b.spec.type)) continue; // walls and gates stand on as they are
       const own = b.spec.type === 'capital' && b.spec.spriteKey === `capital:${faction}`;
       this.removeBuilding(b);
       if (!own) continue;
@@ -2466,6 +2496,7 @@ export class Game {
       if (vehicle) vehicles++;
       else soldiers++;
       u.parade = null;
+      u.fellTarget = null;
       u.task = null;
       u.attackTarget = null;
       u.attackMove = null;
@@ -2555,6 +2586,7 @@ export class Game {
       v.attackMove = null;
       v.task = null;
       v.parade = null;
+      v.fellTarget = null;
       v.orderFlash = { kind: 'move', at: this.time, target };
     }
     if (target.owner === this.humanPlayer.id) this.moveMarker = { x: target.px, y: target.py, at: this.time };
@@ -2584,6 +2616,7 @@ export class Game {
       v.attackMove = null;
       v.task = null;
       v.parade = null;
+      v.fellTarget = null;
       v.orderFlash = { kind: 'move', at: this.time, target: b };
     }
     if (b.owner === this.humanPlayer.id) {
@@ -2626,6 +2659,7 @@ export class Game {
       v.attackMove = null;
       v.task = null;
       v.parade = null;
+      v.fellTarget = null;
       v.orderFlash = { kind: 'move', at: this.time, target: null };
     }
     const first = damaged[0];
@@ -2797,6 +2831,7 @@ export class Game {
       v.attackMove = null;
       v.task = null;
       v.parade = null;
+      v.fellTarget = null;
       v.orderFlash = { kind: 'move', at: this.time, target: unit };
     }
     this.sidebar.notify(
@@ -3111,6 +3146,7 @@ export class Game {
       }
     }
     for (const p of this.players) mix(Math.round(p.credits));
+    mix(this.felledTrees.length);
     return h;
   }
 
@@ -3248,6 +3284,14 @@ export class Game {
       case 'forceAttack': {
         const target = this.entities.get(cmd.t);
         if (demoActive && target && target.alive && target.owner === me) this.orderForceAttack(target);
+        break;
+      }
+      case 'fell': {
+        const n = this.orderFell(this.selection.selectedUnitList().filter((u) => u.owner === me), { x: cmd.x, y: cmd.y });
+        if (n > 0) {
+          this.moveMarker = { x: (cmd.x + 0.5) * CELL_SIZE, y: (cmd.y + 0.5) * CELL_SIZE, at: this.time };
+          if (me === this.localId) this.sidebar.notify(t('Clearing the woods: {n} units open fire on the trees.', { n }), 3);
+        }
         break;
       }
       case 'rally': {
@@ -3907,6 +3951,14 @@ export class Game {
               this.issue({ k: 'guard', ward: ward.id });
               break;
             }
+            // Ctrl+click on wooded ground (nothing under the cursor) with armed units selected: they clear the trees.
+            // A click on a canopy lands up to FELL_CLICK_CELLS cells from the trunk's cell (tall sprites): the nearest wooded cell is taken.
+            const at = this.map.cellAt(world.x, world.y);
+            const woods = at ? this.trees.nearestWooded(at.x, at.y, FELL_CLICK_CELLS) : null;
+            if (woods && !ward && !this.selection.pick(world) && this.selection.selectedUnitList().some((u) => u.owner === me && u.weapon !== null)) {
+              this.issue({ k: 'fell', x: woods.x, y: woods.y });
+              break;
+            }
             // Ctrl+click on one of my structures: sell it to the Global Monitoring Center.
             const b = this.selection.pick(world);
             if (b && b.owner === me) this.issue({ k: 'sellBuilding', b: b.id });
@@ -4180,6 +4232,34 @@ export class Game {
     return true;
   }
 
+  /**
+   * Clearing order (player and AI alike): the armed units among `units` (no air defence, drones or transports) fire on
+   * wooded cell `cell` and every wooded cell within FELL_SPREAD_CELLS of it until all are clear, fighting any enemy
+   * that comes in range first (CombatSystem.fell). Returns how many units took the order (0: no trees there).
+   */
+  orderFell(units: readonly Unit[], cell: GridPoint): number {
+    if (!this.map.inBounds(cell.x, cell.y) || this.trees.nearestWooded(cell.x, cell.y, FELL_SPREAD_CELLS) === null) return 0;
+    const fellers = units.filter((u) => u.alive && u.weapon !== null && u.canFight && !(u instanceof Vehicle && (u.type === 'mantis' || u.isDrone || u.isTransport)));
+    for (const u of fellers) {
+      if (u instanceof Vehicle) {
+        u.guardId = null;
+        u.heliHome = null;
+        u.heliRevenge = null;
+      }
+      if (u instanceof Infantry) u.charge = null;
+      u.parade = null;
+      u.task = null;
+      u.attackTarget = null;
+      u.attackMove = null;
+      u.combatTarget = null; // a new order drops whatever it was locked on
+      u.engaged = false;
+      u.chasing = false;
+      u.retreating = false;
+      u.fellTarget = { x: cell.x, y: cell.y };
+    }
+    return fellers.length;
+  }
+
   /** Ctrl+Shift+right-click: armed units attack-move to the spot, the unarmed ones simply go there. */
   private orderHumanAttackMove(units: readonly Unit[], world: WorldPoint): void {
     if (!this.map.cellAt(world.x, world.y)) return;
@@ -4202,6 +4282,7 @@ export class Game {
     const cy = units.reduce((s, u) => s + u.py, 0) / units.length;
     units.forEach((u, k) => {
       u.parade = null;
+      u.fellTarget = null;
       u.task = null;
       u.attackTarget = null;
       u.attackMove = null;
@@ -4274,6 +4355,7 @@ export class Game {
     const claimed: WorldPoint[] = [];
     for (const { u, at } of slots) {
       u.parade = null;
+      u.fellTarget = null;
       u.task = null;
       u.attackTarget = null;
       u.attackMove = null;
@@ -4654,6 +4736,17 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       ty = c.y;
       tlift = 6;
     }
+    this.shotFx(s, t, w, tx, ty, tlift);
+  }
+
+  /** A shot on the trees (clearing order): the same tracer / bullet / bomb art and sound as a shot at an enemy, landing on the ground there. */
+  private onFellFire(s: Unit, w: WeaponSpec, at: WorldPoint): void {
+    this.shotFx(s, null, w, at.x, at.y, 3);
+  }
+
+  /** Art and sound of a shot from `s` landing at world (tx, ty), `tlift` px up; `t` is what it hits (null: the ground / trees). */
+  private shotFx(s: Unit, t: Entity | null, w: WeaponSpec, tx: number, ty: number, tlift: number): void {
+    const heavy = w.kind === 'cannon' || w.kind === 'missile' || w.kind === 'bomb';
     const dist = Math.hypot(tx - s.px, ty - s.py) || 1;
     const reach = s instanceof Vehicle ? 3.2 : 1.0;
     const mx = s.px + ((tx - s.px) / dist) * reach;
@@ -4982,6 +5075,8 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
         b.release();
         continue;
       }
+      // Its walls and gates stay as they are (standing, same owner): the ruins of the nation keep their ramparts.
+      if (b.owner === p.id && KEPT_AFTER_DEFEAT.has(b.spec.type)) continue;
       if (b.owner === p.id) this.removeBuilding(b);
     }
     // Whatever is left of its forces can no longer fight on (air defence, trucks, transports, ships…): it goes down
@@ -5627,6 +5722,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       last.y = r.y;
     }
     unit.parade = null;
+    unit.fellTarget = null;
     unit.follow(path);
     return true;
   }
@@ -5819,6 +5915,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     } else {
       // Every slot is taken: the soldier simply stays at the door instead of wandering off.
       unit.parade = null;
+      unit.fellTarget = null;
     }
     if (player.id === this.localId) this.sidebar.notify(t('{name} ready.', { name: unit.name }));
   }
@@ -5870,6 +5967,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       last.y = door.y;
     }
     u.parade = null;
+    u.fellTarget = null;
     u.follow(path);
     return true;
   }
@@ -5994,6 +6092,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       u.attackMove = null;
       u.task = null;
       u.parade = null;
+      u.fellTarget = null;
       u.orderFlash = { kind: 'attack', at: this.time, target };
       ordered++;
     }
@@ -6029,6 +6128,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       u.task = null;
       u.attackTarget = null;
       u.parade = null;
+      u.fellTarget = null;
       u.orderFlash = { kind: 'attack', at: this.time, target };
       this.runAt(u, target);
     }
@@ -6053,6 +6153,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       u.attackMove = null;
       u.task = null;
       u.parade = null;
+      u.fellTarget = null;
       u.orderFlash = { kind: 'attack', at: this.time, target };
     }
     const at = target instanceof Building ? target.centerWorld() : { x: (target as Unit).px, y: (target as Unit).py };
@@ -6249,6 +6350,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
         hit(target, pair || target.w * target.d <= 1 ? Infinity : target.maxHp * share);
         target.specialBomb = { planterId: c.planterId, at: this.time };
       }
+      this.trees.fellRadius(c.x, c.y, TREE_CHARGE_RADIUS_CELLS * CELL_SIZE);
       const p = this.fx(c.x, c.y, 0);
       this.effects.add({ kind: 'demoBlast', x: p.x, y: p.y, age: 0, ttl: 0.8 });
       this.sound.play('explosion', { x: c.x, y: c.y });
@@ -6273,9 +6375,26 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     for (const o of group.slice(0, dead)) hit(o, Infinity);
     // A charge on an unarmed unit (engineer, transport on the ground…) still kills it.
     if (target instanceof Unit && target.alive && !group.some((o) => o === target)) hit(target, Infinity);
+    this.trees.fellRadius(c.x, c.y, TREE_CHARGE_RADIUS_CELLS * CELL_SIZE);
     const p = this.fx(c.x, c.y, 0);
     this.effects.add({ kind: 'demoBlast', x: p.x, y: p.y, age: 0, ttl: 0.8 });
     this.sound.play('explosion', { x: c.x, y: c.y });
+  }
+
+  /**
+   * Open ground round the starting sites (after the map-authored structures have found their places): no trees within
+   * CAPITAL_CLEARING_CELLS of a capital (a nation's or a contested one), nor within PRESET_CLEARING_CELLS of any other
+   * structure or oil derrick, so every base has room to grow before the woods must be cleared.
+   */
+  private clearStartingGround(trees: TreeLayer): void {
+    for (const b of this.entities.buildings()) {
+      if (b.spec.type === 'capital' || b.spec.type === 'nationCapital') {
+        trees.clearAround(b.x + Math.floor(b.w / 2), b.y + Math.floor(b.d / 2), CAPITAL_CLEARING_CELLS);
+      } else {
+        const m = PRESET_CLEARING_CELLS;
+        trees.clearArea(b.x - m, b.y - m, b.w + m * 2, b.d + m * 2);
+      }
+    }
   }
 
   /** Advances enter / repair / capture orders for soldiers standing at their target. */
@@ -6757,6 +6876,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     const spacing = Math.max(UNIT_SPACING * 1.15, Math.max(...units.map((u) => u.radius)) * 2.1);
     units.forEach((u, k) => {
       u.parade = null;
+      u.fellTarget = null;
       u.task = null;
       u.attackTarget = null;
       u.attackMove = null;
@@ -6991,6 +7111,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       // Running after an enemy (a chase, an attack order or an advance): that route leads into the fight, not away.
       const fighting = u.chasing || u.attackTarget !== null || u.attackMove !== null;
       u.parade = null; // leaves the parade ground
+      u.fellTarget = null;
       u.task = null;
       if (u instanceof Infantry) u.charge = null;
       if (u instanceof Vehicle) u.guardId = null;

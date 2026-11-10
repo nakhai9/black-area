@@ -11,6 +11,7 @@ import { loadExplosionSprites } from './render/ExplosionSheet';
 import { loadMissileSprites } from './render/MissileSheet';
 import { loadShellSprites } from './render/ShellSheet';
 import { loadBulletSprites } from './render/BulletSheet';
+import { loadTreeSprites } from './render/TreeSheet';
 import { loadRepairSprites } from './render/RepairSheets';
 import { loadMantisSprites } from './render/MantisSheet';
 import { loadCarrierSprites } from './render/CarrierSheet';
@@ -115,6 +116,7 @@ async function boot(): Promise<void> {
   loadMissileSprites().catch(() => undefined);
   loadShellSprites().catch(() => undefined);
   loadBulletSprites().catch(() => undefined);
+  loadTreeSprites().catch(() => undefined);
   const pictures = loadPictureArts();
 
   // Music starts on the faction picker: browsers only allow audio after the first click or key press.

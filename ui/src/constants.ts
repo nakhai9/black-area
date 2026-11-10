@@ -29,7 +29,7 @@ export const DEMO_FACTION: FactionId = NATION_CODES[(import.meta.env.VITE_DEMO_F
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "3.41.5";
+export const GAME_VERSION = "3.42.2";
 
 /** An Allied Building within this many cells of any capital is an embassy; farther out it is a "Pro-<nation> regime". */
 export const EMBASSY_CAPITAL_CELLS = 25;
@@ -289,6 +289,31 @@ export const CAMERA_EDGE_SCROLL = true;
 /** Tactical zoom only — the whole-world overview lives on the sidebar radar. */
 export const ZOOM_MIN = 3;
 export const ZOOM_MAX = 9;
+
+/**
+ * Forests (map/Trees.ts): the wooded land of the world (rain forests, taiga, the woods of Europe, China and the
+ * eastern USA) is covered with trees, 1–TREES_PER_CELL_MAX per wooded cell, with clearings. A wooded cell blocks
+ * construction and ground vehicles (soldiers walk through at 0.78 speed). Trees can be cut down by fire: every tree
+ * has TREE_HP health and takes a weapon's full damage (no structure discount); a fighter's bomb flattens every tree
+ * within TREE_BOMB_RADIUS_CELLS, a bomber's stick within TREE_STICK_RADIUS_CELLS, a demolition charge within
+ * TREE_CHARGE_RADIUS_CELLS, and a splash weapon (tank gun) also hurts the trees in its splash. A clearing order
+ * (hold Ctrl + left-click on a wooded cell; a right-click there is a plain move) makes the armed selection fire on that cell and every wooded cell within FELL_SPREAD_CELLS of it until all
+ * are clear (enemies in range are fought first), so a road can be cut through a forest or ground cleared for a
+ * structure. The AI gives the same order to up to AI_FELLERS of its idle ground units when the only site for a
+ * structure is wooded. Trees never stand within CAPITAL_CLEARING_CELLS of a capital (a nation's or a contested one)
+ * nor within PRESET_CLEARING_CELLS of any other map-authored structure or oil derrick, so every base has room to start.
+ */
+export const TREE_HP = 50;
+export const TREES_PER_CELL_MAX = 3;
+/** Share of the generated trees that actually stand (the rest are thinned out at random, seeded): 0.6 = 40% fewer trees. */
+export const TREE_DENSITY = 0.6;
+export const TREE_BOMB_RADIUS_CELLS = 1.5;
+export const TREE_STICK_RADIUS_CELLS = 3;
+export const TREE_CHARGE_RADIUS_CELLS = 2;
+export const FELL_SPREAD_CELLS = 1;
+export const AI_FELLERS = 4;
+export const CAPITAL_CLEARING_CELLS = 14;
+export const PRESET_CLEARING_CELLS = 2;
 export const ZOOM_STEP = 1.12;
 /** Zoom used at start and when jumping to a building. */
 export const FOCUS_ZOOM = 8;
@@ -723,7 +748,7 @@ export const VEHICLE_BASE = {
     cost: 9000,
     trainSeconds: 45,
     maxHp: 4000,
-    speed: 0.4,
+    speed: 2,
     radius: 10,
   },
   light: { cost: 600, trainSeconds: 8, maxHp: 180, speed: 2.4, radius: 3.4 },

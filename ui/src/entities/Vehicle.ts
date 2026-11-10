@@ -431,7 +431,8 @@ export class Vehicle extends Unit {
     // front once it has none. The air-defence vehicle's launcher is fixed to its hull.
     if (this.type === 'mantis') this.turretHeading = this.heading;
     else if (this.type === 'tank') {
-      const want = this.combatTarget !== null ? this.aimHeading : this.heading;
+      // The gun is laid on an enemy, or on the trees of a clearing order (fellTarget); otherwise it rides with the hull.
+      const want = this.combatTarget !== null || this.fellTarget !== null ? this.aimHeading : this.heading;
       let diff = want - this.turretHeading;
       while (diff > Math.PI) diff -= Math.PI * 2;
       while (diff < -Math.PI) diff += Math.PI * 2;

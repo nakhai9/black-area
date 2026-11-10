@@ -13,6 +13,7 @@ import type { TileMap } from './TileMap';
 import { TileTerrain } from './TileTerrain';
 import { RiverLayer } from './Rivers';
 import type { TreeLayer } from './Trees';
+import { drawTree, hasTreeSheet } from '../render/TreeSheet';
 
 /**
  * Red Alert 2 palette: deep green lowlands, ochre plateaus, brown-orange rock ridges, grey-white snow, sand
@@ -50,6 +51,8 @@ const LIGHT = (() => {
 
 /** Margin (world px) so tree canopies crossing a tile edge are drawn. */
 const TREE_MARGIN = 4;
+/** Height of a tree sprite (iso px) per unit of its radius: a big fir stands about as tall as a tank is long. */
+const TREE_PX_PER_R = 4.6;
 const WATER_GLINT_CHANCE = (0.012 * (CELL_SIZE / 4) ** 2) / WORLD_SCALE ** 2;
 /** Earth texels per grid cell. */
 const TEXELS_PER_CELL = CELL_SIZE / WORLD_SCALE;
@@ -523,10 +526,11 @@ export class TerrainRenderer {
 
   // ------------------------------------------------------------------ overlays
 
-  /** Draws the trees of the TreeLayer that touch the given world rect. */
   /**
-   * Trees stand upright on the iso ground: drawn as billboards at the screen position of their trunk,
-   * back to front. Call with the "iso space" transform active (1 unit = 1 px at zoom 1).
+   * Draws the trees of the TreeLayer that touch the given world rect. Trees stand upright on the iso ground: drawn as
+   * billboards at the screen position of their trunk, back to front, from the tree sheet (one of TREE_COLS fir
+   * varieties, TREE_PX_PER_R iso px tall per unit of radius) over a soft ground shadow; simple painted canopies until
+   * the sheet is loaded.
    */
   drawTrees(ctx: CanvasRenderingContext2D, view: Rect, zoom: number): void {
     if (zoom < DETAIL_MIN_ZOOM) return;
@@ -535,16 +539,22 @@ export class TerrainRenderer {
     const visible: number[] = [];
     this.trees.forEachIn(view.x - m, view.y - m, view.x + view.w + m, view.y + view.h + m, (i) => visible.push(i));
     visible.sort((p, q) => (xs[p] ?? 0) + (ys[p] ?? 0) - ((xs[q] ?? 0) + (ys[q] ?? 0)));
+    const sheet = hasTreeSheet();
+    ctx.imageSmoothingEnabled = true;
     for (const i of visible) {
       const iso = worldToIso(xs[i] ?? 0, ys[i] ?? 0);
       const r = rs[i] ?? 1;
+      ctx.fillStyle = 'rgba(25,30,10,0.35)';
+      ctx.beginPath();
+      ctx.ellipse(iso.x - r * 0.3, iso.y + r * 0.1, r * 1.3, r * 0.5, 0, 0, Math.PI * 2);
+      ctx.fill();
+      if (sheet) {
+        drawTree(ctx, tones[i] ?? 0, iso.x, iso.y, r * TREE_PX_PER_R);
+        continue;
+      }
       const cx = iso.x;
       const cy = iso.y - r * 1.2; // the canopy sits above the trunk
-      ctx.fillStyle = 'rgba(25,30,10,0.4)';
-      ctx.beginPath();
-      ctx.ellipse(iso.x - r * 0.3, iso.y + r * 0.1, r * 1.2, r * 0.5, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = tones[i] === 0 ? '#3f5222' : '#4b5f28';
+      ctx.fillStyle = (tones[i] ?? 0) % 2 === 0 ? '#3f5222' : '#4b5f28';
       ctx.beginPath();
       ctx.arc(cx, cy, r, 0, Math.PI * 2);
       ctx.fill();

@@ -20,10 +20,10 @@ export interface AirfieldGeometry {
 
 export const PARKING_SLOTS = 9;
 /**
- * Aircraft kinds allowed to park on a Naval Port's pier pads. Empty for now: no aircraft uses a port as its base
- * (convention still to be decided — add kinds here, e.g. 'heli'). Every other aircraft only bases at an Airfield.
+ * Aircraft kinds allowed to park on a Naval Port's pier pads: fighters only (PORT_AIR_SLOTS pads per port). Every
+ * other aircraft (bombers, helicopters, transports, AWACS, drones) only bases at an Airfield.
  */
-export const PORT_AIRCRAFT: ReadonlySet<VehicleKind> = new Set<VehicleKind>([]);
+export const PORT_AIRCRAFT: ReadonlySet<VehicleKind> = new Set<VehicleKind>(['jet']);
 /** Structures some aircraft can land, park and be repaired at: the Airfield, and the Naval Port when PORT_AIRCRAFT allows. */
 export const isAirBase = (b: Building): boolean => b.spec.type === 'airfield' || (b.spec.type === 'port' && PORT_AIRCRAFT.size > 0);
 /** Can an aircraft of `kind` take `b` as its base (land, park, be rearmed there)? */
@@ -508,6 +508,7 @@ export class AircraftSystem implements GameSystem {
     if ((v.flight === 'parked' && v.homeId !== airfield.id) || (v.isTransport && v.flight === 'landed' && !v.ejecting)) {
       v.transferTo = airfield.id;
       v.attackTarget = null;
+      v.fellTarget = null;
       v.attackMove = null;
       v.mission = null;
       v.follow([this.approachFor(v, airfield).point]);
@@ -519,6 +520,7 @@ export class AircraftSystem implements GameSystem {
     v.homeId = airfield.id;
     v.slot = slot;
     v.attackTarget = null;
+    v.fellTarget = null;
     v.attackMove = null;
     v.combatTarget = null;
     v.mission = null;
@@ -578,6 +580,7 @@ export class AircraftSystem implements GameSystem {
     this.orbits.delete(v.id);
     v.transferTo = null;
     v.attackTarget = null;
+    v.fellTarget = null;
     v.attackMove = null;
     v.combatTarget = null;
     v.guardId = null;
@@ -1080,6 +1083,7 @@ export class AircraftSystem implements GameSystem {
       }
       v.combatTarget = null;
       v.attackTarget = null;
+      v.fellTarget = null;
     }
     const trail = GUARD_TRAIL_CELLS * CELL_SIZE;
     const spot = { x: w.px - Math.cos(w.heading) * trail, y: w.py - Math.sin(w.heading) * trail };
@@ -1150,6 +1154,7 @@ export class AircraftSystem implements GameSystem {
     v.phaseTime = 0;
     v.mission = null;
     v.attackTarget = null;
+    v.fellTarget = null;
     v.attackMove = null;
     v.combatTarget = null;
     v.stop();

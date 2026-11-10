@@ -1,6 +1,6 @@
 import { squadFilter } from './Squad';
 import { bridgeAnchor } from '../entities/Bridge';
-import { AI_AIR_DEFENCE, FOOTPRINT_BRIDGE, AI_AIR_DEFENCE_PER_CITIES, AI_AIR_DEFENCE_RING, AI_BUNKERS, AI_WALL_ALERT_SECONDS, AI_WALL_ENEMY_UNITS, AI_WALL_GAP, AI_WALL_WATCH_CELLS, AI_WALL_RING, AI_WALL_SEGMENT, BUNKER_RANGE, CELL_SIZE, INFANTRY_BASE, INFANTRY_MARCH_CELLS, EMBASSY_CAPITAL_CELLS, MAX_ALLIES, NATION_GARRISON, NATION_GARRISON_CELLS, NEUTRAL_OWNER, OIL_DERRICK_OUTPUT, OIL_LEASE_CARTEL_SHARE, OIL_LEASE_SECONDS, TECH_VEHICLES, TRUCE_ZONE_CELLS, TRUCK_MIN_RIDERS, TRUCK_SOLDIERS, NATION_PRESENCE_FEE, presenceFee, FOOTPRINT_PORT, AI_FLEET } from '../constants';
+import { AI_AIR_DEFENCE, FOOTPRINT_BRIDGE, AI_AIR_DEFENCE_PER_CITIES, AI_AIR_DEFENCE_RING, AI_BUNKERS, AI_WALL_ALERT_SECONDS, AI_WALL_ENEMY_UNITS, AI_WALL_GAP, AI_WALL_WATCH_CELLS, AI_WALL_RING, AI_WALL_SEGMENT, BUNKER_RANGE, CELL_SIZE, INFANTRY_BASE, INFANTRY_MARCH_CELLS, EMBASSY_CAPITAL_CELLS, MAX_ALLIES, NATION_GARRISON, NATION_GARRISON_CELLS, NEUTRAL_OWNER, OIL_DERRICK_OUTPUT, OIL_LEASE_CARTEL_SHARE, OIL_LEASE_SECONDS, TECH_VEHICLES, TRUCE_ZONE_CELLS, TRUCK_MIN_RIDERS, TRUCK_SOLDIERS, NATION_PRESENCE_FEE, presenceFee, FOOTPRINT_PORT, AI_FLEET, AI_FELLERS } from '../constants';
 import { FACTIONS } from '../factions';
 import { StructureIndex } from './StructureIndex';
 import { OilDerrick } from '../entities/OilDerrick';
@@ -60,6 +60,8 @@ export interface AIHost {
   orderAttackMove(units: readonly Unit[], target: WorldPoint): void;
   /** Focus on an enemy structure or unit: soldiers and vehicles only attack buildings when told to. */
   orderAttackTarget(units: readonly Unit[], target: Entity): void;
+  /** Clearing order: the armed units fire on the trees of `cell` and the wooded cells round it (Game.orderFell). Returns how many took it. */
+  orderFell(units: readonly Unit[], cell: GridPoint): number;
   /** Falls back to `target` without stopping to fight; enemies may not chase retreating units. */
   orderRetreat(units: readonly Unit[], target: WorldPoint): void;
   /** Green safe zones of the Global Monitoring Center (units stranded abroad wait there to be flown home). */
@@ -217,6 +219,10 @@ const ECONOMY_TYPES: ReadonlySet<BuildingType> = new Set(['oilDerrick', 'happyCi
 const ECONOMY_SHARE = 0.4;
 /** Structures that count as military spending (everything else built counts as economy). */
 const MILITARY_BUILDS: ReadonlySet<string> = new Set(['barracks', 'warFactory', 'airfield', 'port', 'bunker', 'wall', 'gate']);
+/** Clearing the woods for a structure (clearWoodsFor): seconds between two clearing orders of a nation, how far from the capital (cells) its fellers are taken, and how many site offsets are scanned for a wooded site. */
+const AI_FELL_PERIOD = 25;
+const AI_FELL_REACH = 40;
+const AI_FELL_SCAN = 700;
 /** Below this much spent in all, the split is not enforced yet (the opening base is built as planned). */
 const SPLIT_FROM = 3000;
 /** Expansion: weight of the distance from the nation's own structures in the claim-site score (spread out). */
@@ -630,7 +636,7 @@ export class AISystem implements GameSystem {
       const site =
         option.id === 'alliedBuilding' ? this.alliedSiteSearch(p, st, option, capital) : option.id === 'wall' ? this.findWallSite(p, capital) : this.findSite(p, st, forward ?? capital, option);
       if (site) this.host.placeReady(p, option.id, site.x, site.y);
-      else this.host.construction.cancel(p, option.id); // nowhere to put it: refund and try the next plan step
+      else if (!this.clearWoodsFor(p, capital, option)) this.host.construction.cancel(p, option.id); // nowhere to put it: refund and try the next plan step
     }
     const busy = (id: BuildOption['id']): boolean => this.host.construction.slot(p, id).state !== 'idle';
     // Another nuclear plant once the drain outgrows what the plants can generate (oil from the Center is dear).
@@ -1220,6 +1226,72 @@ export class AISystem implements GameSystem {
     return null;
   }
 
+  /** Nation id → game time of its last clearing order (clearWoodsFor). */
+  private readonly fellAt = new Map<number, number>();
+
+  /**
+   * No open site for `option` round the capital: when the nearest site is only blocked by trees, up to AI_FELLERS of
+   * the nation's idle armed ground units within AI_FELL_REACH cells of the capital get the clearing order (the one a
+   * player gives with Ctrl+click), one wooded cell of the footprint each, and the build slot waits for them. One such
+   * order per nation per AI_FELL_PERIOD seconds. Returns true while the clearing is on (the slot is kept).
+   */
+  private clearWoodsFor(p: PlayerState, capital: Building, option: BuildOption): boolean {
+    if (option.id === 'wall' || option.id === 'gate' || option.id === 'alliedBuilding' || option.id === 'port') return false;
+    const last = this.fellAt.get(p.id);
+    if (last !== undefined && this.time - last < AI_FELL_PERIOD) return true; // the fellers are still at work
+    const site = this.woodedSiteNear(p, capital, option);
+    if (!site) return false;
+    const c = capital.centerWorld();
+    const fellers = this.host.entities
+      .fieldMovers()
+      .filter(
+        (u) =>
+          u.owner === p.id &&
+          u.alive &&
+          u.weapon !== null &&
+          u.canFight &&
+          !u.flies &&
+          !u.naval &&
+          u.task === null &&
+          u.boardTarget === null &&
+          u.attackTarget === null &&
+          u.attackMove === null &&
+          u.fellTarget === null &&
+          !(u instanceof Vehicle && (u.type === 'mantis' || u.isDrone || u.isTransport)) &&
+          !(u instanceof Infantry && (u.isEngineer || u.isSquatters)) &&
+          Math.hypot(u.px - c.x, u.py - c.y) <= AI_FELL_REACH * CELL_SIZE,
+      )
+      .sort((a, b) => Math.hypot(a.px - c.x, a.py - c.y) - Math.hypot(b.px - c.x, b.py - c.y))
+      .slice(0, AI_FELLERS);
+    if (fellers.length === 0) return false;
+    const cells: GridPoint[] = [];
+    for (let y = site.y; y < site.y + site.d; y++) for (let x = site.x; x < site.x + site.w; x++) if (this.host.map.hasTrees(x, y)) cells.push({ x, y });
+    if (cells.length === 0) return false;
+    let given = 0;
+    fellers.forEach((u, k) => {
+      const cell = cells[k % cells.length];
+      if (cell) given += this.host.orderFell([u], cell);
+    });
+    if (given === 0) return false;
+    this.fellAt.set(p.id, this.time);
+    return true;
+  }
+
+  /** The nearest spot round `capital` where `option` would be legal but for the trees on it, or null (at most AI_FELL_SCAN offsets tried). */
+  private woodedSiteNear(p: PlayerState, capital: Building, option: BuildOption): { x: number; y: number; w: number; d: number } | null {
+    const { w, d } = footprintOf(option, p.faction as Parameters<typeof footprintOf>[1]);
+    let n = 0;
+    for (const [dx, dy] of siteOffsets()) {
+      if (++n > AI_FELL_SCAN) break;
+      const x = capital.x + dx;
+      const y = capital.y + dy;
+      if (!this.host.map.isAreaBuildable(x - 1, y - 1, w + 2, d + 2, false, true)) continue;
+      const r = this.host.placement.check({ owner: p.id, x, y, w, d, radius: buildRadius(option.id), coastal: isCoastal(option.id) });
+      if (!r.ok && r.reason === 'trees') return { x, y, w, d };
+    }
+    return null;
+  }
+
   /** A legal spot for `option` round `capital` (nearest first, one of the SITE_PICK nearest at random), or null. */
   private findSiteNear(p: PlayerState, st: AIState, capital: Building, option: BuildOption): GridPoint | null {
     const { w, d } = footprintOf(option, p.faction as Parameters<typeof footprintOf>[1]);
@@ -1558,6 +1630,8 @@ export class AISystem implements GameSystem {
         u.alive &&
         u.task?.type !== 'enter' &&
         u.boardTarget === null &&
+        u.fellTarget === null && // busy clearing the woods for a structure (clearWoodsFor)
+
         !(u instanceof Infantry && (u.isEngineer || u.isSquatters)) &&
         !this.sheltering(p, u),
     );

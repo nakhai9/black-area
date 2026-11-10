@@ -2,7 +2,7 @@ import type { FactionId } from '../types';
 import type { Mobility } from '../map/Pathfinder';
 import { demoActive } from '../core/Demo';
 import { movesRight } from '../core/IsoView';
-import { BOMB_FALL_SECONDS, HIGH_GROUND_DAMAGE, HIGH_GROUND_RANGE, LOW_GROUND_DAMAGE, BUNKER_COOLDOWN, BUNKER_DAMAGE, BUNKER_RANGE, BUNKER_VS_VEHICLE, MANTIS_HIT_SHARE, MANTIS_RANGE_CELLS, MANTIS_RANK_BONUS, MANTIS_EVADE_CELLS, HELI_VS_MANTIS_SHARE, JET_VS_MANTIS_SHARE, MANTIS_VS_JET_SHARE, MANTIS_VS_HELI_SHARE, MANTIS_RELOAD, MANTIS_GUN_NATIONS, PGZ_RELOAD, PGZ_HIT_FACTOR, JET_BOMB_VS_STRUCTURE, JET_BOMB_VS_VEHICLE, ACQUIRE_PERIOD, RANK_FIREPOWER, RANK_RELOAD, BOMB_GROUP_RADIUS_CELLS, BOMB_GROUP_SIZE, BOMB_TOUGH_DAMAGE, BOMB_TOUGH_STRUCTURES, BOMBS_PER_DROP, CELL_SIZE, CHASE_GIVE_UP_SECONDS, CHASE_LIMIT_CELLS, CHASE_PERIOD, FIGHT_MEMORY_SECONDS, GUARD_VISION_FACTOR, NEUTRAL_OWNER, RETALIATE_RANGE_FACTOR, WEAPONS, FIGHTER_DRONE_ALERT } from '../constants';
+import { BOMB_FALL_SECONDS, HIGH_GROUND_DAMAGE, HIGH_GROUND_RANGE, LOW_GROUND_DAMAGE, BUNKER_COOLDOWN, BUNKER_DAMAGE, BUNKER_RANGE, BUNKER_VS_VEHICLE, MANTIS_HIT_SHARE, MANTIS_RANGE_CELLS, MANTIS_RANK_BONUS, MANTIS_EVADE_CELLS, HELI_VS_MANTIS_SHARE, JET_VS_MANTIS_SHARE, MANTIS_VS_JET_SHARE, MANTIS_VS_HELI_SHARE, MANTIS_RELOAD, MANTIS_GUN_NATIONS, PGZ_RELOAD, PGZ_HIT_FACTOR, JET_BOMB_VS_STRUCTURE, JET_BOMB_VS_VEHICLE, ACQUIRE_PERIOD, RANK_FIREPOWER, RANK_RELOAD, BOMB_GROUP_RADIUS_CELLS, BOMB_GROUP_SIZE, BOMB_TOUGH_DAMAGE, BOMB_TOUGH_STRUCTURES, BOMBS_PER_DROP, CELL_SIZE, CHASE_GIVE_UP_SECONDS, CHASE_LIMIT_CELLS, CHASE_PERIOD, FIGHT_MEMORY_SECONDS, GUARD_VISION_FACTOR, NEUTRAL_OWNER, RETALIATE_RANGE_FACTOR, WEAPONS, FIGHTER_DRONE_ALERT, FELL_SPREAD_CELLS, TREE_BOMB_RADIUS_CELLS, TREE_STICK_RADIUS_CELLS } from '../constants';
 import { Building } from '../entities/Building';
 import { Bunker } from '../entities/Bunker';
 import type { Entity } from '../entities/Entity';
@@ -11,6 +11,7 @@ import { Infantry } from '../entities/Infantry';
 import { Unit } from '../entities/Unit';
 import { Vehicle } from '../entities/Vehicle';
 import type { Pathfinder } from '../map/Pathfinder';
+import type { TreeLayer } from '../map/Trees';
 import type { GridPoint, WeaponSpec, WorldPoint } from '../types';
 import type { GameSystem } from './GameSystem';
 
@@ -31,6 +32,10 @@ export interface CombatHooks {
   powerShort(owner: number): boolean;
   /** Route planner with the shared caches (an unreachable goal is not flooded again and again). */
   findPath(start: WorldPoint, goal: GridPoint, swim: Mobility): WorldPoint[];
+  /** The forest: trees take damage from clearing orders, bombs, charges and splash (TREE_* in constants). */
+  readonly trees: TreeLayer;
+  /** A shot was fired on the trees (clearing order): draw it landing at `at` (world px) and play the sound. */
+  onFellFire(shooter: Unit, weapon: WeaponSpec, at: WorldPoint): void;
 }
 
 /** Two entities are enemies when they belong to different nations (neutral ones are never targets). */
@@ -153,8 +158,11 @@ export class CombatSystem implements GameSystem {
    * group stands within weapon range of one of that nation's units. Rebuilt every tick (see markEntangled).
    */
   private readonly entangled = new Set<string>();
-  /** Bomb hits still falling: each lands (deals its damage) at `at` — a bomber's stick, or one fighter bomb. Plain data (saved games). */
-  private readonly falling: { at: number; kind: 'stick' | 'jet'; shooter: Vehicle; target: Entity; impact: WorldPoint }[] = [];
+  /**
+   * Bomb hits still falling: each lands (deals its damage) at `at` — a bomber's stick or one fighter bomb on an enemy
+   * (`target`), or the same dropped on the trees of a clearing order ('treeStick' / 'treeBomb', no target). Plain data (saved games).
+   */
+  private readonly falling: { at: number; kind: 'stick' | 'jet' | 'treeStick' | 'treeBomb'; shooter: Vehicle; target: Entity | null; impact: WorldPoint }[] = [];
 
   constructor(
     private readonly entities: EntityManager,
@@ -272,6 +280,7 @@ export class CombatSystem implements GameSystem {
         s.combatTarget = null;
         s.attackTarget = null;
         s.attackMove = null;
+        s.fellTarget = null;
         s.engaged = false;
         s.stop();
         s.returningHome = true; // even while selected it does not wait for orders
@@ -283,6 +292,7 @@ export class CombatSystem implements GameSystem {
     if (this.hooks.safeAt(s.px, s.py)) {
       s.combatTarget = null;
       s.attackTarget = null;
+      s.fellTarget = null;
       s.engaged = false;
       this.resumeAttackMove(s);
       return;
@@ -292,7 +302,7 @@ export class CombatSystem implements GameSystem {
       s.retreating = false;
     }
     // A bomber never bombs on its own: only on an order (an attack order or an attack-move).
-    if (s instanceof Vehicle && s.type === 'bomber' && s.attackTarget === null && s.attackMove === null) {
+    if (s instanceof Vehicle && s.type === 'bomber' && s.attackTarget === null && s.attackMove === null && s.fellTarget === null) {
       s.combatTarget = null;
       s.engaged = false;
       return;
@@ -300,7 +310,7 @@ export class CombatSystem implements GameSystem {
     let target = this.currentTarget(s);
     // A helicopter never attacks on its own: only on an order (attack order / attack-move) or to hit back at whoever
     // shot it (player and AI alike).
-    if (s instanceof Vehicle && s.isHeli && s.attackTarget === null && s.attackMove === null) {
+    if (s instanceof Vehicle && s.isHeli && s.attackTarget === null && s.attackMove === null && s.fellTarget === null) {
       const foe = this.heliFoe(s, w, target);
       s.combatTarget = foe?.id ?? null;
       if (!foe) {
@@ -350,6 +360,8 @@ export class CombatSystem implements GameSystem {
     s.combatTarget = target?.id ?? null;
 
     if (!target) {
+      // Nobody to fight: a clearing order goes on (the trees are shot once the enemies are gone).
+      if (s.fellTarget !== null && this.fell(s, w)) return;
       // Back home (or stopped) with nobody to fight: the next chase measures from here.
       if (!s.moving) s.chaseFrom = null;
       s.engaged = false;
@@ -583,13 +595,21 @@ export class CombatSystem implements GameSystem {
   }
 
   /** A falling bomb reaches the ground. */
-  private land(f: { kind: 'stick' | 'jet'; shooter: Vehicle; target: Entity; impact: WorldPoint }): void {
+  private land(f: { kind: 'stick' | 'jet' | 'treeStick' | 'treeBomb'; shooter: Vehicle; target: Entity | null; impact: WorldPoint }): void {
     const { shooter: s, target: t } = f;
-    if (!s || !t) return; // (a saved game whose bomber or target no longer exists)
+    if (!s) return; // (a saved game whose bomber no longer exists)
+    // On the trees (clearing order): every tree within the blast falls.
+    if (f.kind === 'treeStick' || f.kind === 'treeBomb') {
+      this.hooks.trees.fellRadius(f.impact.x, f.impact.y, (f.kind === 'treeStick' ? TREE_STICK_RADIUS_CELLS : TREE_BOMB_RADIUS_CELLS) * CELL_SIZE);
+      return;
+    }
+    if (!t) return; // (a saved game whose target no longer exists)
     if (f.kind === 'stick') {
       this.bombsLand(s, t, f.impact);
       return;
     }
+    // The trees round the impact fall too.
+    this.hooks.trees.fellRadius(f.impact.x, f.impact.y, TREE_BOMB_RADIUS_CELLS * CELL_SIZE);
     if (!t.alive) return;
     // On an air-defence vehicle a fighter's bomb takes JET_VS_MANTIS_SHARE of its full health.
     const vsVehicle = t instanceof Vehicle && t.type === 'mantis' ? JET_VS_MANTIS_SHARE : JET_BOMB_VS_VEHICLE;
@@ -600,6 +620,8 @@ export class CombatSystem implements GameSystem {
 
   /** The bomber's stick explodes: a structure is flattened (tough ones lose half), or the troops round the impact die. */
   private bombsLand(s: Vehicle, t: Entity, impact: WorldPoint): void {
+    // The trees round the impact are flattened.
+    this.hooks.trees.fellRadius(impact.x, impact.y, TREE_STICK_RADIUS_CELLS * CELL_SIZE);
     const hit = (o: Entity, amount: number): void => {
       if (!o.alive) return;
       o.damage(amount);
@@ -655,6 +677,8 @@ export class CombatSystem implements GameSystem {
     t.lastAttackerId = s.id;
     t.lastAttackedAt = this.time;
     if (w.splash > 0) {
+      // The trees in the splash are hurt too (a tank gun clears the woods round its target).
+      this.hooks.trees.damageRadius(impact.x, impact.y, w.splash, dmg * 0.5);
       for (const o of this.entities.fieldMovers()) {
         if (o === t || !isHostile(s, o) || !this.canHit(s, w, o) || this.sheltered(o)) continue;
         if (Math.hypot(o.px - impact.x, o.py - impact.y) <= w.splash) {
@@ -666,6 +690,95 @@ export class CombatSystem implements GameSystem {
     }
     s.engaged = true;
     this.hooks.onFire(s, t, w, impact);
+  }
+
+  // ------------------------------------------------------------------ clearing the woods
+
+  /**
+   * Clearing order (Unit.fellTarget): with no enemy to fight, the unit fires on the nearest wooded cell within
+   * FELL_SPREAD_CELLS of the cell it was sent to, first moving within weapon range of it; the order ends once every
+   * cell there is clear, or when the unit can get no nearer. Returns false once the order is over (the caller then
+   * carries on with its usual idle handling). Player and AI alike.
+   */
+  private fell(s: Unit, w: WeaponSpec): boolean {
+    const order = s.fellTarget;
+    if (!order) return false;
+    // Air defence shoots aircraft only; drones dive; neither clears trees.
+    if (s instanceof Vehicle && (s.type === 'mantis' || s.isDrone)) {
+      s.fellTarget = null;
+      return false;
+    }
+    const cell = this.hooks.trees.nearestWooded(order.x, order.y, FELL_SPREAD_CELLS);
+    if (!cell) {
+      s.fellTarget = null;
+      s.engaged = false;
+      return false;
+    }
+    const tx = (cell.x + 0.5) * CELL_SIZE;
+    const ty = (cell.y + 0.5) * CELL_SIZE;
+    const d = Math.hypot(tx - s.px, ty - s.py);
+    s.aimHeading = Math.atan2(ty - s.py, tx - s.px);
+    if (d <= w.range * this.heightReach(s)) {
+      // A tank keeps its hull where it is: only the turret turns to the trees (it fires once laid).
+      const tank = s instanceof Vehicle && s.type === 'tank';
+      if (!tank) {
+        s.facing = movesRight(tx - s.px, ty - s.py) ? 1 : -1;
+        s.heading = Math.atan2(ty - s.py, tx - s.px);
+      }
+      s.stop();
+      const laid = !tank || (s as Vehicle).turretOnTarget;
+      if (s.cooldown <= 0 && laid) this.fireAtTrees(s, w, cell, tx, ty);
+      s.engaged = true;
+      return true;
+    }
+    return this.approachCell(s, tx, ty, w);
+  }
+
+  /** The shot on the trees: a bomber drops a stick, a fighter with a bomb left drops one, everyone else uses the gun. */
+  private fireAtTrees(s: Unit, w: WeaponSpec, cell: GridPoint, tx: number, ty: number): void {
+    s.cooldown = w.cooldown * RANK_RELOAD[s.rank];
+    const impact = { x: tx, y: ty };
+    if (s instanceof Vehicle && s.type === 'bomber') {
+      s.bombs = Math.max(0, s.bombs - BOMBS_PER_DROP);
+      this.falling.push({ at: this.time + BOMB_FALL_SECONDS, kind: 'treeStick', shooter: s, target: null, impact });
+      this.hooks.onFellFire(s, w, impact);
+      return;
+    }
+    if (s instanceof Vehicle && s.type === 'jet' && s.bombs > 0) {
+      s.bombs--;
+      this.falling.push({ at: this.time + BOMB_FALL_SECONDS, kind: 'treeBomb', shooter: s, target: null, impact });
+      this.hooks.onFellFire(s, { ...w, kind: 'bomb' }, impact);
+      return;
+    }
+    this.hooks.trees.damageCell(cell.x, cell.y, w.damage * RANK_FIREPOWER[s.rank], s.px, s.py);
+    this.hooks.onFellFire(s, w, impact);
+  }
+
+  /**
+   * Moves within weapon range of world point (tx, ty), a few route searches per tick like chase. Returns false (and
+   * ends the clearing order) when the unit stands still and can get no nearer (walled in, across water…).
+   */
+  private approachCell(s: Unit, tx: number, ty: number, w: WeaponSpec): boolean {
+    if ((this.chaseAt.get(s.id) ?? 0) > this.time) return true;
+    if (!s.aircraft && this.chaseBudget-- <= 0) return true;
+    this.chaseAt.set(s.id, this.time + CHASE_PERIOD + (s.id % 8) * 0.05);
+    if (s.aircraft) {
+      const dx = tx - s.px;
+      const dy = ty - s.py;
+      const d = Math.hypot(dx, dy) || 1;
+      const stop = Math.max(0, d - w.range * 0.7);
+      s.follow([{ x: s.px + (dx / d) * stop, y: s.py + (dy / d) * stop }]);
+      return true;
+    }
+    const cell = this.pathfinder.nearestPassable(Math.floor(tx / CELL_SIZE), Math.floor(ty / CELL_SIZE), 12, undefined, s.mobility);
+    const path = cell ? this.hooks.findPath({ x: s.px, y: s.py }, cell, s.mobility) : [];
+    if (path.length <= 1 && !s.moving) {
+      s.fellTarget = null;
+      s.engaged = false;
+      return false;
+    }
+    if (path.length > 1) s.follow(path);
+    return true;
   }
 
   /** A ground unit on a mountain ledge (high ground) reaches HIGH_GROUND_RANGE farther. */
