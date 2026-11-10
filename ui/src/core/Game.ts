@@ -2316,6 +2316,11 @@ export class Game {
   }
 
   /** AI: a truck lets its riders out where it stands. */
+  unloadCarrier(t: Vehicle): void {
+    if (t.isTruck) this.unloadTruck(t);
+    else this.aircraft.requestUnload(t);
+  }
+
   unloadTruck(t: Vehicle): void {
     if (!t.isTruck || t.cargo.length === 0) return;
     t.stop();

@@ -56,6 +56,8 @@ export interface AIHost {
   orderMoveUnits(units: readonly Unit[], target: WorldPoint): void;
   /** A truck lets everyone out where it stands. */
   unloadTruck(t: Vehicle): void;
+  /** Any carrier (truck, or a transport / helicopter standing on the ground) lets everyone out. */
+  unloadCarrier(t: Vehicle): void;
   /** Soldiers/vehicles walk to `target`, fighting everything on the way. */
   orderAttackMove(units: readonly Unit[], target: WorldPoint): void;
   /** Focus on an enemy structure or unit: soldiers and vehicles only attack buildings when told to. */
@@ -170,6 +172,11 @@ const MAX_TRUCKS = 8;
 const TRUCK_SEATS = TRUCK_SOLDIERS;
 const TRUCK_PICKUP_CELLS = 25;
 const UNLOAD_SHORT_CELLS = 8;
+/** AI engineers: a capture / lease target further than this many cells is reached by transport aircraft, helicopter or
+ * army truck (whichever is free); nearer ones (or with no carrier free) they walk. Carriers within ENGINEER_LIFT_REACH
+ * cells of the engineer count (a parked transport aircraft: twice that). */
+const ENGINEER_WALK_CELLS = 40;
+const ENGINEER_LIFT_REACH = 30;
 const OVERSEAS_MIN_FORCE = 10;
 /** Soldiers sent to fill one transport (its capacity for soldiers only). */
 const TRANSPORT_LOAD = 12;
@@ -376,6 +383,8 @@ interface AIState {
   nationEngineer: number | null;
   /** Contested capital id -> ids of the units stationed there (held ones) or escorting the engineer (the target). */
   nationGuard: Map<number, Set<number>>;
+  /** Carrier id -> the engineer it carries and where it sets it down (ferryEngineer). */
+  engLifts: Map<number, { eng: number; goal: WorldPoint }>;
 }
 
 /**
@@ -443,6 +452,7 @@ export class AISystem implements GameSystem {
       nationTarget: null,
       nationEngineer: null,
       nationGuard: new Map(),
+      engLifts: new Map(),
     };
     this.state.set(p.id, st);
     return st;
@@ -464,6 +474,7 @@ export class AISystem implements GameSystem {
     st.nationTarget ??= null;
     st.nationEngineer ??= null;
     if (!(st.nationGuard instanceof Map)) st.nationGuard = new Map();
+    if (!(st.engLifts instanceof Map)) st.engLifts = new Map();
   }
 
   update(dt: number): void {
@@ -535,21 +546,22 @@ export class AISystem implements GameSystem {
     this.build(p, st, capital, owned, threat);
     this.train(p, st, owned, threat);
     this.repairBase(p, st, owned);
+    this.driveEngineerLifts(st);
     this.mendFleet(p);
     this.claimLand(p, st, capital, owned, threat);
     // Ceasefire, or a military embargo on the nation: it only builds up and launches no attack meanwhile.
     if (inTruce() || p.disarmedUntil !== undefined) {
       this.contestNations(p, st, capital, owned, threat);
-      this.leaseOil(p, owned, threat);
+      this.leaseOil(p, st, owned, threat);
       this.keepCeasefire(p, st, capital);
       return;
     }
     this.contestNations(p, st, capital, owned, threat);
     this.sendDrones(p, st, capital);
     if (st.overseas) this.loadTransports(p, st, capital);
-    this.leaseOil(p, owned, threat);
-    this.captureOil(p, threat);
-    this.captureAllies(p, owned, threat);
+    this.leaseOil(p, st, owned, threat);
+    this.captureOil(p, st, threat);
+    this.captureAllies(p, st, owned, threat);
     this.driveConvoys(st);
     this.layBridges(p, st, capital, owned);
     this.evacuate(p, capital);
@@ -1633,6 +1645,7 @@ export class AISystem implements GameSystem {
         u.fellTarget === null && // busy clearing the woods for a structure (clearWoodsFor)
 
         !(u instanceof Infantry && (u.isEngineer || u.isSquatters)) &&
+        !st.engLifts.has(u.id) &&
         !this.sheltering(p, u),
     );
     if (army.length === 0) return;
@@ -1794,7 +1807,7 @@ export class AISystem implements GameSystem {
    * nation at a time (the cartel's own OIL_LEASE_MAX still applies), never while the home front is under attack.
    * With no free engineer it trains one for the job.
    */
-  private leaseOil(p: PlayerState, owned: Set<BuildingType>, threat: number): void {
+  private leaseOil(p: PlayerState, st: AIState, owned: Set<BuildingType>, threat: number): void {
     const faction = FACTIONS[p.faction];
     if (faction.leasesOil === true || threat > 0) return;
     const engineerCost = INFANTRY_BASE.engineer.cost * faction.stats.cost * (faction.stats.infantryCost ?? 1);
@@ -1818,6 +1831,11 @@ export class AISystem implements GameSystem {
       if (mine >= AI_LEASES) break;
       const dist = (d: OilDerrick): number => Math.hypot(d.centerWorld().x - u.px, d.centerWorld().y - u.py);
       const near = open.filter((d) => !claimed.has(d.id) && dist(d) < LEASE_RANGE_CELLS * CELL_SIZE).sort((a, b) => dist(a) - dist(b));
+      if (near[0] && this.ferryEngineer(p, st, u, near[0])) {
+        claimed.add(near[0].id);
+        mine++;
+        continue;
+      }
       for (const d of near) {
         if (!this.host.orderLease(u, d)) continue;
         claimed.add(d.id);
@@ -1834,7 +1852,7 @@ export class AISystem implements GameSystem {
    * engineer rather than destroyed (the army leaves them for last, see ECONOMIC_TARGETS). A free engineer left over
    * goes for the nearest capturable enemy derrick it can walk to, one at a time per nation. War time only.
    */
-  private captureOil(p: PlayerState, threat: number): void {
+  private captureOil(p: PlayerState, st: AIState, threat: number): void {
     if (threat > 0) return;
     const units = this.host.entities.fieldUnits();
     if (units.some((u) => u.owner === p.id && u.task?.type === 'capture' && this.host.entities.get(u.task.buildingId) instanceof OilDerrick)) return;
@@ -1849,6 +1867,7 @@ export class AISystem implements GameSystem {
       .map((b) => ({ b, d: Math.hypot(b.centerWorld().x - eng.px, b.centerWorld().y - eng.py) }))
       .filter(({ b, d }) => d < OIL_CAPTURE_CELLS * CELL_SIZE && pf.sameLandmass(ex, ey, b.x, b.y + b.d))
       .sort((a, b) => a.d - b.d);
+    if (targets[0] && this.ferryEngineer(p, st, eng, targets[0].b)) return;
     for (const { b } of targets) if (this.host.orderCapture(eng, b)) return;
   }
 
@@ -1857,7 +1876,7 @@ export class AISystem implements GameSystem {
    * nearest it can reach and takes it over (a new ally, spreading the nation across the world). No engineer free:
    * one is trained.
    */
-  private captureAllies(p: PlayerState, owned: Set<BuildingType>, threat: number): void {
+  private captureAllies(p: PlayerState, st: AIState, owned: Set<BuildingType>, threat: number): void {
     if (threat > 0) return;
     const free = this.host.entities
       .buildings()
@@ -1881,6 +1900,7 @@ export class AISystem implements GameSystem {
       .filter((b) => pf.sameLandmass(ex, ey, b.x, b.y + b.d))
       .map((b) => ({ b, d: Math.hypot(b.centerWorld().x - eng.px, b.centerWorld().y - eng.py) }))
       .sort((a, b) => a.d - b.d);
+    if (targets[0] && this.ferryEngineer(p, st, eng, targets[0].b)) return;
     for (const { b } of targets) if (this.host.orderCapture(eng, b)) return;
   }
 
@@ -1999,6 +2019,7 @@ export class AISystem implements GameSystem {
     if (engineer.insideId !== null || engineer.boardTarget !== null || engineer.task?.type === 'capture') return;
     const ex = Math.floor(engineer.px / CELL_SIZE);
     const ey = Math.floor(engineer.py / CELL_SIZE);
+    if (this.ferryEngineer(p, st, engineer, target)) return;
     if (engineer.swims || pf.sameLandmass(ex, ey, goal.x, goal.y)) {
       if (!this.host.orderCapture(engineer, target)) st.nationTarget = null;
       return;
@@ -2368,6 +2389,71 @@ export class AISystem implements GameSystem {
   }
 
   /** Own transport aircraft standing at home (parked) with room left. */
+  /**
+   * A free engineer with a far job (more than ENGINEER_WALK_CELLS away) rides instead of walking: first a transport
+   * aircraft parked at home, then a helicopter standing near it, then an army truck near it (only on the same
+   * landmass). True when it is on its way to a carrier; false = nothing free, it walks (or the job is near).
+   */
+  private ferryEngineer(p: PlayerState, st: AIState, eng: Infantry, target: Building): boolean {
+    const c = target.centerWorld();
+    const dist = (x: number, y: number): number => Math.hypot(x - eng.px, y - eng.py);
+    if (dist(c.x, c.y) <= ENGINEER_WALK_CELLS * CELL_SIZE) return false;
+    if (eng.task !== null || eng.insideId !== null || eng.boardTarget !== null) return false;
+    const pf = this.host.pathfinder;
+    const reach = ENGINEER_LIFT_REACH * CELL_SIZE;
+    const tcell = pf.nearestPassable(target.x + Math.floor(target.w / 2), target.y + target.d, 10);
+    const free = this.host.entities
+      .vehicles()
+      .filter((v) => v.owner === p.id && v.alive && v.insideId === null && v.cargo.length === 0 && v.incoming === 0 && !st.engLifts.has(v.id) && !st.convoys.has(v.id));
+    const byNear = (a: Vehicle, b: Vehicle): number => dist(a.px, a.py) - dist(b.px, b.py);
+    const air = free.filter((v) => v.isTransport && v.flight === 'parked' && dist(v.px, v.py) < reach * 2).sort(byNear);
+    const heli = free
+      .filter((v) => v.isHeli && (v.flight === 'parked' || v.flight === 'landed') && v.attackTarget === null && v.combatTarget === null && dist(v.px, v.py) < reach)
+      .sort(byNear);
+    const sameLand = (v: Vehicle): boolean => tcell !== null && pf.sameLandmass(Math.floor(v.px / CELL_SIZE), Math.floor(v.py / CELL_SIZE), tcell.x, tcell.y);
+    const truck = free.filter((v) => v.isTruck && !v.moving && dist(v.px, v.py) < reach && sameLand(v)).sort(byNear);
+    const goal = this.safeDrop(p, { x: c.x, y: c.y + CELL_SIZE * 4 });
+    for (const v of [...air, ...heli, ...truck]) {
+      if (!this.host.orderBoard(v, [eng]) || eng.boardTarget !== v.id) continue;
+      st.engLifts.set(v.id, { eng: eng.id, goal });
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Carriers on an engineer run: once the engineer is aboard, a transport aircraft flies to the drop (it sets down and
+   * unloads by itself), a helicopter flies there and lets it out once landed, a truck joins the convoys (driveConvoys
+   * lets it out short of the goal). The run ends when the engineer is out (the capture / lease code walks it the rest
+   * of the way) or the carrier / engineer is lost.
+   */
+  private driveEngineerLifts(st: AIState): void {
+    for (const [id, lift] of st.engLifts) {
+      const v = this.host.entities.get(id);
+      const eng = this.host.entities.get(lift.eng);
+      if (!(v instanceof Vehicle) || !v.alive || !(eng instanceof Infantry) || !eng.alive) {
+        st.engLifts.delete(id);
+        continue;
+      }
+      if (!v.cargo.includes(eng)) {
+        if (eng.boardTarget !== v.id) st.engLifts.delete(id); // out again, or it gave up walking to the carrier
+        continue;
+      }
+      if (v.incoming > 0 || v.ejecting) continue;
+      if (v.isTruck) {
+        if (!st.convoys.has(id)) st.convoys.set(id, lift.goal);
+        continue;
+      }
+      if (v.isTransport) {
+        if (v.flight === 'parked') this.host.orderAttackMove([v], lift.goal);
+        continue;
+      }
+      const there = Math.hypot(lift.goal.x - v.px, lift.goal.y - v.py) < CELL_SIZE * 6;
+      if (there && v.flight === 'landed') this.host.unloadCarrier(v);
+      else if (!there && !v.moving && (v.flight === 'landed' || v.flight === 'parked' || v.flight === 'airborne')) this.host.orderMoveUnits([v], lift.goal);
+    }
+  }
+
   private homeTransports(p: PlayerState): Vehicle[] {
     return this.host.entities
       .fieldMovers()

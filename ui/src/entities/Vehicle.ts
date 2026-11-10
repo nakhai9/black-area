@@ -176,9 +176,11 @@ export class Vehicle extends Unit {
   parking = false;
   /** Truck: it heads for (or stands on) a spot inside its own base (TRUCK_HOME_CELLS), set by the game each tick. */
   atHome = false;
-  /** Army truck: may it drive now? Only with TRUCK_MIN_RIDERS soldiers aboard, inside its own base, or while leaving the factory. */
+  /** Army truck: may it drive now? Only with TRUCK_MIN_RIDERS soldiers aboard (or an engineer), inside its own base, or while leaving the factory. */
   get truckMayDrive(): boolean {
     if (!this.isTruck || this.cargo.length >= TRUCK_MIN_RIDERS || this.atHome) return true;
+    // An engineer aboard: the truck drives it to a far capture / lease job however few ride along.
+    if (this.cargo.some((u) => (u as { isEngineer?: boolean }).isEngineer === true)) return true;
     if (this.parking && this.moving) return true;
     this.parking = false;
     return false;
@@ -194,7 +196,7 @@ export class Vehicle extends Unit {
   ejecting = false;
   /** Seconds until the next passenger steps out while ejecting. */
   ejectClock = 0;
-  /** Transport: fuel left (0..1), it falls out of the sky at 0. */
+  /** Transport / helicopter: fuel left (0..1), it falls out of the sky at 0. */
   fuel = 1;
   /** Aircraft: the pilot has already called mayday (going down, or badly hit in the air). */
   maydaySent = false;

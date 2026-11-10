@@ -1,4 +1,4 @@
-import { BOMB_COST, BOMB_LOAD_SECONDS, CARRIER_JETS, JET_BOMB_COST, CELL_SIZE, TURBO_RECHARGE_SECONDS, TURBO_SECONDS, TRANSPORT_FUEL_CELLS, PORT_AIR_SLOTS } from '../constants';
+import { BOMB_COST, BOMB_LOAD_SECONDS, CARRIER_JETS, JET_BOMB_COST, CELL_SIZE, TURBO_RECHARGE_SECONDS, TURBO_SECONDS, TRANSPORT_FUEL_CELLS, PORT_AIR_SLOTS, HELI_FUEL_CELLS } from '../constants';
 import type { Building } from '../entities/Building';
 import type { EntityManager } from '../entities/EntityManager';
 import { CRUISE_ALTITUDE, type Vehicle } from '../entities/Vehicle';
@@ -192,6 +192,7 @@ export class AircraftSystem implements GameSystem {
         }
       }
       if (v.isTransport) this.fuel(v, prev);
+      else if (v.isHeli) this.fuel(v, prev, HELI_FUEL_CELLS);
       const base = this.home(v);
       // Drawn right after its airfield only while it is on the airfield's apron or runway.
       const onAirfield = v.flight === 'parked' || v.flight === 'taxi' || v.flight === 'takeoff' || v.flight === 'landing' || v.flight === 'taxiHome';
@@ -811,12 +812,12 @@ export class AircraftSystem implements GameSystem {
   }
 
   /**
-   * Transport fuel: every px flown burns a fixed share of the tank (TRANSPORT_FUEL_CELLS). It is only filled back up
+   * Transport / helicopter fuel: every px flown burns a fixed share of the tank (TRANSPORT_FUEL_CELLS / HELI_FUEL_CELLS). It is only filled back up
    * on the ground — its airfield's apron, or set down in the field. An empty tank in the air means a crash.
    */
-  private fuel(v: Vehicle, prev: { x: number; y: number } | undefined): void {
+  private fuel(v: Vehicle, prev: { x: number; y: number } | undefined, range = TRANSPORT_FUEL_CELLS): void {
     if (prev && (v.flight === 'airborne' || v.flight === 'approach')) {
-      v.fuel -= Math.hypot(v.px - prev.x, v.py - prev.y) / (TRANSPORT_FUEL_CELLS * CELL_SIZE);
+      v.fuel -= Math.hypot(v.px - prev.x, v.py - prev.y) / (range * CELL_SIZE);
     }
     const grounded = v.flight === 'parked' || ((v.flight === 'landed' || v.flight === 'unloading') && v.altitude <= 0);
     if (grounded) v.fuel = 1;

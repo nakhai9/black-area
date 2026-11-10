@@ -29,7 +29,7 @@ export const DEMO_FACTION: FactionId = NATION_CODES[(import.meta.env.VITE_DEMO_F
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "3.42.2";
+export const GAME_VERSION = "3.44.1";
 
 /** An Allied Building within this many cells of any capital is an embassy; farther out it is a "Pro-<nation> regime". */
 export const EMBASSY_CAPITAL_CELLS = 25;
@@ -305,8 +305,8 @@ export const ZOOM_MAX = 9;
  */
 export const TREE_HP = 50;
 export const TREES_PER_CELL_MAX = 3;
-/** Share of the generated trees that actually stand (the rest are thinned out at random, seeded): 0.6 = 40% fewer trees. */
-export const TREE_DENSITY = 0.6;
+/** Share of the generated trees that actually stand (the rest are thinned out at random, seeded): 0.3 = 70% fewer trees. */
+export const TREE_DENSITY = 0.3;
 export const TREE_BOMB_RADIUS_CELLS = 1.5;
 export const TREE_STICK_RADIUS_CELLS = 3;
 export const TREE_CHARGE_RADIUS_CELLS = 2;
@@ -895,6 +895,9 @@ export const BOMB_GROUP_SIZE = 10;
 /** A full transport tank flies 1.25 × the map's height (north pole to south pole plus a quarter more) before it must
  * land to refuel: the pole-to-pole tank plus the quarter its former aerial tanker used to hand over. */
 export const TRANSPORT_FUEL_CELLS = GRID_HEIGHT * 1.25;
+/** Helicopter fuel: a full tank flies this many cells; refilled on the ground anywhere (like the transport), empty in
+ * the air = it crashes. Carried in a transport it burns none. */
+export const HELI_FUEL_CELLS = Math.round(GRID_HEIGHT * 0.4);
 
 /** Aircraft are built at the Airfield and use its runway; everything else rolls out of the War Factory. */
 export const isAircraftKind = (kind: VehicleKind): boolean =>
