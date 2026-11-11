@@ -172,7 +172,9 @@ async function boot(): Promise<void> {
     byId('loading-text').textContent = t('Generating Earth…');
     loading.hidden = false;
     // Downloads fill the bar to 80%; the terrain bake (synchronous) takes it to 100%.
-    const steps = [earth, soldiers, aircraft, tanks, repairs, trucks, bunkers, pictures]; // sidebar cameos and units draw from the GI sheet
+    // Only what is on the map at the first frame blocks the start; aircraft, truck and repair sheets keep downloading
+    // in the background (their draw calls skip an image that is not ready yet).
+    const steps = [earth, soldiers, tanks, bunkers, pictures]; // sidebar cameos and units draw from the GI sheet
     let done = 0;
     setProgress(0);
     await Promise.all(steps.map((p) => p.then(() => setProgress((++done / steps.length) * 80))));

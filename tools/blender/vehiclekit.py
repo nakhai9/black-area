@@ -59,6 +59,26 @@ def _grime(nt, base_socket_value, bsdf, amount=0.04, scale=6.0):
     nt.links.new(mix.outputs[2], bsdf.inputs["Base Color"])
 
 
+def _glass(nt, bsdf, base):
+    """Realistic windscreen: dark tinted laminated glass, near-mirror, Fresnel sky reflection at grazing angles."""
+    bsdf.inputs["Roughness"].default_value = 0.03
+    bsdf.inputs["Metallic"].default_value = 0.0
+    bsdf.inputs["IOR"].default_value = 1.52
+    bsdf.inputs["Specular IOR Level"].default_value = 1.0
+    bsdf.inputs["Coat Weight"].default_value = 1.0
+    bsdf.inputs["Coat Roughness"].default_value = 0.02
+    lw = nt.nodes.new("ShaderNodeLayerWeight")
+    lw.inputs["Blend"].default_value = 0.35
+    ramp = nt.nodes.new("ShaderNodeValToRGB")
+    ramp.color_ramp.elements[0].color = (base[0] * 0.6, base[1] * 0.6, base[2] * 0.6, 1)
+    ramp.color_ramp.elements[1].color = (0.42, 0.52, 0.62, 1)  # sky reflected along the glass edge
+    nt.links.new(lw.outputs["Facing"], ramp.inputs["Fac"])
+    nt.links.new(ramp.outputs["Color"], bsdf.inputs["Base Color"])
+    # faint glint so the glass reads as glass at sprite size
+    bsdf.inputs["Emission Color"].default_value = (0.55, 0.65, 0.75, 1)
+    bsdf.inputs["Emission Strength"].default_value = 0.04
+
+
 def mat(name, hexc, rough=0.65, metal=0.0, grime=True, glass=False):
     m = bpy.data.materials.new(name)
     m.use_nodes = True
@@ -68,7 +88,7 @@ def mat(name, hexc, rough=0.65, metal=0.0, grime=True, glass=False):
     bsdf.inputs["Roughness"].default_value = rough
     bsdf.inputs["Metallic"].default_value = metal
     if glass:
-        bsdf.inputs["Coat Weight"].default_value = 0.6
+        _glass(nt, bsdf, lin_rgba(hexc))
     elif grime:
         _grime(nt, lin_rgba(hexc), bsdf)
     return m

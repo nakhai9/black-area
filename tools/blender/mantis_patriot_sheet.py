@@ -21,8 +21,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import vehiclekit as vk  # noqa: E402  (infrastructure only)
 
 LENGTH = 16.0
-# Width stretch, set (with the game length in MantisSheet.ts) so the vehicle is as wide as the tanks and 1.5 tanks long.
-WIDTH_SCALE = float(os.environ.get("MANTIS_WS", "0.67"))
+# Width stretch, set (with the game length in MantisSheet.ts) so the vehicle is real proportions (1.0 = no squeeze), 1.2 tanks long.
+WIDTH_SCALE = float(os.environ.get("MANTIS_WS", "1.0"))
 TEAM = "#2f6fe0"
 ELEV = math.radians(38)
 

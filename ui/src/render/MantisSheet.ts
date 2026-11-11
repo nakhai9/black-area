@@ -27,11 +27,11 @@ const LAYOUT = 128;
 const ANCHOR = { x: 64, y: 84 };
 const LENGTH = 80;
 /**
- * Iso px per sheet LENGTH, per nation: the vehicle is 1.5 x as long as the same nation's tank (side-on, column 8,
- * measured on the mantis-*.webp and tank-*-hull.webp sheets). Its width equals the tank's: set by MANTIS_WS in
- * tools/blender/mantis_<model>_sheet.py (the model is narrowed in Blender, not here).
+ * Iso px per sheet LENGTH, per nation: the vehicle is 1.2 x as long as the same nation's tank (side-on, column 8,
+ * measured on the mantis-*.webp and tank-*-hull.webp sheets). Real proportions (MANTIS_WS = 1, no squeeze) in
+ * tools/blender/mantis_<model>_sheet.py.
  */
-const SHEET_LENGTH_ISO: Record<FactionId, number> = { usa: 11.8, europe: 11.74, russia: 10.9, china: 11.28, islamic: 9.91 };
+const SHEET_LENGTH_ISO: Record<FactionId, number> = { usa: 9.44, europe: 9.39, russia: 8.72, china: 9.02, islamic: 7.93 };
 const SHEETS = new Map<FactionId, HTMLImageElement>();
 function sheet(f: FactionId): HTMLImageElement | null {
   let img = SHEETS.get(f);

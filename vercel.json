@@ -1,5 +1,9 @@
 {
   "installCommand": "npm install",
   "buildCommand": "npm --prefix ui run build",
-  "outputDirectory": "ui/dist"
+  "outputDirectory": "ui/dist",
+  "headers": [
+    { "source": "/assets/(.*)", "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }] },
+    { "source": "/(sprites|sounds|data|emblems)/(.*)", "headers": [{ "key": "Cache-Control", "value": "public, max-age=86400, stale-while-revalidate=604800" }] }
+  ]
 }

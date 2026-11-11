@@ -64,8 +64,11 @@ def build(root):
     vk.hull("lower", [(x, s * 1.1, z) for s in (-1, 1) for x, z in ((-3.45, 0.42), (-3.5, 1.15), (3.15, 0.45), (3.55, 1.0))], olive_dk, root)
     vk.hull("upper", [(x, s * w, z) for s in (-1, 1) for x, w, z in ((-3.5, 1.68, 1.15), (-3.5, 1.68, 1.55), (1.7, 1.68, 1.6), (3.55, 1.6, 1.0), (3.5, 1.6, 1.12))], olive, root, 0.02)
     vk.box("driver_hatch", (2.3, 0.75, 1.42), (0.55, 0.6, 0.06), olive_dk, root)
+    # driver's armoured vision block: raised housing with a front armoured-glass window looking down the glacis
+    vk.box("driver_vision", (2.45, 0.75, 1.45), (0.36, 0.72, 0.2), olive_dk, root, 0.02)
+    vk.box("driver_window", (2.64, 0.75, 1.46), (0.02, 0.62, 0.13), glass, root, 0.0)
     for k in range(3):
-        vk.box(f"periscope{k}", (2.62, 0.55 + k * 0.2, 1.4), (0.06, 0.14, 0.08), glass, root, 0.0)
+        vk.box(f"periscope{k}", (2.62, 0.55 + k * 0.2, 1.57), (0.06, 0.14, 0.08), glass, root, 0.0)
     for s in (-1, 1):
         vk.cyl(f"headlight{s}", (3.38, s * 1.25, 1.12), 0.08, 0.1, "X", steel, root, 12)
         vk.box(f"tow{s}", (3.55, s * 0.6, 0.75), (0.16, 0.12, 0.18), steel, root)
@@ -113,4 +116,4 @@ def build(root):
 
 if __name__ == "__main__":
     vk.render_sheet("mantis-pgz09", build, LENGTH, centre_x=0.0, samples=int(os.environ.get("PGZ_SAMPLES", "32")),
-                    preview=os.environ.get("PGZ_PREVIEW"), width_scale=float(os.environ.get("MANTIS_WS", "0.583")), preview_dir=int(os.environ.get("PGZ_DIR", "4")))
+                    preview=os.environ.get("PGZ_PREVIEW"), width_scale=float(os.environ.get("MANTIS_WS", "1.0")), preview_dir=int(os.environ.get("PGZ_DIR", "4")))
