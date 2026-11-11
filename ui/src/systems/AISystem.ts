@@ -230,6 +230,10 @@ const MILITARY_BUILDS: ReadonlySet<string> = new Set(['barracks', 'warFactory', 
 const AI_FELL_PERIOD = 25;
 const AI_FELL_REACH = 40;
 const AI_FELL_SCAN = 700;
+/** Land clearing on its own (clearLand): seconds between two orders, how far round the capital (cells), how many units. */
+const AI_CLEAR_PERIOD = 30;
+const AI_CLEAR_RADIUS = 30;
+const AI_CLEARERS = 2;
 /** Below this much spent in all, the split is not enforced yet (the opening base is built as planned). */
 const SPLIT_FROM = 3000;
 /** Expansion: weight of the distance from the nation's own structures in the claim-site score (spread out). */
@@ -549,6 +553,7 @@ export class AISystem implements GameSystem {
     this.driveEngineerLifts(st);
     this.mendFleet(p);
     this.claimLand(p, st, capital, owned, threat);
+    this.clearLand(p, capital, threat);
     // Ceasefire, or a military embargo on the nation: it only builds up and launches no attack meanwhile.
     if (inTruce() || p.disarmedUntil !== undefined) {
       this.contestNations(p, st, capital, owned, threat);
@@ -1238,23 +1243,10 @@ export class AISystem implements GameSystem {
     return null;
   }
 
-  /** Nation id → game time of its last clearing order (clearWoodsFor). */
-  private readonly fellAt = new Map<number, number>();
-
-  /**
-   * No open site for `option` round the capital: when the nearest site is only blocked by trees, up to AI_FELLERS of
-   * the nation's idle armed ground units within AI_FELL_REACH cells of the capital get the clearing order (the one a
-   * player gives with Ctrl+click), one wooded cell of the footprint each, and the build slot waits for them. One such
-   * order per nation per AI_FELL_PERIOD seconds. Returns true while the clearing is on (the slot is kept).
-   */
-  private clearWoodsFor(p: PlayerState, capital: Building, option: BuildOption): boolean {
-    if (option.id === 'wall' || option.id === 'gate' || option.id === 'alliedBuilding' || option.id === 'port') return false;
-    const last = this.fellAt.get(p.id);
-    if (last !== undefined && this.time - last < AI_FELL_PERIOD) return true; // the fellers are still at work
-    const site = this.woodedSiteNear(p, capital, option);
-    if (!site) return false;
+  /** Up to `max` idle armed ground units of `p` within AI_FELL_REACH cells of the capital, nearest first. */
+  private idleFellers(p: PlayerState, capital: Building, max: number): Unit[] {
     const c = capital.centerWorld();
-    const fellers = this.host.entities
+    return this.host.entities
       .fieldMovers()
       .filter(
         (u) =>
@@ -1274,7 +1266,56 @@ export class AISystem implements GameSystem {
           Math.hypot(u.px - c.x, u.py - c.y) <= AI_FELL_REACH * CELL_SIZE,
       )
       .sort((a, b) => Math.hypot(a.px - c.x, a.py - c.y) - Math.hypot(b.px - c.x, b.py - c.y))
-      .slice(0, AI_FELLERS);
+      .slice(0, max);
+  }
+
+  /** Nation id -> game time of its last land-clearing order (clearLand). */
+  private readonly clearAt = new Map<number, number>();
+
+  /**
+   * Land clearing on its own initiative: every AI_CLEAR_PERIOD s, when the home front is quiet, up to AI_CLEARERS
+   * idle armed ground units fell the wooded cell nearest the capital within AI_CLEAR_RADIUS cells, so the nation
+   * always has open ground to build on (same Ctrl+click clearing order as the player).
+   */
+  private clearLand(p: PlayerState, capital: Building, threat: number): void {
+    if (threat > 0) return;
+    const last = this.clearAt.get(p.id);
+    if (last !== undefined && this.time - last < AI_CLEAR_PERIOD) return;
+    this.clearAt.set(p.id, this.time);
+    if (this.host.entities.fieldMovers().some((u) => u.owner === p.id && u.fellTarget !== null)) return; // still at work
+    const cx = Math.floor(capital.x + capital.w / 2);
+    const cy = Math.floor(capital.y + capital.d / 2);
+    let cell: GridPoint | null = null;
+    for (let r = 1; r <= AI_CLEAR_RADIUS && !cell; r++) {
+      for (let dy = -r; dy <= r && !cell; dy++) {
+        for (let dx = -r; dx <= r; dx++) {
+          if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+          const x = cx + dx, y = cy + dy;
+          if (this.host.map.inBounds(x, y) && this.host.map.hasTrees(x, y)) { cell = { x, y }; break; }
+        }
+      }
+    }
+    if (!cell) return;
+    const fellers = this.idleFellers(p, capital, AI_CLEARERS);
+    if (fellers.length > 0) this.host.orderFell(fellers, cell);
+  }
+
+  /** Nation id → game time of its last clearing order (clearWoodsFor). */
+  private readonly fellAt = new Map<number, number>();
+
+  /**
+   * No open site for `option` round the capital: when the nearest site is only blocked by trees, up to AI_FELLERS of
+   * the nation's idle armed ground units within AI_FELL_REACH cells of the capital get the clearing order (the one a
+   * player gives with Ctrl+click), one wooded cell of the footprint each, and the build slot waits for them. One such
+   * order per nation per AI_FELL_PERIOD seconds. Returns true while the clearing is on (the slot is kept).
+   */
+  private clearWoodsFor(p: PlayerState, capital: Building, option: BuildOption): boolean {
+    if (option.id === 'wall' || option.id === 'gate' || option.id === 'alliedBuilding' || option.id === 'port') return false;
+    const last = this.fellAt.get(p.id);
+    if (last !== undefined && this.time - last < AI_FELL_PERIOD) return true; // the fellers are still at work
+    const site = this.woodedSiteNear(p, capital, option);
+    if (!site) return false;
+    const fellers = this.idleFellers(p, capital, AI_FELLERS);
     if (fellers.length === 0) return false;
     const cells: GridPoint[] = [];
     for (let y = site.y; y < site.y + site.d; y++) for (let x = site.x; x < site.x + site.w; x++) if (this.host.map.hasTrees(x, y)) cells.push({ x, y });

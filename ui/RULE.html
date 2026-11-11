@@ -26,7 +26,7 @@
 <body>
 <main>
 <img class="logo" src="/logo.png" alt="Black Area" />
-<h1>Black Area — RULE <small>v3.46.1</small></h1>
+<h1>Black Area — RULE <small>v3.47.0</small></h1>
 <p class="lead">Tài liệu luật chơi + kiến trúc code dành cho AI/dev sửa game. Mọi con số gameplay chính xác nằm trong <code>src/constants.ts</code> và <code>src/factions/*.ts</code>. Nếu tài liệu này khác code thì <b>code đúng</b>. <b>Khi đổi luật/số trong code, phải cập nhật file này.</b></p>
 <nav><a href="#s1">Quy tắc làm việc cho AI</a><a href="#s2">Chạy dự án</a><a href="#s3">Kiến trúc thư mục</a><a href="#s4">Thế giới</a><a href="#s5">Kinh tế (dầu)</a><a href="#s6">Công trình (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Quân đội</a><a href="#s8">Chiến đấu</a><a href="#s9">Điều khiển (Game.handleKey, handleInput)</a><a href="#s10">Giới hạn &amp; hiệu năng</a><a href="#s11">Thắng / thua &amp; AI</a><a href="#s12">Công thức sửa thường gặp</a></nav>
 <h2 id="s1">0. Quy tắc làm việc cho AI</h2>
@@ -701,6 +701,7 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
   <li>v3.36.3: <b>Thủ đô bị chiếm đóng</b> vẫn bị tấn công nhưng không bị phá hủy; khi hết máu sẽ trở về <b>trung lập</b> như ban đầu (đầy máu, phe chiếm mất quyền sở hữu, kỹ sư phe nào cũng có thể chiếm lại).</li>
   <li>v3.41.5: Sửa lỗi máy bay vận tải bay vòng tròn mãi quanh điểm hạ cánh (không đáp được, không nhận lệnh di chuyển): khi điểm đến nằm trong vòng quay, máy bay bay thẳng tới. Lệnh di chuyển mới trong lúc đang bay tới điểm hạ cánh giờ được nhận (hủy hạ cánh, bay đi).</li>
   <li>v3.41.5: Máy bay không còn nhận <b>Cảng (Naval Port)</b> làm sân bay nhà (không đậu, không hạ cánh, không được sinh ra ở cảng). Loại máy bay được đậu ở cảng sẽ quy ước sau: thêm vào <code>PORT_AIRCRAFT</code> trong <code>src/systems/AircraftSystem.ts</code>. Máy bay đang lấy cảng làm nhà (bản lưu cũ) sẽ chuyển sang sân bay khác của phe; không còn sân bay nào thì rơi như luật cũ.</li>
+    <li>v3.47.0: <b>AI tự khai hoang</b>: mỗi 30 s, khi quanh thủ đô không có địch, AI tự cho tối đa 2 đơn vị chiến đấu mặt đất đang rảnh phát quang ô cây gần thủ đô nhất (trong bán kính 30 ô), giống lệnh Ctrl + click của người chơi (<code>AISystem.clearLand</code>). Vẫn giữ việc phát quang khi chỗ xây duy nhất bị cây chắn.</li>
     <li>v3.46.1: <b>Máy bay / trực thăng rơi lên Breaking News</b>: mỗi chiếc của bạn bị bắn rơi đều hiện TIN NÓNG kèm tên nước bắn; rơi không do địch (va chạm, hỏng...) hiện "… của bạn đã rơi".</li>
     <li>v3.46.0: <b>Breaking News ghi bằng chứng thù địch</b>: nước nào tấn công (tối đa 1 tin / 30 s mỗi nước), giết đơn vị (gộp số lượng, 1 tin / 10 s mỗi nước) hay phá hủy công trình của bạn đều hiện TIN NÓNG và lưu vào nhật ký tình báo (mục Quân sự).</li>
     <li>v3.45.6: <b>Xe sửa chữa ủi cây</b>: xe sửa chữa chạy ngang ô có cây thì cây trong ô đó ngã ngay, không cần ra lệnh. Áp dụng cả người chơi và AI.</li>
