@@ -2,6 +2,7 @@ import { ZOOM_MAX, ZOOM_MIN } from '../constants';
 import type { Rect, WorldPoint } from '../types';
 import { isoToWorld, worldToIso } from './IsoView';
 import { clamp } from './MathUtils';
+import { settings } from './Settings';
 
 /**
  * Fixed-angle isometric camera: pan + zoom only (see IsoView). `x`/`y` are the top-left corner of the
@@ -80,6 +81,7 @@ export class Camera {
 
   /** Zooms while keeping the point under (sx, sy) fixed on screen. */
   zoomAt(factor: number, sx: number, sy: number): void {
+    if (settings.zoomLock) return; // Settings → zoom lock
     const anchor = this.screenToIso(sx, sy);
     this.zoom = clamp(this.zoom * factor, this.minZoom, ZOOM_MAX);
     this.x = anchor.x - sx / this.zoom;

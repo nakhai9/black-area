@@ -1,5 +1,5 @@
-import { type IconNode, Globe, ScreenShareOff, Volume2, createElement } from 'lucide';
-import { setEdgeLock, settings } from '../core/Settings';
+import { type IconNode, Globe, ScreenShareOff, ZoomIn, Volume2, createElement } from 'lucide';
+import { setEdgeLock, setZoomLock, settings } from '../core/Settings';
 import { type Lang, languageSelect, t } from '../i18n';
 
 /** Key in sessionStorage: set when the page reloads only to switch the language, so the save loads without asking. */
@@ -101,6 +101,16 @@ export class PauseMenu {
     const lockText = document.createElement('span');
     lockText.textContent = t('No scrolling when mouse is outside');
     lock.append(lockBox, lockText);
+    // Zoom lock: the wheel and +/- keys stop zooming.
+    const zoomLock = document.createElement('label');
+    zoomLock.className = 'pause-check';
+    const zoomBox = document.createElement('input');
+    zoomBox.type = 'checkbox';
+    zoomBox.checked = settings.zoomLock;
+    zoomBox.addEventListener('change', () => setZoomLock(zoomBox.checked));
+    const zoomText = document.createElement('span');
+    zoomText.textContent = t('Lock zoom');
+    zoomLock.append(zoomBox, zoomText);
     // Settings, one per line: icon, then its control.
     const row = (icon: IconNode, title: string, control: HTMLElement): HTMLDivElement => {
       const r = document.createElement('div');
@@ -114,6 +124,7 @@ export class PauseMenu {
     settingsBox.className = 'pause-settings';
     settingsBox.append(
       row(ScreenShareOff, t('Screen lock'), lock),
+      row(ZoomIn, t('Zoom lock'), zoomLock),
       row(Volume2, t('Volume'), volume),
       row(Globe, t('Language'), languageSelect((lang) => saves.onLanguage(lang), false)),
     );

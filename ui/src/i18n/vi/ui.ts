@@ -138,6 +138,8 @@ export default {
   SETTINGS: 'CÀI ĐẶT',
   'No scrolling when mouse is outside': 'Không cuộn khi chuột ra ngoài',
   'Screen lock': 'Khóa chuyển động màn hình',
+  'Lock zoom': 'Khóa thu phóng',
+  'Zoom lock': 'Khóa thu phóng',
   Volume: 'Âm lượng',
   'Settings: screen lock, volume, language (pause menu, Esc).': 'Cài đặt: khóa chuyển động màn hình, âm lượng, ngôn ngữ (menu tạm dừng, Esc).',
   'Out of sync with the other players: this match may differ between machines.': 'Lệch đồng bộ với người chơi khác: trận này có thể khác nhau giữa các máy.',

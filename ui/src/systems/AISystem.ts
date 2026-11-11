@@ -284,6 +284,49 @@ const WAVE_GAP = 110;
 const GUARD_SHARE = 1 / 3;
 /** Idle attackers set out together once at least this many are ready (or all of them are). */
 const STRIKE_GROUP = 3;
+/**
+ * Timing an offensive (advance): the strike force masses at the staging point until its strength (unit value × health)
+ * is AI_ATTACK_ODDS × the enemy's round the target (units within AI_TARGET_SCAN cells, plus bunkers), or it has
+ * waited AI_MASS_MAX s (the AI always attacks in the end). Meanwhile AI_WAR_CHEST credits are kept back from training;
+ * once the attack is launched the chest is spent on reinforcements for AI_OFFENSIVE_SECONDS.
+ */
+const AI_ATTACK_ODDS = 1.3;
+const AI_MASS_MAX = 150;
+const AI_WAR_CHEST = 2500;
+const AI_OFFENSIVE_SECONDS = 60;
+const AI_TARGET_SCAN = 14;
+const AI_BUNKER_VALUE = 800;
+/**
+ * Doctrines. Guerrilla (raid): up to AI_RAIDERS of the fastest ground units, taken once the strike force has
+ * AI_RAID_FROM units, hit the enemy's weakest-guarded economy (derricks, cities, power) where its defence is under
+ * AI_RAID_ODDS × theirs, and run home when hurt (health < AI_RAID_FLEE) or outgunned, resting AI_RAID_REST s.
+ * Deep Operations: an offensive of AI_DEEP_MIN units or more sends AI_DEEP_SHARE of it (aircraft and the fastest
+ * vehicles) at the same moment against the target nation's weakest structure behind the front line, while the main
+ * body (Blitzkrieg: massed, launched all at once) strikes the front target.
+ */
+/**
+ * Fronts (holdFronts): AI_FRONT_SHARE of the strike force is spread over one front per enemy nation, each front's
+ * share weighted by that nation's army strength and closeness. A front's post sits AI_FRONT_PUSH cells beyond our
+ * structure nearest to that enemy (the frontier), toward it, so it moves forward as the nation's land grows.
+ */
+const AI_FRONT_SHARE = 0.3;
+const AI_FRONT_PUSH = 6;
+const AI_FRONT_SLACK = 5;
+/**
+ * Airlift (motorize): soldiers of an attack group whose target is more than AI_AIRLIFT_CELLS away board an idle
+ * parked transport aircraft within AI_AIRLIFT_PICKUP cells first (trucks only for the rest); the transport takes off
+ * once loaded (or after AI_AIRLIFT_WAIT s) and lands its load near the target (see driveAirlifts).
+ */
+const AI_AIRLIFT_CELLS = 60;
+const AI_AIRLIFT_PICKUP = 30;
+const AI_AIRLIFT_WAIT = 20;
+const AI_RAIDERS = 3;
+const AI_RAID_FROM = 8;
+const AI_RAID_ODDS = 0.6;
+const AI_RAID_FLEE = 0.5;
+const AI_RAID_REST = 30;
+const AI_DEEP_MIN = 8;
+const AI_DEEP_SHARE = 0.35;
 /** Squads waiting at the staging point stand within this many cells of it. */
 const STAGE_RADIUS_CELLS = 6;
 /** AWACS the AI keeps (one), built once it has at least this many vehicles. */
@@ -381,6 +424,18 @@ interface AIState {
   derrickHp: Map<number, number>;
   /** The nation this government has chosen to make war on (AI or the player), re-weighed every RIVAL_PERIOD s. */
   rival: number | null;
+  /** Game time the strike force started massing for the next offensive (undefined: not massing). */
+  massSince?: number;
+  /** Guerrilla raiders (unit ids), kept out of the strike force (see raid). */
+  raiders?: Set<number>;
+  /** Transport aircraft id -> where it flies its soldiers and when it was ordered (see driveAirlifts). */
+  airlifts?: Map<number, { goal: WorldPoint; at: number }>;
+  /** Enemy nation id -> ids of our units holding the front facing it (see holdFronts). */
+  fronts?: Map<number, Set<number>>;
+  /** Game time the raiders may set off again after running home. */
+  raidRestUntil?: number;
+  /** Game time until which the current offensive goes on (war chest released, groups go straight in). */
+  offensiveUntil?: number;
   nextRival: number;
   /** Contested capital this nation is trying to take, and the engineer sent for it. */
   nationTarget: number | null;
@@ -568,6 +623,7 @@ export class AISystem implements GameSystem {
     this.captureOil(p, st, threat);
     this.captureAllies(p, st, owned, threat);
     this.driveConvoys(st);
+    this.driveAirlifts(p, st);
     this.layBridges(p, st, capital, owned);
     this.evacuate(p, capital);
     this.army(p, st, capital);
@@ -1394,7 +1450,9 @@ export class AISystem implements GameSystem {
       threat === 0 && f.total >= MIN_ARMY * INVEST_ARMY_FACTOR && city && this.economyDue(st) && this.savingForCity(p, owned, st)
         ? buildCost(city, p.faction) * st.style.save
         : 0;
-    const budget = p.credits - reserve;
+    // War chest: saved while the army masses for the next offensive, spent once it is launched (never under threat).
+    const chest = threat === 0 && f.total >= MIN_ARMY && !this.onOffensive(st) ? AI_WAR_CHEST : 0;
+    const budget = p.credits - reserve - chest;
     let vehicleCount = 0;
     for (const n of f.vehicles.values()) vehicleCount += n;
     const canVehicles = owned.has('warFactory'); // every order (aircraft too) is placed at the War Factory
@@ -1702,7 +1760,11 @@ export class AISystem implements GameSystem {
     const guard = this.pickGuard(st, army, home);
     const defenders = this.defendDerricks(p, st, army, all);
     const stationed = this.holdNations(p, st, army.filter((u) => !st.guard.has(u.id) && !defenders.has(u.id)), all, home);
-    const strike = army.filter((u) => !st.guard.has(u.id) && !defenders.has(u.id) && !stationed.has(u.id));
+    let strike = army.filter((u) => !st.guard.has(u.id) && !defenders.has(u.id) && !stationed.has(u.id));
+    const raiders = this.raid(p, st, strike, home);
+    if (raiders.size > 0) strike = strike.filter((u) => !raiders.has(u.id));
+    const holding = this.holdFronts(p, st, strike, home);
+    if (holding.size > 0) strike = strike.filter((u) => !holding.has(u.id));
 
     this.defend(p, guard, home, all);
     // Own capital taken and no combat unit of ours left near it: the attackers are called back to fight for it.
@@ -2276,7 +2338,7 @@ export class AISystem implements GameSystem {
     if (idle.length === 0 || (idle.length < STRIKE_GROUP && idle.length < strike.length)) return;
     const cx = idle.reduce((s, u) => s + u.px, 0) / idle.length;
     const cy = idle.reduce((s, u) => s + u.py, 0) / idle.length;
-    const target = this.pickTarget(p, { x: cx, y: cy });
+    const target = this.pickTarget(p, { x: cx, y: cy }, this.forceOf(idle));
     if (!target) return;
     const goal = target.centerWorld();
     const cell = this.host.pathfinder.nearestPassable(Math.floor(goal.x / CELL_SIZE), Math.floor((goal.y + 10) / CELL_SIZE), 10);
@@ -2285,6 +2347,18 @@ export class AISystem implements GameSystem {
     );
     // Squad rule (same as the player's): kinds still too few gather at a staging point toward the target and set off
     // together once there are enough of them — a blitz from wherever the staging point is.
+    // Timing: the force masses at the staging point until it clearly outweighs the target's defenders.
+    if (going.length > 0 && !this.onOffensive(st)) {
+      const ours = this.forceOf(going);
+      const theirs = this.defenceAt(p, goal);
+      st.massSince ??= this.time;
+      if (ours < AI_ATTACK_ODDS * theirs && this.time - st.massSince < AI_MASS_MAX) {
+        this.gatherAtStage(st, going, { x: cx, y: cy }, goal);
+        return;
+      }
+      st.massSince = undefined;
+      st.offensiveUntil = this.time + AI_OFFENSIVE_SECONDS;
+    }
     const { going: ready, short } = squadFilter(going);
     const waiting = going.filter((u) => !ready.includes(u));
     going = ready;
@@ -2295,6 +2369,16 @@ export class AISystem implements GameSystem {
     // Its aircraft carriers sail toward the target (the nearest sea to it), bringing their fighters within reach.
     const ships = this.host.entities.fieldMovers().filter((u): u is Vehicle => u instanceof Vehicle && u.isAircraftCarrier && u.owner === p.id && u.alive && !u.moving);
     if (ships.length > 0) this.host.orderMoveUnits(ships, goal);
+    // Air cover: at most one air-defence vehicle rides with a group that has tanks (none without tanks).
+    going = this.oneEscort(going);
+    // Deep Operations: part of a big offensive hits the target nation's rear at the same moment.
+    if (going.length >= AI_DEEP_MIN) {
+      const deep = this.deepStrike(p, going, { x: cx, y: cy }, target);
+      if (deep.length > 0) {
+        const left = new Set(deep);
+        going = going.filter((u) => !left.has(u));
+      }
+    }
     // Far away: soldiers who would have to rest on the march ride the nation's trucks to the front instead.
     going = this.motorize(p, st, going, { x: goal.x, y: goal.y + CELL_SIZE * 3 });
     if (going.length > 0) this.host.orderAttackMove(going, { x: goal.x, y: goal.y + CELL_SIZE * 3 });
@@ -2329,8 +2413,24 @@ export class AISystem implements GameSystem {
    */
   private motorize(p: PlayerState, st: AIState, going: readonly Unit[], goal: WorldPoint): Unit[] {
     const far = (u: Unit): boolean => Math.hypot(goal.x - u.px, goal.y - u.py) > INFANTRY_MARCH_CELLS * CELL_SIZE * 1.5;
-    const riders = going.filter((u): u is Infantry => u instanceof Infantry && !u.swims && !u.isSquatters && !u.isEngineer && far(u));
+    let riders = going.filter((u): u is Infantry => u instanceof Infantry && !u.swims && !u.isSquatters && !u.isEngineer && far(u));
     if (riders.length === 0) return [...going];
+    // Far away: transport aircraft first.
+    const flown = new Set<Unit>();
+    const airlifts = (st.airlifts ??= new Map());
+    const veryFar = (u: Unit): boolean => Math.hypot(goal.x - u.px, goal.y - u.py) > AI_AIRLIFT_CELLS * CELL_SIZE;
+    for (const t of this.homeTransports(p)) {
+      if (t.cargo.length > 0 || t.incoming > 0 || airlifts.has(t.id) || this.carriesSquatters(t)) continue;
+      const near = riders
+        .filter((u) => !flown.has(u) && veryFar(u) && Math.hypot(u.px - t.px, u.py - t.py) < AI_AIRLIFT_PICKUP * CELL_SIZE)
+        .slice(0, TRANSPORT_LOAD);
+      if (near.length === 0) continue;
+      if (!this.host.orderBoard(t, near)) continue;
+      for (const u of near) flown.add(u);
+      airlifts.set(t.id, { goal, at: this.time });
+    }
+    if (flown.size > 0) riders = riders.filter((u) => !flown.has(u));
+    if (riders.length === 0) return going.filter((u) => !flown.has(u));
     const trucks = this.host.entities
       .vehicles()
       .filter((t) => t.owner === p.id && t.alive && t.isTruck && t.insideId === null && !t.moving && t.cargo.length === 0 && t.incoming === 0 && !st.convoys.has(t.id));
@@ -2342,7 +2442,27 @@ export class AISystem implements GameSystem {
       for (const u of near) aboard.add(u);
       st.convoys.set(t.id, goal);
     }
-    return going.filter((u) => !aboard.has(u));
+    return going.filter((u) => !aboard.has(u) && !flown.has(u));
+  }
+
+  /** Airlifts: a transport takes off once its soldiers are aboard (or after AI_AIRLIFT_WAIT s) and lands them near the goal. */
+  private driveAirlifts(p: PlayerState, st: AIState): void {
+    if (!st.airlifts) return;
+    for (const [id, job] of st.airlifts) {
+      const t = this.host.entities.get(id);
+      if (!(t instanceof Vehicle) || !t.alive) {
+        st.airlifts.delete(id);
+        continue;
+      }
+      if (t.flight !== 'parked') continue; // in the air: on its way
+      if (t.cargo.length === 0) {
+        if (t.incoming === 0 && this.time - job.at > AI_AIRLIFT_WAIT) st.airlifts.delete(id); // delivered, or nobody came
+        continue;
+      }
+      if (t.incoming > 0 && this.time - job.at < AI_AIRLIFT_WAIT) continue; // still boarding
+      if (Math.hypot(t.px - job.goal.x, t.py - job.goal.y) < CELL_SIZE * 12) continue; // landed there, unloading
+      this.host.orderAttackMove([t], this.safeDrop(p, { x: job.goal.x, y: job.goal.y + CELL_SIZE * 6 }));
+    }
   }
 
   /**
@@ -2649,7 +2769,206 @@ export class AISystem implements GameSystem {
    * Next objective: the enemy structure with the best score (distance × war-aim weight, see ECONOMIC_TARGETS).
    * Money-makers first, then the army's buildings; capitals only once a nation has nothing else left.
    */
-  private pickTarget(p: PlayerState, from: WorldPoint | Building): Building | null {
+  /**
+   * Spreads AI_FRONT_SHARE of the strike force over every front (one per enemy nation within reach by land), weighted
+   * by the enemy's army and nearness; returns the ids holding a front (kept out of the strike force).
+   */
+  private holdFronts(p: PlayerState, st: AIState, strike: readonly Unit[], home: WorldPoint): Set<number> {
+    const fronts = (st.fronts ??= new Map());
+    const held = new Set<number>();
+    const ours = this.host.entities.buildings().filter((b) => b.alive && b.owner === p.id);
+    const homeCell = { x: Math.floor(home.x / CELL_SIZE), y: Math.floor(home.y / CELL_SIZE) };
+    // Nearest structure of every enemy nation reachable by land.
+    const nearest = new Map<number, { b: Building; d: number }>();
+    for (const b of this.enemyStructures(p)) {
+      const c = b.centerWorld();
+      const d = Math.hypot(c.x - home.x, c.y - home.y);
+      const cur = nearest.get(b.owner);
+      if (cur && cur.d <= d) continue;
+      if (!this.host.pathfinder.sameLandmass(homeCell.x, homeCell.y, Math.floor(c.x / CELL_SIZE), Math.floor(c.y / CELL_SIZE))) continue;
+      nearest.set(b.owner, { b, d });
+    }
+    const armies = new Map<number, number>();
+    for (const u of this.host.entities.fieldMovers()) if (u.alive && u.weapon !== null) armies.set(u.owner, (armies.get(u.owner) ?? 0) + this.strength(u));
+    for (const owner of [...fronts.keys()]) if (!nearest.has(owner)) fronts.delete(owner);
+    const total = Math.round(strike.length * AI_FRONT_SHARE);
+    if (total === 0 || nearest.size === 0) {
+      fronts.clear();
+      return held;
+    }
+    const weight = new Map<number, number>();
+    let sum = 0;
+    for (const [owner, { d }] of nearest) {
+      const w = ((armies.get(owner) ?? 0) + 500) / (d / CELL_SIZE + 20);
+      weight.set(owner, w);
+      sum += w;
+    }
+    const inStrike = new Map(strike.map((u) => [u.id, u]));
+    const taken = new Set<number>();
+    for (const [owner, { b: enemy }] of nearest) {
+      const quota = Math.max(total >= nearest.size ? 1 : 0, Math.round((total * (weight.get(owner) ?? 0)) / sum));
+      const ec = enemy.centerWorld();
+      // Frontier: our structure nearest to that enemy; the post stands AI_FRONT_PUSH cells beyond it, toward them.
+      let base = home;
+      let bd = Math.hypot(ec.x - home.x, ec.y - home.y);
+      for (const o of ours) {
+        const c = o.centerWorld();
+        const d = Math.hypot(ec.x - c.x, ec.y - c.y);
+        if (d < bd) {
+          bd = d;
+          base = c;
+        }
+      }
+      const k = bd > 0 ? Math.min(AI_FRONT_PUSH * CELL_SIZE, bd / 2) / bd : 0;
+      const cell = this.host.pathfinder.nearestPassable(Math.floor((base.x + (ec.x - base.x) * k) / CELL_SIZE), Math.floor((base.y + (ec.y - base.y) * k) / CELL_SIZE), 10, undefined, 'vehicle');
+      if (!cell) continue;
+      const post = { x: (cell.x + 0.5) * CELL_SIZE, y: (cell.y + 0.5) * CELL_SIZE };
+      // Keep the units already there, fill up with the free ones nearest the post, release the surplus.
+      const group = [...(fronts.get(owner) ?? [])].map((id) => inStrike.get(id)).filter((u): u is Unit => u !== undefined && !taken.has(u.id));
+      const dist = (u: Unit): number => Math.hypot(u.px - post.x, u.py - post.y);
+      if (group.length < quota) {
+        const free = strike.filter((u) => !taken.has(u.id) && !u.aircraft && !u.naval && !group.includes(u) && u.attackTarget === null && u.combatTarget === null).sort((a, b) => dist(a) - dist(b));
+        group.push(...free.slice(0, quota - group.length));
+      }
+      const kept = group.sort((a, b) => dist(a) - dist(b)).slice(0, quota);
+      fronts.set(owner, new Set(kept.map((u) => u.id)));
+      for (const u of kept) {
+        taken.add(u.id);
+        held.add(u.id);
+      }
+      const away = kept.filter((u) => !u.moving && u.combatTarget === null && !u.retreating && dist(u) > AI_FRONT_SLACK * CELL_SIZE);
+      if (away.length > 0) this.host.orderAttackMove(away, post);
+    }
+    return held;
+  }
+
+  /**
+   * Air cover for tanks: a group with tanks keeps at most one air-defence vehicle (the healthiest); a group
+   * without tanks takes none. The others stay behind (home air defence or the next tank group).
+   */
+  private oneEscort(going: readonly Unit[]): Unit[] {
+    const isFlak = (u: Unit): boolean => u instanceof Vehicle && u.type === 'mantis';
+    const flak = going.filter(isFlak);
+    if (flak.length === 0) return [...going];
+    const tanks = going.some((u) => u instanceof Vehicle && u.type === 'tank');
+    const escort = tanks ? flak.sort((a, b) => b.hp / b.maxHp - a.hp / a.maxHp)[0] : undefined;
+    return going.filter((u) => !isFlak(u) || u === escort);
+  }
+
+  /**
+   * Guerrilla raids (see AI_RAIDERS). Returns the raider ids (kept out of the strike force).
+   */
+  private raid(p: PlayerState, st: AIState, strike: readonly Unit[], home: WorldPoint): Set<number> {
+    const raiders = (st.raiders ??= new Set());
+    const units: Unit[] = [];
+    for (const id of raiders) {
+      const u = this.host.entities.get(id);
+      if (u && u.alive && u.owner === p.id && 'speed' in u) units.push(u as Unit);
+      else raiders.delete(id);
+    }
+    // Recruit the fastest idle ground units once the strike force is big enough to spare them.
+    if (units.length < AI_RAIDERS && strike.length >= AI_RAID_FROM) {
+      const free = strike
+        .filter((u) => !u.aircraft && !u.naval && !u.moving && u.attackTarget === null && u.combatTarget === null && !u.retreating)
+        .sort((a, b) => b.speed - a.speed)
+        .slice(0, AI_RAIDERS - units.length);
+      for (const u of free) {
+        raiders.add(u.id);
+        units.push(u);
+      }
+    }
+    if (units.length === 0) return raiders;
+    const force = this.forceOf(units);
+    const cx = units.reduce((s, u) => s + u.px, 0) / units.length;
+    const cy = units.reduce((s, u) => s + u.py, 0) / units.length;
+    // Hit and run: hurt or outgunned, the raiders run home and rest.
+    const hurt = units.some((u) => u.hp < u.maxHp * AI_RAID_FLEE);
+    if (hurt || this.defenceAt(p, { x: cx, y: cy }) > force) {
+      if (Math.hypot(cx - home.x, cy - home.y) > HOME_RADIUS) {
+        this.host.orderMoveUnits(units, home);
+        st.raidRestUntil = this.time + AI_RAID_REST;
+      }
+      return raiders;
+    }
+    if (st.raidRestUntil !== undefined && this.time < st.raidRestUntil) return raiders;
+    if (units.some((u) => u.moving || u.attackTarget !== null || u.combatTarget !== null)) return raiders;
+    // Target: the enemy's worst-guarded economy structure (the rival's first), nearest first.
+    const all = this.enemyStructures(p).filter((b) => ECONOMY_TYPES.has(b.spec.type));
+    const ofRival = st.rival === null ? [] : all.filter((b) => b.owner === st.rival);
+    let best: Building | null = null;
+    let bestScore = Infinity;
+    for (const b of ofRival.length > 0 ? ofRival : all) {
+      const c = b.centerWorld();
+      const def = this.defenceAt(p, c);
+      if (def > force * AI_RAID_ODDS) continue;
+      const score = Math.hypot(c.x - cx, c.y - cy) * (1 + def / force);
+      if (score < bestScore) {
+        bestScore = score;
+        best = b;
+      }
+    }
+    if (best) this.host.orderAttackTarget(units, best);
+    return raiders;
+  }
+
+  /**
+   * Deep Operations: AI_DEEP_SHARE of `going` (aircraft first, then the fastest vehicles) is sent against the
+   * weakest-guarded structure of `front`'s nation lying farther from us than `front`. Returns the units sent.
+   */
+  private deepStrike(p: PlayerState, going: readonly Unit[], from: WorldPoint, front: Building): Unit[] {
+    const fc = front.centerWorld();
+    const frontDist = Math.hypot(fc.x - from.x, fc.y - from.y);
+    let deep: Building | null = null;
+    let bestDef = Infinity;
+    for (const b of this.enemyStructures(p)) {
+      if (b.owner !== front.owner || b.id === front.id) continue;
+      const c = b.centerWorld();
+      if (Math.hypot(c.x - from.x, c.y - from.y) <= frontDist + CELL_SIZE * 8) continue;
+      const def = this.defenceAt(p, c);
+      if (def < bestDef) {
+        bestDef = def;
+        deep = b;
+      }
+    }
+    if (!deep) return [];
+    const want = Math.max(1, Math.round(going.length * AI_DEEP_SHARE));
+    const pick = [...going]
+      .filter((u) => u.aircraft || (u instanceof Vehicle && u.type !== 'mantis'))
+      .sort((a, b) => Number(b.aircraft) - Number(a.aircraft) || b.speed - a.speed)
+      .slice(0, want);
+    if (pick.length === 0) return [];
+    const goal = deep.centerWorld();
+    this.host.orderAttackMove(pick, { x: goal.x, y: goal.y + CELL_SIZE * 3 });
+    return pick;
+  }
+
+  /** An offensive is on (launched less than AI_OFFENSIVE_SECONDS ago). */
+  private onOffensive(st: AIState): boolean {
+    return st.offensiveUntil !== undefined && this.time < st.offensiveUntil;
+  }
+
+  /** Fighting strength of a group (sum of strength). */
+  private forceOf(units: readonly Unit[]): number {
+    return units.reduce((s, u) => s + (u.alive ? this.strength(u) : 0), 0);
+  }
+
+  /** Strength of the enemies of `p` (armed units and bunkers) within AI_TARGET_SCAN cells of `at`. */
+  private defenceAt(p: PlayerState, at: WorldPoint): number {
+    const r = AI_TARGET_SCAN * CELL_SIZE;
+    let s = 0;
+    for (const u of this.host.entities.fieldMovers()) {
+      if (!u.alive || u.weapon === null || u.owner === p.id || u.owner === NEUTRAL_OWNER) continue;
+      if (Math.hypot(u.px - at.x, u.py - at.y) < r) s += this.strength(u);
+    }
+    for (const b of this.host.entities.buildings()) {
+      if (!b.alive || b.owner === p.id || b.owner === NEUTRAL_OWNER || b.spec.type !== 'bunker') continue;
+      const c = b.centerWorld();
+      if (Math.hypot(c.x - at.x, c.y - at.y) < r) s += AI_BUNKER_VALUE * (b.hp / b.maxHp);
+    }
+    return s;
+  }
+
+  private pickTarget(p: PlayerState, from: WorldPoint | Building, force = 0): Building | null {
     const mine = 'spec' in from ? from.centerWorld() : from;
     // Offensives go to the chosen rival only (at most MAX_ATTACKERS governments besiege one nation); any enemy once
     // the rival has nothing left to hit.
@@ -2664,7 +2983,9 @@ export class AISystem implements GameSystem {
     for (const b of targets) {
       const othersLeft = hasOthers.has(b.owner);
       const c = b.centerWorld();
-      const score = Math.hypot(c.x - mine.x, c.y - mine.y) * this.targetWeight(p, b, othersLeft);
+      let score = Math.hypot(c.x - mine.x, c.y - mine.y) * this.targetWeight(p, b, othersLeft);
+      // Weak spots first: a target guarded by more than the force can take on counts as farther away.
+      if (force > 0) score *= 1 + this.defenceAt(p, c) / force;
       if (score < bestScore) {
         bestScore = score;
         best = b;
