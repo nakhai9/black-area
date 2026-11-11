@@ -26,7 +26,7 @@
 <body>
 <main>
 <img class="logo" src="/logo.png" alt="Black Area" />
-<h1>Black Area — RULE <small>v3.52.0</small></h1>
+<h1>Black Area — RULE <small>v3.53.0</small></h1>
 <p class="lead">Tài liệu luật chơi + kiến trúc code dành cho AI/dev sửa game. Mọi con số gameplay chính xác nằm trong <code>src/constants.ts</code> và <code>src/factions/*.ts</code>. Nếu tài liệu này khác code thì <b>code đúng</b>. <b>Khi đổi luật/số trong code, phải cập nhật file này.</b></p>
 <nav><a href="#s1">Quy tắc làm việc cho AI</a><a href="#s2">Chạy dự án</a><a href="#s3">Kiến trúc thư mục</a><a href="#s4">Thế giới</a><a href="#s5">Kinh tế (dầu)</a><a href="#s6">Công trình (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Quân đội</a><a href="#s8">Chiến đấu</a><a href="#s9">Điều khiển (Game.handleKey, handleInput)</a><a href="#s10">Giới hạn &amp; hiệu năng</a><a href="#s11">Thắng / thua &amp; AI</a><a href="#s12">Công thức sửa thường gặp</a></nav>
 <h2 id="s1">0. Quy tắc làm việc cho AI</h2>
@@ -701,6 +701,7 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
   <li>v3.36.3: <b>Thủ đô bị chiếm đóng</b> vẫn bị tấn công nhưng không bị phá hủy; khi hết máu sẽ trở về <b>trung lập</b> như ban đầu (đầy máu, phe chiếm mất quyền sở hữu, kỹ sư phe nào cũng có thể chiếm lại).</li>
   <li>v3.41.5: Sửa lỗi máy bay vận tải bay vòng tròn mãi quanh điểm hạ cánh (không đáp được, không nhận lệnh di chuyển): khi điểm đến nằm trong vòng quay, máy bay bay thẳng tới. Lệnh di chuyển mới trong lúc đang bay tới điểm hạ cánh giờ được nhận (hủy hạ cánh, bay đi).</li>
   <li>v3.41.5: Máy bay không còn nhận <b>Cảng (Naval Port)</b> làm sân bay nhà (không đậu, không hạ cánh, không được sinh ra ở cảng). Loại máy bay được đậu ở cảng sẽ quy ước sau: thêm vào <code>PORT_AIRCRAFT</code> trong <code>src/systems/AircraftSystem.ts</code>. Máy bay đang lấy cảng làm nhà (bản lưu cũ) sẽ chuyển sang sân bay khác của phe; không còn sân bay nào thì rơi như luật cũ.</li>
+    <li>v3.53.0: <b>Breaking News không còn hiện toast</b> trên màn hình: mọi tin (chiếm / phá thủ đô, cấm vận, chính phủ song song, bị tấn công / giết / bắn rơi, nước bị loại, rời trận...) chỉ ghi vào mục Breaking News trong cửa sổ <b>News</b>. Toast NGỪNG BẮN / CHIẾN TRANH vẫn giữ.</li>
     <li>v3.52.0: <b>AI ưu tiên máy bay vận tải khi đi xa</b>: mục tiêu cách quá 60 ô thì lính của nhóm tấn công lên máy bay vận tải đang đậu (trong 30 ô) trước, xe tải chỉ chở phần còn lại. Máy bay cất cánh khi lính lên xong (hoặc sau 20 s) và đáp xuống chỗ an toàn gần mục tiêu để thả quân (<code>AISystem.driveAirlifts</code>).</li>
     <li>v3.51.1: <b>AI: tối đa 1 xe phòng không đi cùng tank</b>: nhóm tấn công có tank thì mang theo đúng 1 xe phòng không (chiếc còn nhiều máu nhất) để che chắn trên không; nhóm không có tank thì không mang; các xe còn lại ở nhà phòng không hoặc chờ nhóm tank sau. Nhóm đánh sâu không lấy xe phòng không (<code>AISystem.oneEscort</code>).</li>
     <li>v3.51.0: <b>AI dàn quân theo mặt trận</b>: 30% lực lượng tấn công chia ra giữ mặt trận với từng nước địch đi bộ tới được, nước có quân càng mạnh và càng gần thì càng được nhiều quân (mỗi mặt trận ít nhất 1). Chốt mặt trận đặt cách công trình của mình gần nước địch đó nhất 6 ô về phía địch, nên lãnh thổ mở rộng (cờ chiếm đất, công trình mới) thì chốt cũng tiến lên theo (<code>AISystem.holdFronts</code>).</li>

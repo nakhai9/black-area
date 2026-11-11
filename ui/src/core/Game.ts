@@ -2204,7 +2204,7 @@ export class Game {
       this.entities.remove(u.id);
     }
     this.dissolveNation(p);
-    this.news.show(t('BREAKING NEWS'), t('{name} has left the match and is defeated.', { name: FACTIONS[faction].name }));
+    this.intel('politics', t('{name} has left the match and is defeated.', { name: FACTIONS[faction].name }));
     this.evaluateNations();
   }
 
@@ -5143,9 +5143,8 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     this.breaking(text, line, 'military');
   }
 
-  /** Breaking news on screen, also written into the News window's intelligence log (political: between nations). */
-  private breaking(text: string, line: string, category: NewsCategory = 'politics'): void {
-    this.news.show(t('BREAKING NEWS'), text);
+  /** Breaking news: written into the News window only (no on-screen toast); `text` is the long form, unused there. */
+  private breaking(_text: string, line: string, category: NewsCategory = 'politics'): void {
     this.intel(category, line);
   }
   /** An intelligence report in the News window only (no on-screen banner), newest first, NEWS_LOG_MAX kept. */
@@ -5182,7 +5181,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       p.defeated = true;
       this.dissolveNation(p);
       const name = FACTIONS[p.faction].name;
-      this.news.show(t('BREAKING NEWS'), p.id === this.localId ? t('Your nation has been defeated.') : t('{name} has been defeated — no capital, no army and no barracks or factory left.', { name }));
+      this.intel('military', p.id === this.localId ? t('Your nation has been defeated.') : t('{name} has been defeated — no capital, no army and no barracks or factory left.', { name }));
     }
     if (this.humanPlayer.defeated) {
       this.ended = true;
