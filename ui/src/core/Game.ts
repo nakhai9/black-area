@@ -4931,6 +4931,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       if (this.time - (this.alertAt.get(key) ?? -99) < BUILDING_ALERT_SECONDS) continue;
       this.alertAt.set(key, this.time);
       this.sidebar.alert(`${b.spec.name} is under attack!`, b.centerWorld());
+      if (by) this.reportHostility(by.owner, 'attack');
     }
     for (const id of this.buildingHp.keys()) if (!seen.has(id)) this.buildingHp.delete(id);
   }
@@ -4947,6 +4948,35 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     const at = isBuilding ? t.centerWorld() : { x: (t as Unit).px, y: (t as Unit).py };
     this.sidebar.alert(`${name} is under attack!`, at);
     this.sound.alarm();
+    this.reportHostility(attacker.owner, 'attack');
+  }
+
+  /** Last time (s) a hostility report on a nation was made, per `${owner}:${kind}`; unreported losses pile up. */
+  private readonly hostileAt = new Map<string, number>();
+  private readonly hostilePending = new Map<string, number>();
+  /**
+   * BREAKING NEWS evidence: another nation attacks my forces, destroys my structures or kills my units.
+   * Attacks: once per nation every HOSTILE_ATTACK_SECONDS; kills: counted, reported every HOSTILE_KILL_SECONDS.
+   */
+  private reportHostility(owner: number, kind: 'attack' | 'kill' | 'destroy'): void {
+    const me = this.humanPlayer.id;
+    if (owner === me) return;
+    const byP = this.players.find((p) => p.id === owner);
+    if (!byP) return;
+    const key = `${owner}:${kind}`;
+    const n = (this.hostilePending.get(key) ?? 0) + 1;
+    const wait = kind === 'attack' ? 30 : kind === 'kill' ? 10 : 0;
+    if (this.time - (this.hostileAt.get(key) ?? -999) < wait) { this.hostilePending.set(key, n); return; }
+    this.hostileAt.set(key, this.time);
+    this.hostilePending.delete(key);
+    const vars = { by: FACTIONS[byP.faction].name, n };
+    const text = kind === 'attack' ? t('{by} is attacking your forces.', vars)
+      : kind === 'kill' ? t('{by} has killed {n} of your units.', vars)
+      : t('{by} has destroyed {n} of your structures.', vars);
+    const line = kind === 'attack' ? t('{by} attacked your forces', vars)
+      : kind === 'kill' ? t('{by} killed {n} of your units', vars)
+      : t('{by} destroyed {n} of your structures', vars);
+    this.breaking(text, line, 'military');
   }
 
   /** Sell button: the Global Monitoring Center looks at the offer and decides whether, and how much, to buy. */
@@ -5171,6 +5201,15 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
   /** Something ran out of health: remove it with an explosion. */
   private onDeath(e: Entity, killer?: Entity): void {
     this.awardKill(e, killer);
+    if (e.owner === this.humanPlayer.id) {
+      const hostile = killer && killer.owner !== e.owner ? this.players.find((p) => p.id === killer.owner) : undefined;
+      if (e instanceof Vehicle && e.aircraft) {
+        // Every aircraft / helicopter lost is its own report: who shot it down, or that it crashed.
+        const vars = { name: e.name, by: hostile ? FACTIONS[hostile.faction].name : '' };
+        if (hostile) this.breaking(t('{by} has shot down your {name}.', vars), t('{by} shot down your {name}', vars), 'military');
+        else this.breaking(t('Your {name} has crashed.', vars), t('Your {name} crashed', vars), 'military');
+      } else if (hostile) this.reportHostility(hostile.id, e instanceof Building ? 'destroy' : 'kill');
+    }
     this.selection.selectedUnits.delete(e.id);
     if (e instanceof Unit) {
       // Everyone aboard a destroyed transport goes down with it.
