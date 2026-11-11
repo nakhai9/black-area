@@ -26,7 +26,7 @@
 <body>
 <main>
 <img class="logo" src="/logo.png" alt="Black Area" />
-<h1>Black Area — RULE <small>v3.42.2</small></h1>
+<h1>Black Area — RULE <small>v3.45.3</small></h1>
 <p class="lead">Game rules + code architecture document for AI/devs modifying the game. All exact gameplay numbers live in <code>src/constants.ts</code> and <code>src/factions/*.ts</code>. If this document differs from the code, <b>the code is right</b>. <b>When changing rules/numbers in code, this file must be updated.</b></p>
 <nav><a href="#s1">Working rules for AI</a><a href="#s2">Running the project</a><a href="#s3">Folder architecture</a><a href="#s4">World</a><a href="#s5">Economy (oil)</a><a href="#s6">Buildings (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Military</a><a href="#s8">Combat</a><a href="#s9">Controls (Game.handleKey, handleInput)</a><a href="#s10">Limits &amp; performance</a><a href="#s11">Victory / defeat &amp; AI</a><a href="#s12">Common edit recipes</a></nav>
 <h2 id="s1">0. Working rules for AI</h2>
@@ -311,7 +311,7 @@ npm run build:earth  # regenerate public/data/earth.png (scripts/build-earth.mjs
 <tr><td>Squatters (<code>squatters</code>)</td><td><b>Squatters</b></td><td>EU flag bearer and escort soldiers moving together as one unit: walk (or are carried by transport plane) to unowned land and plant the national flag there (select the team then press <b>F</b> or double-click: the flag is planted on the nearest empty cell, any land works) — once the mission is done the whole team disappears.</td></tr>
 <tr><td>Tank (<code>tank</code>)</td><td><b>Leopard 2</b></td><td>Leopard 2 main battle tank, accurate and well protected.</td></tr>
 <tr><td>Fighter (<code>jet</code>)</td><td><b>Rafale</b></td><td>Dassault Rafale multirole fighter.</td></tr>
-<tr><td>Transport aircraft (<code>transport</code>)</td><td><b>C-130</b></td><td>C-130 transport aircraft: carries soldiers and vehicles; unarmed.</td></tr>
+<tr><td>Transport aircraft (<code>transport</code>)</td><td><b>A400M</b></td><td>A400M Atlas transport aircraft: four turboprops, carries soldiers and vehicles; unarmed.</td></tr>
 <tr><td>Repair vehicle (<code>repair</code>)</td><td><b>M88</b></td><td>M88 armored recovery vehicle: slow, unarmed; click a damaged friendly ground vehicle to drive over and repair it (or select the damaged vehicle then click it) (5% max HP every 2 s).</td></tr>
 </table>
 <h4>Islamic</h4>
@@ -403,7 +403,7 @@ npm run build:earth  # regenerate public/data/earth.png (scripts/build-earth.mjs
 </ul>
 <h3>Transport aircraft</h3>
 <ul>
-  <li>Image: rendered from 3D models (tools/aircraft_model_sheet.py; FBX/DAE converted to OBJ with tools/model_to_obj.py): USA C-17, Europe C-130J, Russia Il-76, China and Islamic Y-20 (<code>public/sprites/air-&lt;mẫu&gt;.png</code>). Explosion effects unchanged.</li>
+  <li>Image: rendered from 3D models (tools/aircraft_model_sheet.py; FBX/DAE converted to OBJ with tools/model_to_obj.py): USA C-17, Europe A400M (its own Blender model <code>tools/blender/a400m_render.py</code>, 8-blade scimitar propellers after the blueprint), Russia Il-76, China and Islamic Y-20 (<code>public/sprites/air-&lt;mẫu&gt;.png</code>). Explosion effects unchanged.</li>
   <li>Bombers are also rendered from 3D models (tools/aircraft_model_sheet.py, 16 directions × 9 rows layout): USA B-1A Lancer (<code>b1-usa.png</code>), Russia Tu-160 (<code>tu160-russia.png</code>).</li>
   <li>Fighters are also rendered from 3D models, same layout (<code>jet-&lt;phe&gt;.png</code>): USA F-22, Europe Rafale, Russia Su-57, China J-31, Islamic Su-35. .blend files are exported to OBJ by Blender (tools/blend_to_obj.py).</li>
   <li>Self-propelled anti-aircraft vehicles (<code>mantis</code>) rendered from 3D models (32 directions, row 2 is the burnt wreck): USA and Europe use NOMADS (<code>sam-nomads.png</code>; script tools/ground_model_sheet.py), Russia, China, Islamic use Buk-M3 (<code>sam-buk.png</code>). Display names: NOMADS / Buk-M3; explosion effect taken from <code>mantis.png</code>.</li>

@@ -2269,6 +2269,8 @@ export class Game {
       if (!c) continue;
       for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (this.map.inBounds(c.x + dx, c.y + dy)) taken.add(this.map.index(c.x + dx, c.y + dy));
     }
+    // Aircraft and helicopters never set down among trees.
+    for (let dy = -6; dy <= 6; dy++) for (let dx = -6; dx <= 6; dx++) if (this.map.hasTrees(cell.x + dx, cell.y + dy)) taken.add(this.map.index(cell.x + dx, cell.y + dy));
     const g = this.pathfinder.nearestPassable(cell.x, cell.y, 6, taken);
     return g ? { x: (g.x + 0.5) * CELL_SIZE, y: (g.y + 0.5) * CELL_SIZE } : null;
   }

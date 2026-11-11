@@ -1,6 +1,7 @@
 """War Factory (5 x 4) of every nation, after the vector designs in WarFactory.ts / WarFactoryNations.ts."""
 import math
 
+from models._rooftop import deck
 from kit import box, cylinder, dome, lathe, mat, prism, render, rod, roof, windows, zp, TEAM
 
 GLASS = "#2e4256"
@@ -273,17 +274,14 @@ def russia():
         box(4.9, 0.1 + i * 3.3 / 7 - 0.04, 0.03, 0.08, 2, 22, pier)
     side_windows_right(0.1, 0.1, 4.8, 3.3, 6, 16, 7, 1)
     cornice(0.1, 0.1, 4.8, 3.3, 22, mat("#7a3e2c", 0.9, grain=0.2, scale=60), ((0.015, 0.7), (0.035, 0.7), (0.05, 0.9)))
-    box(0.2, 0.2, 4.6, 3.1, 24.2, 0.5, tar)
+    deck("russia", 0.2, 0.2, 4.6, 3.1, 24.2, team=team,
+         avoid=[(0.45, 1.25, 4.1, 1.0), (1.85, 2.85, 1.3, 1.15), (0.2, 0.2, 0.6, 0.6), (4.05, 0.2, 0.7, 0.7)])
     # Clerestory.
     box(0.5, 1.3, 4.0, 0.9, 24, 8, brick)
     framed_windows("left", 0.5, 1.3, 4.0, 0.9, 22, 12, 12, 1, glass=m_lit(), frame="#5a5a52", fill=0.6, sill=False)
     framed_windows("right", 0.5, 1.3, 4.0, 0.9, 22, 12, 3, 1, glass=m_lit(), frame="#5a5a52", fill=0.6, sill=False)
     cornice(0.5, 1.3, 4.0, 0.9, 31.4, mat("#7a3e2c", 0.9, grain=0.2, scale=60), ((0.02, 0.6),))
     roof(0.5, 1.3, 4.0, 0.9, 32, 3, mat("#5a524a", 0.7, metal=0.3), kind="gable", ridge="u", overhang=0.06)
-    ac_unit(0.5, 0.4, 24)
-    ac_unit(3.6, 2.6, 24)
-    for u, v in ((0.4, 2.8), (1.2, 0.5), (2.6, 0.5), (3.6, 0.5), (4.6, 2.0)):
-        roof_vent(u, v, 24)
     for u in (0.12, 4.88):
         downpipe(u, 3.43, 2, 22)
     for v in (1.2, 2.6):

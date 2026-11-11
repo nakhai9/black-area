@@ -3,6 +3,7 @@ architecture on it. The two flags at the front are drawn in code (they wave). Al
 shared by parallelgov.py and flagpole.py."""
 import math
 
+from models._rooftop import deck
 from kit import box, cylinder, dome, lathe, mat, prism, render, rod, roof, windows, zp, TEAM
 
 
@@ -114,6 +115,10 @@ HEIGHT = {"usa": 70, "russia": 120, "china": 92, "europe": 92, "islamic": 96}
 WING_H = 6
 
 
+# Footprints of the seat of government on the wing roof (kept clear of rooftop clutter).
+MAIN = {"usa": (0.38, 0.48, 3.24, 3.0), "russia": (0.38, 0.38, 3.24, 2.64), "europe": (0.48, 0.48, 3.04, 2.44)}
+
+
 def plot(f):
     wing = mat(WING[f], 0.85, grain=0.12, scale=22)
     trim = mat("#e4dfd2" if f != "russia" else "#b5a28a", 0.8, grain=0.08)
@@ -122,7 +127,10 @@ def plot(f):
     windows("left", 0.03, 0.03, 3.94, 3.94, 2, WING_H, 18, 1, glass(), trim, margin=0.04, fill=0.5)
     windows("right", 0.03, 0.03, 3.94, 3.94, 2, WING_H, 18, 1, glass(), trim, margin=0.04, fill=0.5)
     cornice(0.03, 0.03, 3.94, 3.94, 2 + WING_H - 0.6, 0.6, trim, 0.02)
-    flat_roof(0.03, 0.03, 3.94, 3.94, 2 + WING_H)
+    if f in MAIN:
+        deck(f, 0.08, 0.08, 3.84, 3.84, 2 + WING_H, avoid=[MAIN[f]], team=TEAM[f])
+    else:
+        flat_roof(0.03, 0.03, 3.94, 3.94, 2 + WING_H)
     parapet(0.03, 0.03, 3.94, 3.94, 2 + WING_H, 1.5, trim, 0.05)
     door("left", 0.03, 0.03, 3.94, 3.94, 2, 0.46, 0.54, 4.5, frame=trim)
 
@@ -135,7 +143,7 @@ def usa(team):
     box(0.5, 0.6, 3.0, 2.0, z0 + 2, 18, W)
     facade(0.5, 0.6, 3.0, 2.0, z0 + 2, 18, 12, 8, 3, trim)
     cornice(0.5, 0.6, 3.0, 2.0, z0 + 20, 1.5, trim)
-    flat_roof(0.5, 0.6, 3.0, 2.0, z0 + 21.5)
+    deck("usa", 0.55, 0.65, 2.9, 1.9, z0 + 21.5, avoid=[(1.3, 0.9, 1.4, 1.4)], team=team)
     parapet(0.48, 0.58, 3.04, 2.04, z0 + 21.5, 1.5, trim)
     # Portico: stylobate, eight columns, entablature with a team band and a pediment.
     box(1.15, 2.6, 1.7, 0.6, z0 + 2, 1, trim)
@@ -164,7 +172,7 @@ def russia(team):
     box(0.4, 0.4, 3.2, 2.6, z0 - 6, 18, STONE)
     facade(0.4, 0.4, 3.2, 2.6, z0 - 6, 18, 14, 11, 3, LIGHT)
     cornice(0.4, 0.4, 3.2, 2.6, z0 + 12, 1.5, LIGHT)
-    flat_roof(0.4, 0.4, 3.2, 2.6, z0 + 13.5)
+    deck("russia", 0.45, 0.45, 3.1, 2.5, z0 + 13.5, avoid=[(1.08, 0.98, 1.84, 1.64)], team=team)
     parapet(0.4, 0.4, 3.2, 2.6, z0 + 13.5, 2, LIGHT)
     door("left", 0.4, 0.4, 3.2, 2.6, z0 - 6, 0.44, 0.56, 9, frame=LIGHT)
     # Stepped tower.

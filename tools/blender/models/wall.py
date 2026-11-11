@@ -15,6 +15,9 @@ N, E, S, W = 1, 2, 4, 8
 THICK = 2 / 3
 LIP = 0.05
 END_INSET = 0.1
+# Joined arms run this far past the cell edge, under the neighbour's picture, so the anti-aliased picture borders
+# overlap solid wall instead of meeting on a see-through seam line.
+OVERLAP = 0.04
 STANDING = [1, 1, 0.85, 0.5]
 NATIONS = ["usa", "russia", "china", "europe", "islamic"]
 
@@ -80,7 +83,7 @@ def slab(mask, grow=0.0, thick=THICK):
 
     def end(side, inner):
         if mask & side:
-            return 0.0 if inner == 0 else 1.0
+            return -OVERLAP if inner == 0 else 1.0 + OVERLAP
         return END_INSET - grow if inner == 0 else 1 - END_INSET + grow
 
     rects = [(lo, lo, hi, hi)]

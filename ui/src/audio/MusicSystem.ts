@@ -9,7 +9,7 @@ const BPM = 118;
 const STEP = 60 / BPM / 4; // 16th note (s)
 const LOOKAHEAD = 0.25;
 /** Gain at full slider (volume = 1). */
-const MAX_GAIN = 1.6;
+const MAX_GAIN = 1.1;
 const MIDI = (n: number): number => 440 * 2 ** ((n - 69) / 12);
 
 /** Root note (MIDI) per bar of the 4-bar progression: Am – F – G – E (the E major turns back to A minor). */

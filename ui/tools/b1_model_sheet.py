@@ -19,7 +19,8 @@ import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import tu160_model_sheet as base  # noqa: E402
-from awacs_model_sheet import Mesh, box, ellipsoid, loft, star, surface  # noqa: E402
+from tu160_model_sheet import nose_profile  # noqa: E402  (outline -> loft rows: infrastructure, no shapes)
+from awacs_model_sheet import Mesh, box, ellipsoid, glazing_paint, loft, pane, radome_cap, sections_at, star, surface, wiper  # noqa: E402
 
 L = 44.5
 NOSE = L / 2
@@ -32,16 +33,21 @@ WINGS = {
 }
 
 
+# B-1B nose off the three-view (metres from the tip: crown z, belly z, half width; z from the axis CZ).
+NOSE_KEYS = [
+    (0.0, -0.30, -0.30, 0.02), (0.4, -0.18, -0.45, 0.18), (1.5, 0.00, -0.70, 0.45), (3.0, 0.22, -0.95, 0.78),
+    (4.5, 0.45, -1.15, 1.05), (6.0, 0.75, -1.35, 1.32), (7.4, 1.05, -1.50, 1.55),  # windscreen base
+    (8.4, 1.65, -1.62, 1.75), (9.6, 1.95, -1.70, 1.98), (11.5, 2.00, -1.75, 2.35), (0.30 * L, 1.90, -1.80, 2.70),
+]
+
+
 def fuselage(m):
     # f along the length (0 nose, 1 tail), half-width, half-height, axis z offset — drawn full (AWACS-like) so the body
     # reads clearly at sprite size; wide and flat-bottomed through the blended middle.
     profile = [
-        (0.000, 0.05, 0.05, -0.30),
-        (0.030, 0.55, 0.50, -0.25),
-        (0.070, 1.15, 1.05, -0.10),
-        (0.110, 1.65, 1.50, 0.05),
-        (0.150, 2.05, 1.85, 0.20),  # cockpit
-        (0.200, 2.35, 1.90, 0.15),
+        # Blueprint nose: long pointed, slightly drooped radome, crown rising to the steep four-pane windscreen,
+        # the flight-deck roof flowing back into the blended body.
+        *nose_profile(NOSE_KEYS, L),
         (0.300, 2.70, 1.85, 0.05),
         (0.450, 2.95, 1.80, 0.00),
         (0.650, 2.85, 1.75, 0.05),
@@ -50,14 +56,30 @@ def fuselage(m):
         (0.950, 0.85, 0.90, 0.70),
         (1.000, 0.20, 0.30, 0.90),
     ]
-    loft(m, [(NOSE - f * L, 0, CZ + dz, rv, rz) for f, rv, rz, dz in profile], 'body', n=36, cap_back='body')
+    secs = [(NOSE - f * L, 0, CZ + dz, rv, rz) for f, rv, rz, dz in profile]
+    loft(m, secs, 'body', n=36, cap_back='body')
+    radome_cap(m, secs, NOSE - 4.3, n=36)
+    # Structural mode control vanes (B-1B): small swept fins low on the nose sides, canted 30 deg down.
+    for s in (1, -1):
+        c30, s30 = math.cos(math.radians(30)), math.sin(math.radians(30))
+        surface(m, (NOSE - 4.9, s * 1.05, CZ - 0.75), (0, s * c30, -s30), 1.3, 1.1, 0.55, 0.65, 0.06, 'body', ns=3, nc=5, up=(0, s * s30, c30))
+    cockpit(m, sections_at(secs))
     # Pitot / refuelling probe at the nose tip.
     box(m, (NOSE, 0, CZ - 0.3), (NOSE + 1.2, 0, CZ - 0.32), 0.1, 0.1, 'probe')
     # Dorsal spine from behind the cockpit into the fin.
-    loft(m, [(NOSE - 0.18 * L, 0, CZ + 1.85, 0.05, 0.05), (NOSE - 0.26 * L, 0, CZ + 1.85, 0.8, 0.35),
+    loft(m, [(NOSE - 0.24 * L, 0, CZ + 1.9, 0.05, 0.05), (NOSE - 0.29 * L, 0, CZ + 1.88, 0.8, 0.35),
              (NOSE - 0.82 * L, 0, CZ + 1.9, 0.8, 0.35), (NOSE - 0.88 * L, 0, CZ + 1.95, 0.05, 0.05)], 'body', n=14)
-    # Cockpit glazing.
-    ellipsoid(m, (NOSE - 0.15 * L + 0.6, 0, CZ + 1.75), 2.0, 1.3, 0.45, 'glass', n=24, k=8)
+
+
+def cockpit(m, at):
+    """Four-man flight deck: two front windscreen panes with wipers, framed side windows behind them."""
+    for t0, t1 in ((62, 88), (92, 118)):
+        pane(m, at, NOSE - 7.45, NOSE - 8.35, t0, t1)
+        wiper(m, at, NOSE - 7.5, t0 + 5, t1 - 5)
+    for t0, t1 in ((30, 56), (124, 150)):
+        pane(m, at, NOSE - 8.45, NOSE - 9.5, t0, t1)
+    for t0, t1 in ((36, 54), (126, 144)):
+        pane(m, at, NOSE - 9.6, NOSE - 10.3, t0, t1)
 
 
 def glove(m):
@@ -125,13 +147,8 @@ def paint(pos, nrm, parts, col):
     col[parts == 'nozzle'] = (88, 84, 80)
     col[parts == 'exhaust'] = (34, 30, 28)
     col[parts == 'probe'] = (60, 62, 66)
-    col[parts == 'glass'] = (28, 38, 50)
+    col[parts == 'radome'] = (62, 66, 72)  # radome a shade darker
     nose = u[parts == 'body'].max()
-    col[(parts == 'body') & (u > nose - 2.2)] = (66, 70, 76)
-    zb = z[(parts == 'body') & (u > nose - 8) & (u < nose - 5)]
-    top = zb.max() if zb.size else z.max()
-    win = (parts == 'body') & (u > nose - 8.4) & (u < nose - 5.6) & (z > top - 1.0) & (z < top - 0.35) & (np.abs(v) > 0.6)
-    col[win] = (26, 34, 44)
     # Panel lines a shade darker, a few lighter access panels.
     seam = ((parts == 'body') & (np.mod(u, 1.6) < 0.05)) | (np.isin(parts, ('wing', 'glove', 'tail', 'nacelle')) & (np.mod(np.abs(v), 1.8) < 0.05))
     col[seam] *= 0.82
@@ -152,6 +169,7 @@ def paint(pos, nrm, parts, col):
     if fin_side.any():
         fz1 = z[fin_side].max()
         col[fin_side & (z > fz1 - 1.4) & (z < fz1 - 0.9)] = (104, 108, 116)
+    glazing_paint(parts, col)
     return np.clip(col, 0, 255)
 
 

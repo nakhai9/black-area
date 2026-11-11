@@ -26,8 +26,12 @@ const SHEET_MODEL: Record<FactionId, string> = { usa: 'patriot', europe: 'sampt'
 const LAYOUT = 128;
 const ANCHOR = { x: 64, y: 84 };
 const LENGTH = 80;
-/** On-screen length (iso px) of every nation's air-defence vehicle: about a supply truck long. */
-const SHEET_LENGTH_ISO = 9;
+/**
+ * Iso px per sheet LENGTH, per nation: the vehicle is 1.5 x as long as the same nation's tank (side-on, column 8,
+ * measured on the mantis-*.webp and tank-*-hull.webp sheets). Its width equals the tank's: set by MANTIS_WS in
+ * tools/blender/mantis_<model>_sheet.py (the model is narrowed in Blender, not here).
+ */
+const SHEET_LENGTH_ISO: Record<FactionId, number> = { usa: 11.8, europe: 11.74, russia: 10.9, china: 11.28, islamic: 9.91 };
 const SHEETS = new Map<FactionId, HTMLImageElement>();
 function sheet(f: FactionId): HTMLImageElement | null {
   let img = SHEETS.get(f);
@@ -84,7 +88,7 @@ export function drawMantisSheet(ctx: CanvasRenderingContext2D, v: Vehicle, x: nu
   if (img) {
     const prev = ctx.imageSmoothingEnabled;
     ctx.imageSmoothingEnabled = true;
-    blitSheet(ctx, img, d, x, y, SHEET_LENGTH_ISO);
+    blitSheet(ctx, img, d, x, y, SHEET_LENGTH_ISO[f]);
     ctx.imageSmoothingEnabled = prev;
     return true;
   }
@@ -143,7 +147,7 @@ export function drawMantisDeath(ctx: CanvasRenderingContext2D, faction: FactionI
     // Burnt-out wreck: the vehicle's own cell, darkened and desaturated.
     const prevFilter = ctx.filter;
     ctx.filter = 'brightness(0.32) saturate(0.4)';
-    blitSheet(ctx, img, direction(heading), x, y, SHEET_LENGTH_ISO);
+    blitSheet(ctx, img, direction(heading), x, y, SHEET_LENGTH_ISO[faction]);
     ctx.filter = prevFilter;
   } else ctx.drawImage(samSheetCell(faction, { kind: 'wreck', dir: (Math.round(direction(heading) / 4) % 8) * 4 }), x - half, y - half, size, size);
   if (age < BLOW_FRAMES * BLOW_FRAME_SECONDS) ctx.drawImage(samSheetCell(faction, { kind: 'blast', frame: Math.floor(age / BLOW_FRAME_SECONDS) }), x - half, y - half, size, size);

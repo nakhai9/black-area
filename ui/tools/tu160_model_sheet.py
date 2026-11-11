@@ -26,7 +26,7 @@ from PIL import Image
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import aircraft_model_sheet as am  # noqa: E402
 import tank_model_sheet as tm  # noqa: E402
-from awacs_model_sheet import Mesh, box, ellipsoid, loft, noise, star, surface  # noqa: E402
+from awacs_model_sheet import Mesh, box, ellipsoid, glazing_paint, loft, noise, pane, radome_cap, sections_at, star, surface, wiper  # noqa: E402
 
 CELL = 192  # twice the fighters' cells: a sharp picture when zoomed in
 am.CELL = CELL
@@ -45,18 +45,36 @@ WINGS = {
 }
 
 
+def nose_profile(keys, L, n=40):
+    """Blueprint side / top outline of the nose -> loft profile rows (f, half-width, half-height, axis z offset).
+    keys: (metres from the tip, crown z, belly z, half width) off the three-view; rows are spaced densely towards the
+    tip (cosine) so the radome stays smooth."""
+    k = np.array(keys, float)
+    xe = k[-1, 0]
+    rows = []
+    for i in range(n):
+        x = xe * (1 - math.cos(math.pi / 2 * i / n))
+        top, bot, hw = (float(np.interp(x, k[:, 0], k[:, j])) for j in (1, 2, 3))
+        rows.append((x / L, hw, (top - bot) / 2, (top + bot) / 2))
+    return rows
+
+
+# Tu-160 nose off the three-view (metres from the tip; heights and widths before BODY scaling: crown z, belly z, half width).
+NOSE_KEYS = [
+    (0.0, -0.55, -0.55, 0.02), (0.4, -0.42, -0.68, 0.16), (1.5, -0.22, -0.85, 0.40), (3.0, 0.00, -1.02, 0.66),
+    (5.0, 0.25, -1.18, 0.92), (7.0, 0.52, -1.30, 1.12), (7.8, 0.70, -1.33, 1.20),  # windscreen base
+    (8.8, 1.20, -1.37, 1.30), (10.0, 1.42, -1.40, 1.40), (11.5, 1.50, -1.43, 1.50), (0.26 * L, 1.45, -1.45, 1.62),
+]
+
+
 def fuselage(m):
     """Nose cone → stepped cockpit → barrel → tail cone rising to the fin; sections (u, v, z, half-width, half-height)."""
     secs = []
     profile = [
         # f along the length (0 nose, 1 tail), half-width, half-height, axis z offset
-        (0.000, 0.05, 0.05, -0.35),
-        (0.025, 0.42, 0.40, -0.30),
-        (0.060, 0.85, 0.80, -0.18),
-        (0.100, 1.18, 1.10, -0.05),
-        (0.135, 1.38, 1.38, 0.08),  # cockpit hump
-        (0.165, 1.50, 1.55, 0.12),
-        (0.200, 1.58, 1.50, 0.05),
+        # Blueprint nose: long slender pointed radome with a near-straight belly line, the crown rising gently to a
+        # short steep windscreen, then the low canopy hump fairing into the spine (units before BODY scaling).
+        *nose_profile(NOSE_KEYS, L),
         (0.260, 1.62, 1.45, 0.00),
         (0.700, 1.62, 1.45, 0.00),
         (0.780, 1.45, 1.35, 0.10),
@@ -67,12 +85,26 @@ def fuselage(m):
     ]
     for f, rv, rz, dz in profile:
         secs.append((NOSE - f * L, 0, CZ + dz * BODY, rv * BODY, rz * BODY))
-    loft(m, secs, 'body', n=32, cap_back='body')
+    loft(m, secs, 'body', n=36, cap_back='body')
+    radome_cap(m, secs, NOSE - 5.0, n=36)
+    cockpit(m, sections_at(secs))
     # Nose probe (refuelling / pitot) ahead of the radome.
-    box(m, (NOSE + 0.0, 0, CZ - 0.35), (NOSE + 2.2, 0, CZ - 0.38), 0.12, 0.12, 'probe')
+    box(m, (NOSE - 0.3, 0, CZ - 0.55 * BODY), (NOSE + 2.2, 0, CZ - 0.55 * BODY - 0.03), 0.12, 0.12, 'probe')
     # Spine behind the cockpit, flowing into the fin.
-    loft(m, [(NOSE - 0.17 * L, 0, CZ + 1.35 * BODY, 0.05, 0.05), (NOSE - 0.24 * L, 0, CZ + 1.35 * BODY, 0.75, 0.42),
+    loft(m, [(NOSE - 0.21 * L, 0, CZ + 1.42 * BODY, 0.05, 0.05), (NOSE - 0.24 * L, 0, CZ + 1.35 * BODY, 0.75, 0.42),
              (NOSE - 0.80 * L, 0, CZ + 1.45 * BODY, 0.75, 0.42), (NOSE - 0.86 * L, 0, CZ + 1.6 * BODY, 0.05, 0.05)], 'body', n=14)
+
+
+def cockpit(m, at):
+    """Stepped fighter-like canopy on the hump: two front windscreen panes with wipers, framed side windows."""
+    x = lambda m_: NOSE - m_  # blueprint metres from the tip -> u
+    for t0, t1 in ((62, 88), (92, 118)):
+        pane(m, at, x(7.85), x(8.75), t0, t1)
+        wiper(m, at, x(7.9), t0 + 5, t1 - 5)
+    for t0, t1 in ((28, 55), (125, 152)):
+        pane(m, at, x(8.85), x(9.9), t0, t1)
+    for t0, t1 in ((34, 52), (128, 146)):
+        pane(m, at, x(10.0), x(10.8), t0, t1)
 
 
 def glove(m):
@@ -139,8 +171,6 @@ def build(pos):
     outer_wings(m, pos)
     nacelles(m)
     tail(m)
-    # Cockpit glazing bubble at the hump.
-    ellipsoid(m, (NOSE - 0.135 * L + 0.4, 0, CZ + 1.15 * BODY), 2.6, 1.35, 0.6, 'glass', n=24, k=8)
     v = np.array(m.v, float)
     v[:, 2] -= v[:, 2].min()
     tris = np.arange(len(v)).reshape(-1, 3)
@@ -162,13 +192,7 @@ def paint(pos, nrm, parts, col):
     col[parts == 'nozzle'] = (96, 90, 84)
     col[parts == 'exhaust'] = (44, 38, 34)
     col[parts == 'probe'] = (200, 202, 206)
-    col[parts == 'glass'] = (40, 56, 72)
-    # Cockpit side windows.
-    nose = u[parts == 'body'].max()
-    zb = z[(parts == 'body') & (u > nose - 9) & (u < nose - 6)]
-    top = zb.max() if zb.size else z.max()
-    win = (parts == 'body') & (u > nose - 9.2) & (u < nose - 6.2) & (z > top - 0.9) & (z < top - 0.25) & (np.abs(v) > 0.5)
-    col[win] = (36, 46, 60)
+    col[parts == 'radome'] = (212, 214, 216)  # radome: a shade off the airframe white
     # Faint panel lines only: the white must stay white.
     seam = ((parts == 'body') & (np.mod(u, 1.8) < 0.05)) | (np.isin(parts, ('wing', 'glove', 'tail')) & (np.mod(np.abs(v), 2.0) < 0.05))
     col[seam] *= 0.9
@@ -182,6 +206,7 @@ def paint(pos, nrm, parts, col):
         st = fin_side & star(u - fu, z - fz, 1.9)
         col[st] = (240, 240, 238)
         col[st & star(u - fu, z - fz, 1.55)] = RED
+    glazing_paint(parts, col)
     return np.clip(col, 0, 255)
 
 

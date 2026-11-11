@@ -50,6 +50,8 @@ const SHEETS: Partial<Record<`${FactionId}:${VehicleKind}`, AircraftSheet>> = {
   'russia:transport': sheet('il76-russia.webp', 192, 13),
   // China's Y-20A Kunpeng transport: its own Blender model (tools/blender/y20_render.py), PLAAF grey.
   'china:transport': sheet('y20-china.webp', 192, 13),
+  // Europe's A400M Atlas: its own Blender model (tools/blender/a400m_render.py), 8-blade scimitar propellers, grey.
+  'europe:transport': sheet('a400m-europe.webp', 192, 13),
   // AWACS, every nation (built in code, rendered in Blender by tools/awacs_blender_sheet.py at 192 px cells), as long as a fighter.
   'usa:awacs': sheet('awacs-usa.webp', 192, AWACS_LENGTH),
   'europe:awacs': sheet('awacs-europe.webp', 192, AWACS_LENGTH),

@@ -18,6 +18,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import vehiclekit as vk  # noqa: E402  (infrastructure only)
 
 LENGTH = 13.0
+# Width stretch, set (with the game length in MantisSheet.ts) so the vehicle is as wide as the tanks and 1.5 tanks long.
+WIDTH_SCALE = float(os.environ.get("MANTIS_WS", "0.503"))
 TEAM = "#e8b10a"
 
 
@@ -103,4 +105,4 @@ def build(root):
 
 if __name__ == "__main__":
     vk.render_sheet("mantis-hq9", build, LENGTH, centre_x=0.7, samples=int(os.environ.get("HQ9_SAMPLES", "32")),
-                    preview=os.environ.get("HQ9_PREVIEW"), width_scale=1.6, preview_dir=int(os.environ.get("HQ9_DIR", "4")))
+                    preview=os.environ.get("HQ9_PREVIEW"), width_scale=WIDTH_SCALE, front=(3.7, 1.25, 1.3, 1.0), preview_dir=int(os.environ.get("HQ9_DIR", "4")))

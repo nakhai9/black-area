@@ -24,7 +24,7 @@ export interface MotionLevels {
  *  - wheeled: truck engine, no tracks (KamAZ, Humvee, jeeps, scouts);
  *  - fighter / bomber / airlifter: generic jet sounds, only for aircraft without an entry of their own.
  * Every fixed-wing aircraft (helicopters excepted) has its own profile, so each one sounds different in flight:
- * fighters by their engines, the bombers, the airlifters (the C-130's turboprops beat and hum), the AWACS (radome
+ * fighters by their engines, the bombers, the airlifters (the A400M's turboprops beat and hum), the AWACS (radome
  * swish) and the B-767 drone's piston buzz.
  */
 type EngineProfile =
@@ -51,7 +51,7 @@ const ENGINE_BY_NAME: Readonly<Record<string, EngineProfile>> = {
   'C-17': 'c17',
   'Il-76': 'il76',
   'Y-20': 'y20',
-  'C-130': 'c130',
+  A400M: 'c130', // turboprops: the same beat and hum
   'E-3 Sentry': 'e3',
   'A-50': 'a50',
   'KJ-2000': 'kj2000',
@@ -193,9 +193,9 @@ const shipped = (path: string): string | null => {
   return null;
 };
 /** Peak gain of the vehicle engine sounds; the music is also ducked (MUSIC_DUCK) while they play. */
-const VEHICLE_BED_GAIN = 0.75;
+const VEHICLE_BED_GAIN = 1.6;
 /** Share the music is turned down by while vehicles are heard. */
-const MUSIC_DUCK = 0.55;
+const MUSIC_DUCK = 0.75;
 /** Peak gain of the open-sea ambience (public/sounds/sea-waves.mp3): over the music. */
 const SEA_GAIN = 1.4;
 /** Share the music is turned down by while the view is out at sea, so the waves sit above it. */
@@ -494,7 +494,7 @@ export class SoundSystem {
     }
     // Models no longer moving on screen fade out.
     for (const name of this.beds.keys()) if (!levels.engines.has(name)) this.bed(name, 'tank', 0);
-    const engines = Math.min(1, loudest * 1.5);
+    const engines = Math.min(1, loudest * 2.5); // even a vehicle near the screen edge pushes the music down
     // Weapons and explosions sit on top of the music too: it stays ducked for a moment after each.
     const sfx = ctx.currentTime < this.sfxUntil ? SFX_DUCK : 1;
     const sea = Math.max(0, this.seaLevel);

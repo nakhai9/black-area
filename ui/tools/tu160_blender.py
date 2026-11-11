@@ -28,6 +28,9 @@ LOOK = {
     'exhaust': (0.6, 0.6, 0.0),
     'intake': (0.9, 0.0, 0.0),
     'probe': (0.4, 0.7, 0.0),
+    'frame': (0.42, 0.5, 0.15),   # windscreen frames: dark painted metal
+    'wiper': (0.5, 0.3, 0.0),
+    'radome': (0.3, 0.0, 0.3),    # smooth, a little glossier than the paint
 }
 PAINT = (0.38, 0.0, 0.6)
 
@@ -84,6 +87,10 @@ def material(name, rough, metal, cavity):
     tree.links.new(src, bsdf.inputs['Base Color'])
     if name == 'glass':
         bsdf.inputs['Coat Weight'].default_value = 1.0
+        # Anti-glare / heating coating: a thin film gives the panes their gold-violet sheen.
+        for k, v in (('Thin Film Thickness', 420.0), ('Thin Film IOR', 1.9)):
+            if k in bsdf.inputs:
+                bsdf.inputs[k].default_value = v
     return mt
 
 

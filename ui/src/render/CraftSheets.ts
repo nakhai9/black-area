@@ -37,15 +37,14 @@ const heli = (model: string, span: number, fx = model): CraftSheet => ({ image: 
 /** Every model, by key ('air:c17', 'heli:apache', …). Spans as measured by the build script. */
 const MODELS: Readonly<Record<string, CraftSheet>> = {
   'air:c17': air('c17', 0.833),
-  'air:c130j': air('c130j', 0.625),
   'air:il76': air('il76', 0.76),
   'air:y20': air('y20', 0.833),
   'heli:apache': heli('apache', 0.825),
   'heli:ka52': heli('ka52', 0.85),
   'heli:z10': heli('z10', 0.825, 'z19e'),
 };
-/** The USA's C-17, Russia's Il-76 and China's Y-20 have their own sharp sheets in AircraftSheets.ts. */
-const TRANSPORT: Partial<Record<FactionId, string>> = { europe: 'air:c130j', islamic: 'air:y20' };
+/** The USA's C-17, Russia's Il-76, China's Y-20 and Europe's A400M have their own sharp sheets in AircraftSheets.ts. */
+const TRANSPORT: Partial<Record<FactionId, string>> = { islamic: 'air:y20' };
 const HELI: Record<FactionId, string> = { usa: 'heli:apache', europe: 'heli:apache', russia: 'heli:ka52', islamic: 'heli:ka52', china: 'heli:z10' };
 /** Iso px each kind is drawn long. */
 const LENGTH: Partial<Record<VehicleKind, number>> = { transport: 13, heli: 11.4 };

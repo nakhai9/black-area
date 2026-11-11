@@ -131,14 +131,65 @@ def ellipsoid(m, c, rx, ry, rz, part, n=40, k=14):
     m.grid(rows, part, closed=True, out=lambda p: np.array(p) - np.array(c))
 
 
-def fuselage(m, L, R, nose=0.17, tail=0.27, upsweep=0.55, belly=1.0, cz=None, n=32):
+# ------------------------------------------------------------------ nose kit primitives (radome cap, framed panes, wipers)
+
+def sections_at(secs):
+    """Interpolates loft sections (u, cv, cz, rv, rz), nose first: at(u) -> (cv, cz, rv, rz)."""
+    a = np.array(secs, float)[::-1]
+    return lambda u: tuple(float(np.interp(u, a[:, 0], a[:, k])) for k in (1, 2, 3, 4))
+
+
+def skin_patch(m, at, u0, u1, t0, t1, off, part, nu=4, nt=4):
+    """A curved patch `off` metres proud of an elliptical body (sections `at`), from u0 to u1, ring angles t0..t1
+    degrees (0 = left side, 90 = crown, 180 = right side, negative = below the left waist)."""
+    rows = []
+    for i in range(nu + 1):
+        u = u0 + (u1 - u0) * i / nu
+        cv, cz, rv, rz = at(u)
+        rows.append([(u, cv + (rv + off) * math.cos(math.radians(t)), cz + (rz + off) * math.sin(math.radians(t))) for t in np.linspace(t0, t1, nt + 1)])
+    m.grid(rows, part, out=lambda p: (0, p[1] - at(p[0])[0], p[2] - at(p[0])[1]))
+
+
+def pane(m, at, u0, u1, t0, t1, frame=0.13):
+    """A real window: a thick dark frame patch just proud of the skin, the glass pane set on it inside the frame."""
+    cv, cz, rv, rz = at((u0 + u1) / 2)
+    dt = math.degrees(frame / max((rv + rz) / 2, 0.3))
+    du = frame if u0 > u1 else -frame
+    skin_patch(m, at, u0 + du, u1 - du, t0 - dt, t1 + dt, 0.035, 'frame')
+    skin_patch(m, at, u0, u1, t0, t1, 0.075, 'glass')
+
+
+def wiper(m, at, u, t0, t1):
+    """Black windscreen wiper parked along the pane's lower edge (ring angles t0 -> t1 at station u)."""
+    cv, cz, rv, rz = at(u)
+    p = lambda t: (u + 0.02, cv + (rv + 0.12) * math.cos(math.radians(t)), cz + (rz + 0.12) * math.sin(math.radians(t)))
+    box(m, p(t0), p(t1), 0.07, 0.06, 'wiper')
+
+
+def radome_cap(m, secs, u_back, part='radome', grow=0.025, n=40):
+    """Smooth radome shell over the body sections ahead of u_back, a hair proud of the skin."""
+    at = sections_at(secs)
+    u_tip = secs[0][0]
+    us = [u_tip - (u_tip - u_back) * (1 - math.cos(math.pi / 2 * k / 15)) for k in range(16)]
+    loft(m, [(u, at(u)[0], at(u)[1], at(u)[2] + grow, at(u)[3] + grow) for u in us], part, n=n)
+
+
+def glazing_paint(parts, col):
+    """Windscreen glass: deep green-tinted (the gold / violet coating sheen comes from the renderer); frames dark
+    metal; wipers black."""
+    col[parts == 'glass'] = (26, 46, 44)
+    col[parts == 'frame'] = (56, 60, 66)
+    col[parts == 'wiper'] = (16, 17, 19)
+
+
+def fuselage(m, L, R, nose=0.17, tail=0.27, upsweep=0.55, belly=1.0, cz=None, n=32, radome='tip', glazed_nose=False):
     """Main body: airliner nose, straight barrel, tail cone tapering and sweeping up. Returns the body's top z at mid.
     The nose is Boeing-like: the crown curves down in a long arc to a low, round tip while the belly stays nearly
-    level; a wrap-round windscreen (separate 'glass' panes, slightly proud of the skin) sits where the crown bends."""
+    level. Nose kit: a smooth radome cap ('tip': over the nose cone; 'chin': a pod under a glazed navigator's nose;
+    None: the aircraft adds its own), a six-pane windscreen with side windows in thick frames, two wipers."""
     cz = R if cz is None else cz
-    secs = []
-    for k in range(61):
-        f = k / 60  # 0 nose → 1 tail
+
+    def sec(f):
         u = L / 2 - f * L
         if f < nose:
             g = f / nose
@@ -152,28 +203,29 @@ def fuselage(m, L, R, nose=0.17, tail=0.27, upsweep=0.55, belly=1.0, cz=None, n=
             z, rz = cz + R * upsweep * g ** 1.6, rv * belly
         else:
             rv, z, rz = R, cz, R * belly
-        secs.append((u, 0, z, max(rv, 0.05), max(rz, 0.05)))
+        return (u, 0, z, max(rv, 0.05), max(rz, 0.05))
+
+    # Dense rings through the nose (a smooth round radome, no facets), coarser along the barrel and tail.
+    fs = sorted(set([nose * (1 - math.cos(math.pi / 2 * k / 24)) for k in range(25)] + list(np.linspace(nose, 1, 46))))
+    secs = [sec(f) for f in fs]
     loft(m, secs, 'body', n=n, cap_back='body')
-    # Windscreen: six panes round the crown's bend (front, corner and side windows), each a curved patch a hair above
-    # the skin, framed by the gaps between them.
-    panes = [(-75, -50), (-47, -24), (-21, -2), (2, 21), (24, 47), (50, 75)]
-    for a0, a1 in panes:
-        rows = []
-        for gi in range(5):
-            g = 0.36 + gi * 0.055
-            f = g * nose
-            u = L / 2 - f * L
-            rv = R * (1 - (1 - g) ** 2.0) ** 0.5
-            top = cz + R * math.sin(math.pi / 2 * g) ** 0.75 - R * 0.55 * (1 - g) ** 1.4
-            bot = cz - R * belly * (1 - (1 - g) ** 3.5) ** 0.5 - R * 0.55 * (1 - g) ** 1.4 * 0.35
-            zc, rz = (top + bot) / 2, (top - bot) / 2
-            row = []
-            for ai in range(5):
-                a = math.radians(90 + a0 + (a1 - a0) * ai / 4)  # 90° = straight up, ± towards the sides
-                # the side panes sit lower: ease the angle out towards the waist
-                row.append((u + 0.02, rv * 1.015 * math.cos(a), zc + rz * 1.015 * math.sin(a) - (0.0 if abs(a0) < 30 else 0.0)))
-            rows.append(row)
-        m.grid(rows, 'glass', out=lambda p, zc=cz: (0.3, p[1], p[2] - zc))
+    at = sections_at(secs)
+    ug = lambda g: L / 2 - g * nose * L
+    if radome == 'tip':
+        radome_cap(m, secs, ug(0.3), n=n)
+    elif radome == 'chin':
+        ellipsoid(m, (ug(0.32), 0, cz - R * 0.62), nose * L * 0.32, R * 0.55, R * 0.38, 'radome', n=28, k=10)
+    if glazed_nose:  # navigator's station: small framed panes round the nose cone
+        for t0, t1 in ((-30, -5), (5, 30), (35, 62), (118, 145), (150, 175), (185, 210)):
+            pane(m, at, ug(0.07), ug(0.24), t0, t1, frame=0.09)
+    # Windscreen where the crown bends: two front panes, corner panes, side windows, all framed.
+    for t0, t1 in ((62, 88), (92, 118)):
+        pane(m, at, ug(0.40), ug(0.55), t0, t1)
+        wiper(m, at, ug(0.405), t0 + 4, t1 - 4)
+    for t0, t1 in ((30, 57), (123, 150)):
+        pane(m, at, ug(0.47), ug(0.62), t0, t1)
+    for t0, t1 in ((33, 53), (127, 147)):
+        pane(m, at, ug(0.65), ug(0.78), t0, t1)
     return cz + R
 
 
@@ -248,7 +300,7 @@ def europe():
 
 def il76(m, L, R, tail_gun=False):
     """Il-76 style heavy airlifter: high anhedral wing, four engines on pylons, T-tail, glazed navigator's nose."""
-    top = fuselage(m, L, R, nose=0.1, tail=0.25, upsweep=0.35, belly=1.05)
+    top = fuselage(m, L, R, nose=0.1, tail=0.25, upsweep=0.35, belly=1.05, radome='chin', glazed_nose=True)
     zw = 2 * R - 0.2
     for s in (1, -1):
         surface(m, (5.0, s * R * 0.6, zw), (0, s, -math.tan(math.radians(3))), 23.5, 9.5, 3.2, 8.5, 0.12, 'wing')
@@ -290,7 +342,7 @@ def islamic():
     """Original design: a heavy high-wing airlifter with twin tail fins on a broad tailplane, a thimble nose radar and a
     rotodome on a single swept pylon."""
     m, L, R = Mesh(), 44.0, 2.55 * BODY
-    top = fuselage(m, L, R, nose=0.13, tail=0.25, upsweep=0.45, belly=1.02)
+    top = fuselage(m, L, R, nose=0.13, tail=0.25, upsweep=0.45, belly=1.02, radome=None)
     zw = 2 * R - 0.15
     for s in (1, -1):
         surface(m, (4.5, s * R * 0.6, zw), (0, s, -math.tan(math.radians(1.5))), 22.0, 9.0, 3.4, 6.5, 0.13, 'wing')
@@ -326,11 +378,11 @@ def star(px, py, r, points=5, inner=0.4):
 
 SCHEMES = {
     # base, underside, dome, dome band, accent (fin / belly stripe)
-    'usa': dict(base=(176, 181, 188), under=(168, 173, 180), dome=(176, 181, 188), band=(38, 40, 44), accent=(150, 156, 164)),
-    'europe': dict(base=(196, 200, 205), under=(46, 64, 112), dome=(214, 216, 220), band=(46, 64, 112), accent=(46, 64, 112)),
-    'china': dict(base=(184, 192, 202), under=(176, 186, 198), dome=(196, 204, 214), band=(150, 160, 174), accent=(196, 34, 30)),
-    'russia': dict(base=(190, 192, 194), under=(196, 198, 200), dome=(200, 200, 198), band=(52, 54, 56), accent=(128, 140, 158)),
-    'islamic': dict(base=(102, 110, 70), under=(224, 220, 206), dome=(222, 218, 204), band=(62, 76, 46), accent=(196, 172, 122)),
+    'usa': dict(base=(176, 181, 188), under=(168, 173, 180), dome=(176, 181, 188), band=(38, 40, 44), accent=(150, 156, 164), radome=(92, 96, 102)),
+    'europe': dict(base=(196, 200, 205), under=(46, 64, 112), dome=(214, 216, 220), band=(46, 64, 112), accent=(46, 64, 112), radome=(70, 76, 88)),
+    'china': dict(base=(184, 192, 202), under=(176, 186, 198), dome=(196, 204, 214), band=(150, 160, 174), accent=(196, 34, 30), radome=(96, 104, 112)),
+    'russia': dict(base=(190, 192, 194), under=(196, 198, 200), dome=(200, 200, 198), band=(52, 54, 56), accent=(128, 140, 158), radome=(84, 88, 92)),
+    'islamic': dict(base=(102, 110, 70), under=(224, 220, 206), dome=(222, 218, 204), band=(62, 76, 46), accent=(196, 172, 122), radome=(60, 62, 60)),
 }
 
 
@@ -344,7 +396,7 @@ def paint(faction, pos, nrm, parts, col):
     low = body & (nrm[:, 2] < -0.35) & (z < zmid + 1)
     col[low] = s['under']
     col[parts == 'dome'] = s['dome']
-    col[parts == 'radome'] = (60, 62, 60)
+    col[parts == 'radome'] = s.get('radome', (60, 62, 60))
     col[parts == 'antenna'] = (70, 72, 76)
     col[parts == 'intake'] = (34, 36, 40)
     col[parts == 'exhaust'] = (58, 50, 44)
@@ -376,9 +428,6 @@ def paint(faction, pos, nrm, parts, col):
     body_l = nose - u[parts == 'body'].min()
     # Dark anti-glare panel on the crown just ahead of the windscreen.
     col[(parts == 'body') & (u > nose - body_l * 0.06) & (u < nose - body_l * 0.035) & (nrm[:, 2] > 0.55)] *= 0.5
-    if faction in ('china', 'russia'):
-        glaze = (parts == 'body') & (u > nose - 2.2) & (z < top_b - 1.6) & (z > top_b - 3.2)
-        col[glaze] = (52, 70, 86)
     # Passenger-style window row on the airliner frames.
     if faction in ('usa', 'europe'):
         row = (parts == 'body') & (np.abs(z - (top_b - 0.95)) < 0.12) & (u < nose - 7) & (u > -14) & (np.mod(u, 1.2) < 0.35)
@@ -390,6 +439,7 @@ def paint(faction, pos, nrm, parts, col):
     # Weathering: soft grime noise, darker near the engines' exhaust.
     col *= (0.94 + 0.06 * np.clip(noise(pos, 1.3, 9.1), -1, 1))[:, None]
     insignia(faction, pos, nrm, parts, col)
+    glazing_paint(parts, col)
     return np.clip(col, 0, 255)
 
 

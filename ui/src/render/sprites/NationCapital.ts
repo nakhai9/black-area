@@ -211,7 +211,7 @@ export function nationFlag(nation: ContestedNationId): HTMLCanvasElement {
 /** Depth of the art in art units: the 5 × 3 plot (FOOTPRINT_NATION_CAPITAL) drawn 1.25× from 4 × 2.4 units. */
 const ART_D = 2.4;
 
-/** Picture height (art px) of each nation's palace, as rendered (tools/blender/models/nations.py). */
+/** Picture height (art px) of each nation's palace, as rendered (tools/blender/<nation>_capital_render.py). */
 const HEIGHTS: Record<ContestedNationId, number> = {
   india: 76,
   ukraine: 76,
@@ -226,7 +226,7 @@ const HEIGHTS: Record<ContestedNationId, number> = {
   cuba: 96,
 };
 
-/** Rendered in Blender (tools/blender/building_render.py nation-<id>) in 4 × 2.4 art units. */
+/** Rendered in Blender (tools/blender/<nation>_capital_render.py) in 4 × 2.4 art units. */
 const PICTURE = (nation: ContestedNationId): PictureSpec => ({
   file: `building-nation-${nation}`,
   originX: 82.8,

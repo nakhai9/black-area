@@ -3,6 +3,7 @@ import math
 
 import bmesh
 
+from models._rooftop import deck
 from kit import _obj, box, cylinder, dome, lathe, mat, prism, render, roof, rod, zp, TEAM
 
 
@@ -111,6 +112,7 @@ def usa(f):
     team = TEAM[f]
     stone, glass = "#c8c0a8", "#2c3a4e"
     podium(stone, glass, team)
+    deck("usa", 0.15, 0.15, 3.7, 3.7, 23.4, avoid=[(0.95, 0.85, 2.1, 1.9)], team=team)
     g = glassm(glass)
     fr = mat("#6a6458", 0.6, metal=0.4, grain=0)
     stones = [mat(c, 0.85, grain=0.12, scale=14) for c in ("#c8c0a8", "#d0c9b2", "#d8d2bc")]
@@ -142,6 +144,8 @@ def russia(f):
     team = TEAM[f]
     stone, glass = "#d2c4a0", "#3a4048"
     podium(stone, glass, team, 14)
+    deck("russia", 0.15, 0.15, 3.7, 3.7, 17.4, team=team,
+         avoid=[(0.26, 0.26, 1.08, 1.08), (2.66, 0.26, 1.08, 1.08), (0.26, 2.66, 1.08, 1.08), (2.66, 2.66, 1.08, 1.08), (1.0, 0.9, 2.0, 1.9)])
     g = glassm(glass)
     fr = mat("#7a6a50", 0.7, grain=0)
     st = mat(stone, 0.85, grain=0.12, scale=14)

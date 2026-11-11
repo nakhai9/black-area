@@ -48,7 +48,7 @@ export const EUROPE: FactionConfig = {
     mantis: { name: "SAMP/T NG", description: t("SAMP/T NG air-defence system: an 8 × 8 launcher truck with eight missile canisters erected vertical, firing long-range missiles that hit aircraft only (fighters, bombers, helicopters, transports), never ground units or structures. Expensive and slow, armoured like a tank.") },
     awacs: { name: "A330 AEW", description: t("A330-based airborne early warning aircraft: unarmed; its radar marks every enemy combat unit within 24 cells with a red ring.") },
     jet: { name: "Rafale", description: t("Dassault Rafale multirole fighter.") },
-    transport: { name: "C-130", description: t("C-130 transport aircraft: carries soldiers and vehicles; unarmed.") },
+    transport: { name: "A400M", description: t("A400M Atlas transport aircraft: four turboprops, carries soldiers and vehicles; unarmed.") },
     truck: {
       name: "Zetros",
       description:

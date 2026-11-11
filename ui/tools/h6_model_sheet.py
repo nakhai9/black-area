@@ -18,7 +18,7 @@ import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import tu160_model_sheet as base  # noqa: E402
-from awacs_model_sheet import Mesh, box, ellipsoid, loft, star, surface  # noqa: E402
+from awacs_model_sheet import Mesh, box, ellipsoid, glazing_paint, loft, pane, radome_cap, sections_at, star, surface, wiper  # noqa: E402
 
 L = 34.8
 NOSE = L / 2
@@ -29,9 +29,9 @@ OUTS = {'fixed': dict(out='h6-china')}
 
 def fuselage(m):
     profile = [
-        (0.000, 0.10, 0.10, -0.30),
-        (0.030, 0.75, 0.70, -0.22),
-        (0.070, 1.35, 1.30, -0.08),
+        # Big blunt bullet radome (the H-6K's solid nose), densely ringed so it stays smooth.
+        *[(0.12 * x, 0.06 + 1.74 * (1 - (1 - x) ** 2) ** 0.5, 0.06 + 1.69 * (1 - (1 - x) ** 2) ** 0.5, -0.30 + 0.30 * x ** 1.3)
+          for x in (k / 16 for k in range(16))],
         (0.120, 1.80, 1.75, 0.00),
         (0.200, 2.05, 2.00, 0.00),
         (0.700, 2.05, 2.00, 0.00),
@@ -40,10 +40,24 @@ def fuselage(m):
         (0.970, 0.65, 0.70, 0.40),
         (1.000, 0.25, 0.30, 0.45),
     ]
-    loft(m, [(NOSE - f * L, 0, CZ + dz, rv, rz) for f, rv, rz, dz in profile], 'body', n=36, cap_back='body')
+    secs = [(NOSE - f * L, 0, CZ + dz, rv, rz) for f, rv, rz, dz in profile]
+    loft(m, secs, 'body', n=36, cap_back='body')
+    radome_cap(m, secs, NOSE - 2.3, n=36)
+    cockpit(m, sections_at(secs))
     # Dorsal blister (sensor) and a small one under the tail.
     ellipsoid(m, (-4.5, 0, CZ + 1.95), 1.1, 0.75, 0.45, 'body', n=20, k=8)
     ellipsoid(m, (-11.5, 0, CZ - 1.55), 1.0, 0.7, 0.4, 'body', n=20, k=8)
+
+
+def cockpit(m, at):
+    """Flight deck behind the radome: two front windscreen panes with wipers, corner and side windows, all framed."""
+    for t0, t1 in ((58, 88), (92, 122)):
+        pane(m, at, NOSE - 2.65, NOSE - 3.45, t0, t1)
+        wiper(m, at, NOSE - 2.7, t0 + 5, t1 - 5)
+    for t0, t1 in ((30, 56), (124, 150)):
+        pane(m, at, NOSE - 3.55, NOSE - 4.35, t0, t1)
+    for t0, t1 in ((34, 52), (128, 146)):
+        pane(m, at, NOSE - 7.4, NOSE - 8.4, t0, t1)
 
 
 def wings(m):
@@ -125,14 +139,10 @@ def paint(pos, nrm, parts, col):
     col[parts == 'pylon'] = (170, 176, 184)
     col[(parts == 'nacelle') & (u < -8.0)] = (150, 146, 140)  # bare-metal jet pipes
     nose = u[parts == 'body'].max()
-    col[(parts == 'body') & (u > nose - 2.3)] = (24, 26, 30)  # black radome
-    # Cockpit windows: a row behind the radome, side windows further back.
+    col[parts == 'radome'] = (24, 26, 30)  # black radome
     zb = z[(parts == 'body') & (u > nose - 6) & (u < nose - 3)]
     top = zb.max() if zb.size else z.max()
-    win = (parts == 'body') & (u > nose - 4.6) & (u < nose - 2.6) & (z > top - 1.0) & (z < top - 0.45) & (np.abs(v) > 0.3)
-    col[win & (np.mod(u * 1.6, 1) < 0.7)] = (30, 40, 54)
     side = (parts == 'body') & (np.abs(nrm[:, 1]) > 0.55)
-    col[side & (u > nose - 8.4) & (u < nose - 7.4) & (np.abs(z - (top - 1.0)) < 0.25)] = (30, 40, 54)
     # Red chevrons round the intakes.
     chev = side & (np.abs(u - 6.6) < 1.6) & (np.abs(np.abs(z - (WING_Z + 0.2)) - (1.6 - np.abs(u - 6.6))) < 0.12)
     col[chev] = RED
@@ -159,6 +169,7 @@ def paint(pos, nrm, parts, col):
     if fin_side.any():
         fz1 = z[fin_side].max()
         col[fin_side & (z > fz1 - 0.8)] = (214, 218, 224)  # light fin cap
+    glazing_paint(parts, col)
     return np.clip(col, 0, 255)
 
 

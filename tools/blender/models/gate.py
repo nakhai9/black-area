@@ -330,7 +330,7 @@ def wall_stubs(faction):
             wl.great_wall(wl.E | wl.W, 0, rng)
         else:
             wl.nation_wall(faction, wl.E | wl.W, 0, rng)
-        lo, hi = (0.0, STUB) if u0 == 0 else (1 - STUB, 1.0)
+        lo, hi = (-wl.OVERLAP, STUB) if u0 == 0 else (1 - STUB, 1.0 + wl.OVERLAP)
         for ob in set(bpy.data.objects) - before:
             us = [vt.co.y for vt in ob.data.vertices]  # Blender y = u
             if min(us) >= hi - 1e-6 or max(us) <= lo + 1e-6:

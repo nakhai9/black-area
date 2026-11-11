@@ -255,14 +255,35 @@ def smooth_round(root):
         o.select_set(False)
 
 
-def render_sheet(sheet, build, length_m, centre_x=0.0, samples=32, preview=None, preview_dir=4, width_scale=1.0):
+def enlarge_front(root, x0, sy, sz, zbase):
+    """Makes the front of a long vehicle chunkier: every mesh whose centre lies ahead of x0 (model X, before centre_x)
+    is widened sy times about the centre line and its part above zbase raised sz times, so the cab reads full-bodied
+    next to the tanks instead of flat. Wheels and parts behind x0 keep their shape below zbase."""
+    import mathutils
+    bpy.context.view_layer.update()
+    inv = root.matrix_world.inverted()
+    for ob in [o for o in root.children_recursive if o.type == "MESH"]:
+        to_model = inv @ ob.matrix_world
+        co = [to_model @ v.co for v in ob.data.vertices]
+        if not co or sum(c.x for c in co) / len(co) <= x0:
+            continue
+        back = to_model.inverted()
+        for v, c in zip(ob.data.vertices, co):
+            z = c.z if c.z <= zbase else zbase + (c.z - zbase) * sz
+            v.co = back @ mathutils.Vector((c.x, c.y * sy, z))
+        ob.data.update()
+
+
+def render_sheet(sheet, build, length_m, centre_x=0.0, samples=32, preview=None, preview_dir=4, width_scale=1.0, front=None):
     """Builds the model (build(root) under a turntable), renders 32 headings and writes ui/public/sprites/<sheet>.png.
-    centre_x: the model's ground centre along +X (the turntable pivot)."""
+    centre_x: the model's ground centre along +X (the turntable pivot). front: (x0, sy, sz, zbase) for enlarge_front."""
     sc, floor = setup(512 if preview else CELL_PX * OVERSAMPLE, samples)
     camera(sc, length_m)
     turntable = node("Turntable", (0, 0, 0), None)
     root = node("Model", (-centre_x, 0, 0), turntable)
     build(root)
+    if front:
+        enlarge_front(root, *front)
     smooth_round(root)
     # Long vehicles squeezed to the group length look thin: their width is widened (like the aircraft fuselages,
     # ART_GUIDE 5) so the body reads chunky next to the tanks.
