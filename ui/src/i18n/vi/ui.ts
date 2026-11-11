@@ -21,6 +21,7 @@ export default {
   'The desktop version is under development. Coming soon!': 'Phiên bản máy tính đang được phát triển. Sắp ra mắt!',
   // Pause menu
   'This file is not a Black Area save.': 'Tệp này không phải bản lưu của Black Area.',
+  'Loading save…': 'Đang tải bản lưu…',
   PAUSED: 'TẠM DỪNG',
   'The game is paused. Press Esc or Continue to resume.': 'Trò chơi đang tạm dừng. Nhấn Esc hoặc Tiếp tục để chơi tiếp.',
   'Music volume: {value}%': 'Âm lượng nhạc: {value}%',

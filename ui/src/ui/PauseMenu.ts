@@ -29,16 +29,31 @@ export function pickSaveFile(onError: (message: string) => void = (m) => window.
   input.addEventListener('change', () => {
     const file = input.files?.[0];
     if (!file) return;
+    // Spinner overlay while the file is read and the page reloads into it.
+    const loading = document.getElementById('loading');
+    const loadingText = document.getElementById('loading-text');
+    if (loading) {
+      loading.classList.remove('error');
+      if (loadingText) loadingText.textContent = t('Loading save…');
+      loading.hidden = false;
+    }
+    const hideLoading = (): void => {
+      if (loading) loading.hidden = true;
+    };
     void file.text().then((text) => {
       try {
         const save = JSON.parse(text) as { format?: string };
         if (save.format !== 'black-area-save') throw new Error(t('This file is not a Black Area save.'));
         sessionStorage.setItem(PENDING_SAVE_KEY, text);
       } catch (err) {
+        hideLoading();
         onError(err instanceof Error ? err.message : String(err));
         return;
       }
       window.location.assign(window.location.pathname);
+    }, (err: unknown) => {
+      hideLoading();
+      onError(err instanceof Error ? err.message : String(err));
     });
   });
   input.click();

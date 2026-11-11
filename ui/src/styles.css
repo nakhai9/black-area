@@ -61,6 +61,22 @@ body {
   gap: 10px;
   width: min(360px, calc(100vw - 32px));
 }
+.ld-spin {
+  width: 36px;
+  height: 36px;
+  border: 3px solid color-mix(in srgb, var(--accent) 25%, transparent);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: ld-spin 0.8s linear infinite;
+}
+#loading.error .ld-spin {
+  display: none;
+}
+@keyframes ld-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
 .ld-bar {
   width: 100%;
   height: 8px;
