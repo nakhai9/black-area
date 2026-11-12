@@ -1743,12 +1743,12 @@ export class Game {
     this.occupyBuilding(b);
     if (b instanceof Wall) this.orientWalls(b.x, b.y);
     else if (b instanceof Gate) this.joinGate(b);
-    this.reportBuilt(player, b.spec.type);
+    this.reportBuilt(player, b.spec.type, b.spec.name);
     return true;
   }
 
-  /** Intelligence on a structure a nation has just raised (strategic ones only). */
-  private reportBuilt(player: PlayerState, type: string): void {
+  /** Intelligence on a structure another nation has just raised (every one except walls and gates). */
+  private reportBuilt(player: PlayerState, type: string, building: string): void {
     const name = FACTIONS[player.faction].name;
     const report: Partial<Record<string, [NewsCategory, string]>> = {
       airfield: ['military', t('{name} has built an Airfield', { name })],
@@ -1760,6 +1760,7 @@ export class Game {
     };
     const r = report[type];
     if (r) this.intel(r[0], r[1]);
+    else if (player.id !== this.localId && type !== 'wall' && type !== 'gate') this.intel('economy', t('{name} has built a {building}', { name, building }));
   }
 
   /** Allies the nation leads: its Allied Buildings standing, plus one under construction. */
@@ -2111,6 +2112,7 @@ export class Game {
     const walkers: { unit: Unit; goal: WorldPoint; cell: GridPoint; ticket: number }[] = [];
     const swimmers: typeof walkers = [];
     const drivers: typeof walkers = [];
+    const dozers: typeof walkers = []; // repair vehicles: their own routes, straight through the woods
     units.forEach((u, k) => {
       if (u instanceof Vehicle) {
         u.heliHome = null;
@@ -2152,12 +2154,12 @@ export class Game {
         if (u.moving) u.pathTicket++;
         else u.stop();
         u.routePending = true;
-        (u.mobility === 'vehicle' ? drivers : u.swims ? swimmers : walkers).push({ unit: u, goal: { x: (goal.x + 0.5) * CELL_SIZE, y: (goal.y + 0.5) * CELL_SIZE }, cell: goal, ticket: u.pathTicket });
+        (u.mobility === 'dozer' ? dozers : u.mobility === 'vehicle' ? drivers : u.swims ? swimmers : walkers).push({ unit: u, goal: { x: (goal.x + 0.5) * CELL_SIZE, y: (goal.y + 0.5) * CELL_SIZE }, cell: goal, ticket: u.pathTicket });
         return;
       }
       u.follow(this.paths.find({ x: u.px, y: u.py }, goal, u.mobility));
     });
-    for (const members of [walkers, swimmers, drivers]) {
+    for (const members of [walkers, swimmers, drivers, dozers]) {
       const lead = members[0];
       if (!lead) continue;
       const urgent = this.humanOwned(lead.unit);
@@ -4881,15 +4883,18 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       if (!key) continue;
       // Only units inside the frame are heard: full volume in the middle of the screen, silent at its edge.
       const s = cam.worldToScreen(u.px, u.py);
-      const near = 1 - Math.max(Math.abs(s.x - hw) / hw, Math.abs(s.y - hh) / hh);
-      if (near <= 0) continue;
+      // Elliptical falloff from the screen centre, squared: loud in the middle, fading clearly towards the edges.
+      const r = Math.hypot((s.x - hw) / hw, (s.y - hh) / hh);
+      if (r >= 1) continue;
+      // Aircraft are heard farther: a gentler (linear) falloff than ground units.
+      const near = u instanceof Vehicle && u.aircraft ? 1 - r : (1 - r) * (1 - r);
       const top = best.get(key) ?? 0;
       if (near > top) {
         more.set(key, (more.get(key) ?? 0) + top);
         best.set(key, near);
       } else more.set(key, (more.get(key) ?? 0) + near);
     }
-    const level = (k: string): number => Math.min(1, (best.get(k) ?? 0) + 0.12 * (more.get(k) ?? 0));
+    const level = (k: string): number => Math.min(1, (best.get(k) ?? 0) * (1 + 0.12 * Math.min(4, more.get(k) ?? 0)));
     const engines = new Map<string, { kind: VehicleKind; level: number }>();
     for (const [name, kind] of kinds) if (best.has(name)) engines.set(name, { kind, level: level(name) });
     this.sound.motion({ foot: level('foot'), engines });
@@ -7131,6 +7136,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     const walkers: (GroupMember & { ticket: number; facing: number })[] = [];
     const swimmers: (GroupMember & { ticket: number; facing: number })[] = [];
     const drivers: (GroupMember & { ticket: number; facing: number })[] = [];
+    const dozers: typeof drivers = []; // repair vehicles: their own routes, straight through the woods
     // RA2 formation: the ground units line up side by side across the way the group travels (front row first,
     // further rows behind it) and all end up facing that way — never nose to nose.
     const ground = units.filter((u) => !u.aircraft);
@@ -7204,9 +7210,9 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       else u.stop();
       // Waiting for its route: nothing else (pulling over, an automatic bomb run) may take the unit over meanwhile.
       u.routePending = true;
-      (u.mobility === 'vehicle' ? drivers : u.swims ? swimmers : walkers).push({ unit: u, goal, cell, ticket: u.pathTicket, facing });
+      (u.mobility === 'dozer' ? dozers : u.mobility === 'vehicle' ? drivers : u.swims ? swimmers : walkers).push({ unit: u, goal, cell, ticket: u.pathTicket, facing });
     });
-    for (const members of [walkers, swimmers, drivers]) {
+    for (const members of [walkers, swimmers, drivers, dozers]) {
       const lead = members[0];
       if (!lead) continue;
       const swim = lead.unit.mobility;

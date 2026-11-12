@@ -23,7 +23,28 @@ interface CraftSheet {
   /** Share of a cell the model spans side-on. */
   readonly span: number;
   readonly heli: boolean;
+  /** Body + separate main rotor (Blender: tools/blender/<model>_render.py + rotor_render.py), see RIG_ROW. */
+  readonly rig?: RotorRig;
+  /** Iso px long side-on, overriding LENGTH[kind]. */
+  readonly length?: number;
 }
+
+/**
+ * A helicopter whose main rotor is its own reusable sheet, drawn over the body: standing still on the ground, spinning
+ * in flight. Body rows: RIG_ROW. Rotor rows: ROTOR_ROW, `phases` columns over one blade spacing. Numbers in sheet px
+ * (as printed by the Blender script) at the stored cell size.
+ */
+interface RotorRig {
+  readonly rotor: HTMLImageElement;
+  readonly blades: number;
+  readonly phases: number;
+  /** Body cell centre above the ground point (sheet px). */
+  readonly groundDrop: number;
+  /** Rotor hub above the body cell centre (sheet px); the mast is at the cell centre for every facing. */
+  readonly hubLift: number;
+}
+const RIG_ROW = { parked: 0, fly: [1, 2], crashing: 3, wreck: 4, cap: 5, shadow: 6 } as const;
+const ROTOR_ROW = { still: 0, spin: 1, stillShadow: 2, spinShadow: 3 } as const;
 
 const img = (file: string): HTMLImageElement => {
   const i = new Image();
@@ -34,18 +55,34 @@ const air = (model: string, span: number): CraftSheet => ({ image: img(`air-${mo
 /** `fx`: the model whose explosion sheet it uses (the Z-10 blows up with the old Z-19E explosion). */
 const heli = (model: string, span: number, fx = model): CraftSheet => ({ image: img(`heli-${model}.webp`), fx: img(`heli-${fx}-fx.webp`), cell: 80, fxCell: 128, fxFrames: 16, span, heli: true });
 
+/** USA AH-64E Apache: body (tools/blender/ah64_render.py) + 4-blade rotor (rotor_render.py --name ah64), 192 px cells. */
+const ah64: CraftSheet = {
+  image: img('heli-ah64-usa.webp'),
+  fx: img('heli-apache-fx.webp'),
+  cell: 192,
+  fxCell: 128,
+  fxFrames: 16,
+  span: 0.74,
+  heli: true,
+  // 1.5x the old 2/3-tank size: 17.4 m fuselage drawn 11.52 iso px long -> 0.662 iso px/m; axis v (stub-wing span
+  // 5.35 m) = 3.54 iso px = 1.0 tank (Abrams 3.94 m at 0.897 iso px/m = 3.53), axis z 5.36 m = 3.55 iso px.
+  length: 11.52,
+  rig: { rotor: img('rotor-ah64.webp'), blades: 4, phases: 16, groundDrop: 15.56, hubLift: 14.5 },
+};
+
 /** Every model, by key ('air:c17', 'heli:apache', …). Spans as measured by the build script. */
 const MODELS: Readonly<Record<string, CraftSheet>> = {
   'air:c17': air('c17', 0.833),
   'air:il76': air('il76', 0.76),
   'air:y20': air('y20', 0.833),
   'heli:apache': heli('apache', 0.825),
+  'heli:ah64': ah64,
   'heli:ka52': heli('ka52', 0.85),
   'heli:z10': heli('z10', 0.825, 'z19e'),
 };
 /** The USA's C-17, Russia's Il-76, China's Y-20 and Europe's A400M have their own sharp sheets in AircraftSheets.ts. */
 const TRANSPORT: Partial<Record<FactionId, string>> = { islamic: 'air:y20' };
-const HELI: Record<FactionId, string> = { usa: 'heli:apache', europe: 'heli:apache', russia: 'heli:ka52', islamic: 'heli:ka52', china: 'heli:z10' };
+const HELI: Record<FactionId, string> = { usa: 'heli:ah64', europe: 'heli:apache', russia: 'heli:ka52', islamic: 'heli:ka52', china: 'heli:z10' };
 /** Iso px each kind is drawn long. */
 const LENGTH: Partial<Record<VehicleKind, number>> = { transport: 13, heli: 11.4 };
 
@@ -62,7 +99,7 @@ let loaded: Promise<void> | null = null;
 export function loadCraftSprites(): Promise<void> {
   loaded ??= Promise.all(
     Object.values(MODELS)
-      .flatMap((m) => [m.image, m.fx])
+      .flatMap((m) => (m.rig ? [m.image, m.fx, m.rig.rotor] : [m.image, m.fx]))
       .map(
         (i) =>
           new Promise<void>((resolve, reject) => {
@@ -101,7 +138,49 @@ function blit(ctx: CanvasRenderingContext2D, image: HTMLImageElement, cell: numb
   ctx.drawImage(image, col * cell, row * cell, cell, cell, x - size / 2, y - size / 2, size, size);
 }
 
-const drawnSize = (m: CraftSheet, kind: VehicleKind): number => (LENGTH[kind] ?? 10) / m.span;
+/** World yaw (Blender rig frame) of sheet column `col`: the inverse of the scripts' heading(k). */
+function rigYaw(col: number): number {
+  const h = (col / DIRS) * Math.PI * 2;
+  return Math.atan2(Math.cos(h) / 0.5, Math.sin(h));
+}
+
+/** Still rotor column: blades parked in an X across the fuselage (45° off the nose). */
+function parkedPhase(r: RotorRig, col: number): number {
+  const spacing = (Math.PI * 2) / r.blades;
+  const a = (((rigYaw(col) + Math.PI / 4) % spacing) + spacing) % spacing;
+  return Math.round((a / spacing) * r.phases) % r.phases;
+}
+
+/** Rotor turns while the engines run: in the air, and on the ground unless parked / set down / unloading. */
+const rotorTurning = (v: Vehicle): boolean => !(v.altitude <= 0 && (v.flight === 'parked' || v.flight === 'landed' || v.flight === 'unloading'));
+
+/** Body + rotor + mast-top cap of a rigged helicopter, the body cell centred on (x, y). */
+function drawRig(ctx: CanvasRenderingContext2D, m: CraftSheet, r: RotorRig, col: number, bodyRow: number, spinning: boolean, x: number, y: number, size: number, rotor = true): void {
+  const k = size / m.cell;
+  blit(ctx, m.image, m.cell, col, bodyRow, x, y, size);
+  if (rotor && ok(r.rotor)) {
+    const phase = spinning ? Math.floor(performance.now() / 22) % r.phases : parkedPhase(r, col);
+    blit(ctx, r.rotor, m.cell, phase, spinning ? ROTOR_ROW.spin : ROTOR_ROW.still, x, y - r.hubLift * k, size);
+  }
+  if (bodyRow !== RIG_ROW.crashing && bodyRow !== RIG_ROW.wreck) blit(ctx, m.image, m.cell, col, RIG_ROW.cap, x, y, size);
+}
+
+function drawRigged(ctx: CanvasRenderingContext2D, m: CraftSheet, r: RotorRig, v: Vehicle, x: number, y: number, size: number): void {
+  const col = column(v.heading);
+  const k = size / m.cell;
+  const spinning = rotorTurning(v);
+  // Shadow on the ground (body + rotor), fading with height.
+  const alpha = ctx.globalAlpha;
+  const s = v.altitude / 7;
+  ctx.globalAlpha = alpha * Math.max(0.15, 0.38 - 0.08 * s);
+  blit(ctx, m.image, m.cell, col, RIG_ROW.shadow, x + 0.4 * s, y + 0.8 * s, size);
+  if (ok(r.rotor)) blit(ctx, r.rotor, m.cell, spinning ? Math.floor(performance.now() / 22) % r.phases : parkedPhase(r, col), spinning ? ROTOR_ROW.spinShadow : ROTOR_ROW.stillShadow, x + 0.4 * s, y + 0.8 * s, size);
+  ctx.globalAlpha = alpha;
+  const row = v.flight === 'crashing' ? RIG_ROW.crashing : spinning && v.altitude > 0 ? RIG_ROW.fly[Math.floor(performance.now() / 50) % 2] : spinning ? RIG_ROW.fly[0] : RIG_ROW.parked;
+  drawRig(ctx, m, r, col, row ?? RIG_ROW.parked, spinning, x, y - v.altitude - r.groundDrop * k, size);
+}
+
+const drawnSize = (m: CraftSheet, kind: VehicleKind): number => (m.length ?? LENGTH[kind] ?? 10) / m.span;
 
 /**
  * Draws a transport or helicopter with its ground point at (x, y) in iso px: shadow on the ground, body
@@ -115,6 +194,11 @@ export function drawCraftSheet(ctx: CanvasRenderingContext2D, v: Vehicle, x: num
   const size = drawnSize(m, v.type);
   const prevSmooth = ctx.imageSmoothingEnabled;
   ctx.imageSmoothingEnabled = true;
+  if (m.rig) {
+    drawRigged(ctx, m, m.rig, v, x, y, size);
+    ctx.imageSmoothingEnabled = prevSmooth;
+    return true;
+  }
   if (!m.heli) {
     // Shadow: slides away and fades with height.
     const k = v.altitude / 7;
@@ -136,7 +220,8 @@ export function drawCraftPortrait(ctx: CanvasRenderingContext2D, faction: Factio
   const size = Math.min(w / m.span, h * 1.35);
   ctx.save();
   ctx.imageSmoothingEnabled = true;
-  blit(ctx, m.image, m.cell, column(heading), (m.heli ? HELI_ROW : AIR_ROW).fly[0], w / 2, h / 2, size);
+  if (m.rig) drawRig(ctx, m, m.rig, column(heading), RIG_ROW.parked, false, w / 2, h / 2 + (m.rig.hubLift * size) / m.cell / 2, size);
+  else blit(ctx, m.image, m.cell, column(heading), (m.heli ? HELI_ROW : AIR_ROW).fly[0], w / 2, h / 2, size);
   ctx.restore();
   return true;
 }
@@ -172,7 +257,8 @@ export function drawCraftDeath(ctx: CanvasRenderingContext2D, key: string, kind:
     const prevAlpha = ctx.globalAlpha;
     ctx.imageSmoothingEnabled = true;
     ctx.globalAlpha = prevAlpha * Math.max(0, Math.min(1, (ttl - age) / FADE_SECONDS));
-    blit(ctx, m.image, m.cell, column(heading), cycle((m.heli ? HELI_ROW : AIR_ROW).wreck, 0.2), x, y - 1.5, size);
+    if (m.rig) blit(ctx, m.image, m.cell, column(heading), RIG_ROW.wreck, x, y - (m.rig.groundDrop * size) / m.cell, size);
+    else blit(ctx, m.image, m.cell, column(heading), cycle((m.heli ? HELI_ROW : AIR_ROW).wreck, 0.2), x, y - 1.5, size);
     ctx.globalAlpha = prevAlpha;
     ctx.imageSmoothingEnabled = prevSmooth;
   }

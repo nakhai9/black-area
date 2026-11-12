@@ -39,7 +39,8 @@ const STEP = DIRS.map((d) => d[2]);
  */
 /** How a unit gets about: false = walks, true = walks and swims (special forces), 'vehicle' = ground vehicle (no trees, no
  * mountain except its trails). */
-export type Mobility = boolean | 'vehicle';
+/** 'dozer' = the repair vehicle: a ground vehicle that drives straight through woods (it knocks the trees down). */
+export type Mobility = boolean | 'vehicle' | 'dozer';
 
 /** Search budget of a sea route (oceans are wide; a ship's order is rare). */
 const NAVAL_EXPANSIONS = 400_000;
@@ -113,14 +114,16 @@ export class Pathfinder {
     if (map.occupied[i] !== 0) return false;
     const m = map.mountain[i] ?? 0;
     if (m === MOUNTAIN_CREST) return false;
-    if (swim === 'vehicle' && ((map.trees[i] ?? 0) > 0 || (m !== 0 && m !== MOUNTAIN_PASS))) return false;
+    if (swim === 'vehicle' && (map.trees[i] ?? 0) > 0) return false;
+    if ((swim === 'vehicle' || swim === 'dozer') && m !== 0 && m !== MOUNTAIN_PASS) return false;
     return map.types[i] !== 0 || map.bridge[i] === 1 || (swim === true && (this.swimmable()[i] ?? 0) === 1);
   }
 
   passable(x: number, y: number, swim: Mobility = false): boolean {
     if (!this.map.inBounds(x, y) || this.map.occupantAt(x, y) !== null || this.map.isRockWall(x, y)) return false;
     // Ground vehicles never drive over trees or a mountain, except along its trails (passes).
-    if (swim === 'vehicle' && (this.map.hasTrees(x, y) || this.map.isMountain(x, y) && this.map.mountain[this.map.index(x, y)] !== MOUNTAIN_PASS)) return false;
+    if (swim === 'vehicle' && this.map.hasTrees(x, y)) return false;
+    if ((swim === 'vehicle' || swim === 'dozer') && this.map.isMountain(x, y) && this.map.mountain[this.map.index(x, y)] !== MOUNTAIN_PASS) return false;
     return !this.map.isOpenWater(x, y) || (swim === true && (this.swimmable()[this.map.index(x, y)] ?? 0) === 1);
   }
 
@@ -305,13 +308,14 @@ export class Pathfinder {
     const open = this.heap;
     open.clear();
     const swimCells = swim === true ? this.swimmable() : null;
-    const vehicle = swim === 'vehicle';
+    const dozer = swim === 'dozer';
+    const vehicle = swim === 'vehicle' || dozer;
     const free = (i: number): boolean =>
       (types[i] !== 0 || bridge[i] === 1 || (swimCells !== null && swimCells[i] === 1)) &&
       occupied[i] === 0 &&
       mountain[i] !== MOUNTAIN_CREST &&
-      // Ground vehicles: no trees, no mountain cells but the trails (passes).
-      (!vehicle || ((trees[i] ?? 0) === 0 && ((mountain[i] ?? 0) === 0 || mountain[i] === MOUNTAIN_PASS)));
+      // Ground vehicles: no trees (the repair vehicle drives through them), no mountain cells but the trails (passes).
+      (!vehicle || ((dozer || (trees[i] ?? 0) === 0) && ((mountain[i] ?? 0) === 0 || mountain[i] === MOUNTAIN_PASS)));
     const gx = goal.x;
     const gy = goal.y;
     const h = (x: number, y: number): number => {
@@ -361,7 +365,7 @@ export class Pathfinder {
         if (closed[ni] === run) continue;
         // Vehicles keep a cell off structures and off the water's edge where they can (a hull swinging wide would drive in).
         const near = vehicle && ni !== goalI && (this.nearStructure(nx, ny) || this.nearWater(nx, ny)) ? NEAR_STRUCTURE_COST : 1;
-        const cost = gc + (STEP[k] ?? 1) * near * (mountain[ni] === MOUNTAIN_PASS ? MOUNTAIN_PATH_COST : (trees[ni] ?? 0) > 0 ? TREE_COST : 1);
+        const cost = gc + (STEP[k] ?? 1) * near * (mountain[ni] === MOUNTAIN_PASS ? MOUNTAIN_PATH_COST : !dozer && (trees[ni] ?? 0) > 0 ? TREE_COST : 1);
         if (stamp[ni] === run && cost >= (g[ni] ?? Infinity)) continue;
         this.visit(ni, cost, cur);
         open.push(ni, cost + h(nx, ny));
@@ -418,7 +422,7 @@ export class Pathfinder {
       // A straight line onto / off a bridge must run over its end along the deck (never over the girders).
       if ((cx !== px || cy !== py) && !this.map.bridgeStepOk(this.map.index(px, py), this.map.index(cx, cy), cx - px, cy - py)) return false;
       // A vehicle's straight line never runs along a structure (only its two ends may touch one).
-      if (swim === 'vehicle' && s < steps && !(cx === x0 && cy === y0) && (this.nearStructure(cx, cy) || this.nearWater(cx, cy))) return false;
+      if ((swim === 'vehicle' || swim === 'dozer') && s < steps && !(cx === x0 && cy === y0) && (this.nearStructure(cx, cy) || this.nearWater(cx, cy))) return false;
       px = cx;
       py = cy;
     }

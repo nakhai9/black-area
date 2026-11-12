@@ -371,8 +371,8 @@ export class PathService {
         // will walk ni → cur).
         if (!map.bridgeStepOk(ni, cur, -dx, -dy)) continue;
         // Vehicles keep clear of structures where there is room (see NEAR_STRUCTURE_COST).
-        const near = swim === 'vehicle' && pathfinder.nearStructure(nx, ny) ? NEAR_STRUCTURE_COST : 1;
-        const nd = dc + step * near * (map.mountain[ny * W + nx] === MOUNTAIN_PASS ? MOUNTAIN_PATH_COST : map.hasTrees(nx, ny) ? TREE_COST : 1);
+        const near = (swim === 'vehicle' || swim === 'dozer') && pathfinder.nearStructure(nx, ny) ? NEAR_STRUCTURE_COST : 1;
+        const nd = dc + step * near * (map.mountain[ny * W + nx] === MOUNTAIN_PASS ? MOUNTAIN_PATH_COST : swim !== 'dozer' && map.hasTrees(nx, ny) ? TREE_COST : 1);
         if (f.stamp[ni] === f.run && nd >= (f.dist[ni] ?? Infinity)) continue;
         f.stamp[ni] = f.run;
         f.dist[ni] = nd;

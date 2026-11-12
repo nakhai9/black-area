@@ -1,4 +1,5 @@
 import { MusicSystem } from './MusicSystem';
+import { isAircraftKind } from '../constants';
 import type { FactionId, VehicleKind, WeaponKind, WorldPoint } from '../types';
 
 /** What the player can currently see/hear: the camera centre and a distance (world px) beyond which sounds fade out. */
@@ -100,7 +101,7 @@ const ENGINE_RECIPES: Readonly<Record<EngineProfile, EngineRecipe>> = {
   wheeled: { rumble: 320, pulse: 18, depth: 0.3, whine: 0, whineGain: 0, clank: 0, clankGain: 0, gain: 0.7 },
   fighter: { rumble: 1100, pulse: 0, depth: 0, whine: 4200, whineGain: 0.28, clank: 0, clankGain: 0, gain: 0.8 },
   bomber: { rumble: 480, pulse: 3, depth: 0.22, whine: 1800, whineGain: 0.12, clank: 0, clankGain: 0, gain: 0.95 },
-  airlifter: { rumble: 750, pulse: 1.5, depth: 0.1, whine: 3000, whineGain: 0.18, clank: 0, clankGain: 0, gain: 0.85 },
+  airlifter: { rumble: 750, pulse: 1.5, depth: 0.1, whine: 3000, whineGain: 0.18, clank: 0, clankGain: 0, gain: 1.35 },
   // Fighters
   f22: { rumble: 900, pulse: 0, depth: 0, whine: 3600, whineGain: 0.22, clank: 0, clankGain: 0, gain: 0.85, tone: { freq: 62, type: 'sawtooth', gain: 0.05, wobble: 2 } },
   su57: { rumble: 1300, pulse: 0, depth: 0, whine: 5200, whineGain: 0.32, clank: 0, clankGain: 0, gain: 0.8 },
@@ -111,11 +112,11 @@ const ENGINE_RECIPES: Readonly<Record<EngineProfile, EngineRecipe>> = {
   b1: { rumble: 420, pulse: 2.2, depth: 0.25, whine: 2400, whineGain: 0.16, clank: 0, clankGain: 0, gain: 1 },
   tu160: { rumble: 320, pulse: 3.4, depth: 0.3, whine: 1500, whineGain: 0.14, clank: 0, clankGain: 0, gain: 1, tone: { freq: 48, type: 'sawtooth', gain: 0.05, wobble: 1.5 } },
   h6: { rumble: 560, pulse: 2.6, depth: 0.2, whine: 2200, whineGain: 0.2, clank: 0, clankGain: 0, gain: 0.95, tone: { freq: 74, type: 'sawtooth', gain: 0.04, wobble: 2 } },
-  // Airlifters
-  c17: { rumble: 650, pulse: 1.2, depth: 0.1, whine: 2600, whineGain: 0.2, clank: 0, clankGain: 0, gain: 0.85 },
-  il76: { rumble: 560, pulse: 1.8, depth: 0.15, whine: 3400, whineGain: 0.26, clank: 0, clankGain: 0, gain: 0.85 },
-  y20: { rumble: 700, pulse: 1, depth: 0.08, whine: 2900, whineGain: 0.16, clank: 0, clankGain: 0, gain: 0.85, tone: { freq: 92, type: 'triangle', gain: 0.04, wobble: 2 } },
-  c130: { rumble: 260, pulse: 6.5, depth: 0.35, whine: 1100, whineGain: 0.1, clank: 0, clankGain: 0, gain: 0.9, tone: { freq: 68, type: 'sawtooth', gain: 0.09, wobble: 3 } },
+  // Airlifters: low, soft engines (deep rumble, weak whine) — gain raised so they sound as loud as the other aircraft
+  c17: { rumble: 650, pulse: 1.2, depth: 0.1, whine: 2600, whineGain: 0.2, clank: 0, clankGain: 0, gain: 1.35 },
+  il76: { rumble: 560, pulse: 1.8, depth: 0.15, whine: 3400, whineGain: 0.26, clank: 0, clankGain: 0, gain: 1.35 },
+  y20: { rumble: 700, pulse: 1, depth: 0.08, whine: 2900, whineGain: 0.16, clank: 0, clankGain: 0, gain: 1.35, tone: { freq: 92, type: 'triangle', gain: 0.04, wobble: 2 } },
+  c130: { rumble: 260, pulse: 6.5, depth: 0.35, whine: 1100, whineGain: 0.1, clank: 0, clankGain: 0, gain: 1.35, tone: { freq: 68, type: 'sawtooth', gain: 0.09, wobble: 3 } },
   // AWACS
   e3: { rumble: 600, pulse: 0.6, depth: 0.28, whine: 3200, whineGain: 0.2, clank: 0, clankGain: 0, gain: 0.8 },
   a50: { rumble: 520, pulse: 0.5, depth: 0.3, whine: 3600, whineGain: 0.24, clank: 0, clankGain: 0, gain: 0.8 },
@@ -193,7 +194,9 @@ const shipped = (path: string): string | null => {
   return null;
 };
 /** Peak gain of the vehicle engine sounds; the music is also ducked (MUSIC_DUCK) while they play. */
-const VEHICLE_BED_GAIN = 1.6;
+const VEHICLE_BED_GAIN = 1.0;
+/** Aircraft and helicopters fly high over the battlefield and must be heard over it: their engines get this much more. */
+const AIR_BED_BOOST = 1.5;
 /** Share the music is turned down by while vehicles are heard. */
 const MUSIC_DUCK = 0.75;
 /** Peak gain of the open-sea ambience (public/sounds/sea-waves.mp3): over the music. */
@@ -489,7 +492,7 @@ export class SoundSystem {
     // Near loud, far quiet: the level (1 = in the middle of the screen, 0 = at its edge) scales the engines directly.
     let loudest = 0;
     for (const [name, e] of levels.engines) {
-      this.bed(name, e.kind, VEHICLE_BED_GAIN * Math.min(1, e.level) * on);
+      this.bed(name, e.kind, VEHICLE_BED_GAIN * (isAircraftKind(e.kind) ? AIR_BED_BOOST : 1) * Math.min(1, e.level) * on);
       loudest = Math.max(loudest, e.level);
     }
     // Models no longer moving on screen fade out.

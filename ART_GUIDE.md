@@ -32,6 +32,20 @@
 - **Trục mô hình / Model axes** — `u` → mũi / nose, `v` → trái / left, `z` → lên / up.
   - 🇻🇳 Đơn vị là **mét** cho phương tiện và lính. Công trình dùng đơn vị nghệ thuật của `tools/blender/kit.py`.
   - 🇬🇧 Units are **metres** for vehicles and soldiers. Structures use the art units of `tools/blender/kit.py`.
+- **Định nghĩa kích thước / Dimension definitions** — 🇻🇳 dùng thống nhất khi người dùng yêu cầu chỉnh kích thước · 🇬🇧 used whenever the user asks for a size change:
+
+  | Từ / Word | Trục / Axis | 🇻🇳 Nghĩa | 🇬🇧 Meaning |
+  |---|---|---|---|
+  | **Chiều dài / Length** | `u` | Mũi ↔ đuôi (đầu xe ↔ cuối xe) | Nose ↔ tail |
+  | **Chiều rộng / Width** | `v` | Hông trái ↔ hông phải, **tính mọi bộ phận nhô ra** (cánh ngắn, váy xích, gương…) | Left ↔ right side, **including everything that sticks out** (stub wings, skirts, mirrors…) |
+  | **Chiều cao / Height** | `z` | Mặt đất ↔ điểm cao nhất | Ground ↔ highest point |
+
+  - 🇻🇳 Áp dụng cho **mọi asset**: phương tiện, máy bay, lính và công trình. Lính: `u` = hướng mặt nhìn. Công trình: `u` = hướng mặt tiền nhìn ra, `v` = dọc theo mặt tiền.
+  - 🇬🇧 Applies to **every asset**: vehicles, aircraft, soldiers and structures. Soldiers: `u` = the way they face. Structures: `u` = the way the front faces, `v` = along the front.
+  - 🇻🇳 Đây là kích thước **của mô hình**, không phải bề ngang/dọc trên màn hình (trên màn hình còn phụ thuộc hướng quay và phép chiếu).
+  - 🇬🇧 These are **model** dimensions, not the on-screen extent (which depends on the facing and the projection).
+  - 🇻🇳 Khi người dùng nói "trục u / v / z = X so với Y", chỉnh tỉ lệ vẽ trong game (hoặc mô hình) để kích thước đó của asset bằng X lần cùng trục của Y, đo trên mô hình và quy ra iso px. Không cần hỏi lại.
+  - 🇬🇧 When the user says "axis u / v / z = X of Y", scale the asset (in-game draw scale or the model) so that dimension equals X times the same axis of Y, measured on the models and converted to iso px. No need to ask again.
 - **Ánh sáng chuẩn / Standard lighting** — 🇻🇳 giống sprite xe tăng · 🇬🇧 the same as the tank sheets:
   - Đèn chính / Key light (SUN): hướng / direction `(-0.45, -0.35, 0.82)`, năng lượng / energy 2.3–3.2, góc / angle 3°.
   - Đèn viền / Rim light (SUN): năng lượng / energy ≈ 0.9; 🇻🇳 màu hơi lạnh, chiếu từ phía phải · 🇬🇧 slightly cool, from the right.

@@ -211,6 +211,7 @@ export default {
   "{name}'s credit is frozen by the Center": "{name} bị Trung tâm đóng băng tín dụng",
   "Center takes over {n} oil derricks of {name}": "Trung tâm tiếp quản {n} giếng dầu của {name}",
   "{name} has built an Airfield": "{name} đã xây Sân bay",
+  "{name} has built a {building}": "{name} đã xây {building}",
   "{name} has built a Naval Port": "{name} đã xây Cảng hải quân",
   "{name} has built a High-Tech Center": "{name} đã xây Trung tâm Công nghệ cao",
   "{name} has opened a new Happy City": "{name} khánh thành Thành phố Hạnh phúc mới",

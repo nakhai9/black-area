@@ -210,7 +210,7 @@ export class CombatSystem implements GameSystem {
       s.cooldown = Math.max(0, s.cooldown - dt);
       if (s.weapon && s.canFight) this.think(s, grid);
       // A repair vehicle flattens every tree in the cell it drives over (player and AI alike).
-      if (s instanceof Vehicle && s.isRepair && !s.flies && s.insideId === null) this.hooks.trees.fellRadius(s.px, s.py, CELL_SIZE * 0.6);
+      if (s instanceof Vehicle && s.isRepair && !s.flies && s.insideId === null) this.hooks.trees.fellCell(Math.floor(s.px / CELL_SIZE), Math.floor(s.py / CELL_SIZE));
     }
     this.bunkers(dt, grid, key);
     this.reap();

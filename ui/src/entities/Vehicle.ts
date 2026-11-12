@@ -302,7 +302,7 @@ export class Vehicle extends Unit {
 
   /** Ground vehicles keep off trees and mountains (trails only); aircraft and ships are routed otherwise. */
   override get mobility(): Mobility {
-    return this.aircraft || this.naval ? false : 'vehicle';
+    return this.aircraft || this.naval ? false : this.isRepair ? 'dozer' : 'vehicle';
   }
 
   /** Kamikaze drone: parks on an airfield like a fighter; dives into the structure it is sent at. */

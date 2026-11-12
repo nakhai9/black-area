@@ -226,6 +226,20 @@ export class TreeLayer {
     return this.damageRadius(x, y, radius, Infinity);
   }
 
+  /** Every standing tree in cell (cx, cy) falls (the repair vehicle driving over it). Returns how many fell. */
+  fellCell(cx: number, cy: number): number {
+    const hits: number[] = [];
+    const x0 = cx * CELL_SIZE;
+    const y0 = cy * CELL_SIZE;
+    this.forEachIn(x0, y0, x0 + CELL_SIZE, y0 + CELL_SIZE, (i) => {
+      const x = this.xs[i] ?? -1;
+      const y = this.ys[i] ?? -1;
+      if (x >= x0 && x < x0 + CELL_SIZE && y >= y0 && y < y0 + CELL_SIZE && (this.hp[i] ?? 0) > 0) hits.push(i);
+    });
+    for (const i of hits) this.fell(i);
+    return hits.length;
+  }
+
   /** Replays a saved felling log (the forest was just rebuilt from the seed), without logging or effects. */
   restoreFelled(log: readonly number[]): void {
     for (const i of log) if (i >= 0 && i < this.xs.length) this.fell(i, false);

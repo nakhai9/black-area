@@ -15,7 +15,7 @@ function read(key: string): string | null {
 export const settings = {
   edgeLock: read(EDGE_LOCK_KEY) === '1',
   /** Zoom lock: the mouse wheel and +/- keys no longer zoom the view. */
-  zoomLock: read(ZOOM_LOCK_KEY) === '1',
+  zoomLock: read(ZOOM_LOCK_KEY) !== '0',
 };
 
 export function setZoomLock(on: boolean): void {
