@@ -25,6 +25,8 @@ export default {
   PAUSED: 'TẠM DỪNG',
   'The game is paused. Press Esc or Continue to resume.': 'Trò chơi đang tạm dừng. Nhấn Esc hoặc Tiếp tục để chơi tiếp.',
   'Music volume: {value}%': 'Âm lượng nhạc: {value}%',
+  'Music volume': 'Âm lượng nhạc nền',
+  'Vehicle volume': 'Âm lượng phương tiện',
   Continue: 'Tiếp tục',
   'Quit game': 'Thoát game',
   'Save game': 'Lưu game',

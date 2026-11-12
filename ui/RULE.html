@@ -26,7 +26,7 @@
 <body>
 <main>
 <img class="logo" src="/logo.png" alt="Black Area" />
-<h1>Black Area — RULE <small>v3.66.2</small></h1>
+<h1>Black Area — RULE <small>v3.67.1</small></h1>
 <p class="lead">Tài liệu luật chơi + kiến trúc code dành cho AI/dev sửa game. Mọi con số gameplay chính xác nằm trong <code>src/constants.ts</code> và <code>src/factions/*.ts</code>. Nếu tài liệu này khác code thì <b>code đúng</b>. <b>Khi đổi luật/số trong code, phải cập nhật file này.</b></p>
 <nav><a href="#s1">Quy tắc làm việc cho AI</a><a href="#s2">Chạy dự án</a><a href="#s3">Kiến trúc thư mục</a><a href="#s4">Thế giới</a><a href="#s5">Kinh tế (dầu)</a><a href="#s6">Công trình (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Quân đội</a><a href="#s8">Chiến đấu</a><a href="#s9">Điều khiển (Game.handleKey, handleInput)</a><a href="#s10">Giới hạn &amp; hiệu năng</a><a href="#s11">Thắng / thua &amp; AI</a><a href="#s12">Công thức sửa thường gặp</a></nav>
 <h2 id="s1">0. Quy tắc làm việc cho AI</h2>
@@ -702,6 +702,9 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
   <li>v3.41.5: Sửa lỗi máy bay vận tải bay vòng tròn mãi quanh điểm hạ cánh (không đáp được, không nhận lệnh di chuyển): khi điểm đến nằm trong vòng quay, máy bay bay thẳng tới. Lệnh di chuyển mới trong lúc đang bay tới điểm hạ cánh giờ được nhận (hủy hạ cánh, bay đi).</li>
   <li>v3.41.5: Máy bay không còn nhận <b>Cảng (Naval Port)</b> làm sân bay nhà (không đậu, không hạ cánh, không được sinh ra ở cảng). Loại máy bay được đậu ở cảng sẽ quy ước sau: thêm vào <code>PORT_AIRCRAFT</code> trong <code>src/systems/AircraftSystem.ts</code>. Máy bay đang lấy cảng làm nhà (bản lưu cũ) sẽ chuyển sang sân bay khác của phe; không còn sân bay nào thì rơi như luật cũ.</li>
     <li>v3.56.1: <b>Giảm tiếng động cơ mọi phương tiện</b>: <code>VEHICLE_BED_GAIN</code> 1.6 → 1.0, máy bay / trực thăng <code>AIR_BED_BOOST</code> 2.2 → 1.5. <b>Máy bay vận tải</b> (C-17, Il-76, Y-20, A400M, mặc định) tăng gain 0.85–0.9 → 1.35 để to ngang các máy bay khác (tiếng động cơ trầm, ít tiếng rít nên trước nghe nhỏ hơn).</li>
+    <li>v3.67.1: Sửa lỗi không nghe tiếng súng máy bay/trực thăng: dùng bản ghi tiếng súng thật, to hơn gấp đôi, 3 phát liên tiếp, không còn bị tiếng động cơ át và không chung giới hạn với súng máy mặt đất.</li>
+    <li>v3.67.0: Cài đặt (Esc) có 2 thanh âm lượng riêng: <b>nhạc nền</b> và <b>phương tiện</b> (tiếng động cơ xe, máy bay, trực thăng), được ghi nhớ giữa các lần chơi.</li>
+    <li>v3.66.3: Đạn máy bay/trực thăng giống đạn lính: viên đạn nhỏ bay từ máy bay xuống, chỉ tia lửa nhỏ khi trúng, không còn vụ nổ lớn.</li>
     <li>v3.66.2: Cánh quạt trực thăng quay nhanh hơn (~33%); máy bay/trực thăng bắn phát ra tiếng súng máy từ vị trí máy bay.</li>
     <li>v3.66.1: Sửa lỗi nút Unload bị khoá khi máy bay/trực thăng vận tải đang đậu có người/xe bên trong; nút chỉ khoá khi phương tiện đang bay/di chuyển.</li>
     <li>v3.66.0: Mỗi phương tiện mặt đất có tiếng chạy riêng (31 xe): xe bánh lốp/jeep máy xăng, xe tải và bệ phóng phòng không, xe bánh xích (tăng, xe chiến đấu bộ binh, xe cứu kéo) có tiếng xích lạch cạch theo nhịp riêng; Abrams thêm tiếng rít turbine.</li>

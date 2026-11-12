@@ -147,7 +147,7 @@ const ANNOUNCE_COOLDOWN = 3;
 const EVA_VOICES = /zira|aria|jenny|michelle|samantha|victoria|karen|moira|tessa|serena|susan|hazel|libby|sonia|natasha|female|google uk english female|google us english/i;
 /** Small-arms fire is boosted so a firefight is clearly heard over the music and engines. */
 const GUN_BOOST = 1.35;
-const MIN_GAP: Readonly<Record<string, number>> = { rifle: 0.05, smg: 0.045, sniper: 0.1, mg: 0.05, cannon: 0.12, autocannon: 0.06, missile: 0.15, explosion: 0.1, board: 0.12 };
+const MIN_GAP: Readonly<Record<string, number>> = { rifle: 0.05, smg: 0.045, sniper: 0.1, mg: 0.05, airgun: 0.05, cannon: 0.12, autocannon: 0.06, missile: 0.15, explosion: 0.1, board: 0.12 };
 
 /**
  * Optional recordings: drop real sounds into public/sounds/ under these names (mp3, ogg or wav) and they replace the
@@ -170,9 +170,9 @@ const SAMPLE_PATHS: Readonly<Record<string, string>> = {
  * Long recordings (a whole firefight, several cannon shots) are cut into clips: each play starts at one of the
  * recording's shots (found when it loads) and lasts this many seconds, fading out. Kinds not listed play whole.
  */
-const SAMPLE_CLIP: Readonly<Record<string, number>> = { rifle: 0.7, smg: 0.6, mg: 0.8, autocannon: 0.8, sniper: 1.2, cannon: 2.2, missile: 1.5, bomb: 3.5, explosion: 3.5 };
+const SAMPLE_CLIP: Readonly<Record<string, number>> = { airgun: 0.7, rifle: 0.7, smg: 0.6, mg: 0.8, autocannon: 0.8, sniper: 1.2, cannon: 2.2, missile: 1.5, bomb: 3.5, explosion: 3.5 };
 /** No explosion recording: the bomb one is reused for vehicles and structures blowing up. */
-const SAMPLE_FALLBACK: Readonly<Record<string, string>> = { explosion: 'bomb' };
+const SAMPLE_FALLBACK: Readonly<Record<string, string>> = { explosion: 'bomb', airgun: 'rifle' };
 /** Small arms fire in bursts: each shot is heard as this many rounds in quick succession ("rat-a-tat"). */
 const BURST: Readonly<Record<string, { rounds: number; gap: number }>> = {
   rifle: { rounds: 3, gap: 0.085 },
@@ -239,18 +239,21 @@ function findOnsets(buf: AudioBuffer): number[] {
 
 const MUSIC_VOLUME_KEY = 'black-area.musicVolume';
 
-function loadMusicVolume(): number {
+const VEHICLE_VOLUME_KEY = 'black-area.vehicleVolume';
+
+function loadMusicVolume(key = MUSIC_VOLUME_KEY, fallback = 0.7): number {
   try {
-    const v = Number(localStorage.getItem(MUSIC_VOLUME_KEY));
-    if (localStorage.getItem(MUSIC_VOLUME_KEY) !== null && Number.isFinite(v)) return Math.min(1, Math.max(0, v));
+    const v = Number(localStorage.getItem(key));
+    if (localStorage.getItem(key) !== null && Number.isFinite(v)) return Math.min(1, Math.max(0, v));
   } catch {
     /* storage unavailable */
   }
-  return 0.7;
+  return fallback;
 }
 
 /** `board`: the hatch clunk of a unit climbing into / jumping out of a transport. */
-type Kind = WeaponKind | 'explosion' | 'board';
+/** `airgun`: an aircraft / helicopter machine gun (real gunfire recording, loud enough over the engines). */
+type Kind = WeaponKind | 'explosion' | 'board' | 'airgun';
 
 /**
  * Sound effects and background music (Web Audio): gunfire per weapon type, cannon booms, jet missiles,
@@ -265,6 +268,10 @@ export class SoundSystem {
   private muted = false;
   private music: MusicSystem | null = null;
   private musicVolume = loadMusicVolume();
+  /** Volume of the vehicle / aircraft engine sounds, 0..1 (remembered across sessions). */
+  private vehicleVolume = loadMusicVolume(VEHICLE_VOLUME_KEY, 1);
+  /** Bus every engine loop goes through, its gain = vehicleVolume. */
+  private vehicleBus: GainNode | null = null;
   private readonly lastPlayed = new Map<string, number>();
   private readonly lastCry = new Map<FactionId, number>();
   private active = 0;
@@ -317,6 +324,9 @@ export class SoundSystem {
       this.master = this.ctx.createGain();
       this.master.gain.value = 0.5;
       this.master.connect(this.ctx.destination);
+      this.vehicleBus = this.ctx.createGain();
+      this.vehicleBus.gain.value = this.vehicleVolume;
+      this.vehicleBus.connect(this.master);
       const len = this.ctx.sampleRate;
       this.noise = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
       const data = this.noise.getChannelData(0);
@@ -340,6 +350,21 @@ export class SoundSystem {
     this.music?.setVolume(this.musicVolume);
     try {
       localStorage.setItem(MUSIC_VOLUME_KEY, String(this.musicVolume));
+    } catch {
+      /* storage unavailable */
+    }
+  }
+
+  get vehicleLevel(): number {
+    return this.vehicleVolume;
+  }
+
+  /** Vehicle / aircraft engine volume, 0..1 (remembered across sessions). */
+  setVehicleVolume(volume: number): void {
+    this.vehicleVolume = Math.min(1, Math.max(0, volume));
+    if (this.vehicleBus && this.ctx) this.vehicleBus.gain.setTargetAtTime(this.vehicleVolume, this.ctx.currentTime, 0.05);
+    try {
+      localStorage.setItem(VEHICLE_VOLUME_KEY, String(this.vehicleVolume));
     } catch {
       /* storage unavailable */
     }
@@ -407,6 +432,12 @@ export class SoundSystem {
 
     this.sfxUntil = now + SFX_DUCK_HOLD;
     this.music?.setDuck(SFX_DUCK);
+    if (kind === 'airgun') {
+      // Aircraft guns sit over their own loud engines: boosted, and a short rattle of three clips.
+      const v = Math.min(1.6, Math.max(vol, 0.5) * 2);
+      for (let i = 0; i < 3; i++) setTimeout(() => this.shot('airgun', v * (1 - i * 0.1)), i * 90);
+      return;
+    }
     const burst = BURST[kind];
     // A recording of real gunfire already rattles on its own: one clip of it per shot.
     if (burst && !this.recording(kind)) {
@@ -425,6 +456,7 @@ export class SoundSystem {
   private shot(kind: Kind, vol: number): void {
     if (this.muted || !this.ctx) return;
     if (this.sample(kind, vol)) return;
+    if (kind === 'airgun') kind = 'mg';
     const jitter = 0.9 + Math.random() * 0.2;
     if (kind === 'rifle' || kind === 'smg' || kind === 'mg' || kind === 'autocannon' || kind === 'sniper') vol = Math.min(1.2, vol * GUN_BOOST);
     switch (kind) {
@@ -740,7 +772,7 @@ export class SoundSystem {
       g.gain.value = 0;
       const out = ctx.createGain();
       out.gain.value = r.gain;
-      g.connect(out).connect(this.master);
+      g.connect(out).connect(this.vehicleBus ?? this.master);
       const rec = this.vehicleSamples.get(name);
       const src = ctx.createBufferSource();
       src.buffer = rec instanceof AudioBuffer ? rec : this.noise;

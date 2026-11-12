@@ -1,4 +1,4 @@
-import { type IconNode, Globe, ScreenShareOff, ZoomIn, Volume2, createElement } from 'lucide';
+import { type IconNode, Car, Globe, Music, ScreenShareOff, ZoomIn, createElement } from 'lucide';
 import { setEdgeLock, setZoomLock, settings } from '../core/Settings';
 import { type Lang, languageSelect, t } from '../i18n';
 
@@ -65,7 +65,7 @@ export class PauseMenu {
   /** Re-reads the music volume into the slider (the sound system may not exist yet at construction). */
   private readonly syncVolume: () => void;
 
-  constructor(onContinue: () => void, music: MusicVolumeControl, saves: SaveActions, parent: HTMLElement = document.body) {
+  constructor(onContinue: () => void, music: MusicVolumeControl, vehicles: MusicVolumeControl, saves: SaveActions, parent: HTMLElement = document.body) {
     this.root = document.createElement('div');
     this.root.className = 'end-screen pause-screen';
     this.root.setAttribute('role', 'dialog');
@@ -76,21 +76,27 @@ export class PauseMenu {
     card.style.setProperty('--end-color', '#f5c542');
     const title = document.createElement('h1');
     title.textContent = t('SETTINGS');
-    const volume = document.createElement('label');
-    volume.className = 'pause-volume';
-    const slider = document.createElement('input');
-    slider.type = 'range';
-    slider.min = '0';
-    slider.max = '100';
-    slider.step = '1';
-    slider.setAttribute('aria-label', t('Volume'));
-    this.syncVolume = (): void => {
-      slider.value = String(Math.round(music.get() * 100));
+    // One slider per volume: background music, vehicle / aircraft engines.
+    const syncs: (() => void)[] = [];
+    const volumeSlider = (control: MusicVolumeControl, label: string): HTMLLabelElement => {
+      const wrap = document.createElement('label');
+      wrap.className = 'pause-volume';
+      const slider = document.createElement('input');
+      slider.type = 'range';
+      slider.min = '0';
+      slider.max = '100';
+      slider.step = '1';
+      slider.setAttribute('aria-label', label);
+      syncs.push(() => {
+        slider.value = String(Math.round(control.get() * 100));
+      });
+      slider.addEventListener('input', () => control.set(Number(slider.value) / 100));
+      wrap.append(slider);
+      return wrap;
     };
-    slider.addEventListener('input', () => {
-      music.set(Number(slider.value) / 100);
-    });
-    volume.append(slider);
+    const volume = volumeSlider(music, t('Music volume'));
+    const vehicleVolume = volumeSlider(vehicles, t('Vehicle volume'));
+    this.syncVolume = (): void => syncs.forEach((f) => f());
     // Screen lock: stop scrolling when the mouse leaves the browser window.
     const lock = document.createElement('label');
     lock.className = 'pause-check';
@@ -125,7 +131,8 @@ export class PauseMenu {
     settingsBox.append(
       row(ScreenShareOff, t('Screen lock'), lock),
       row(ZoomIn, t('Zoom lock'), zoomLock),
-      row(Volume2, t('Volume'), volume),
+      row(Music, t('Music volume'), volume),
+      row(Car, t('Vehicle volume'), vehicleVolume),
       row(Globe, t('Language'), languageSelect((lang) => saves.onLanguage(lang), false)),
     );
     const resume = document.createElement('button');

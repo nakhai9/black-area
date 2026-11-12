@@ -24,8 +24,8 @@ export const BULLET_SIZES = {
   rifle: { bullet: 0.016, impact: 0.0008 },
   bunker: { bullet: 0.022 * 0.2, impact: 0.045 },
   autocannon: { bullet: 0.028, impact: 0.06 },
-  aircraftAir: { bullet: 0.036 * 0.2, impact: 0.075 },
-  aircraftGround: { bullet: 0.04 * 0.2, impact: 0.1 },
+  aircraftAir: { bullet: 0.016, impact: 0.0008 }, // aircraft / helicopter guns look like a soldier's rifle shot
+  aircraftGround: { bullet: 0.016, impact: 0.0008 },
   tank: { bullet: 0.055 * 0.35, impact: 0.0125 },
 } as const;
 export type BulletSize = keyof typeof BULLET_SIZES;
