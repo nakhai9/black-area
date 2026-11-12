@@ -61,7 +61,7 @@ const ENGINE_BY_NAME: Readonly<Record<string, EngineProfile>> = {
   'B-767': 'b767',
   KamAZ: 'wheeled',
   MTVR: 'wheeled',
-  Zetros: 'wheeled',
+  "MAN SV": 'wheeled',
 };
 const ENGINE_BY_KIND: Readonly<Record<VehicleKind, EngineProfile>> = {
   light: 'wheeled',

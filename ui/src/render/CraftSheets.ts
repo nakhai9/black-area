@@ -110,7 +110,7 @@ const MODELS: Readonly<Record<string, CraftSheet>> = {
 };
 /** The USA's C-17, Russia's Il-76, China's Y-20 and Europe's A400M have their own sharp sheets in AircraftSheets.ts. */
 const TRANSPORT: Partial<Record<FactionId, string>> = { islamic: 'air:y20' };
-const HELI: Record<FactionId, string> = { usa: 'heli:ah64', europe: 'heli:apache', russia: 'heli:ka52', islamic: 'heli:ka52', china: 'heli:z10' };
+const HELI: Record<FactionId, string> = { usa: 'heli:ah64', europe: 'heli:ah64', russia: 'heli:ka52', islamic: 'heli:ka52', china: 'heli:z10' };
 /** Iso px each kind is drawn long. */
 const LENGTH: Partial<Record<VehicleKind, number>> = { transport: 13, heli: 11.4 };
 

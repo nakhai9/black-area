@@ -1,6 +1,7 @@
 import { BULLET_FLIGHT_SECONDS, BULLET_IMPACT_SECONDS, hasBulletSheet, type BulletSize } from '../render/BulletSheet';
 import { demoActive, setDemoActive } from './Demo';
 import {
+  DEMO_ALL_FACTIONS,
   DEMO_CREDITS,
   MAX_WAYPOINTS,
   DEMO_UNITS_EACH,
@@ -495,8 +496,8 @@ export class Game {
   private lastBuildingClick: { id: number; at: number } | null = null;
   private ghost: PlacementGhost | null = null;
   private readonly lastQueueState = new Map<string, QueueState>();
-  private readonly sidebar: Sidebar;
-  private readonly minimap: Minimap;
+  private sidebar!: Sidebar;
+  private minimap!: Minimap;
   private readonly status: StatusBar;
   private readonly loop: GameLoop;
 
@@ -510,7 +511,7 @@ export class Game {
   private readonly autoSellers = new Set<number>();
   private autoSellClock = 0;
   /** Id of the player at this screen (in multiplayer the other people play on their own machines). */
-  private readonly localId: number;
+  private localId: number;
   /** While a command runs: the player who gave it (humanPlayer is that player meanwhile). */
   private actorId: number | null = null;
   /** Multiplayer lockstep link (null in a solo game). */
@@ -734,10 +735,11 @@ export class Game {
         ? [
             {
               update: () => {
-                const p = this.humanPlayer;
-                p.credits = DEMO_CREDITS;
-                p.oil = Math.max(p.oil, DEMO_CREDITS);
-                p.debt = 0;
+                for (const p of DEMO_ALL_FACTIONS ? this.players : [this.humanPlayer]) {
+                  p.credits = DEMO_CREDITS;
+                  p.oil = Math.max(p.oil, DEMO_CREDITS);
+                  p.debt = 0;
+                }
               },
             },
           ]
@@ -745,6 +747,44 @@ export class Game {
     ];
 
     // UI.
+    this.mountSidebar();
+    this.status = new StatusBar(dom.status, this.map);
+
+    this.bus.on('camera:focus', (p) => {
+      if (!this.paused) this.camera.centerOn(p.x, p.y);
+    });
+    this.bus.on('selection:changed', () => {
+      this.sidebarTimer = SIDEBAR_REFRESH;
+      // Focusing one of my transport aircraft: its pilot asks where to.
+      if (this.selection.selectedUnitList().some((u) => u instanceof Vehicle && u.isTransport && u.owner === this.localId)) this.sound.pilot('Where to, sir?');
+      this.showSelectedRoutes();
+    });
+    new ResizeObserver(() => this.renderer.resize()).observe(dom.canvas);
+
+    if (demo) {
+      for (const p of DEMO_ALL_FACTIONS ? this.players.filter((pl) => !pl.absent) : [this.humanPlayer])
+        this.asActor(p.id, () => {
+          this.buildDemoBase();
+          this.spawnDemoArmy();
+        });
+      // DEMO only: the game object on the page, for scripted test runs (headless browser checks).
+      (globalThis as { __demoGame?: Game }).__demoGame = this;
+    }
+    // `?debug` in the address: the same hook in a normal game (scripted performance checks).
+    if (new URLSearchParams(location.search).has('debug')) (globalThis as { __demoGame?: Game }).__demoGame = this;
+    this.systems.forEach((s) => s.update(0));
+    this.camera.setZoom(FOCUS_ZOOM);
+    this.focusOwnCapital();
+
+    this.loop = new GameLoop(
+      (dt) => this.tick(dt),
+      (dt, alpha) => this.frame(dt, alpha),
+    );
+  }
+
+  /** Builds the sidebar and minimap for the player at this screen (again after a DEMO_ALL_FACTIONS switch). */
+  private mountSidebar(): void {
+    const dom = this.dom;
     const human = this.humanPlayer;
     this.sidebar = new Sidebar(dom.sidebar, human, BUILD_OPTIONS, this.training.optionsFor(human), this.production.optionsFor(human), {
       onBuild: (option) => {
@@ -787,35 +827,55 @@ export class Game {
       (p) => this.bus.emit('camera:focus', p),
       (p) => this.minimapOrder(p),
     );
-    this.status = new StatusBar(dom.status, this.map);
+    if (DEMO_ALL_FACTIONS) this.mountFactionBar();
+  }
 
-    this.bus.on('camera:focus', (p) => {
-      if (!this.paused) this.camera.centerOn(p.x, p.y);
-    });
-    this.bus.on('selection:changed', () => {
-      this.sidebarTimer = SIDEBAR_REFRESH;
-      // Focusing one of my transport aircraft: its pilot asks where to.
-      if (this.selection.selectedUnitList().some((u) => u instanceof Vehicle && u.isTransport && u.owner === this.localId)) this.sound.pilot('Where to, sir?');
-      this.showSelectedRoutes();
-    });
-    new ResizeObserver(() => this.renderer.resize()).observe(dom.canvas);
-
-    if (demo) {
-      this.buildDemoBase();
-      this.spawnDemoArmy();
-      // DEMO only: the game object on the page, for scripted test runs (headless browser checks).
-      (globalThis as { __demoGame?: Game }).__demoGame = this;
+  /** DEMO_ALL_FACTIONS: a bar of every nation at the top of the screen; click one (or Alt+1..5) to command it. */
+  private mountFactionBar(): void {
+    let bar = document.getElementById('demo-factions');
+    if (!bar) {
+      bar = document.createElement('div');
+      bar.id = 'demo-factions';
+      bar.style.cssText = 'position:fixed;top:6px;left:50%;transform:translateX(-50%);z-index:50;display:flex;gap:4px;font:600 12px sans-serif';
+      document.body.appendChild(bar);
+      window.addEventListener('keydown', (e) => {
+        if (!e.altKey) return;
+        const p = this.players.filter((pl) => !pl.absent)[Number(e.key) - 1];
+        if (p) {
+          e.preventDefault();
+          this.switchFaction(p.id);
+        }
+      });
     }
-    // `?debug` in the address: the same hook in a normal game (scripted performance checks).
-    if (new URLSearchParams(location.search).has('debug')) (globalThis as { __demoGame?: Game }).__demoGame = this;
-    this.systems.forEach((s) => s.update(0));
-    this.camera.setZoom(FOCUS_ZOOM);
-    this.focusOwnCapital();
-
-    this.loop = new GameLoop(
-      (dt) => this.tick(dt),
-      (dt, alpha) => this.frame(dt, alpha),
+    bar.replaceChildren(
+      ...this.players
+        .filter((p) => !p.absent)
+        .map((p, i) => {
+          const b = document.createElement('button');
+          const on = p.id === this.localId;
+          b.type = 'button';
+          b.textContent = `${i + 1} ${FACTIONS[p.faction].shortName}`;
+          b.title = `Alt+${i + 1}`;
+          b.style.cssText = `padding:3px 8px;border:1px solid #888;border-radius:3px;cursor:pointer;color:${on ? '#111' : '#ddd'};background:${on ? '#e8c860' : 'rgba(20,20,20,.75)'}`;
+          b.onclick = () => this.switchFaction(p.id);
+          return b;
+        }),
     );
+  }
+
+  /** DEMO_ALL_FACTIONS: takes command of player `id` (its sidebar, selection, camera on its capital). */
+  private switchFaction(id: number): void {
+    if (!DEMO_ALL_FACTIONS || id === this.localId || this.paused) return;
+    const p = this.players.find((pl) => pl.id === id);
+    if (!p || p.absent || p.defeated) return;
+    this.stopPlacing();
+    this.waypoints = null;
+    this.selection.selectedUnits.clear();
+    this.selection.selectedId = null;
+    this.localId = id;
+    this.mountSidebar();
+    this.sidebarTimer = SIDEBAR_REFRESH;
+    this.focusOwnCapital();
   }
 
   /** The player at this screen, or, while a command runs, the player who gave it. */
@@ -2370,7 +2430,12 @@ export class Game {
       if (transports.length > 0) this.sidebar.notify(t('The transport is empty.'));
       return;
     }
-    this.unloadCarriers(loaded);
+    const still = loaded.filter((t) => t.atRest);
+    if (still.length === 0) {
+      this.sidebar.notify(t('Stop the transport before unloading.'));
+      return;
+    }
+    this.unloadCarriers(still);
   }
 
   /** Lets the riders of these carriers out: a truck where it stands, an aircraft on the ground (setting down first). */
@@ -2437,8 +2502,8 @@ export class Game {
       vehicleCapacity: t.vehicleCapacity,
       incoming: t.incoming,
       state: t.carrierState,
-      // Same rule as AircraftSystem.requestUnload: an aircraft unloads only standing on the ground.
-      canUnload: !t.aircraft || ((t.flight === 'parked' || t.flight === 'landed') && t.altitude <= 0),
+      // A moving transport cannot unload; an aircraft only standing on the ground (as AircraftSystem.requestUnload).
+      canUnload: t.atRest && (!t.aircraft || ((t.flight === 'parked' || t.flight === 'landed') && t.altitude <= 0)),
     };
   }
 

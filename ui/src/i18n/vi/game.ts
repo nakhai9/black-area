@@ -64,6 +64,7 @@ export default {
   'No room around the {name} to unload.': 'Không còn chỗ quanh {name} để thả quân.',
   'Everyone is out of the {name}.': 'Mọi người đã ra khỏi {name}.',
   'The transport is empty.': 'Phương tiện vận tải đang trống.',
+  'Stop the transport before unloading.': 'Dừng phương tiện vận tải trước khi cho xuống.',
   'The {name} cannot land here (open water) — fly it over land first.': '{name} không thể hạ cánh ở đây (mặt nước) — hãy bay vào đất liền trước.',
   'The {name} is taking off or landing — unload in a moment.': '{name} đang cất/hạ cánh — chờ một chút rồi thả quân.',
   'Turbo!': 'Tăng tốc!',

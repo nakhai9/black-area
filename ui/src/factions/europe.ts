@@ -50,9 +50,9 @@ export const EUROPE: FactionConfig = {
     jet: { name: "Rafale", description: t("Dassault Rafale multirole fighter.") },
     transport: { name: "A400M", description: t("A400M Atlas transport aircraft: four turboprops, carries soldiers and vehicles; unarmed.") },
     truck: {
-      name: "Zetros",
+      name: "MAN SV",
       description:
-        t("Mercedes-Benz Zetros army truck: unarmed and faster than soldiers or tanks; carries up to 8 soldiers under its canvas cover (no vehicles). Ground only — it cannot cross the sea. Select soldiers or a tank and click the truck to board; select the truck and press U to unload."),
+        t("MAN SV 6x6 army truck: unarmed and faster than soldiers or tanks; carries up to 8 soldiers under its canvas cover (no vehicles). Ground only — it cannot cross the sea. Select soldiers or a tank and click the truck to board; select the truck and press U to unload."),
     },
     repair: {
       name: "M88",

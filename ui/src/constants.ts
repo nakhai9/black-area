@@ -19,6 +19,11 @@ export const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === "true";
 /** Short nation codes (VITE_DEMO_FACTION): us USA, ru Russia, cn China, eu Europe, ui Islamic union. */
 export const NATION_CODES: Readonly<Record<string, FactionId>> = { us: "usa", ru: "russia", cn: "china", eu: "europe", ui: "islamic" };
 /** DEMO_MODE nation, by code (VITE_DEMO_FACTION, see NATION_CODES). Default ru. */
+/**
+ * DEMO_MODE only (VITE_DEMO_ALL_FACTIONS=true): every nation gets the demo base and army, finances off, and the player
+ * can take command of any nation (faction bar at the top of the screen; hotkeys Alt+1..5).
+ */
+export const DEMO_ALL_FACTIONS = DEMO_MODE && import.meta.env.VITE_DEMO_ALL_FACTIONS === "true";
 export const DEMO_FACTION: FactionId = NATION_CODES[(import.meta.env.VITE_DEMO_FACTION ?? "").trim().toLowerCase()] ?? "russia";
 
 /**
@@ -29,7 +34,7 @@ export const DEMO_FACTION: FactionId = NATION_CODES[(import.meta.env.VITE_DEMO_F
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "3.58.1";
+export const GAME_VERSION = "3.63.3";
 
 /** An Allied Building within this many cells of any capital is an embassy; farther out it is a "Pro-<nation> regime". */
 export const EMBASSY_CAPITAL_CELLS = 25;
@@ -779,7 +784,7 @@ export const VEHICLE_BASE = {
   },
   /** National armoured recovery vehicle (Russia's BREM-1): slow and unarmed, it mends friendly ground vehicles (see REPAIR_VEHICLE_*). */
   repair: { cost: 800, trainSeconds: 10, maxHp: 360, speed: 1.0, radius: 4.2 },
-  /** National army truck (KamAZ: Russia, China, the Islamic world; Oshkosh MTVR: USA; Mercedes-Benz Zetros: Europe), a little bigger than a tank: unarmed, faster than soldiers and tanks, carries
+  /** National army truck (KAMAZ-4310: Russia; KamAZ-5330: China, the Islamic world; Oshkosh HEMTT M977: USA; MAN SV 6x6: Europe), a little bigger than a tank: unarmed, faster than soldiers and tanks, carries
    * TRUCK_SOLDIERS soldiers (no vehicles); ground only. */
   truck: { cost: 700, trainSeconds: 9, maxHp: 240, speed: 2.1, radius: 4.6 },
   /** National kamikaze drone (the Islamic world's B-767), built at the Airfield (one order = one drone); unarmed: ordered onto an enemy structure it dives into it (DRONE_*) and is gone.
