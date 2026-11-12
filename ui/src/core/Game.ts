@@ -2503,7 +2503,8 @@ export class Game {
       incoming: t.incoming,
       state: t.carrierState,
       // A moving transport cannot unload; an aircraft only standing on the ground (as AircraftSystem.requestUnload).
-      canUnload: t.atRest && (!t.aircraft || ((t.flight === 'parked' || t.flight === 'landed') && t.altitude <= 0)),
+      // A parked aircraft may still carry a leftover path / speed ratio, so it is judged by its flight state only.
+      canUnload: t.aircraft ? (t.flight === 'parked' || t.flight === 'landed') && t.altitude <= 0 : t.atRest,
     };
   }
 
