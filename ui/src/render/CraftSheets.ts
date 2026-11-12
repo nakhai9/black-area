@@ -70,6 +70,34 @@ const ah64: CraftSheet = {
   rig: { rotor: img('rotor-ah64.webp'), blades: 4, phases: 16, groundDrop: 15.56, hubLift: 14.5 },
 };
 
+/** Russia Ka-52 Alligator: body (tools/blender/ka52_render.py) + coaxial 2 x 3-blade rotor (rotor_render.py --name ka52 --coax 1.2). */
+const ka52: CraftSheet = {
+  image: img('heli-ka52-russia.webp'),
+  fx: img('heli-ka52-fx.webp'),
+  cell: 192,
+  fxCell: 128,
+  fxFrames: 16,
+  span: 0.74,
+  heli: true,
+  // 1.3x the AH-64 world scale: drawn as long as the AH-64 (11.52 iso px for the 13.4 m fuselage, 0.86 iso px/m).
+  length: 11.52,
+  rig: { rotor: img('rotor-ka52.webp'), blades: 3, phases: 16, groundDrop: 19.65, hubLift: 18.46 },
+};
+
+/** China Z-10: body (tools/blender/z10_render.py) + 5-blade rotor (rotor_render.py --name z10), 192 px cells. */
+const z10: CraftSheet = {
+  image: img('heli-z10-china.webp'),
+  fx: img('heli-z19e-fx.webp'),
+  cell: 192,
+  fxCell: 128,
+  fxFrames: 16,
+  span: 0.74,
+  heli: true,
+  // Drawn as long as the AH-64 and Ka-52 (11.52 iso px for the 14.3 m fuselage).
+  length: 11.52,
+  rig: { rotor: img('rotor-z10.webp'), blades: 5, phases: 16, groundDrop: 16.39, hubLift: 14.58 },
+};
+
 /** Every model, by key ('air:c17', 'heli:apache', …). Spans as measured by the build script. */
 const MODELS: Readonly<Record<string, CraftSheet>> = {
   'air:c17': air('c17', 0.833),
@@ -77,8 +105,8 @@ const MODELS: Readonly<Record<string, CraftSheet>> = {
   'air:y20': air('y20', 0.833),
   'heli:apache': heli('apache', 0.825),
   'heli:ah64': ah64,
-  'heli:ka52': heli('ka52', 0.85),
-  'heli:z10': heli('z10', 0.825, 'z19e'),
+  'heli:ka52': ka52,
+  'heli:z10': z10,
 };
 /** The USA's C-17, Russia's Il-76, China's Y-20 and Europe's A400M have their own sharp sheets in AircraftSheets.ts. */
 const TRANSPORT: Partial<Record<FactionId, string>> = { islamic: 'air:y20' };
