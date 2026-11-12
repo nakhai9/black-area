@@ -184,7 +184,7 @@ function parkedPhase(r: RotorRig, col: number): number {
  * Spinning rotor phase. Slow enough that each sheet phase is shown for several frames, so the eye reads the blades
  * turning instead of a strobing blur (the old 22 ms step was ~1 phase per frame and looked frozen / random).
  */
-const ROTOR_STEP_MS = 40;
+const ROTOR_STEP_MS = 30;
 const spinPhase = (r: RotorRig): number => Math.floor(performance.now() / ROTOR_STEP_MS) % r.phases;
 
 const rotorTurning = (v: Vehicle): boolean => !(v.altitude <= 0 && (v.flight === 'parked' || v.flight === 'landed' || v.flight === 'unloading'));

@@ -4858,7 +4858,8 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       }
       this.effects.add({ kind: 'flash', x: muzzle.x, y: muzzle.y, age: 0, ttl: 0.07, size: size === 'tank' ? 3.6 : 1.8 });
       this.addBullet(muzzle, hit, size);
-      this.sound.play(w.kind, { x: mx, y: my });
+      // Aircraft guns: a machine-gun rattle from up on the aircraft.
+      this.sound.play(s instanceof Vehicle && s.flies ? 'mg' : w.kind, { x: s.px, y: s.py });
       const last = this.lastShot.get(s.id) ?? -99;
       this.lastShot.set(s.id, this.time);
       if (this.time - last > 8 && s.faction !== 'neutral' && !(s instanceof Vehicle)) this.sound.battleCry(s.faction, { x: s.px, y: s.py });
@@ -4913,7 +4914,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     this.effects.add({ kind: 'tracer', x0: muzzle.x, y0: muzzle.y, x1: hit.x, y1: hit.y, age: 0, ttl, color, width: (heavy ? 1.1 : 0.45) * small, shell: heavy });
     this.effects.add({ kind: 'flash', x: muzzle.x, y: muzzle.y, age: 0, ttl: 0.07, size: heavy ? 3.6 : 1.8 });
     this.effects.add({ kind: 'blast', x: hit.x, y: hit.y, age: -ttl, ttl: heavy ? 0.35 : 0.18, radius: w.kind === 'bomb' ? 14 : heavy ? 6 : 1.6 });
-    this.sound.play(w.kind, { x: mx, y: my });
+    this.sound.play(s instanceof Vehicle && s.flies && w.kind !== 'bomb' ? 'mg' : w.kind, { x: s.px, y: s.py });
     const prev = this.lastShot.get(s.id) ?? -99;
     this.lastShot.set(s.id, this.time);
     if (this.time - prev > 8 && s.faction !== 'neutral') this.sound.battleCry(s.faction, { x: s.px, y: s.py });
