@@ -4948,6 +4948,9 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       if (!key) continue;
       // Only units inside the frame are heard: full volume in the middle of the screen, silent at its edge.
       const s = cam.worldToScreen(u.px, u.py);
+      // Aircraft are drawn `altitude` iso px above their ground point: measure from where the player sees them,
+      // otherwise one flying in the middle of the screen sounds as if it were near the bottom edge.
+      if (u instanceof Vehicle && u.aircraft) s.y -= u.altitude * cam.zoom;
       // Elliptical falloff from the screen centre, squared: loud in the middle, fading clearly towards the edges.
       const r = Math.hypot((s.x - hw) / hw, (s.y - hh) / hh);
       if (r >= 1) continue;

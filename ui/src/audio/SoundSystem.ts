@@ -187,7 +187,10 @@ const SFX_DUCK_HOLD = 0.8;
  * The recordings public/sounds/ actually ships (file names with extension). Only these are fetched, so a missing
  * recording costs no 404 request; add a file's name here when you drop one into public/sounds/.
  */
-const SHIPPED_SOUNDS: ReadonlySet<string> = new Set(['rifle.mp3', 'tank-cannon.mp3', 'bomb.mp3', 'engine-tank.mp3', 'engine-heli.wav']);
+const SHIPPED_SOUNDS: ReadonlySet<string> = new Set(['rifle.mp3', 'tank-cannon.mp3', 'bomb.mp3', 'engine-tank.mp3', 'engine-heli.wav',
+  // One recording per ground vehicle model (synthesised: tools/vehicle_engine_sounds.py), looked up by slug(name).
+  'engine-humvee.wav', 'engine-vbl-scout.wav', 'engine-uaz-patrol.wav', 'engine-dongfeng-scout.wav', 'engine-safir-jeep.wav', 'engine-mtvr.wav', 'engine-man-sv.wav', 'engine-kamaz.wav', 'engine-patriot.wav', 'engine-samp-t-ng.wav', 'engine-s-400.wav', 'engine-hq-9.wav', 'engine-pgz-09.wav', 'engine-abrams.wav', 'engine-leopard-2.wav', 'engine-t-90.wav', 'engine-type-99.wav', 'engine-karrar.wav', 'engine-bradley.wav', 'engine-puma.wav', 'engine-bmp-3.wav', 'engine-bmp-2.wav', 'engine-zbd-04.wav', 'engine-m88.wav', 'engine-brem-1.wav', 'engine-type-99ii.wav', 'engine-m104-wolverine.wav', 'engine-leguan.wav', 'engine-mtu-72.wav', 'engine-gql-111.wav', 'engine-avlb.wav',
+]);
 /** The shipped file for a sound name (no extension), or null when there is none. */
 const shipped = (path: string): string | null => {
   for (const ext of ['mp3', 'ogg', 'wav']) if (SHIPPED_SOUNDS.has(`${path}.${ext}`)) return `${path}.${ext}`;
