@@ -23,6 +23,8 @@ import {
   CAMERA_EDGE_SCROLL,
   CAMERA_PAN_SPEED,
   BOMB_FALL_SECONDS,
+  DEMO_PLANT_BUILDING_CELLS,
+  MINE_VEHICLE_DAMAGE,
   OIL_LEASE_CARTEL_SHARE,
   OIL_LEASE_MAX,
   OIL_LEASE_SECONDS,
@@ -268,6 +270,8 @@ export type GameCommand = (
   | { k: 'place'; opt: string; x: number; y: number; rot: boolean }
   /** The selected bridge layer lays its bridge with the top-left cell at (x, y), long along x when `rot`. */
   | { k: 'bridge'; x: number; y: number; rot: boolean }
+  | { k: 'mineAim'; u: number }
+  | { k: 'mine'; u: number; x: number; y: number }
   | { k: 'build' | 'buildCancel'; opt: string }
   | { k: 'train' | 'trainCancel'; tier: TrainKey }
   | { k: 'vehicle' | 'vehicleCancel'; kind: VehicleKey }
@@ -813,6 +817,7 @@ export class Game {
       onOilPolicy: (policy) => this.issue({ k: 'policy', policy }),
       onUnload: () => this.issue({ k: 'unload' }),
       onBridge: () => this.startBridging(),
+      onMine: () => this.startMining(),
       onTurbo: () => this.issue({ k: 'turbo' }),
       onHome: () => {
         if (!this.paused) this.focusOwnCapital();
@@ -914,7 +919,7 @@ export class Game {
   }
 
   /** Game fields never written back from a save (screen / input state). */
-  private static readonly UNSAVED = ['systems', 'paths', 'paused', 'ended', 'dom', 'lastCursor', 'mouseWorld', 'ghost', 'placing', 'placingRotated', 'waypoints', 'moveMarker', 'pathPeekId', 'lastBuildingClick', 'shortRepaths', 'lastRepath', 'localId', 'actorId', 'lockstep', 'desyncWarned', 'capitalPrompts', 'trees'];
+  private static readonly UNSAVED = ['systems', 'paths', 'paused', 'ended', 'dom', 'lastCursor', 'mouseWorld', 'ghost', 'placing', 'placingRotated', 'waypoints', 'moveMarker', 'pathPeekId', 'lastBuildingClick', 'shortRepaths', 'lastRepath', 'localId', 'actorId', 'lockstep', 'desyncWarned', 'capitalPrompts', 'trees', 'miningId'];
 
   /**
    * Everything needed to continue this game later, as plain JSON-ready data: players, every entity, the state of
@@ -3175,6 +3180,7 @@ export class Game {
     this.giveWay(dt);
     this.processTasks();
     this.processDemolition(dt);
+    this.processMines();
     this.processDrones();
     this.processRepairs(dt);
     this.processMends(dt);
@@ -3410,6 +3416,19 @@ export class Game {
       case 'place':
         this.placeStructure(cmd.opt, cmd.x, cmd.y, cmd.rot);
         break;
+      case 'mineAim': {
+        const u = this.entities.get(cmd.u);
+        if (u instanceof Infantry && u.owner === me && this.canMine(u)) {
+          u.stop();
+          u.mineOrder = null;
+        }
+        break;
+      }
+      case 'mine': {
+        const u = this.entities.get(cmd.u);
+        if (u instanceof Infantry && u.owner === me) this.plantMine(u, cmd.x, cmd.y);
+        break;
+      }
       case 'bridge':
       {
         const layers = this.selection.selectedUnitList().filter((u): u is Vehicle => u instanceof Vehicle && u.isBridgeLayer && u.alive && u.owner === me);
@@ -3886,6 +3905,7 @@ export class Game {
       flagHints: this.flagHints(),
       awacsMarks: this.awacsMarks(),
       awacsRadar: this.awacsRadar,
+      mineField: this.mineField(),
       enemyInfoId: !this.placing && hoverUnit instanceof Unit && hoverUnit.owner !== this.humanPlayer.id ? hoverUnit.id : null,
       mountainTip: this.placing || hovering ? null : this.mountainTip(),
       focus: focus.map((f) => ({ entity: f.entity, strong: f.strong, engaged: f.engaged, airLock: f.airLock })),
@@ -3967,6 +3987,7 @@ export class Game {
           transport: this.transportInfo(),
           bridgeReady: this.selectedBridgeLayers().length > 0,
           bridging: this.bridging,
+          mines: this.mineInfo(),
           aircraft: this.aircraftInfo(),
           allies: this.alliesInfo(),
         },
@@ -3990,6 +4011,11 @@ export class Game {
       if (ev.type === 'click' || ev.type === 'keyDown') this.sound.unlock(); // browsers need a user gesture
       switch (ev.type) {
         case 'click': {
+          if (this.miningId !== null) {
+            if (ev.button === 'right') this.stopMining();
+            else this.tryMine();
+            break;
+          }
           if (this.bridging) {
             if (ev.button === 'right') this.stopBridging();
             else this.tryBridge();
@@ -4058,6 +4084,10 @@ export class Game {
           }
           if (this.bridging) {
             this.tryBridge();
+            break;
+          }
+          if (this.miningId !== null) {
+            this.tryMine();
             break;
           }
           const a = camera.screenToIso(ev.rect.x, ev.rect.y);
@@ -4495,6 +4525,7 @@ export class Game {
         break;
       case 'Escape':
         if (this.placing) this.stopPlacing();
+        else if (this.miningId !== null) this.stopMining();
         else if (this.bridging) this.stopBridging();
         else if (this.waypoints) this.waypoints = null; // Esc drops the route being plotted
         else if (!this.ended) this.togglePause();
@@ -4822,6 +4853,207 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
   private onFellFire(s: Unit, w: WeaponSpec, at: WorldPoint): void {
     this.shotFx(s, null, w, at.x, at.y, 3);
   }
+
+  // ------------------------------------------------------------------ land mines
+
+  /** Land mines on the map (cells). Only their owner sees them (see mineField). */
+  private readonly mines: { x: number; y: number; owner: number }[] = [];
+  /** Mine mode (the Mine button): this soldier of mine is laying a mine on a cell next to him. */
+  private miningId: number | null = null;
+
+  /** Islamic Crazy Soldiers and engineers lay land mines (MINES_PER_SOLDIER each). */
+  canMine(u: Unit): u is Infantry {
+    return u instanceof Infantry && u.alive && u.visible && u.faction === 'islamic' && (u.isDemolition || u.isEngineer);
+  }
+
+  /** A mine may go on dry land (no water, no bridge, no structure) not already mined. */
+  mineSpotOk(x: number, y: number): boolean {
+    return this.map.inBounds(x, y) && !this.map.isWater(x, y) && !this.map.isBridge(x, y) && this.map.occupantAt(x, y) === null && !this.mines.some((m) => m.x === x && m.y === y);
+  }
+
+  /** Mines of `owner` within `r` cells of (x, y) (the AI spreads its minefields with this). */
+  minesNear(owner: number, x: number, y: number, r: number): number {
+    let n = 0;
+    for (const m of this.mines) if (m.owner === owner && Math.max(Math.abs(m.x - x), Math.abs(m.y - y)) <= r) n++;
+    return n;
+  }
+
+  /** Lays a mine from `u` on cell (x, y), one of the 8 cells round him. True when laid. */
+  plantMine(u: Infantry, x: number, y: number): boolean {
+    if (!this.canMine(u) || u.minesLeft <= 0 || !this.mineSpotOk(x, y)) return false;
+    const c = this.map.cellAt(u.px, u.py);
+    if (!c || Math.max(Math.abs(c.x - x), Math.abs(c.y - y)) !== 1) return false;
+    this.mines.push({ x, y, owner: u.owner });
+    u.minesLeft--;
+    u.mineOrder = null;
+    u.stop();
+    if (u.owner === this.localId) this.sound.play('board', { x: u.px, y: u.py });
+    return true;
+  }
+
+  /** AI order: `u` walks next to cell (x, y) and lays a mine there (see processMines). False when it cannot. */
+  orderMine(u: Infantry, x: number, y: number): boolean {
+    if (!this.canMine(u) || u.minesLeft <= 0 || !this.mineSpotOk(x, y)) return false;
+    u.mineOrder = { x, y };
+    u.charge = null;
+    this.walkNextToMine(u);
+    return u.mineOrder !== null;
+  }
+
+  private walkNextToMine(u: Infantry): void {
+    const o = u.mineOrder;
+    if (!o) return;
+    // Any dry cell round the mine spot will do: the soldier lays it from there.
+    for (const [dx, dy] of [[0, 1], [1, 0], [0, -1], [-1, 0], [1, 1], [-1, 1], [1, -1], [-1, -1]] as const) {
+      const x = o.x + dx;
+      const y = o.y + dy;
+      if (!this.map.inBounds(x, y) || this.map.isWater(x, y) || this.map.occupantAt(x, y) !== null) continue;
+      const path = this.paths.find({ x: u.px, y: u.py }, { x, y }, u.mobility);
+      if (path.length > 0) {
+        u.follow(path);
+        return;
+      }
+    }
+    u.mineOrder = null;
+  }
+
+  /** Is `u` an enemy to the owner of a mine (the mine goes off under it)? No mine goes off in a ceasefire. */
+  private mineFoe(owner: number, u: Unit): boolean {
+    return !inTruce() && u.alive && u.owner !== owner && u.owner !== NEUTRAL_OWNER && !u.indestructible;
+  }
+
+  /**
+   * Mines (every tick): soldiers with a mine order lay it once next to the spot; a mine goes off when an enemy soldier,
+   * vehicle, aircraft or helicopter enters its cell: enemy soldiers within 1 cell (3 x 3 cells) die, enemy vehicles and
+   * aircraft there lose MINE_VEHICLE_DAMAGE of their max health.
+   */
+  private processMines(): void {
+    for (const u of this.entities.fieldUnits()) {
+      const o = u.mineOrder;
+      if (!o) continue;
+      if (!this.canMine(u) || u.minesLeft <= 0 || !this.mineSpotOk(o.x, o.y)) {
+        u.mineOrder = null;
+        continue;
+      }
+      const c = this.map.cellAt(u.px, u.py);
+      if (c && Math.max(Math.abs(c.x - o.x), Math.abs(c.y - o.y)) === 1) this.plantMine(u, o.x, o.y);
+      else if (!u.moving && !u.routePending) this.walkNextToMine(u);
+    }
+    if (this.mines.length === 0) return;
+    const at = new Map<number, number>();
+    this.mines.forEach((m, i) => at.set(this.map.index(m.x, m.y), i));
+    const fired = new Set<number>();
+    for (const u of this.entities.fieldMovers()) {
+      if (!u.alive) continue;
+      const c = this.map.cellAt(u.px, u.py);
+      if (!c) continue;
+      const i = at.get(this.map.index(c.x, c.y));
+      if (i === undefined || fired.has(i)) continue;
+      if (this.mineFoe(this.mines[i]!.owner, u)) fired.add(i);
+    }
+    if (fired.size === 0) return;
+    const blasts = [...fired].sort((a, b) => b - a).map((i) => this.mines.splice(i, 1)[0]!);
+    for (const m of blasts) this.mineBlast(m);
+  }
+
+  private mineBlast(m: { x: number; y: number; owner: number }): void {
+    const wx = (m.x + 0.5) * CELL_SIZE;
+    const wy = (m.y + 0.5) * CELL_SIZE;
+    const p = this.fx(wx, wy, 0);
+    this.effects.add({ kind: 'demoBlast', x: p.x, y: p.y, age: 0, ttl: 0.8 });
+    this.sound.play('explosion', { x: wx, y: wy });
+    for (const u of this.entities.fieldMovers()) {
+      if (!this.mineFoe(m.owner, u)) continue;
+      const c = this.map.cellAt(u.px, u.py);
+      if (!c || Math.max(Math.abs(c.x - m.x), Math.abs(c.y - m.y)) > 1) continue;
+      u.damage(u instanceof Vehicle ? u.maxHp * MINE_VEHICLE_DAMAGE : u.maxHp * 2);
+      u.lastAttackedAt = this.time;
+    }
+  }
+
+  /** The selected soldier of mine who can lay a mine (the first one), or null. */
+  private selectedMiner(): Infantry | null {
+    const me = this.humanPlayer.id;
+    for (const u of this.selection.selectedUnitList()) if (u.owner === me && this.canMine(u)) return u;
+    return null;
+  }
+
+  /** Mine button state: hidden (null) unless an Islamic Crazy Soldier / engineer of mine is selected. */
+  private mineInfo(): { left: number; aiming: boolean } | null {
+    const u = this.selectedMiner();
+    if (this.miningId !== null && (!u || u.id !== this.miningId)) this.stopMining();
+    return u ? { left: u.minesLeft, aiming: this.miningId !== null } : null;
+  }
+
+  /** The Mine button: the soldier stops and the 8 cells round him are offered; a left click on one lays the mine. */
+  private startMining(): void {
+    if (this.paused || this.ended) return;
+    if (this.miningId !== null) {
+      this.stopMining();
+      return;
+    }
+    const u = this.selectedMiner();
+    if (!u) return;
+    if (u.minesLeft <= 0) {
+      this.sidebar.notify(t('No mines left.'), 2);
+      return;
+    }
+    if (this.placing) this.stopPlacing();
+    if (this.bridging) this.stopBridging();
+    this.miningId = u.id;
+    this.issue({ k: 'mineAim', u: u.id });
+    this.sidebar.notify(t('Left-click a cell next to the soldier to lay a mine. Right-click cancels.'), 3);
+  }
+
+  private stopMining(): void {
+    this.miningId = null;
+  }
+
+  /** The cell under the mouse in mine mode, if it is one of the 8 round the soldier. */
+  private mineAimCell(): { x: number; y: number; ok: boolean } | null {
+    const u = this.miningId !== null ? this.entities.get(this.miningId) : undefined;
+    if (!(u instanceof Infantry) || !this.mouseWorld) return null;
+    const c = this.map.cellAt(u.px, u.py);
+    const m = this.map.cellAt(this.mouseWorld.x, this.mouseWorld.y);
+    if (!c || !m || Math.max(Math.abs(c.x - m.x), Math.abs(c.y - m.y)) !== 1) return null;
+    return { x: m.x, y: m.y, ok: this.mineSpotOk(m.x, m.y) };
+  }
+
+  private tryMine(): void {
+    const u = this.miningId;
+    const cell = this.mineAimCell();
+    if (u === null || !cell) {
+      this.sidebar.notify(t('Pick one of the cells right next to the soldier.'), 2);
+      return;
+    }
+    if (!cell.ok) {
+      this.sidebar.notify(t('No mine here: not on water, a bridge, a structure or another mine.'), 2);
+      return;
+    }
+    this.issue({ k: 'mine', u, x: cell.x, y: cell.y });
+    this.stopMining();
+  }
+
+  /** What the renderer draws: my own mines (nobody else's), and in mine mode the 8 cells round the soldier. */
+  private mineField(): { mines: { x: number; y: number }[]; aim: { x: number; y: number; ok: boolean; hover: boolean }[] } {
+    const me = this.localId;
+    const mines = this.mines.filter((m) => m.owner === me).map((m) => ({ x: m.x, y: m.y }));
+    const aim: { x: number; y: number; ok: boolean; hover: boolean }[] = [];
+    const u = this.miningId !== null ? this.entities.get(this.miningId) : undefined;
+    const c = u instanceof Infantry ? this.map.cellAt(u.px, u.py) : null;
+    if (c) {
+      const hover = this.mineAimCell();
+      for (let dy = -1; dy <= 1; dy++)
+        for (let dx = -1; dx <= 1; dx++) {
+          if (dx === 0 && dy === 0) continue;
+          const x = c.x + dx;
+          const y = c.y + dy;
+          aim.push({ x, y, ok: this.mineSpotOk(x, y), hover: hover?.x === x && hover.y === y });
+        }
+    }
+    return { mines, aim };
+  }
+
 
   /** Art and sound of a shot from `s` landing at world (tx, ty), `tlift` px up; `t` is what it hits (null: the ground / trees). */
   private shotFx(s: Unit, t: Entity | null, w: WeaponSpec, tx: number, ty: number, tlift: number): void {
@@ -6364,12 +6596,20 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
         u.charge = null;
         continue;
       }
-      if (distanceTo(u.px, u.py, target) <= DEMO_PLANT_CELLS * CELL_SIZE) {
+      // A Crazy Soldier walks right up to a structure (its door) to plant; elsewhere DEMO_PLANT_CELLS is close enough.
+      // (Stopped short of the door, e.g. a blocked one: DEMO_PLANT_CELLS still does, so he never stands stuck.)
+      const reach = target instanceof Building && u.isDemolition && u.moving ? DEMO_PLANT_BUILDING_CELLS : DEMO_PLANT_CELLS;
+      if (distanceTo(u.px, u.py, target) <= reach * CELL_SIZE) {
         if (this.time < u.chargeReadyAt) continue; // still fixing the next charge
         const at = this.chargeSpot(target);
         if (!at) continue;
         const p = this.fx(at.x, at.y, target instanceof Unit ? this.aimHeight(target, 0.4) : 4);
         const fx: Extract<Effect, { kind: 'charge' }> = { kind: 'charge', x: p.x, y: p.y, age: 0, ttl: DEMO_FUSE_SECONDS };
+        if (target instanceof Building) {
+          // Red charge icon above the structure's roof, and the structure flashes once.
+          fx.buildingId = target.id;
+          target.blinkAt = this.time;
+        }
         this.effects.add(fx);
         this.charges.push({ targetId: target.id, owner: u.owner, planterId: u.id, x: at.x, y: at.y, fuse: DEMO_FUSE_SECONDS, vehicleOnly: u.isSpecial, fx });
         u.charge = null;

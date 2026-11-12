@@ -1,4 +1,4 @@
-"""Helicopter engine loop: rotor blade chop only ("whop-whop"), no continuous hum or turbine whine.
+"""Helicopter engine loop: rotor blade chop ("whop-whop") and a faint turbine whine, no hum.
 
 Writes ui/public/sounds/engine-heli.wav (4 s, 22050 Hz mono, loops seamlessly).
 Run: python tools/heli_rotor_sound.py
@@ -31,6 +31,13 @@ for k in range(int(SECONDS * CHOP_HZ)):
     end = min(n, start + length)
     out[start:end] += seg[: end - start]
 
+# Turbine whine ("iiii"): one soft steady tone with a slow gentle wobble, well under the chop so it is never shrill.
+# A whole number of cycles in the loop (WHINE_HZ * SECONDS) and of wobble cycles keeps the loop seamless.
+WHINE_HZ = 1100.0
+WHINE_LEVEL = 0.015  # share of the chop's peak
+tt = np.arange(n) / SR
+whine = np.sin(2 * np.pi * WHINE_HZ * tt + 0.6 * np.sin(2 * np.pi * 0.5 * tt))
+out = out / np.max(np.abs(out)) + whine * WHINE_LEVEL
 out /= np.max(np.abs(out)) / 0.8
 pcm = (out * 32767).astype(np.int16)
 path = Path(__file__).resolve().parent.parent / 'ui' / 'public' / 'sounds' / 'engine-heli.wav'

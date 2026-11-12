@@ -34,7 +34,7 @@ export const DEMO_FACTION: FactionId = NATION_CODES[(import.meta.env.VITE_DEMO_F
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "3.67.2";
+export const GAME_VERSION = "3.72.1";
 
 /** An Allied Building within this many cells of any capital is an embassy; farther out it is a "Pro-<nation> regime". */
 export const EMBASSY_CAPITAL_CELLS = 25;
@@ -465,7 +465,13 @@ export const eliteCap = (regulars: number): number =>
  */
 export const DEMO_FUSE_SECONDS = 4;
 export const DEMO_PLANT_CELLS = 1.5;
+/** A Crazy Soldier plants on a structure only right at it (its door): this close (cells). */
+export const DEMO_PLANT_BUILDING_CELLS = 0.75;
 export const DEMO_RELOAD_SECONDS = 5;
+/** Land mines (Islamic Crazy Soldier and engineer): mines each soldier carries, and what a blast does. */
+export const MINES_PER_SOLDIER = 3;
+/** Share of max health a vehicle / aircraft loses to a mine blast (soldiers in it die). */
+export const MINE_VEHICLE_DAMAGE = 0.6;
 export const DEMO_SMALL_CELLS = 16;
 export const DEMO_LARGE_DAMAGE = 0.4;
 export const DEMO_GROUP_RADIUS_CELLS = 2.5;

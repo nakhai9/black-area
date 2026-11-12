@@ -1,3 +1,4 @@
+import { CHARGE_ICON_PATH } from '../render/ChargeIcon';
 import { AlertToast } from './NewsToast';
 import { type IconNode, Settings, ArrowUpFromLine, Clock, House, Handshake, Newspaper, X, Wallet, Info, Keyboard, Droplet, Hammer, LogIn, LogOut, Minus, Plane, Rocket, Shield, TrendingDown, TrendingUp, Zap, createElement } from 'lucide';
 
@@ -41,6 +42,8 @@ import { t } from '../i18n';
  * Bridge button icon: "bridge" from Material Design Icons by Pictogrammers (Apache 2.0,
  * https://github.com/Templarian/MaterialDesign/blob/master/LICENSE), a filled 24 × 24 path.
  */
+/** Mine button icon: the red charge icon (Game Icons, CC BY 3.0), a 512 x 512 path. */
+const MINE_ICON: IconNode = [['path', { d: CHARGE_ICON_PATH }]];
 const BRIDGE_ICON: IconNode = [
   [
     'path',
@@ -224,6 +227,8 @@ export interface SidebarModel {
   bridgeReady: boolean;
   /** Bridge mode is on: the bridge is being positioned. */
   bridging: boolean;
+  /** An Islamic Crazy Soldier / engineer of mine is selected: mines left and whether mine mode is on (null hides the Mine button). */
+  mines: { left: number; aiming: boolean } | null;
   aircraft: AircraftInfo | null;
   /** The player's allies and open claims (the Allies tab shows up once there is at least one ally). */
   allies: readonly AllyInfo[];
@@ -256,6 +261,8 @@ export interface SidebarHandlers {
   onUnload: () => void;
   /** The Bridge button (same as the B key): position the selected bridge layer's bridge. */
   onBridge: () => void;
+  /** The Mine button: the selected Crazy Soldier / engineer lays a land mine on a cell next to him. */
+  onMine: () => void;
   /** The Turbo button of the Aircraft panel (same as the T key). */
   onTurbo: () => void;
   /** The Home button of the action bar (same as the H key): camera to the own capital. */
@@ -309,7 +316,9 @@ export class Sidebar {
   private readonly transportState: HTMLElement;
   private readonly unloadButton: HTMLButtonElement;
   private readonly bridgeButton: HTMLButtonElement;
-  /** Floating action bar left of the sidebar (Home / Turbo / Unload), always shown; each button is disabled when it does not apply. */
+  private readonly mineButton: HTMLButtonElement;
+  private readonly mineBadge: HTMLSpanElement;
+  /** Floating action bar left of the sidebar: Home and Settings always; Turbo / Unload / Bridge / Mine only while a unit they apply to is selected. */
   private readonly airTools: HTMLElement;
   /** Countdown to the end of the peace (mm:ss) under the air tools; hidden during the war. */
   private readonly peaceTimer: HTMLElement;
@@ -527,6 +536,15 @@ export class Sidebar {
     this.turboButton.append(this.turboBadge);
     this.unloadButton = tool(ArrowUpFromLine, t('Unload (U): let the passengers out one by one. In the air the transport first lands on solid ground below it.'), () => this.handlers.onUnload());
     this.bridgeButton = tool(BRIDGE_ICON, t('Bridge (B): the selected bridge layer lays its bridge right where it stands — park it at the edge of a river or the sea, facing the water. Used once.'), () => this.handlers.onBridge(), { fill: 'currentColor', stroke: 'none', 'stroke-width': 0 });
+    this.mineButton = tool(MINE_ICON, t('Mine: the selected Crazy Soldier / engineer stops and lays a land mine on a cell next to him (3 per soldier). Only you see your mines.'), () => this.handlers.onMine(), { viewBox: '0 0 512 512', fill: 'currentColor', stroke: 'none', 'stroke-width': 0 });
+    this.mineButton.hidden = true;
+    this.turboButton.hidden = true;
+    this.unloadButton.hidden = true;
+    this.bridgeButton.hidden = true;
+    this.mineButton.classList.add('mine');
+    this.mineBadge = document.createElement('span');
+    this.mineBadge.className = 'air-tool-badge';
+    this.mineButton.append(this.mineBadge);
     tool(Settings, t('Settings: screen lock, volume, language (pause menu, Esc).'), () => this.handlers.onSettings());
     this.peaceTimer = document.createElement('div');
     this.peaceTimer.className = 'peace-timer';
@@ -607,6 +625,8 @@ export class Sidebar {
 
   /** Air tools: Turbo lit when ready, otherwise counting down its burn / recharge; disabled for a selection without aircraft. */
   private renderAircraft(a: AircraftInfo | null): void {
+    // Action buttons show only for what is selected: Turbo for an aircraft.
+    this.turboButton.hidden = a === null;
     this.turboButton.disabled = !a?.ready;
     this.turboButton.classList.toggle('lit', !!a?.ready);
     this.turboBadge.textContent = !a || a.ready ? '' : a.active > 0 ? `${Math.ceil(a.active)}s` : `${Math.floor(a.charge * 100)}%`;
@@ -660,11 +680,19 @@ export class Sidebar {
     this.renderAircraft(model.aircraft);
     // Unload works only for a carrier with someone aboard (a fighter / bomber has no seats).
     const carrier = model.transport;
+    this.unloadButton.hidden = carrier === null;
     this.unloadButton.disabled = !carrier || carrier.soldiers + carrier.vehicles === 0 || carrier.state === 'unloading' || !carrier.canUnload;
     this.unloadButton.classList.toggle('lit', !this.unloadButton.disabled);
+    this.bridgeButton.hidden = !model.bridgeReady;
     this.bridgeButton.disabled = !model.bridgeReady;
     this.bridgeButton.classList.toggle('lit', model.bridgeReady);
     this.bridgeButton.classList.toggle('on', model.bridging);
+    // Mine button: only while an Islamic Crazy Soldier / engineer of mine is selected.
+    this.mineButton.hidden = model.mines === null;
+    this.mineButton.disabled = !model.mines || model.mines.left <= 0;
+    this.mineButton.classList.toggle('lit', !this.mineButton.disabled);
+    this.mineButton.classList.toggle('on', !!model.mines?.aiming);
+    this.mineBadge.textContent = model.mines ? String(model.mines.left) : '';
 
     // POWER: what the nuclear plants can generate / what the structures need (J/s); red while short.
     // No numbers on the bar: supply / demand goes in the tooltip.

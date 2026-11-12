@@ -1,3 +1,4 @@
+import { drawChargeIcon } from '../render/ChargeIcon';
 import { BRIDGE_DECK_PX, bridgeDeckAt } from '../render/sprites/Bridge';
 import { BRIDGE_JOIN_HIGH, BRIDGE_JOIN_LOW, type Bridge } from '../entities/Bridge';
 import { teamColoredKey } from '../render/sprites';
@@ -109,6 +110,8 @@ export interface RenderScene {
   readonly awacsMarks?: ReadonlySet<number>;
   /** Radar circles of my AWACS in the air (world px): green, orange while an enemy combat unit is inside. */
   readonly awacsRadar?: readonly { x: number; y: number; r: number; alert: boolean }[];
+  /** My own land mines (cells; nobody else's are drawn) and, in mine mode, the 8 cells round the soldier. */
+  readonly mineField?: { readonly mines: readonly { x: number; y: number }[]; readonly aim: readonly { x: number; y: number; ok: boolean; hover: boolean }[] };
   /** An opponent's unit under the cursor: its info card is drawn above its head. */
   readonly enemyInfoId?: number | null;
   /** Mountain range under the mouse (nothing else hovered): its name, drawn at the mouse (world px). */
@@ -117,6 +120,14 @@ export interface RenderScene {
 
 
 const HEALTH_PIPS = 24;
+/** Height the fuel gauge row takes between the health bar and the flag (iso px). */
+const FUEL_ROW = 0.9;
+/** Fuel gauge shown: a transport out on a sortie (parked / taxiing at home it is idle), a helicopter not full. */
+function showsFuel(u: Unit): boolean {
+  return u instanceof Vehicle && ((u.isTransport && u.flight !== 'parked' && u.flight !== 'taxi' && u.flight !== 'taxiHome') || (u.isHeli && u.fuel < 1));
+}
+/** Length of a structure's flash when a charge is planted on it (s). */
+const BLINK_SECONDS = 0.35;
 
 /** Where a bomber's bomb bars sit (iso px): a row centred just above the airframe. */
 function bombRow(v: Vehicle): { x0: number; y: number; bar: number; gap: number; h: number } {
@@ -278,6 +289,7 @@ export class Renderer {
     this.terrain.drawTrees(ctx, view, camera.zoom);
     // Bridges lie on the ground (or over the water): under every unit, ring and structure, out of the depth pass.
     this.frameBridges.length = 0;
+    this.frameBuildingList = scene.buildings;
     for (const b of scene.buildings) {
       if (b.spec.type !== 'bridge') continue;
       this.frameBridges.push(b as Bridge);
@@ -299,6 +311,7 @@ export class Renderer {
     if (selected) this.drawFootprint(selected, scene.time);
     if (scene.safeZones?.length) this.drawSafeZones(scene.safeZones, scene.time);
     if (scene.awacsRadar?.length) this.drawAwacsRadar(scene.awacsRadar);
+    if (scene.mineField && (scene.mineField.mines.length || scene.mineField.aim.length)) this.drawMineField(scene.mineField, scene.time);
     if (scene.buildZones?.length) this.drawBuildZones(scene.buildZones, scene.ghost?.faction);
 
     // Buildings and soldiers share one painter's-algorithm pass (by depth).
@@ -351,7 +364,7 @@ export class Renderer {
     }
     // The fuel gauge shows only while the transport is out on a sortie; parked or taxiing at home it is idle (hidden).
     for (const u of units) if (u instanceof Vehicle && u.maxBombs > 0) this.drawBombs(u);
-    for (const u of units) if (u instanceof Vehicle && ((u.isTransport && u.flight !== 'parked' && u.flight !== 'taxi' && u.flight !== 'taxiHome') || (u.isHeli && u.fuel < 1))) this.drawFuel(u);
+    for (const u of units) if (showsFuel(u)) this.drawFuel(u as Vehicle);
     const hints = scene.flagHints;
     if (hints?.size) for (const u of units) if (hints.has(u.id)) this.drawFlagHint(u);
     for (const u of units) {
@@ -528,6 +541,9 @@ export class Renderer {
     return this.sprites.fitScale(b.spriteKey);
   }
 
+  /** Structures of the frame being drawn (the charge icon finds its structure here). */
+  private frameBuildingList: readonly Building[] = [];
+
   private drawBuilding(b: Building, time: number): void {
     const s = this.sprite(b);
     const cw = b.centerWorld();
@@ -550,6 +566,15 @@ export class Renderer {
       ctx.save();
       ctx.translate(c.x, c.y);
       ctx.drawImage(spriteRaster(s, k * this.camera.zoom * this.dpr), -s.centerX * k, -s.centerY * k, s.width * k, s.height * k);
+      // A charge just planted on it: one quick bright flash (BLINK_SECONDS).
+      const blink = b.blinkAt === null ? 1 : (time - b.blinkAt) / BLINK_SECONDS;
+      if (blink >= 0 && blink < 1) {
+        ctx.globalAlpha = Math.sin(blink * Math.PI) * 0.7;
+        ctx.filter = 'brightness(2.6)';
+        ctx.drawImage(spriteRaster(s, k * this.camera.zoom * this.dpr), -s.centerX * k, -s.centerY * k, s.width * k, s.height * k);
+        ctx.filter = 'none';
+        ctx.globalAlpha = 1;
+      }
       ctx.restore();
     }
     if (rise < 1) {
@@ -1119,7 +1144,8 @@ export class Renderer {
     const x = P.x - w / 2;
     const flagH = 1;
     const flagW = flagH * 1.6;
-    const top = y - 0.45 - flagH;
+    // The flag goes over the health bar, and over the fuel gauge too while one shows.
+    const top = y - 0.45 - flagH - (showsFuel(u) ? FUEL_ROW : 0);
     const side = y + 0.4 - top;
     return { x, y, w, flagH, flagW, rankX: x - 0.45 - side, top, side };
   }
@@ -1150,10 +1176,9 @@ export class Renderer {
   private drawFuel(v: Vehicle): void {
     const { ctx } = this;
     const k = 1 / this.camera.zoom;
-    const P = worldToIso(v.px, v.py);
-    const w = Math.max(2.4, v.radius * 1.6);
-    const x = P.x - w / 2;
-    const y = P.y - v.altitude - v.bodyHeight - 2.4 - 0.4 - 3 * k;
+    // Right above the health bar; the flag sits above both (see plate).
+    const { x, w, y: bar } = this.plate(v);
+    const y = bar - FUEL_ROW + 0.25 - 3 * k;
     ctx.fillStyle = 'rgba(210,210,210,0.85)';
     ctx.fillRect(x - k, y - k, w + 2 * k, 0.4 + 2 * k);
     ctx.fillStyle = v.fuel > 0.2 ? '#111111' : '#7a1010';
@@ -1225,6 +1250,12 @@ export class Renderer {
         drawSoldierDeath(ctx, e.look, e.x, e.y, e.heading, e.age, e.ttl);
       } else if (e.kind === 'charge') {
         drawCharge(ctx, e.x, e.y, e.ttl - e.age);
+        const b = e.buildingId !== undefined ? this.frameBuildingList.find((o) => o.id === e.buildingId) : undefined;
+        if (b) {
+          // Red charge icon floating just above the top of the structure's art.
+          const r = this.spriteRect(b);
+          drawChargeIcon(ctx, r.x + r.w / 2, r.y - 3.5, 5, e.ttl - e.age);
+        }
       } else if (e.kind === 'demoBlast') {
         if (!drawDemolitionBlast(ctx, e.x, e.y, t)) {
           const r = 16 * (0.35 + t * 0.9);
@@ -1415,6 +1446,34 @@ export class Renderer {
       ctx.stroke();
     }
     ctx.restore();
+  }
+
+  /** Mine cells: the offered cells round the soldier (green / red, the hovered one bright) and my mines' red icons. */
+  private drawMineField(f: NonNullable<RenderScene['mineField']>, time: number): void {
+    const { ctx } = this;
+    const k = 2 / this.camera.zoom;
+    for (const c of f.aim) {
+      ctx.fillStyle = c.ok ? (c.hover ? 'rgba(255,60,60,0.55)' : 'rgba(80,220,110,0.28)') : 'rgba(120,120,120,0.25)';
+      ctx.fillRect(c.x * CELL_SIZE, c.y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+      ctx.strokeStyle = c.ok ? (c.hover ? '#ff4040' : 'rgba(140,255,160,0.9)') : 'rgba(160,160,160,0.6)';
+      ctx.lineWidth = k;
+      ctx.strokeRect(c.x * CELL_SIZE, c.y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+    }
+    const hover = f.aim.find((c) => c.hover && c.ok);
+    const icons = hover ? [...f.mines, hover] : f.mines;
+    if (icons.length === 0) return;
+    // Painted flat on the ground inside its 1 x 1 cell (drawn on the world plane, so it lies in the cell's iso diamond),
+    // turned back 45° so it reads upright on screen; the largest square that fits turned in the cell, less a margin.
+    const pulse = 0.85 + Math.sin(time * 4) * 0.15;
+    const size = (CELL_SIZE / Math.SQRT2) * 0.9;
+    for (const m of icons) {
+      ctx.save();
+      ctx.translate((m.x + 0.5) * CELL_SIZE, (m.y + 0.5) * CELL_SIZE);
+      ctx.rotate(-Math.PI / 4);
+      ctx.globalAlpha = pulse;
+      drawChargeIcon(ctx, 0, 0, size, 99);
+      ctx.restore();
+    }
   }
 
   private drawSafeZones(zones: readonly Rect[], time: number): void {

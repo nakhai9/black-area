@@ -1544,6 +1544,12 @@ body.sidebar-hidden .air-tools {
 .air-tool:hover:not(:disabled) {
   background: linear-gradient(#276330, #18401f);
 }
+.air-tool[hidden] {
+  display: none;
+}
+.air-tool.mine svg {
+  color: #ff2a2a;
+}
 .air-tool.lit {
   border-color: #5cff6a;
   box-shadow: 0 0 6px rgba(92, 255, 106, 0.55);

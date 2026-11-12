@@ -55,21 +55,50 @@ const painters: Record<Allegiance, (ctx: CanvasRenderingContext2D, w: number, h:
     starPath(ctx, w * 0.5, h * 0.51, h * 0.335, h * 0.335 * 0.4);
     ctx.fill();
   },
+  /** Blue field, two gold olive branches curving up from a crossed base into an open wreath (no circle). */
   europe(ctx, w, h) {
     ctx.fillStyle = '#003399';
     ctx.fillRect(0, 0, w, h);
-    // One yellow regular twelve-sided polygon (dodecagon) in the middle.
+    const cx = w * 0.5;
+    const cy = h * 0.5;
+    const r = h * 0.3;
     ctx.fillStyle = '#ffcc00';
-    ctx.beginPath();
-    for (let i = 0; i < 12; i++) {
-      const a = -Math.PI / 2 + (i * Math.PI) / 6;
-      const x = w * 0.5 + Math.cos(a) * h * 0.32;
-      const y = h * 0.5 + Math.sin(a) * h * 0.32;
-      if (i === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
+    ctx.strokeStyle = '#ffcc00';
+    ctx.lineCap = 'round';
+    // Angle t from the bottom of the wreath: 0 = bottom centre, PI / 2 = the side, PI = the top. Each stem starts a
+    // little past the bottom centre (the two stems cross there) and stops short of the top (the wreath stays open).
+    const start = -0.3;
+    const end = Math.PI - 0.5;
+    for (const side of [-1, 1]) {
+      const px = (t: number): number => cx + side * Math.sin(t) * r;
+      const py = (t: number): number => cy + Math.cos(t) * r;
+      const dirAt = (t: number): number => Math.atan2(py(t + 0.05) - py(t), px(t + 0.05) - px(t));
+      ctx.lineWidth = Math.max(0.6, h * 0.03);
+      ctx.beginPath();
+      for (let i = 0; i <= 16; i++) {
+        const t = start + ((end - start) * i) / 16;
+        if (i === 0) ctx.moveTo(px(t), py(t));
+        else ctx.lineTo(px(t), py(t));
+      }
+      ctx.stroke();
+      const leaf = (x: number, y: number, dir: number, len: number): void => {
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(dir);
+        ctx.beginPath();
+        ctx.ellipse(len * 0.5, 0, len * 0.5, len * 0.2, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      };
+      // Leaf pairs along the stem (one each side, pointing on up the branch), smaller towards the tip, and one at the tip.
+      const leaves = 6;
+      for (let i = 1; i <= leaves; i++) {
+        const t = start + 0.25 + ((end - start - 0.25) * i) / (leaves + 0.5);
+        const len = h * (0.12 - i * 0.008);
+        for (const out of [-1, 1]) leaf(px(t), py(t), dirAt(t) + out * 0.7, len);
+      }
+      leaf(px(end), py(end), dirAt(end), h * 0.08);
     }
-    ctx.closePath();
-    ctx.fill();
   },
   /** Dark green field, a white crescent lying on its back (horns up) with a small white four-pointed star inside it. */
   islamic(ctx, w, h) {

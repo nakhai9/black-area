@@ -20,7 +20,7 @@ export type Effect =
   /** A bomb from a nation's bomb sheet: falling from (x0, y0) to (x1, y1), its shadow from (gx, gy) to the impact. */
   | { kind: 'bombFall'; x0: number; y0: number; x1: number; y1: number; gx: number; gy: number; age: number; ttl: number; faction: FactionId }
   /** A Crazy Soldier's planted charge (position follows its target while it ticks) and its blast. */
-  | { kind: 'charge'; x: number; y: number; age: number; ttl: number }
+  | { kind: 'charge'; x: number; y: number; age: number; ttl: number; /** On a structure: its id (red charge icon above its roof). */ buildingId?: number }
   | { kind: 'demoBlast'; x: number; y: number; age: number; ttl: number }
   /** A bullet from the shared bullet sheet, flying (x0, y0) → (x1, y1), sized by who fired it. */
   | { kind: 'bullet'; x0: number; y0: number; x1: number; y1: number; age: number; ttl: number; size: BulletSize }

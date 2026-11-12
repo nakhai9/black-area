@@ -80,11 +80,27 @@ export interface AIHost {
   orderBridge(layers: readonly Vehicle[], x: number, y: number, rotated: boolean): boolean;
   /** The nearest of `layers` close enough to lay a bridge at (x, y), or null (see BRIDGE_REACH_CELLS). */
   layerInReach(layers: readonly Vehicle[], x: number, y: number, rotated: boolean): Vehicle | null;
+  /** Islamic Crazy Soldier / engineer that can lay land mines. */
+  canMine(u: Unit): u is Infantry;
+  /** Dry, free, unmined cell where a mine may go. */
+  mineSpotOk(x: number, y: number): boolean;
+  /** Mines of `owner` within `r` cells of (x, y). */
+  minesNear(owner: number, x: number, y: number, r: number): number;
+  /** `u` walks next to cell (x, y) and lays a mine there (false when it cannot). */
+  orderMine(u: Infantry, x: number, y: number): boolean;
 }
 
 /** Order in which an AI nation builds its base. */
 const BUILD_PLAN: readonly BuildOption['id'][] = ['powerPlant', 'barracks', 'warFactory', 'radarTower', 'airfield', 'techCenter'];
 const THINK_PERIOD = 1.5;
+/** layMines: seconds between looks, the defensive belt (mines, cells out from the capital), the raid ring round the rival's nearest structure (cells), soldiers sent per look. */
+const MINE_PERIOD = 8;
+const MINE_DEFENCE = 8;
+const MINE_RING_MIN = 6;
+const MINE_RING_MAX = 11;
+const MINE_RAID_MIN = 4;
+const MINE_RAID_MAX = 8;
+const MINE_ORDERS = 2;
 /** Ceasefire: the AI keeps its units this many cells further out than the zone itself (a safety margin). */
 const TRUCE_SAFETY_CELLS = 2;
 /** Production buildings the AI raises next to each Allied Building, and how near (cells) counts as "next to". */
@@ -388,6 +404,8 @@ interface AIState {
   nextThink: number;
   /** Game time of the next look at river crossings on the way to the rival (see layBridges). */
   nextBridge?: number;
+  /** Game time of the next look at the minefields (see layMines). */
+  nextMine?: number;
   /** Ids of the units kept at home as the guard (GUARD_SHARE of the army). */
   guard: Set<number>;
   /** Unit id → game time it fell back from a lost fight (rests RETREAT_REST s before attacking again). */
@@ -625,6 +643,7 @@ export class AISystem implements GameSystem {
     this.driveConvoys(st);
     this.driveAirlifts(p, st);
     this.layBridges(p, st, capital, owned);
+    this.layMines(p, st, capital);
     this.evacuate(p, capital);
     this.army(p, st, capital);
   }
@@ -1159,6 +1178,86 @@ export class AISystem implements GameSystem {
    * layer (never more than one at a time) and sends it to the nearest legal site at that bank — or to extend the bridge
    * it already started there, until the crossing is open.
    */
+  /**
+   * Land mines (Islamic AI, same rules as the player's): idle Crazy Soldiers and engineers with mines left lay them where
+   * they count most.
+   *  1. Defence first: a belt of MINE_DEFENCE mines MINE_RING_MIN..MAX cells out from the capital, across the way the
+   *     rival comes from (straight on and up to ~40 degrees either side), one mine per 3 x 3 cells so a column sets off
+   *     several; only on ground a vehicle can drive over (the routes an attack takes).
+   *  2. Then attack (Crazy Soldiers only; engineers stay home to capture): mines MINE_RAID_MIN..MAX cells out from the
+   *     rival's nearest structure on the side facing us, where its army leaves and comes back.
+   * At most MINE_ORDERS soldiers are sent per look, the nearest one to each spot.
+   */
+  private layMines(p: PlayerState, st: AIState, capital: Building): void {
+    if (p.faction !== 'islamic' || this.time < (st.nextMine ?? 0)) return;
+    st.nextMine = this.time + MINE_PERIOD;
+    const { map, pathfinder, entities } = this.host;
+    const miners = entities
+      .fieldUnits()
+      .filter((u) => u.owner === p.id && this.host.canMine(u) && u.minesLeft > 0 && u.mineOrder === null && u.task === null && u.charge === null && !u.moving && u.boardTarget === null);
+    if (miners.length === 0) return;
+    const cx = capital.x + capital.w / 2;
+    const cy = capital.y + capital.d / 2;
+    // The threat: the rival's (else any enemy's) nearest structure.
+    let foe: Building | null = null;
+    let best = Infinity;
+    for (const b of entities.buildings()) {
+      if (!b.alive || b.indestructible || b.owner === p.id || b.owner === NEUTRAL_OWNER || (st.rival !== null && b.owner !== st.rival)) continue;
+      const d = Math.hypot(b.x - cx, b.y - cy);
+      if (d < best) {
+        best = d;
+        foe = b;
+      }
+    }
+    if (!foe) return;
+    const fx = foe.x + foe.w / 2;
+    const fy = foe.y + foe.d / 2;
+    const len = Math.hypot(fx - cx, fy - cy) || 1;
+    const ux = (fx - cx) / len;
+    const uy = (fy - cy) / len;
+    const good = (x: number, y: number): boolean => this.host.mineSpotOk(x, y) && pathfinder.passable(x, y, 'vehicle') && this.host.minesNear(p.id, x, y, 1) === 0;
+    // Spots along an arc round (ox, oy) facing (dx, dy): straight on first, then further to the sides.
+    const arc = (ox: number, oy: number, dx: number, dy: number, rMin: number, rMax: number): GridPoint[] => {
+      const out: GridPoint[] = [];
+      for (const a of [0, 0.35, -0.35, 0.7, -0.7]) {
+        const c = Math.cos(a);
+        const s = Math.sin(a);
+        const vx = dx * c - dy * s;
+        const vy = dx * s + dy * c;
+        for (let r = rMin; r <= rMax; r++) {
+          const x = Math.floor(ox + vx * r);
+          const y = Math.floor(oy + vy * r);
+          if (map.inBounds(x, y) && good(x, y)) out.push({ x, y });
+        }
+      }
+      return out;
+    };
+    const spots: GridPoint[] = [];
+    if (this.host.minesNear(p.id, Math.floor(cx), Math.floor(cy), MINE_RING_MAX + 1) < MINE_DEFENCE) spots.push(...arc(cx, cy, ux, uy, MINE_RING_MIN, MINE_RING_MAX));
+    const raiders = miners.some((u) => u.isDemolition);
+    if (raiders) spots.push(...arc(fx, fy, -ux, -uy, MINE_RAID_MIN, MINE_RAID_MAX).map((s) => ({ ...s, raid: true })));
+    const free = new Set(miners);
+    let sent = 0;
+    for (const s of spots) {
+      if (sent >= MINE_ORDERS || free.size === 0) break;
+      if (!good(s.x, s.y)) continue;
+      const raid = 'raid' in s;
+      let pick: Infantry | null = null;
+      let pickD = Infinity;
+      for (const u of free) {
+        if (raid && !u.isDemolition) continue;
+        const d = Math.hypot(u.px / CELL_SIZE - s.x, u.py / CELL_SIZE - s.y);
+        if (d < pickD) {
+          pick = u;
+          pickD = d;
+        }
+      }
+      if (!pick || !this.host.orderMine(pick, s.x, s.y)) continue;
+      free.delete(pick);
+      sent++;
+    }
+  }
+
   private layBridges(p: PlayerState, st: AIState, capital: Building, owned: Set<BuildingType>): void {
     if (this.time < (st.nextBridge ?? 0)) return;
     st.nextBridge = this.time + BRIDGE_PERIOD;

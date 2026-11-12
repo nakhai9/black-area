@@ -11,6 +11,8 @@ export class Building extends Entity {
   readonly kind = 'building' as const;
   /** Game time when the player placed it (drives the build-up animation); null for map-authored. */
   placedAt: number | null = null;
+  /** Game time a Crazy Soldier's charge was planted on it: it flashes once (see Renderer.drawBuilding). */
+  blinkAt: number | null = null;
   /** People stationed inside. */
   readonly garrison: Infantry[] = [];
   /** Engineers inside repairing it (they walk out at 100%, and die with it if it is destroyed meanwhile). */

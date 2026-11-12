@@ -1,4 +1,4 @@
-import { CELL_SIZE, GROUND_SPEED_SCALE, INFANTRY_BASE, INFANTRY_MARCH_CELLS, INFANTRY_MAX_RANGE_CELLS, INFANTRY_RECOVER_SECONDS, INFANTRY_REST_SECONDS, SWIM_SPEED_FACTOR, WEAPONS, NATION_STRENGTH, STRENGTH_REF } from '../constants';
+import { CELL_SIZE, MINES_PER_SOLDIER, GROUND_SPEED_SCALE, INFANTRY_BASE, INFANTRY_MARCH_CELLS, INFANTRY_MAX_RANGE_CELLS, INFANTRY_RECOVER_SECONDS, INFANTRY_REST_SECONDS, SWIM_SPEED_FACTOR, WEAPONS, NATION_STRENGTH, STRENGTH_REF } from '../constants';
 import { FACTIONS } from '../factions';
 import type { FactionId, InfantryProfile, UnitTier, WorldPoint } from '../types';
 import { Unit } from './Unit';
@@ -21,6 +21,10 @@ export class Infantry extends Unit {
   /** Crazy Soldier: the enemy structure or unit he is running at to plant a charge on, and when he may plant again (game time). */
   charge: { targetId: number } | null = null;
   chargeReadyAt = 0;
+  /** Land mines still carried (Islamic Crazy Soldier / engineer only, see Game.canMine). */
+  minesLeft = MINES_PER_SOLDIER;
+  /** AI order: walk next to this cell and lay a mine on it. */
+  mineOrder: { x: number; y: number } | null = null;
   /** Heading the sprite is drawn with: follows `heading` with some hysteresis, so the picture does not flicker between two of its 8 directions. */
   viewHeading = this.heading;
 
