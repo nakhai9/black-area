@@ -6,6 +6,8 @@ import {
   TECH_CENTER_COST,
   RADAR_TOWER_COST,
   FOOTPRINT_RADAR_TOWER,
+  FUEL_STATION_COST,
+  FOOTPRINT_FUEL_STATION,
   BARRACKS_COST,
   BUNKER_COST,
   WALL_COST,
@@ -43,6 +45,7 @@ import { Bunker } from '../entities/Bunker';
 import { PowerPlant } from '../entities/PowerPlant';
 import { TechCenter } from '../entities/TechCenter';
 import { RadarTower } from '../entities/RadarTower';
+import { FuelStation } from '../entities/FuelStation';
 import { WarFactory } from '../entities/WarFactory';
 import { Barracks } from '../entities/Barracks';
 import { Flagpole } from '../entities/Flagpole';
@@ -54,7 +57,7 @@ import type { GameSystem } from './GameSystem';
 import { isDeleted, sellerOf } from '../core/GameAssets';
 
 /** A structure that can be produced from the sidebar's Build tab. */
-type BaseBuildId = 'powerPlant' | 'barracks' | 'warFactory' | 'airfield' | 'port' | 'radarTower' | 'techCenter' | 'happyCity' | 'flagpole' | 'alliedBuilding' | 'parallelGov' | 'bunker' | 'wall' | 'gate';
+type BaseBuildId = 'powerPlant' | 'barracks' | 'warFactory' | 'airfield' | 'port' | 'radarTower' | 'fuelStation' | 'techCenter' | 'happyCity' | 'flagpole' | 'alliedBuilding' | 'parallelGov' | 'bunker' | 'wall' | 'gate';
 
 export interface BuildOption {
   /** `base@faction` for another nation's design (on sale while that nation's capital is held). */
@@ -166,6 +169,16 @@ const OWN_OPTIONS: readonly BuildOption[] = [
     footprint: FOOTPRINT_PORT,
     spriteKey: (f) => `port:${f}`,
     create: (owner, faction, x, y) => new Port(owner, faction, center(x, y, FOOTPRINT_PORT)),
+  },
+  {
+    // Fuel canopy, 3 aircraft spots, 2 helipads and a 6-bay vehicle lot (its job comes later).
+    id: 'fuelStation',
+    name: 'Fuel Station',
+    requires: 'warFactory',
+    cost: FUEL_STATION_COST,
+    footprint: FOOTPRINT_FUEL_STATION,
+    spriteKey: (f) => `fuelStation:${f}`,
+    create: (owner, faction, x, y) => new FuelStation(owner, faction, center(x, y, FOOTPRINT_FUEL_STATION)),
   },
   {
     id: 'techCenter',

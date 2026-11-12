@@ -15,6 +15,7 @@ import { OilDerrick } from '../entities/OilDerrick';
 import { PowerPlant } from '../entities/PowerPlant';
 import { TechCenter } from '../entities/TechCenter';
 import { RadarTower } from '../entities/RadarTower';
+import { FuelStation } from '../entities/FuelStation';
 import { Vehicle } from '../entities/Vehicle';
 import { WarFactory } from '../entities/WarFactory';
 import { WorldBank } from '../entities/WorldBank';
@@ -52,6 +53,7 @@ const ENTITY_CLASSES: Readonly<Record<string, abstract new (...args: never[]) =>
   Port,
   TechCenter,
   RadarTower,
+  FuelStation,
   OilDerrick,
   HappyCity,
   PowerPlant,

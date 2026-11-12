@@ -34,7 +34,7 @@ export const DEMO_FACTION: FactionId = NATION_CODES[(import.meta.env.VITE_DEMO_F
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "3.64.2";
+export const GAME_VERSION = "3.65.0";
 
 /** An Allied Building within this many cells of any capital is an embassy; farther out it is a "Pro-<nation> regime". */
 export const EMBASSY_CAPITAL_CELLS = 25;
@@ -148,6 +148,7 @@ export const BUILDING_DESIGNS: Readonly<Record<string, Readonly<Record<string, R
   techCenter: { usa: { applePark: true, artDeco: false }, russia: { standard: true }, china: { pekingUniversity: true, pagoda: false }, europe: { standard: true }, islamic: { standard: true } },
   powerPlant: { usa: { twinTowers: true }, russia: { coolingTower: true }, china: { coolingTower: true }, europe: { twinTowers: true }, islamic: { coolingTower: true } },
   radarTower: { usa: { standard: true }, russia: { standard: true }, china: { standard: true }, europe: { standard: true }, islamic: { standard: true } },
+  fuelStation: { usa: { standard: true }, russia: { standard: true }, china: { standard: true }, europe: { standard: true }, islamic: { standard: true } },
   happyCity: { usa: { standard: true }, russia: { standard: true }, china: { standard: true }, europe: { standard: true }, islamic: { standard: true } },
   alliedBuilding: { usa: { standard: true }, russia: { standard: true }, china: { standard: true }, europe: { standard: true }, islamic: { standard: true } },
   parallelGov: { usa: { standard: true }, russia: { standard: true }, china: { standard: true }, europe: { standard: true }, islamic: { standard: true } },
@@ -395,6 +396,13 @@ export const GATE_COST = 300;
 export const GATE_HP = 6000;
 export const GATE_BUILD_RADIUS = WALL_BUILD_RADIUS;
 export const FOOTPRINT_GATE = { w: 4, d: 1 } as const;
+/**
+ * Fuel Station (10 × 8): fuel canopy over 3 pump islands with a shop, 3 aircraft parking spots along the back,
+ * 2 helipads and a 6-bay lot for any ground vehicle. On sale now; what it does comes later.
+ */
+export const FUEL_STATION_COST = 2500;
+export const FUEL_STATION_HP = 1800;
+export const FOOTPRINT_FUEL_STATION = { w: 10, d: 8 } as const;
 /** Radar Tower (2 × 2): runs the nation's radar (minimap); an Airfield needs one. */
 export const RADAR_TOWER_COST = 1500;
 export const RADAR_TOWER_HP = 1200;
@@ -1390,6 +1398,7 @@ export const BUILDING_VALUE: Readonly<Partial<Record<BuildingType, number>>> = {
   airfield: AIRFIELD_COST,
   port: PORT_COST,
   radarTower: RADAR_TOWER_COST,
+  fuelStation: FUEL_STATION_COST,
   techCenter: TECH_CENTER_COST,
   happyCity: HAPPY_CITY_COST,
   powerPlant: POWER_PLANT_COST,

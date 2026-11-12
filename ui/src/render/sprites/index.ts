@@ -18,6 +18,7 @@ import { createMoscowKremlinArt } from './MoscowKremlin';
 import { createOilDerrickArt } from './OilDerrick';
 import { createPowerPlantArt } from './PowerPlant';
 import { createRadarTowerArt } from './RadarTower';
+import { createFuelStationArt } from './FuelStation';
 import { createGrandMosqueArt } from './GrandMosque';
 import { createWashingtonWhiteHouseArt } from './WashingtonWhiteHouse';
 import { WorldBankArt } from './WorldBank';
@@ -95,6 +96,12 @@ export const BUILDING_ART: Readonly<Record<string, BuildingArt>> = {
   'radarTower:china': createRadarTowerArt('china'),
   'radarTower:europe': createRadarTowerArt('europe'),
   'radarTower:islamic': createRadarTowerArt('islamic'),
+  // Fuel Station (10 × 8): canopy in the nation's colour, aircraft spots, helipads, vehicle lot.
+  'fuelStation:usa': createFuelStationArt('usa'),
+  'fuelStation:russia': createFuelStationArt('russia'),
+  'fuelStation:china': createFuelStationArt('china'),
+  'fuelStation:europe': createFuelStationArt('europe'),
+  'fuelStation:islamic': createFuelStationArt('islamic'),
   // Happy City in each nation's own architecture.
   'happyCity:usa': createHappyCityArt('usa'),
   'happyCity:russia': createHappyCityArt('russia'),
@@ -203,6 +210,8 @@ function rebuildArt(key: string): BuildingArt | undefined {
       return createPowerPlantArt(f);
     case 'radarTower':
       return createRadarTowerArt(f);
+    case 'fuelStation':
+      return createFuelStationArt(f);
     default:
       return undefined;
   }
