@@ -5,13 +5,13 @@ import { drawTankBlast } from './TankSheets';
 
 /**
  * Army truck sheets, rendered from 3D models by tools/ground_model_sheet.py: 32 columns of 64 px — screen headings
- * clockwise from N — by 2 rows: 0 the truck with its soft shadow, 1 its burnt-out wreck. KamAZ-5330 for China and the
- * Islamic world (Russia and the USA: the modular KAMAZ-4310 and HEMTT below), Europe: the modular MAN SV 6x6. Trucks carry soldiers only.
+ * clockwise from N — by 2 rows: 0 the truck with its soft shadow, 1 its burnt-out wreck. KamAZ-5330 for the
+ * Islamic world (Russia, the USA and China: the modular KAMAZ-4310, HEMTT and Shacman below), Europe: the modular MAN SV 6x6. Trucks carry soldiers only.
  */
 const CELL = 64;
 const DIRS = 32;
 /** Iso px per sheet px, as the tank sheets (a truck is a little longer than a tank). */
-const SCALE = 0.21; // 0.175 x 1.2 (v3.63.3)
+const SCALE = 0.1785; // 0.175 x 1.2 x 0.85 (v3.64.1)
 const FADE_SECONDS = 0.8;
 export const TRUCK_DEATH_SECONDS = 4.5;
 
@@ -27,15 +27,18 @@ const KAMAZ = sheet('truck-kamaz.webp');
  * cells of width / 32 px. The model is built in real metres at the tanks' px per metre.
  */
 /** Iso px per 64 px layout cell px for the modular KAMAZ: 0.166 = true scale next to the tanks. Raise it to draw the truck bigger. */
-export const KAMAZ_SCALE = 0.1992; // true scale 0.166 x 1.2
+export const KAMAZ_SCALE = 0.1693; // true scale 0.166 x 1.2 x 0.85
 /** Same for Europe's MAN SV 6x6 (tools/blender/mansv_render.py, dark moss green): 0.166 = true scale (8.6 m long). */
-export const MANSV_SCALE = 0.1992; // true scale 0.166 x 1.2
+export const MANSV_SCALE = 0.1693; // true scale 0.166 x 1.2 x 0.85
 /** Same for the USA's HEMTT M977 8x8 (tools/blender/hemtt_render.py, desert tan): 0.166 = true scale (10.17 m long). */
-export const HEMTT_SCALE = 0.1992; // true scale 0.166 x 1.2
+export const HEMTT_SCALE = 0.1693; // true scale 0.166 x 1.2 x 0.85
+/** Same for China's Shacman SX2190 6x6 (tools/blender/shacman_render.py, PLA pixel camo): 0.166 = true scale (10.5 m long). */
+export const SHACMAN_SCALE = 0.1693; // true scale 0.166 x 1.2 x 0.85
 /** pivotY: the ground point's row in the 64 px layout cell (kamaz_render.py / hemtt_render.py PIVOT). */
 type Layered = { chassis: HTMLImageElement; module: HTMLImageElement; scale: number; pivotY: number };
 const KAMAZ_RUSSIA: Layered = { chassis: sheet('truck-kamaz-russia-chassis.webp'), module: sheet('truck-kamaz-russia-body.webp'), scale: KAMAZ_SCALE, pivotY: 39 };
 const HEMTT_USA: Layered = { chassis: sheet('truck-hemtt-usa-chassis.webp'), module: sheet('truck-hemtt-usa-body.webp'), scale: HEMTT_SCALE, pivotY: 45 };
+const SHACMAN_CHINA: Layered = { chassis: sheet('truck-shacman-china-chassis.webp'), module: sheet('truck-shacman-china-body.webp'), scale: SHACMAN_SCALE, pivotY: 45 };
 const MANSV_EUROPE: Layered = { chassis: sheet('truck-mansv-europe-chassis.webp'), module: sheet('truck-mansv-europe-body.webp'), scale: MANSV_SCALE, pivotY: 39 };
 const BURNT = new WeakMap<HTMLImageElement, HTMLCanvasElement>();
 /** Burnt-out copy of a sheet (darkened, desaturated) for the wreck, made on first use. */
@@ -56,7 +59,7 @@ function burnt(img: HTMLImageElement): HTMLCanvasElement {
 }
 const loadedImg = (img: HTMLImageElement): boolean => img.complete && img.naturalWidth > 0;
 /** Modular truck layers per nation (drawn instead of its one-piece sheet). */
-const LAYERED: Partial<Record<FactionId, Layered>> = { russia: KAMAZ_RUSSIA, usa: HEMTT_USA, europe: MANSV_EUROPE };
+const LAYERED: Partial<Record<FactionId, Layered>> = { russia: KAMAZ_RUSSIA, usa: HEMTT_USA, europe: MANSV_EUROPE, china: SHACMAN_CHINA };
 /** Draw scale of `faction`'s modular truck. */
 const layeredScale = (faction: FactionId): number => LAYERED[faction]?.scale ?? SCALE;
 /** Loaded layers for `faction`, or null. */
@@ -79,7 +82,7 @@ function blitLayers(ctx: CanvasRenderingContext2D, imgs: CanvasImageSource[], co
 /** Sheet per nation that fields a truck. */
 const SHEETS: Partial<Record<FactionId, HTMLImageElement>> = {
   russia: KAMAZ,
-  china: KAMAZ,
+
   islamic: KAMAZ,
   europe: sheet('truck-zetros.webp'),
 };

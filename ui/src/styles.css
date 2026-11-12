@@ -2372,3 +2372,12 @@ button,
   width: 22px;
   height: 22px;
 }
+
+/* ------------------------------------------------------------- disabled buttons (every screen) */
+/* Every disabled button is faded and greyed so it reads as unavailable at a glance. */
+button:disabled,
+button:disabled:hover {
+  opacity: 0.4;
+  filter: grayscale(0.7);
+  cursor: not-allowed;
+}

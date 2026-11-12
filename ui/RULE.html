@@ -26,7 +26,7 @@
 <body>
 <main>
 <img class="logo" src="/logo.png" alt="Black Area" />
-<h1>Black Area — RULE <small>v3.63.3</small></h1>
+<h1>Black Area — RULE <small>v3.64.2</small></h1>
 <p class="lead">Tài liệu luật chơi + kiến trúc code dành cho AI/dev sửa game. Mọi con số gameplay chính xác nằm trong <code>src/constants.ts</code> và <code>src/factions/*.ts</code>. Nếu tài liệu này khác code thì <b>code đúng</b>. <b>Khi đổi luật/số trong code, phải cập nhật file này.</b></p>
 <nav><a href="#s1">Quy tắc làm việc cho AI</a><a href="#s2">Chạy dự án</a><a href="#s3">Kiến trúc thư mục</a><a href="#s4">Thế giới</a><a href="#s5">Kinh tế (dầu)</a><a href="#s6">Công trình (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Quân đội</a><a href="#s8">Chiến đấu</a><a href="#s9">Điều khiển (Game.handleKey, handleInput)</a><a href="#s10">Giới hạn &amp; hiệu năng</a><a href="#s11">Thắng / thua &amp; AI</a><a href="#s12">Công thức sửa thường gặp</a></nav>
 <h2 id="s1">0. Quy tắc làm việc cho AI</h2>
@@ -350,7 +350,7 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
   <li>Dừng khi xe được sửa đầy máu, một trong hai xe chết hoặc lên máy bay vận tải, không tới được, hoặc khi xe nhận lệnh di chuyển / lên máy bay mới.</li>
   <li>Sprite: <code>public/sprites/brem1-russia.png</code> (Russia), <code>public/sprites/arv-usa.png</code> (USA và Europe dùng chung), <code>public/sprites/type90ii-china.png</code> (China và Islamic dùng chung) — ô 80 px, 16 × 15; bảng sheet theo phe trong <code>render/RepairSheets.ts</code>.</li>
 </ul>
-<h3>Xe tải quân sự (<code>truck</code>): KAMAZ-4310 (Russia), HEMTT M977 (USA), KamAZ-5330 (China, Islamic), Zetros (Europe)</h3>
+<h3>Xe tải quân sự (<code>truck</code>): KAMAZ-4310 (Russia), HEMTT M977 (USA), Shacman SX2190 (China), KamAZ-5330 (Islamic), Zetros (Europe)</h3>
 <ul>
   <li>Giá gốc <code>700</code> TB, <code>9</code> s, <code>240</code> máu, tốc độ <code>2.1</code> (nhanh hơn lính 1.3–1.7 và xe tăng 1.4); không vũ khí, chỉ đi trên đất (không qua biển), sản xuất ở War Factory. Sprite render từ mô hình 3D (tools/ground_model_sheet.py, 32 hướng, hàng 2 là xác cháy): <code>public/sprites/truck-kamaz.png</code> (KamAZ-5330), <code>truck-mtvr.png</code> (cũ, không dùng); Nga và Mỹ dùng sheet module Blender <code>truck-kamaz-russia-chassis/-body</code>, <code>truck-hemtt-usa-chassis/-body</code>, <code>truck-zetros.png</code> (Mercedes-Benz Zetros).</li>
   <li>Chở <b>tối đa 8 lính</b> (<code>TRUCK_SOLDIERS</code>) cho đỡ mệt khi hành quân; <b>không chở bất kỳ phương tiện nào</b> (xe tăng, xe khác, máy bay/trực thăng).</li>
@@ -702,6 +702,9 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
   <li>v3.41.5: Sửa lỗi máy bay vận tải bay vòng tròn mãi quanh điểm hạ cánh (không đáp được, không nhận lệnh di chuyển): khi điểm đến nằm trong vòng quay, máy bay bay thẳng tới. Lệnh di chuyển mới trong lúc đang bay tới điểm hạ cánh giờ được nhận (hủy hạ cánh, bay đi).</li>
   <li>v3.41.5: Máy bay không còn nhận <b>Cảng (Naval Port)</b> làm sân bay nhà (không đậu, không hạ cánh, không được sinh ra ở cảng). Loại máy bay được đậu ở cảng sẽ quy ước sau: thêm vào <code>PORT_AIRCRAFT</code> trong <code>src/systems/AircraftSystem.ts</code>. Máy bay đang lấy cảng làm nhà (bản lưu cũ) sẽ chuyển sang sân bay khác của phe; không còn sân bay nào thì rơi như luật cũ.</li>
     <li>v3.56.1: <b>Giảm tiếng động cơ mọi phương tiện</b>: <code>VEHICLE_BED_GAIN</code> 1.6 → 1.0, máy bay / trực thăng <code>AIR_BED_BOOST</code> 2.2 → 1.5. <b>Máy bay vận tải</b> (C-17, Il-76, Y-20, A400M, mặc định) tăng gain 0.85–0.9 → 1.35 để to ngang các máy bay khác (tiếng động cơ trầm, ít tiếng rít nên trước nghe nhỏ hơn).</li>
+    <li>v3.64.2: <b>Mọi nút bị khóa (disabled) mờ đi</b>: độ mờ 0.4 và ngả xám, con trỏ cấm (<code>button:disabled</code> trong <code>styles.css</code>).</li>
+    <li>v3.64.1: <b>Mọi xe tải nhỏ đi 15%</b>: <code>KAMAZ_SCALE</code>, <code>HEMTT_SCALE</code>, <code>MANSV_SCALE</code>, <code>SHACMAN_SCALE</code> 0.1992 → 0.1693, sheet cũ (KamAZ-5330) 0.21 → 0.1785 (<code>TruckSheets.ts</code>).</li>
+    <li>v3.64.0: <b>Xe tải Trung Quốc đổi thành Shacman SX2190 6x6</b> dựng bằng Blender theo blueprint, kích thước thật (dài 10.52 m, rộng 2.49 m, cao 3.3 m): cabin vuông cao có tấm che nắng nâu, khung cản trước ống đen, đèn vàng sương mù, thùng thành hạ có dải lỗ thông gió phủ bạt vải dù. Rằn ri pixel xanh rêu, vàng cát, trắng. Dạng module như KAMAZ/HEMTT (<code>truck-shacman-china-chassis</code> + <code>-body</code>, <code>tools/blender/shacman_render.py</code>); cỡ chỉnh bằng <code>SHACMAN_SCALE</code>.</li>
     <li>v3.63.3: <b>Mọi xe tải to thêm 20%</b>: <code>KAMAZ_SCALE</code>, <code>HEMTT_SCALE</code>, <code>MANSV_SCALE</code> 0.166 → 0.1992, sheet cũ (KamAZ-5330) 0.175 → 0.21 (<code>TruckSheets.ts</code>).</li>
     <li>v3.63.2: <b>Container của HEMTT (Mỹ) sơn vàng cát sa mạc</b>, cùng màu với xe.</li>
     <li>v3.63.1: <b>HEMTT (Mỹ) chở container 20 ft</b> thay thùng thành hạ: container khối hộp 6.06 × 2.44 × 2.59 m, vách tôn gân sóng, cột góc và khóa góc, cửa sau 4 thanh khóa, bản lề, trên khung flatrack có chữ A móc kéo. Sheet render cao hơn nên điểm chạm đất dời xuống (<code>pivotY</code> trong <code>TruckSheets.ts</code>, <code>pivot</code> trong <code>modular_sheet.py</code>).</li>
