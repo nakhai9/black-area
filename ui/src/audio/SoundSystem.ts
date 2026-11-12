@@ -187,7 +187,7 @@ const SFX_DUCK_HOLD = 0.8;
  * The recordings public/sounds/ actually ships (file names with extension). Only these are fetched, so a missing
  * recording costs no 404 request; add a file's name here when you drop one into public/sounds/.
  */
-const SHIPPED_SOUNDS: ReadonlySet<string> = new Set(['rifle.mp3', 'tank-cannon.mp3', 'bomb.mp3', 'engine-tank.mp3', 'engine-heli.mp3']);
+const SHIPPED_SOUNDS: ReadonlySet<string> = new Set(['rifle.mp3', 'tank-cannon.mp3', 'bomb.mp3', 'engine-tank.mp3', 'engine-heli.wav']);
 /** The shipped file for a sound name (no extension), or null when there is none. */
 const shipped = (path: string): string | null => {
   for (const ext of ['mp3', 'ogg', 'wav']) if (SHIPPED_SOUNDS.has(`${path}.${ext}`)) return `${path}.${ext}`;

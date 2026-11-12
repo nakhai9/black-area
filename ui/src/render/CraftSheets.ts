@@ -180,6 +180,13 @@ function parkedPhase(r: RotorRig, col: number): number {
 }
 
 /** Rotor turns while the engines run: in the air, and on the ground unless parked / set down / unloading. */
+/**
+ * Spinning rotor phase. Slow enough that each sheet phase is shown for several frames, so the eye reads the blades
+ * turning instead of a strobing blur (the old 22 ms step was ~1 phase per frame and looked frozen / random).
+ */
+const ROTOR_STEP_MS = 55;
+const spinPhase = (r: RotorRig): number => Math.floor(performance.now() / ROTOR_STEP_MS) % r.phases;
+
 const rotorTurning = (v: Vehicle): boolean => !(v.altitude <= 0 && (v.flight === 'parked' || v.flight === 'landed' || v.flight === 'unloading'));
 
 /** Body + rotor + mast-top cap of a rigged helicopter, the body cell centred on (x, y). */
@@ -187,8 +194,15 @@ function drawRig(ctx: CanvasRenderingContext2D, m: CraftSheet, r: RotorRig, col:
   const k = size / m.cell;
   blit(ctx, m.image, m.cell, col, bodyRow, x, y, size);
   if (rotor && ok(r.rotor)) {
-    const phase = spinning ? Math.floor(performance.now() / 22) % r.phases : parkedPhase(r, col);
-    blit(ctx, r.rotor, m.cell, phase, spinning ? ROTOR_ROW.spin : ROTOR_ROW.still, x, y - r.hubLift * k, size);
+    const hy = y - r.hubLift * k;
+    if (spinning) {
+      // Faint blur disc + crisp blades on top, so the turning blades stay visible.
+      const a = ctx.globalAlpha;
+      ctx.globalAlpha = a * 0.45;
+      blit(ctx, r.rotor, m.cell, spinPhase(r), ROTOR_ROW.spin, x, hy, size);
+      ctx.globalAlpha = a;
+      blit(ctx, r.rotor, m.cell, spinPhase(r), ROTOR_ROW.still, x, hy, size);
+    } else blit(ctx, r.rotor, m.cell, parkedPhase(r, col), ROTOR_ROW.still, x, hy, size);
   }
   if (bodyRow !== RIG_ROW.crashing && bodyRow !== RIG_ROW.wreck) blit(ctx, m.image, m.cell, col, RIG_ROW.cap, x, y, size);
 }
@@ -202,7 +216,7 @@ function drawRigged(ctx: CanvasRenderingContext2D, m: CraftSheet, r: RotorRig, v
   const s = v.altitude / 7;
   ctx.globalAlpha = alpha * Math.max(0.15, 0.38 - 0.08 * s);
   blit(ctx, m.image, m.cell, col, RIG_ROW.shadow, x + 0.4 * s, y + 0.8 * s, size);
-  if (ok(r.rotor)) blit(ctx, r.rotor, m.cell, spinning ? Math.floor(performance.now() / 22) % r.phases : parkedPhase(r, col), spinning ? ROTOR_ROW.spinShadow : ROTOR_ROW.stillShadow, x + 0.4 * s, y + 0.8 * s, size);
+  if (ok(r.rotor)) blit(ctx, r.rotor, m.cell, spinning ? spinPhase(r) : parkedPhase(r, col), ROTOR_ROW.stillShadow, x + 0.4 * s, y + 0.8 * s, size);
   ctx.globalAlpha = alpha;
   const row = v.flight === 'crashing' ? RIG_ROW.crashing : spinning && v.altitude > 0 ? RIG_ROW.fly[Math.floor(performance.now() / 50) % 2] : spinning ? RIG_ROW.fly[0] : RIG_ROW.parked;
   drawRig(ctx, m, r, col, row ?? RIG_ROW.parked, spinning, x, y - v.altitude - r.groundDrop * k, size);

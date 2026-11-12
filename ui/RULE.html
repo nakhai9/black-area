@@ -26,7 +26,7 @@
 <body>
 <main>
 <img class="logo" src="/logo.png" alt="Black Area" />
-<h1>Black Area — RULE <small>v3.65.0</small></h1>
+<h1>Black Area — RULE <small>v3.65.1</small></h1>
 <p class="lead">Tài liệu luật chơi + kiến trúc code dành cho AI/dev sửa game. Mọi con số gameplay chính xác nằm trong <code>src/constants.ts</code> và <code>src/factions/*.ts</code>. Nếu tài liệu này khác code thì <b>code đúng</b>. <b>Khi đổi luật/số trong code, phải cập nhật file này.</b></p>
 <nav><a href="#s1">Quy tắc làm việc cho AI</a><a href="#s2">Chạy dự án</a><a href="#s3">Kiến trúc thư mục</a><a href="#s4">Thế giới</a><a href="#s5">Kinh tế (dầu)</a><a href="#s6">Công trình (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Quân đội</a><a href="#s8">Chiến đấu</a><a href="#s9">Điều khiển (Game.handleKey, handleInput)</a><a href="#s10">Giới hạn &amp; hiệu năng</a><a href="#s11">Thắng / thua &amp; AI</a><a href="#s12">Công thức sửa thường gặp</a></nav>
 <h2 id="s1">0. Quy tắc làm việc cho AI</h2>
@@ -702,6 +702,7 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
   <li>v3.41.5: Sửa lỗi máy bay vận tải bay vòng tròn mãi quanh điểm hạ cánh (không đáp được, không nhận lệnh di chuyển): khi điểm đến nằm trong vòng quay, máy bay bay thẳng tới. Lệnh di chuyển mới trong lúc đang bay tới điểm hạ cánh giờ được nhận (hủy hạ cánh, bay đi).</li>
   <li>v3.41.5: Máy bay không còn nhận <b>Cảng (Naval Port)</b> làm sân bay nhà (không đậu, không hạ cánh, không được sinh ra ở cảng). Loại máy bay được đậu ở cảng sẽ quy ước sau: thêm vào <code>PORT_AIRCRAFT</code> trong <code>src/systems/AircraftSystem.ts</code>. Máy bay đang lấy cảng làm nhà (bản lưu cũ) sẽ chuyển sang sân bay khác của phe; không còn sân bay nào thì rơi như luật cũ.</li>
     <li>v3.56.1: <b>Giảm tiếng động cơ mọi phương tiện</b>: <code>VEHICLE_BED_GAIN</code> 1.6 → 1.0, máy bay / trực thăng <code>AIR_BED_BOOST</code> 2.2 → 1.5. <b>Máy bay vận tải</b> (C-17, Il-76, Y-20, A400M, mặc định) tăng gain 0.85–0.9 → 1.35 để to ngang các máy bay khác (tiếng động cơ trầm, ít tiếng rít nên trước nghe nhỏ hơn).</li>
+    <li>v3.65.1: Tiếng trực thăng bay mới (tiếng cánh quạt đập + turbine). Cánh quạt quay chậm lại, vẽ lưỡi rõ nét trên vệt mờ để nhìn thấy đang quay.</li>
     <li>v3.65.0: <b>Trạm Xăng Dầu (Fuel Station, 10 × 8)</b> cho mọi phe, mua ở tab Build sau War Factory, giá 2500, 1800 máu, tốn 2 điện: mái che màu phe trên 3 đảo bơm, cửa hàng kính, cột biển giá, <b>3 chỗ đậu máy bay</b>, <b>2 bãi trực thăng</b>, <b>bãi 6 xe cơ giới</b>. Dựng bằng Blender (<code>tools/blender/models/fuelstation.py</code>), không dùng thương hiệu thật. Chức năng sẽ bổ sung sau.</li>
     <li>v3.64.2: <b>Mọi nút bị khóa (disabled) mờ đi</b>: độ mờ 0.4 và ngả xám, con trỏ cấm (<code>button:disabled</code> trong <code>styles.css</code>).</li>
     <li>v3.64.1: <b>Mọi xe tải nhỏ đi 15%</b>: <code>KAMAZ_SCALE</code>, <code>HEMTT_SCALE</code>, <code>MANSV_SCALE</code>, <code>SHACMAN_SCALE</code> 0.1992 → 0.1693, sheet cũ (KamAZ-5330) 0.21 → 0.1785 (<code>TruckSheets.ts</code>).</li>
