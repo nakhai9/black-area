@@ -55,6 +55,16 @@ export class DayNight {
     return this.lon0 - (time / DAY_NIGHT_SECONDS) * 360;
   }
 
+  /** How dark it is at world point (x, y) at game time `time`: 0 in daylight, 1 in full night (twilight in between). */
+  nightAt(x: number, y: number, time: number): number {
+    const g = worldToGeo({ x, y });
+    const lat = g.lat * RAD;
+    const sinElev = Math.sin(lat) * this.sinDec + Math.cos(lat) * this.cosDec * Math.cos(g.lon * RAD - this.subsolarLon(time) * RAD);
+    const below = -Math.asin(Math.max(-1, Math.min(1, sinElev))) / RAD;
+    const t = Math.max(0, Math.min(1, below / TWILIGHT_DEG));
+    return t * t * (3 - 2 * t);
+  }
+
   private update(time: number): void {
     const sub = this.subsolarLon(time) * RAD;
     const d = this.image.data;

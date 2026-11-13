@@ -353,6 +353,7 @@ export class Renderer {
     // Night side of the Earth: a light tint over the world, under the rings, bars and labels (still playable).
     this.ground();
     dayNight.draw(ctx, scene.time);
+    this.drawHeadlights(units, scene.time);
     this.upright();
     if (scene.ghost) this.drawGhost(scene.ghost);
     this.upright();
@@ -841,6 +842,46 @@ export class Renderer {
   private lifted(x: number, y: number): { x: number; y: number } {
     const l = 2 * liftAt(x, y);
     return { x: x - l, y: y - l };
+  }
+
+  /**
+   * Night driving: every moving ground vehicle, ship or helicopter on the night side lights its headlights — a soft
+   * cone of light ahead of it (planes fly by instruments: no lights) (ground transform, drawn over the night tint).
+   */
+  private drawHeadlights(units: readonly Unit[], time: number): void {
+    const { ctx } = this;
+    let lit = false;
+    for (const u of units) {
+      if (!(u instanceof Vehicle) || (u.aircraft && !u.isHeli) || !u.alive || !u.moving) continue;
+      const night = dayNight.nightAt(u.px, u.py, time);
+      if (night < 0.25) continue;
+      if (!lit) {
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        lit = true;
+      }
+      // A helicopter's light shines from where it hangs in the air (lifting by L iso px = −2L world px on x and y).
+      const alt = u.flies ? u.altitude : 0;
+      const o = this.lifted(u.px - 2 * alt, u.py - 2 * alt);
+      const c = Math.cos(u.heading);
+      const sn = Math.sin(u.heading);
+      const r = Math.max(1, u.radius);
+      const fx = o.x + c * r;
+      const fy = o.y + sn * r;
+      const len = r * 4 + 4;
+      const spread = 0.38;
+      const a = Math.min(1, (night - 0.25) / 0.5);
+      const g = ctx.createRadialGradient(fx, fy, 0, fx, fy, len);
+      g.addColorStop(0, `rgba(255,236,170,${0.55 * a})`);
+      g.addColorStop(1, 'rgba(255,236,170,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.moveTo(fx, fy);
+      ctx.arc(fx, fy, len, u.heading - spread, u.heading + spread);
+      ctx.closePath();
+      ctx.fill();
+    }
+    if (lit) ctx.restore();
   }
 
   /** RA2-style selection ring under a unit's feet: a circle on the ground, so an ellipse on screen (ground transform). */
