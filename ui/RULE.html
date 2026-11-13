@@ -26,7 +26,7 @@
 <body>
 <main>
 <img class="logo" src="/logo.png" alt="Black Area" />
-<h1>Black Area — RULE <small>v3.74.3</small></h1>
+<h1>Black Area — RULE <small>v3.74.18</small></h1>
 <p class="lead">Tài liệu luật chơi + kiến trúc code dành cho AI/dev sửa game. Mọi con số gameplay chính xác nằm trong <code>src/constants.ts</code> và <code>src/factions/*.ts</code>. Nếu tài liệu này khác code thì <b>code đúng</b>. <b>Khi đổi luật/số trong code, phải cập nhật file này.</b></p>
 <nav><a href="#s1">Quy tắc làm việc cho AI</a><a href="#s2">Chạy dự án</a><a href="#s3">Kiến trúc thư mục</a><a href="#s4">Thế giới</a><a href="#s5">Kinh tế (dầu)</a><a href="#s6">Công trình (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Quân đội</a><a href="#s8">Chiến đấu</a><a href="#s9">Điều khiển (Game.handleKey, handleInput)</a><a href="#s10">Giới hạn &amp; hiệu năng</a><a href="#s11">Thắng / thua &amp; AI</a><a href="#s12">Công thức sửa thường gặp</a></nav>
 <h2 id="s1">0. Quy tắc làm việc cho AI</h2>
@@ -702,6 +702,21 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
   <li>v3.41.5: Sửa lỗi máy bay vận tải bay vòng tròn mãi quanh điểm hạ cánh (không đáp được, không nhận lệnh di chuyển): khi điểm đến nằm trong vòng quay, máy bay bay thẳng tới. Lệnh di chuyển mới trong lúc đang bay tới điểm hạ cánh giờ được nhận (hủy hạ cánh, bay đi).</li>
   <li>v3.41.5: Máy bay không còn nhận <b>Cảng (Naval Port)</b> làm sân bay nhà (không đậu, không hạ cánh, không được sinh ra ở cảng). Loại máy bay được đậu ở cảng sẽ quy ước sau: thêm vào <code>PORT_AIRCRAFT</code> trong <code>src/systems/AircraftSystem.ts</code>. Máy bay đang lấy cảng làm nhà (bản lưu cũ) sẽ chuyển sang sân bay khác của phe; không còn sân bay nào thì rơi như luật cũ.</li>
     <li>v3.56.1: <b>Giảm tiếng động cơ mọi phương tiện</b>: <code>VEHICLE_BED_GAIN</code> 1.6 → 1.0, máy bay / trực thăng <code>AIR_BED_BOOST</code> 2.2 → 1.5. <b>Máy bay vận tải</b> (C-17, Il-76, Y-20, A400M, mặc định) tăng gain 0.85–0.9 → 1.35 để to ngang các máy bay khác (tiếng động cơ trầm, ít tiếng rít nên trước nghe nhỏ hơn).</li>
+    <li>v3.74.18: Trần bay của mọi phương tiện bay (<code>CRUISE_ALTITUDE</code>) cao thêm 10%, áp dụng cho cả người chơi và AI.</li>
+    <li>v3.74.17: Modal kiểu panel kim loại xám: thép xám xước có mép vát và 4 ốc vít ở góc, thanh tiêu đề là tấm thép sáng hơn với chữ khắc chìm, nút X là phím thép (bỏ màu xanh lá).</li>
+    <li>v3.74.16: Modal kiểu màn hình chỉ huy (terminal): kính CRT đen có vạch quét, ánh xanh lá phát quang, tiêu đề chữ mono in hoa xanh, đèn trạng thái nhấp nháy, nút X như phím terminal.</li>
+    <li>v3.74.15: Thiết kế lại modal (kiểu bảng điều khiển: kính tối, viền vàng trên, góc ngoặc vàng, tiêu đề chữ in hoa vàng, nút X vuông chuyển đỏ khi rê); mọi nút và điều khiển bấm được đều hiện con trỏ bàn tay.</li>
+    <li>v3.74.14: Nút Settings chuyển lên góc trên phải sidebar (chỗ nút ẩn sidebar cũ), bỏ khỏi thanh công cụ nổi; nút ẩn sidebar dời sang góc trên trái.</li>
+    <li>v3.74.13: Đổi kiểu modal: tấm thép đen vân chéo có khung đinh tán, thanh tiêu đề là bảng đồng thau với chữ dập nổi (Impact), nút X là đầu bu-lông tròn (đỏ khi rê chuột).</li>
+    <li>v3.74.12: Modal kiểu kim loại: khung thép xám xước, thanh tiêu đề là tấm thép bóng có ốc vít, chữ tiêu đề khắc chìm vào kim loại, nút X là nút thép.</li>
+    <li>v3.74.11: Sửa nút X của Settings (và các modal cùng mẫu) bị thanh tiêu đề che mất.</li>
+    <li>v3.74.10: Thêm nút X (cùng kiểu) cho các modal còn thiếu: thắng/thua (ẩn bảng để xem bản đồ), xác nhận bản lưu (= Main menu), chơi cùng bạn (= Back).</li>
+    <li>v3.74.9: Mọi modal trong trận (Settings, World News, lựa chọn thủ đô, xác nhận bản lưu, thắng/thua) có cùng một thanh tiêu đề: dải nâu vàng, tiêu đề vàng 20px ở giữa, nút X cùng cỡ ở bên phải (Settings có thêm nút X = Continue).</li>
+    <li>v3.74.8: Mọi modal (chọn phe, chơi cùng bạn, cài đặt, xác nhận bản lưu, lựa chọn thủ đô, thắng/thua, World News) dùng chung một mẫu: nền mờ, khung, lề, tiêu đề vàng cùng cỡ chữ, nút đóng X cùng kiểu ở góc trên phải.</li>
+    <li>v3.74.7: Cờ Trung Quốc: ngôi sao giữa nhỏ lại, 4 ngôi sao nhỏ to hơn (sao lớn = 4/3 sao nhỏ), xếp lại vòng cung cho khỏi chồng nhau.</li>
+    <li>v3.74.6: Thủ đô các nước (Nation Capital) <b>không còn tự hồi máu</b>.</li>
+    <li>v3.74.5: Bỏ dòng "Đang xây … — … TB" ở cuối sidebar khi đặt xây / đặt quân.</li>
+    <li>v3.74.4: Sidebar hẹp lại 50px (290px → 240px; màn nhỏ 230px → 180px).</li>
     <li>v3.74.3: Nút <b>Unload</b> đổi icon sang <code>PackageOpen</code> (thùng hàng mở) cho khỏi nhầm với nút Home.</li>
     <li>v3.74.2: <b>Ngày–đêm hiện cả trên minimap</b>: cùng đường ranh ngày/đêm với chiến trường (dùng chung <code>dayNight</code>), vẽ dưới các chấm đơn vị/công trình.</li>
     <li>v3.74.1: Một ngày-đêm rút còn <b>6 phút</b> chơi (<code>DAY_NIGHT_SECONDS = 360</code>).</li>

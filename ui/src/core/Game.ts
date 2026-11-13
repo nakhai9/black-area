@@ -4666,7 +4666,6 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
         if (player.capitalLost) this.sidebar.notify(t('Your capital is lost — you can no longer build any structure.'));
         return;
       }
-      this.sidebar.notify(t('Building {name} — {cost} {currency}', { name: option.name, cost: buildCost(option, player.faction), currency: CURRENCY }));
     } else if (slot.state === 'ready') {
       this.placing = option;
       this.placingRotated = false;
@@ -5632,10 +5631,8 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     const option = this.production.optionsFor(player).find((o) => o.key === kind);
     if (!option) return;
     const result = this.production.enqueue(player, kind);
-    this.sidebar.notify(
-      result === 'ok'
-        ? t('Building {name} — {cost} {currency}', { name: option.name, cost: option.cost, currency: CURRENCY })
-        : result === 'noCapital'
+    if (result !== 'ok') this.sidebar.notify(
+      result === 'noCapital'
           ? t('Your capital is lost — you can no longer build any structure.')
         : result === 'full'
           ? t('Vehicle orders are full ({max}) — one more once an order is done.', { max: BUILD_LIMIT_VEHICLES })

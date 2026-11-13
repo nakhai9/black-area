@@ -127,20 +127,21 @@ const painters: Record<Allegiance, (ctx: CanvasRenderingContext2D, w: number, h:
   china(ctx, w, h) {
     ctx.fillStyle = '#dd1c18';
     ctx.fillRect(0, 0, w, h);
-    // Big yellow star in the middle, four small ones in an arc beneath it.
+    // Big yellow star in the middle, four small ones in an arc beneath it (big = 4/3 × small).
+    const smallR = h * 0.15;
     ctx.fillStyle = '#ffdd00';
     ctx.beginPath();
-    starPath(ctx, w * 0.5, h * 0.43, h * 0.28);
+    starPath(ctx, w * 0.5, h * 0.36, smallR * 4 / 3);
     ctx.fill();
     const small: [number, number][] = [
-      [0.31, 0.72],
-      [0.43, 0.8],
-      [0.57, 0.8],
-      [0.69, 0.72],
+      [0.22, 0.68],
+      [0.4, 0.8],
+      [0.6, 0.8],
+      [0.78, 0.68],
     ];
     for (const [x, y] of small) {
       ctx.beginPath();
-      starPath(ctx, w * x, h * y, h * 0.075);
+      starPath(ctx, w * x, h * y, smallR);
       ctx.fill();
     }
   },

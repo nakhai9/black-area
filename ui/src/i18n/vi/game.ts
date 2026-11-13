@@ -112,7 +112,6 @@ export default {
   'A nation has at most {max} embassies.': 'Mỗi quốc gia có tối đa {max} đại sứ quán.',
   '{name} requires a {need} first.': '{name} cần có {need} trước.',
   'Your capital is lost — you can no longer build any structure.': 'Thủ đô của bạn đã thất thủ — chính phủ sụp đổ, bạn không thể xây thêm công trình nào.',
-  'Building {name} — {cost} {currency}': 'Đang xây {name} — {cost} {currency}',
   'Click a free spot near your base to place it.': 'Bấm vào chỗ trống gần căn cứ để đặt công trình.',
   '{name} is already being built.': '{name} đang được xây rồi.',
   'Construction cancelled — {refund} {currency} refunded.': 'Đã hủy xây dựng — hoàn lại {refund} {currency}.',

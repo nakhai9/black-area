@@ -1,4 +1,5 @@
 import type { CapitalChoice } from '../entities/Unit';
+import { createElement, X } from 'lucide';
 import { t } from '../i18n';
 
 /** Icon in front of each choice: economic embargo (Material Design Icons), military embargo (Game Icons), parallel government (Siemens iX), capture (SmartIcons Glyph). */
@@ -60,8 +61,8 @@ export function askCapitalChoice(
   button('capture', info.parallel ? t('4. Capture') : t('3. Capture'), t('Take the capital: you unlock all of their structures, soldiers, vehicles and aircraft.'));
   const x = document.createElement('button');
   x.type = 'button';
-  x.className = 'capital-choice-close';
-  x.textContent = '×';
+  x.className = 'modal-close';
+  x.append(createElement(X, { width: 18, height: 18, 'stroke-width': 2.5, 'aria-hidden': 'true' }));
   x.title = t('Close');
   x.setAttribute('aria-label', t('Close'));
   x.addEventListener('click', () => {

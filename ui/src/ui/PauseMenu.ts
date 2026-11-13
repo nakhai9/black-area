@@ -1,4 +1,4 @@
-import { type IconNode, Car, Globe, Music, ScreenShareOff, ZoomIn, createElement } from 'lucide';
+import { type IconNode, Car, Globe, Music, ScreenShareOff, ZoomIn, X, createElement } from 'lucide';
 import { setEdgeLock, setZoomLock, settings } from '../core/Settings';
 import { type Lang, languageSelect, t } from '../i18n';
 
@@ -152,7 +152,15 @@ export class PauseMenu {
     const actions = document.createElement('div');
     actions.className = 'pause-actions';
     actions.append(resume, save, quit);
-    card.append(title, settingsBox, actions);
+    // Same X as every other modal: closes the menu, like Continue.
+    const x = document.createElement('button');
+    x.type = 'button';
+    x.className = 'modal-close';
+    x.title = t('Close');
+    x.setAttribute('aria-label', t('Close'));
+    x.append(createElement(X, { width: 18, height: 18, 'stroke-width': 2.5, 'aria-hidden': 'true' }));
+    x.addEventListener('click', onContinue);
+    card.append(x, title, settingsBox, actions);
     this.root.append(card);
     parent.append(this.root);
   }

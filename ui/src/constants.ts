@@ -34,7 +34,7 @@ export const DEMO_FACTION: FactionId = NATION_CODES[(import.meta.env.VITE_DEMO_F
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "3.74.3";
+export const GAME_VERSION = "3.74.18";
 
 /** An Allied Building within this many cells of any capital is an embassy; farther out it is a "Pro-<nation> regime". */
 export const EMBASSY_CAPITAL_CELLS = 25;
@@ -128,9 +128,10 @@ export const HALF_TH = TILE_H / 2;
 export const SPRITE_SCALE = (CELL_SIZE * ISO_X) / HALF_TW;
 /** Tallest building art in the game (art px: Happy City 220, High-Tech Center 205, capitals ≤ 112). */
 export const TALLEST_BUILDING_ART = 220;
-/** Aircraft cruise above the roof of the tallest building of any nation, with a margin (iso px). */
+/** Aircraft cruise above the roof of the tallest building of any nation, with a margin (iso px), raised 10% (v3.74.18). */
+export const CRUISE_ALTITUDE_LIFT = 1.1;
 export const CRUISE_ALTITUDE =
-  Math.ceil(TALLEST_BUILDING_ART * SPRITE_SCALE) + 6;
+  Math.ceil((Math.ceil(TALLEST_BUILDING_ART * SPRITE_SCALE) + 6) * CRUISE_ALTITUDE_LIFT);
 /** Large structures (War Factory) occupy 5×4 cells, everything else 4×4 (7 px cells). */
 export const FOOTPRINT_LARGE = { w: 5, d: 4 } as const;
 export const FOOTPRINT_SMALL = { w: 4, d: 4 } as const;
@@ -1265,9 +1266,8 @@ export const ANTARCTIC_OIL_SITES: readonly GeoPoint[] = [
   { lon: 136, lat: -75 },
 ];
 export const NATION_PRESENCE_PERIOD = 120;
-/** Contested nation capital: never destroyed — its health stops at this floor (it is then down: no presence fee) and mends by this share of max health per second (full in about 100 s). */
+/** Contested nation capital: never destroyed — its health stops at this floor (it is then freed back to neutral). It never mends itself. */
 export const NATION_CAPITAL_FLOOR_HP = 0.5;
-export const NATION_CAPITAL_REGEN = 0.01;
 /** Soldiers / vehicles an AI keeps stationed at each contested capital it holds, and how near (cells) counts as there. */
 export const NATION_GARRISON = 6;
 export const NATION_GARRISON_CELLS = 10;

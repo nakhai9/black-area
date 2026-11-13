@@ -318,7 +318,7 @@ export class Sidebar {
   private readonly bridgeButton: HTMLButtonElement;
   private readonly mineButton: HTMLButtonElement;
   private readonly mineBadge: HTMLSpanElement;
-  /** Floating action bar left of the sidebar: Home and Settings always; Turbo / Unload / Bridge / Mine only while a unit they apply to is selected. */
+  /** Floating action bar left of the sidebar: Home always (Settings sits in the sidebar header); Turbo / Unload / Bridge / Mine only while a unit they apply to is selected. */
   private readonly airTools: HTMLElement;
   /** Countdown to the end of the peace (mm:ss) under the air tools; hidden during the war. */
   private readonly peaceTimer: HTMLElement;
@@ -372,6 +372,7 @@ export class Sidebar {
     root.innerHTML = `
       <header class="sb-header">
         <div class="sb-logo"><img src="${import.meta.env.BASE_URL}logo.png" alt="Black Area" /></div>
+        <button class="sb-settings" type="button" title="${t('Settings: screen lock, volume, language (pause menu, Esc).')}" aria-label="${t('Settings')}"></button>
         <button class="sb-collapse" title="${t('Hide sidebar (Tab)')}" aria-label="${t('Hide sidebar')}"></button>
       </header>
       <section class="sb-panel sb-radar"><canvas class="sb-minimap"></canvas></section>
@@ -545,7 +546,6 @@ export class Sidebar {
     this.mineBadge = document.createElement('span');
     this.mineBadge.className = 'air-tool-badge';
     this.mineButton.append(this.mineBadge);
-    tool(Settings, t('Settings: screen lock, volume, language (pause menu, Esc).'), () => this.handlers.onSettings());
     this.peaceTimer = document.createElement('div');
     this.peaceTimer.className = 'peace-timer';
     this.peaceTimer.title = t('Ceasefire: time left before the war resumes.');
@@ -591,6 +591,10 @@ export class Sidebar {
     const collapse = q('.sb-collapse');
     collapse.append(createElement(LogOut, { width: 16, height: 16, 'stroke-width': 2, 'aria-hidden': 'true' }));
     collapse.addEventListener('click', () => this.toggle());
+    // Settings: top-right of the sidebar header (the hide button is top-left).
+    const settingsButton = q('.sb-settings');
+    settingsButton.append(createElement(Settings, { width: 16, height: 16, 'stroke-width': 2, 'aria-hidden': 'true' }));
+    settingsButton.addEventListener('click', () => this.handlers.onSettings());
 
     const opener = document.createElement('button');
     this.opener = opener;
@@ -908,7 +912,7 @@ export class Sidebar {
     overlay.hidden = true;
     overlay.innerHTML = `
       <div class="news-modal" role="dialog" aria-modal="true" aria-label="${t('News')}">
-        <header class="news-head"><h2>${t('WORLD NEWS')}</h2><button type="button" class="news-close" aria-label="${t('Close')}"></button></header>
+        <header class="news-head"><h2>${t('WORLD NEWS')}</h2><button type="button" class="news-close modal-close" aria-label="${t('Close')}"></button></header>
         <div class="news-cols">
           <section class="news-col"><h3 class="news-col-title">${t('RANK')}</h3><div class="news-col-body" data-col="rank"></div></section>
           <section class="news-col"><h3 class="news-col-title">${t('OCCUPIED CAPITALS & ALLIES')}</h3><div class="news-col-body" data-col="allies"><ol class="news-occupied-list"></ol></div></section>

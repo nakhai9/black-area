@@ -28,7 +28,6 @@ export class TaxSystem implements GameSystem {
     for (const b of this.entities.buildings()) {
       if (!(b instanceof NationCapital) || !b.alive) continue;
       const holder = this.players.find((p) => p.id === b.owner);
-      b.mend(dt);
       if (!holder || holder.defeated) continue;
       b.presenceClock -= dt;
       while (b.presenceClock <= 0) {

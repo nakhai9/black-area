@@ -1,4 +1,4 @@
-import { CAPITAL_LOCATIONS, capitalFootprint, CONTESTED_NATIONS, type ContestedNationId, FOOTPRINT_NATION_CAPITAL, NATION_CAPITAL_FLOOR_HP, NATION_CAPITAL_REGEN, NATION_PRESENCE_PERIOD, NEUTRAL_OWNER } from '../constants';
+import { CAPITAL_LOCATIONS, capitalFootprint, CONTESTED_NATIONS, type ContestedNationId, FOOTPRINT_NATION_CAPITAL, NATION_CAPITAL_FLOOR_HP, NATION_PRESENCE_PERIOD, NEUTRAL_OWNER } from '../constants';
 import { t } from '../i18n';
 import type { FactionId, WorldPoint } from '../types';
 import { Building } from './Building';
@@ -73,13 +73,6 @@ export class NationCapital extends Building {
     this.hp = this.maxHp;
     this.down = false;
     this.presenceClock = NATION_PRESENCE_PERIOD;
-  }
-
-  /** Mends itself: NATION_CAPITAL_REGEN of its max health per second; back to full, it pays again. */
-  mend(dt: number): void {
-    if (this.hp >= this.maxHp) return;
-    this.hp = Math.min(this.maxHp, this.hp + this.maxHp * NATION_CAPITAL_REGEN * dt);
-    if (this.hp >= this.maxHp) this.down = false;
   }
 
   /** Nation + holder ("South Korea + Russia": the + is their alliance), or null while neutral. */

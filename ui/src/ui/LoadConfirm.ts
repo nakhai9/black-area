@@ -1,3 +1,4 @@
+import { modalCloseButton } from './ModalClose';
 import { FACTIONS } from '../factions';
 import { t } from '../i18n';
 import { factionBadge } from './FactionBadge';
@@ -32,7 +33,8 @@ export function confirmLoadedGame(info: { faction: FactionId; savedAt: string },
   const actions = document.createElement('div');
   actions.className = 'pause-actions';
   actions.append(back, start); // Main menu on the left
-  card.append(title, actions);
+  // X = Main menu.
+  card.append(modalCloseButton(() => back.click()), title, actions);
   root.append(card);
   parent.append(root);
   return new Promise((resolve) => {

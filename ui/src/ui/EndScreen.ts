@@ -1,3 +1,4 @@
+import { modalCloseButton } from './ModalClose';
 import { t } from '../i18n';
 
 /** Full-screen "GAME OVER" / "VICTORY" panel with a button that starts a new game. */
@@ -21,7 +22,8 @@ export class EndScreen {
     button.type = 'button';
     button.textContent = t('New game');
     button.addEventListener('click', () => window.location.reload());
-    card.append(title, text, button);
+    // X: hide the panel to look at the map; New game stays the only way on.
+    card.append(modalCloseButton(() => root.remove()), title, text, button);
     root.append(card);
     parent.append(root);
   }

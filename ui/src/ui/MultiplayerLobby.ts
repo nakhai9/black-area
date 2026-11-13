@@ -4,6 +4,10 @@ import { NetClient, type RoomView } from '../net/NetClient';
 import type { FactionId } from '../types';
 import { factionBadgeHtml } from './FactionBadge';
 import { CARD_ORDER, factionCardHtml } from './FactionCard';
+import { createElement, X } from 'lucide';
+
+/** The modal X (same as every other modal). */
+const CLOSE_ICON = createElement(X, { width: 18, height: 18, 'stroke-width': 2.5, 'aria-hidden': 'true' }).outerHTML;
 
 /** What the lobby hands to the game once the host starts the match. */
 export interface MultiplayerStart {
@@ -170,6 +174,7 @@ export class MultiplayerLobby {
   private frame(body: string): string {
     return `
       <div class="fp-modal mp-modal">
+        <button type="button" class="modal-close" data-act="back" title="${t('Close')}" aria-label="${t('Close')}">${CLOSE_ICON}</button>
         <header class="fp-header"><h1>${t('Play with your friends')}</h1></header>
         ${body}
         <p class="mp-error" role="alert"></p>

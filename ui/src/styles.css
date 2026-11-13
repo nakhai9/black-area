@@ -6,12 +6,17 @@
   --muted: #8796a4;
   --accent: #e0b040;
   --team: #2f6fe0;
-  --sidebar-w: 290px;
+  --sidebar-w: 240px;
   /* Every modal (faction picker, pause / settings, saved-game confirm, victory / game over) shares one look. */
   --modal-bg: linear-gradient(180deg, #1b232b, #0e1318);
   --modal-border: 2px solid #3a4754;
   --modal-radius: 6px;
   --modal-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+  --modal-backdrop: rgba(2, 4, 8, 0.72);
+  --modal-padding: 22px;
+  --modal-title-size: 20px;
+  --modal-title-spacing: 3px;
+  --modal-title-color: #ffe08a;
   /* Every text button shares one look (see "buttons" at the end); only its size depends on where it sits. */
   --btn-bg: linear-gradient(180deg, #2a3540, #182028);
   --btn-bg-hover: linear-gradient(180deg, #364552, #1f2932);
@@ -152,6 +157,7 @@ body.sidebar-hidden #sidebar {
   padding: 4px 0 2px;
 }
 .sb-collapse,
+.sb-settings,
 .sb-open {
   font: 700 14px/1 inherit;
   font-family: inherit;
@@ -161,10 +167,14 @@ body.sidebar-hidden #sidebar {
   border-radius: 3px;
   cursor: pointer;
 }
-.sb-collapse {
+.sb-collapse,
+.sb-settings {
   position: absolute;
   top: 2px;
   right: 0;
+  display: grid;
+  place-items: center;
+  padding: 0;
   width: 24px;
   height: 24px;
 }
@@ -349,7 +359,7 @@ kbd {
 
 @media (max-width: 900px) {
   :root {
-    --sidebar-w: 230px;
+    --sidebar-w: 180px;
   }
 }
 
@@ -2002,8 +2012,6 @@ button,
 .end-card button.capital-choice-embargo { background: #1f7a4d; border-color: #2fa86a; }
 .end-card button.capital-choice-disarm { background: #8a2c2c; border-color: #c24545; }
 .end-card { position: relative; }
-.end-card button.capital-choice-close { position: absolute; top: 8px; right: 10px; width: 30px; height: 30px; padding: 0; min-width: 0; border: none; background: transparent; color: #cfd6dc; font-size: 24px; line-height: 1; cursor: pointer; letter-spacing: 0; }
-.end-card button.capital-choice-close:hover { color: #fff; background: rgba(255,255,255,0.08); }
 .end-card button.capital-choice-parallel { background: #6b3f8a; border-color: #9a5fc2; }
 .end-card button.capital-choice-capture { background: #2c4f8a; border-color: #4572c2; }
 .end-card button.capital-choice:hover { filter: brightness(1.15); }
@@ -2030,7 +2038,7 @@ button,
   background: var(--modal-bg);
   border: var(--modal-border);
   border-radius: var(--modal-radius);
-  box-shadow: var(--modal-shadow), inset 0 0 0 1px #000;
+  box-shadow: var(--modal-shadow);
   color: var(--text);
 }
 .news-head {
@@ -2386,4 +2394,256 @@ button:disabled:hover {
   opacity: 0.4;
   filter: grayscale(0.7);
   cursor: not-allowed;
+}
+
+/* ------------------------------------------------------------- modal template (one look for every modal) */
+/* Backdrop of every in-game modal (settings, saved game, capital choice, game over, World News). */
+.end-screen,
+.news-overlay {
+  background: var(--modal-backdrop);
+}
+.end-card {
+  padding: var(--modal-padding);
+}
+/* Title: same size, spacing, case and gold colour everywhere (game over / victory keep their red / green). */
+.fp-header h1,
+.mp-modal h2,
+.end-card h1,
+.end-card h2,
+.news-head h2 {
+  margin: 0 0 12px;
+  font-size: var(--modal-title-size);
+  font-weight: 700;
+  font-variant: normal;
+  letter-spacing: var(--modal-title-spacing);
+  text-transform: uppercase;
+  color: var(--modal-title-color);
+  text-shadow: 0 1px 2px #000;
+}
+.fp-header h1 {
+  margin: 8px 0 4px;
+}
+.news-head h2 {
+  margin: 0;
+}
+.end-screen[role='alertdialog'] .end-card h1 {
+  color: var(--end-color);
+}
+/* Close (X): top-right corner, same button look everywhere. */
+.modal-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  min-width: 0;
+  padding: 0;
+  color: var(--btn-color);
+  background: var(--btn-bg);
+  border: var(--btn-border);
+  border-radius: var(--btn-radius);
+  cursor: pointer;
+}
+.end-card button.modal-close:hover,
+.modal-close:hover {
+  background: var(--btn-bg-hover);
+  border-color: var(--btn-border-hover);
+}
+.news-close.modal-close {
+  top: 50%;
+  right: 8px;
+}
+
+/* One header bar for every in-game modal: dark-gold band, centred gold title, X on its right (same as World News). */
+.end-card {
+  overflow: hidden;
+}
+.end-card > h1,
+.end-card > h2,
+.news-head {
+  position: relative;
+  margin: calc(-1 * var(--modal-padding)) calc(-1 * var(--modal-padding)) 16px;
+  padding: 10px 44px;
+  line-height: 28px;
+  text-align: center;
+  background: linear-gradient(180deg, #2a2418, #14110b);
+  border-bottom: 2px solid #6b5420;
+}
+.news-head {
+  margin: 0;
+}
+.news-head h2 {
+  line-height: 28px;
+}
+/* The X sits centred in that bar (10px padding + 28px line = 48px bar). */
+.modal-close,
+.news-close.modal-close {
+  top: 10px;
+  right: 10px;
+  transform: none;
+}
+/* The X comes before the title in the card: keep it above the title bar (which is position: relative). */
+.modal-close {
+  z-index: 2;
+}
+/* `.end-card button` (padding, letter-spacing) must not reshape the X. */
+.end-card button.modal-close {
+  width: 28px;
+  height: 28px;
+  min-width: 0;
+  padding: 0;
+  letter-spacing: 0;
+  background: var(--btn-bg);
+  border: var(--btn-border);
+}
+
+/* ------------------------------------------------------------- modal look (every modal) */
+/* Grey steel panel: brushed gunmetal, bevelled edge, a screw in each corner; the header is a lighter steel
+   plate with the title engraved into it; the X is a small steel key. */
+:root {
+  --steel-panel:
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.03) 0 1px, rgba(0, 0, 0, 0.03) 1px 2px, transparent 2px 4px),
+    linear-gradient(180deg, #4b5259 0%, #3a4047 40%, #30353b 100%);
+  --steel-plate:
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.06) 0 1px, rgba(0, 0, 0, 0.04) 1px 2px, transparent 2px 4px),
+    linear-gradient(180deg, #8e969e 0%, #6f777f 50%, #5d646b 100%);
+  --steel-screw: radial-gradient(circle at 35% 35%, #d5dadf, #7c848c 60%, #3e444a);
+  --steel-edge: #1c2024;
+}
+.fp-modal,
+.end-card,
+.news-modal {
+  position: relative;
+  background: var(--steel-panel);
+  border: 1px solid var(--steel-edge);
+  border-radius: 4px;
+  outline: none;
+  backdrop-filter: none;
+  box-shadow:
+    0 24px 60px rgba(0, 0, 0, 0.7),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    inset 1px 0 0 rgba(255, 255, 255, 0.08),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.45),
+    inset 0 0 0 4px #3f454c,
+    inset 0 0 0 5px rgba(0, 0, 0, 0.35);
+}
+/* Four screws, one per corner. */
+.fp-modal::after,
+.end-card::after,
+.news-modal::after {
+  content: '';
+  position: absolute;
+  inset: 4px;
+  pointer-events: none;
+  background:
+    var(--steel-screw) left top / 8px 8px no-repeat,
+    var(--steel-screw) right top / 8px 8px no-repeat,
+    var(--steel-screw) left bottom / 8px 8px no-repeat,
+    var(--steel-screw) right bottom / 8px 8px no-repeat;
+  -webkit-mask: radial-gradient(circle 4px, #000 98%, transparent) left top / 8px 8px no-repeat,
+    radial-gradient(circle 4px, #000 98%, transparent) right top / 8px 8px no-repeat,
+    radial-gradient(circle 4px, #000 98%, transparent) left bottom / 8px 8px no-repeat,
+    radial-gradient(circle 4px, #000 98%, transparent) right bottom / 8px 8px no-repeat;
+  mask: radial-gradient(circle 4px, #000 98%, transparent) left top / 8px 8px no-repeat,
+    radial-gradient(circle 4px, #000 98%, transparent) right top / 8px 8px no-repeat,
+    radial-gradient(circle 4px, #000 98%, transparent) left bottom / 8px 8px no-repeat,
+    radial-gradient(circle 4px, #000 98%, transparent) right bottom / 8px 8px no-repeat;
+  z-index: 3;
+}
+/* Header plate. */
+.end-card > h1,
+.end-card > h2,
+.news-head {
+  background: var(--steel-plate);
+  border-bottom: 1px solid var(--steel-edge);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), inset 0 -1px 0 rgba(0, 0, 0, 0.3), 0 2px 4px rgba(0, 0, 0, 0.45);
+}
+.end-card > h1::before,
+.end-card > h2::before,
+.news-head::before,
+.fp-header h1::before,
+.mp-modal h2::before {
+  content: none;
+}
+/* Engraved title. */
+.end-card > h1,
+.end-card > h2,
+.news-head h2 {
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  font-size: var(--modal-title-size);
+  font-weight: 800;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  color: #24292e;
+  background-clip: border-box;
+  filter: none;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.4), 0 -1px 0 rgba(0, 0, 0, 0.35);
+}
+.news-head h2 {
+  background: none;
+}
+/* Titles on the panel itself (faction picker, lobby): engraved into the darker steel. */
+.fp-header h1,
+.mp-modal h2 {
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  font-size: var(--modal-title-size);
+  font-weight: 800;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  color: #1d2125;
+  background: none;
+  filter: none;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.18), 0 -1px 0 rgba(0, 0, 0, 0.6);
+}
+.end-screen[role='alertdialog'] .end-card > h1 {
+  color: var(--end-color);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.3), 0 -1px 0 rgba(0, 0, 0, 0.7), 0 0 2px #000;
+}
+/* X: small steel key. */
+.modal-close,
+.end-card button.modal-close {
+  color: #2a2f34;
+  background: linear-gradient(180deg, #c3c9ce, #858d95);
+  border: 1px solid var(--steel-edge);
+  border-radius: 3px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7), 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+.modal-close:hover,
+.end-card button.modal-close:hover {
+  color: #000;
+  background: linear-gradient(180deg, #e2e6e9, #9ea6ad);
+  border-color: var(--steel-edge);
+}
+
+/* ------------------------------------------------------------- cursor: every clickable control is a pointer */
+button,
+select,
+summary,
+label:has(> input[type='checkbox']),
+label:has(> input[type='radio']),
+input[type='checkbox'],
+input[type='radio'],
+input[type='range'],
+[role='button'],
+[role='tab'],
+[data-act],
+a[href] {
+  cursor: pointer;
+}
+button:disabled,
+select:disabled,
+input:disabled {
+  cursor: not-allowed;
+}
+
+/* Sidebar header: hide button top-left, Settings top-right. */
+.sb-header .sb-collapse {
+  left: 0;
+  right: auto;
+}
+.sb-settings:hover,
+.sb-collapse:hover {
+  border-color: var(--btn-border-hover);
 }
