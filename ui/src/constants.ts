@@ -34,7 +34,7 @@ export const DEMO_FACTION: FactionId = NATION_CODES[(import.meta.env.VITE_DEMO_F
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "3.73.5";
+export const GAME_VERSION = "3.74.2";
 
 /** An Allied Building within this many cells of any capital is an embassy; farther out it is a "Pro-<nation> regime". */
 export const EMBASSY_CAPITAL_CELLS = 25;
@@ -1437,3 +1437,8 @@ export const DEMO_SPREAD = 3;
 export const CAPITAL_SEA_CLEARANCE = 4;
 /** How far (cells) a capital may be moved inland from its real spot to clear the coast. */
 export const CAPITAL_INLAND_SEARCH = 20;
+
+/** Day / night: one full turn of the Earth every this many game seconds. */
+export const DAY_NIGHT_SECONDS = 360;
+/** Darkness of the deepest night (0..1 alpha of the tint): kept low so the night side stays playable. */
+export const DAY_NIGHT_DARKNESS = 0.45;

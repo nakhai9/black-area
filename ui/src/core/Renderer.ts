@@ -35,6 +35,7 @@ import type { Peak, TerrainRenderer } from '../map/TerrainRenderer';
 import { createCanvas, get2d } from '../render/Canvas';
 import { withAlpha } from '../render/Color';
 import { IsoPainter } from '../render/IsoPainter';
+import { dayNight } from '../render/DayNight';
 import { type Sprite, type SpriteCache, spriteRaster } from '../render/SpriteCache';
 import type { FactionId, Rect, VehicleKind } from '../types';
 import type { Camera } from './Camera';
@@ -350,6 +351,10 @@ export class Renderer {
     for (const u of units) if (u instanceof Vehicle && (selUnits.has(u.id) || u.id === scene.pathPeekId)) this.drawOrderLine(u, scene.time);
     // Aircraft fly above everything on the ground.
     for (const u of units) if (u.flies) this.drawUnit(u);
+    // Night side of the Earth: a light tint over the world, under the rings, bars and labels (still playable).
+    this.ground();
+    dayNight.draw(ctx, scene.time);
+    this.upright();
     if (scene.ghost) this.drawGhost(scene.ghost);
     this.upright();
     for (const f of focus) if (f.entity.kind !== 'building' && !f.airLock) this.drawFocusMarks(f.entity, f.strong && f.entity.id !== scene.enemyInfoId);

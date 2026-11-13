@@ -11,6 +11,7 @@ import { teamColors } from '../factions';
 import { geoToWorld } from '../map/Geo';
 import type { TerrainRenderer } from '../map/TerrainRenderer';
 import { createCanvas, get2d } from '../render/Canvas';
+import { dayNight } from '../render/DayNight';
 import type { WorldPoint } from '../types';
 
 /**
@@ -113,6 +114,8 @@ export class Minimap {
     ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
     ctx.drawImage(this.base, 0, 0);
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    // Night side of the Earth, as on the battlefield (under the markers, so they stay readable).
+    dayNight.draw(ctx, time, this.offX, this.offY, this.terrain.width * this.scale, this.terrain.height * this.scale);
 
     for (const b of buildings) {
       if (!shown(b.owner)) continue;
