@@ -413,7 +413,7 @@ export class AircraftSystem implements GameSystem {
       const spot = this.hooks.landingSpot(v.px, v.py, v);
       if (spot) {
         v.dropSpot = spot;
-        v.pickup = v.cargo.length === 0;
+        v.pickup = true; // loaded or empty it waits on the ground: passengers only get out on an Unload order
         v.landedIdle = 0;
         v.flight = 'unloading';
         v.phaseTime = 0;
@@ -1243,8 +1243,8 @@ export class AircraftSystem implements GameSystem {
       }
     }
     // Over the sea (no ground near): it hovers until it is sent somewhere else.
-    // Loaded: it sets down and lets everyone out on its own (no Unload order needed); empty: it waits for passengers.
-    if (!this.setDown(v, v.cargo.length === 0)) v.idleFor = 0;
+    // Loaded or empty it just sets down and waits: passengers only get out on an Unload order.
+    if (!this.setDown(v, true)) v.idleFor = 0;
   }
 
   /** Standing on solid ground away from an airfield: takes passengers, then flies off when given a destination. */

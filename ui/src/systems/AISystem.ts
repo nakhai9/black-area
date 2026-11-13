@@ -602,6 +602,7 @@ export class AISystem implements GameSystem {
   private think(p: PlayerState, st: AIState): void {
     const capital = this.host.entities.buildings().find((b) => b.owner === p.id && b.alive && b.spec.type === 'capital');
     if (p.defeated) return;
+    this.unloadLandedTransports(p);
     const owned = this.host.ownedTypesOf(p);
     if (!capital) {
       // Government gone: no more structures, but a surviving Barracks / War Factory / Airfield still raises troops
@@ -2545,6 +2546,21 @@ export class AISystem implements GameSystem {
   }
 
   /** Airlifts: a transport takes off once its soldiers are aboard (or after AI_AIRLIFT_WAIT s) and lands them near the goal. */
+  /**
+   * Transports never let their passengers out on their own (the player must press Unload): the AI presses it for
+   * every loaded transport aircraft standing in the field, except inside its own safe zones where it is still taking
+   * evacuees aboard. Helicopters and trucks are unloaded by driveAirlifts / the convoy logic.
+   */
+  private unloadLandedTransports(p: PlayerState): void {
+    const zones = this.host.safeZones.zonesOf(p.id);
+    for (const v of this.host.entities.vehicles()) {
+      if (v.owner !== p.id || !v.alive || !v.isTransport || v.flight !== 'landed') continue;
+      if (v.cargo.length === 0 || v.incoming > 0 || v.ejecting) continue;
+      if (zones.some((z) => this.host.safeZones.contains(z, v.px, v.py))) continue;
+      this.host.unloadCarrier(v);
+    }
+  }
+
   private driveAirlifts(p: PlayerState, st: AIState): void {
     if (!st.airlifts) return;
     for (const [id, job] of st.airlifts) {
