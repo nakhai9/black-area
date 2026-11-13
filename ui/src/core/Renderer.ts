@@ -845,14 +845,14 @@ export class Renderer {
   }
 
   /**
-   * Night driving: every moving ground vehicle, ship or helicopter on the night side lights its headlights — a soft
-   * cone of light ahead of it (planes fly by instruments: no lights) (ground transform, drawn over the night tint).
+   * Night driving: every moving ground vehicle or ship on the night side lights its headlights — a soft
+   * cone of light ahead of it (aircraft and helicopters fly by instruments: no lights) (ground transform, drawn over the night tint).
    */
   private drawHeadlights(units: readonly Unit[], time: number): void {
     const { ctx } = this;
     let lit = false;
     for (const u of units) {
-      if (!(u instanceof Vehicle) || (u.aircraft && !u.isHeli) || !u.alive || !u.moving) continue;
+      if (!(u instanceof Vehicle) || u.aircraft || !u.alive || !u.moving) continue;
       const night = dayNight.nightAt(u.px, u.py, time);
       if (night < 0.25) continue;
       if (!lit) {
@@ -860,9 +860,7 @@ export class Renderer {
         ctx.globalCompositeOperation = 'lighter';
         lit = true;
       }
-      // A helicopter's light shines from where it hangs in the air (lifting by L iso px = −2L world px on x and y).
-      const alt = u.flies ? u.altitude : 0;
-      const o = this.lifted(u.px - 2 * alt, u.py - 2 * alt);
+      const o = this.lifted(u.px, u.py);
       const c = Math.cos(u.heading);
       const sn = Math.sin(u.heading);
       const r = Math.max(1, u.radius);
