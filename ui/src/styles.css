@@ -2647,3 +2647,55 @@ input:disabled {
 .sb-collapse:hover {
   border-color: var(--btn-border-hover);
 }
+
+/* Tool buttons (Home / Turbo / Unload / Bridge / Mine + peace timer): one horizontal row on the bottom edge of the screen. */
+.air-tools {
+  bottom: 8px;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+.peace-timer {
+  align-self: center;
+}
+
+/* Turbo recharge: a ring round the button that fills clockwise from the top (full circle = 100%). */
+.air-tool-ring {
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  pointer-events: none;
+  background: conic-gradient(#8b5cf6 calc(var(--p, 0) * 360deg), rgba(139, 92, 246, 0.18) 0);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3.5px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3.5px));
+}
+.air-tool-ring[hidden] {
+  display: none;
+}
+
+/* The arc glides smoothly between sidebar refreshes; no spinning. Bold, solid colour: 50% charged = half a circle. */
+@property --p {
+  syntax: '<number>';
+  inherits: false;
+  initial-value: 0;
+}
+.air-tool-ring {
+  inset: -3px;
+  transition: --p 0.35s linear;
+  background: conic-gradient(#c4a2ff calc(var(--p) * 360deg), transparent 0);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2.5px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2.5px));
+  filter: drop-shadow(0 0 2px #000);
+}
+/* While recharging the button is not faded as a whole (that would fade the arc too): only its icon is. */
+.air-tool:disabled:has(.air-tool-ring:not([hidden])) {
+  opacity: 1;
+}
+.air-tool:disabled:has(.air-tool-ring:not([hidden])) svg {
+  opacity: 0.4;
+}
+
+/* The ring exists only while recharging. */
+.air-tool-ring[hidden] {
+  display: none !important;
+}

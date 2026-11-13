@@ -332,7 +332,6 @@ export class Renderer {
     if (scene.waypointPlan) this.drawWaypointPlan(scene.waypointPlan);
     if (scene.rallyLine) this.drawRallyLine(scene.rallyLine.from, scene.rallyLine.to);
     const focus = scene.focus ?? [];
-    for (const f of focus) if (f.entity.kind !== 'building' && !f.airLock) this.drawFocusRing(f.entity, f.strong, scene.time);
 
     this.upright();
     // Structures under attack by my units: a red border round their cells, under the art.
@@ -357,7 +356,8 @@ export class Renderer {
     this.upright();
     if (scene.ghost) this.drawGhost(scene.ghost);
     this.upright();
-    for (const f of focus) if (f.entity.kind !== 'building' && !f.airLock) this.drawFocusMarks(f.entity, f.strong && f.entity.id !== scene.enemyInfoId);
+    // A target: a red crosshair (no ring, no brackets).
+    for (const f of focus) if (f.entity.kind !== 'building' && !f.airLock) this.drawFocusMarks(f.entity, f.strong && f.entity.id !== scene.enemyInfoId, scene.time);
     for (const f of focus) if (f.airLock) this.drawAirLock(f.entity);
     for (const l of scene.taskLocks ?? []) this.drawAirLock(l.entity, l.color);
     if (selected) this.drawFootprintEdge(selected, scene.time);
@@ -833,7 +833,6 @@ export class Renderer {
     }
   }
 
-  /** RA2-style selection ring under a unit's feet: a circle on the ground, so an ellipse on screen (ground transform). */
   /** Weapon range of a unit: light green disc with a thin edge (ground transform). */
   /**
    * Raised ground in the ground transform: a ring or marker at world (x, y) is moved with the ground there
@@ -842,6 +841,17 @@ export class Renderer {
   private lifted(x: number, y: number): { x: number; y: number } {
     const l = 2 * liftAt(x, y);
     return { x: x - l, y: y - l };
+  }
+
+  /** RA2-style selection ring under a unit's feet: a circle on the ground, so an ellipse on screen (ground transform). */
+  private drawUnitRing(u: Unit, color: string): void {
+    const { ctx } = this;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 3 / this.camera.zoom;
+    const p = this.lifted(u.px, u.py);
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, Math.max(1.8, u.radius * 1.35), 0, Math.PI * 2);
+    ctx.stroke();
   }
 
   private drawRangeCircle(u: Unit, range: number): void {
@@ -853,16 +863,6 @@ export class Renderer {
     ctx.fill();
     ctx.strokeStyle = 'rgba(144,238,144,0.7)';
     ctx.lineWidth = 1.5 / this.camera.zoom;
-    ctx.stroke();
-  }
-
-  private drawUnitRing(u: Unit, color: string): void {
-    const { ctx } = this;
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 3 / this.camera.zoom;
-    const p = this.lifted(u.px, u.py);
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, Math.max(1.8, u.radius * 1.35), 0, Math.PI * 2);
     ctx.stroke();
   }
 
@@ -943,48 +943,42 @@ export class Renderer {
     return { x: P.x, y: P.y - lift - u.bodyHeight * 0.5 };
   }
 
-  /** RA2-style target focus, part 1: a pulsing red ring under the enemy (ground transform). */
-  private drawFocusRing(u: Unit, strong: boolean, time: number): void {
-    const { ctx } = this;
-    const pulse = 0.5 + 0.5 * Math.sin(time * 7);
-    const half = Math.max(2.2, u.radius * 1.5) * (1.05 + (strong ? 0.12 * pulse : 0));
-    ctx.save();
-    ctx.globalAlpha = strong ? 0.75 + 0.25 * pulse : 0.5;
-    ctx.strokeStyle = '#ff3b30';
-    ctx.lineWidth = (strong ? 4.5 : 3) / this.camera.zoom;
-    const p = this.lifted(u.px, u.py);
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, half * 1.1, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.restore();
-  }
-
-  /** Part 2: red corner brackets round the unit's picture and, when strong, its name (upright transform). */
-  private drawFocusMarks(u: Unit, strong: boolean): void {
-    const { ctx } = this;
-    const k = 1 / this.camera.zoom;
+  /** Picture box of a unit in iso px (upright transform): centre x, half width, top and bottom. */
+  private unitBox(u: Unit): { x: number; half: number; top: number; bottom: number } {
     const P = worldToIso(u.px, u.py);
     const lift = u.flies && 'altitude' in u ? Number((u as { altitude: number }).altitude) : 0;
-    const half = Math.max(2.2, u.radius * 1.5);
-    const top = P.y - lift - Math.max(u.bodyHeight, 2) - 1.6;
-    const bottom = P.y - lift + 1.2;
+    return { x: P.x, half: Math.max(2.2, u.radius * 1.5), top: P.y - lift - Math.max(u.bodyHeight, 2) - 1.6, bottom: P.y - lift + 1.2 };
+  }
+
+  /** Target mark: a red crosshair (ring + four ticks + centre dot) on the unit, gently pulsing when strong; with its name tag when strong (upright transform). */
+  private drawFocusMarks(u: Unit, strong: boolean, time = 0): void {
+    const { ctx } = this;
+    const k = 1 / this.camera.zoom;
+    const { x: px, half, top, bottom } = this.unitBox(u);
+    const P = { x: px };
+    const cy = (top + bottom) / 2;
+    const pulse = strong ? 0.5 + 0.5 * Math.sin(time * 6) : 0;
+    const r = Math.max(1.6, Math.min(half, (bottom - top) / 2)) * (1 + 0.08 * pulse);
+    const tick = r * 0.45;
     ctx.save();
-    ctx.globalAlpha = strong ? 0.95 : 0.55;
+    ctx.globalAlpha = strong ? 0.85 + 0.15 * pulse : 0.6;
     ctx.strokeStyle = '#ff3b30';
-    ctx.lineWidth = (strong ? 1.6 : 1.1) * k;
-    const len = Math.min(1.4, half * 0.5);
+    ctx.fillStyle = '#ff3b30';
+    ctx.lineWidth = (strong ? 1.6 : 1.2) * k;
     ctx.beginPath();
-    for (const [cx, cy, sx, sy] of [
-      [P.x - half, top, 1, 1],
-      [P.x + half, top, -1, 1],
-      [P.x - half, bottom, 1, -1],
-      [P.x + half, bottom, -1, -1],
-    ] as const) {
-      ctx.moveTo(cx + sx * len, cy);
-      ctx.lineTo(cx, cy);
-      ctx.lineTo(cx, cy + sy * len);
-    }
+    ctx.arc(px, cy, r, 0, Math.PI * 2);
+    ctx.moveTo(px, cy - r - tick * 0.4);
+    ctx.lineTo(px, cy - r + tick);
+    ctx.moveTo(px, cy + r + tick * 0.4);
+    ctx.lineTo(px, cy + r - tick);
+    ctx.moveTo(px - r - tick * 0.4, cy);
+    ctx.lineTo(px - r + tick, cy);
+    ctx.moveTo(px + r + tick * 0.4, cy);
+    ctx.lineTo(px + r - tick, cy);
     ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(px, cy, 1.4 * k, 0, Math.PI * 2);
+    ctx.fill();
     if (strong) {
       const name = 'name' in u ? String((u as { name: string }).name) : t('Enemy');
       const text = `${name} · ${FACTIONS[u.banner as keyof typeof FACTIONS]?.shortName ?? u.banner}`;

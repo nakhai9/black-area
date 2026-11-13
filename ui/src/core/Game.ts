@@ -332,7 +332,7 @@ const CROSSING_PASS_SECONDS = 3;
 const AIRFIELD_CLICK_MARGIN = 2;
 /** New vehicles park around a rally point this many cells out in front of the War Factory's door. */
 const PARKING_RALLY_CELLS = 5;
-/** DEMO: the ground army's drop point lies this many cells from the capital's centre. */
+/** DEMO: the ground combat units' rally point lies this many cells from the nearest of the nation's structures. */
 const DEMO_DROP_CELLS = 10;
 /** New soldiers and vehicles never wait closer than this many cells to the door they came out of (it stays clear). */
 const DOOR_CLEAR_CELLS = 2.5;
@@ -1380,7 +1380,7 @@ export class Game {
   private wasLowPower = false;
 
   /**
-   * DEMO: the ground army waits at its own drop point DEMO_DROP_CELLS from the capital, one unit per cell; the
+   * DEMO: the ground combat units gather at one rally point DEMO_DROP_CELLS from the nearest of my structures, one unit per cell; the
    * bridge layers wait on the nearest shore (river or sea) instead, ready to lay a bridge. Aircraft and ships stay put.
    */
   private deployDemoArmy(): void {
@@ -1423,24 +1423,42 @@ export class Game {
         if (c) put(v, c.x, c.y);
       }
     }
-    // Everyone else: a drop point DEMO_DROP_CELLS out from the capital (the first direction with dry ground).
-    const rest = units.filter((u) => !(u instanceof Vehicle && u.isBridgeLayer));
+    // Ground combat units (armed): one rally point clear of my base — the free dry cell closest to the capital that is
+    // at least DEMO_DROP_CELLS from every one of my buildings; the whole group stays that far out. The rest stay put.
+    const rest = units.filter((u) => u.weapon !== null && !(u instanceof Vehicle && u.isBridgeLayer));
     if (rest.length === 0) return;
+    const mine = this.entities.buildings().filter((b) => b.alive && b.owner === me.id);
+    /** Distance (cells) from a cell's centre to the nearest of my building footprints. */
+    const nearestBuilding = (x: number, y: number): number => {
+      let best = Infinity;
+      for (const b of mine) {
+        const dx = Math.max(b.x - (x + 0.5), 0, x + 0.5 - (b.x + b.w));
+        const dy = Math.max(b.y - (y + 0.5), 0, y + 0.5 - (b.y + b.d));
+        best = Math.min(best, Math.hypot(dx, dy));
+      }
+      return best;
+    };
     let drop: { x: number; y: number } | null = null;
-    for (let k = 0; k < 16 && !drop; k++) {
-      const a = (k / 16) * Math.PI * 2 + Math.PI / 2;
-      const x = Math.floor(ccx + Math.cos(a) * DEMO_DROP_CELLS);
-      const y = Math.floor(ccy + Math.sin(a) * DEMO_DROP_CELLS);
-      if (free(x, y)) drop = { x, y };
+    let dropD = Infinity;
+    const SEARCH = 80;
+    for (let y = Math.floor(ccy) - SEARCH; y <= ccy + SEARCH; y++) {
+      for (let x = Math.floor(ccx) - SEARCH; x <= ccx + SEARCH; x++) {
+        const d = Math.hypot(x + 0.5 - ccx, y + 0.5 - ccy);
+        if (d >= dropD || !free(x, y)) continue;
+        const n = nearestBuilding(x, y);
+        if (n < DEMO_DROP_CELLS) continue;
+        drop = { x, y };
+        dropD = d;
+      }
     }
     if (!drop) return;
-    // One unit per cell, filling outwards from the drop point (nearest cells first).
+    // One unit per cell, filling outwards from the drop point (nearest cells first), never within DEMO_DROP_CELLS of a building.
     const cells: { x: number; y: number }[] = [];
-    for (let r = 0; r <= 12 && cells.length < rest.length; r++) {
+    for (let r = 0; r <= 30 && cells.length < rest.length; r++) {
       for (let dy = -r; dy <= r; dy++) {
         for (let dx = -r; dx <= r; dx++) {
           if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
-          if (free(drop.x + dx, drop.y + dy)) cells.push({ x: drop.x + dx, y: drop.y + dy });
+          if (free(drop.x + dx, drop.y + dy) && nearestBuilding(drop.x + dx, drop.y + dy) >= DEMO_DROP_CELLS) cells.push({ x: drop.x + dx, y: drop.y + dy });
         }
       }
     }

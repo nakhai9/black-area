@@ -26,7 +26,7 @@
 <body>
 <main>
 <img class="logo" src="/logo.png" alt="Black Area" />
-<h1>Black Area — RULE <small>v3.74.18</small></h1>
+<h1>Black Area — RULE <small>v3.74.30</small></h1>
 <p class="lead">Tài liệu luật chơi + kiến trúc code dành cho AI/dev sửa game. Mọi con số gameplay chính xác nằm trong <code>src/constants.ts</code> và <code>src/factions/*.ts</code>. Nếu tài liệu này khác code thì <b>code đúng</b>. <b>Khi đổi luật/số trong code, phải cập nhật file này.</b></p>
 <nav><a href="#s1">Quy tắc làm việc cho AI</a><a href="#s2">Chạy dự án</a><a href="#s3">Kiến trúc thư mục</a><a href="#s4">Thế giới</a><a href="#s5">Kinh tế (dầu)</a><a href="#s6">Công trình (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Quân đội</a><a href="#s8">Chiến đấu</a><a href="#s9">Điều khiển (Game.handleKey, handleInput)</a><a href="#s10">Giới hạn &amp; hiệu năng</a><a href="#s11">Thắng / thua &amp; AI</a><a href="#s12">Công thức sửa thường gặp</a></nav>
 <h2 id="s1">0. Quy tắc làm việc cho AI</h2>
@@ -702,6 +702,18 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
   <li>v3.41.5: Sửa lỗi máy bay vận tải bay vòng tròn mãi quanh điểm hạ cánh (không đáp được, không nhận lệnh di chuyển): khi điểm đến nằm trong vòng quay, máy bay bay thẳng tới. Lệnh di chuyển mới trong lúc đang bay tới điểm hạ cánh giờ được nhận (hủy hạ cánh, bay đi).</li>
   <li>v3.41.5: Máy bay không còn nhận <b>Cảng (Naval Port)</b> làm sân bay nhà (không đậu, không hạ cánh, không được sinh ra ở cảng). Loại máy bay được đậu ở cảng sẽ quy ước sau: thêm vào <code>PORT_AIRCRAFT</code> trong <code>src/systems/AircraftSystem.ts</code>. Máy bay đang lấy cảng làm nhà (bản lưu cũ) sẽ chuyển sang sân bay khác của phe; không còn sân bay nào thì rơi như luật cũ.</li>
     <li>v3.56.1: <b>Giảm tiếng động cơ mọi phương tiện</b>: <code>VEHICLE_BED_GAIN</code> 1.6 → 1.0, máy bay / trực thăng <code>AIR_BED_BOOST</code> 2.2 → 1.5. <b>Máy bay vận tải</b> (C-17, Il-76, Y-20, A400M, mặc định) tăng gain 0.85–0.9 → 1.35 để to ngang các máy bay khác (tiếng động cơ trầm, ít tiếng rít nên trước nghe nhỏ hơn).</li>
+    <li>v3.74.30: Quân đang chọn / rê chuột / radar AWACS trở lại vòng dưới chân như cũ (bỏ góc ngoặc L); mục tiêu đang nhắm vẫn là tâm ngắm đỏ.</li>
+    <li>v3.74.29: Dấu chọn quân gọn lại, mỗi quân chỉ một dấu: quân đang chọn = 4 góc ngoặc xanh (rê chuột: trắng, radar AWACS: đỏ), bỏ vòng dưới chân; mục tiêu đang nhắm = tâm ngắm đỏ (vòng + 4 vạch + chấm giữa, nhấp nháy nhẹ khi đang bắn), bỏ vòng đỏ và góc ngoặc đỏ.</li>
+    <li>v3.74.28: Vòng nạp Turbo dày 3px.</li>
+    <li>v3.74.27: Vòng Turbo chỉ hiện trong lúc đang nạp lại (sẵn sàng / đang bay Turbo thì không có vòng).</li>
+    <li>v3.74.26: Vòng nạp Turbo mỏng lại còn 2px.</li>
+    <li>v3.74.25: Vòng nạp Turbo: bỏ xoay, chỉ là cung tròn đậm rõ theo % đã nạp (50% = nửa vòng), nút không còn làm mờ vòng.</li>
+    <li>v3.74.24: Vòng nạp Turbo chạy động: phần nạp trôi mượt, có tia sáng chạy vòng quanh và viền phát sáng.</li>
+    <li>v3.74.23: Nút Turbo khi nạp lại: thay số % bằng <b>vòng tròn chạy quanh nút</b> (đủ một vòng = 100%), không hiện số giây.</li>
+    <li>v3.74.22: Các nút công cụ (Home / Turbo / Unload / Bridge / Mine) và đồng hồ hòa bình xếp thành <b>một hàng ngang</b> sát mép dưới màn hình (cạnh sidebar).</li>
+    <li>v3.74.21: Demo: cả nhóm quân chiến đấu mặt đất tập kết ở một chỗ cách <b>mọi</b> công trình của phe ít nhất 10 ô (không quân nào đứng sát công trình).</li>
+    <li>v3.74.20: Demo: các đơn vị chiến đấu mặt đất tập trung tại một điểm cách công trình gần nhất của phe 10 ô (mỗi quân một ô); áp dụng cho mọi phe trong demo.</li>
+    <li>v3.74.19: Nút <b>Unload</b> đổi icon (mũi tên đi ra khỏi vòng tròn, Material Design Icons); phương tiện không chở ai thì không hiện nút.</li>
     <li>v3.74.18: Trần bay của mọi phương tiện bay (<code>CRUISE_ALTITUDE</code>) cao thêm 10%, áp dụng cho cả người chơi và AI.</li>
     <li>v3.74.17: Modal kiểu panel kim loại xám: thép xám xước có mép vát và 4 ốc vít ở góc, thanh tiêu đề là tấm thép sáng hơn với chữ khắc chìm, nút X là phím thép (bỏ màu xanh lá).</li>
     <li>v3.74.16: Modal kiểu màn hình chỉ huy (terminal): kính CRT đen có vạch quét, ánh xanh lá phát quang, tiêu đề chữ mono in hoa xanh, đèn trạng thái nhấp nháy, nút X như phím terminal.</li>

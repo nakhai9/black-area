@@ -1,6 +1,6 @@
 import { CHARGE_ICON_PATH } from '../render/ChargeIcon';
 import { AlertToast } from './NewsToast';
-import { type IconNode, Settings, PackageOpen, Clock, House, Handshake, Newspaper, X, Wallet, Info, Keyboard, Droplet, Hammer, LogIn, LogOut, Minus, Plane, Rocket, Shield, TrendingDown, TrendingUp, Zap, createElement } from 'lucide';
+import { type IconNode, Settings, Clock, House, Handshake, Newspaper, X, Wallet, Info, Keyboard, Droplet, Hammer, LogIn, LogOut, Minus, Plane, Rocket, Shield, TrendingDown, TrendingUp, Zap, createElement } from 'lucide';
 
 /** Government building (Emoji One v1, CC BY-SA 4.0): in full colour, 64×64 grid scaled to the 24×24 icon box. */
 const Government: IconNode = [
@@ -44,6 +44,10 @@ import { t } from '../i18n';
  */
 /** Mine button icon: the red charge icon (Game Icons, CC BY 3.0), a 512 x 512 path. */
 const MINE_ICON: IconNode = [['path', { d: CHARGE_ICON_PATH }]];
+/** Unload (Material Design Icons by Pictogrammers, Apache-2.0): an arrow rising out of a broken ring. Filled. */
+const UNLOAD_ICON: IconNode = [
+  ['path', { d: 'M13 2.03c4.73.47 8.5 4.22 8.95 8.97A9.976 9.976 0 0 1 13 21.930v-2c3.64-.43 6.5-3.32 6.96-6.96A7.994 7.994 0 0 0 13 4.05zm-2 .03v2c-1.43.2-2.78.78-3.9 1.68L5.67 4.26A9.83 9.83 0 0 1 11 2.06M4.26 5.67L5.69 7.1A8 8 0 0 0 4.05 11h-2c.2-1.96.95-3.81 2.21-5.33M2.06 13h2c.18 1.420.75 2.77 1.63 3.9l-1.42 1.43A10.04 10.04 0 0 1 2.06 13m5.04 5.37c1.13.88 2.48 1.45 3.9 1.63v2c-1.96-.21-3.82-1-5.33-2.26zM12 7.5L7.5 12H11v4h2v-4h3.5z' }],
+];
 const BRIDGE_ICON: IconNode = [
   [
     'path',
@@ -533,9 +537,10 @@ export class Sidebar {
     tool(House, t('Home (H): jump the camera to your capital.'), () => this.handlers.onHome());
     this.turboButton = tool(Rocket, t('Turbo (T): the selected aircraft fly much faster for a while, then the turbo has to recharge before it can be used again.'), () => this.handlers.onTurbo());
     this.turboBadge = document.createElement('span');
-    this.turboBadge.className = 'air-tool-badge';
+    this.turboBadge.className = 'air-tool-ring'; // recharge progress: a ring that closes around the button
+    this.turboBadge.hidden = true;
     this.turboButton.append(this.turboBadge);
-    this.unloadButton = tool(PackageOpen, t('Unload (U): let the passengers out one by one. In the air the transport first lands on solid ground below it.'), () => this.handlers.onUnload());
+    this.unloadButton = tool(UNLOAD_ICON, t('Unload (U): let the passengers out one by one. In the air the transport first lands on solid ground below it.'), () => this.handlers.onUnload(), { fill: 'currentColor', stroke: 'none', 'stroke-width': 0 });
     this.bridgeButton = tool(BRIDGE_ICON, t('Bridge (B): the selected bridge layer lays its bridge right where it stands — park it at the edge of a river or the sea, facing the water. Used once.'), () => this.handlers.onBridge(), { fill: 'currentColor', stroke: 'none', 'stroke-width': 0 });
     this.mineButton = tool(MINE_ICON, t('Mine: the selected Crazy Soldier / engineer stops and lays a land mine on a cell next to him (3 per soldier). Only you see your mines.'), () => this.handlers.onMine(), { viewBox: '0 0 512 512', fill: 'currentColor', stroke: 'none', 'stroke-width': 0 });
     this.mineButton.hidden = true;
@@ -633,7 +638,10 @@ export class Sidebar {
     this.turboButton.hidden = a === null;
     this.turboButton.disabled = !a?.ready;
     this.turboButton.classList.toggle('lit', !!a?.ready);
-    this.turboBadge.textContent = !a || a.ready ? '' : a.active > 0 ? `${Math.ceil(a.active)}s` : `${Math.floor(a.charge * 100)}%`;
+    // Recharging: a ring runs round the button (a full circle = 100%); no numbers.
+    const charging = !!a && !a.ready && a.active <= 0 && a.charge < 1;
+    this.turboBadge.hidden = !charging;
+    if (charging) this.turboBadge.style.setProperty('--p', String(Math.min(1, Math.max(0, a.charge))));
   }
 
   /** Transport panel: seats taken / free and the Unload button, lit while there are passengers to let out. */
@@ -682,9 +690,9 @@ export class Sidebar {
     }
     this.renderTransport(model.transport);
     this.renderAircraft(model.aircraft);
-    // Unload works only for a carrier with someone aboard (a fighter / bomber has no seats).
+    // Unload shows only for a carrier with someone aboard (empty, or a fighter / bomber with no seats: hidden).
     const carrier = model.transport;
-    this.unloadButton.hidden = carrier === null;
+    this.unloadButton.hidden = !carrier || carrier.soldiers + carrier.vehicles === 0;
     this.unloadButton.disabled = !carrier || carrier.soldiers + carrier.vehicles === 0 || carrier.state === 'unloading' || !carrier.canUnload;
     this.unloadButton.classList.toggle('lit', !this.unloadButton.disabled);
     this.bridgeButton.hidden = !model.bridgeReady;
