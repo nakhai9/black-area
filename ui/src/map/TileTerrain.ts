@@ -1,5 +1,5 @@
 import { CELL_SIZE, WORLD_SCALE } from '../constants';
-import { ValueNoise } from '../core/Random';
+import { ValueNoise, hash2 } from '../core/Random';
 import { createCanvas } from '../render/Canvas';
 import { CELL_METRES, RELIEF_LIFT } from './Relief';
 import type { EarthData } from './EarthData';
@@ -114,6 +114,19 @@ const TRAIL_WIDTH = 1;
 const TRAIL_REGION = 0.012;
 const TRAIL_REGION_MIN = 0.4;
 const SNOWCAP = rgb('#f1f3f6');
+// Farmland on grass: paddy rice (lush green, flooded sheen) and wheat (golden), split into plots by earthen dikes.
+const RICE_A = rgb('#6fb43c');
+const RICE_B = rgb('#88c84a');
+const RICE_WATER = rgb('#5f8f86');
+const WHEAT_A = rgb('#d8b452');
+const WHEAT_B = rgb('#e8c868');
+const WHEAT_DRY = rgb('#c49a40');
+const DIKE = rgb('#8a7a4a');
+/** Plot size in cells. */
+const FARM_PLOT = 4;
+/** Coarse noise scale / threshold choosing which grassland regions are farmed. */
+const FARM_REGION = 0.035;
+const FARM_MIN = 0.62;
 
 /**
  * Height (m) and slope (m per cell, along x and y) at a point between cell centres (array coords: cell (i, j) centre at
@@ -371,6 +384,39 @@ export class TileTerrain {
     return { core: smooth(w, w * 0.45, d) * fade, edge: smooth(w * 1.6, w, d) * (1 - smooth(w, w * 0.6, d)) * fade };
   }
 
+  /**
+   * Rice paddies and wheat fields on farmed grassland: a coarse noise picks farm regions; inside, the ground is cut
+   * into FARM_PLOT-cell plots (every other row shifted half a plot), each one rice or wheat (rice likelier in the
+   * tropics), with furrow stripes and a darker dike round each plot. Ground paint only: no effect on movement/building.
+   */
+  private farm(fx: number, fy: number, blend: (q: RGB, w: number) => void): void {
+    const region = this.noise.noise(fx * FARM_REGION + 131, fy * FARM_REGION + 7);
+    if (region < FARM_MIN) return;
+    const fade = smooth(FARM_MIN, FARM_MIN + 0.05, region);
+    const row = Math.floor(fy / FARM_PLOT);
+    const sx = fx / FARM_PLOT + (row % 2) * 0.5;
+    const col = Math.floor(sx);
+    const h = hash2(col, row, 977);
+    if (h < 0.15) return; // a few plots left fallow (plain grass)
+    const lat = 90 - (fy / this.map.height) * 180;
+    const riceChance = 0.25 + 0.5 * (1 - smooth(15, 35, Math.abs(lat)));
+    const rice = hash2(row, col, 433) < riceChance;
+    const u = sx - col;
+    const v = fy / FARM_PLOT - row;
+    const edge = Math.min(u, 1 - u, v, 1 - v) * FARM_PLOT; // cells from the plot border
+    const along = hash2(col, row, 211) < 0.5 ? fx : fy; // furrow direction per plot
+    const stripe = 0.5 + 0.5 * Math.sin(along * Math.PI * 3);
+    if (rice) {
+      blend(RICE_A, 0.85 * fade);
+      blend(RICE_B, stripe * 0.5 * fade);
+      blend(RICE_WATER, smooth(0.6, 0.85, this.noise.noise(fx * 0.9 + 3, fy * 0.9 + 1)) * 0.35 * fade);
+    } else {
+      blend(h > 0.6 ? WHEAT_B : WHEAT_A, 0.85 * fade);
+      blend(WHEAT_DRY, stripe * 0.35 * fade);
+    }
+    blend(DIKE, smooth(0.14, 0.04, edge) * 0.8 * fade);
+  }
+
   private base(t: number, fx: number, fy: number, _n1: number, mott: number): void {
     const c = this.col;
     let a: RGB;
@@ -422,6 +468,7 @@ export class TileTerrain {
       if (clump > 0.55) blend(GRASS_DARK, smooth(0.55, 0.8, clump) * 0.45);
       const patch = this.noise.noise(fx * 0.55 + 31, fy * 0.55 + 17);
       if (patch > 0.66) blend(DIRT, smooth(0.66, 0.84, patch) * 0.6);
+      this.farm(fx, fy, blend);
       const tr = this.trail(fx, fy);
       if (tr.edge > 0) blend(TRAIL_EDGE, tr.edge * 0.45);
       if (tr.core > 0) blend(TRAIL, tr.core * 0.8);
