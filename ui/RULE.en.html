@@ -355,7 +355,7 @@ npm run build:earth  # regenerate public/data/earth.png (scripts/build-earth.mjs
 <ul>
   <li>Base cost <code>700</code> TB, <code>9</code> s, <code>240</code> HP, speed <code>2.1</code> (faster than infantry 1.3–1.7 and tanks 1.4); unarmed, land only (cannot cross sea), produced at the War Factory. Sprites rendered from 3D models (tools/ground_model_sheet.py, 32 directions, row 2 is the burnt wreck): <code>public/sprites/truck-kamaz.png</code> (KamAZ-5330), <code>truck-mtvr.png</code> (Oshkosh MTVR), <code>truck-zetros.png</code> (Mercedes-Benz Zetros).</li>
   <li>Carries <b>at most 8 soldiers</b> (<code>TRUCK_SOLDIERS</code>) to spare them marching fatigue; <b>carries no vehicles of any kind</b> (tanks, other vehicles, aircraft/helicopters).</li>
-  <li>A truck only drives when carrying at least <code>TRUCK_MIN_RIDERS = 6</code>/<code>8</code> soldiers (exception: rolling out of the War Factory to its parking spot). With fewer, the truck stays put, and a move order reports not enough soldiers. AI only boards when 6 soldiers are gathered; a moving truck with fewer than 6 soldiers unloads everyone to walk.</li>
+  <li>Trucks drive freely, loaded or empty. The AI only sends one out with at least <code>TRUCK_MIN_RIDERS = 4</code> soldiers aboard, drives empty trucks back to its capital for reuse, and builds no new truck while an empty one is free.</li>
   <li>Boarding: select soldiers then click the truck (the truck stops and waits). Unloading: select the truck, press <b>U</b> or double left-click the selected vehicle itself (applies to every troop-carrying vehicle/aircraft) — the vehicle stays put, each soldier steps out to an empty adjacent cell. If the truck is destroyed, everything on it is lost too.</li>
 </ul>
 <h3>Infantry marching (fatigue)</h3>
@@ -509,7 +509,6 @@ npm run build:earth  # regenerate public/data/earth.png (scripts/build-earth.mjs
   <li>Mountains: soldiers and ground vehicles never stand/walk on ridges (only through trails); peaks are drawn by depth so they hide units standing behind them. Box-selecting a group containing a transport vehicle/aircraft/helicopter and then left-clicking that vehicle itself: the other units board, the vehicle stays selected, anyone who doesn't fit stays outside and remains selected (v1.122.0).</li>
   <li>Allied Building can only be built once you have Barracks + War Factory; AI follows this rule too (v1.123.0).</li>
   <li>The mini map draws mountain ranges as reddish-brown curves along the ridge lines on the map, to show which areas have mountains (v1.124.0).</li>
-  <li>Trucks short of soldiers (under 6/8, including empty trucks) can still drive inside the base: when the destination is at most <code>TRUCK_HOME_CELLS = 20</code> cells from one of your buildings; farther out they still need 6 soldiers. Applies to AI too (v1.125.0).</li>
   <li>Cycle: war 10 minutes (previously 6), peace 2.5 minutes (previously 4) (v1.126.0).</li>
   <li>Load game screen: faction logo replaces the text "LOAD GAME", a "Start with &lt;faction&gt;" button in the faction color, the Main menu button on the left; before entering the game the empty sidebar and compass rose in the bottom-left corner are no longer shown (v1.127.0).</li>
   <li>The Home button (go to capital) only moves the camera to the capital, no longer leaving a dashed focus outline on the button (v1.127.1).</li>

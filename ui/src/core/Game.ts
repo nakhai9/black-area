@@ -121,8 +121,6 @@ import {
   EMBASSY_CAPITAL_CELLS,
   MAX_ALLIES,
   GAME_VERSION,
-  TRUCK_MIN_RIDERS,
-  TRUCK_HOME_CELLS,
   MOUNTAIN_PASS,
   TRUCE_GRACE_SECONDS,
   TRUCE_ZONE_CELLS,
@@ -132,7 +130,6 @@ import {
   CARRIER_NATIONS,
   MOUNTAIN_PASS_SPEED_INFANTRY,
   MOUNTAIN_PASS_SPEED_VEHICLE,
-  TRUCK_SOLDIERS,
   GUARD_VISION_FACTOR,
 } from '../constants';
 import { worldToIso } from './IsoView';
@@ -3118,17 +3115,6 @@ export class Game {
     }
   }
 
-  /** Trucks short of riders may still drive around their own base: flags those heading for a spot near an own building. */
-  private markTrucksAtHome(): void {
-    const reach = TRUCK_HOME_CELLS * CELL_SIZE;
-    let mine: Building[] | null = null;
-    for (const t of this.entities.vehicles()) {
-      if (!t.isTruck || !t.alive || t.cargo.length >= TRUCK_MIN_RIDERS) continue;
-      mine ??= this.entities.buildings().filter((b) => b.alive);
-      const at = t.destination ?? { x: t.px, y: t.py };
-      t.atHome = mine.some((b) => b.owner === t.owner && distanceTo(at.x, at.y, b) <= reach);
-    }
-  }
 
   /** Fixed-rate simulation step. */
   /**
@@ -3186,7 +3172,6 @@ export class Game {
     this.entities.update(dt);
     this.motionSound();
     this.keepOutOfWater();
-    this.markTrucksAtHome();
     this.crushInfantry();
     this.processBoarding();
     this.processTruckUnloading(dt);
@@ -7434,10 +7419,6 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       units = units.filter((u) => !u.naval);
       if (units.length === 0) return;
     }
-    // Short-handed trucks only drive within the base: warn when one is sent farther out.
-    const inBase = this.entities.buildings().some((b) => b.alive && b.owner === this.humanPlayer.id && distanceTo(world.x, world.y, b) <= TRUCK_HOME_CELLS * CELL_SIZE);
-    const parkedTruck = inBase ? undefined : units.find((u) => u instanceof Vehicle && u.isTruck && u.owner === this.humanPlayer.id && u.cargo.length < TRUCK_MIN_RIDERS);
-    if (parkedTruck instanceof Vehicle) this.sidebar.notify(t('The truck needs {min}/{max} soldiers aboard to drive outside the base ({now} now).', { min: TRUCK_MIN_RIDERS, max: TRUCK_SOLDIERS, now: parkedTruck.cargo.length }), 3);
     // A new move order ends a repair job (mending, or driving to a repair vehicle).
     for (const u of units) if (u instanceof Vehicle) {
       u.heliRevenge = null;

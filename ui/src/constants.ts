@@ -34,7 +34,7 @@ export const DEMO_FACTION: FactionId = NATION_CODES[(import.meta.env.VITE_DEMO_F
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "3.74.34";
+export const GAME_VERSION = "3.75.0";
 
 /** An Allied Building within this many cells of any capital is an embassy; farther out it is a "Pro-<nation> regime". */
 export const EMBASSY_CAPITAL_CELLS = 25;
@@ -950,10 +950,8 @@ export const INFANTRY_RECOVER_SECONDS = 10;
 
 /** Army truck load: soldiers only, never a vehicle. */
 export const TRUCK_SOLDIERS = 8;
-/** An army truck only drives with at least this many soldiers aboard (rolling out of the factory excepted). */
-export const TRUCK_MIN_RIDERS = 6;
-/** ...except inside its own base: a truck heading for a spot within this many cells of one of its nation's buildings drives with any load (even empty). */
-export const TRUCK_HOME_CELLS = 20;
+/** Trucks drive freely, loaded or empty. The AI only sends one out with at least this many soldiers aboard (no half-empty runs). */
+export const TRUCK_MIN_RIDERS = 4;
 
 /**
  * Temporary: only these vehicles can be produced (sidebar and AI). The rest stay in the code but are

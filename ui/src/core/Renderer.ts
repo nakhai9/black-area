@@ -1290,9 +1290,10 @@ export class Renderer {
         drawCharge(ctx, e.x, e.y, e.ttl - e.age);
         const b = e.buildingId !== undefined ? this.frameBuildingList.find((o) => o.id === e.buildingId) : undefined;
         if (b) {
-          // Red charge icon floating just above the top of the structure's art.
+          // Red charge icon floating just above the top of the structure's art, the size of one cell (its iso diamond is CELL_SIZE * 2 * ISO_Y tall).
           const r = this.spriteRect(b);
-          drawChargeIcon(ctx, r.x + r.w / 2, r.y - 3.5, 5, e.ttl - e.age);
+          const size = CELL_SIZE * 2 * ISO_Y;
+          drawChargeIcon(ctx, r.x + r.w / 2, r.y - size * 0.7, size, e.ttl - e.age);
         }
       } else if (e.kind === 'demoBlast') {
         if (!drawDemolitionBlast(ctx, e.x, e.y, t)) {

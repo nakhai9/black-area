@@ -33,7 +33,7 @@ export type Flight = 'parked' | 'taxi' | 'takeoff' | 'airborne' | 'approach' | '
 export type CarrierState = 'idle' | 'loading' | 'carrying' | 'unloading';
 
 /** Cruise height of an aircraft above the ground (world px, drawn offset). */
-import { NATION_STRENGTH, STRENGTH_REF, VEHICLE_PRICE, TURBO_MULT, AIR_BOOST_FAR_CELLS, AIR_BOOST_NEAR_CELLS, AIR_SPEED_SCALE, GROUND_SPEED_SCALE, BOMBER_BOMBS, BOMBER_BOMBS_BY_FACTION, BOMB_LOAD_SLOWDOWN, CRUISE_ALTITUDE, JET_BOMBS, TRUCK_MIN_RIDERS, TRUCK_SOLDIERS } from '../constants';
+import { NATION_STRENGTH, STRENGTH_REF, VEHICLE_PRICE, TURBO_MULT, AIR_BOOST_FAR_CELLS, AIR_BOOST_NEAR_CELLS, AIR_SPEED_SCALE, GROUND_SPEED_SCALE, BOMBER_BOMBS, BOMBER_BOMBS_BY_FACTION, BOMB_LOAD_SLOWDOWN, CRUISE_ALTITUDE, JET_BOMBS, TRUCK_SOLDIERS } from '../constants';
 export { CRUISE_ALTITUDE };
 
 /** Handling per vehicle kind: seconds to full speed, turn rate (rad/s), whether it must face where it drives. */
@@ -174,22 +174,6 @@ export class Vehicle extends Unit {
   readonly cargo: Unit[] = [];
   /** Truck: rolling out of the War Factory to its parking spot (allowed to drive empty). */
   parking = false;
-  /** Truck: it heads for (or stands on) a spot inside its own base (TRUCK_HOME_CELLS), set by the game each tick. */
-  atHome = false;
-  /** Army truck: may it drive now? Only with TRUCK_MIN_RIDERS soldiers aboard (or an engineer), inside its own base, or while leaving the factory. */
-  get truckMayDrive(): boolean {
-    if (!this.isTruck || this.cargo.length >= TRUCK_MIN_RIDERS || this.atHome) return true;
-    // An engineer aboard: the truck drives it to a far capture / lease job however few ride along.
-    if (this.cargo.some((u) => (u as { isEngineer?: boolean }).isEngineer === true)) return true;
-    if (this.parking && this.moving) return true;
-    this.parking = false;
-    return false;
-  }
-
-  protected override speedFactor(): number {
-    return this.truckMayDrive ? super.speedFactor() : 0;
-  }
-
   /** Transport only: units on their way to climb aboard (recounted every tick). */
   incoming = 0;
   /** Transport only: standing on the ground and letting its passengers out one by one. */

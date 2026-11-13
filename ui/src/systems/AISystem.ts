@@ -187,6 +187,8 @@ const OVERSEAS_TRANSPORTS = 2;
 const MAX_TRUCKS = 8;
 const TRUCK_SEATS = TRUCK_SOLDIERS;
 const TRUCK_PICKUP_CELLS = 25;
+/** An empty AI truck farther than this from its capital drives back there to wait for the next run. */
+const TRUCK_HOME_RADIUS = 14;
 const UNLOAD_SHORT_CELLS = 8;
 /** AI engineers: a capture / lease target further than this many cells is reached by transport aircraft, helicopter or
  * army truck (whichever is free); nearer ones (or with no carrier free) they walk. Carriers within ENGINEER_LIFT_REACH
@@ -641,7 +643,7 @@ export class AISystem implements GameSystem {
     this.leaseOil(p, st, owned, threat);
     this.captureOil(p, st, threat);
     this.captureAllies(p, st, owned, threat);
-    this.driveConvoys(st);
+    this.driveConvoys(p, st, capital);
     this.driveAirlifts(p, st);
     this.layBridges(p, st, capital, owned);
     this.layMines(p, st, capital);
@@ -1597,7 +1599,11 @@ export class AISystem implements GameSystem {
         // carry them to the front fresh — on the home continent; across the sea it is the transport aircraft's job.
         const trucks = f.vehicles.get('truck') ?? 0;
         const queuedTrucks = q.items.filter((k) => k === 'truck').length;
-        if (!st.overseas && able('truck') && trucks + queuedTrucks < Math.min(MAX_TRUCKS, Math.ceil(f.soldiers / TRUCK_SEATS))) {
+        // Reuse first: no new truck while one stands empty and free.
+        const spareTruck = this.host.entities
+          .vehicles()
+          .some((v) => v.owner === p.id && v.alive && v.isTruck && v.cargo.length === 0 && v.incoming === 0 && !st.convoys.has(v.id) && !st.engLifts?.has(v.id));
+        if (!st.overseas && !spareTruck && able('truck') && trucks + queuedTrucks < Math.min(MAX_TRUCKS, Math.ceil(f.soldiers / TRUCK_SEATS))) {
           production.enqueue(p, 'truck');
           return;
         }
@@ -2586,9 +2592,10 @@ export class AISystem implements GameSystem {
 
   /**
    * Convoys: a truck whose soldiers are all aboard drives to UNLOAD_SHORT_CELLS short of the target and lets them
-   * out there, fresh for the fight; an empty truck back home is free for the next run.
+   * out there, fresh for the fight; once empty it drives back home and is reused for the next run (no new truck
+   * is built while an empty one is free).
    */
-  private driveConvoys(st: AIState): void {
+  private driveConvoys(p: PlayerState, st: AIState, capital: Building): void {
     for (const [id, goal] of st.convoys) {
       const t = this.host.entities.get(id);
       if (!(t instanceof Vehicle) || !t.alive) {
@@ -2600,19 +2607,22 @@ export class AISystem implements GameSystem {
         st.convoys.delete(id);
         continue;
       }
-      if (t.moving && t.truckMayDrive) continue;
+      if (t.moving) continue;
       const d = Math.hypot(goal.x - t.px, goal.y - t.py);
-      // Riders lost on the way (or never all aboard): too few to drive on, so they get out and walk.
-      if (!t.truckMayDrive) {
-        this.host.unloadTruck(t);
-        continue;
-      }
       if (d <= (UNLOAD_SHORT_CELLS + 2) * CELL_SIZE) {
         this.host.unloadTruck(t);
         continue;
       }
       const k = (d - UNLOAD_SHORT_CELLS * CELL_SIZE) / d;
       this.host.orderMoveUnits([t], { x: t.px + (goal.x - t.px) * k, y: t.py + (goal.y - t.py) * k });
+    }
+    // Empty trucks left in the field (convoy done, engineer lift over) drive back to the capital for reuse.
+    const home = capital.centerWorld();
+    for (const t of this.host.entities.vehicles()) {
+      if (t.owner !== p.id || !t.alive || !t.isTruck || t.moving || t.insideId !== null) continue;
+      if (t.cargo.length > 0 || t.incoming > 0 || st.convoys.has(t.id) || st.engLifts?.has(t.id)) continue;
+      if (Math.hypot(t.px - home.x, t.py - home.y) <= TRUCK_HOME_RADIUS * CELL_SIZE) continue;
+      this.host.orderMoveUnits([t], this.safeDrop(p, { x: home.x, y: home.y + CELL_SIZE * 6 }));
     }
   }
 

@@ -175,7 +175,6 @@ export default {
   'The {name} cannot be sold.': '{name} không thể bán.',
   '{name} sold to the Global Monitoring Center: +{price} {currency}.': 'Đã bán {name} cho Global Monitoring Center: +{price} {currency}.',
   'Mercy bonus: you let a retreating enemy group go — Global Monitoring Center pays +{bonus} {currency}.': 'Thưởng nhân đạo: bạn đã tha cho một nhóm địch đang rút lui — Global Monitoring Center trả +{bonus} {currency}.',
-  'The truck needs {min}/{max} soldiers aboard to drive outside the base ({now} now).': 'Xe tải cần {min}/{max} lính trên xe để chạy ra ngoài căn cứ (hiện có {now}).',
   'No selected vehicle needs repair.': 'Không xe nào đang chọn cần sửa.',
   'The {name} is heading to the War Factory for repair.': '{name} đang về nhà máy xe để sửa chữa.',
   '{count} vehicles are heading to the War Factory for repair.': '{count} xe đang về nhà máy xe để sửa chữa.',

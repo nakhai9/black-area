@@ -26,7 +26,7 @@
 <body>
 <main>
 <img class="logo" src="/logo.png" alt="Black Area" />
-<h1>Black Area — RULE <small>v3.74.34</small></h1>
+<h1>Black Area — RULE <small>v3.75.0</small></h1>
 <p class="lead">Tài liệu luật chơi + kiến trúc code dành cho AI/dev sửa game. Mọi con số gameplay chính xác nằm trong <code>src/constants.ts</code> và <code>src/factions/*.ts</code>. Nếu tài liệu này khác code thì <b>code đúng</b>. <b>Khi đổi luật/số trong code, phải cập nhật file này.</b></p>
 <nav><a href="#s1">Quy tắc làm việc cho AI</a><a href="#s2">Chạy dự án</a><a href="#s3">Kiến trúc thư mục</a><a href="#s4">Thế giới</a><a href="#s5">Kinh tế (dầu)</a><a href="#s6">Công trình (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Quân đội</a><a href="#s8">Chiến đấu</a><a href="#s9">Điều khiển (Game.handleKey, handleInput)</a><a href="#s10">Giới hạn &amp; hiệu năng</a><a href="#s11">Thắng / thua &amp; AI</a><a href="#s12">Công thức sửa thường gặp</a></nav>
 <h2 id="s1">0. Quy tắc làm việc cho AI</h2>
@@ -354,7 +354,7 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 <ul>
   <li>Giá gốc <code>700</code> TB, <code>9</code> s, <code>240</code> máu, tốc độ <code>2.1</code> (nhanh hơn lính 1.3–1.7 và xe tăng 1.4); không vũ khí, chỉ đi trên đất (không qua biển), sản xuất ở War Factory. Sprite render từ mô hình 3D (tools/ground_model_sheet.py, 32 hướng, hàng 2 là xác cháy): <code>public/sprites/truck-kamaz.png</code> (KamAZ-5330), <code>truck-mtvr.png</code> (cũ, không dùng); Nga và Mỹ dùng sheet module Blender <code>truck-kamaz-russia-chassis/-body</code>, <code>truck-hemtt-usa-chassis/-body</code>, <code>truck-zetros.png</code> (Mercedes-Benz Zetros).</li>
   <li>Chở <b>tối đa 8 lính</b> (<code>TRUCK_SOLDIERS</code>) cho đỡ mệt khi hành quân; <b>không chở bất kỳ phương tiện nào</b> (xe tăng, xe khác, máy bay/trực thăng).</li>
-  <li>Xe tải chỉ chạy khi chở ít nhất <code>TRUCK_MIN_RIDERS = 6</code>/<code>8</code> lính (ngoại lệ: lăn bánh từ War Factory ra chỗ đỗ). Ít hơn thì xe đứng yên, ra lệnh đi sẽ báo thiếu lính. AI chỉ cho lên xe khi gom đủ 6 lính; xe đang chạy mà còn dưới 6 lính thì thả hết xuống đi bộ.</li>
+  <li>Xe tải đi lại tự do, có chở hay không chở lính. AI chỉ cho xe chạy khi chở ít nhất <code>TRUCK_MIN_RIDERS = 4</code> lính, xe trống tự về thủ đô để dùng lại, không đóng xe mới khi còn xe trống rảnh.</li>
   <li>Lên xe: chọn lính rồi click vào xe tải (xe tải dừng chờ). Xuống xe: chọn xe tải, nhấn <b>U</b> hoặc double-click chuột trái vào chính xe đang chọn (áp dụng cho mọi xe/máy bay chở quân) — xe đứng yên, từng người xuống ô trống bên cạnh. Xe tải bị phá thì mọi thứ trên xe mất theo.</li>
 </ul>
 <h3>Hành quân bộ binh (mệt mỏi)</h3>
@@ -508,7 +508,6 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
   <li>Núi: lính và xe mặt đất không bao giờ đứng/đi trên sống núi (chỉ qua lối mòn); đỉnh núi được vẽ theo chiều sâu nên che khuất đơn vị đứng sau. Quét chọn nhóm có xe/máy bay/trực thăng vận tải rồi bấm chuột trái vào chính phương tiện đó: các đơn vị khác lên xe, phương tiện vẫn được chọn, ai không vừa chỗ ở lại ngoài và vẫn được chọn (v1.122.0).</li>
   <li>Allied Building (nhà đồng minh) chỉ xây được khi đã có Barracks (nhà lính) + War Factory (nhà xe); AI cũng theo luật này (v1.123.0).</li>
   <li>Mini map vẽ các dãy núi thành đường cong màu nâu đỏ theo đường sống núi trên bản đồ, để biết khu nào có núi (v1.124.0).</li>
-  <li>Xe tải thiếu lính (dưới 6/8, kể cả xe trống) vẫn chạy được trong căn cứ: khi điểm đến cách công trình của mình tối đa <code>TRUCK_HOME_CELLS = 20</code> ô; ra xa hơn thì vẫn cần đủ 6 lính. Áp dụng cả AI (v1.125.0).</li>
   <li>Chu kỳ: chiến tranh 10 phút (trước 6), hòa bình 2,5 phút (trước 4) (v1.126.0).</li>
   <li>Màn hình Load game: logo phe thay chữ "LOAD GAME", nút "Start with &lt;phe&gt;" màu phe, nút Main menu nằm bên trái; trước khi vào game không còn hiện sidebar trống và hoa gió ở góc trái dưới (v1.127.0).</li>
   <li>Nút Home (về thủ đô) chỉ chuyển camera về thủ đô, không còn để lại viền focus nét đứt trên nút (v1.127.1).</li>
@@ -702,6 +701,7 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
   <li>v3.41.5: Sửa lỗi máy bay vận tải bay vòng tròn mãi quanh điểm hạ cánh (không đáp được, không nhận lệnh di chuyển): khi điểm đến nằm trong vòng quay, máy bay bay thẳng tới. Lệnh di chuyển mới trong lúc đang bay tới điểm hạ cánh giờ được nhận (hủy hạ cánh, bay đi).</li>
   <li>v3.41.5: Máy bay không còn nhận <b>Cảng (Naval Port)</b> làm sân bay nhà (không đậu, không hạ cánh, không được sinh ra ở cảng). Loại máy bay được đậu ở cảng sẽ quy ước sau: thêm vào <code>PORT_AIRCRAFT</code> trong <code>src/systems/AircraftSystem.ts</code>. Máy bay đang lấy cảng làm nhà (bản lưu cũ) sẽ chuyển sang sân bay khác của phe; không còn sân bay nào thì rơi như luật cũ.</li>
     <li>v3.56.1: <b>Giảm tiếng động cơ mọi phương tiện</b>: <code>VEHICLE_BED_GAIN</code> 1.6 → 1.0, máy bay / trực thăng <code>AIR_BED_BOOST</code> 2.2 → 1.5. <b>Máy bay vận tải</b> (C-17, Il-76, Y-20, A400M, mặc định) tăng gain 0.85–0.9 → 1.35 để to ngang các máy bay khác (tiếng động cơ trầm, ít tiếng rít nên trước nghe nhỏ hơn).</li>
+    <li>v3.75.0: <b>Xe tải quân sự</b> đi lại tự do, có chở hay không chở quân (bỏ luật phải đủ 6/8 lính mới được chạy ngoài căn cứ). AI dùng lại xe: chỉ cho chạy khi chở ít nhất <code>TRUCK_MIN_RIDERS</code> = 4 lính, xe trống ngoài đồng tự chạy về thủ đô chờ chuyến sau, và không sản xuất xe mới khi còn xe trống rảnh. Icon bom trên nóc công trình thu nhỏ còn cỡ 1×1 ô.</li>
     <li>v3.74.34: Bỏ đèn ban đêm của trực thăng; chỉ xe mặt đất và tàu bật đèn.</li>
     <li>v3.74.33: Trực thăng bật đèn ban đêm khi bay (máy bay cánh cố định vẫn không bật).</li>
     <li>v3.74.32: Đèn ban đêm: máy bay và trực thăng không bật đèn (bay theo định vị); bỏ hai chấm đèn pha, chỉ giữ vệt sáng phía trước.</li>
