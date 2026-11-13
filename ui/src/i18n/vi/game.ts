@@ -45,6 +45,7 @@ export default {
   '{taker} has taken {city}, capital of {nation} from you.': '{taker} đã chiếm {city}, thủ đô của {nation}, từ tay bạn.',
   '{taker} has taken {city}, capital of {nation} from {from}.': '{taker} đã chiếm {city}, thủ đô của {nation}, từ tay {from}.',
   'BREAKING NEWS': 'TIN NÓNG',
+  '{name} is out of the game.': '{name} đã bị loại khỏi cuộc chơi.',
   '{by} is attacking your forces.': '{by} đang tấn công lực lượng của bạn.',
   '{by} has killed {n} of your units.': '{by} đã giết {n} đơn vị của bạn.',
   '{by} has destroyed {n} of your structures.': '{by} đã phá hủy {n} công trình của bạn.',

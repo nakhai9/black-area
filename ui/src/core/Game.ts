@@ -5296,7 +5296,10 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
   /** Sell button: the Global Monitoring Center looks at the offer and decides whether, and how much, to buy. */
   private sellOil(auto = false): void {
     const result = this.oilMarket.sell(this.humanPlayer);
-    if (auto && result.kind !== 'sold') return; // auto sell stays quiet when the Center declines
+    if (auto) {
+      if (result.kind === 'sold') this.sidebarTimer = SIDEBAR_REFRESH;
+      return; // auto sell stays quiet: no sale line under the build grid
+    }
     this.sidebar.notify(
       result.kind === 'sold'
         ? t('Global Monitoring Center bought {barrels} barrels at {price} {currency} → +{revenue} {currency}', { barrels: result.barrels.toFixed(1), price: result.price, revenue: result.revenue, currency: CURRENCY }) +
@@ -5421,6 +5424,11 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
         }
         continue;
       }
+      // A contested nation's capital it held (Japan, Korea…) never vanishes: it goes back to neutral, free to take again.
+      if (b.owner === p.id && b instanceof NationCapital) {
+        b.free();
+        continue;
+      }
       // Its allies (Allied Buildings) do not vanish: they turn neutral, for any other nation to take over.
       if (b.owner === p.id && b.spec.type === 'alliedBuilding') {
         b.release();
@@ -5496,6 +5504,8 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       this.dissolveNation(p);
       const name = FACTIONS[p.faction].name;
       this.intel('military', p.id === this.localId ? t('Your nation has been defeated.') : t('{name} has been defeated — no capital, no army and no barracks or factory left.', { name }));
+      // Out of the game: a BREAKING NEWS toast on screen too (my own defeat has the end screen instead).
+      if (p.id !== this.localId) this.news.show(t('BREAKING NEWS'), t('{name} is out of the game.', { name }));
     }
     if (this.humanPlayer.defeated) {
       this.ended = true;

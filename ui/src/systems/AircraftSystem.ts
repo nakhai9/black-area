@@ -1,4 +1,6 @@
-import { BOMB_COST, BOMB_LOAD_SECONDS, CARRIER_JETS, JET_BOMB_COST, CELL_SIZE, TURBO_RECHARGE_SECONDS, TURBO_SECONDS, TRANSPORT_FUEL_CELLS, PORT_AIR_SLOTS, HELI_FUEL_CELLS } from '../constants';
+import { BOMB_COST, BOMB_LOAD_SECONDS, CARRIER_JETS, JET_BOMB_COST, CELL_SIZE, TURBO_RECHARGE_SECONDS, TURBO_SECONDS, TRANSPORT_FUEL_CELLS, PORT_AIR_SLOTS, HELI_FUEL_CELLS, AWACS_RADIUS_CELLS } from '../constants';
+import type { Unit } from '../entities/Unit';
+import { canTarget } from './CombatSystem';
 import type { Building } from '../entities/Building';
 import type { EntityManager } from '../entities/EntityManager';
 import { CRUISE_ALTITUDE, type Vehicle } from '../entities/Vehicle';
@@ -1077,8 +1079,27 @@ export class AircraftSystem implements GameSystem {
     // Keeps pace with the ward's long-haul boost (a little faster, to catch up).
     v.boostFloor = w.aircraft ? (w.speed / Math.max(0.01, w.fieldSpeed)) * 1.15 : 1;
     const away = Math.hypot(v.px - w.px, v.py - w.py);
+    // Guarding an AWACS in the air: its radar sweep is the fighter's hunting ground — it goes after the nearest enemy
+    // it can hit inside the sweep, and falls back in behind the AWACS once the sweep is clear.
+    const awacs = w.aircraft && w.type === 'awacs' && w.flies;
+    const sweep = AWACS_RADIUS_CELLS * CELL_SIZE;
+    if (awacs && v.combatTarget === null && v.attackTarget === null) {
+      let best: Unit | null = null;
+      let bestD = Infinity;
+      for (const u of this.entities.fieldMovers()) {
+        if (!u.alive || !u.visible || Math.hypot(u.px - w.px, u.py - w.py) > sweep || !canTarget(v, u)) continue;
+        const d = Math.hypot(u.px - v.px, u.py - v.py);
+        if (d < bestD) {
+          bestD = d;
+          best = u;
+        }
+      }
+      if (best) v.attackTarget = best.id;
+    }
     if (v.combatTarget !== null || v.attackTarget !== null) {
-      if (away <= GUARD_LEASH_CELLS * CELL_SIZE) {
+      const tgt = this.entities.get((v.attackTarget ?? v.combatTarget) as number) as Unit | undefined;
+      const inSweep = awacs && !!tgt && tgt.alive && Math.hypot(tgt.px - w.px, tgt.py - w.py) <= sweep;
+      if (inSweep || away <= GUARD_LEASH_CELLS * CELL_SIZE) {
         v.boostFloor = 1; // a dogfight is flown at normal speed
         return true; // fighting near the ward
       }
