@@ -1,6 +1,6 @@
 import { CHARGE_ICON_PATH } from '../render/ChargeIcon';
 import { AlertToast } from './NewsToast';
-import { type IconNode, Settings, ArrowUpFromLine, Clock, House, Handshake, Newspaper, X, Wallet, Info, Keyboard, Droplet, Hammer, LogIn, LogOut, Minus, Plane, Rocket, Shield, TrendingDown, TrendingUp, Zap, createElement } from 'lucide';
+import { type IconNode, Settings, PackageOpen, Clock, House, Handshake, Newspaper, X, Wallet, Info, Keyboard, Droplet, Hammer, LogIn, LogOut, Minus, Plane, Rocket, Shield, TrendingDown, TrendingUp, Zap, createElement } from 'lucide';
 
 /** Government building (Emoji One v1, CC BY-SA 4.0): in full colour, 64×64 grid scaled to the 24×24 icon box. */
 const Government: IconNode = [
@@ -534,7 +534,7 @@ export class Sidebar {
     this.turboBadge = document.createElement('span');
     this.turboBadge.className = 'air-tool-badge';
     this.turboButton.append(this.turboBadge);
-    this.unloadButton = tool(ArrowUpFromLine, t('Unload (U): let the passengers out one by one. In the air the transport first lands on solid ground below it.'), () => this.handlers.onUnload());
+    this.unloadButton = tool(PackageOpen, t('Unload (U): let the passengers out one by one. In the air the transport first lands on solid ground below it.'), () => this.handlers.onUnload());
     this.bridgeButton = tool(BRIDGE_ICON, t('Bridge (B): the selected bridge layer lays its bridge right where it stands — park it at the edge of a river or the sea, facing the water. Used once.'), () => this.handlers.onBridge(), { fill: 'currentColor', stroke: 'none', 'stroke-width': 0 });
     this.mineButton = tool(MINE_ICON, t('Mine: the selected Crazy Soldier / engineer stops and lays a land mine on a cell next to him (3 per soldier). Only you see your mines.'), () => this.handlers.onMine(), { viewBox: '0 0 512 512', fill: 'currentColor', stroke: 'none', 'stroke-width': 0 });
     this.mineButton.hidden = true;
