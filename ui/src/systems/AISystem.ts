@@ -1,6 +1,6 @@
 import { squadFilter } from './Squad';
 import { bridgeAnchor } from '../entities/Bridge';
-import { AI_AIR_DEFENCE, FOOTPRINT_BRIDGE, AI_AIR_DEFENCE_PER_CITIES, AI_AIR_DEFENCE_RING, AI_BUNKERS, AI_WALL_ALERT_SECONDS, AI_WALL_ENEMY_UNITS, AI_WALL_GAP, AI_WALL_WATCH_CELLS, AI_WALL_RING, AI_WALL_SEGMENT, BUNKER_RANGE, CELL_SIZE, INFANTRY_BASE, INFANTRY_MARCH_CELLS, EMBASSY_CAPITAL_CELLS, MAX_ALLIES, NATION_GARRISON, NATION_GARRISON_CELLS, NEUTRAL_OWNER, OIL_DERRICK_OUTPUT, OIL_LEASE_CARTEL_SHARE, OIL_LEASE_SECONDS, TECH_VEHICLES, TRUCE_ZONE_CELLS, TRUCK_MIN_RIDERS, TRUCK_SOLDIERS, NATION_PRESENCE_FEE, presenceFee, FOOTPRINT_PORT, AI_FLEET, AI_FELLERS } from '../constants';
+import { AI_AIR_DEFENCE, FOOTPRINT_BRIDGE, AI_AIR_DEFENCE_PER_CITIES, AI_AIR_DEFENCE_PER_ENEMY_AIR, AI_AIR_DEFENCE_MAX, AI_AIR_DEFENCE_RING, AI_BUNKERS, AI_WALL_ALERT_SECONDS, AI_WALL_ENEMY_UNITS, AI_WALL_GAP, AI_WALL_WATCH_CELLS, AI_WALL_RING, AI_WALL_SEGMENT, BUNKER_RANGE, CELL_SIZE, INFANTRY_BASE, INFANTRY_MARCH_CELLS, EMBASSY_CAPITAL_CELLS, MAX_ALLIES, NATION_GARRISON, NATION_GARRISON_CELLS, NEUTRAL_OWNER, OIL_DERRICK_OUTPUT, OIL_LEASE_CARTEL_SHARE, OIL_LEASE_SECONDS, TECH_VEHICLES, TRUCE_ZONE_CELLS, TRUCK_MIN_RIDERS, TRUCK_SOLDIERS, NATION_PRESENCE_FEE, presenceFee, FOOTPRINT_PORT, AI_FLEET, AI_FELLERS } from '../constants';
 import { FACTIONS } from '../factions';
 import { StructureIndex } from './StructureIndex';
 import { OilDerrick } from '../entities/OilDerrick';
@@ -1673,7 +1673,7 @@ export class AISystem implements GameSystem {
       let w = base;
       if (k === 'jet') w *= 1 + airShare * 2;
       // The air-defence vehicle only shoots aircraft: worth buying only as far as the enemies field them.
-      if (k === 'mantis') w *= airShare * 4;
+      if (k === 'mantis') w *= 1 + airShare * 8;
       if (k === 'bomber') w *= 1 + Math.min(1, structures / 40);
       if (k === 'tank') w *= 1 + Math.min(1, ground / 60) * 0.5;
       if (st.overseas) w *= k === 'jet' || k === 'heli' || k === 'bomber' ? 2 : 0.5;
@@ -1932,7 +1932,11 @@ export class AISystem implements GameSystem {
 
   /** Air-defence vehicles the nation keeps at home (AI_AIR_DEFENCE, more as its cities grow). */
   private airDefenceWanted(p: PlayerState): number {
-    return AI_AIR_DEFENCE + Math.floor(this.cities(p) / AI_AIR_DEFENCE_PER_CITIES);
+    // More enemy aircraft in the sky → more air defence at home (one per AI_AIR_DEFENCE_PER_ENEMY_AIR of them).
+    let enemyAir = 0;
+    for (const v of this.host.entities.vehicles()) if (v.alive && v.aircraft && !v.isTransport && v.owner !== p.id && v.owner !== NEUTRAL_OWNER) enemyAir++;
+    const want = AI_AIR_DEFENCE + Math.floor(this.cities(p) / AI_AIR_DEFENCE_PER_CITIES) + Math.floor(enemyAir / AI_AIR_DEFENCE_PER_ENEMY_AIR);
+    return Math.min(AI_AIR_DEFENCE_MAX, want);
   }
 
   /** Spreads the home air-defence vehicles evenly on a ring round the capital; one already near its spot stays. */

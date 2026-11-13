@@ -1256,7 +1256,8 @@ export class AircraftSystem implements GameSystem {
         v.mission = [...v.waypoints()];
         v.stop();
       }
-      if (!this.eject(v, dt) && v.mission) {
+      // Done (or a new order waiting): it lifts off — with no order, an emptied transport plane heads home on its own.
+      if (!this.eject(v, dt) && (v.mission || (!v.isHeli && v.cargo.length === 0))) {
         v.flight = 'liftoff';
         v.phaseTime = 0;
       }

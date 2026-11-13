@@ -34,7 +34,7 @@ export const DEMO_FACTION: FactionId = NATION_CODES[(import.meta.env.VITE_DEMO_F
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "3.73.4";
+export const GAME_VERSION = "3.73.5";
 
 /** An Allied Building within this many cells of any capital is an embassy; farther out it is a "Pro-<nation> regime". */
 export const EMBASSY_CAPITAL_CELLS = 25;
@@ -890,8 +890,12 @@ export const MANTIS_GUN_NATIONS: readonly FactionId[] = ["islamic"];
 export const PGZ_RELOAD = 0.15;
 export const PGZ_HIT_FACTOR = 0.2;
 /** AI air defence: at least this many air-defence vehicles at home, plus one for every AI_AIR_DEFENCE_PER_CITIES Happy Cities. */
-export const AI_AIR_DEFENCE = 2;
-export const AI_AIR_DEFENCE_PER_CITIES = 4;
+export const AI_AIR_DEFENCE = 4;
+export const AI_AIR_DEFENCE_PER_CITIES = 2;
+/** …plus one for every this many enemy combat aircraft on the map… */
+export const AI_AIR_DEFENCE_PER_ENEMY_AIR = 3;
+/** …but never more than this many kept at home. */
+export const AI_AIR_DEFENCE_MAX = 14;
 /** …standing on a ring this many cells round the capital. */
 export const AI_AIR_DEFENCE_RING = 8;
 export const JET_BOMB_VS_STRUCTURE = 0.1;

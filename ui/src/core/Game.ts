@@ -2439,7 +2439,8 @@ export class Game {
       if (transports.length > 0) this.sidebar.notify(t('The transport is empty.'));
       return;
     }
-    const still = loaded.filter((t) => t.atRest);
+    // An aircraft on the ground may keep a leftover path / speed ratio (see transportInfo): judged by flight state in requestUnload.
+    const still = loaded.filter((t) => t.aircraft || t.atRest);
     if (still.length === 0) {
       this.sidebar.notify(t('Stop the transport before unloading.'));
       return;
