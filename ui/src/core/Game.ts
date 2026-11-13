@@ -179,7 +179,7 @@ import { AIRFIELD_SLOTS, RUNWAY_D, AIRFIELD_SIZE } from '../render/sprites/Airfi
 import { AircraftSystem, canBaseAt, isAirBase, type AirfieldGeometry } from '../systems/AircraftSystem';
 import { AISystem } from '../systems/AISystem';
 import { StructureIndex } from '../systems/StructureIndex';
-import { canTarget, CombatSystem, distanceTo, inTruce, isHostile, setDisarmed, setTruce, setViolators } from '../systems/CombatSystem';
+import { canTarget, CombatSystem, distanceTo, inTruce, isHostile, setDisarmed, setRuins, setTruce, setViolators } from '../systems/CombatSystem';
 import { MIN_SALE_STOCK, type NewsCategory, OilMarket } from '../systems/OilMarket';
 import { TaxSystem } from '../systems/TaxSystem';
 import { EndScreen } from '../ui/EndScreen';
@@ -7017,6 +7017,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       disarmed.add(p.id);
     }
     setDisarmed(disarmed);
+    setRuins(new Set(this.players.filter((p) => p.defeated).map((p) => p.id)), new Set(this.players.filter((p) => !p.isHuman).map((p) => p.id)));
     for (const p of this.players) {
       if (p.embargoUntil === undefined) continue;
       if (this.time >= p.embargoUntil) {

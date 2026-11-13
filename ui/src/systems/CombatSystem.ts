@@ -55,6 +55,16 @@ export function setViolators(ids: ReadonlySet<number>): void {
 export function isViolator(id: number): boolean {
   return violators.has(id);
 }
+/** Defeated nations (whatever is left of them — walls, gates — is a ruin) and the AI nations, which leave ruins alone (Game.enforceEmbargoes). */
+let ruins: ReadonlySet<number> = new Set();
+let aiOwners: ReadonlySet<number> = new Set();
+export function setRuins(defeated: ReadonlySet<number>, ai: ReadonlySet<number>): void {
+  ruins = defeated;
+  aiOwners = ai;
+}
+export function isRuin(owner: number): boolean {
+  return ruins.has(owner);
+}
 /** Nations under a military embargo (Game.enforceEmbargoes): their units cannot attack anyone. */
 let disarmed: ReadonlySet<number> = new Set();
 export function setDisarmed(owners: ReadonlySet<number>): void {
@@ -71,6 +81,8 @@ export function forceFire(a: Entity, b: Entity): boolean {
 
 export function isHostile(a: Entity, b: Entity): boolean {
   if (disarmed.has(a.owner)) return false;
+  // AI nations no longer attack what is left of a defeated nation.
+  if (ruins.has(b.owner) && aiOwners.has(a.owner)) return false;
   // Ceasefire: nobody fights, except that a unit breaking it may be attacked by every other nation (and cannot hit back,
   // bar a tank's self-defence).
   if (truce) {

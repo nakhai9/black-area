@@ -12,7 +12,7 @@ import type { EntityManager } from '../entities/EntityManager';
 import { Infantry } from '../entities/Infantry';
 import { Vehicle } from '../entities/Vehicle';
 import type { Unit } from '../entities/Unit';
-import { canTarget, inTruce, isHostile } from './CombatSystem';
+import { canTarget, inTruce, isHostile, isRuin } from './CombatSystem';
 import type { OilMarket } from './OilMarket';
 import type { Pathfinder } from '../map/Pathfinder';
 import type { TileMap } from '../map/TileMap';
@@ -985,7 +985,7 @@ export class AISystem implements GameSystem {
   private *pickClaimSite(p: PlayerState, st: AIState, capital: Building): Generator<void, GridPoint | null, void> {
     const map = this.host.map;
     const buildings = this.host.entities.buildings().filter((b) => b.alive);
-    const enemy = buildings.filter((b) => b.owner !== p.id && b.owner !== NEUTRAL_OWNER);
+    const enemy = buildings.filter((b) => b.owner !== p.id && b.owner !== NEUTRAL_OWNER && !isRuin(b.owner));
     const economy = enemy.filter((b) => ECONOMY_TYPES.has(b.spec.type));
     const claims = buildings.filter((b) => (b.spec.type === 'flagpole' || b.spec.type === 'alliedBuilding') && isClaimable(map, b.x, b.y));
     const home = { x: capital.x + capital.w / 2, y: capital.y + capital.d / 2 };
@@ -1202,7 +1202,7 @@ export class AISystem implements GameSystem {
     let foe: Building | null = null;
     let best = Infinity;
     for (const b of entities.buildings()) {
-      if (!b.alive || b.indestructible || b.owner === p.id || b.owner === NEUTRAL_OWNER || (st.rival !== null && b.owner !== st.rival)) continue;
+      if (!b.alive || b.indestructible || b.owner === p.id || b.owner === NEUTRAL_OWNER || isRuin(b.owner) || (st.rival !== null && b.owner !== st.rival)) continue;
       const d = Math.hypot(b.x - cx, b.y - cy);
       if (d < best) {
         best = d;
@@ -1269,7 +1269,7 @@ export class AISystem implements GameSystem {
     let target: Building | null = null;
     let best = Infinity;
     for (const b of entities.buildings()) {
-      if (!b.alive || (b.indestructible || (b instanceof NationCapital && b.down)) || b.owner === p.id || b.owner === NEUTRAL_OWNER || (rival !== null && b.owner !== rival)) continue;
+      if (!b.alive || (b.indestructible || (b instanceof NationCapital && b.down)) || b.owner === p.id || b.owner === NEUTRAL_OWNER || isRuin(b.owner) || (rival !== null && b.owner !== rival)) continue;
       const d = Math.hypot(b.x - cx, b.y - cy);
       if (d < best) {
         best = d;
@@ -1664,7 +1664,7 @@ export class AISystem implements GameSystem {
       else if (!v.aircraft) ground++;
     }
     for (const u of this.host.entities.units()) if (u.alive && u.owner !== p.id && u.owner !== NEUTRAL_OWNER) ground += 0.3;
-    for (const b of this.host.entities.buildings()) if (b.alive && !b.indestructible && b.owner !== p.id && b.owner !== NEUTRAL_OWNER) structures++;
+    for (const b of this.host.entities.buildings()) if (b.alive && !b.indestructible && b.owner !== p.id && b.owner !== NEUTRAL_OWNER && !isRuin(b.owner)) structures++;
     const enemies = Math.max(1, air + ground);
     const airShare = air / enemies;
     const out: [VehicleKind, number][] = [];
@@ -1794,7 +1794,7 @@ export class AISystem implements GameSystem {
     if (!first) return;
     const taken = new Set(mine.map((v) => v.diveTargetId).filter((id): id is number => id !== null));
     const home = capital.centerWorld();
-    const enemy = (owner: number): boolean => owner !== p.id && owner !== NEUTRAL_OWNER;
+    const enemy = (owner: number): boolean => owner !== p.id && owner !== NEUTRAL_OWNER && !isRuin(owner);
     const cands: { e: Entity; owner: number; tier: number; size: number; dist: number }[] = [];
     for (const b of this.host.entities.buildings()) {
       if (!b.alive || !enemy(b.owner) || (b.indestructible || (b instanceof NationCapital && b.down)) || b.spec.type === 'oilDerrick' || this.host.isShielded(b) || !isHostile(first, b)) continue;
@@ -2831,7 +2831,7 @@ export class AISystem implements GameSystem {
   private enemyStructures(p: PlayerState): Building[] {
     return this.host.entities
       .buildings()
-      .filter((b) => b.alive && b.owner !== p.id && b.owner !== NEUTRAL_OWNER && !b.indestructible && !(b instanceof NationCapital && b.down) && !this.host.isShielded(b));
+      .filter((b) => b.alive && b.owner !== p.id && b.owner !== NEUTRAL_OWNER && !isRuin(b.owner) && !b.indestructible && !(b instanceof NationCapital && b.down) && !this.host.isShielded(b));
   }
 
   /** Army units near an enemy structure (and not busy) get an explicit order to destroy the most valuable one in reach. */

@@ -34,14 +34,14 @@ export const DEMO_FACTION: FactionId = NATION_CODES[(import.meta.env.VITE_DEMO_F
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "3.73.0";
+export const GAME_VERSION = "3.73.3";
 
 /** An Allied Building within this many cells of any capital is an embassy; farther out it is a "Pro-<nation> regime". */
 export const EMBASSY_CAPITAL_CELLS = 25;
 
 /** War / ceasefire cycle: WAR_SECONDS of war between the nations, then PEACE_SECONDS of peace to build up, over and over. */
 export const WAR_SECONDS = 10 * 60;
-export const PEACE_SECONDS = 90;
+export const PEACE_SECONDS = 60;
 /**
  * Ceasefire zone: during the peace, a unit (soldier, vehicle, aircraft) within TRUCE_ZONE_CELLS of the edge of another
  * nation's structure breaks the ceasefire: every other nation may destroy it and it may not fight back. Units have
@@ -954,13 +954,16 @@ export const TRUCK_HOME_CELLS = 20;
  * Temporary: only these vehicles can be produced (sidebar and AI). The rest stay in the code but are
  * hidden until they are wanted again — add a kind here to bring it back.
  */
+/** Structures temporarily hidden from every shop (player and AI) — remove an id to bring it back. */
+export const HIDDEN_BUILDS: ReadonlySet<string> = new Set(["port"]);
+
 export const AVAILABLE_VEHICLES: readonly VehicleKind[] = [
   "tank",
   "jet",
   "heli",
   "bomber",
   "awacs",
-  "carrier",
+  // "carrier", // temporarily hidden (with the Naval Port), to be added back later
   "transport",
   "repair",
   "truck",
