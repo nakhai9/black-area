@@ -1243,7 +1243,8 @@ export class AircraftSystem implements GameSystem {
       }
     }
     // Over the sea (no ground near): it hovers until it is sent somewhere else.
-    if (!this.setDown(v, true)) v.idleFor = 0;
+    // Loaded: it sets down and lets everyone out on its own (no Unload order needed); empty: it waits for passengers.
+    if (!this.setDown(v, v.cargo.length === 0)) v.idleFor = 0;
   }
 
   /** Standing on solid ground away from an airfield: takes passengers, then flies off when given a destination. */
