@@ -266,13 +266,19 @@ body.sidebar-hidden .sb-open {
 .sb-power-bar {
   --power-color: #3fd35a;
   position: relative;
-  flex: 0 1 150px;
+  /* Whole pixels only: 24 blocks of 5 px + 23 lines of 1 px, so every block and every line is exactly the same width. */
+  flex: none;
+  box-sizing: content-box;
+  width: calc(24 * 5px + 23 * 1px);
   margin-left: auto; /* icon on the left, bar pushed to the right edge */
   height: 16px;
   overflow: hidden;
   border: 1px solid #ffffff;
   border-radius: 4px;
-  background: #10161b;
+  display: grid;
+  grid-template-columns: repeat(24, 5px);
+  gap: 1px;
+  background: #ffffff;
 }
 .sb-power-bar[data-level='weak'] {
   --power-color: #ff9a2e;
@@ -281,20 +287,13 @@ body.sidebar-hidden .sb-open {
   --power-color: #e0301e;
   border-color: #e0301e;
 }
-.sb-power-fill {
-  position: absolute;
-  inset: 0 auto 0 0;
-  width: 100%;
-  background: var(--power-color);
-  transition: width 0.3s ease, background-color 0.3s ease;
+/* 24 equal blocks (RA2), 1 px white lines between them: a grid, so every block and every line is the same width. */
+.sb-power-bar > i {
+  background: #10161b;
+  transition: background-color 0.3s ease;
 }
-/* 24 equal blocks (RA2): a 1 px dark gap every 1/24 of the bar, drawn over the fill (POWER_SEGMENTS in Sidebar.ts). */
-.sb-power-bar::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: repeating-linear-gradient(to right, transparent 0 calc(100% / 24 - 1px), #10161b calc(100% / 24 - 1px) calc(100% / 24));
+.sb-power-bar > i.on {
+  background: var(--power-color);
 }
 
 .sb-tabs {

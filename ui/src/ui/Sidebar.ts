@@ -333,7 +333,8 @@ export class Sidebar {
   private readonly policyButtons: HTMLButtonElement[];
   private readonly derricks: HTMLElement;
   private readonly powerBar: HTMLElement;
-  private readonly powerFill: HTMLElement;
+  /** The POWER_SEGMENTS blocks of the power bar, left to right. */
+  private readonly powerBlocks: HTMLElement[];
   private readonly powerPrice: HTMLElement;
   private readonly priceTrend: HTMLElement;
   private readonly priceClock: HTMLElement;
@@ -429,7 +430,7 @@ export class Sidebar {
             <button class="sb-sell" type="button" data-policy="flood" title="${t('Flood the market: your derricks pump 160%, the world price crashes (−30% target) — a price war on nations that live off oil.')}">${t('Flood')}</button>
           </div>
         </div>
-        <div class="sb-power" title="${t('Power')}"><i data-icon="power"></i><div class="sb-power-bar"><i class="sb-power-fill"></i></div></div>
+        <div class="sb-power" title="${t('Power')}"><i data-icon="power"></i><div class="sb-power-bar">${'<i></i>'.repeat(POWER_SEGMENTS)}</div></div>
         <div class="sb-actions sb-oil-actions">
           <b class="sb-war-clock" title="${t('War cycle: {war} minutes of war, then {peace} seconds of ceasefire (no attacks, no takeovers)', { war: WAR_SECONDS / 60, peace: PEACE_SECONDS })}"><i class="sb-war-icon"></i><span class="sb-war-time"></span></b>
           <button class="sb-sell sb-loan" type="button" title="${t('Get a loan')}" aria-label="${t('Get a loan')}"><svg class="sb-loan-icon" xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M6.25 2A2.25 2.25 0 0 0 4 4.25v15.5A2.25 2.25 0 0 0 6.25 22h7.5A2.25 2.25 0 0 0 16 19.771v-1.52a.75.75 0 0 0-.75-.75c-.453 0-.739-.123-.936-.282c-.208-.167-.38-.425-.511-.789c-.273-.755-.302-1.75-.302-2.68a.75.75 0 0 0-.202-.512l-.165-.177a3 3 0 0 0-.17-.173c-.074-.07-.3-.285-1.183-1.168c-.469-.469-.728-.865-.813-1.168a.6.6 0 0 1-.016-.325a.7.7 0 0 1 .205-.323a.7.7 0 0 1 .322-.204a.6.6 0 0 1 .324.016c.302.085.698.346 1.167.815c.54.54 1.053 1.047 1.512 1.5c.76.752 1.373 1.36 1.72 1.73a.75.75 0 0 0 1.097-1.023A55 55 0 0 0 16 11.424V8.06l2.842 2.842c.421.422.659.994.659 1.59v8.758a.75.75 0 0 0 1.5 0v-8.757a3.75 3.75 0 0 0-1.099-2.652L16 5.939v-1.69A2.25 2.250 0 0 0 13.75 2zm6.142 14.94c.097.268.222.534.384.782A2.25 2.25 0 0 0 11.5 19.75v.75h-3v-.75a2.25 2.25 0 0 0-2.25-2.25H5.5v-11h.75A2.25 2.25 0 0 0 8.5 4.25V3.5h3v.75a2.25 2.25 0 0 0 2.25 2.25h.75v3.438l-.469-.468c-.531-.531-1.148-1.008-1.821-1.198a2.1 2.1 0 0 0-1.104-.025a2 2 0 0 0-.632.285a3.5 3.5 0 1 0 1.55 6.324c.037.684.13 1.427.368 2.084M8 12a2 2 0 0 1 1.456-1.925a2.2 2.2 0 0 0 .068.883c.189.673.665 1.291 1.197 1.823l.665.662A2 2 0 0 1 8 12M5.5 4.25a.75.75 0 0 1 .75-.75H7v.75a.75.75 0 0 1-.75.75H5.5zM13 3.5h.75a.75.75 0 0 1 .75.75V5h-.75a.75.75 0 0 1-.75-.75zM14.5 19v.75a.75.75 0 0 1-.75.75H13v-.75a.75.75 0 0 1 .75-.75zM7 20.5h-.75a.75.75 0 0 1-.75-.75V19h.75a.75.75 0 0 1 .75.75z"/></svg></button>
@@ -536,7 +537,7 @@ export class Sidebar {
     for (const b of this.policyButtons) b.addEventListener('click', () => this.handlers.onOilPolicy(b.dataset.policy as OilPolicy));
     this.derricks = q('.sb-derricks');
     this.powerBar = q('.sb-power-bar');
-    this.powerFill = q('.sb-power-fill');
+    this.powerBlocks = [...this.powerBar.children] as HTMLElement[];
     this.message = q('.sb-msg');
     this.radarPanel = q('.sb-radar');
     // The compass sits in the minimap's bottom-left corner (the minimap is drawn north-up).
@@ -746,7 +747,8 @@ export class Sidebar {
     const ratio = player.powerConsumed > 0 ? Math.min(1, player.powerSupply / player.powerConsumed) : 1;
     // RA2-style: the whole bar (POWER_SEGMENTS equal blocks) is the nation's total consumption; the lit blocks are
     // the share of it its plants cover, a whole block at a time.
-    this.powerFill.style.width = `${(Math.round(ratio * POWER_SEGMENTS) / POWER_SEGMENTS) * 100}%`;
+    const lit = Math.round(ratio * POWER_SEGMENTS);
+    this.powerBlocks.forEach((b, i) => b.classList.toggle('on', i < lit));
     this.powerBar.dataset.level = player.blackout ? 'dead' : player.powerShort ? 'weak' : 'ok';
     // Colour runs with the strength of the grid (supply ÷ demand): red (weak) → orange → yellow → green (just enough)
     // → blue (very strong: supply above the nation's consumption). Blackout stays plain red.
