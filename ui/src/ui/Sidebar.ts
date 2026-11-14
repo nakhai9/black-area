@@ -120,6 +120,29 @@ export interface AllyInfo {
   underAttack: boolean;
 }
 
+/** Blocks the power bar is split into (Red Alert 2 style); the full bar = total power consumed. */
+const POWER_SEGMENTS = 50;
+/** Very strong grid (supply above the nation's consumption): the power bar is blue. */
+const POWER_BLUE = 'rgb(47, 140, 255)';
+/** Power bar colour stops by grid strength (supply ÷ demand). */
+const POWER_STOPS: readonly [number, [number, number, number]][] = [
+  [0, [0xe0, 0x30, 0x1e]],
+  [0.5, [0xff, 0x9a, 0x2e]],
+  [0.8, [0xf2, 0xd0, 0x3a]],
+  [1, [0x3f, 0xd3, 0x5a]],
+];
+function powerColor(strength: number): string {
+  if (strength > 1) return POWER_BLUE;
+  const s = Math.max(0, strength);
+  let i = 0;
+  while (i < POWER_STOPS.length - 2 && s > POWER_STOPS[i + 1]![0]) i++;
+  const [a, ca] = POWER_STOPS[i]!;
+  const [b, cb] = POWER_STOPS[i + 1]!;
+  const t = b > a ? Math.min(1, Math.max(0, (s - a) / (b - a))) : 0;
+  const c = ca.map((v, k) => Math.round(v + (cb[k]! - v) * t));
+  return `rgb(${c[0]}, ${c[1]}, ${c[2]})`;
+}
+
 /** News button icon (Google Material Icons, notifications active). */
 const NEWS_ICON = '<svg class="sb-loan-icon" xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M18 16v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.68-1.5-1.51-1.5S10.5 3.17 10.5 4v.68C7.63 5.36 6 7.92 6 11v5l-1.3 1.29c-.63.63-.19 1.71.7 1.71h13.17c.89 0 1.34-1.08.71-1.71zm-6.01 6c1.1 0 2-.9 2-2h-4a2 2 0 0 0 2 2M6.77 4.73c.42-.38.43-1.03.03-1.43a1 1 0 0 0-1.39-.02a10.42 10.42 0 0 0-3.27 6.06c-.09.61.38 1.16 1 1.16c.48 0 .9-.35.98-.83a8.44 8.44 0 0 1 2.65-4.94M18.6 3.28c-.4-.37-1.02-.36-1.4.02c-.4.4-.38 1.04.03 1.42c1.38 1.27 2.35 3 2.65 4.94c.07.48.49.83.98.83c.61 0 1.09-.55.99-1.16c-.38-2.37-1.55-4.48-3.25-6.05"/></svg>';
 
@@ -721,8 +744,14 @@ export class Sidebar {
     // Bar: supply against demand. Green = enough power; orange = short but the Global Monitoring Center still sells the
     // missing power (things keep running, no take-offs); red = blackout, nothing can run.
     const ratio = player.powerConsumed > 0 ? Math.min(1, player.powerSupply / player.powerConsumed) : 1;
-    this.powerFill.style.width = `${Math.round(ratio * 100)}%`;
+    // RA2-style: the whole bar (POWER_SEGMENTS equal blocks) is the nation's total consumption; the lit blocks are
+    // the share of it its plants cover, a whole block at a time.
+    this.powerFill.style.width = `${(Math.round(ratio * POWER_SEGMENTS) / POWER_SEGMENTS) * 100}%`;
     this.powerBar.dataset.level = player.blackout ? 'dead' : player.powerShort ? 'weak' : 'ok';
+    // Colour runs with the strength of the grid (supply ÷ demand): red (weak) → orange → yellow → green (just enough)
+    // → blue (very strong: supply above the nation's consumption). Blackout stays plain red.
+    const strength = player.powerConsumed > 0 ? player.powerSupply / player.powerConsumed : player.powerSupply > 0 ? 2 : 1;
+    this.powerBar.style.setProperty('--power-color', player.blackout ? '#e0301e' : powerColor(strength));
     this.powerBar.parentElement!.title = t('Power {line}. ', { line: powerLine }) + (player.blackout
       ? t('BLACKOUT: no power and no TB to buy oil from the Global Monitoring Center. No take-offs.')
       : player.powerShort
@@ -841,15 +870,15 @@ export class Sidebar {
       this.infoTabs.set(info.id, btn);
     }
     // News: opens the world news window (ranking on the left, allies on the right) instead of a pane.
-    // Square button beside Get a loan (bell icon), under the war clock row.
+    // Bell button at the top right of the faction card (plain colours, not the gold action buttons).
     const news = document.createElement('button');
     news.type = 'button';
-    news.className = 'sb-sell sb-loan sb-news';
+    news.className = 'sb-news';
     news.title = t('News');
     news.setAttribute('aria-label', t('News'));
     news.innerHTML = NEWS_ICON;
     news.addEventListener('click', () => this.toggleNews(true));
-    this.loanButton.after(news);
+    this.loanButton.closest('.sb-resources')!.querySelector('.sb-player')!.append(news);
     this.newsButton = news;
   }
 

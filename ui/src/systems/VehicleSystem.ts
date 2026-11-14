@@ -298,8 +298,13 @@ export class VehicleSystem implements GameSystem {
         continue;
       }
       const options = this.optionsFor(p);
-      // Another nation's machines whose captured War Factory / Airfield is gone: the order is dropped and refunded.
-      for (let i = q.items.length - 1; i >= 0; i--) if (!options.some((o) => o.key === q.items[i])) this.removeAt(p, i);
+      // Prerequisite gone (every nation, every machine): the order is dropped and refunded — the design is no longer on
+      // sale (captured factory / capital lost), or its War Factory / Airfield / Port or High-Tech Center is gone.
+      for (let i = q.items.length - 1; i >= 0; i--) {
+        const key = q.items[i]!;
+        const kind = splitKey(key).base;
+        if (!options.some((o) => o.key === key) || this.missingBuilding(p, kind) || (TECH_VEHICLES.includes(kind) && !this.hasTech(p))) this.removeAt(p, i);
+      }
       let state: VehicleQueueState | null = null;
       let short = false;
       const done: number[] = [];

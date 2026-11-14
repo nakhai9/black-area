@@ -630,6 +630,10 @@ export class Game {
     this.news = new NewsToast();
     this.placement = new PlacementSystem(this.map, this.entities);
     this.construction = new ConstructionSystem(this.players);
+    this.construction.lostPrerequisite = (p, option) =>
+      missingRequirement(option, this.ownedTypesOf(p), p.disarmedUntil !== undefined) !== null ||
+      // A Parallel Government's right is spent when it is ordered: its order stays.
+      (!option.id.startsWith('parallelGov@') && !this.buildAvailable(p, option));
     this.pathfinder = new Pathfinder(this.map);
     this.paths = new PathService(this.map, this.pathfinder);
     // Structure cells (walls, gate pillars, buildings) block everyone; open water blocks ground units that cannot swim

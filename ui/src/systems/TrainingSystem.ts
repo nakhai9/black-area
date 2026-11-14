@@ -234,14 +234,18 @@ export class TrainingSystem implements GameSystem {
         continue;
       }
       const barracks = this.barracksOf(p);
+      const tech = this.hasTech(p);
+      const options = this.optionsFor(p);
+      // Prerequisite gone (every nation, every soldier): the order is dropped and refunded — no Ministry of Defence any
+      // more, its captured foreign one lost, or the High-Tech Center an elite soldier needs is gone.
+      for (let i = q.items.length - 1; i >= 0; i--) {
+        const key = q.items[i]!;
+        if (!barracks || !options.some((o) => o.key === key) || (TECH_TIERS.includes(splitKey(key).base) && !tech)) this.removeAt(p, i);
+      }
       if (!barracks) {
         q.state = 'noBarracks';
         continue;
       }
-      const tech = this.hasTech(p);
-      const options = this.optionsFor(p);
-      // Another nation's soldiers whose captured Ministry of Defence is gone: the order is dropped and refunded.
-      for (let i = q.items.length - 1; i >= 0; i--) if (!options.some((o) => o.key === q.items[i])) this.removeAt(p, i);
       let short = false;
       const done: number[] = [];
       // First ordered, first finished: one soldier trains at a time, in order (one that needs a High-Tech Center that is

@@ -288,6 +288,14 @@ body.sidebar-hidden .sb-open {
   background: var(--power-color);
   transition: width 0.3s ease, background-color 0.3s ease;
 }
+/* 50 equal blocks (RA2): a 1 px dark gap every 2 % of the bar, drawn over the fill. */
+.sb-power-bar::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(to right, transparent 0 calc(2% - 1px), #10161b calc(2% - 1px) 2%);
+}
 
 .sb-tabs {
   display: grid;
@@ -2730,7 +2738,7 @@ input:disabled {
 
 /* War clock + loan button now sit at the bottom of the faction card (top of the sidebar, every page). */
 .sb-resources .sb-actions.sb-oil-actions {
-  grid-template-columns: 1fr auto auto;
+  grid-template-columns: 1fr auto;
   align-items: stretch;
   margin-top: 8px;
   padding: 0;
@@ -2740,4 +2748,27 @@ input:disabled {
   height: 34px;
   aspect-ratio: 1;
   padding: 0;
+}
+
+/* News (bell): top right of the faction card, plain sidebar colours. */
+.sb-player .sb-news {
+  margin-left: auto;
+  align-self: flex-start;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid #3a4652;
+  border-radius: 4px;
+  background: #1a2129;
+  color: #c9d3dc;
+  cursor: pointer;
+}
+.sb-player .sb-news:hover {
+  background: #232c36;
+  color: #fff;
+}
+.sb-player .sb-news.active {
+  border-color: #8a96a3;
 }

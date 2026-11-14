@@ -34,7 +34,7 @@ export const DEMO_FACTION: FactionId = NATION_CODES[(import.meta.env.VITE_DEMO_F
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "3.75.25";
+export const GAME_VERSION = "3.75.30";
 
 /** An Allied Building within this many cells of any capital is an embassy; farther out it is a "Pro-<nation> regime". */
 export const EMBASSY_CAPITAL_CELLS = 25;
@@ -424,7 +424,8 @@ export const AIRFIELD_COST = 6000;
 export const TECH_CENTER_COST = 8000;
 /** Second-tier units that need a High-Tech Center: special-forces soldiers and the armoured fighting vehicle. */
 export const TECH_TIERS: readonly UnitTier[] = ["special", "demolition"];
-export const TECH_VEHICLES: readonly VehicleKind[] = ["ifv", "transport", "carrier"];
+/** Need a High-Tech Center (as well as their factory / airfield). Bombers: Airfield + High-Tech Center. */
+export const TECH_VEHICLES: readonly VehicleKind[] = ["ifv", "transport", "carrier", "bomber"];
 /**
  * Happy City: no limit on how many a nation builds; fixed price (no faction cost multiplier). Every city pays
  * HAPPY_CITY_TAX TB of taxes into its nation's budget every HAPPY_CITY_TAX_PERIOD seconds, each on its own clock.

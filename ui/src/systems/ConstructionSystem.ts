@@ -357,6 +357,12 @@ export class ConstructionSystem implements GameSystem {
   /** Player id → structure id → its order. (Saves up to 1.29 hold one QueueSlot per player: see `orders`.) */
   private readonly slots = new Map<number, Map<string, QueueSlot> | QueueSlot>();
 
+  /**
+   * Has the nation lost what `option` needs (a required structure, the capital of the nation whose design it is…)?
+   * Set by the game; such orders — building, on hold or finished but not placed — are cancelled and refunded.
+   */
+  lostPrerequisite: ((player: PlayerState, option: BuildOption) => boolean) | null = null;
+
   constructor(private readonly players: readonly PlayerState[]) {
     for (const p of players) this.slots.set(p.id, new Map());
   }
@@ -423,6 +429,11 @@ export class ConstructionSystem implements GameSystem {
   update(dt: number): void {
     for (const p of this.players) {
       for (const s of this.orders(p).values()) {
+        // Prerequisite gone (every nation, every structure): the order is dropped and what was paid comes back.
+        if (s.option && s.state !== 'idle' && this.lostPrerequisite?.(p, s.option)) {
+          this.cancel(p, s.option.id);
+          continue;
+        }
         if (!s.option || (s.state !== 'building' && s.state !== 'onHold' && s.state !== 'noPower')) continue;
         // Orders always run while there is money: power no longer stops construction.
         const cost = buildCost(s.option, p.faction);
