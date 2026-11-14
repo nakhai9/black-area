@@ -3,6 +3,8 @@ import type { FactionId, InfantryLook, VehicleKind } from '../types';
 
 /** Short-lived visual effects drawn on top of units. Positions are world px. */
 export type Effect =
+  /** Laser beam (LDEW, Prism-style): glowing beam in the shooter's faction colour with a white-hot core. */
+  | { kind: 'laser'; x0: number; y0: number; x1: number; y1: number; age: number; ttl: number; color: string }
   | { kind: 'tracer'; x0: number; y0: number; x1: number; y1: number; age: number; ttl: number; color: string; width: number; shell: boolean }
   | { kind: 'flash'; x: number; y: number; age: number; ttl: number; size: number }
   | { kind: 'blast'; x: number; y: number; age: number; ttl: number; radius: number }

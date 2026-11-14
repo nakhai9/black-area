@@ -1,5 +1,5 @@
 import { demoPrice } from '../core/Demo';
-import { AVAILABLE_VEHICLES, BUILD_LIMIT_VEHICLES, MAX_GROUND_VEHICLES, MAX_TRANSPORTS, TECH_VEHICLES, VEHICLE_BASE, needsAirfield } from '../constants';
+import { AVAILABLE_VEHICLES, BUILD_LIMIT_VEHICLES, NATION_VEHICLES, MAX_GROUND_VEHICLES, MAX_TRANSPORTS, TECH_VEHICLES, VEHICLE_BASE, needsAirfield } from '../constants';
 import type { Building } from '../entities/Building';
 import type { EntityManager } from '../entities/EntityManager';
 import { FACTIONS } from '../factions';
@@ -8,7 +8,7 @@ import { isAirBase, parkingSlots } from './AircraftSystem';
 import type { GameSystem } from './GameSystem';
 import { fixPaidEach } from './TrainingSystem';
 import { type ForeignKey, splitKey, takenNations } from './Foreign';
-import { vehiclePrice } from '../entities/Vehicle';
+import { NATION_VEHICLE_PROFILES, vehiclePrice } from '../entities/Vehicle';
 import { isDeleted, movedInto, ownOffered } from '../core/GameAssets';
 
 /** A vehicle order: `kind` (own nation) or `kind@faction` (from a captured foreign War Factory / Airfield). */
@@ -48,6 +48,22 @@ function vehicleOptions(faction: FactionId, foreign = false): VehicleOption[] {
     requires: kind === 'carrier' ? 'port' : needsAirfield(kind) ? 'airfield' : 'warFactory',
     needsAirfield: needsAirfield(kind),
   }));
+}
+
+/** A contested nation's machine (NATION_VEHICLES) as offered to the holder of its capital: built at its War Factory in the holder's colours. */
+function nationOption(faction: FactionId, kind: VehicleKind): VehicleOption {
+  const p = NATION_VEHICLE_PROFILES[kind];
+  return {
+    key: kind,
+    kind,
+    faction,
+    name: p?.name ?? kind,
+    description: p?.description ?? '',
+    cost: demoPrice(vehiclePrice(faction, kind)),
+    trainSeconds: VEHICLE_BASE[kind].trainSeconds + FACTIONS[faction].stats.trainDelay,
+    requires: 'warFactory',
+    needsAirfield: false,
+  };
 }
 
 /** Another nation's machines, as offered to whoever holds its War Factory / Airfield. */
@@ -121,14 +137,25 @@ export class VehicleSystem implements GameSystem {
     if (own.length === 0) return own;
     const ground = takenNations(this.entities, player, 'warFactory');
     const air = takenNations(this.entities, player, 'airfield');
-    if (ground.length === 0 && air.length === 0) return own;
+    const held = this.heldNationVehicles(player).map((k) => nationOption(player.faction, k));
+    if (ground.length === 0 && air.length === 0) return [...own, ...held];
     const foreign = [...new Set([...ground, ...air])].sort().flatMap((f) =>
       foreignOptions(f).filter((o) => (o.needsAirfield ? air : ground).includes(f)),
     );
     // Every captured nation's designs join the shop next to the own ones (a captured factory brings its technology;
     // each foreign design has its own key `kind@faction` and shows that nation's flag).
     const keys = new Set(own.map((o) => o.key));
-    return [...own, ...foreign.filter((o) => !keys.has(o.key))];
+    return [...own, ...held, ...foreign.filter((o) => !keys.has(o.key))];
+  }
+
+  /** Machines of the contested nations whose capital the player holds (K9 for Seoul, LDEW for London…). */
+  heldNationVehicles(player: PlayerState): VehicleKind[] {
+    const out: VehicleKind[] = [];
+    for (const b of this.entities.buildings()) {
+      if (b.owner !== player.id || !b.alive || b.spec.type !== 'nationCapital' || !('nation' in b)) continue;
+      for (const k of NATION_VEHICLES[b.nation as keyof typeof NATION_VEHICLES] ?? []) if (!out.includes(k)) out.push(k);
+    }
+    return out;
   }
 
   /** First living building of `type` owned by the player. */

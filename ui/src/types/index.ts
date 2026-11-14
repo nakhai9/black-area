@@ -101,7 +101,7 @@ export interface WeaponSpec {
 /** `bomber` is a national special: only nations that list it in their `vehicles` can build it (Russia's Tu-160, the USA's B-1A Lancer). */
 /** `repair` is a national special too: an unarmed armoured recovery vehicle that mends friendly ground vehicles (Russia's BREM-1). */
 /** `bridgeLayer`: armoured vehicle-launched bridge; used once, it unfolds into a Bridge structure across water (see Bridge). */
-export type VehicleKind = 'light' | 'tank' | 'ifv' | 'jet' | 'transport' | 'bomber' | 'repair' | 'truck' | 'heli' | 'mantis' | 'drone' | 'carrier' | 'bridgeLayer' | 'awacs';
+export type VehicleKind = 'light' | 'tank' | 'ifv' | 'jet' | 'transport' | 'bomber' | 'repair' | 'truck' | 'heli' | 'mantis' | 'drone' | 'carrier' | 'bridgeLayer' | 'awacs' | 'k9' | 'ldew' | 'ldewTruck';
 
 export interface VehicleProfile {
   name: string;
@@ -150,7 +150,7 @@ export interface FactionConfig {
   /** Ground forces trained at the Barracks. */
   infantry: Readonly<Record<Exclude<UnitTier, 'demolition'>, InfantryProfile>> & { readonly demolition?: InfantryProfile };
   /** Vehicles (War Factory) and aircraft (Airfield). */
-  vehicles: Readonly<Record<Exclude<VehicleKind, 'bomber' | 'repair' | 'truck' | 'transport' | 'heli' | 'drone' | 'carrier' | 'bridgeLayer'>, VehicleProfile>> & {
+  vehicles: Readonly<Record<Exclude<VehicleKind, 'bomber' | 'repair' | 'truck' | 'transport' | 'heli' | 'drone' | 'carrier' | 'bridgeLayer' | 'k9' | 'ldew' | 'ldewTruck'>, VehicleProfile>> & {
     readonly bomber?: VehicleProfile;
     /** Attack helicopter (built at the Airfield). */
     readonly heli?: VehicleProfile;

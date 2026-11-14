@@ -2,7 +2,7 @@ import type { FactionId } from '../types';
 import type { Mobility } from '../map/Pathfinder';
 import { demoActive } from '../core/Demo';
 import { movesRight } from '../core/IsoView';
-import { BOMB_FALL_SECONDS, HIGH_GROUND_DAMAGE, HIGH_GROUND_RANGE, LOW_GROUND_DAMAGE, BUNKER_COOLDOWN, BUNKER_DAMAGE, BUNKER_RANGE, BUNKER_VS_VEHICLE, MANTIS_HIT_SHARE, MANTIS_RANGE_CELLS, MANTIS_RANK_BONUS, MANTIS_EVADE_CELLS, HELI_VS_MANTIS_SHARE, JET_VS_MANTIS_SHARE, MANTIS_VS_JET_SHARE, MANTIS_VS_HELI_SHARE, MANTIS_RELOAD, MANTIS_GUN_NATIONS, PGZ_RELOAD, PGZ_HIT_FACTOR, JET_BOMB_VS_STRUCTURE, JET_BOMB_VS_VEHICLE, ACQUIRE_PERIOD, RANK_FIREPOWER, RANK_RELOAD, BOMB_GROUP_RADIUS_CELLS, BOMB_GROUP_SIZE, BOMB_TOUGH_DAMAGE, BOMB_TOUGH_STRUCTURES, BOMBS_PER_DROP, CELL_SIZE, CHASE_GIVE_UP_SECONDS, CHASE_LIMIT_CELLS, CHASE_PERIOD, FIGHT_MEMORY_SECONDS, GUARD_VISION_FACTOR, NEUTRAL_OWNER, RETALIATE_RANGE_FACTOR, WEAPONS, FIGHTER_DRONE_ALERT, FELL_SPREAD_CELLS, TREE_BOMB_RADIUS_CELLS, TREE_STICK_RADIUS_CELLS } from '../constants';
+import { BOMB_FALL_SECONDS, HIGH_GROUND_DAMAGE, HIGH_GROUND_RANGE, LOW_GROUND_DAMAGE, MANTIS_HIT_SHARE, MANTIS_RANGE_CELLS, MANTIS_RANK_BONUS, MANTIS_EVADE_CELLS, HELI_VS_MANTIS_SHARE, JET_VS_MANTIS_SHARE, MANTIS_VS_JET_SHARE, MANTIS_VS_HELI_SHARE, MANTIS_RELOAD, MANTIS_GUN_NATIONS, PGZ_RELOAD, PGZ_HIT_FACTOR, JET_BOMB_VS_STRUCTURE, JET_BOMB_VS_VEHICLE, ACQUIRE_PERIOD, RANK_FIREPOWER, RANK_RELOAD, BOMB_GROUP_RADIUS_CELLS, BOMB_GROUP_SIZE, BOMB_TOUGH_DAMAGE, BOMB_TOUGH_STRUCTURES, BOMBS_PER_DROP, CELL_SIZE, CHASE_GIVE_UP_SECONDS, CHASE_LIMIT_CELLS, CHASE_PERIOD, FIGHT_MEMORY_SECONDS, GUARD_VISION_FACTOR, NEUTRAL_OWNER, RETALIATE_RANGE_FACTOR, WEAPONS, FIGHTER_DRONE_ALERT, FELL_SPREAD_CELLS, TREE_BOMB_RADIUS_CELLS, TREE_STICK_RADIUS_CELLS } from '../constants';
 import { Building } from '../entities/Building';
 import { Bunker } from '../entities/Bunker';
 import type { Entity } from '../entities/Entity';
@@ -242,16 +242,16 @@ export class CombatSystem implements GameSystem {
       const f = b.footprintWorld();
       let best: Unit | undefined;
       let bestD = Infinity;
-      const r = Math.ceil((BUNKER_RANGE + f.w) / HASH);
+      const r = Math.ceil((b.range + f.w) / HASH);
       const hx = Math.floor(c.x / HASH);
       const hy = Math.floor(c.y / HASH);
       for (let gy = hy - r; gy <= hy + r; gy++) {
         for (let gx = hx - r; gx <= hx + r; gx++) {
           for (const o of grid.get(key(gx, gy)) ?? []) {
-            if (o.flies || !isHostile(b, o) || this.sheltered(o)) continue;
+            if ((o.flies && !b.hitsAir) || !isHostile(b, o) || this.sheltered(o)) continue;
             // Range is measured from the bunker's edge.
             const d = Math.hypot(Math.max(f.x - o.px, 0, o.px - (f.x + f.w)), Math.max(f.y - o.py, 0, o.py - (f.y + f.h)));
-            if (d <= BUNKER_RANGE && d < bestD) {
+            if (d <= b.range && d < bestD) {
               bestD = d;
               best = o;
             }
@@ -259,10 +259,10 @@ export class CombatSystem implements GameSystem {
         }
       }
       if (!best) continue;
-      b.cooldown = BUNKER_COOLDOWN;
+      b.cooldown = b.shotCooldown;
       b.firing = 0.3;
       b.aimHeading = Math.atan2(best.py - c.y, best.px - c.x);
-      best.damage(BUNKER_DAMAGE * (best instanceof Vehicle ? BUNKER_VS_VEHICLE : 1));
+      best.damage(b.shotDamage * (best instanceof Vehicle ? b.vsVehicle : 1));
       best.lastAttackerId = b.id;
       best.lastAttackedAt = this.time;
       best.fightingWith.set(b.owner, this.time);

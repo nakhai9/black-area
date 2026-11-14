@@ -1,4 +1,5 @@
 import { drawBridgeLayerPortrait } from './BridgeLayerSheets';
+import { drawNationVehiclePortrait, hasNationVehicleSheet } from './PrototypeSheets';
 import { drawCarrierPortrait } from './CarrierSheet';
 import { drawAircraftPortrait } from './AircraftSheets';
 import { drawRepairPortrait } from './RepairSheets';
@@ -541,6 +542,11 @@ export function vehiclePortrait(faction: FactionId, kind: VehicleKind): HTMLCanv
   let c = portraits.get(key);
   if (!c) {
     const { canvas, ctx } = createCanvas(128, 96);
+    // K9 Thunder, LDEW, LDEW truck: their sheets only; a blank cameo (not cached) until the sheets have loaded.
+    if (hasNationVehicleSheet(kind)) {
+      if (drawNationVehiclePortrait(ctx, kind, faction, 128, 96, 0.45)) portraits.set(key, canvas);
+      return canvas;
+    }
     if (drawAircraftPortrait(ctx, faction, kind, 128, 96, 0.45) || (kind === 'tank' && drawTankPortrait(ctx, faction, 128, 96, 0.45)) || (kind === 'repair' && drawRepairPortrait(ctx, faction, 128, 96, 0.45)) || (kind === 'bridgeLayer' && drawBridgeLayerPortrait(ctx, faction, 128, 96, 0.45)) || (kind === 'mantis' && drawMantisPortrait(ctx, faction, 128, 96, 0.45)) || (kind === 'truck' && drawTruckPortrait(ctx, faction, 128, 96, 0.45)) || (kind === 'carrier' && drawCarrierPortrait(ctx, faction, 128, 96, 0.45))) {
       portraits.set(key, canvas);
       return canvas;

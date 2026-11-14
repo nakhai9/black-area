@@ -1,4 +1,4 @@
-import { HIDDEN_BUILDS } from '../constants';
+import { type ContestedNationId, HIDDEN_BUILDS, LDEW_SITE_COST, LDEW_SITE_NATION } from '../constants';
 import { demoPrice } from '../core/Demo';
 import {
   MILITARY_BASES,
@@ -43,6 +43,7 @@ import { ParallelGovernment } from '../entities/ParallelGovernment';
 import { FACTIONS } from '../factions';
 import { HappyCity } from '../entities/HappyCity';
 import { Bunker } from '../entities/Bunker';
+import { LdewEmplacement } from '../entities/LdewEmplacement';
 import { PowerPlant } from '../entities/PowerPlant';
 import { TechCenter } from '../entities/TechCenter';
 import { RadarTower } from '../entities/RadarTower';
@@ -58,13 +59,15 @@ import type { GameSystem } from './GameSystem';
 import { isDeleted, sellerOf } from '../core/GameAssets';
 
 /** A structure that can be produced from the sidebar's Build tab. */
-type BaseBuildId = 'powerPlant' | 'barracks' | 'warFactory' | 'airfield' | 'port' | 'radarTower' | 'fuelStation' | 'techCenter' | 'happyCity' | 'flagpole' | 'alliedBuilding' | 'parallelGov' | 'bunker' | 'wall' | 'gate';
+type BaseBuildId = 'powerPlant' | 'barracks' | 'warFactory' | 'airfield' | 'port' | 'radarTower' | 'fuelStation' | 'techCenter' | 'happyCity' | 'flagpole' | 'alliedBuilding' | 'parallelGov' | 'bunker' | 'wall' | 'gate' | 'ldew';
 
 export interface BuildOption {
   /** `base@faction` for another nation's design (on sale while that nation's capital is held). */
   id: BaseBuildId | `${BaseBuildId}@${FactionId}`;
   /** Another nation's design: offered only to the holder of that nation's captured capital. */
   foreign?: FactionId;
+  /** A contested nation's design: offered only while its capital is held (the LDEW for London). */
+  nation?: ContestedNationId;
   name: string;
   /** Tech tree: these buildings must already stand (power plant → barracks → war factory + radar tower → airfield → happy city). */
   requires?: BuildingType | readonly BuildingType[];
@@ -122,6 +125,18 @@ const OWN_OPTIONS: readonly BuildOption[] = [
     footprint: FOOTPRINT_BUNKER,
     spriteKey: (f) => `bunker:${f}`,
     create: (owner, faction, x, y) => new Bunker(owner, faction, center(x, y, FOOTPRINT_BUNKER)),
+  },
+  {
+    // LDEW laser emplacement: a bunker that fires a laser (aircraft too); on sale only to the holder of London.
+    id: 'ldew',
+    name: 'LDEW Laser',
+    requires: 'barracks',
+    cost: LDEW_SITE_COST,
+    fixedCost: true,
+    nation: LDEW_SITE_NATION,
+    footprint: FOOTPRINT_BUNKER,
+    spriteKey: (f) => `bunker:${f}`,
+    create: (owner, faction, x, y) => new LdewEmplacement(owner, faction, center(x, y, FOOTPRINT_BUNKER)),
   },
   {
     // One block of the nation's wall: stops enemy ground units.
@@ -277,6 +292,8 @@ export function buildOffered(option: BuildOption, nation: FactionId): boolean | 
   if (HIDDEN_BUILDS.has(base)) return false;
   // `powerPlant@russia` for Russia is its own Power Plant a second time: never offered (it showed as a duplicate cameo).
   if (option.foreign === nation && FOREIGN_BUILDS.has(base)) return false;
+  // A contested nation's design: on sale only while its capital is held (decided by the caller).
+  if (option.nation) return null;
   const design = option.foreign ?? nation;
   if (isDeleted('building', design, base)) return false;
   if (!option.foreign) return sellerOf('building', design, base) === nation;

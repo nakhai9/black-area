@@ -9,6 +9,7 @@ import { drawRepairSheet } from '../render/RepairSheets';
 import { drawMantisSheet } from '../render/MantisSheet';
 import { drawTruckSheet } from '../render/TruckSheets';
 import { drawTankSheet } from '../render/TankSheets';
+import { drawNationVehicleSheet } from '../render/PrototypeSheets';
 import { SQUASH, drawVehicle } from '../render/VehicleArt';
 import { drawBridgeLayerSheet } from '../render/BridgeLayerSheets';
 import type { FactionId } from '../types';
@@ -65,7 +66,7 @@ export function drawVehicleRing(canvas: HTMLCanvasElement, u: Vehicle): void {
     ctx.translate(w / 2 + Math.sin(a) * rx, h / 2 - Math.cos(a) * ry);
     ctx.scale(zoom, zoom);
     const y = air ? u.altitude / 2 : 0;
-    const sheet = (air && drawAircraftSheet(ctx, u, 0, u.altitude + 1.5)) || (u.type === 'tank' && drawTankSheet(ctx, u, 0, y)) || (u.type === 'repair' && drawRepairSheet(ctx, u, 0, y)) || (u.type === 'mantis' && drawMantisSheet(ctx, u, 0, y)) || (u.type === 'truck' && drawTruckSheet(ctx, u, 0, y)) || (u.type === 'bridgeLayer' && drawBridgeLayerSheet(ctx, u, 0, y));
+    const sheet = (air && drawAircraftSheet(ctx, u, 0, u.altitude + 1.5)) || (u.type === 'tank' && drawTankSheet(ctx, u, 0, y)) || drawNationVehicleSheet(ctx, u, 0, y) || (u.type === 'repair' && drawRepairSheet(ctx, u, 0, y)) || (u.type === 'mantis' && drawMantisSheet(ctx, u, 0, y)) || (u.type === 'truck' && drawTruckSheet(ctx, u, 0, y)) || (u.type === 'bridgeLayer' && drawBridgeLayerSheet(ctx, u, 0, y));
     if (!sheet) drawVehicle(ctx, { x: 0, y, heading: isoHeading(heading, air ? 0.8 : SQUASH), phase: 0, moving: false, altitude: air ? u.altitude : undefined }, u.type, u.faction as FactionId);
     ctx.restore();
   }
@@ -100,7 +101,7 @@ export function drawUnitCard(card: UnitCard, time: number): void {
     ctx.scale(zoom, zoom);
     const y = air ? u.altitude / 2 : 0; // aircraft hover over their ground point: centre the whole picture
     // Sheet aircraft are drawn altitude + 1.5 px above their ground point: put the plane itself in the middle.
-    const sheet = (air && drawAircraftSheet(ctx, u, 0, u.altitude + 1.5)) || (u.type === 'tank' && drawTankSheet(ctx, u, 0, y)) || (u.type === 'repair' && drawRepairSheet(ctx, u, 0, y)) || (u.type === 'mantis' && drawMantisSheet(ctx, u, 0, y)) || (u.type === 'truck' && drawTruckSheet(ctx, u, 0, y)) || (u.type === 'bridgeLayer' && drawBridgeLayerSheet(ctx, u, 0, y));
+    const sheet = (air && drawAircraftSheet(ctx, u, 0, u.altitude + 1.5)) || (u.type === 'tank' && drawTankSheet(ctx, u, 0, y)) || drawNationVehicleSheet(ctx, u, 0, y) || (u.type === 'repair' && drawRepairSheet(ctx, u, 0, y)) || (u.type === 'mantis' && drawMantisSheet(ctx, u, 0, y)) || (u.type === 'truck' && drawTruckSheet(ctx, u, 0, y)) || (u.type === 'bridgeLayer' && drawBridgeLayerSheet(ctx, u, 0, y));
     if (!sheet) drawVehicle(ctx, { x: 0, y, heading: isoHeading(heading, air ? 0.8 : SQUASH), phase: 0, moving: false, altitude: air ? u.altitude : undefined }, u.type, u.faction as FactionId);
   } else if (u instanceof Infantry) {
     ctx.scale(ZOOM.soldier, ZOOM.soldier);

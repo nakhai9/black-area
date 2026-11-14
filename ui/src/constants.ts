@@ -34,7 +34,7 @@ export const DEMO_FACTION: FactionId = NATION_CODES[(import.meta.env.VITE_DEMO_F
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "3.75.4";
+export const GAME_VERSION = "3.75.23";
 
 /** An Allied Building within this many cells of any capital is an embassy; farther out it is a "Pro-<nation> regime". */
 export const EMBASSY_CAPITAL_CELLS = 25;
@@ -362,6 +362,16 @@ export const BUNKER_RANGE = 40;
 export const BUNKER_DAMAGE = 8;
 export const BUNKER_COOLDOWN = 0.25;
 export const BUNKER_VS_VEHICLE = 0.35;
+/**
+ * LDEW laser emplacement (Defense tab, 1×1): on sale only while the nation holds London (unitedKingdom's capital), for
+ * the player and the AI alike. Fires on its own like a bunker, but a laser: aircraft too, LDEW_SITE_RANGE_CELLS cells.
+ */
+export const LDEW_SITE_COST = 1500;
+export const LDEW_SITE_HP = 900;
+export const LDEW_SITE_RANGE_CELLS = 9;
+export const LDEW_SITE_DAMAGE = 30;
+export const LDEW_SITE_COOLDOWN = 0.9;
+export const LDEW_SITE_NATION = "unitedKingdom";
 export const AI_BUNKERS = 2;
 /**
  * Wall (1×1, Defense tab): a block in the nation's own style (Russia / China red, Islamic blue, USA / Europe concrete)
@@ -732,6 +742,9 @@ export const VEHICLE_WEAPON: Readonly<
 > = {
   light: "mg",
   tank: "cannon",
+  k9: "cannon",
+  ldew: "autocannon",
+  ldewTruck: "autocannon",
   ifv: "autocannon",
   jet: "missile",
   heli: "missile",
@@ -773,6 +786,12 @@ export const VEHICLE_BASE = {
   },
   light: { cost: 600, trainSeconds: 8, maxHp: 180, speed: 2.4, radius: 3.4 },
   tank: { cost: 1200, trainSeconds: 14, maxHp: 420, speed: 1.4, radius: 4.2 },
+  /** K9 Thunder 155 mm self-propelled howitzer: sold only to the holder of Seoul (South Korea's capital), see K9_NATION. */
+  k9: { cost: 1800, trainSeconds: 18, maxHp: 360, speed: 1.2, radius: 4.4 },
+  /** LDEW laser (counter-UAS), ground emplacement: crawls into place, then guards it. Holder of London only (NATION_VEHICLES). */
+  ldew: { cost: 1500, trainSeconds: 16, maxHp: 320, speed: 0.4, radius: 4.0 },
+  /** LDEW laser on the European MAN SV truck bed. Holder of London only (NATION_VEHICLES). */
+  ldewTruck: { cost: 1700, trainSeconds: 16, maxHp: 260, speed: 2.0, radius: 4.4 },
   ifv: { cost: 900, trainSeconds: 11, maxHp: 300, speed: 1.8, radius: 4.0 },
   jet: { cost: 1600, trainSeconds: 16, maxHp: 220, speed: 9, radius: 3.2 },
   /** Attack helicopter: slow (well under the fighter and the transport), built at the Airfield like it. */
@@ -973,7 +992,24 @@ export const AVAILABLE_VEHICLES: readonly VehicleKind[] = [
   "mantis",
   "drone",
   "bridgeLayer",
+  "k9",
+  "ldewTruck",
 ];
+/**
+ * Machines of a contested nation: on sale (War Factory, in the holder's colours) only while that nation's capital is
+ * held; lost with it (orders waiting are dropped and refunded). Same rule for the player and the AI.
+ */
+export const NATION_VEHICLES: Readonly<Partial<Record<ContestedNationId, readonly VehicleKind[]>>> = {
+  southKorea: ["k9"],
+  unitedKingdom: ["ldewTruck"],
+};
+/** LDEW laser vs the autocannon it fires with: damage and range factors. */
+export const LDEW_DAMAGE = 2.5;
+export const LDEW_RANGE = 1.6;
+/** K9 howitzer shell vs the tank cannon: range and damage factors (slower to reload). */
+export const K9_RANGE = 2.2;
+export const K9_DAMAGE = 1.5;
+export const K9_COOLDOWN = 2.2;
 
 /**
  * Repair vehicle (BREM-1): ordered onto a damaged friendly ground vehicle (right-click), it drives up to it and,
@@ -1234,11 +1270,13 @@ export const NATION_PRESENCE_FEE = 1200;
 export const NATION_PRESENCE_FEES: Readonly<Record<ContestedNationId, number>> =
   {
     japan: 1720,
-    unitedKingdom: 1610,
+    unitedKingdom: 0,
     canada: 1260,
     brazil: 1260,
     australia: 1140,
-    southKorea: 1110,
+    // South Korea and the United Kingdom pay no presence fee: their capital gives its holder their machines instead
+    // (K9 Thunder / LDEW, NATION_VEHICLES and the LDEW emplacement).
+    southKorea: 0,
     cuba: 560,
     northKorea: 320,
     belarus: 520,

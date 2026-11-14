@@ -13,6 +13,7 @@ import { loadTankSprites } from "../render/TankSheets";
 import { loadTruckSprites } from "../render/TruckSheets";
 import { BUILDING_ART, teamColoredKey } from "../render/sprites";
 import { loadPictureArts } from "../render/sprites/PictureArt";
+import { PREVIEW_COLORS, PROTOTYPES, type Prototype, drawPrototype, loadPrototypeSprites } from "../render/PrototypeSheets";
 import { BUILD_OPTIONS, FOREIGN_BUILDS, buildCost, footprintOf } from "../systems/ConstructionSystem";
 import type { FactionId, UnitTier, VehicleKind } from "../types";
 import { type BuildingCard, drawBuildingCard } from "./BuildingGallery";
@@ -286,6 +287,75 @@ function openAssetModal(a: Asset): void {
   );
 }
 
+/** New Blender designs (not yet game units): turn slowly, cycling the faction colours; click for a larger view. */
+function prototypeTab(grid: HTMLElement): () => void {
+  const items = PROTOTYPES.map((p) => {
+    const card = document.createElement("div");
+    card.className = "ap-card";
+    const canvas = document.createElement("canvas");
+    const label = document.createElement("div");
+    label.innerHTML = `<b></b><small></small>`;
+    label.querySelector("b")!.textContent = p.name;
+    label.querySelector("small")!.textContent = p.lines[0]!;
+    card.append(canvas, label);
+    card.addEventListener("click", () => openPrototypeModal(p));
+    grid.append(card);
+    return { canvas, p };
+  });
+  let alive = true;
+  const frame = (now: number): void => {
+    if (!alive || !grid.isConnected) return;
+    const time = now / 1000;
+    const hex = PREVIEW_COLORS[Math.floor(time / 2) % PREVIEW_COLORS.length]!.hex;
+    for (const it of items) drawPrototype(it.canvas, it.p, 4, Math.floor(time * 4), hex);
+    requestAnimationFrame(frame);
+  };
+  requestAnimationFrame(frame);
+  return () => (alive = false);
+}
+
+function openPrototypeModal(p: Prototype): void {
+  const bg = document.createElement("div");
+  bg.className = "ap-modal-bg";
+  bg.innerHTML = `
+    <div class="ap-modal">
+      <div class="ap-modal-body">
+        <div><canvas class="ap-main"></canvas></div>
+        <div class="ap-info">
+          <h2></h2>
+          <ul>${p.lines.map((l) => `<li>${l}</li>`).join("")}</ul>
+          <label>${t("Faction colour")}</label>
+          <div class="ap-sel"></div>
+          <label style="margin-top:10px">${t("Facing")}</label>
+          <input class="ap-dir" type="range" min="0" max="31" value="4" style="width:100%">
+          <label style="margin-top:10px">${t("Turret")}</label>
+          <input class="ap-top" type="range" min="0" max="31" value="4" style="width:100%">
+        </div>
+      </div>
+      <div class="ap-foot"><span class="grow"></span><button class="ap-btn ap-close" type="button">${t("Close")}</button></div>
+    </div>`;
+  bg.querySelector("h2")!.textContent = p.name;
+  const select = factionSelect(PREVIEW_COLORS[0]!.faction);
+  bg.querySelector(".ap-sel")!.append(select);
+  document.body.append(bg);
+  const main = bg.querySelector<HTMLCanvasElement>(".ap-main")!;
+  const dir = bg.querySelector<HTMLInputElement>(".ap-dir")!;
+  const top = bg.querySelector<HTMLInputElement>(".ap-top")!;
+  let alive = true;
+  const frame = (): void => {
+    if (!alive) return;
+    drawPrototype(main, p, +dir.value, +top.value, FACTIONS[select.value as FactionId].colors.primary);
+    requestAnimationFrame(frame);
+  };
+  requestAnimationFrame(frame);
+  const close = (): void => {
+    alive = false;
+    bg.remove();
+  };
+  bg.addEventListener("click", (e) => e.target === bg && close());
+  bg.querySelector(".ap-close")!.addEventListener("click", close);
+}
+
 function configTab(root: HTMLElement): void {
   root.innerHTML = `<div class="ap-tabs ap-sub-tabs"></div><div class="ap-grid"></div>`;
   const tabs = root.querySelector<HTMLElement>(".ap-sub-tabs")!;
@@ -294,6 +364,10 @@ function configTab(root: HTMLElement): void {
   const open = (tab: string): void => {
     stop();
     tabs.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.kind === tab));
+    if (tab === "prototype") {
+      stop = prototypeTab(grid);
+      return;
+    }
     const file = gameAssets();
     const [kind, group] = tab.includes(":") ? (tab.split(":") as [AssetKind, VehicleGroup]) : [tab as AssetKind, undefined];
     const items = assetsOf(kind, group).map((a) => {
@@ -326,6 +400,7 @@ function configTab(root: HTMLElement): void {
     ["vehicle:naval", t("Naval vessels")],
     ["vehicle:air", t("Aircraft")],
     ["building", t("Structures")],
+    ["prototype", t("New designs")],
   ] as const;
   for (const [kind, label] of tabList) {
     const b = document.createElement("button");
@@ -353,7 +428,7 @@ export async function showAssetsPage(host: HTMLElement): Promise<void> {
     <div class="ap-body">${t("Loading pictures…")}</div>`;
   host.replaceChildren(page);
   page.querySelector(".ap-back")!.addEventListener("click", () => location.reload());
-  await Promise.allSettled([loadPictureArts(), loadSoldierSprites(), loadTankSprites(), loadAircraftSprites(), loadRepairSprites(), loadTruckSprites(), loadMantisSprites()]);
+  await Promise.allSettled([loadPictureArts(), loadSoldierSprites(), loadTankSprites(), loadAircraftSprites(), loadRepairSprites(), loadTruckSprites(), loadMantisSprites(), loadPrototypeSprites()]);
   const body = page.querySelector<HTMLElement>(".ap-body")!;
   configTab(body);
 }

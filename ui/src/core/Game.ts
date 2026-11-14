@@ -206,11 +206,13 @@ import { squadFilter } from '../systems/Squad';
 import { BRIDGE_JOIN_HIGH, BRIDGE_JOIN_LOW, BRIDGE_JOIN_SIDE_HIGH, BRIDGE_JOIN_SIDE_LOW, Bridge, bridgeAnchor, bridgeEnd, bridgeReachSegment, bridgeSiteOk } from '../entities/Bridge';
 import { WALL_E, WALL_N, WALL_S, WALL_W } from '../render/sprites/Wall';
 import { Bunker } from '../entities/Bunker';
+import { LdewEmplacement } from '../entities/LdewEmplacement';
+import { ldewLensHeight, ldewPreview } from '../render/PrototypeSheets';
 import { PowerSystem } from '../systems/PowerSystem';
 import { SAFE_ZONE_SIZE, type SafeZone, SafeZoneSystem } from '../systems/SafeZoneSystem';
 import { SelectionSystem } from '../systems/SelectionSystem';
 import { type TrainKey, TrainingSystem } from '../systems/TrainingSystem';
-import { foreignBuildAllowed } from '../systems/Foreign';
+import { foreignBuildAllowed, holdsNation } from '../systems/Foreign';
 import { askCapitalChoice } from '../ui/CapitalChoice';
 import type { CapitalChoice } from '../entities/Unit';
 import { type VehicleKey, VehicleSystem } from '../systems/VehicleSystem';
@@ -403,6 +405,9 @@ const BRIDGE_SNAP_OFFSETS: readonly [number, number][] = (() => {
  */
 /** Intelligence reports kept in the News window. */
 const NEWS_LOG_MAX = 60;
+
+/** Seconds an LDEW laser beam stays on screen (fading). */
+const LASER_TTL = 0.4;
 
 export class Game {
   readonly bus = new EventBus<GameEvents>();
@@ -721,9 +726,7 @@ export class Game {
         this.players,
         this.entities,
         this.oilMarket,
-        (player, _city, amount) => {
-          if (player.id === this.localId) this.sidebar.notify(t('Happy City taxes: +{amount} {currency}.', { amount, currency: CURRENCY }), 3);
-        },
+        () => {},
         (player, capital) => {
           if (player.id === this.localId) this.sidebar.notify(t('Military presence fee ({city}): +{fee} {currency}.', { city: capital.city, fee: presenceFee(capital.nation), currency: CURRENCY }), 3);
         },
@@ -801,7 +804,7 @@ export class Game {
         if (this.placing?.id === option.id) this.stopPlacing();
         this.issue({ k: 'buildCancel', opt: option.id });
       },
-      preview: (option) => (option.id === 'bunker' ? bunkerPreview(human.faction) : null) ?? this.sprites.get(option.spriteKey(human.faction)).canvas,
+      preview: (option) => (option.id === 'bunker' ? bunkerPreview(human.faction) : option.id === 'ldew' ? ldewPreview(human.faction) : null) ?? this.sprites.get(option.spriteKey(human.faction)).canvas,
       onTrain: (option) => this.issue({ k: 'train', tier: option.key }),
       onTrainCancel: (option) => this.issue({ k: 'trainCancel', tier: option.key }),
       trainPreview: (option) => soldierPortrait(option.faction, option.tier),
@@ -4640,6 +4643,7 @@ export class Game {
   /** Cameo left-click: start building, or pick up a finished structure to place it. */
   /** Another nation's design is on sale only while its capital, or a structure of that type of it, taken by an engineer, is held. */
   private buildAvailable(player: PlayerState, option: BuildOption): boolean {
+    if (option.nation) return holdsNation(this.entities, player, option.nation);
     const offered = buildOffered(option, player.faction);
     if (offered !== null) return offered;
     return foreignBuildAllowed(this.entities, player, option.id, option.foreign!);
@@ -4816,6 +4820,14 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
   private onBunkerFire(b: Bunker, t: Unit): void {
     const c = b.centerWorld();
     const base = worldToIso(c.x, c.y);
+    if (b instanceof LdewEmplacement) {
+      // Laser: a red beam from the beam director straight onto the target, a hot spot where it lands.
+      const lens = { x: base.x, y: base.y - ldewLensHeight() };
+      const hit = this.fx(t.px, t.py, this.aimHeight(t, 0.6));
+      this.effects.add({ kind: 'laser', x0: lens.x, y0: lens.y, x1: hit.x, y1: hit.y, age: 0, ttl: LASER_TTL, color: FACTIONS[b.faction as FactionId].colors.primary });
+      this.sound.play('laser', c);
+      return;
+    }
     const off = bunkerMuzzle(b.faction, b.aimHeading);
     const muzzle = { x: base.x + off.x, y: base.y + off.y };
     const hit = this.fx(t.px, t.py, this.aimHeight(t, 0.6));
@@ -5084,6 +5096,12 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
         this.sound.play(w.kind, { x: mx, y: my });
         return;
       }
+    }
+    // LDEW laser truck: a beam in its faction colour (Prism-style) instead of a bullet.
+    if (s instanceof Vehicle && s.type === 'ldewTruck') {
+      this.effects.add({ kind: 'laser', x0: muzzle.x, y0: muzzle.y, x1: hit.x, y1: hit.y, age: 0, ttl: LASER_TTL, color: FACTIONS[s.faction as FactionId].colors.primary });
+      this.sound.play('laser', { x: s.px, y: s.py });
+      return;
     }
     // The air-defence vehicle always fires its missile from the missile sheet (below), never a bullet.
     const mantisMissile = s instanceof Vehicle && s.type === 'mantis';

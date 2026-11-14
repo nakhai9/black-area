@@ -8,6 +8,7 @@ import { Entity } from '../entities/Entity';
 import { Flagpole } from '../entities/Flagpole';
 import { HappyCity } from '../entities/HappyCity';
 import { Bunker } from '../entities/Bunker';
+import { LdewEmplacement } from '../entities/LdewEmplacement';
 import { Wall } from '../entities/Wall';
 import { Gate } from '../entities/Gate';
 import { Infantry } from '../entities/Infantry';
@@ -61,6 +62,7 @@ const ENTITY_CLASSES: Readonly<Record<string, abstract new (...args: never[]) =>
   AlliedBuilding,
   ParallelGovernment,
   Bunker,
+  LdewEmplacement,
   Wall,
   Gate,
   Infantry,

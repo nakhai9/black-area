@@ -1431,7 +1431,7 @@ body.sidebar-hidden .alert-stack {
   margin: 0 auto;
 }
 .sb-header .sb-logo img {
-  max-width: 80px; /* 20% smaller than before (100px) */
+  max-width: 60px; /* 25% smaller than before (80px) */
 }
 /* No nation picked yet: Abrams tanks crossing the desert. */
 .fp-backdrop:not([data-faction]) .fp-modal,
@@ -2366,7 +2366,7 @@ button,
 }
 /* War / ceasefire clock: its own panel at the bottom of the sidebar's main page — icon + time,
    white on red at war, white on green in the ceasefire. */
-.sb-war .sb-war-clock {
+.sb-war-clock {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2377,7 +2377,7 @@ button,
   color: #fff;
   background: #c62828;
 }
-.sb-war .sb-war-clock.peace {
+.sb-war-clock.peace {
   background: #2e7d32;
 }
 .sb-war-icon,
@@ -2698,4 +2698,32 @@ input:disabled {
 /* The ring exists only while recharging. */
 .air-tool-ring[hidden] {
   display: none !important;
+}
+
+/* Get a loan: icon instead of text. */
+.sb-sell.sb-loan {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.sb-loan-icon {
+  display: block;
+  width: 22px;
+  height: 22px;
+}
+
+/* Top oil row now holds only the loan button; Sell / Auto sell live in the Oil tab. */
+.sb-oil-actions > .sb-actions {
+  grid-template-columns: 1fr auto;
+  align-items: stretch;
+}
+/* Get a loan: a square as tall as the war clock beside it. */
+.sb-oil-actions .sb-sell.sb-loan {
+  width: 34px;
+  height: 34px;
+  aspect-ratio: 1;
+  padding: 0;
+}
+.sb-oil-sell {
+  grid-template-columns: repeat(2, 1fr);
 }

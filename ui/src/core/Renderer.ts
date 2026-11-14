@@ -6,6 +6,7 @@ import { isViolator } from '../systems/CombatSystem';
 import { t, t as tr } from '../i18n';
 import { drawBunkerGhost, drawBunkerSheet } from '../render/BunkerSheet';
 import { Bunker } from '../entities/Bunker';
+import { LdewEmplacement } from '../entities/LdewEmplacement';
 import { drawExplosion } from '../render/ExplosionSheet';
 import { emblemImage } from '../render/Emblems';
 import { demoActive } from './Demo';
@@ -28,6 +29,7 @@ import { drawMantisDeath, drawMantisSheet } from '../render/MantisSheet';
 import { drawCarrierSheet } from '../render/CarrierSheet';
 import { drawTruckDeath, drawTruckSheet } from '../render/TruckSheets';
 import { drawTankDeath, drawTankSheet } from '../render/TankSheets';
+import { drawLdewEmplacement, drawNationVehicleSheet, hasNationVehicleSheet } from '../render/PrototypeSheets';
 import { drawCraftDeath } from '../render/CraftSheets';
 import { FACTIONS, teamColors } from '../factions';
 import { NationCapital } from '../entities/NationCapital';
@@ -387,7 +389,7 @@ export class Renderer {
     }
     // Effects are stored in iso px already.
     const isoIn = (x: number, y: number): boolean => x >= left && x <= right && y >= top && y <= bottom + margin;
-    if (scene.effects) this.drawEffects(scene.effects.filter((e) => (e.kind === 'tracer' || e.kind === 'bombFall' || e.kind === 'missile' || e.kind === 'samMissile' || e.kind === 'shell' || e.kind === 'bullet' ? isoIn(e.x0, e.y0) || isoIn(e.x1, e.y1) : isoIn(e.x, e.y))));
+    if (scene.effects) this.drawEffects(scene.effects.filter((e) => (e.kind === 'tracer' || e.kind === 'laser' || e.kind === 'bombFall' || e.kind === 'missile' || e.kind === 'samMissile' || e.kind === 'shell' || e.kind === 'bullet' ? isoIn(e.x0, e.y0) || isoIn(e.x1, e.y1) : isoIn(e.x, e.y))));
 
     const focused = this.focusedIds;
     focused.clear();
@@ -567,7 +569,7 @@ export class Renderer {
       ctx.clip();
     }
     // USA / Europe bunkers come from a pre-drawn sheet (gun facing + damage stage).
-    const sheet = b instanceof Bunker && drawBunkerSheet(ctx, b, c.x, c.y);
+    const sheet = b instanceof LdewEmplacement ? drawLdewEmplacement(ctx, b, c.x, c.y) : b instanceof Bunker && drawBunkerSheet(ctx, b, c.x, c.y);
     if (!sheet) {
       ctx.save();
       ctx.translate(c.x, c.y);
@@ -707,6 +709,11 @@ export class Renderer {
     if (u instanceof Vehicle) {
       if ((u.aircraft || u.isDrone) && drawAircraftSheet(ctx, u, P.x, P.y)) return;
       if (u.type === 'tank' && drawTankSheet(ctx, u, P.x, P.y)) return;
+      // K9 Thunder, LDEW, LDEW truck: sheet only (nothing drawn for the few frames its sheets are still loading).
+      if (hasNationVehicleSheet(u.type)) {
+        drawNationVehicleSheet(ctx, u, P.x, P.y);
+        return;
+      }
       if (u.type === 'repair' && drawRepairSheet(ctx, u, P.x, P.y)) return;
       if (u.type === 'bridgeLayer' && drawBridgeLayerSheet(ctx, u, P.x, P.y)) return;
       if (u.type === 'mantis' && drawMantisSheet(ctx, u, P.x, P.y)) return;
@@ -1243,6 +1250,35 @@ export class Renderer {
     for (const e of list) {
       if (e.age < 0) continue;
       const t = e.age / e.ttl;
+      if (e.kind === 'laser') {
+        // Prism-style beam: wide soft glow in the faction colour, a brighter band, a white-hot core; flares at both ends.
+        const fade = Math.max(0, 1 - t);
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.lineCap = 'round';
+        for (const [width, alpha, color] of [[3.2, 0.25, e.color], [1.7, 0.55, e.color], [0.6, 0.95, '#ffffff']] as const) {
+          ctx.globalAlpha = alpha * fade;
+          ctx.strokeStyle = color;
+          ctx.lineWidth = width;
+          ctx.beginPath();
+          ctx.moveTo(e.x0, e.y0);
+          ctx.lineTo(e.x1, e.y1);
+          ctx.stroke();
+        }
+        for (const [x, y, r] of [[e.x0, e.y0, 1.8], [e.x1, e.y1, 2.6]] as const) {
+          const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+          g.addColorStop(0, '#ffffff');
+          g.addColorStop(0.4, e.color);
+          g.addColorStop(1, 'rgba(0,0,0,0)');
+          ctx.globalAlpha = fade;
+          ctx.fillStyle = g;
+          ctx.beginPath();
+          ctx.arc(x, y, r, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+        continue;
+      }
       if (e.kind === 'tracer') {
         const head = e.shell ? Math.min(1, t * 1.15) : 1;
         const tail = e.shell ? Math.max(0, head - 0.25) : Math.max(0, t - 0.2);

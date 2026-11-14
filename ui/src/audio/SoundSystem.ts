@@ -77,6 +77,9 @@ const ENGINE_BY_KIND: Readonly<Record<VehicleKind, EngineProfile>> = {
   drone: 'b767',
   carrier: 'recovery',
   bridgeLayer: 'recovery',
+  k9: 'dieselTank',
+  ldew: 'dieselTank',
+  ldewTruck: 'wheeled',
   awacs: 'airlifter',
 };
 /**
@@ -147,7 +150,7 @@ const ANNOUNCE_COOLDOWN = 3;
 const EVA_VOICES = /zira|aria|jenny|michelle|samantha|victoria|karen|moira|tessa|serena|susan|hazel|libby|sonia|natasha|female|google uk english female|google us english/i;
 /** Small-arms fire is boosted so a firefight is clearly heard over the music and engines. */
 const GUN_BOOST = 1.35;
-const MIN_GAP: Readonly<Record<string, number>> = { rifle: 0.05, smg: 0.045, sniper: 0.1, mg: 0.05, airgun: 0.05, cannon: 0.12, autocannon: 0.06, missile: 0.15, explosion: 0.1, board: 0.12 };
+const MIN_GAP: Readonly<Record<string, number>> = { rifle: 0.05, smg: 0.045, sniper: 0.1, mg: 0.05, airgun: 0.05, laser: 0.15, cannon: 0.12, autocannon: 0.06, missile: 0.15, explosion: 0.1, board: 0.12 };
 
 /**
  * Optional recordings: drop real sounds into public/sounds/ under these names (mp3, ogg or wav) and they replace the
@@ -253,7 +256,7 @@ function loadMusicVolume(key = MUSIC_VOLUME_KEY, fallback = 0.7): number {
 
 /** `board`: the hatch clunk of a unit climbing into / jumping out of a transport. */
 /** `airgun`: an aircraft / helicopter machine gun (real gunfire recording, loud enough over the engines). */
-type Kind = WeaponKind | 'explosion' | 'board' | 'airgun';
+type Kind = WeaponKind | 'explosion' | 'board' | 'airgun' | 'laser';
 
 /**
  * Sound effects and background music (Web Audio): gunfire per weapon type, cannon booms, jet missiles,
@@ -418,6 +421,31 @@ export class SoundSystem {
   }
 
   /** Plays a weapon / explosion sound at a world position. */
+  /** LDEW laser (synthesised): a bright charge-up whine falling into a buzzing zap with a short shimmer tail. */
+  private laser(ctx: AudioContext, vol: number): void {
+    const now = ctx.currentTime;
+    const out = ctx.createGain();
+    out.gain.setValueAtTime(0, now);
+    out.gain.linearRampToValueAtTime(0.32 * vol, now + 0.02);
+    out.gain.exponentialRampToValueAtTime(0.0008, now + 0.55);
+    out.connect(this.master!);
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(6000, now);
+    filter.frequency.exponentialRampToValueAtTime(900, now + 0.5);
+    filter.connect(out);
+    for (const [type, f0, f1, detune] of [['sawtooth', 2400, 180, 0], ['square', 1200, 90, 7], ['sine', 3600, 2600, 0]] as const) {
+      const o = ctx.createOscillator();
+      o.type = type;
+      o.detune.value = detune;
+      o.frequency.setValueAtTime(f0, now);
+      o.frequency.exponentialRampToValueAtTime(f1, now + 0.45);
+      o.connect(filter);
+      o.start(now);
+      o.stop(now + 0.6);
+    }
+  }
+
   play(kind: Kind, at: WorldPoint): void {
     const ctx = this.ctx;
     if (!ctx || !this.master || !this.noise || this.muted || ctx.state !== 'running') return;
@@ -432,6 +460,10 @@ export class SoundSystem {
 
     this.sfxUntil = now + SFX_DUCK_HOLD;
     this.music?.setDuck(SFX_DUCK);
+    if (kind === 'laser') {
+      this.laser(ctx, Math.max(vol, 0.3));
+      return;
+    }
     if (kind === 'airgun') {
       // Aircraft guns sit over their own loud engines: boosted, and a short rattle of three clips.
       const v = Math.min(1.6, Math.max(vol, 0.5) * 2);

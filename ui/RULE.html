@@ -26,7 +26,7 @@
 <body>
 <main>
 <img class="logo" src="/logo.png" alt="Black Area" />
-<h1>Black Area — RULE <small>v3.75.4</small></h1>
+<h1>Black Area — RULE <small>v3.75.23</small></h1>
 <p class="lead">Tài liệu luật chơi + kiến trúc code dành cho AI/dev sửa game. Mọi con số gameplay chính xác nằm trong <code>src/constants.ts</code> và <code>src/factions/*.ts</code>. Nếu tài liệu này khác code thì <b>code đúng</b>. <b>Khi đổi luật/số trong code, phải cập nhật file này.</b></p>
 <nav><a href="#s1">Quy tắc làm việc cho AI</a><a href="#s2">Chạy dự án</a><a href="#s3">Kiến trúc thư mục</a><a href="#s4">Thế giới</a><a href="#s5">Kinh tế (dầu)</a><a href="#s6">Công trình (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Quân đội</a><a href="#s8">Chiến đấu</a><a href="#s9">Điều khiển (Game.handleKey, handleInput)</a><a href="#s10">Giới hạn &amp; hiệu năng</a><a href="#s11">Thắng / thua &amp; AI</a><a href="#s12">Công thức sửa thường gặp</a></nav>
 <h2 id="s1">0. Quy tắc làm việc cho AI</h2>
@@ -701,6 +701,25 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
   <li>v3.41.5: Sửa lỗi máy bay vận tải bay vòng tròn mãi quanh điểm hạ cánh (không đáp được, không nhận lệnh di chuyển): khi điểm đến nằm trong vòng quay, máy bay bay thẳng tới. Lệnh di chuyển mới trong lúc đang bay tới điểm hạ cánh giờ được nhận (hủy hạ cánh, bay đi).</li>
   <li>v3.41.5: Máy bay không còn nhận <b>Cảng (Naval Port)</b> làm sân bay nhà (không đậu, không hạ cánh, không được sinh ra ở cảng). Loại máy bay được đậu ở cảng sẽ quy ước sau: thêm vào <code>PORT_AIRCRAFT</code> trong <code>src/systems/AircraftSystem.ts</code>. Máy bay đang lấy cảng làm nhà (bản lưu cũ) sẽ chuyển sang sân bay khác của phe; không còn sân bay nào thì rơi như luật cũ.</li>
     <li>v3.56.1: <b>Giảm tiếng động cơ mọi phương tiện</b>: <code>VEHICLE_BED_GAIN</code> 1.6 → 1.0, máy bay / trực thăng <code>AIR_BED_BOOST</code> 2.2 → 1.5. <b>Máy bay vận tải</b> (C-17, Il-76, Y-20, A400M, mặc định) tăng gain 0.85–0.9 → 1.35 để to ngang các máy bay khác (tiếng động cơ trầm, ít tiếng rít nên trước nghe nhỏ hơn).</li>
+    <li>v3.75.23: Hàn Quốc và Anh khi bị chiếm không trả phí hiện diện quân sự nữa; bù lại, nước giữ thủ đô được mua K9 Thunder (Seoul) và LDEW (London).</li>
+    <li>v3.75.22: LDEW Laser Truck: đầu laser đặt ở đầu xe (trên nóc cabin), luôn hướng về phía trước, kính quang học nhìn thẳng ra trước (không chếch lên).</li>
+    <li>v3.75.21: Đầu laser trên LDEW Laser Truck to gấp đôi, bằng cỡ thùng xe. LDEW (công trình và xe tải) có âm thanh laser khi bắn.</li>
+    <li>v3.75.20: LDEW Laser đặt đất chuyển thành công trình trong tab Phòng thủ (1×1, tự bắn cả máy bay, tầm 9 ô), chỉ bán khi giữ London. AI giữ London cũng xây tối đa 3 cái. LDEW (công trình và xe tải) bắn chùm laser màu phe kiểu Prism thay cho đạn.</li>
+    <li>v3.75.19: Nước giữ thủ đô Anh (London) mua được 2 xe laser LDEW ở Nhà máy xe: LDEW Laser (đặt đất, đi rất chậm) và LDEW Laser Truck (laser trên xe tải MAN SV). Đầu laser quay bắn mọi hướng, mang màu phe sở hữu. Mất London thì không mua được nữa, đơn đang chờ được hoàn tiền. Áp dụng cho cả người chơi và AI.</li>
+    <li>v3.75.18: K9 Thunder (pháo tự hành 155 mm, tầm bắn 2,2 lần pháo xe tăng): chỉ bán ở Nhà máy xe cho nước đang giữ thủ đô Hàn Quốc (Seoul), áp dụng cho cả người chơi lẫn AI. Mất Seoul thì không mua được nữa; đơn K9 đang chờ bị huỷ và hoàn tiền. Xe mang màu của phe sở hữu.</li>
+    <li>v3.75.17: Cờ Nga: ngôi sao đỏ trên nền nửa trắng (trên) nửa xanh nước biển (dưới). Trang Asset game có thêm tab "Mẫu thiết kế mới" (K9 Thunder, LDEW đặt đất / gắn xe tải) xem với màu từng phe.</li>
+    <li>v3.75.16: Ô lính / xe / máy bay trên sidebar dùng cùng màu nền xanh xám như ô công trình.</li>
+    <li>v3.75.15: Logo trên sidebar nhỏ lại (80px → 60px).</li>
+    <li>v3.75.14: Nút <b>Vay tiền</b> thành ô vuông cạnh đồng hồ chiến tranh.</li>
+    <li>v3.75.13: Đồng hồ chiến tranh / ngừng bắn chuyển lên hàng trên cùng, cạnh nút <b>Vay tiền</b>.</li>
+    <li>v3.75.12: Dòng <b>Sản lượng dầu</b> và <b>Tồn kho dầu</b> chuyển từ tab Tài chính sang tab <b>Dầu</b>.</li>
+    <li>v3.75.11: Nút <b>Sell oil</b> và <b>Auto sell oil</b> chuyển xuống tab mới <b>Dầu</b> (biểu tượng thùng dầu) cạnh Tài chính / Tin tức / Điều khiển.</li>
+    <li>v3.75.10: Nút <b>Auto sell</b> đổi chữ thành <b>Auto sell oil</b> (tiếng Việt: Tự bán dầu).</li>
+    <li>v3.75.9: Tooltip nút <b>Vay tiền</b> chỉ còn tên nút.</li>
+    <li>v3.75.8: Rê chuột vào nút biểu tượng <b>Vay tiền</b> hiện tooltip có tên nút ở dòng đầu.</li>
+    <li>v3.75.7: Đổi biểu tượng nút <b>Vay tiền</b> sang hình tờ tiền + bàn tay.</li>
+    <li>v3.75.6: Nút <b>Vay tiền</b> trên sidebar đổi từ chữ sang biểu tượng (rê chuột vẫn hiện chú thích).</li>
+    <li>v3.75.5: Bỏ thông báo "Thuế Happy City: +… TB" dưới sidebar (tiền thuế vẫn được cộng bình thường).</li>
     <li>v3.75.4: Một phe bị loại khỏi cuộc chơi: ngoài dòng trong Breaking News còn hiện toast <b>TIN NÓNG</b> trên màn hình ("… đã bị loại khỏi cuộc chơi.").</li>
     <li>v3.75.3: Tiêm kích hộ tống <b>AWACS</b> đang bay: khi radar AWACS quét thấy địch (trong <code>AWACS_RADIUS_CELLS</code> = 24 ô), tiêm kích tự lao vào tiêu diệt địch gần nhất mà nó bắn được trong vùng quét, xong thì quay lại bám sau AWACS. Sửa lỗi: nước thua cuộc đang giữ thủ đô của nước độc lập (Nhật, Hàn…) thì thủ đô đó trở về trung lập thay vì biến mất khỏi bản đồ.</li>
     <li>v3.75.2: Auto Sell bán dầu im lặng: không còn hiện dòng "Global Monitoring Center đã mua … thùng" dưới bảng xây dựng (bấm bán tay vẫn hiện).</li>

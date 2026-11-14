@@ -43,13 +43,12 @@ const painters: Record<Allegiance, (ctx: CanvasRenderingContext2D, w: number, h:
     starPath(ctx, w / 2, h / 2, h * 0.32, h * 0.32 * 0.56, 6);
     ctx.fill();
   },
-  /** White field inside a blue border, a big red five-pointed star in the middle. */
+  /** White upper half over a sea-blue lower half, a big red five-pointed star in the middle. */
   russia(ctx, w, h) {
-    ctx.fillStyle = '#0a3a9a';
-    ctx.fillRect(0, 0, w, h);
-    const b = Math.max(1.5, h * 0.045);
     ctx.fillStyle = '#ffffff';
-    ctx.fillRect(b, b, w - 2 * b, h - 2 * b);
+    ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = '#1565c0';
+    ctx.fillRect(0, h * 0.5, w, h * 0.5);
     ctx.fillStyle = '#c92216';
     ctx.beginPath();
     starPath(ctx, w * 0.5, h * 0.51, h * 0.335, h * 0.335 * 0.4);

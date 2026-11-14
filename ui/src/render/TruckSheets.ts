@@ -144,6 +144,15 @@ export function drawTruckSheet(ctx: CanvasRenderingContext2D, v: Vehicle, x: num
   return true;
 }
 
+/** `faction`'s modular truck chassis only (no cargo body), ground point at (x, y), `zoom` × its game size; false when not loaded. */
+export function drawTruckChassis(ctx: CanvasRenderingContext2D, faction: FactionId, heading: number, x: number, y: number, zoom: number): boolean {
+  const l = LAYERED[faction];
+  if (!l || !loadedImg(l.chassis)) return false;
+  const size = CELL * l.scale * zoom;
+  blitLayers(ctx, [l.chassis], direction(heading), x, y - lift(faction, size), size);
+  return true;
+}
+
 /** Sidebar cameo from the truck sheet (`heading` world radians). Returns false when `faction` has none. */
 export function drawTruckPortrait(ctx: CanvasRenderingContext2D, faction: FactionId, w: number, h: number, heading: number): boolean {
   const lay = layers(faction);

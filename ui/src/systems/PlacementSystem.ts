@@ -14,7 +14,7 @@ export const SUPPORT_TYPES: ReadonlySet<string> = new Set(['bunker', 'wall', 'ga
 
 /** How far (cells) from an own structure's edge a structure of this kind may be placed. */
 export function buildRadius(type: string): number {
-  return type === 'bunker' ? BUNKER_BUILD_RADIUS : type === 'wall' ? WALL_BUILD_RADIUS : type === 'gate' ? GATE_BUILD_RADIUS : BUILD_RADIUS;
+  return type === 'bunker' || type === 'ldew' ? BUNKER_BUILD_RADIUS : type === 'wall' ? WALL_BUILD_RADIUS : type === 'gate' ? GATE_BUILD_RADIUS : BUILD_RADIUS;
 }
 
 /** Coastal structures (the Naval Port): placed across the shoreline, see PlacementSystem.coastBlocker. */

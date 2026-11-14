@@ -94,7 +94,10 @@ type TabId = 'build' | 'defense' | 'infantry' | 'vehicles' | 'aircraft';
 /** Sidebar pages: the command centre (budget, oil, alerts), production (build, train) and the world ranking with oil & power prices. */
 type ViewId = 'command' | 'production';
 /** Tabs of the row above the alerts on the Command page: what shows under it. */
-type InfoId = 'finance' | 'controls';
+/** Oil tab icon: an oil barrel (Emoji One v1, CC BY-SA 4.0). */
+const OIL_TAB_ICON = '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 64 64" aria-hidden="true"><ellipse cx="31.992" cy="57.33" fill="#636666" rx="21.82" ry="6.18"/><path fill="#808184" d="M52.55 6.747c0-2.406-2.421-4.357-5.405-4.357h-30.3c-2.984 0-5.405 1.951-5.405 4.357v47.556c0 .196.023.389.056.578a1.6 1.6 0 0 0-.056.396c0 3.204 9.178 5.805 20.497 5.805s20.495-2.601 20.495-5.805c0-.016-.004-.032-.004-.046c.079-.301.125-.609.125-.929V6.747"/><path fill="#c4c4c5" d="M27.552 55.54c0-.116.018-.229.041-.342a3.5 3.5 0 0 1-.041-.497V13.837c0-2.066 1.879-3.742 4.195-3.742h-9.829c-2.313 0-4.193 1.675-4.193 3.742v40.864c0 .17.018.334.041.497a1.7 1.7 0 0 0-.041.342c0 2.753 7.121 4.984 15.905 4.984c1.716 0 3.365-.085 4.915-.242c-6.38-.648-10.993-2.527-10.993-4.742"/><ellipse cx="31.991" cy="5.05" fill="#636666" rx="22.473" ry="5.05"/><ellipse cx="32.03" cy="4.06" fill="#cdccd2" rx="20.318" ry="3.213"/><path fill="#b8b8ba" d="M22.796 4.58c0-1.318.755-2.529 2.02-3.489c-7.657.461-13.1 1.631-13.1 3c0 1.307 4.937 2.431 12.02 2.934c-.593-.74-.937-1.569-.937-2.448"/><ellipse cx="39.671" cy="3.79" fill="#243438" rx="5.07" ry="2.182"/><path fill="#a6a8ab" d="M31.993 21.436c-9.898 0-18.212-1.92-20.551-4.519c-.43.477-.657.976-.657 1.49c0 3.317 9.494 6.01 21.21 6.01c11.711 0 21.21-2.689 21.21-6.01c0-.515-.228-1.014-.657-1.49c-2.338 2.599-10.65 4.519-20.549 4.519m-.006 17.354c-9.898 0-18.212-1.922-20.551-4.519c-.43.477-.657.974-.657 1.488c0 3.317 9.494 6.01 21.21 6.01c11.711 0 21.21-2.689 21.21-6.01c0-.515-.228-1.012-.657-1.488c-2.338 2.597-10.65 4.519-20.549 4.519"/></svg>';
+
+type InfoId = 'finance' | 'oil' | 'controls';
 
 /** One of the player's allies (Allied Building) or a claim flag still waiting for its ally, for the Allies tab. */
 export interface AllyInfo {
@@ -147,7 +150,7 @@ export interface RankRow {
 
 /** Construction tabs (RA2 sidebar), shown as Lucide icons. */
 /** Protective structures: bought from the Defense tab, not the Build tab (main structures). */
-const DEFENSE_IDS: ReadonlySet<string> = new Set(['bunker', 'wall', 'gate', 'flagpole']);
+const DEFENSE_IDS: ReadonlySet<string> = new Set(['bunker', 'ldew', 'wall', 'gate', 'flagpole']);
 
 const BUILD_TABS: readonly { id: TabId; label: string; icon: IconNode; enabled: boolean }[] = [
   { id: 'build', label: 'Build', icon: Hammer, enabled: true },
@@ -382,9 +385,8 @@ export class Sidebar {
       <section class="sb-panel sb-radar"><canvas class="sb-minimap"></canvas></section>
       <section class="sb-panel sb-oil-actions">
         <div class="sb-actions">
-          <button class="sb-sell" type="button" title="${t('Offer your oil to the Global Monitoring Center: it decides whether and how much to buy (at most 25% per sale) and pays the posted price into your budget')}">${t('Sell oil')}</button>
-          <button class="sb-sell sb-auto" type="button" title="${t('Auto sell: offer your oil to the Global Monitoring Center automatically whenever a sale is allowed (green = on). Hotkey: A')}">${t('Auto sell')}</button>
-          <button class="sb-sell sb-loan" type="button" title="${t('Loan from the Global Monitoring Center (only when your budget is 0 {c}). Oil sales pay the debt back automatically.', { c: CURRENCY })}">${t('Get a loan')}</button>
+          <b class="sb-war-clock" title="${t('War cycle: {war} minutes of war, then {peace} seconds of ceasefire (no attacks, no takeovers)', { war: WAR_SECONDS / 60, peace: PEACE_SECONDS })}"><i class="sb-war-icon"></i><span class="sb-war-time"></span></b>
+          <button class="sb-sell sb-loan" type="button" title="${t('Get a loan')}" aria-label="${t('Get a loan')}"><svg class="sb-loan-icon" xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M6.25 2A2.25 2.25 0 0 0 4 4.25v15.5A2.25 2.25 0 0 0 6.25 22h7.5A2.25 2.25 0 0 0 16 19.771v-1.52a.75.75 0 0 0-.75-.75c-.453 0-.739-.123-.936-.282c-.208-.167-.38-.425-.511-.789c-.273-.755-.302-1.75-.302-2.68a.75.75 0 0 0-.202-.512l-.165-.177a3 3 0 0 0-.17-.173c-.074-.07-.3-.285-1.183-1.168c-.469-.469-.728-.865-.813-1.168a.6.6 0 0 1-.016-.325a.7.7 0 0 1 .205-.323a.7.7 0 0 1 .322-.204a.6.6 0 0 1 .324.016c.302.085.698.346 1.167.815c.54.54 1.053 1.047 1.512 1.5c.76.752 1.373 1.36 1.72 1.73a.75.75 0 0 0 1.097-1.023A55 55 0 0 0 16 11.424V8.06l2.842 2.842c.421.422.659.994.659 1.59v8.758a.75.75 0 0 0 1.5 0v-8.757a3.75 3.75 0 0 0-1.099-2.652L16 5.939v-1.69A2.25 2.250 0 0 0 13.75 2zm6.142 14.94c.097.268.222.534.384.782A2.25 2.25 0 0 0 11.5 19.75v.75h-3v-.75a2.25 2.25 0 0 0-2.25-2.25H5.5v-11h.75A2.25 2.25 0 0 0 8.5 4.25V3.5h3v.75a2.25 2.25 0 0 0 2.25 2.25h.75v3.438l-.469-.468c-.531-.531-1.148-1.008-1.821-1.198a2.1 2.1 0 0 0-1.104-.025a2 2 0 0 0-.632.285a3.5 3.5 0 1 0 1.55 6.324c.037.684.13 1.427.368 2.084M8 12a2 2 0 0 1 1.456-1.925a2.2 2.2 0 0 0 .068.883c.189.673.665 1.291 1.197 1.823l.665.662A2 2 0 0 1 8 12M5.5 4.25a.75.75 0 0 1 .75-.75H7v.75a.75.75 0 0 1-.75.75H5.5zM13 3.5h.75a.75.75 0 0 1 .75.75V5h-.75a.75.75 0 0 1-.75-.75zM14.5 19v.75a.75.75 0 0 1-.75.75H13v-.75a.75.75 0 0 1 .75-.75zM7 20.5h-.75a.75.75 0 0 1-.75-.75V19h.75a.75.75 0 0 1 .75.75z"/></svg></button>
         </div>
       </section>
       <nav class="sb-main-tabs" aria-label="${t('Sidebar pages')}"></nav>
@@ -422,8 +424,6 @@ export class Sidebar {
       <div class="sb-info" data-info="finance">
         <section class="sb-panel sb-finance">
           <h3>${t('Finance')}</h3>
-          <div class="sb-oil">${t('OIL OUTPUT ')}<span class="sb-income"></span></div>
-          <div class="sb-oil">${t('OIL STOCK ')}<span class="sb-stock"></span></div>
           <div class="sb-oil">${t('DEBT ')}<span class="sb-debt"></span></div>
           <div class="sb-oil">${t('DERRICKS ')}<span class="sb-derricks"></span></div>
         </section>
@@ -432,6 +432,17 @@ export class Sidebar {
           <div class="sb-price-row" title="${t('Power: what the Global Monitoring Center charges when your grid runs dry (oil at +{p}%, per 1 kJ)', { p: Math.round((OIL_GRID_MARKUP - 1) * 100) })}"><i data-icon="power"></i><b class="sb-power-price"></b></div>
           <div class="sb-price-row" title="${t('Next price revision')}"><i data-icon="clock"></i><b class="sb-price-clock"></b></div>
           <svg class="sb-price-chart" viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="${t('Oil price, last 5 minutes')}"><polyline fill="none" stroke-width="1.5" vector-effect="non-scaling-stroke"></polyline></svg>
+        </section>
+      </div>
+      <div class="sb-info" data-info="oil" hidden>
+        <section class="sb-panel sb-oil-tab">
+          <h3>${t('Oil')}</h3>
+          <div class="sb-oil">${t('OIL OUTPUT ')}<span class="sb-income"></span></div>
+          <div class="sb-oil">${t('OIL STOCK ')}<span class="sb-stock"></span></div>
+          <div class="sb-actions sb-oil-sell">
+            <button class="sb-sell sb-sell-oil" type="button" title="${t('Offer your oil to the Global Monitoring Center: it decides whether and how much to buy (at most 25% per sale) and pays the posted price into your budget')}">${t('Sell oil')}</button>
+            <button class="sb-sell sb-auto" type="button" title="${t('Auto sell: offer your oil to the Global Monitoring Center automatically whenever a sale is allowed (green = on). Hotkey: A')}">${t('Auto sell oil')}</button>
+          </div>
         </section>
       </div>
       <div class="sb-info" data-info="rank" hidden>
@@ -466,7 +477,6 @@ export class Sidebar {
           </ul>
         </section>
       </div>
-      <section class="sb-panel sb-war"><b class="sb-war-clock" title="${t('War cycle: {war} minutes of war, then {peace} seconds of ceasefire (no attacks, no takeovers)', { war: WAR_SECONDS / 60, peace: PEACE_SECONDS })}"><i class="sb-war-icon"></i><span class="sb-war-time"></span></b></section>
       </div>
       <div class="sb-view" data-page="production" hidden>
       <section class="sb-panel sb-build">
@@ -489,7 +499,7 @@ export class Sidebar {
     this.income = q('.sb-income');
     this.stock = q('.sb-stock');
     this.price = q('.sb-price');
-    this.sellButton = q('.sb-sell');
+    this.sellButton = q('.sb-sell-oil');
     this.sellButton.addEventListener('click', () => this.handlers.onSellOil());
     this.autoSellButton = q<HTMLButtonElement>('.sb-auto');
     this.autoSellButton.addEventListener('click', () => this.handlers.onToggleAutoSell());
@@ -562,7 +572,7 @@ export class Sidebar {
     this.buildMainTabs(q('.sb-main-tabs'), q('.sb-page-links'));
     this.views.set('command', q('[data-page=command]'));
     this.views.set('production', q('[data-page=production]'));
-    for (const id of ['finance', 'controls'] as const) this.infoPanes.set(id, q(`[data-info=${id}]`));
+    for (const id of ['finance', 'oil', 'controls'] as const) this.infoPanes.set(id, q(`[data-info=${id}]`));
     this.allyList = q('.sb-ally-list');
     this.allyCount = q('.sb-allies-count');
     this.powerPrice = q('.sb-power-price');
@@ -675,9 +685,7 @@ export class Sidebar {
     this.autoSellButton.classList.toggle('on', model.autoSell);
     this.debt.textContent = `${Math.ceil(player.debt).toLocaleString('en-US')} / ${model.creditLine.toLocaleString('en-US')} ${CURRENCY}`;
     this.loanButton.disabled = model.loanBlocker !== null;
-    this.loanButton.title =
-      model.loanBlocker ??
-      t('Borrow {loan} {c} now. Credit line {line} {c}, based on your oil stock and assets. Oil sales pay the debt back automatically.', { loan: model.loanSize.toLocaleString('en-US'), line: model.creditLine.toLocaleString('en-US'), c: CURRENCY });
+    this.loanButton.title = t('Get a loan');
     this.derricks.textContent = t('{a}/{b} pumping', { a: model.pumping, b: model.derricks });
     this.cartelPanel.hidden = !model.cartel;
     if (model.cartel) {
@@ -805,7 +813,7 @@ export class Sidebar {
 
   /** Command goes on the top row (the production tabs follow it); Alerts / Rank / Allies tabs sit on the Command page. */
   private buildMainTabs(nav: HTMLElement, links: HTMLElement): void {
-    const tabButton = (label: string, icon: IconNode, active: boolean, onClick: () => void): HTMLButtonElement => {
+    const tabButton = (label: string, icon: IconNode | string, active: boolean, onClick: () => void): HTMLButtonElement => {
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.setAttribute('aria-pressed', String(active));
@@ -813,15 +821,17 @@ export class Sidebar {
       // Icon only: the name is in the tooltip and for screen readers.
       btn.title = label;
       btn.setAttribute('aria-label', label);
-      btn.append(createElement(icon, { width: 18, height: 18, 'stroke-width': 2, 'aria-hidden': 'true' }));
+      if (typeof icon === 'string') btn.insertAdjacentHTML('beforeend', icon);
+      else btn.append(createElement(icon, { width: 18, height: 18, 'stroke-width': 2, 'aria-hidden': 'true' }));
       btn.addEventListener('click', onClick);
       return btn;
     };
     const command = tabButton(t('Government'), Government, true, () => this.switchView('command'));
     nav.append(command);
     this.mainTabs.set('command', command);
-    const infos: readonly { id: InfoId; label: string; icon: IconNode }[] = [
+    const infos: readonly { id: InfoId; label: string; icon: IconNode | string }[] = [
       { id: 'finance', label: 'Finance', icon: Wallet },
+      { id: 'oil', label: 'Oil', icon: OIL_TAB_ICON },
       { id: 'controls', label: 'Controls', icon: Keyboard },
     ];
     for (const info of infos) {
@@ -1299,7 +1309,7 @@ export class Sidebar {
     for (const option of this.vehicleOptions) {
       const el = document.createElement('button');
       el.type = 'button';
-      el.className = 'sb-cameo';
+      el.className = 'sb-cameo sb-cameo-structure';
       el.title = `${this.foreignName(option)} — ${option.cost} ${CURRENCY}, ${option.trainSeconds} s. ${option.description} ${t('Click to build, right-click to cancel.')}`;
       el.innerHTML = `
         <canvas width="128" height="96"></canvas>
@@ -1329,7 +1339,7 @@ export class Sidebar {
     for (const option of this.trainOptions) {
       const el = document.createElement('button');
       el.type = 'button';
-      el.className = 'sb-cameo';
+      el.className = 'sb-cameo sb-cameo-structure';
       el.title = `${this.foreignName(option)} — ${option.cost} ${CURRENCY}, ${option.trainSeconds} s. ${option.description} ${t('Click to train, right-click to cancel.')}`;
       el.innerHTML = `
         <canvas width="128" height="96"></canvas>
@@ -1486,14 +1496,11 @@ function addInfoIcon(el: HTMLElement, name: string): void {
 const STRUCTURE_CAMEO_BG = '#8e9aa6';
 
 /** Fits a sprite canvas into the cameo picture. */
-/** `background`: a flat fill (structure cameos are on white); soldiers and vehicles keep the dark gradient. */
+/** `background`: a flat fill; every cameo (structures, soldiers, vehicles, aircraft) defaults to the structure blue-grey. */
 function drawPreview(target: HTMLCanvasElement, sprite: HTMLCanvasElement, background?: string): void {
   const ctx = target.getContext('2d');
   if (!ctx) return;
-  const g = ctx.createLinearGradient(0, 0, 0, target.height);
-  g.addColorStop(0, '#2a3440');
-  g.addColorStop(1, '#151b21');
-  ctx.fillStyle = background ?? g;
+  ctx.fillStyle = background ?? STRUCTURE_CAMEO_BG;
   ctx.fillRect(0, 0, target.width, target.height);
   const k = Math.min(target.width / sprite.width, target.height / sprite.height) * 0.95;
   const w = sprite.width * k;

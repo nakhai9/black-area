@@ -33,6 +33,7 @@ export class TaxSystem implements GameSystem {
       while (b.presenceClock <= 0) {
         b.presenceClock += NATION_PRESENCE_PERIOD;
         if (b.down) continue; // knocked down: no fee until it is whole again
+        if (presenceFee(b.nation) <= 0) continue; // pays in machines instead (South Korea, United Kingdom)
         this.bank.receive(holder, presenceFee(b.nation));
         this.onPresence(holder, b);
       }

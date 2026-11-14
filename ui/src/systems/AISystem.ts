@@ -1,4 +1,9 @@
 import { squadFilter } from './Squad';
+import { LdewEmplacement } from '../entities/LdewEmplacement';
+import { holdsNation } from './Foreign';
+import { LDEW_SITE_NATION } from '../constants';
+/** LDEW laser emplacements an AI keeps while it holds London. */
+const AI_LDEW_SITES = 3;
 import { bridgeAnchor } from '../entities/Bridge';
 import { AI_AIR_DEFENCE, FOOTPRINT_BRIDGE, AI_AIR_DEFENCE_PER_CITIES, AI_AIR_DEFENCE_PER_ENEMY_AIR, AI_AIR_DEFENCE_MAX, AI_AIR_DEFENCE_RING, AI_BUNKERS, AI_WALL_ALERT_SECONDS, AI_WALL_ENEMY_UNITS, AI_WALL_GAP, AI_WALL_WATCH_CELLS, AI_WALL_RING, AI_WALL_SEGMENT, BUNKER_RANGE, CELL_SIZE, INFANTRY_BASE, INFANTRY_MARCH_CELLS, EMBASSY_CAPITAL_CELLS, MAX_ALLIES, NATION_GARRISON, NATION_GARRISON_CELLS, NEUTRAL_OWNER, OIL_DERRICK_OUTPUT, OIL_LEASE_CARTEL_SHARE, OIL_LEASE_SECONDS, TECH_VEHICLES, TRUCE_ZONE_CELLS, TRUCK_MIN_RIDERS, TRUCK_SOLDIERS, NATION_PRESENCE_FEE, presenceFee, FOOTPRINT_PORT, AI_FLEET, AI_FELLERS } from '../constants';
 import { FACTIONS } from '../factions';
@@ -171,6 +176,10 @@ const VEHICLE_WEIGHT: Readonly<Partial<Record<VehicleKind, number>>> = {
   bomber: 0.1,
   repair: 0.04,
   mantis: 0.05,
+  // Only while the AI holds Seoul (the K9 is not on sale otherwise).
+  k9: 0.15,
+  // Only while the AI holds London.
+  ldewTruck: 0.08,
   // Only the Islamic world has the drone: it loves it, so it is a big share of what that AI builds.
   drone: 0.3,
 };
@@ -752,6 +761,11 @@ export class AISystem implements GameSystem {
     if (!next && owned.has('barracks')) {
       const bunkers = this.host.entities.buildings().filter((b) => b.owner === p.id && b.alive && b.spec.type === 'bunker').length;
       if (bunkers < AI_BUNKERS + Math.floor(this.cities(p) / 3)) next = BUILD_OPTIONS.find((o) => o.id === 'bunker');
+    }
+    // Holding London: a few LDEW laser emplacements round the base too (same rule as the player: only while it is held).
+    if (!next && owned.has('barracks') && !busy('ldew') && holdsNation(this.host.entities, p, LDEW_SITE_NATION)) {
+      const lasers = this.host.entities.buildings().filter((b) => b.owner === p.id && b.alive && b instanceof LdewEmplacement).length;
+      if (lasers < AI_LDEW_SITES) next = BUILD_OPTIONS.find((o) => o.id === 'ldew');
     }
     // A coastal base: one Naval Port on the shore, where its carriers are launched and repaired (player rule too).
     if (!next && threat === 0 && owned.has('warFactory') && !owned.has('port') && !busy('port') && this.portSiteSearch(p, st)) {
@@ -2188,7 +2202,7 @@ export class AISystem implements GameSystem {
         // (score below), so a nearby island nation is taken early instead of after every rival on the home continent.
         const tier = antarctic && (overland || canLift) ? 0 : c.owner === NEUTRAL_OWNER ? 1 : 2;
         const rival = this.isRivalCapital(p, c) ? RIVAL_CAPITAL_PULL : 1;
-        const rich = rival * (c instanceof NationCapital ? Math.sqrt(NATION_PRESENCE_FEE / presenceFee(c.nation)) : 1);
+        const rich = rival * (c instanceof NationCapital ? Math.sqrt(NATION_PRESENCE_FEE / (presenceFee(c.nation) || NATION_PRESENCE_FEE)) : 1);
         const score = Math.hypot(w.x - homeW.x, w.y - homeW.y) * (overland ? 1 : 2) * (c.owner === NEUTRAL_OWNER ? 0.8 : 1) * (freeOil ? FREE_OIL_PULL : 1) * rich;
         if (tier < bestTier || (tier === bestTier && score < best)) {
           bestTier = tier;

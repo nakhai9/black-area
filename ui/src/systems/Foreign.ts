@@ -48,3 +48,8 @@ export function foreignBuildAllowed(entities: EntityManager, player: PlayerState
   if (entities.buildings().some((b) => b.owner === player.id && b.alive && b.spec.type === 'parallelGov' && b.origin === nation)) return true;
   return takenNations(entities, player, 'capital').includes(nation);
 }
+
+/** Does `player` hold the capital of contested nation `nation` (e.g. London for the LDEW)? */
+export function holdsNation(entities: EntityManager, player: PlayerState, nation: string): boolean {
+  return entities.buildings().some((b) => b.owner === player.id && b.alive && b.spec.type === 'nationCapital' && 'nation' in b && b.nation === nation);
+}

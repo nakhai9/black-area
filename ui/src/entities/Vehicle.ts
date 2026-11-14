@@ -11,6 +11,11 @@ import {
   VEHICLE_BASE,
   VEHICLE_WEAPON,
   WEAPONS,
+  K9_COOLDOWN,
+  K9_DAMAGE,
+  K9_RANGE,
+  LDEW_DAMAGE,
+  LDEW_RANGE,
   isAircraftKind,
 } from '../constants';
 import { FACTIONS } from '../factions';
@@ -51,6 +56,9 @@ const HANDLING: Readonly<Record<VehicleKind, { accel: number; turn: number; pivo
   drone: { accel: 0.4, turn: 3.0, pivot: false },
   carrier: { accel: 4, turn: 0.35, pivot: false },
   bridgeLayer: { accel: 1.0, turn: 2.0, pivot: true },
+  k9: { accel: 1.0, turn: 2.0, pivot: true },
+  ldew: { accel: 1.2, turn: 1.2, pivot: true },
+  ldewTruck: { accel: 0.6, turn: 3.0, pivot: true },
   awacs: { accel: 1.0, turn: 1.3, pivot: false },
 };
 
@@ -59,6 +67,13 @@ function transportFits(soldiers: number, vehicles: number): boolean {
   if (vehicles === 0) return soldiers <= TRANSPORT_SOLDIERS_ONLY;
   return soldiers <= TRANSPORT_SOLDIERS && vehicles <= TRANSPORT_VEHICLES;
 }
+
+/** Machines of contested nations (NATION_VEHICLES): no faction's own design, same name for whoever holds that capital. */
+export const NATION_VEHICLE_PROFILES: Readonly<Partial<Record<VehicleKind, VehicleProfile>>> = {
+  k9: { name: 'K9 Thunder', description: '155 mm self-propelled howitzer: long-range shelling. On sale only while you hold Seoul.' },
+  ldew: { name: 'LDEW Laser', description: 'Ground laser weapon (counter-UAS): slow to move, the head turns all round. On sale only while you hold London.' },
+  ldewTruck: { name: 'LDEW Laser Truck', description: 'Laser weapon on a MAN SV truck: fast, the head turns all round. On sale only while you hold London.' },
+};
 
 /** Price (TB) of a nation's machine: its own entry in VEHICLE_PRICE, else VEHICLE_BASE cost × the nation's cost factor. */
 export function vehiclePrice(faction: FactionId, kind: VehicleKind): number {
@@ -219,7 +234,7 @@ export class Vehicle extends Unit {
     const base = VEHICLE_BASE[type];
     const strength = vehicleStrength(faction, type);
     super(owner, faction, at, Math.round(base.maxHp * strength));
-    this.profile = f.vehicles[type] ?? { name: type, description: '' };
+    this.profile = NATION_VEHICLE_PROFILES[type] ?? f.vehicles[type as keyof typeof f.vehicles] ?? { name: type, description: '' };
     // Aircraft get their long-haul boost in flight (cruiseBoost); ground vehicles move GROUND_SPEED_SCALE faster.
     this.baseSpeed = base.speed * f.stats.unitSpeed * CELL_SIZE * (isAircraftKind(type) ? 1 : GROUND_SPEED_SCALE);
     this.radius = base.radius;
@@ -231,6 +246,8 @@ export class Vehicle extends Unit {
       const spec = WEAPONS[weapon];
       const power = type === 'heli' ? HELI_FIREPOWER : type === 'mantis' ? MANTIS_FIREPOWER : 1;
       this.weapon = { ...spec, damage: spec.damage * strength * power, range: type === 'mantis' ? MANTIS_RANGE_CELLS * CELL_SIZE : spec.range * f.stats.range };
+      if (type === 'k9') this.weapon = { ...this.weapon, damage: this.weapon.damage * K9_DAMAGE, range: this.weapon.range * K9_RANGE, cooldown: spec.cooldown * K9_COOLDOWN };
+      if (type === 'ldew' || type === 'ldewTruck') this.weapon = { ...this.weapon, damage: this.weapon.damage * LDEW_DAMAGE, range: this.weapon.range * LDEW_RANGE };
     }
     this.bombs = this.maxBombs;
     const h = HANDLING[type];
@@ -415,8 +432,8 @@ export class Vehicle extends Unit {
     super.update(dt);
     // A tank's turret swings on its own (any way round, right over the engine deck) to the target, and back to the
     // front once it has none. The air-defence vehicle's launcher is fixed to its hull.
-    if (this.type === 'mantis') this.turretHeading = this.heading;
-    else if (this.type === 'tank') {
+    if (this.type === 'mantis' || this.type === 'ldewTruck') this.turretHeading = this.heading;
+    else if (this.type === 'tank' || this.type === 'k9' || this.type === 'ldew') {
       // The gun is laid on an enemy, or on the trees of a clearing order (fellTarget); otherwise it rides with the hull.
       const want = this.combatTarget !== null || this.fellTarget !== null ? this.aimHeading : this.heading;
       let diff = want - this.turretHeading;
