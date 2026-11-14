@@ -1,6 +1,6 @@
 import { CHARGE_ICON_PATH } from '../render/ChargeIcon';
 import { AlertToast } from './NewsToast';
-import { type IconNode, Settings, Clock, House, Handshake, Newspaper, X, Wallet, Info, Keyboard, Droplet, Hammer, LogIn, LogOut, Minus, Plane, Rocket, Shield, TrendingDown, TrendingUp, Zap, createElement } from 'lucide';
+import { type IconNode, Settings, Clock, House, Handshake, X, Wallet, Info, Keyboard, Droplet, Hammer, LogIn, LogOut, Minus, Plane, Rocket, Shield, TrendingDown, TrendingUp, Zap, createElement } from 'lucide';
 
 /** Government building (Emoji One v1, CC BY-SA 4.0): in full colour, 64×64 grid scaled to the 24×24 icon box. */
 const Government: IconNode = [
@@ -119,6 +119,9 @@ export interface AllyInfo {
   /** Hit within the last few seconds. */
   underAttack: boolean;
 }
+
+/** News button icon (Google Material Icons, notifications active). */
+const NEWS_ICON = '<svg class="sb-loan-icon" xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M18 16v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.68-1.5-1.51-1.5S10.5 3.17 10.5 4v.68C7.63 5.36 6 7.92 6 11v5l-1.3 1.29c-.63.63-.19 1.71.7 1.71h13.17c.89 0 1.34-1.08.71-1.71zm-6.01 6c1.1 0 2-.9 2-2h-4a2 2 0 0 0 2 2M6.77 4.73c.42-.38.43-1.03.03-1.43a1 1 0 0 0-1.39-.02a10.42 10.42 0 0 0-3.27 6.06c-.09.61.38 1.16 1 1.16c.48 0 .9-.35.98-.83a8.44 8.44 0 0 1 2.65-4.94M18.6 3.28c-.4-.37-1.02-.36-1.4.02c-.4.4-.38 1.04.03 1.42c1.38 1.27 2.35 3 2.65 4.94c.07.48.49.83.98.83c.61 0 1.09-.55.99-1.16c-.38-2.37-1.55-4.48-3.25-6.05"/></svg>';
 
 /** A capital held by another nation (News window): the capital, the nation it belongs to and the one holding it. */
 export interface OccupiedCapital {
@@ -383,14 +386,6 @@ export class Sidebar {
         <button class="sb-collapse" title="${t('Hide sidebar (Tab)')}" aria-label="${t('Hide sidebar')}"></button>
       </header>
       <section class="sb-panel sb-radar"><canvas class="sb-minimap"></canvas></section>
-      <section class="sb-panel sb-oil-actions">
-        <div class="sb-actions">
-          <b class="sb-war-clock" title="${t('War cycle: {war} minutes of war, then {peace} seconds of ceasefire (no attacks, no takeovers)', { war: WAR_SECONDS / 60, peace: PEACE_SECONDS })}"><i class="sb-war-icon"></i><span class="sb-war-time"></span></b>
-          <button class="sb-sell sb-loan" type="button" title="${t('Get a loan')}" aria-label="${t('Get a loan')}"><svg class="sb-loan-icon" xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M6.25 2A2.25 2.25 0 0 0 4 4.25v15.5A2.25 2.25 0 0 0 6.25 22h7.5A2.25 2.25 0 0 0 16 19.771v-1.52a.75.75 0 0 0-.75-.75c-.453 0-.739-.123-.936-.282c-.208-.167-.38-.425-.511-.789c-.273-.755-.302-1.75-.302-2.68a.75.75 0 0 0-.202-.512l-.165-.177a3 3 0 0 0-.17-.173c-.074-.07-.3-.285-1.183-1.168c-.469-.469-.728-.865-.813-1.168a.6.6 0 0 1-.016-.325a.7.7 0 0 1 .205-.323a.7.7 0 0 1 .322-.204a.6.6 0 0 1 .324.016c.302.085.698.346 1.167.815c.54.54 1.053 1.047 1.512 1.5c.76.752 1.373 1.36 1.72 1.73a.75.75 0 0 0 1.097-1.023A55 55 0 0 0 16 11.424V8.06l2.842 2.842c.421.422.659.994.659 1.59v8.758a.75.75 0 0 0 1.5 0v-8.757a3.75 3.75 0 0 0-1.099-2.652L16 5.939v-1.69A2.25 2.250 0 0 0 13.75 2zm6.142 14.94c.097.268.222.534.384.782A2.25 2.25 0 0 0 11.5 19.75v.75h-3v-.75a2.25 2.25 0 0 0-2.25-2.25H5.5v-11h.75A2.25 2.25 0 0 0 8.5 4.25V3.5h3v.75a2.25 2.25 0 0 0 2.25 2.25h.75v3.438l-.469-.468c-.531-.531-1.148-1.008-1.821-1.198a2.1 2.1 0 0 0-1.104-.025a2 2 0 0 0-.632.285a3.5 3.5 0 1 0 1.55 6.324c.037.684.13 1.427.368 2.084M8 12a2 2 0 0 1 1.456-1.925a2.2 2.2 0 0 0 .068.883c.189.673.665 1.291 1.197 1.823l.665.662A2 2 0 0 1 8 12M5.5 4.25a.75.75 0 0 1 .75-.75H7v.75a.75.75 0 0 1-.75.75H5.5zM13 3.5h.75a.75.75 0 0 1 .75.75V5h-.75a.75.75 0 0 1-.75-.75zM14.5 19v.75a.75.75 0 0 1-.75.75H13v-.75a.75.75 0 0 1 .75-.75zM7 20.5h-.75a.75.75 0 0 1-.75-.75V19h.75a.75.75 0 0 1 .75.75z"/></svg></button>
-        </div>
-      </section>
-      <nav class="sb-main-tabs" aria-label="${t('Sidebar pages')}"></nav>
-      <div class="sb-view" data-page="command">
       <section class="sb-panel sb-resources">
         <div class="sb-player">
           ${factionBadgeHtml(player.faction, 'sm')}
@@ -412,7 +407,13 @@ export class Sidebar {
           </div>
         </div>
         <div class="sb-power" title="${t('Power')}"><i data-icon="power"></i><div class="sb-power-bar"><i class="sb-power-fill"></i></div></div>
+        <div class="sb-actions sb-oil-actions">
+          <b class="sb-war-clock" title="${t('War cycle: {war} minutes of war, then {peace} seconds of ceasefire (no attacks, no takeovers)', { war: WAR_SECONDS / 60, peace: PEACE_SECONDS })}"><i class="sb-war-icon"></i><span class="sb-war-time"></span></b>
+          <button class="sb-sell sb-loan" type="button" title="${t('Get a loan')}" aria-label="${t('Get a loan')}"><svg class="sb-loan-icon" xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M6.25 2A2.25 2.25 0 0 0 4 4.25v15.5A2.25 2.25 0 0 0 6.25 22h7.5A2.25 2.25 0 0 0 16 19.771v-1.52a.75.75 0 0 0-.75-.75c-.453 0-.739-.123-.936-.282c-.208-.167-.38-.425-.511-.789c-.273-.755-.302-1.75-.302-2.68a.75.75 0 0 0-.202-.512l-.165-.177a3 3 0 0 0-.17-.173c-.074-.07-.3-.285-1.183-1.168c-.469-.469-.728-.865-.813-1.168a.6.6 0 0 1-.016-.325a.7.7 0 0 1 .205-.323a.7.7 0 0 1 .322-.204a.6.6 0 0 1 .324.016c.302.085.698.346 1.167.815c.54.54 1.053 1.047 1.512 1.5c.76.752 1.373 1.36 1.72 1.73a.75.75 0 0 0 1.097-1.023A55 55 0 0 0 16 11.424V8.06l2.842 2.842c.421.422.659.994.659 1.59v8.758a.75.75 0 0 0 1.5 0v-8.757a3.75 3.75 0 0 0-1.099-2.652L16 5.939v-1.69A2.25 2.250 0 0 0 13.75 2zm6.142 14.94c.097.268.222.534.384.782A2.25 2.25 0 0 0 11.5 19.75v.75h-3v-.75a2.25 2.25 0 0 0-2.25-2.25H5.5v-11h.75A2.25 2.25 0 0 0 8.5 4.25V3.5h3v.75a2.25 2.25 0 0 0 2.25 2.25h.75v3.438l-.469-.468c-.531-.531-1.148-1.008-1.821-1.198a2.1 2.1 0 0 0-1.104-.025a2 2 0 0 0-.632.285a3.5 3.5 0 1 0 1.55 6.324c.037.684.13 1.427.368 2.084M8 12a2 2 0 0 1 1.456-1.925a2.2 2.2 0 0 0 .068.883c.189.673.665 1.291 1.197 1.823l.665.662A2 2 0 0 1 8 12M5.5 4.25a.75.75 0 0 1 .75-.75H7v.75a.75.75 0 0 1-.75.75H5.5zM13 3.5h.75a.75.75 0 0 1 .75.75V5h-.75a.75.75 0 0 1-.75-.75zM14.5 19v.75a.75.75 0 0 1-.75.75H13v-.75a.75.75 0 0 1 .75-.75zM7 20.5h-.75a.75.75 0 0 1-.75-.75V19h.75a.75.75 0 0 1 .75.75z"/></svg></button>
+        </div>
       </section>
+      <nav class="sb-main-tabs" aria-label="${t('Sidebar pages')}"></nav>
+      <div class="sb-view" data-page="command">
       <section class="sb-panel sb-transport" hidden>
         <h3>${t('Transport')}</h3>
         <div class="sb-muted sb-transport-name"></div>
@@ -840,8 +841,15 @@ export class Sidebar {
       this.infoTabs.set(info.id, btn);
     }
     // News: opens the world news window (ranking on the left, allies on the right) instead of a pane.
-    const news = tabButton(t('News'), Newspaper, false, () => this.toggleNews(true));
-    links.insertBefore(news, links.lastElementChild);
+    // Square button beside Get a loan (bell icon), under the war clock row.
+    const news = document.createElement('button');
+    news.type = 'button';
+    news.className = 'sb-sell sb-loan sb-news';
+    news.title = t('News');
+    news.setAttribute('aria-label', t('News'));
+    news.innerHTML = NEWS_ICON;
+    news.addEventListener('click', () => this.toggleNews(true));
+    this.loanButton.after(news);
     this.newsButton = news;
   }
 

@@ -2727,3 +2727,17 @@ input:disabled {
 .sb-oil-sell {
   grid-template-columns: repeat(2, 1fr);
 }
+
+/* War clock + loan button now sit at the bottom of the faction card (top of the sidebar, every page). */
+.sb-resources .sb-actions.sb-oil-actions {
+  grid-template-columns: 1fr auto auto;
+  align-items: stretch;
+  margin-top: 8px;
+  padding: 0;
+}
+.sb-resources .sb-oil-actions .sb-sell.sb-loan {
+  width: 34px;
+  height: 34px;
+  aspect-ratio: 1;
+  padding: 0;
+}
