@@ -26,7 +26,7 @@
 <body>
 <main>
 <img class="logo" src="/logo.png" alt="Black Area" />
-<h1>Black Area — RULE <small>v3.75.30</small></h1>
+<h1>Black Area — RULE <small>v3.75.31</small></h1>
 <p class="lead">Tài liệu luật chơi + kiến trúc code dành cho AI/dev sửa game. Mọi con số gameplay chính xác nằm trong <code>src/constants.ts</code> và <code>src/factions/*.ts</code>. Nếu tài liệu này khác code thì <b>code đúng</b>. <b>Khi đổi luật/số trong code, phải cập nhật file này.</b></p>
 <nav><a href="#s1">Quy tắc làm việc cho AI</a><a href="#s2">Chạy dự án</a><a href="#s3">Kiến trúc thư mục</a><a href="#s4">Thế giới</a><a href="#s5">Kinh tế (dầu)</a><a href="#s6">Công trình (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Quân đội</a><a href="#s8">Chiến đấu</a><a href="#s9">Điều khiển (Game.handleKey, handleInput)</a><a href="#s10">Giới hạn &amp; hiệu năng</a><a href="#s11">Thắng / thua &amp; AI</a><a href="#s12">Công thức sửa thường gặp</a></nav>
 <h2 id="s1">0. Quy tắc làm việc cho AI</h2>
@@ -701,6 +701,7 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
   <li>v3.41.5: Sửa lỗi máy bay vận tải bay vòng tròn mãi quanh điểm hạ cánh (không đáp được, không nhận lệnh di chuyển): khi điểm đến nằm trong vòng quay, máy bay bay thẳng tới. Lệnh di chuyển mới trong lúc đang bay tới điểm hạ cánh giờ được nhận (hủy hạ cánh, bay đi).</li>
   <li>v3.41.5: Máy bay không còn nhận <b>Cảng (Naval Port)</b> làm sân bay nhà (không đậu, không hạ cánh, không được sinh ra ở cảng). Loại máy bay được đậu ở cảng sẽ quy ước sau: thêm vào <code>PORT_AIRCRAFT</code> trong <code>src/systems/AircraftSystem.ts</code>. Máy bay đang lấy cảng làm nhà (bản lưu cũ) sẽ chuyển sang sân bay khác của phe; không còn sân bay nào thì rơi như luật cũ.</li>
     <li>v3.56.1: <b>Giảm tiếng động cơ mọi phương tiện</b>: <code>VEHICLE_BED_GAIN</code> 1.6 → 1.0, máy bay / trực thăng <code>AIR_BED_BOOST</code> 2.2 → 1.5. <b>Máy bay vận tải</b> (C-17, Il-76, Y-20, A400M, mặc định) tăng gain 0.85–0.9 → 1.35 để to ngang các máy bay khác (tiếng động cơ trầm, ít tiếng rít nên trước nghe nhỏ hơn).</li>
+    <li>v3.75.31: Viền ngoài thanh năng lượng màu trắng.</li>
     <li>v3.75.30: Thanh năng lượng: xanh dương khi điện cung cấp vượt mức tiêu thụ của phe; dưới mức đó chuyển dần đỏ → cam → vàng → xanh lá (vừa đủ).</li>
     <li>v3.75.29: Màu thanh năng lượng chuyển dần theo độ mạnh của lưới điện (cung ÷ cầu): đỏ (yếu) → cam → vàng → xanh lá (vừa đủ) → xanh dương (cực mạnh, gấp 2 nhu cầu trở lên). Mất điện vẫn đỏ.</li>
     <li>v3.75.28: Mất điều kiện tiên quyết thì đơn bị huỷ và hoàn tiền (mọi phe, cả AI): công trình (đang xây hoặc đã xong chưa đặt) khi mất công trình yêu cầu hoặc mất quyền mua (thủ đô / nhà máy chiếm được); lính khi mất Bộ Quốc phòng hoặc Trung tâm công nghệ cao (lính tinh nhuệ); xe / máy bay khi mất Nhà máy xe / Sân bay / Cảng, Trung tâm công nghệ cao hoặc quyền mua. Trước đây các đơn này chỉ tạm dừng.</li>

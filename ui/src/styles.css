@@ -270,7 +270,7 @@ body.sidebar-hidden .sb-open {
   margin-left: auto; /* icon on the left, bar pushed to the right edge */
   height: 16px;
   overflow: hidden;
-  border: 1px solid #2f3a45;
+  border: 1px solid #ffffff;
   border-radius: 4px;
   background: #10161b;
 }
