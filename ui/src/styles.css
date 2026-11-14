@@ -288,13 +288,13 @@ body.sidebar-hidden .sb-open {
   background: var(--power-color);
   transition: width 0.3s ease, background-color 0.3s ease;
 }
-/* 50 equal blocks (RA2): a 1 px dark gap every 2 % of the bar, drawn over the fill. */
+/* 24 equal blocks (RA2): a 1 px dark gap every 1/24 of the bar, drawn over the fill (POWER_SEGMENTS in Sidebar.ts). */
 .sb-power-bar::after {
   content: '';
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background: repeating-linear-gradient(to right, transparent 0 calc(2% - 1px), #10161b calc(2% - 1px) 2%);
+  background: repeating-linear-gradient(to right, transparent 0 calc(100% / 24 - 1px), #10161b calc(100% / 24 - 1px) calc(100% / 24));
 }
 
 .sb-tabs {

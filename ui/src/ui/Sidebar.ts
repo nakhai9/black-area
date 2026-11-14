@@ -121,7 +121,7 @@ export interface AllyInfo {
 }
 
 /** Blocks the power bar is split into (Red Alert 2 style); the full bar = total power consumed. */
-const POWER_SEGMENTS = 50;
+const POWER_SEGMENTS = 24;
 /** Very strong grid (supply above the nation's consumption): the power bar is blue. */
 const POWER_BLUE = 'rgb(47, 140, 255)';
 /** Power bar colour stops by grid strength (supply ÷ demand). */
