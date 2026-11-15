@@ -2332,6 +2332,24 @@ export class Game {
     }
   }
 
+  /**
+   * A repairer (repair vehicle / engineer) restores `hp` to `target`; only the HP actually restored counts towards
+   * its rescue medal (share of max HP × target's price).
+   */
+  private creditRepair(by: Unit, target: Unit | Building, hp: number): void {
+    const gained = Math.min(target.maxHp, target.hp + hp) - target.hp;
+    target.hp += gained;
+    if (gained <= 0 || !by.earnsMedal) return;
+    const price = target instanceof Unit ? target.value : (BUILDING_VALUE[target.spec.type] ?? 1000);
+    const had = by.medal;
+    by.repairValue += (gained / target.maxHp) * price;
+    if (!had && by.medal && by.owner === this.humanPlayer.id) {
+      const name = by instanceof Vehicle || by instanceof Infantry ? by.name : t('Unit');
+      this.sidebar.notify(t('{name} earned the rescue medal!', { name }));
+      this.effects.add({ kind: 'flash', ...this.fx(by.px, by.py, 3 + this.liftOf(by)), age: 0, ttl: 0.4, size: 3 });
+    }
+  }
+
   /** Tanks and armoured vehicles that drive over enemy soldiers kill them (and get the credit). */
   private crushInfantry(): void {
     const walkers = this.entities.fieldUnits();
@@ -2987,10 +3005,10 @@ export class Game {
       if (v.moving) v.stop();
       r.mending = true;
       if (!r.moving) r.heading = Math.atan2(v.py - r.py, v.px - r.px);
-      v.patientClock += dt;
+      v.patientClock += dt * r.repairSpeed;
       if (v.patientClock >= REPAIR_VEHICLE_INTERVAL) {
         v.patientClock -= REPAIR_VEHICLE_INTERVAL;
-        v.hp = Math.min(v.maxHp, v.hp + v.maxHp * REPAIR_VEHICLE_HEAL_SHARE);
+        this.creditRepair(r, v, v.maxHp * REPAIR_VEHICLE_HEAL_SHARE);
       }
     }
   }
@@ -3045,10 +3063,10 @@ export class Game {
       if (v.moving) v.stop();
       v.heading = Math.atan2(t.py - v.py, t.px - v.px);
       v.mending = true;
-      v.mendClock += dt;
+      v.mendClock += dt * v.repairSpeed;
       if (v.mendClock >= REPAIR_VEHICLE_INTERVAL) {
         v.mendClock -= REPAIR_VEHICLE_INTERVAL;
-        t.hp = Math.min(t.maxHp, t.hp + t.maxHp * REPAIR_VEHICLE_HEAL_SHARE);
+        this.creditRepair(v, t, t.maxHp * REPAIR_VEHICLE_HEAL_SHARE);
       }
     }
   }
@@ -3083,10 +3101,10 @@ export class Game {
     const c = b.centerWorld();
     v.heading = Math.atan2(c.y - v.py, c.x - v.px);
     v.mending = true;
-    v.mendClock += dt;
+    v.mendClock += dt * v.repairSpeed;
     if (v.mendClock >= REPAIR_VEHICLE_INTERVAL) {
       v.mendClock -= REPAIR_VEHICLE_INTERVAL;
-      b.hp = Math.min(b.maxHp, b.hp + b.maxHp * REPAIR_VEHICLE_HEAL_SHARE);
+      this.creditRepair(v, b, b.maxHp * REPAIR_VEHICLE_HEAL_SHARE);
     }
   }
 
@@ -7108,7 +7126,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
   private processRepairs(dt: number): void {
     for (const b of this.entities.buildings()) {
       if (b.crew.length === 0 || !b.alive) continue;
-      b.hp = Math.min(b.maxHp, b.hp + b.maxHp * ENGINEER_REPAIR_SHARE * b.crew.length * dt);
+      for (const u of b.crew) this.creditRepair(u, b, b.maxHp * ENGINEER_REPAIR_SHARE * u.repairSpeed * dt);
       if (b.hp < b.maxHp) continue;
       this.placeOutside(b, b.crew.splice(0));
     }

@@ -58,6 +58,7 @@ export default {
   '{by} destroyed {n} of your structures': '{by} phá hủy {n} công trình của bạn',
   '{name} was taken from you!': '{name} đã bị cướp khỏi tay bạn!',
   '{name} promoted: {rank}!': '{name} được thăng cấp: {rank}!',
+  '{name} earned the rescue medal!': '{name} nhận huân chương cứu hộ!',
   'Veteran': 'Cựu binh',
   'Elite': 'Tinh nhuệ',
   'Elite+': 'Tinh nhuệ+',

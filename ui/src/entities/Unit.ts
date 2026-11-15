@@ -1,5 +1,5 @@
 import type { Mobility } from '../map/Pathfinder';
-import { CELL_SIZE, RANK_ARMOR, RANK_KILL_MULTIPLES, RANK_SPEED, STEP_PHASE_PER_PX } from '../constants';
+import { CELL_SIZE, RANK_ARMOR, MEDAL_REPAIR_MULTIPLE, MEDAL_REPAIR_SPEED, RANK_KILL_MULTIPLES, RANK_SPEED, STEP_PHASE_PER_PX } from '../constants';
 import { movesRight } from '../core/IsoView';
 import type { Allegiance, GridPoint, WeaponSpec, WorldPoint } from '../types';
 import { Entity } from './Entity';
@@ -129,9 +129,23 @@ export abstract class Unit extends Entity {
 
   /** Veteran ranks: 0 none, then 1–3 chevrons at 3× / 6× / 9× its own price in kills. */
   get rank(): 0 | 1 | 2 | 3 {
-    if (!this.earnsRank) return 0;
+    if (!this.earnsRank || this.earnsMedal) return 0;
     const ratio = this.killValue / Math.max(1, this.value);
     return ratio >= RANK_KILL_MULTIPLES[2] ? 3 : ratio >= RANK_KILL_MULTIPLES[1] ? 2 : ratio >= RANK_KILL_MULTIPLES[0] ? 1 : 0;
+  }
+  /** Value of the repairs done (share of HP restored × price of what was mended): repair vehicles and engineers only. */
+  repairValue = 0;
+  /** Rescue medal instead of ranks 1–3 (repair vehicles, engineers): earned by repairing only. */
+  get earnsMedal(): boolean {
+    return false;
+  }
+  /** Rescue medal: repairs worth MEDAL_REPAIR_MULTIPLE × its own price. */
+  get medal(): boolean {
+    return this.earnsMedal && this.repairValue >= this.value * MEDAL_REPAIR_MULTIPLE;
+  }
+  /** Repair speed multiplier: faster once the medal is earned. */
+  get repairSpeed(): number {
+    return this.medal ? MEDAL_REPAIR_SPEED : 1;
   }
   /** Can this unit be promoted at all? (Squatters cannot.) */
   protected get earnsRank(): boolean {

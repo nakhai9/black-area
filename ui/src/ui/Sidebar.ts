@@ -958,9 +958,10 @@ export class Sidebar {
   }
 
   /** Occupied capitals tab: one flat list, each row the occupied nation's flag and name. */
-  private renderCapitalsTab(rows: readonly OccupiedCapital[]): void {
+  private renderCapitalsTab(all: readonly OccupiedCapital[]): void {
     const body = this.capitalsBody;
     if (!body) return;
+    const rows = all.filter((r) => r.mine);
     if (rows.length === 0) {
       const empty = document.createElement('div');
       empty.className = 'sb-muted';

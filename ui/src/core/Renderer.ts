@@ -180,12 +180,14 @@ const GROUND_BOX = { w: 26, h: 22, ox: 13, oy: 15 };
 const AIR_PARKED_BOX = { w: 30, h: 20, ox: 15, oy: 12 };
 const AIR_CRUISE_BOX = { w: 34, h: CRUISE_ALTITUDE + 30, ox: 15, oy: CRUISE_ALTITUDE + 10 };
 
-/** Veteran badges, rank 1–3 (Google Material Icons, 24×24 grid): star outline, filled star, star in a disc. */
+/** Veteran badges, rank 1–3 (Tabler Icons by Paweł Kuna, MIT — https://github.com/tabler/tabler-icons/blob/master/LICENSE): hexagon with 1, 2, 3. */
 const RANK_BADGES = [
-  'm22 9.24l-7.19-.62L12 2L9.19 8.63L2 9.24l5.46 4.73L5.82 21L12 17.27L18.18 21l-1.63-7.03zM12 15.4l-3.76 2.27l1-4.28l-3.32-2.88l4.38-.38L12 6.1l1.71 4.04l4.38.38l-3.32 2.88l1 4.28z',
-  'M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2L9.19 8.63L2 9.24l5.46 4.73L5.82 21z',
-  'M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2m4.24 16L12 15.45L7.77 18l1.12-4.81l-3.73-3.23l4.92-.42L12 5l1.92 4.53l4.92.42l-3.73 3.23z',
+  'M10.425 1.414a3.33 3.33 0 0 1 3.216 0l6.775 3.995q.1.06.18.133l.008.007l.107.076a3.22 3.22 0 0 1 1.284 2.39l.005.203v7.284c0 1.175-.643 2.256-1.623 2.793l-6.804 4.302c-.98.538-2.166.538-3.2-.032l-6.695-4.237A3.23 3.23 0 0 1 2 15.502V8.217a3.21 3.21 0 0 1 1.65-2.808zm.952 5.803l-.084.076l-2 2l-.083.094a1 1 0 0 0 0 1.226l.083.094l.094.083a1 1 0 0 0 1.226 0l.094-.083l.293-.293V16l.007.117a1 1 0 0 0 1.986 0L13 16V8l-.006-.114c-.083-.777-1.008-1.16-1.617-.67z',
+  'M10.425 1.414a3.33 3.33 0 0 1 3.216 0l6.775 3.995q.1.06.18.133l.008.007l.107.076a3.22 3.22 0 0 1 1.284 2.39l.005.203v7.284c0 1.175-.643 2.256-1.623 2.793l-6.804 4.302c-.98.538-2.166.538-3.2-.032l-6.695-4.237A3.23 3.23 0 0 1 2 15.502V8.217a3.21 3.21 0 0 1 1.65-2.808zM13 7h-3l-.117.007a1 1 0 0 0 0 1.986L10 9h3v2h-2l-.15.005a2 2 0 0 0-1.844 1.838L9 13v2l.005.15a2 2 0 0 0 1.838 1.844L11 17h3l.117-.007a1 1 0 0 0 0-1.986L14 15h-3v-2h2l.15-.005a2 2 0 0 0 1.844-1.838L15 11V9l-.005-.15a2 2 0 0 0-1.838-1.844z',
+  'M10.425 1.414a3.33 3.33 0 0 1 3.216 0l6.775 3.995q.1.06.18.133l.008.007l.107.076a3.22 3.22 0 0 1 1.284 2.39l.005.203v7.284c0 1.175-.643 2.256-1.623 2.793l-6.804 4.302c-.98.538-2.166.538-3.2-.032l-6.695-4.237A3.23 3.23 0 0 1 2 15.502V8.217a3.21 3.21 0 0 1 1.65-2.808zM13 7h-2l-.15.005A2 2 0 0 0 9 9a1 1 0 0 0 1.974.23l.02-.113L11 9h2v2h-2l-.133.007c-1.111.12-1.154 1.73-.128 1.965l.128.021L11 13h2v2h-2l-.007-.117A1 1 0 0 0 9 15a2 2 0 0 0 1.85 1.995L11 17h2l.15-.005a2 2 0 0 0 1.844-1.838L15 15v-2l-.005-.15a2 2 0 0 0-.17-.667l-.075-.152l-.019-.032l.02-.03a2 2 0 0 0 .242-.795L15 11V9l-.005-.15a2 2 0 0 0-1.838-1.844z',
 ].map((d) => new Path2D(d));
+/** Rescue medal (repair vehicles, engineers), 15×15 grid (Pinhead Map Icons by Quincy Morgan, CC0 — https://creativecommons.org/publicdomain/zero/1.0/). */
+const MEDAL_BADGE = new Path2D('m3 4l4.5 3L12 4V0H3zm5.5 3.5c.14 0 .25.11.25.25V10H11c.14 0 .25.11.25.25v2c0 .14-.11.25-.25.25H8.75v2.25c0 .14-.11.25-.25.25h-2c-.14 0-.25-.11-.25-.25V12.5H4c-.14 0-.25-.11-.25-.25v-2c0-.14.11-.25.25-.25h2.25V7.75c0-.14.11-.25.25-.25z');
 /** DEMO test game: each aircraft type shows one star level, to preview all three in play. */
 const DEMO_AIR_RANK: Partial<Record<VehicleKind, number>> = { jet: 1, bomber: 2, transport: 3 };
 
@@ -386,7 +388,8 @@ export class Renderer {
     if (scene.mountainTip) this.drawMountainTip(scene.mountainTip);
     for (const u of units) {
       const rank = (demoActive && u instanceof Vehicle ? DEMO_AIR_RANK[u.type] : undefined) ?? u.rank;
-      if (rank > 0) this.drawRank(u, rank);
+      if (u.medal) this.drawRank(u, 0, true);
+      else if (rank > 0) this.drawRank(u, rank);
       if (u instanceof Vehicle && u.isCarrier && (u.cargo.length > 0 || u.incoming > 0)) this.drawCargoBadge(u);
     }
     // Effects are stored in iso px already.
@@ -1126,17 +1129,18 @@ export class Renderer {
   }
 
   /** Veteran badge (rank 1–3, gold) in the square box left of the flag and health bar. */
-  private drawRank(u: Unit, rank: number): void {
-    const badge = RANK_BADGES[Math.min(rank, RANK_BADGES.length) - 1];
+  private drawRank(u: Unit, rank: number, medal = false): void {
+    const badge = medal ? MEDAL_BADGE : RANK_BADGES[Math.min(rank, RANK_BADGES.length) - 1];
     if (!badge) return;
     const { ctx } = this;
     const box = this.plate(u);
     // The badges span 2–22 of their 24 grid: scaled so that span fills the box.
-    const k = box.side / 20;
+    const k = medal ? box.side / 15 : box.side / 20;
     ctx.save();
     ctx.translate(box.rankX + box.side / 2, box.top + box.side / 2);
     ctx.scale(k, k);
-    ctx.translate(-12, -12);
+    if (medal) ctx.translate(-7.5, -7.5);
+    else ctx.translate(-12, -12);
     ctx.lineJoin = 'round';
     ctx.strokeStyle = 'rgba(0,0,0,0.85)';
     ctx.lineWidth = 2;
@@ -1164,7 +1168,7 @@ export class Renderer {
     const h = 13 * k;
     const P = worldToIso(t.px, t.py);
     const x = P.x - w / 2;
-    const y = P.y - t.altitude - 11 - h;
+    const y = P.y - t.altitude - 3 - h;
     ctx.fillStyle = t.full ? '#d62d20' : '#e0a21b';
     ctx.fillRect(x, y, w, h);
     ctx.strokeStyle = 'rgba(0,0,0,0.7)';

@@ -286,6 +286,10 @@ export class Vehicle extends Unit {
     return this.type === 'repair';
   }
 
+  override get earnsMedal(): boolean {
+    return this.isRepair;
+  }
+
   /** Army truck: unarmed ground carrier for soldiers only. */
   /** Attack helicopter: lands and waits anywhere on open ground, like a vehicle parks; needs no airfield after it is built. */
   get isHeli(): boolean {

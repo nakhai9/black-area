@@ -95,6 +95,10 @@ export class Infantry extends Unit {
     return super.speedFactor() * (this.inWater ? SWIM_SPEED_FACTOR : 1);
   }
 
+  override get earnsMedal(): boolean {
+    return this.isEngineer;
+  }
+
   protected override get earnsRank(): boolean {
     return this.tier !== 'squatters';
   }

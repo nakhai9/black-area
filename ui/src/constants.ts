@@ -34,7 +34,7 @@ export const DEMO_FACTION: FactionId = NATION_CODES[(import.meta.env.VITE_DEMO_F
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "3.75.43";
+export const GAME_VERSION = "3.75.47";
 
 /** An Allied Building within this many cells of any capital is an embassy; farther out it is a "Pro-<nation> regime". */
 export const EMBASSY_CAPITAL_CELLS = 25;
@@ -1054,6 +1054,13 @@ export const VEHICLE_GAP = 2;
 export const CRUSH_RADIUS = 2.4;
 /** Veteran / Elite / Elite+ at 3× / 6× / 9× the unit's own price in destroyed enemy value. */
 export const RANK_KILL_MULTIPLES = [3, 6, 9] as const;
+/**
+ * Rescue medal (repair vehicles, engineers — they never get ranks 1–3): repairs worth this many times the unit's own
+ * price (share of HP restored × price of what was mended). Harder than Veteran since they do not fight.
+ */
+export const MEDAL_REPAIR_MULTIPLE = 6;
+/** Repair speed of a medal holder. */
+export const MEDAL_REPAIR_SPEED = 1.5;
 /**
  * What each rank (none / Veteran / Elite / Elite+) is worth in battle, for every soldier and vehicle (engineers
  * included; Squatters never earn ranks): damage dealt, seconds between shots, damage taken, and speed.
