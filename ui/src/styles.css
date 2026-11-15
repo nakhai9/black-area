@@ -2810,3 +2810,68 @@ input:disabled {
   border-color: #c0392b;
   background: #3a1a1c;
 }
+
+/* ------------------------------------------------------------- end of war: diplomatic letter */
+.end-card.end-letter {
+  max-width: min(600px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+}
+.letter-head {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 18px;
+  margin-bottom: 10px;
+}
+.letter-emblem {
+  height: 64px;
+  width: auto;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.6));
+}
+.letter-flag {
+  height: 42px;
+  width: auto;
+  border: 1px solid rgba(0, 0, 0, 0.7);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+}
+.end-card.end-letter h1 {
+  font-size: 30px;
+  margin-bottom: 2px;
+}
+.letter-kind {
+  font-size: 12px;
+  letter-spacing: 4px;
+  color: #c9b27a;
+  margin-bottom: 16px;
+}
+.letter-body {
+  text-align: left;
+  padding: 16px 20px;
+  margin-bottom: 20px;
+  background: rgba(244, 236, 214, 0.06);
+  border: 1px solid rgba(201, 178, 122, 0.35);
+  border-radius: 4px;
+  font-family: Georgia, 'Times New Roman', serif;
+}
+.end-card .letter-body p {
+  margin: 0 0 10px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: #e4e8ec;
+}
+.end-card .letter-body .letter-date {
+  text-align: right;
+  font-style: italic;
+  color: #9aa6b0;
+}
+.end-card .letter-body .letter-salute {
+  font-weight: 700;
+}
+.end-card .letter-body .letter-sign {
+  margin: 14px 0 0;
+  text-align: right;
+  font-style: italic;
+  font-weight: 700;
+  color: #c9b27a;
+}

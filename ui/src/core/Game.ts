@@ -904,6 +904,17 @@ export class Game {
 
   start(): void {
     this.loop.start();
+    // .env.local VITE_TEST_END_MODAL=victory | defeat: open the end-of-war letter at once (to test its look).
+    const test = String(import.meta.env.VITE_TEST_END_MODAL ?? '').trim().toLowerCase();
+    if (test === 'victory' || test === 'defeat') {
+      this.endScreen.show(
+        test === 'victory',
+        test === 'victory'
+          ? t('Every enemy capital is destroyed and no enemy soldier or combat vehicle remains. The war is won.')
+          : t('Your capital has fallen and you have no combat force, barracks or factory left.'),
+        this.humanPlayer.faction,
+      );
+    }
   }
 
   /** Parts of the game whose state goes into a save, by a stable name. */
@@ -5563,10 +5574,10 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     }
     if (this.humanPlayer.defeated) {
       this.ended = true;
-      this.endScreen.show(false, t('Your capital has fallen and you have no combat force, barracks or factory left.'));
+      this.endScreen.show(false, t('Your capital has fallen and you have no combat force, barracks or factory left.'), this.humanPlayer.faction);
     } else if (this.players.every((p) => p.id === this.localId || p.defeated)) {
       this.ended = true;
-      this.endScreen.show(true, t('Every enemy capital is destroyed and no enemy soldier or combat vehicle remains. The war is won.'));
+      this.endScreen.show(true, t('Every enemy capital is destroyed and no enemy soldier or combat vehicle remains. The war is won.'), this.humanPlayer.faction);
     }
   }
 
