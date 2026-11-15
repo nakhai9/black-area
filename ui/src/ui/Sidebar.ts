@@ -30,7 +30,7 @@ import { getFlagTexture } from '../render/Flags';
 import { factionBadgeHtml } from './FactionBadge';
 import { nationFlag } from '../render/sprites/NationCapital';
 import { isFactionNation, type NationId } from '../entities/NationCapital';
-import { type BuildOption, type QueueSlot, buildCost, missingRequirement } from '../systems/ConstructionSystem';
+import { type BuildOption, type QueueSlot, buildCost, footprintOf, missingRequirement } from '../systems/ConstructionSystem';
 import { MIN_SALE_STOCK } from '../systems/OilMarket';
 import type { ArmyCount, TrainKey, TrainOption, TrainingQueue } from '../systems/TrainingSystem';
 import type { VehicleKey, VehicleOption, VehicleQueue } from '../systems/VehicleSystem';
@@ -95,9 +95,16 @@ type TabId = 'build' | 'defense' | 'infantry' | 'vehicles' | 'aircraft';
 type ViewId = 'command' | 'production';
 /** Tabs of the row above the alerts on the Command page: what shows under it. */
 /** Oil tab icon: an oil barrel (Emoji One v1, CC BY-SA 4.0). */
+/** Structures that work the same whoever designed them (Power Plant: same output; High-Tech Center: same unlocks). */
+const SAME_FUNCTION_BUILDS: ReadonlySet<string> = new Set(['powerPlant', 'techCenter']);
+
+/** Leave an occupied capital (Mono Icons by Mono — https://github.com/mono-company/mono-icons/blob/master/LICENSE.md). */
+const LEAVE_ICON = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><g fill="currentColor"><path fill-rule="evenodd" d="M11 20a1 1 0 0 0-1-1H5V5h5a1 1 0 1 0 0-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h5a1 1 0 0 0 1-1" clip-rule="evenodd"/><path d="M21.714 12.7a1 1 0 0 0 .286-.697v-.006a1 1 0 0 0-.293-.704l-4-4a1 1 0 1 0-1.414 1.414L18.586 11H9a1 1 0 1 0 0 2h9.586l-2.293 2.293a1 1 0 0 0 1.414 1.414l4-4z"/></g></svg>';
+/** Occupied capitals tab: a tree (Lsicon by Wis Design — https://github.com/wisdesignsystem/lsicon/blob/main/LICENSE). */
+const CAPITALS_TAB_ICON = '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="M6.146 2.153a.5.5 0 0 1 .354-.146h3a.5.5 0 0 1 .5.5V4.51a.5.5 0 0 1-.5.5H8.497V7h4.5a.5.5 0 0 1 .5.5V10H14.5a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-.5.5h-3a.5.5 0 0 1-.5-.5v-2a.5.5 0 0 1 .5-.5h.997V8h-4v2H9.5a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-.5.5h-3a.5.5 0 0 1-.5-.5v-2a.5.5 0 0 1 .5-.5h.997V8h-4v2H4.5a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-.5.5h-3a.5.5 0 0 1-.5-.5v-2a.5.5 0 0 1 .5-.5h.997V7.5a.5.5 0 0 1 .5-.5h4.5V5.01H6.5a.5.5 0 0 1-.5-.5V2.508a.5.5 0 0 1 .146-.354" clip-rule="evenodd"/></svg>';
 const OIL_TAB_ICON = '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 64 64" aria-hidden="true"><ellipse cx="31.992" cy="57.33" fill="#636666" rx="21.82" ry="6.18"/><path fill="#808184" d="M52.55 6.747c0-2.406-2.421-4.357-5.405-4.357h-30.3c-2.984 0-5.405 1.951-5.405 4.357v47.556c0 .196.023.389.056.578a1.6 1.6 0 0 0-.056.396c0 3.204 9.178 5.805 20.497 5.805s20.495-2.601 20.495-5.805c0-.016-.004-.032-.004-.046c.079-.301.125-.609.125-.929V6.747"/><path fill="#c4c4c5" d="M27.552 55.54c0-.116.018-.229.041-.342a3.5 3.5 0 0 1-.041-.497V13.837c0-2.066 1.879-3.742 4.195-3.742h-9.829c-2.313 0-4.193 1.675-4.193 3.742v40.864c0 .17.018.334.041.497a1.7 1.7 0 0 0-.041.342c0 2.753 7.121 4.984 15.905 4.984c1.716 0 3.365-.085 4.915-.242c-6.38-.648-10.993-2.527-10.993-4.742"/><ellipse cx="31.991" cy="5.05" fill="#636666" rx="22.473" ry="5.05"/><ellipse cx="32.03" cy="4.06" fill="#cdccd2" rx="20.318" ry="3.213"/><path fill="#b8b8ba" d="M22.796 4.58c0-1.318.755-2.529 2.02-3.489c-7.657.461-13.1 1.631-13.1 3c0 1.307 4.937 2.431 12.02 2.934c-.593-.74-.937-1.569-.937-2.448"/><ellipse cx="39.671" cy="3.79" fill="#243438" rx="5.07" ry="2.182"/><path fill="#a6a8ab" d="M31.993 21.436c-9.898 0-18.212-1.92-20.551-4.519c-.43.477-.657.976-.657 1.49c0 3.317 9.494 6.01 21.21 6.01c11.711 0 21.21-2.689 21.21-6.01c0-.515-.228-1.014-.657-1.49c-2.338 2.599-10.65 4.519-20.549 4.519m-.006 17.354c-9.898 0-18.212-1.922-20.551-4.519c-.43.477-.657.974-.657 1.488c0 3.317 9.494 6.01 21.21 6.01c11.711 0 21.21-2.689 21.21-6.01c0-.515-.228-1.012-.657-1.488c-2.338 2.597-10.65 4.519-20.549 4.519"/></svg>';
 
-type InfoId = 'finance' | 'oil' | 'controls';
+type InfoId = 'finance' | 'oil' | 'capitals' | 'controls';
 
 /** One of the player's allies (Allied Building) or a claim flag still waiting for its ally, for the Allies tab. */
 export interface AllyInfo {
@@ -144,6 +151,8 @@ function powerColor(strength: number): string {
 }
 
 /** News button icon (Google Material Icons, notifications active). */
+/** Get a loan: hand receiving money (Freehand free icons by Streamline, CC BY 4.0). */
+const LOAN_ICON = '<svg class="sb-loan-icon" xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><g fill="currentColor" fill-rule="evenodd" clip-rule="evenodd"><path d="M17.478 17.629q-.264.027-.52.1a1.57 1.57 0 0 0-.648-1.758a1.42 1.42 0 0 0-1.997.22a4.4 4.4 0 0 1-1.439 1.278a7.3 7.3 0 0 1-1.807.699c-.39-.05-.749-.11-.999-.17v-.1a1.3 1.3 0 0 1-.06-.3a6 6 0 0 0-.29-1.507a1.16 1.16 0 0 0-.708-.62a1 1 0 0 0-1.188.1c-.25.285-.422.63-.5 1c-.024.243-.11.477-.25.678a1.7 1.7 0 0 1-.539.3c-.459.17-.998.27-1.418.41a2.4 2.4 0 0 1-.509-.45c.11-.28.5-.72.6-.919l.08-.15a.5.5 0 0 0 0-.14c0-.349-.18-.439-.35-.449a4 4 0 0 0-1.029.12c-.779.15-1.588.44-2.277.57a.29.29 0 0 0-.23.319a.28.28 0 0 0 .32.23c.7-.12 1.518-.33 2.297-.42h.24c-.17.29-.37.61-.45.789a.64.64 0 0 0 0 .59c.205.299.458.562.75.778c.283.21.592.384.918.52c0 0 .23 0 .41.06v.1c-.17.189-.37.398-.52.578c-.147.17-.25.371-.3.59c0 .08.24 1.398.37 2.216a9 9 0 0 0-1.997-.649c-.34 0-.62-.06-.87-.07q-.952.052-1.906 0a.34.34 0 0 0-.35.29a.33.33 0 0 0 .28.35c.898.11 1.358.06 1.937.11q.389.024.769.11a14 14 0 0 1 2.247.928a.8.8 0 0 0 .659-.07a.48.48 0 0 0 .21-.35q.015-.18 0-.36c0-.229-.07-.578-.12-.938c1.677.06 3.884.18 5.682.19c.947.035 1.895-.039 2.826-.22a8.6 8.6 0 0 0 2.716-1.328a2.86 2.86 0 0 0 1.198-1.917a1.280 1.280 0 0 0-.23-.949a1.07 1.07 0 0 0-1.008-.39m-3.815.42a5.3 5.3 0 0 0 1.458-1.19c.17-.199.41-.129.6 0a1 1 0 0 1 .309.32c0 .09.1.18.06.27c-.102.265-.27.499-.49.679a.5.5 0 0 1-.1.06l-.329.08c-.705.092-1.417.12-2.127.08q.32-.129.62-.3m3.206 1.996c-.706.542-1.5.957-2.347 1.229c-.841.196-1.702.297-2.566.3c-1.818.07-4.075 0-5.752.05c-.06-.36-.11-.67-.12-.78s.18-.24.31-.38q.338-.329.559-.748a.9.9 0 0 0 0-.829a.63.63 0 0 0-.3-.28a3.4 3.4 0 0 0-.639-.2q.38-.065.749-.18c.278-.085.538-.22.769-.398c.167-.152.29-.345.36-.56q.149-.512.369-.998c.08-.13.21-.17.42-.07s.249.41.289.699q.032.628.14 1.248a1 1 0 0 0 .679.749c.901.219 1.82.36 2.746.42c.933.096 1.873.096 2.806 0c.63-.11 1.228-.39 1.847-.54q.193-.05.39-.07h.05v.16c-.09.476-.363.899-.76 1.178m-8.938-8.386a1 1 0 0 0 0 .25v.609a.31.31 0 0 0 .08.46a.31.31 0 0 0 .41-.18a4 4 0 0 0 .39-.5q.08-.151.119-.32a1 1 0 0 0 .08-.219a.5.5 0 0 0 0-.12c.36.06.728.06 1.088 0a1.57 1.57 0 0 0 1.448-1.338a1.34 1.34 0 0 0-.41-1.168a4.5 4.5 0 0 0-1.647-.76a2.5 2.5 0 0 1-.599-.269a.41.41 0 0 1-.22-.29c-.06-.499.31-.699.75-.738a3.1 3.1 0 0 1 1.587.399a.28.28 0 0 0 .38-.08a.26.26 0 0 0-.04-.41a3 3 0 0 0-.83-.419a1 1 0 0 0 .08-.1q.065-.11.11-.23c0-.08 0-.16.05-.249c.05-.09 0-.4 0-.61a.32.32 0 1 0-.589-.229a4 4 0 0 0-.39.5a1.3 1.3 0 0 0-.119.24a1 1 0 0 0-.06.459q-.36-.045-.719 0a1.36 1.36 0 0 0-1.168 1.547a1.33 1.33 0 0 0 .559 1.089a7 7 0 0 0 1.598.689c.33.12.659.21.629.58c-.03.369-.46.548-.909.598a3 3 0 0 1-1.578-.32a1.2 1.2 0 0 1-.35-.319a3.5 3.5 0 0 1-.259-.47a.32.32 0 0 0-.39-.169a.32.32 0 0 0-.16.42q.136.381.36.718q.175.252.43.42q.213.155.46.25a1 1 0 0 0-.17.28"/><path d="M8.081 3.299a5.99 5.99 0 0 0-4.573 3.685a5.21 5.21 0 0 0 1.198 5.911q.438.427.929.79a5 5 0 0 0 1.088.598c.452.168.927.265 1.408.29c.695.027 1.391-.016 2.077-.13a.28.28 0 0 0 .23-.31a.27.27 0 0 0-.31-.239a9.6 9.6 0 0 1-1.937 0a4.6 4.6 0 0 1-1.178-.32a4.4 4.4 0 0 1-.909-.599a7 7 0 0 1-.779-.759a4.39 4.39 0 0 1-.849-4.903a5.68 5.68 0 0 1 3.995-3.285a5.73 5.73 0 0 1 3.305.36c.944.272 1.761.87 2.307 1.687c.22.21.579 0 .549-.35C12.685 2.61 8.82 3.170 8.082 3.3m6.071 7.678c-.15.26-.31.5-.48.739c-.17.24-.36.46-.559.67a4.55 4.55 0 0 1-1.688 1.167a.3.3 0 0 0-.22.38a.31.31 0 0 0 .39.22a4.84 4.84 0 0 0 2.936-1.808q.32-.424.52-.919c.211-.505.34-1.041.379-1.587l-.65-.28q-.234.744-.628 1.418"/><path d="M23.09 6.624a.31.31 0 0 0-.43.12a2 2 0 0 1-.549.61a1.850 1.850 0 0 1-.739.329q-.195.022-.389 0a11.4 11.4 0 0 0-1.997-.24c-.74.09-1.997.869-3.066 1.059a1 1 0 0 1-1.258-.52c-.17-.32.13-.47.43-.669c.738-.48 1.767-.938 2.166-1.647a1.54 1.54 0 0 0 .12-1.389c-.42-1.188-1.148-1.517-1.897-1.398a2.4 2.4 0 0 0-1.758 1.109a.3.3 0 0 0 .13.503a.3.3 0 0 0 .33-.124c.24-.338.595-.579.998-.679c.56-.22 1.109 0 1.358.83c.16.578-.29.848-.729 1.167c-.858.64-1.078.46-1.877 1.199a1.18 1.18 0 0 0-.21 1.568c.75 1.328 2.367 1.218 3.755.559a8.5 8.5 0 0 1 1.618-.71q.955-.009 1.897.15q.294.005.58-.07c.366-.087.708-.258.998-.499a2.5 2.5 0 0 0 .689-.828a.31.31 0 0 0-.17-.43"/><path d="M23.51 3.848L20.993 2.51c-.719-.44-1.398-1.079-2.117-1.588a5.1 5.1 0 0 0-1.758-.859a3.45 3.45 0 0 0-3.145.999a9.8 9.8 0 0 0-1.418 1.718c-.34.529.17.798.53.419q.692-.77 1.467-1.458a2.6 2.6 0 0 1 2.337-.66a5.6 5.6 0 0 1 1.787.91q.925.682 1.918 1.258l2.646 1.168a.32.32 0 0 0 .42-.14a.33.33 0 0 0-.15-.429"/></g></svg>';
 const NEWS_ICON = '<svg class="sb-loan-icon" xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M18 16v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.68-1.5-1.51-1.5S10.5 3.17 10.5 4v.68C7.63 5.36 6 7.92 6 11v5l-1.3 1.29c-.63.63-.19 1.71.7 1.71h13.17c.89 0 1.34-1.08.71-1.71zm-6.01 6c1.1 0 2-.9 2-2h-4a2 2 0 0 0 2 2M6.77 4.73c.42-.38.43-1.03.03-1.43a1 1 0 0 0-1.39-.02a10.42 10.42 0 0 0-3.27 6.06c-.09.61.38 1.16 1 1.16c.48 0 .9-.35.98-.83a8.44 8.44 0 0 1 2.65-4.94M18.6 3.28c-.4-.37-1.02-.36-1.4.02c-.4.4-.38 1.04.03 1.42c1.38 1.27 2.35 3 2.65 4.94c.07.48.49.83.98.83c.61 0 1.09-.55.99-1.16c-.38-2.37-1.55-4.48-3.25-6.05"/></svg>';
 
 /** A capital held by another nation (News window): the capital, the nation it belongs to and the one holding it. */
@@ -157,6 +166,8 @@ export interface OccupiedCapital {
   holderName: string;
   /** Held by the local player: shown as "held by You". */
   mine?: boolean;
+  /** A contested nation's capital the local player holds: it may be given back (Leave button). */
+  releasable?: boolean;
 }
 
 /** One nation in the ranking tab. */
@@ -288,6 +299,8 @@ export interface SidebarHandlers {
   onToggleAutoSell: () => void;
   /** The Get a loan button: borrow from the Global Monitoring Center (only at 0 TB). */
   onLoan: () => void;
+  /** Leave button: give that contested capital back to neutral. */
+  onReleaseCapital: (id: number) => void;
   /** A cartel policy button (oil-cartel nation only). */
   onOilPolicy: (policy: OilPolicy) => void;
   /** The Unload button of the Transport panel (same as the U key). */
@@ -374,6 +387,7 @@ export class Sidebar {
   private rankKey = '';
   private occupiedKey = '';
   private occupiedList: HTMLElement | null = null;
+  private capitalsBody: HTMLElement | null = null;
   private eventList: HTMLElement | null = null;
   private eventKey = '';
   private allyList!: HTMLElement;
@@ -433,7 +447,7 @@ export class Sidebar {
         <div class="sb-power" title="${t('Power')}"><i data-icon="power"></i><div class="sb-power-bar">${'<i></i>'.repeat(POWER_SEGMENTS)}</div></div>
         <div class="sb-actions sb-oil-actions">
           <b class="sb-war-clock" title="${t('War cycle: {war} minutes of war, then {peace} seconds of ceasefire (no attacks, no takeovers)', { war: WAR_SECONDS / 60, peace: PEACE_SECONDS })}"><i class="sb-war-icon"></i><span class="sb-war-time"></span></b>
-          <button class="sb-sell sb-loan" type="button" title="${t('Get a loan')}" aria-label="${t('Get a loan')}"><svg class="sb-loan-icon" xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M6.25 2A2.25 2.25 0 0 0 4 4.25v15.5A2.25 2.25 0 0 0 6.25 22h7.5A2.25 2.25 0 0 0 16 19.771v-1.52a.75.75 0 0 0-.75-.75c-.453 0-.739-.123-.936-.282c-.208-.167-.38-.425-.511-.789c-.273-.755-.302-1.75-.302-2.68a.75.75 0 0 0-.202-.512l-.165-.177a3 3 0 0 0-.17-.173c-.074-.07-.3-.285-1.183-1.168c-.469-.469-.728-.865-.813-1.168a.6.6 0 0 1-.016-.325a.7.7 0 0 1 .205-.323a.7.7 0 0 1 .322-.204a.6.6 0 0 1 .324.016c.302.085.698.346 1.167.815c.54.54 1.053 1.047 1.512 1.5c.76.752 1.373 1.36 1.72 1.73a.75.75 0 0 0 1.097-1.023A55 55 0 0 0 16 11.424V8.06l2.842 2.842c.421.422.659.994.659 1.59v8.758a.75.75 0 0 0 1.5 0v-8.757a3.75 3.75 0 0 0-1.099-2.652L16 5.939v-1.69A2.25 2.250 0 0 0 13.75 2zm6.142 14.94c.097.268.222.534.384.782A2.25 2.25 0 0 0 11.5 19.75v.75h-3v-.75a2.25 2.25 0 0 0-2.25-2.25H5.5v-11h.75A2.25 2.25 0 0 0 8.5 4.25V3.5h3v.75a2.25 2.25 0 0 0 2.25 2.25h.75v3.438l-.469-.468c-.531-.531-1.148-1.008-1.821-1.198a2.1 2.1 0 0 0-1.104-.025a2 2 0 0 0-.632.285a3.5 3.5 0 1 0 1.55 6.324c.037.684.13 1.427.368 2.084M8 12a2 2 0 0 1 1.456-1.925a2.2 2.2 0 0 0 .068.883c.189.673.665 1.291 1.197 1.823l.665.662A2 2 0 0 1 8 12M5.5 4.25a.75.75 0 0 1 .75-.75H7v.75a.75.75 0 0 1-.75.75H5.5zM13 3.5h.75a.75.75 0 0 1 .75.75V5h-.75a.75.75 0 0 1-.75-.75zM14.5 19v.75a.75.75 0 0 1-.75.75H13v-.75a.75.75 0 0 1 .75-.75zM7 20.5h-.75a.75.75 0 0 1-.75-.75V19h.75a.75.75 0 0 1 .75.75z"/></svg></button>
+          <button class="sb-sell sb-loan" type="button" title="${t('Get a loan')}" aria-label="${t('Get a loan')}">${LOAN_ICON}</button>
         </div>
       </section>
       <nav class="sb-main-tabs" aria-label="${t('Sidebar pages')}"></nav>
@@ -468,6 +482,12 @@ export class Sidebar {
             <button class="sb-sell sb-sell-oil" type="button" title="${t('Offer your oil to the Global Monitoring Center: it decides whether and how much to buy (at most 25% per sale) and pays the posted price into your budget')}">${t('Sell oil')}</button>
             <button class="sb-sell sb-auto" type="button" title="${t('Auto sell: offer your oil to the Global Monitoring Center automatically whenever a sale is allowed (green = on). Hotkey: A')}">${t('Auto sell oil')}</button>
           </div>
+        </section>
+      </div>
+      <div class="sb-info" data-info="capitals" hidden>
+        <section class="sb-panel sb-capitals">
+          <h3>${t('Occupied capitals')}</h3>
+          <div class="sb-capitals-body"><div class="sb-muted">${t('No capital is occupied.')}</div></div>
         </section>
       </div>
       <div class="sb-info" data-info="rank" hidden>
@@ -597,7 +617,8 @@ export class Sidebar {
     this.buildMainTabs(q('.sb-main-tabs'), q('.sb-page-links'));
     this.views.set('command', q('[data-page=command]'));
     this.views.set('production', q('[data-page=production]'));
-    for (const id of ['finance', 'oil', 'controls'] as const) this.infoPanes.set(id, q(`[data-info=${id}]`));
+    for (const id of ['finance', 'oil', 'capitals', 'controls'] as const) this.infoPanes.set(id, q(`[data-info=${id}]`));
+    this.capitalsBody = q('.sb-capitals-body');
     this.allyList = q('.sb-ally-list');
     this.allyCount = q('.sb-allies-count');
     this.powerPrice = q('.sb-power-price');
@@ -661,10 +682,10 @@ export class Sidebar {
     this.peaceTimer.hidden = true;
   }
 
-  /** Short EVA-style message under the cameos (e.g. "Construction complete"). */
-  notify(text: string, seconds = 3): void {
-    this.message.textContent = text;
-    this.messageTimer = seconds;
+  /** Short EVA-style message under the cameos: no longer shown (the sidebar carries no notice text). */
+  notify(_text: string, _seconds = 3): void {
+    this.message.textContent = '';
+    this.messageTimer = 0;
   }
 
   /** Air tools: Turbo lit when ready, otherwise counting down its burn / recharge; disabled for a selection without aircraft. */
@@ -803,7 +824,7 @@ export class Sidebar {
       if (!c) continue;
       const queue = model.buildSlot(option.id);
       // Another nation's structures show only while its capital is held (or one is still on order).
-      c.el.hidden = !model.buildAvailable(option) && queue.state === 'idle';
+      c.el.hidden = (!model.buildAvailable(option) || this.sameAsOwn(option, model)) && queue.state === 'idle';
       const state = queue.state;
       const mine = state !== 'idle';
       const placingThis = model.placingId === option.id;
@@ -864,6 +885,7 @@ export class Sidebar {
     const infos: readonly { id: InfoId; label: string; icon: IconNode | string }[] = [
       { id: 'finance', label: 'Finance', icon: Wallet },
       { id: 'oil', label: 'Oil', icon: OIL_TAB_ICON },
+      { id: 'capitals', label: 'Occupied capitals', icon: CAPITALS_TAB_ICON },
       { id: 'controls', label: 'Controls', icon: Keyboard },
     ];
     for (const info of infos) {
@@ -920,13 +942,67 @@ export class Sidebar {
     );
   }
 
+  /**
+   * Another nation's structure that works like the nation's own one (SAME_FUNCTION_BUILDS) and stands on the same plot
+   * counts as that one structure: its cameo stays hidden while the own one is on sale.
+   */
+  private sameAsOwn(option: BuildOption, model: SidebarModel): boolean {
+    if (!option.foreign) return false;
+    const base = option.id.split('@')[0]!;
+    if (!SAME_FUNCTION_BUILDS.has(base)) return false;
+    const own = this.options.find((o) => o.id === base);
+    if (!own || !model.buildAvailable(own)) return false;
+    const a = footprintOf(option, this.faction);
+    const b = footprintOf(own, this.faction);
+    return a.w === b.w && a.d === b.d;
+  }
+
+  /** Occupied capitals tab: one flat list, each row the occupied nation's flag and name. */
+  private renderCapitalsTab(rows: readonly OccupiedCapital[]): void {
+    const body = this.capitalsBody;
+    if (!body) return;
+    if (rows.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'sb-muted';
+      empty.textContent = t('No capital is occupied.');
+      body.replaceChildren(empty);
+      return;
+    }
+    const list = document.createElement('ul');
+    list.className = 'sb-cap-list';
+    for (const r of rows) {
+      const li = document.createElement('li');
+      const img = document.createElement('img');
+      img.className = 'sb-rank-flag';
+      img.src = isFactionNation(r.origin) ? this.flagUrl(r.origin) : nationFlag(r.origin).toDataURL();
+      img.alt = '';
+      img.title = r.capital;
+      const label = document.createElement('span');
+      label.textContent = r.originName;
+      li.append(img, label);
+      if (r.releasable) {
+        const leave = document.createElement('button');
+        leave.type = 'button';
+        leave.className = 'sb-cap-leave';
+        leave.title = t('Leave {capital}: it goes back to neutral', { capital: r.capital });
+        leave.setAttribute('aria-label', leave.title);
+        leave.innerHTML = LEAVE_ICON;
+        leave.addEventListener('click', () => this.handlers.onReleaseCapital(r.id));
+        li.append(leave);
+      }
+      list.append(li);
+    }
+    body.replaceChildren(list);
+  }
+
   /** News window: one row per capital held by another nation — "<capital> (flag nation) → held by (flag nation)". */
   private renderOccupied(rows: readonly OccupiedCapital[]): void {
-    const list = this.occupiedList;
-    if (!list) return;
-    const key = rows.map((r) => `${r.id}:${r.holder}`).join('|');
+    const key = rows.map((r) => `${r.id}:${r.holder}:${r.releasable ? 1 : 0}`).join('|');
     if (key === this.occupiedKey) return;
     this.occupiedKey = key;
+    this.renderCapitalsTab(rows);
+    const list = this.occupiedList;
+    if (!list) return;
     if (rows.length === 0) {
       const li = document.createElement('li');
       li.className = 'news-empty';
@@ -1169,7 +1245,8 @@ export class Sidebar {
 
   /** True when the Rank tab is open and its 1 s refresh is due (the ranking is only computed then). */
   wantsRanking(dt: number): boolean {
-    if (!this.newsOverlay || this.newsOverlay.hidden) return false;
+    const capitalsOpen = this.activeView === 'command' && this.activeInfo === 'capitals';
+    if (!capitalsOpen && (!this.newsOverlay || this.newsOverlay.hidden)) return false;
     this.rankTimer -= dt;
     if (this.rankTimer > 0) return false;
     this.rankTimer = 1;

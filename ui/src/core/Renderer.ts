@@ -61,6 +61,8 @@ export interface PlacementGhost {
   readonly d: number;
   /** Turned 90°: the art is drawn mirrored. */
   readonly mirrored: boolean;
+  /** The LDEW laser emplacement: drawn from its own sheets, not the bunker art its sprite key falls back to. */
+  readonly ldew?: boolean;
   readonly ok: boolean;
   readonly reason: string | null;
 }
@@ -1615,7 +1617,10 @@ export class Renderer {
     const scale = this.sprites.fitScale(g.spriteKey);
     const c = worldToIso(fx + fw / 2, fy + fh / 2);
     ctx.globalAlpha = g.ok ? 0.75 : 0.45;
-    if (!(g.spriteKey.startsWith('bunker:') && drawBunkerGhost(ctx, g.faction as FactionId, c.x, c.y))) {
+    const custom = g.ldew
+      ? drawLdewEmplacement(ctx, { faction: g.faction, aimHeading: Math.PI / 4 }, c.x, c.y)
+      : g.spriteKey.startsWith('bunker:') && drawBunkerGhost(ctx, g.faction as FactionId, c.x, c.y);
+    if (!custom) {
       ctx.drawImage(spriteRaster(s, scale * this.camera.zoom * this.dpr), c.x - s.centerX * scale, c.y - s.centerY * scale, s.width * scale, s.height * scale);
     }
     ctx.globalAlpha = 1;

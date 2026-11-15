@@ -275,6 +275,8 @@ export type GameCommand = (
   | { k: 'train' | 'trainCancel'; tier: TrainKey }
   | { k: 'vehicle' | 'vehicleCancel'; kind: VehicleKey }
   | { k: 'policy'; policy: OilPolicy }
+  /** Give up a contested nation's capital I hold: it goes back to neutral, as at the start. */
+  | { k: 'releaseCapital'; b: number }
   | { k: 'sellOil' | 'autoSell' | 'loan' | 'unload' | 'turbo' }
   /** My engineer standing in an enemy capital: what he does there (see CapitalChoice). */
   | { k: 'capitalChoice'; u: number; c: CapitalChoice | null }
@@ -818,6 +820,7 @@ export class Game {
       onSellOil: () => this.issue({ k: 'sellOil' }),
       onToggleAutoSell: () => this.issue({ k: 'autoSell' }),
       onLoan: () => this.issue({ k: 'loan' }),
+      onReleaseCapital: (id: number) => this.issue({ k: 'releaseCapital', b: id }),
       onOilPolicy: (policy) => this.issue({ k: 'policy', policy }),
       onUnload: () => this.issue({ k: 'unload' }),
       onBridge: () => this.startBridging(),
@@ -3478,6 +3481,16 @@ export class Game {
       case 'loan':
         this.takeLoan();
         break;
+      case 'releaseCapital': {
+        const b = this.entities.get(cmd.b);
+        if (!(b instanceof NationCapital) || !b.alive || b.owner !== me) break;
+        const holder = this.players.find((p) => p.id === me);
+        const n = nationInfo(b.nation);
+        b.free();
+        if (holder) this.intel('politics', t('{by} withdrew from {capital} ({name})', { by: FACTIONS[holder.faction].name, capital: n.capital, name: n.name }));
+        this.sidebarTimer = SIDEBAR_REFRESH;
+        break;
+      }
       case 'unload':
         this.unloadSelectedTransport();
         break;
@@ -4731,6 +4744,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     this.ghost = {
       spriteKey: this.placing.spriteKey(this.humanPlayer.faction),
       faction: this.humanPlayer.faction,
+      ldew: this.placing.id === 'ldew',
       x,
       y,
       w,
@@ -5351,7 +5365,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       if (b instanceof NationCapital) {
         if (b.owner === NEUTRAL_OWNER) continue;
         const n = nationInfo(b.nation);
-        out.push({ id: b.id, capital: n.capital, origin: b.nation, originName: n.name, holder, holderName: FACTIONS[holder].name, mine: holder === this.humanPlayer.faction });
+        out.push({ id: b.id, capital: n.capital, origin: b.nation, originName: n.name, holder, holderName: FACTIONS[holder].name, mine: holder === this.humanPlayer.faction, releasable: b.owner === this.humanPlayer.id });
       } else if (b.spec.type === 'capital' && b.originFaction && b.originFaction !== 'neutral' && b.originFaction !== holder) {
         out.push({ id: b.id, capital: b.spec.name, origin: b.originFaction, originName: FACTIONS[b.originFaction].name, holder, holderName: FACTIONS[holder].name, mine: holder === this.humanPlayer.faction });
       }

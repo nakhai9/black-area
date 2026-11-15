@@ -29,6 +29,8 @@ export default {
   "All quiet.": "Mọi thứ yên ắng.",
   "Finance": "Tài chính",
   "OCCUPIED CAPITALS": "THỦ ĐÔ BỊ CHIẾM",
+  "Occupied capitals": "Thủ đô bị chiếm",
+  "Leave {capital}: it goes back to neutral": "Rời {capital}: trả về trung lập",
   "No capital is occupied.": "Chưa có thủ đô nào bị chiếm.",
   "{capital} ({nation})": "{capital} ({nation})",
   "held by": "thuộc",

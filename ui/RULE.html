@@ -26,7 +26,7 @@
 <body>
 <main>
 <img class="logo" src="/logo.png" alt="Black Area" />
-<h1>Black Area — RULE <small>v3.75.35</small></h1>
+<h1>Black Area — RULE <small>v3.75.43</small></h1>
 <p class="lead">Tài liệu luật chơi + kiến trúc code dành cho AI/dev sửa game. Mọi con số gameplay chính xác nằm trong <code>src/constants.ts</code> và <code>src/factions/*.ts</code>. Nếu tài liệu này khác code thì <b>code đúng</b>. <b>Khi đổi luật/số trong code, phải cập nhật file này.</b></p>
 <nav><a href="#s1">Quy tắc làm việc cho AI</a><a href="#s2">Chạy dự án</a><a href="#s3">Kiến trúc thư mục</a><a href="#s4">Thế giới</a><a href="#s5">Kinh tế (dầu)</a><a href="#s6">Công trình (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Quân đội</a><a href="#s8">Chiến đấu</a><a href="#s9">Điều khiển (Game.handleKey, handleInput)</a><a href="#s10">Giới hạn &amp; hiệu năng</a><a href="#s11">Thắng / thua &amp; AI</a><a href="#s12">Công thức sửa thường gặp</a></nav>
 <h2 id="s1">0. Quy tắc làm việc cho AI</h2>
@@ -701,6 +701,13 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
   <li>v3.41.5: Sửa lỗi máy bay vận tải bay vòng tròn mãi quanh điểm hạ cánh (không đáp được, không nhận lệnh di chuyển): khi điểm đến nằm trong vòng quay, máy bay bay thẳng tới. Lệnh di chuyển mới trong lúc đang bay tới điểm hạ cánh giờ được nhận (hủy hạ cánh, bay đi).</li>
   <li>v3.41.5: Máy bay không còn nhận <b>Cảng (Naval Port)</b> làm sân bay nhà (không đậu, không hạ cánh, không được sinh ra ở cảng). Loại máy bay được đậu ở cảng sẽ quy ước sau: thêm vào <code>PORT_AIRCRAFT</code> trong <code>src/systems/AircraftSystem.ts</code>. Máy bay đang lấy cảng làm nhà (bản lưu cũ) sẽ chuyển sang sân bay khác của phe; không còn sân bay nào thì rơi như luật cũ.</li>
     <li>v3.56.1: <b>Giảm tiếng động cơ mọi phương tiện</b>: <code>VEHICLE_BED_GAIN</code> 1.6 → 1.0, máy bay / trực thăng <code>AIR_BED_BOOST</code> 2.2 → 1.5. <b>Máy bay vận tải</b> (C-17, Il-76, Y-20, A400M, mặc định) tăng gain 0.85–0.9 → 1.35 để to ngang các máy bay khác (tiếng động cơ trầm, ít tiếng rít nên trước nghe nhỏ hơn).</li>
+    <li>v3.75.43: Khi đặt LDEW Laser, hình mờ (placeholder) dùng đúng mô hình laser thay vì bunker.</li>
+    <li>v3.75.42: Tab Thủ đô bị chiếm: thủ đô nước độc lập (Hàn, Triều, Nhật, Úc, Brazil…) mà bạn đang giữ có nút <b>Rời đi</b> bên phải (icon Mono Icons): bấm thì bỏ kiểm soát, thủ đô trở về trung lập, đầy máu như ban đầu; Breaking News ghi "… đã rút khỏi …". Chạy qua lệnh chung nên đúng cả trong multiplayer.</li>
+    <li>v3.75.41: Tab Thủ đô bị chiếm: gom thành 1 danh sách chung, mỗi dòng chỉ có cờ và tên nước bị chiếm (bỏ nhóm theo phe và số đếm).</li>
+    <li>v3.75.40: Sidebar Build: công trình nước ngoài cùng chức năng (Nuclear Power Plant, High-Tech Center) và cùng kích thước ô với công trình của phe mình được tính là 1 công trình — chỉ hiện nút của phe mình. Ministry of Defence, War Factory, Airfield nước ngoài vẫn hiện riêng vì làm ra lính/xe của nước đó.</li>
+    <li>v3.75.39: Sidebar (trang Government) có thêm tab <b>Thủ đô bị chiếm</b> (icon cây, Lsicon – Wis Design): liệt kê các thủ đô đang bị chiếm, gom theo phe đang giữ (cờ, tên phe, số thủ đô), cập nhật mỗi giây khi mở tab.</li>
+    <li>v3.75.38: Nút Get a loan dùng icon mới (bàn tay nhận tiền, Freehand – Streamline, CC BY 4.0).</li>
+    <li>v3.75.37: Bỏ hoàn toàn dòng chữ thông báo vàng dưới các nút trong sidebar (ví dụ "Ceasefire violation…"); viền vàng hàng của người chơi trong bảng xếp hạng được giữ như cũ.</li>
     <li>v3.75.35: Đặc nhiệm không cần đi theo nhóm nữa: 1 lính cũng được đi đánh / đặt bom (người chơi và AI).</li>
     <li>v3.75.34: Đặc nhiệm tấn công theo nhóm chỉ cần từ 4 lính (trên 3, trước là 5) — người chơi và AI.</li>
     <li>v3.75.33: Thanh năng lượng: 24 ô rộng đúng bằng nhau (5 px), vạch chia trắng 1 px đều nhau.</li>

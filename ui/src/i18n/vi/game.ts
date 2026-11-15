@@ -87,6 +87,7 @@ export default {
   'At peace for {seconds}s': 'Đang hòa bình trong {seconds}s',
   'WAR': 'CHIẾN TRANH',
   'The ceasefire is over: {minutes} minutes of war.': 'Lệnh ngừng bắn đã hết: {minutes} phút chiến tranh.',
+  '{by} withdrew from {capital} ({name})': '{by} đã rút khỏi {capital} ({name})',
   'Ceasefire violation: {count} of your units are within {cells} cells of another nation\'s structures — anyone may destroy them and they cannot fire back. Pull them out!': 'Vi phạm ngừng bắn: {count} đơn vị của bạn đang ở trong phạm vi {cells} ô quanh công trình của quốc gia khác — ai cũng có thể tiêu diệt chúng và chúng không được bắn trả. Rút quân ngay!',
   '{name} complete — click its cameo, then place it.': '{name} đã hoàn thành — bấm vào biểu tượng rồi đặt xuống.',
   'Not enough {currency} — construction on hold.': 'Không đủ {currency} — tạm dừng xây dựng.',
