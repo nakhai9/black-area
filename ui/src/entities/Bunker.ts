@@ -14,14 +14,14 @@ export class Bunker extends Building {
   /** World heading of the gun (towards the last target; starts facing screen south). */
   aimHeading = Math.PI / 4;
 
-  constructor(owner: number, faction: FactionId, center: WorldPoint, kind: { name?: string; maxHp?: number } = {}) {
+  constructor(owner: number, faction: FactionId, center: WorldPoint, kind: { name?: string; maxHp?: number; powerDrain?: number } = {}) {
     super(owner, faction, center, {
       type: 'bunker',
       name: kind.name ?? 'Bunker',
       footprint: FOOTPRINT_BUNKER,
       maxHp: kind.maxHp ?? BUNKER_HP,
       powerOutput: 0,
-      powerDrain: BUNKER_POWER_DRAIN,
+      powerDrain: kind.powerDrain ?? BUNKER_POWER_DRAIN,
       incomePerSecond: 0,
       spriteKey: `bunker:${faction}`,
     });

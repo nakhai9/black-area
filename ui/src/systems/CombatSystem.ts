@@ -5,6 +5,7 @@ import { movesRight } from '../core/IsoView';
 import { BOMB_FALL_SECONDS, HIGH_GROUND_DAMAGE, HIGH_GROUND_RANGE, LOW_GROUND_DAMAGE, MANTIS_HIT_SHARE, MANTIS_RANGE_CELLS, MANTIS_RANK_BONUS, MANTIS_EVADE_CELLS, HELI_VS_MANTIS_SHARE, JET_VS_MANTIS_SHARE, MANTIS_VS_JET_SHARE, MANTIS_VS_HELI_SHARE, MANTIS_RELOAD, MANTIS_GUN_NATIONS, PGZ_RELOAD, PGZ_HIT_FACTOR, JET_BOMB_VS_STRUCTURE, JET_BOMB_VS_VEHICLE, ACQUIRE_PERIOD, RANK_FIREPOWER, RANK_RELOAD, BOMB_GROUP_RADIUS_CELLS, BOMB_GROUP_SIZE, BOMB_TOUGH_DAMAGE, BOMB_TOUGH_STRUCTURES, BOMBS_PER_DROP, CELL_SIZE, CHASE_GIVE_UP_SECONDS, CHASE_LIMIT_CELLS, CHASE_PERIOD, FIGHT_MEMORY_SECONDS, GUARD_VISION_FACTOR, NEUTRAL_OWNER, RETALIATE_RANGE_FACTOR, WEAPONS, FIGHTER_DRONE_ALERT, FELL_SPREAD_CELLS, TREE_BOMB_RADIUS_CELLS, TREE_STICK_RADIUS_CELLS } from '../constants';
 import { Building } from '../entities/Building';
 import { Bunker } from '../entities/Bunker';
+import { LdewEmplacement } from '../entities/LdewEmplacement';
 import type { Entity } from '../entities/Entity';
 import type { EntityManager } from '../entities/EntityManager';
 import { Infantry } from '../entities/Infantry';
@@ -237,6 +238,8 @@ export class CombatSystem implements GameSystem {
       b.cooldown = Math.max(0, b.cooldown - dt);
       b.firing = Math.max(0, b.firing - dt);
       if (b.cooldown > 0) continue;
+      // The laser emplacement runs on the grid: with the nation short of power it cannot fire.
+      if (b instanceof LdewEmplacement && this.hooks.powerShort(b.owner)) continue;
       const c = b.centerWorld();
       if (this.hooks.safeAt(c.x, c.y)) continue;
       const f = b.footprintWorld();
@@ -275,6 +278,12 @@ export class CombatSystem implements GameSystem {
   private think(s: Unit, grid: Map<number, Unit[]>): void {
     const w = s.weapon;
     if (!w) return;
+    // LDEW laser vehicles: no power on the grid, no laser (they may still drive where they are sent).
+    if (s instanceof Vehicle && (s.type === 'ldew' || s.type === 'ldewTruck') && this.hooks.powerShort(s.owner)) {
+      s.combatTarget = null;
+      s.engaged = false;
+      return;
+    }
     // Air-defence vehicle: every veteran star adds one cell of range (its own weapon copy, set from the current rank).
     if (s instanceof Vehicle && s.type === 'mantis') {
       // It runs on the radar signal: with the nation's power weak it cannot fire (it may still drive where it is sent).

@@ -6407,10 +6407,23 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       this.sidebar.notify(t('No units on the map.'), 1.5);
       return;
     }
-    const next = all.find((u) => u.id > this.tourId) ?? all[0]!;
-    this.tourId = next.id;
-    this.camera.centerOn(next.px, next.py);
-    this.sidebar.notify(`${all.indexOf(next) + 1}/${all.length}`, 1.5);
+    // Jump frame by frame: skip units already on screen, so every press lands on a new view with my soldiers in it.
+    const cam = this.camera;
+    const onScreen = (u: { px: number; py: number }): boolean => {
+      const s = cam.worldToScreen(u.px, u.py);
+      return s.x >= 0 && s.y >= 0 && s.x <= cam.viewWidth && s.y <= cam.viewHeight;
+    };
+    const order = [...all.filter((u) => u.id > this.tourId), ...all.filter((u) => u.id <= this.tourId)];
+    const next = order.find((u) => !onScreen(u));
+    if (!next) {
+      this.sidebar.notify(t('No units on the map.'), 1.5);
+      return;
+    }
+    cam.centerOn(next.px, next.py);
+    // Everything now in view counts as visited: the tour resumes after the highest id in this frame.
+    const inFrame = all.filter(onScreen);
+    this.tourId = inFrame.reduce((m, u) => (u.id >= next.id ? Math.max(m, u.id) : m), next.id);
+    this.sidebar.notify(`${inFrame.length}/${all.length}`, 1.5);
   }
 
   /**

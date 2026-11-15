@@ -1,4 +1,4 @@
-import { OIL_GRID_MARKUP, POWER_PER_BARREL } from '../constants';
+import { LDEW_VEHICLE_POWER_DRAIN, OIL_GRID_MARKUP, POWER_PER_BARREL } from '../constants';
 import type { EntityManager } from '../entities/EntityManager';
 import { PowerPlant } from '../entities/PowerPlant';
 import type { PlayerState } from '../types';
@@ -35,6 +35,12 @@ export class PowerSystem implements GameSystem {
         if (!list) plants.set(owner.id, (list = []));
         list.push(b);
       }
+    }
+    // LDEW laser vehicles (ground emplacement-carrier and truck) feed their laser from the national grid.
+    for (const v of this.entities.vehicles()) {
+      if (!v.alive || (v.type !== 'ldew' && v.type !== 'ldewTruck')) continue;
+      const owner = byId.get(v.owner);
+      if (owner) owner.powerConsumed += LDEW_VEHICLE_POWER_DRAIN;
     }
     for (const p of this.players) this.run(p, plants.get(p.id) ?? [], dt);
   }

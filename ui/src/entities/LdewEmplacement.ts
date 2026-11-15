@@ -1,4 +1,4 @@
-import { CELL_SIZE, FOOTPRINT_BUNKER, LDEW_SITE_COOLDOWN, LDEW_SITE_DAMAGE, LDEW_SITE_HP, LDEW_SITE_RANGE_CELLS } from '../constants';
+import { CELL_SIZE, FOOTPRINT_BUNKER, LDEW_SITE_COOLDOWN, LDEW_SITE_DAMAGE, LDEW_SITE_HP, LDEW_SITE_POWER_DRAIN, LDEW_SITE_RANGE_CELLS } from '../constants';
 import type { FactionId, WorldPoint } from '../types';
 import { Bunker } from './Bunker';
 
@@ -9,7 +9,7 @@ import { Bunker } from './Bunker';
  */
 export class LdewEmplacement extends Bunker {
   constructor(owner: number, faction: FactionId, center: WorldPoint) {
-    super(owner, faction, center, { name: 'LDEW Laser', maxHp: LDEW_SITE_HP });
+    super(owner, faction, center, { name: 'LDEW Laser', maxHp: LDEW_SITE_HP, powerDrain: LDEW_SITE_POWER_DRAIN });
   }
 
   override get range(): number {

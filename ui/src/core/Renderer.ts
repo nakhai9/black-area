@@ -1137,7 +1137,7 @@ export class Renderer {
     // The badges span 2–22 of their 24 grid: scaled so that span fills the box.
     const k = medal ? box.side / 15 : box.side / 20;
     ctx.save();
-    ctx.translate(box.rankX + box.side / 2, box.top + box.side / 2);
+    ctx.translate(box.medalX + box.side / 2, box.medalY + box.side / 2);
     ctx.scale(k, k);
     if (medal) ctx.translate(-7.5, -7.5);
     else ctx.translate(-12, -12);
@@ -1165,10 +1165,11 @@ export class Renderer {
     ctx.save();
     ctx.font = `700 ${10 * k}px "Segoe UI", system-ui, sans-serif`;
     const w = ctx.measureText(text).width + 8 * k;
-    const h = 13 * k;
-    const P = worldToIso(t.px, t.py);
-    const x = P.x - w / 2;
-    const y = P.y - t.altitude - 3 - h;
+    // Bottom-right cell of the shared plate (right of the medal, under the fuel bar), left-aligned.
+    const box = this.plate(t);
+    const h = box.infoH;
+    const x = box.infoX;
+    const y = box.infoY;
     ctx.fillStyle = t.full ? '#d62d20' : '#e0a21b';
     ctx.fillRect(x, y, w, h);
     ctx.strokeStyle = 'rgba(0,0,0,0.7)';
@@ -1177,7 +1178,7 @@ export class Renderer {
     ctx.fillStyle = '#fff';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(text, P.x, y + h / 2 + 0.3 * k);
+    ctx.fillText(text, x + w / 2, y + h / 2 + 0.3 * k);
     ctx.restore();
   }
 
@@ -1186,25 +1187,48 @@ export class Renderer {
    * Plate over a unit's head: health bar (bottom row), the flag of its owner's nation just above it (top row, left
    * aligned), and the rank chevrons in a box to the left of both rows.
    */
-  private plate(u: Unit): { x: number; y: number; w: number; flagH: number; flagW: number; rankX: number; top: number; side: number } {
+  /**
+   * Shared label layout over every unit, a 2×2 grid:
+   *   [flag ] [health bar      ]
+   *           [fuel bar        ]
+   *   [medal] [info: FULL / 3/12]
+   * Left column: flag (top) and medal / rank (bottom), same width. Right column: health, fuel under it, then the info tag.
+   * The bottom row only takes room while it has something to show, so a plain unit keeps a compact plate.
+   */
+  private plate(u: Unit): {
+    lx: number; rx: number; w: number; flagW: number; flagH: number; top: number;
+    healthY: number; fuelY: number; side: number; medalX: number; medalY: number; infoX: number; infoY: number; infoH: number;
+  } {
+    const k = 1 / this.camera.zoom;
     const P = worldToIso(u.px, u.py);
     const w = Math.max(2.4, u.radius * 1.6);
     // An airborne unit is drawn `altitude` px above its ground point: the plate rides along, never under it.
     const lift = (u as { altitude?: number }).altitude ?? 0;
-    const y = P.y - lift - u.bodyHeight - 2.4;
-    const x = P.x - w / 2;
-    const flagH = 1;
-    const flagW = flagH * 1.6;
-    // The flag goes over the health bar, and over the fuel gauge too while one shows.
-    const top = y - 0.45 - flagH - (showsFuel(u) ? FUEL_ROW : 0);
-    const side = y + 0.4 - top;
-    return { x, y, w, flagH, flagW, rankX: x - 0.45 - side, top, side };
+    const base = P.y - lift - u.bodyHeight - 1.2;
+    const fuel = showsFuel(u);
+    const flagH = fuel ? FUEL_ROW + 0.4 : 1;
+    const flagW = 1.6;
+    const gap = 0.35;
+    const lx = P.x - (flagW + gap + w) / 2;
+    const rx = lx + flagW + gap;
+    const infoH = 13 * k;
+    const cargo = u instanceof Vehicle && u.isCarrier && (u.cargo.length > 0 || u.incoming > 0);
+    const row2 = u.medal || u.rank > 0 || cargo;
+    const side = flagW;
+    const row2H = row2 ? Math.max(side, infoH) : 0;
+    const row2Top = base - row2H;
+    const top = row2Top - (row2 ? gap : 0) - flagH;
+    const healthY = top + (fuel ? 0 : (flagH - 0.4) / 2);
+    return {
+      lx, rx, w, flagW, flagH, top, healthY, fuelY: top + FUEL_ROW, side,
+      medalX: lx, medalY: row2Top, infoX: rx, infoY: row2Top, infoH,
+    };
   }
 
   private drawUnitHealth(u: Unit, _focused = false): void {
     const { ctx } = this;
     const k = 1 / this.camera.zoom;
-    const { x, y, w } = this.plate(u);
+    const { rx: x, healthY: y, w } = this.plate(u);
     const ratio = u.hpRatio;
     ctx.fillStyle = 'rgba(0,0,0,0.75)';
     ctx.fillRect(x - k, y - k, w + 2 * k, 0.4 + 2 * k);
@@ -1217,7 +1241,7 @@ export class Renderer {
     if (u.banner === 'neutral') return;
     const { ctx } = this;
     const k = 1 / this.camera.zoom;
-    const { x, flagH, flagW, top } = this.plate(u);
+    const { lx: x, flagH, flagW, top } = this.plate(u);
     ctx.fillStyle = 'rgba(0,0,0,0.75)';
     ctx.fillRect(x - k, top - k, flagW + 2 * k, flagH + 2 * k);
     ctx.drawImage(getFlagTexture(u.banner), x, top, flagW, flagH);
@@ -1228,8 +1252,7 @@ export class Renderer {
     const { ctx } = this;
     const k = 1 / this.camera.zoom;
     // Right above the health bar; the flag sits above both (see plate).
-    const { x, w, y: bar } = this.plate(v);
-    const y = bar - FUEL_ROW + 0.25 - 3 * k;
+    const { rx: x, w, fuelY: y } = this.plate(v);
     ctx.fillStyle = 'rgba(210,210,210,0.85)';
     ctx.fillRect(x - k, y - k, w + 2 * k, 0.4 + 2 * k);
     ctx.fillStyle = v.fuel > 0.2 ? '#111111' : '#7a1010';
