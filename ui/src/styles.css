@@ -2896,7 +2896,7 @@ input:disabled {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 250px;
   gap: 22px;
-  width: min(1440px, 100%);
+  width: min(1000px, 100%);
 }
 .fp-menu .fp-side {
   display: flex;
