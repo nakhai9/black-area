@@ -175,7 +175,7 @@ export class MultiplayerLobby {
     return `
       <div class="fp-modal mp-modal">
         <button type="button" class="modal-close" data-act="back" title="${t('Close')}" aria-label="${t('Close')}">${CLOSE_ICON}</button>
-        <header class="fp-header"><h1>${t('Play with your friends')}</h1></header>
+        <header class="fp-header"><h1>${t('Play with friends')}</h1></header>
         ${body}
         <p class="mp-error" role="alert"></p>
       </div>`;

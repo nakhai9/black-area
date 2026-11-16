@@ -34,7 +34,7 @@ export const DEMO_FACTION: FactionId = NATION_CODES[(import.meta.env.VITE_DEMO_F
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "3.75.53";
+export const GAME_VERSION = "3.75.72";
 
 /** An Allied Building within this many cells of any capital is an embassy; farther out it is a "Pro-<nation> regime". */
 export const EMBASSY_CAPITAL_CELLS = 25;
@@ -739,7 +739,7 @@ export const WEAPONS: Readonly<Record<WeaponKind, WeaponSpec>> = {
     cooldown: 0.12,
     vsBuilding: 1.6,
     hitsAir: true,
-    splash: 8,
+    splash: 14, // = BM21_SHOCK_CELLS × CELL_SIZE: the shock wave round each impact
   },
   missile: {
     kind: "missile",
@@ -1028,12 +1028,19 @@ export const LDEW_DAMAGE = 2.5;
 export const LDEW_RANGE = 1.6;
 /**
  * BM-21 Grad: a magazine of BM21_ROCKETS rockets, shown as a bar of that many segments under its health bar. A salvo
- * may only begin with at least BM21_MIN_SALVO rockets loaded; it then ripples one rocket every `rocket.cooldown` s until
+ * may only begin with at least BM21_MIN_SALVO rockets loaded (2/3 of the magazine); it then ripples one rocket every `rocket.cooldown` s until
  * the tubes are empty (or nothing is left to shoot). While not firing it reloads BM21_RELOAD_ROCKETS rockets every
  * BM21_RELOAD_SECONDS s. Each rocket flies bm21Flight(distance) s on its arc and only hits when it lands. Player and AI alike.
  */
 export const BM21_ROCKETS = 16;
-export const BM21_MIN_SALVO = 8;
+/** A salvo needs the tubes at least 2/3 full: 11 of 16 rockets. */
+export const BM21_MIN_SALVO = Math.ceil((BM21_ROCKETS * 2) / 3);
+/**
+ * Shock wave of each rocket: every enemy soldier, ground vehicle and structure within BM21_SHOCK_CELLS cells of the
+ * impact is hurt, BM21_SHOCK_PEAK × the rocket's damage at the centre falling off linearly to nothing at the edge.
+ */
+export const BM21_SHOCK_CELLS = 2;
+export const BM21_SHOCK_PEAK = 0.6;
 export const BM21_RELOAD_ROCKETS = 4;
 export const BM21_RELOAD_SECONDS = 2;
 export const bm21Flight = (distance: number): number => 0.5 + distance / 110;

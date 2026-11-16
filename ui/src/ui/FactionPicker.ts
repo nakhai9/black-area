@@ -2,7 +2,8 @@ import { DEMO_MODE, GAME_VERSION } from "../constants";
 import { FACTIONS } from "../factions";
 import { CARD_ORDER, factionCardHtml } from "./FactionCard";
 import type { FactionId } from "../types";
-import { pickSaveFile } from "./PauseMenu";
+import { continueLatestSave, pickSaveFile } from "./PauseMenu";
+import { hasSaveFolder } from "./SaveFolder";
 import { MultiplayerLobby, type MultiplayerStart } from "./MultiplayerLobby";
 import { getLang, languageSelect, setLang, t } from "../i18n";
 // The rules document at the repo root, served (and copied into the build) as a plain file.
@@ -36,21 +37,27 @@ export class FactionPicker {
     this.root.setAttribute("aria-modal", "true");
     this.root.setAttribute("aria-labelledby", "fp-title");
     this.root.innerHTML = `
-      <div class="fp-modal">
+      <div class="fp-modal fp-menu">
         <span class="fp-version" title="${t("Game version of this build")}">v${GAME_VERSION}</span>
-        <header class="fp-header">
+        <div class="fp-main">
+          <header class="fp-header">
+            <h1 id="fp-title">${t("Choose your side")}</h1>
+          </header>
+          <div class="fp-grid"></div>
+          <footer class="fp-footer fp-langbar"></footer>
+        </div>
+        <aside class="fp-side">
           <div class="sb-logo"><img src="${import.meta.env.BASE_URL}logo.png" alt="Black Area" /></div>
-          <h1 id="fp-title">${t("Choose your side")}</h1>
-        </header>
-        <div class="fp-grid"></div>
-        <footer class="fp-footer">
-          ${DEMO_MODE ? `<button class="fp-demo" type="button" title="${t("Test game: play alone, the other nations do nothing; everything built, finances off")}">${t("Test")}</button>` : ""}
-          <button class="fp-desktop" type="button" hidden title="${t("Download the desktop version")}">${t("Download Desktop")}</button>
-          <button class="fp-guide" type="button" title="${t("Open the game rules (RULE.html) in a new tab")}">${t("Guide")}</button>
-          <button class="fp-load fp-mp" type="button" title="${t("Play with friends: create a room or join one by its code")}">${t("Play with your friends")}</button>
-          <button class="fp-load" type="button" title="${t("Continue a game saved to a .json file (pause menu → Save game)")}">${t("Load saved game")}</button>
-          <button class="fp-deploy" type="button">${t("Start")}</button>
-        </footer>
+          <div class="fp-actions">
+            <button class="fp-deploy" type="button">${t("Start")}</button>
+            ${DEMO_MODE ? `<button class="fp-demo" type="button" title="${t("Test game: play alone, the other nations do nothing; everything built, finances off")}">${t("Test")}</button>` : ""}
+            <button class="fp-load fp-continue" type="button" ${hasSaveFolder() ? "" : "hidden"} title="${t("Continue the newest game saved in Downloads/BlackArea")}">${t("Continue")}</button>
+            <button class="fp-load" type="button" title="${t("Continue a game saved to a .json file (pause menu → Save game)")}">${t("Load saved game")}</button>
+            <button class="fp-load fp-mp" type="button" title="${t("Play with friends: create a room or join one by its code")}">${t("Play with friends")}</button>
+            <button class="fp-guide" type="button" title="${t("Open the game rules (RULE.html) in a new tab")}">${t("Guide")}</button>
+            <button class="fp-desktop" type="button" hidden title="${t("Download the desktop version")}">${t("Download Desktop")}</button>
+          </div>
+        </aside>
       </div>`;
 
     const grid = this.root.querySelector<HTMLElement>(".fp-grid");
@@ -114,8 +121,15 @@ export class FactionPicker {
         });
       });
       this.root
-        .querySelector(".fp-load:not(.fp-mp)")
+        .querySelector(".fp-load:not(.fp-mp):not(.fp-continue)")
         ?.addEventListener("click", () => pickSaveFile());
+      this.root
+        .querySelector(".fp-continue")
+        ?.addEventListener("click", () => {
+          void continueLatestSave().then((ok) => {
+            if (!ok) window.alert(t("No save found in the BlackArea folder. Use Load saved game to pick a file."));
+          });
+        });
       this.root
         .querySelector(".fp-desktop")
         ?.addEventListener("click", () =>

@@ -1399,7 +1399,7 @@ export class Renderer {
       } else if (e.kind === 'shellImpact') {
         drawShellImpact(ctx, e.x, e.y, e.age, e.ttl, e.armour);
       } else if (e.kind === 'gradRocket') {
-        drawGradRocket(ctx, e.x0, e.y0, e.x1, e.y1, e.age, e.flight, e.air);
+        drawGradRocket(ctx, e.x0, e.y0, e.x1, e.y1, e.age, e.flight, e.air, e.ring);
       } else if (e.kind === 'samMissile') {
         drawSamMissile(ctx, e.x0, e.y0, e.x1, e.y1, e.age, e.flight, e.buk);
       } else if (e.kind === 'missile') {

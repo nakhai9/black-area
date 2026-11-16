@@ -6,6 +6,8 @@ import {
   OIL_MINE_SECONDS,
   OIL_REST_SECONDS,
   OIL_DERRICK_REGEN,
+  NATION_CAPITAL_FLOOR_HP,
+  NEUTRAL_OWNER,
 } from '../constants';
 import type { Allegiance, FactionId, WorldPoint } from '../types';
 import { FACTIONS } from '../factions';
@@ -37,7 +39,8 @@ export class OilDerrick extends Building {
   lessor: number | null = null;
   private lessorFaction: FactionId | null = null;
 
-  /** Antarctic derrick: unowned at start, never destroyed, taken over by any nation's engineer. */
+  /** Antarctic derrick: unowned at start, taken over by any nation's engineer; enemies of its holder may attack it
+   * but never destroy it — knocked down to no health it goes back to neutral at full health (damage()). */
   readonly antarctic: boolean;
 
   constructor(owner: number, faction: Allegiance, center: WorldPoint, rowIndex: number, bankManaged = false, antarctic = false) {
@@ -51,14 +54,15 @@ export class OilDerrick extends Building {
       powerDrain: 0,
       incomePerSecond: OIL_DERRICK_OUTPUT,
       spriteKey: `oil:${faction}`,
-      // A leasing nation's derricks (FactionConfig.leasesOil) are protected for now, like the Center's.
-      indestructible: bankManaged || leases || antarctic,
+      // A leasing nation's derricks (FactionConfig.leasesOil) can be destroyed like anyone's; they stay uncapturable
+      // only so an engineer sent into one leases it instead of taking it.
+      indestructible: bankManaged,
       uncapturable: !antarctic && (bankManaged || leases),
     });
     this.bankManaged = bankManaged;
     this.antarctic = antarctic;
     this.description = antarctic
-      ? tr("Antarctic oil field: belongs to whoever took it last. It cannot be destroyed; any nation's engineer can take it over.")
+      ? tr("Antarctic oil field: belongs to whoever took it last; any nation's engineer can take it over. Enemies can attack it but never destroy it: knocked down to no health, it goes back to neutral.")
       : bankManaged
       ? tr('Managed by the Global Monitoring Center: its TB still goes to its nation, and it cannot be destroyed or captured.')
       : tr('Pumps oil for the nation to sell to the Global Monitoring Center. Pumps {mine} s, then rests {rest} s while the field recovers.', { mine: OIL_MINE_SECONDS, rest: OIL_REST_SECONDS });
@@ -66,6 +70,28 @@ export class OilDerrick extends Building {
     const t = (rowIndex * 40) % CYCLE;
     this.mining = t < OIL_MINE_SECONDS;
     this.remaining = this.mining ? OIL_MINE_SECONDS - t : CYCLE - t;
+  }
+
+  /** An Antarctic derrick is attackable while someone holds it (older saves stored it as indestructible). */
+  override get indestructible(): boolean {
+    return this.antarctic ? false : super.indestructible;
+  }
+
+  /**
+   * Antarctic derrick: an unheld one takes no damage; a held one knocked down to no health is freed — back to neutral
+   * and full health, as at the start (like a contested capital). Player and AI alike.
+   */
+  override damage(amount: number): void {
+    if (!this.antarctic) {
+      super.damage(amount);
+      return;
+    }
+    if (this.owner === NEUTRAL_OWNER) return;
+    this.hp -= amount;
+    if (this.hp <= NATION_CAPITAL_FLOOR_HP) {
+      this.release();
+      this.hp = this.maxHp;
+    }
   }
 
   /** Can it be leased now (a leasing nation's derrick, not Antarctic, not already leased)? */

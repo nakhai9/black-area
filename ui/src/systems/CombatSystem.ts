@@ -2,7 +2,7 @@ import type { FactionId } from '../types';
 import type { Mobility } from '../map/Pathfinder';
 import { demoActive } from '../core/Demo';
 import { movesRight } from '../core/IsoView';
-import { BM21_MIN_SALVO, bm21Flight, BOMB_FALL_SECONDS, HIGH_GROUND_DAMAGE, HIGH_GROUND_RANGE, LOW_GROUND_DAMAGE, MANTIS_HIT_SHARE, MANTIS_RANGE_CELLS, MANTIS_RANK_BONUS, MANTIS_EVADE_CELLS, HELI_VS_MANTIS_SHARE, JET_VS_MANTIS_SHARE, MANTIS_VS_JET_SHARE, MANTIS_VS_HELI_SHARE, MANTIS_RELOAD, MANTIS_GUN_NATIONS, PGZ_RELOAD, PGZ_HIT_FACTOR, JET_BOMB_VS_STRUCTURE, JET_BOMB_VS_VEHICLE, ACQUIRE_PERIOD, RANK_FIREPOWER, RANK_RELOAD, BOMB_GROUP_RADIUS_CELLS, BOMB_GROUP_SIZE, BOMB_TOUGH_DAMAGE, BOMB_TOUGH_STRUCTURES, BOMBS_PER_DROP, CELL_SIZE, CHASE_GIVE_UP_SECONDS, CHASE_LIMIT_CELLS, CHASE_PERIOD, FIGHT_MEMORY_SECONDS, GUARD_VISION_FACTOR, NEUTRAL_OWNER, RETALIATE_RANGE_FACTOR, WEAPONS, FIGHTER_DRONE_ALERT, FELL_SPREAD_CELLS, TREE_BOMB_RADIUS_CELLS, TREE_STICK_RADIUS_CELLS } from '../constants';
+import { BM21_MIN_SALVO, BM21_SHOCK_CELLS, BM21_SHOCK_PEAK, bm21Flight, BOMB_FALL_SECONDS, HIGH_GROUND_DAMAGE, HIGH_GROUND_RANGE, LOW_GROUND_DAMAGE, MANTIS_HIT_SHARE, MANTIS_RANGE_CELLS, MANTIS_RANK_BONUS, MANTIS_EVADE_CELLS, HELI_VS_MANTIS_SHARE, JET_VS_MANTIS_SHARE, MANTIS_VS_JET_SHARE, MANTIS_VS_HELI_SHARE, MANTIS_RELOAD, MANTIS_GUN_NATIONS, PGZ_RELOAD, PGZ_HIT_FACTOR, JET_BOMB_VS_STRUCTURE, JET_BOMB_VS_VEHICLE, ACQUIRE_PERIOD, RANK_FIREPOWER, RANK_RELOAD, BOMB_GROUP_RADIUS_CELLS, BOMB_GROUP_SIZE, BOMB_TOUGH_DAMAGE, BOMB_TOUGH_STRUCTURES, BOMBS_PER_DROP, CELL_SIZE, CHASE_GIVE_UP_SECONDS, CHASE_LIMIT_CELLS, CHASE_PERIOD, FIGHT_MEMORY_SECONDS, GUARD_VISION_FACTOR, NEUTRAL_OWNER, RETALIATE_RANGE_FACTOR, WEAPONS, FIGHTER_DRONE_ALERT, FELL_SPREAD_CELLS, TREE_BOMB_RADIUS_CELLS, TREE_STICK_RADIUS_CELLS } from '../constants';
 import { Building } from '../entities/Building';
 import { Bunker } from '../entities/Bunker';
 import { LdewEmplacement } from '../entities/LdewEmplacement';
@@ -665,11 +665,20 @@ export class CombatSystem implements GameSystem {
     const air = t instanceof Unit && t.flies;
     hit(t, dmg * (t instanceof Building ? w.vsBuilding : 1) * (air ? 1 : this.heightFactor(s, t)));
     if (air) return;
+    // Shock wave: BM21_SHOCK_CELLS round the impact, strongest at the centre (BM21_SHOCK_PEAK × the rocket), none at the edge.
     const at = t instanceof Unit ? { x: t.px, y: t.py } : impact;
-    this.hooks.trees.damageRadius(at.x, at.y, w.splash, dmg * 0.5);
+    const radius = BM21_SHOCK_CELLS * CELL_SIZE;
+    const shock = (d: number): number => dmg * BM21_SHOCK_PEAK * Math.max(0, 1 - d / radius);
+    this.hooks.trees.damageRadius(at.x, at.y, radius, dmg * BM21_SHOCK_PEAK);
     for (const o of this.entities.fieldMovers()) {
       if (o === t || o.flies || this.sheltered(o)) continue;
-      if (Math.hypot(o.px - at.x, o.py - at.y) <= w.splash) hit(o, dmg * 0.5);
+      const d = Math.hypot(o.px - at.x, o.py - at.y);
+      if (d < radius) hit(o, shock(d));
+    }
+    for (const b of this.entities.buildings()) {
+      if (b === t || this.sheltered(b)) continue;
+      const d = distanceTo(at.x, at.y, b);
+      if (d < radius) hit(b, shock(d) * w.vsBuilding);
     }
   }
 

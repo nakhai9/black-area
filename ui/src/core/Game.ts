@@ -167,8 +167,9 @@ import { BRIDGE_LAYER_DEATH_SECONDS } from '../render/BridgeLayerSheets';
 import { MANTIS_DEATH_SECONDS, hasMantisSheet } from '../render/MantisSheet';
 import { heavyMissile, samGun } from '../render/SamModel';
 import { SAM_TRAIL_SECONDS } from '../render/SamMissile';
+import { saveFolderSupported, writeToSaveFolder } from '../ui/SaveFolder';
 import { GRAD_BLAST_SECONDS, GRAD_TRAIL_SECONDS } from '../render/GradRocket';
-import { bm21Flight } from '../constants';
+import { BM21_SHOCK_CELLS, bm21Flight } from '../constants';
 import { TRUCK_DEATH_SECONDS, hasTruckSheet } from '../render/TruckSheets';
 import { TANK_DEATH_SECONDS, hasTankSheet } from '../render/TankSheets';
 import { CRAFT_DEATH_SECONDS, craftKey } from '../render/CraftSheets';
@@ -1130,16 +1131,41 @@ export class Game {
     window.location.assign(window.location.pathname);
   }
 
-  /** Pause menu → Save: downloads the save as a JSON file. */
+  /**
+   * Pause menu → Save: writes the save as a JSON file into Downloads/BlackArea (SaveFolder: the browser asks for the
+   * folder the first time); where the browser cannot (no File System Access API, or the picker is cancelled) it is downloaded.
+   */
   private downloadSave(): void {
     try {
       const save = this.exportSave();
-      const blob = new Blob([JSON.stringify(save)], { type: 'application/json' });
+      const text = JSON.stringify(save);
+      const stamp = save.savedAt.slice(0, 16).replace(/[:T]/g, '-');
+      const name = `black-area-${save.faction}-${stamp}.json`;
+      if (saveFolderSupported()) {
+        void writeToSaveFolder(name, text).then(
+          (folder) => (folder ? this.sidebar.notify(t('Game saved to Downloads/{folder}/{file}.', { folder, file: name }), 4) : this.downloadSaveFile(name, text)),
+          (err: unknown) => {
+            console.error(err);
+            this.downloadSaveFile(name, text);
+          },
+        );
+        return;
+      }
+      this.downloadSaveFile(name, text);
+    } catch (err) {
+      console.error(err);
+      this.sidebar.notify(t('Could not save: {error}', { error: err instanceof Error ? err.message : String(err) }), 6);
+    }
+  }
+
+  /** The save as a plain browser download (`name`). */
+  private downloadSaveFile(name: string, text: string): void {
+    try {
+      const blob = new Blob([text], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      const stamp = save.savedAt.slice(0, 16).replace(/[:T]/g, '-');
       a.href = url;
-      a.download = `black-area-${save.faction}-${stamp}.json`;
+      a.download = name;
       document.body.append(a);
       a.click();
       a.remove();
@@ -5137,7 +5163,10 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       const tube = this.fx(s.px, s.py, this.aimHeight(s, 1.6));
       const k = (s.rockets % 4) - 1.5;
       const to = { x: hit.x + k * 0.8, y: hit.y + ((s.rockets * 3) % 5 - 2) * 0.5 };
-      this.effects.add({ kind: 'gradRocket', x0: tube.x, y0: tube.y, x1: to.x, y1: to.y, age: 0, ttl: flight + Math.max(GRAD_TRAIL_SECONDS, GRAD_BLAST_SECONDS), flight, air: t instanceof Unit && t.flies });
+      // The shock wave's reach on screen: BM21_SHOCK_CELLS across the ground, in iso px.
+      const edge = this.fx(tx + BM21_SHOCK_CELLS * CELL_SIZE, ty, tlift);
+      const ring = Math.hypot(edge.x - hit.x, edge.y - hit.y);
+      this.effects.add({ kind: 'gradRocket', x0: tube.x, y0: tube.y, x1: to.x, y1: to.y, age: 0, ttl: flight + Math.max(GRAD_TRAIL_SECONDS, GRAD_BLAST_SECONDS), flight, air: t instanceof Unit && t.flies, ring });
       this.sound.play('missile', { x: s.px, y: s.py });
       this.sound.rocketWhistle({ x: s.px, y: s.py }, flight);
       return;
@@ -5589,10 +5618,10 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     }
     if (this.humanPlayer.defeated) {
       this.ended = true;
-      this.endScreen.show(false, t('Your capital has fallen and you have no combat force, barracks or factory left.'), this.humanPlayer.faction);
+      this.endScreen.show(false, t('Your capital has fallen and you have no combat force, barracks or factory left.'), this.humanPlayer.faction, document.body, !this.lockstep);
     } else if (this.players.every((p) => p.id === this.localId || p.defeated)) {
       this.ended = true;
-      this.endScreen.show(true, t('Every enemy capital is destroyed and no enemy soldier or combat vehicle remains. The war is won.'), this.humanPlayer.faction);
+      this.endScreen.show(true, t('Every enemy capital is destroyed and no enemy soldier or combat vehicle remains. The war is won.'), this.humanPlayer.faction, document.body, !this.lockstep);
     }
   }
 

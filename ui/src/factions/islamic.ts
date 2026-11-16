@@ -10,8 +10,7 @@ export const ISLAMIC: FactionConfig = {
   doctrine:
     t("Oil and endurance: leads the oil cartel — cutting or flooding production moves the world oil price — and the richest oil fields pay for cheap, hardy forces."),
   oilCartel: true,
-  // Other nations may lease its derricks (engineer → derrick) for 3 minutes, 30% of the oil money comes back.
-  leasesOil: true,
+  // Oil leases are off (v3.75.69): its derricks are like everyone's — destroyed or taken over by an engineer.
   colors: { primary: "#1f9d4a", light: "#8fe3a8", dark: "#0b4d22" },
   stats: {
     unitSpeed: 1.0,

@@ -1,6 +1,7 @@
 import { type IconNode, Car, Globe, Music, ScreenShareOff, ZoomIn, X, createElement } from 'lucide';
 import { setEdgeLock, setZoomLock, settings } from '../core/Settings';
 import { type Lang, languageSelect, t } from '../i18n';
+import { newestSave } from './SaveFolder';
 
 /** Key in sessionStorage: set when the page reloads only to switch the language, so the save loads without asking. */
 export const LANGUAGE_RELOAD_KEY = 'black-area.languageReload';
@@ -21,8 +22,42 @@ export interface SaveActions {
 /** Key in sessionStorage holding a save picked to be loaded (the page reloads and boots straight into it). */
 export const PENDING_SAVE_KEY = 'black-area.pendingSave';
 
-/** Opens a file picker for a saved game; on a pick, queues it and reloads the page into it. */
+/** Load saved game: opens a file picker for a saved game; on a pick, queues it and reloads the page into it. */
 export function pickSaveFile(onError: (message: string) => void = (m) => window.alert(m)): void {
+  pickSaveFromDisk(onError);
+}
+
+/** Continue: loads the newest save of the Downloads/BlackArea folder (SaveFolder); false when there is none or no access. */
+export async function continueLatestSave(onError: (message: string) => void = (m) => window.alert(m)): Promise<boolean> {
+  const latest = await newestSave();
+  if (!latest) return false;
+  loadSaveText(latest.text, onError);
+  return true;
+}
+
+/** Queues a save's JSON text and reloads the page into it (spinner meanwhile). */
+function loadSaveText(text: string, onError: (message: string) => void): void {
+  const loading = document.getElementById('loading');
+  const loadingText = document.getElementById('loading-text');
+  if (loading) {
+    loading.classList.remove('error');
+    if (loadingText) loadingText.textContent = t('Loading save…');
+    loading.hidden = false;
+  }
+  try {
+    const save = JSON.parse(text) as { format?: string };
+    if (save.format !== 'black-area-save') throw new Error(t('This file is not a Black Area save.'));
+    sessionStorage.setItem(PENDING_SAVE_KEY, text);
+  } catch (err) {
+    if (loading) loading.hidden = true;
+    onError(err instanceof Error ? err.message : String(err));
+    return;
+  }
+  window.location.assign(window.location.pathname);
+}
+
+/** Opens a file picker for a saved game; on a pick, queues it and reloads the page into it. */
+function pickSaveFromDisk(onError: (message: string) => void): void {
   const input = document.createElement('input');
   input.type = 'file';
   input.accept = '.json,application/json';

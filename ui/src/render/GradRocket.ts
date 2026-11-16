@@ -1,6 +1,6 @@
 /**
  * BM-21 Grad 122 mm rocket, drawn in code: it leaves the tube in a flash, climbs on a high ballistic arc with a grey
- * smoke trail and comes down on the target, where a blast goes off (an air burst on an aircraft).
+ * smoke trail and comes down on the target, where a blast goes off with a shock-wave ring (an air burst on an aircraft).
  */
 export const GRAD_TRAIL_SECONDS = 0.9;
 export const GRAD_BLAST_SECONDS = 0.55;
@@ -12,7 +12,7 @@ function along(x0: number, y0: number, x1: number, y1: number, loft: number, t: 
 }
 
 /** The rocket `age` s after launch on its `flight` s arc (x0, y0) → (x1, y1) in iso px; then its blast. */
-export function drawGradRocket(ctx: CanvasRenderingContext2D, x0: number, y0: number, x1: number, y1: number, age: number, flight: number, air: boolean): void {
+export function drawGradRocket(ctx: CanvasRenderingContext2D, x0: number, y0: number, x1: number, y1: number, age: number, flight: number, air: boolean, ring = 0): void {
   const loft = Math.min(46, 8 + Math.hypot(x1 - x0, y1 - y0) * 0.45);
   const t = Math.min(1, age / flight);
   const after = Math.max(0, age - flight);
@@ -72,6 +72,14 @@ export function drawGradRocket(ctx: CanvasRenderingContext2D, x0: number, y0: nu
     ctx.beginPath();
     ctx.arc(x1, y1, r, 0, Math.PI * 2);
     ctx.fill();
+    if (!air && ring > 0) {
+      // Shock wave: a pale ring racing out over the ground to the edge of its reach.
+      ctx.strokeStyle = `rgba(255,236,200,${0.6 * (1 - k)})`;
+      ctx.lineWidth = 0.6 + (1 - k) * 0.8;
+      ctx.beginPath();
+      ctx.ellipse(x1, y1, ring * Math.min(1, k * 1.6), ring * 0.5 * Math.min(1, k * 1.6), 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
     if (!air) {
       ctx.fillStyle = `rgba(80,74,66,${0.45 * (1 - k)})`;
       ctx.beginPath();

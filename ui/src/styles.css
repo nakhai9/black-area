@@ -2507,14 +2507,12 @@ button:disabled:hover {
 }
 
 /* ------------------------------------------------------------- modal look (every modal) */
-/* Grey steel panel: brushed gunmetal, bevelled edge, a screw in each corner; the header is a lighter steel
+/* Grey steel panel: smooth gunmetal (no brushed stripes), bevelled edge, a screw in each corner; the header is a lighter steel
    plate with the title engraved into it; the X is a small steel key. */
 :root {
   --steel-panel:
-    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.03) 0 1px, rgba(0, 0, 0, 0.03) 1px 2px, transparent 2px 4px),
     linear-gradient(180deg, #4b5259 0%, #3a4047 40%, #30353b 100%);
   --steel-plate:
-    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.06) 0 1px, rgba(0, 0, 0, 0.04) 1px 2px, transparent 2px 4px),
     linear-gradient(180deg, #8e969e 0%, #6f777f 50%, #5d646b 100%);
   --steel-screw: radial-gradient(circle at 35% 35%, #d5dadf, #7c848c 60%, #3e444a);
   --steel-edge: #1c2024;
@@ -2813,7 +2811,8 @@ input:disabled {
 
 /* ------------------------------------------------------------- end of war: diplomatic letter */
 .end-card.end-letter {
-  max-width: min(600px, calc(100vw - 32px));
+  width: min(820px, calc(100vw - 32px));
+  max-width: min(820px, calc(100vw - 32px));
   max-height: calc(100vh - 32px);
   overflow-y: auto;
 }
@@ -2822,7 +2821,10 @@ input:disabled {
   justify-content: center;
   align-items: center;
   gap: 18px;
-  margin-bottom: 10px;
+  margin: 18px 0 14px;
+}
+.letter-head .flag-badge {
+  margin-right: 0;
 }
 .letter-emblem {
   height: 64px;
@@ -2852,12 +2854,14 @@ input:disabled {
   background: rgba(244, 236, 214, 0.06);
   border: 1px solid rgba(201, 178, 122, 0.35);
   border-radius: 4px;
-  font-family: Georgia, 'Times New Roman', serif;
+  /* Typewritten letter. */
+  font-family: 'Courier New', Courier, monospace;
 }
 .end-card .letter-body p {
-  margin: 0 0 10px;
-  font-size: 14px;
-  line-height: 1.6;
+  margin: 0 0 8px;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.5;
   color: #e4e8ec;
 }
 .end-card .letter-body .letter-date {
@@ -2868,10 +2872,140 @@ input:disabled {
 .end-card .letter-body .letter-salute {
   font-weight: 700;
 }
+/* Signature "Black Area": laser-engraved into the plate, always gold (victory or defeat):
+   dark cut above, light catch below, no italics. */
 .end-card .letter-body .letter-sign {
   margin: 14px 0 0;
+  font-family: Georgia, 'Times New Roman', serif;
   text-align: right;
-  font-style: italic;
-  font-weight: 700;
-  color: #c9b27a;
+  font-style: normal;
+  font-weight: 800;
+  font-size: 15px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: #ffd23a;
+  text-shadow:
+    0 -1px 0 rgba(0, 0, 0, 0.85),
+    0 1px 0 rgba(255, 255, 255, 0.18),
+    0 0 1px rgba(0, 0, 0, 0.6);
+  opacity: 0.92;
+}
+
+/* ------------------------------------------------------------- main menu: cards on the left, logo + actions in a column on the right */
+.fp-menu {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 250px;
+  gap: 22px;
+  width: min(1440px, 100%);
+}
+.fp-menu .fp-side {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 18px;
+  padding: 8px 0 0 22px;
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+}
+.fp-menu .fp-side .sb-logo img {
+  max-width: 106px; /* 190 px - 30%, then - 20% */
+}
+.fp-menu .fp-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.fp-menu .fp-actions button {
+  width: 100%;
+  margin: 0;
+  padding: 12px 14px;
+  text-align: center;
+  white-space: normal;
+  line-height: 1.25;
+}
+.fp-menu .fp-actions button[hidden] {
+  display: none;
+}
+.fp-menu .fp-langbar {
+  justify-content: flex-start;
+}
+@media (max-width: 900px) {
+  .fp-menu {
+    grid-template-columns: 1fr;
+  }
+  .fp-menu .fp-side {
+    order: -1;
+    padding: 0;
+    border-left: none;
+  }
+}
+/* "Choose your side": white letters so it reads on the photo background. */
+.fp-menu .fp-header h1 {
+  color: #ffffff;
+}
+/* End letter title (VICTORY / GAME OVER) on a ribbon banner. The ribbon never takes the text's colour: victory =
+   gold letters on a royal-blue ribbon, defeat = red letters on a charcoal ribbon. Gold edging, a soft sheen, and
+   two notched tails tucked behind the band (lower, darker: the fold). */
+.end-card.end-letter {
+  isolation: isolate;
+}
+.end-screen[role='alertdialog'] .end-card.end-letter > h1 {
+  --ribbon-hi: #2f5fae;
+  --ribbon: #1d3f7d;
+  --ribbon-lo: #132b57;
+  --ribbon-tail: #0f2245;
+  --ribbon-fold: #08142b;
+  position: relative;
+  display: block;
+  width: fit-content;
+  min-width: 220px;
+  margin: 4px auto 12px;
+  padding: 7px 46px;
+  line-height: 34px;
+  font-size: 28px;
+  letter-spacing: 5px;
+  background: linear-gradient(180deg, var(--ribbon-hi) 0%, var(--ribbon) 45%, var(--ribbon-lo) 100%);
+  border: none;
+  border-top: 2px solid #e2c06a;
+  border-bottom: 2px solid #9c7b2c;
+  border-radius: 0;
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.75), 0 0 8px rgba(0, 0, 0, 0.4);
+}
+.end-screen[role='alertdialog'] .end-card.end-letter.end-defeat > h1 {
+  --ribbon-hi: #4a4f56;
+  --ribbon: #33373d;
+  --ribbon-lo: #22252a;
+  --ribbon-tail: #1b1d21;
+  --ribbon-fold: #0c0d0f;
+}
+.end-screen[role='alertdialog'] .end-card.end-letter > h1::before,
+.end-screen[role='alertdialog'] .end-card.end-letter > h1::after {
+  content: '';
+  position: absolute;
+  top: 12px;
+  width: 52px;
+  height: 100%;
+  z-index: -1;
+  border-top: 2px solid #9c7b2c;
+  border-bottom: 2px solid #9c7b2c;
+}
+/* Left tail: the inner 16 px hide under the band; the dark wedge where it shows below the band is the fold. */
+.end-screen[role='alertdialog'] .end-card.end-letter > h1::before {
+  left: -36px;
+  background: linear-gradient(90deg, var(--ribbon-tail) 0 70%, var(--ribbon-fold) 70% 100%);
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 14px 50%);
+}
+.end-screen[role='alertdialog'] .end-card.end-letter > h1::after {
+  right: -36px;
+  background: linear-gradient(270deg, var(--ribbon-tail) 0 70%, var(--ribbon-fold) 70% 100%);
+  clip-path: polygon(0 0, 100% 0, calc(100% - 14px) 50%, 100% 100%, 0 100%);
+}
+/* Tails: just outside the band, a little lower, with a V notch cut in their outer end. */
+.end-screen[role='alertdialog'] .end-card.end-letter > h1::before {
+  left: -30px;
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 12px 50%);
+}
+.end-screen[role='alertdialog'] .end-card.end-letter > h1::after {
+  right: -30px;
+  clip-path: polygon(0 0, 100% 0, calc(100% - 12px) 50%, 100% 100%, 0 100%);
 }

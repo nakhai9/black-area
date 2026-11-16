@@ -29,6 +29,7 @@ export default {
   'Military presence fee ({city}): +{fee} {currency}.': 'Phí hiện diện quân sự ({city}): +{fee} {currency}.',
   'Game loaded.': 'Đã tải trận đấu.',
   'Game saved to a file.': 'Đã lưu trận đấu ra tệp.',
+  'Game saved to Downloads/{folder}/{file}.': 'Đã lưu trận đấu vào Downloads/{folder}/{file}.',
   'Could not save: {error}': 'Không thể lưu: {error}',
   'Flag planted — the Squatters have done their duty. This land is claimed: raise an Allied Building beside it.': 'Đã cắm cờ — đội Squatters đã hoàn thành nhiệm vụ. Vùng đất này đã có chủ: hãy dựng một Allied Building bên cạnh.',
   'Cannot plant the flag: {why}.': 'Không thể cắm cờ: {why}.',
