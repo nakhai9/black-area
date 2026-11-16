@@ -27,7 +27,7 @@ export const WorldBankArt: BuildingArt = pictureArt(PICTURE, {
     p.faceTransform('left', u * S, (v + d) * S, (z + h * 0.935) * S, (ctx) => {
       ctx.scale(1, -1);
       ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 7px sans-serif';
+      ctx.font = 'bold 7px "Courier New", Courier, monospace';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'bottom';
       ctx.fillText('GMC', (w * S * HALF_TW) / 2, -0.5);

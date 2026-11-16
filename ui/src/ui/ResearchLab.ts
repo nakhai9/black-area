@@ -38,7 +38,7 @@ async function loadProducts(): Promise<LabProduct[]> {
 export async function showResearchLab(host: HTMLElement, onAdd: (id: string, name: string) => void): Promise<void> {
   const style = document.createElement("style");
   style.textContent = `
-    .rl-page { color: #d8dee4; font: 14px system-ui, sans-serif; }
+    .rl-page { color: #d8dee4; font: 14px 'Courier New', Courier, monospace; }
     .rl-top { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
     .rl-top h1 { margin: 0; font-size: 18px; letter-spacing: 1px; flex: 1; }
     .rl-top button, .rl-top select { padding: 6px 14px; border: 1px solid #56626d; border-radius: 6px; background: #1d2731; color: #d8dee4; font: inherit; cursor: pointer; }

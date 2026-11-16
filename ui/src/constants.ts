@@ -24,6 +24,11 @@ export const NATION_CODES: Readonly<Record<string, FactionId>> = { us: "usa", ru
  * can take command of any nation (faction bar at the top of the screen; hotkeys Alt+1..5).
  */
 export const DEMO_ALL_FACTIONS = DEMO_MODE && import.meta.env.VITE_DEMO_ALL_FACTIONS === "true";
+/**
+ * VITE_SHOW_GRID: "true" always draws the map's cell grid, "false" never; unset: only in DEMO test games (as before).
+ */
+const SHOW_GRID_ENV = (import.meta.env.VITE_SHOW_GRID ?? "").trim().toLowerCase();
+export const SHOW_GRID: boolean | null = SHOW_GRID_ENV === "true" ? true : SHOW_GRID_ENV === "false" ? false : null;
 export const DEMO_FACTION: FactionId = NATION_CODES[(import.meta.env.VITE_DEMO_FACTION ?? "").trim().toLowerCase()] ?? "russia";
 
 /**
@@ -34,7 +39,7 @@ export const DEMO_FACTION: FactionId = NATION_CODES[(import.meta.env.VITE_DEMO_F
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "3.75.92";
+export const GAME_VERSION = "3.75.120";
 
 /** An Allied Building within this many cells of any capital is an embassy; farther out it is a "Pro-<nation> regime". */
 export const EMBASSY_CAPITAL_CELLS = 25;

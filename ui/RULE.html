@@ -8,7 +8,7 @@
 <style>
   :root { --bg:#fbfaf7; --fg:#1d1f22; --muted:#5d636b; --line:#e2ded6; --code:#f1eee8; --accent:#b4321f; }
   @media (prefers-color-scheme: dark) { :root { --bg:#16181b; --fg:#e6e3dc; --muted:#9aa0a8; --line:#2c3036; --code:#1f2226; --accent:#ff7a5c; } }
-  body { background:var(--bg); color:var(--fg); font:15px/1.6 system-ui, sans-serif; margin:0; padding:24px 16px 64px; }
+  body { background:var(--bg); color:var(--fg); font:15px/1.6 'Courier New', Courier, monospace; margin:0; padding:24px 16px 64px; }
   main { max-width:960px; margin:0 auto; }
   h1 { font-size:28px; margin:0 0 4px; } h2 { font-size:20px; margin:36px 0 8px; padding-bottom:4px; border-bottom:1px solid var(--line); }
   h3 { font-size:16px; margin:20px 0 6px; }
@@ -26,7 +26,7 @@
 <body>
 <main>
 <img class="logo" src="/logo.png" alt="Black Area" />
-<h1>Black Area — RULE <small>v3.75.92</small></h1>
+<h1>Black Area — RULE <small>v3.75.120</small></h1>
 <p class="lead">Tài liệu luật chơi + kiến trúc code dành cho AI/dev sửa game. Mọi con số gameplay chính xác nằm trong <code>src/constants.ts</code> và <code>src/factions/*.ts</code>. Nếu tài liệu này khác code thì <b>code đúng</b>. <b>Khi đổi luật/số trong code, phải cập nhật file này.</b></p>
 <nav><a href="#s1">Quy tắc làm việc cho AI</a><a href="#s2">Chạy dự án</a><a href="#s3">Kiến trúc thư mục</a><a href="#s4">Thế giới</a><a href="#s5">Kinh tế (dầu)</a><a href="#s6">Công trình (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Quân đội</a><a href="#s8">Chiến đấu</a><a href="#s9">Điều khiển (Game.handleKey, handleInput)</a><a href="#s10">Giới hạn &amp; hiệu năng</a><a href="#s11">Thắng / thua &amp; AI</a><a href="#s12">Công thức sửa thường gặp</a></nav>
 <h2 id="s1">0. Quy tắc làm việc cho AI</h2>
@@ -705,6 +705,34 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
   <li>v3.41.5: Sửa lỗi máy bay vận tải bay vòng tròn mãi quanh điểm hạ cánh (không đáp được, không nhận lệnh di chuyển): khi điểm đến nằm trong vòng quay, máy bay bay thẳng tới. Lệnh di chuyển mới trong lúc đang bay tới điểm hạ cánh giờ được nhận (hủy hạ cánh, bay đi).</li>
   <li>v3.41.5: Máy bay không còn nhận <b>Cảng (Naval Port)</b> làm sân bay nhà (không đậu, không hạ cánh, không được sinh ra ở cảng). Loại máy bay được đậu ở cảng sẽ quy ước sau: thêm vào <code>PORT_AIRCRAFT</code> trong <code>src/systems/AircraftSystem.ts</code>. Máy bay đang lấy cảng làm nhà (bản lưu cũ) sẽ chuyển sang sân bay khác của phe; không còn sân bay nào thì rơi như luật cũ.</li>
     <li>v3.56.1: <b>Giảm tiếng động cơ mọi phương tiện</b>: <code>VEHICLE_BED_GAIN</code> 1.6 → 1.0, máy bay / trực thăng <code>AIR_BED_BOOST</code> 2.2 → 1.5. <b>Máy bay vận tải</b> (C-17, Il-76, Y-20, A400M, mặc định) tăng gain 0.85–0.9 → 1.35 để to ngang các máy bay khác (tiếng động cơ trầm, ít tiếng rít nên trước nghe nhỏ hơn).</li>
+    <li>v3.75.120: Toàn bộ font chữ của game (menu, sidebar, thanh trạng thái, chữ vẽ trên bản đồ, trang RULE) đổi sang <b>Courier New</b>.</li>
+    <li>v3.75.119: Main menu: rê chuột sang thẻ phe khác (chưa chọn) thì nút Start ẩn; chỉ hiện khi khung đang hiện phe đã chọn.</li>
+    <li>v3.75.118: Main menu: ô chọn ngôn ngữ chuyển sang bên phải dưới hàng thẻ phe; nút Start nằm ở góc trên bên phải khung thông tin phe (ngang hàng cờ).</li>
+    <li>v3.75.117: Main menu: cột bên phải rộng thêm 80 px (250 → 330 px), khung menu rộng thêm tương ứng (1000 → 1080 px) để thẻ phe giữ nguyên kích thước.</li>
+    <li>v3.75.116: Main menu: khi chưa chọn phe, khung thông tin chiếu trình chiếu giới thiệu game (3 ảnh căn cứ Lunastron, Paxamerica, Longoria, chuyển cảnh mờ dần, ảnh ở <code>public/intro/</code>).</li>
+    <li>v3.75.115: Biến môi trường <code>VITE_SHOW_GRID</code> bật/tắt lưới ô trên bản đồ: <code>true</code> luôn hiện, <code>false</code> luôn ẩn, để trống thì chỉ hiện trong ván DEMO như trước.</li>
+    <li>v3.75.114: Nút Start ở main menu chỉ ghi Start (bỏ "as tên nước").</li>
+    <li>v3.75.113: Main menu: nút Start chuyển xuống dưới hàng thẻ phe, góc phải (ngang hàng chọn ngôn ngữ).</li>
+    <li>v3.75.112: Main menu: số phiên bản chuyển sang góc trên bên trái.</li>
+    <li>v3.75.111: Khung thông tin phe: cờ chuyển lên trên tên nước, căn trái.</li>
+    <li>v3.75.110: Thẻ poster chỉ còn logo (bỏ cờ); cờ phe hiện ở góc trên bên phải khung thông tin.</li>
+    <li>v3.75.109: Sửa cờ trên thẻ poster: nằm đúng góc trên bên phải của thẻ (trước bị kẹt cạnh logo).</li>
+    <li>v3.75.108: Thẻ poster: logo phe căn chính giữa thẻ (bỏ lề phải thừa), cờ ở góc trên bên phải.</li>
+    <li>v3.75.107: Thẻ poster ở main menu: cờ phe chuyển lên góc trên bên phải thẻ (không còn đè lên logo).</li>
+    <li>v3.75.106: Cờ Nordursia: ngôi sao đỏ sáng hơn nữa (#e8231a → #ff3b2e).</li>
+    <li>v3.75.105: Cờ Nordursia: ngôi sao đỏ sáng hơn (#9a140c → #e8231a).</li>
+    <li>v3.75.104: Cờ Nordursia: nửa dưới xanh đậm hơn (#1565c0 → #0b3d91).</li>
+    <li>v3.75.103: Main menu giữ sẵn chỗ cho khung thông tin phe (cao cố định): chọn phe không còn làm khung menu giật/cao lên.</li>
+    <li>v3.75.102: Thẻ poster ở main menu bỏ chữ Union (European, Lunastron); tên đầy đủ vẫn hiện ở khung thông tin.</li>
+    <li>v3.75.101: Cờ Nordursia: ngôi sao đỏ đậm hơn (#c92216 → #9a140c).</li>
+    <li>v3.75.100: Main menu: khung thông tin phe chuyển xuống dưới các nút. ART_GUIDE.md có thêm mục 9: prompt AI cho từng logo phe.</li>
+    <li>v3.75.99: Logo mới cho Paxamerica (đại bàng, low-poly vàng đen, 512 px): đủ bộ 5 logo phe mới.</li>
+    <li>v3.75.98: Logo mới cho Lunastron Union (trăng lưỡi liềm + sao 8 cánh, low-poly vàng đen, 512 px).</li>
+    <li>v3.75.97: Logo mới (low-poly vàng đen, 512 px, nét hơn) cho European Union (sư tử đội vương miện), Nordursia (gấu) và Longoria (rồng).</li>
+    <li>v3.75.96: Nút Guide ở main menu đổi tên thành Readme.</li>
+    <li>v3.75.95: Nút main menu thấp lại: 46 px → 36 px (luôn số chẵn).</li>
+    <li>v3.75.94: Main menu: mọi nút cao cố định 46 px (chữ dài không làm nút cao lên); logo chuyển lên trên tiêu đề Choose your side.</li>
+    <li>v3.75.93: Main menu: thẻ phe kiểu <b>poster</b> (biểu tượng lớn trên nền màu phe, tên phe ở đáy thẻ); thủ đô và chỉ số hiện ở khung bên phải khi rê chuột hoặc chọn phe. Thẻ đang chọn phóng to, viền sáng màu phe, các thẻ khác mờ đi.</li>
     <li>v3.75.92: Main menu hẹp thêm: chiều rộng tối đa 1200 px → 1000 px.</li>
     <li>v3.75.91: Main menu hẹp lại: chiều rộng tối đa 1440 px → 1200 px.</li>
     <li>v3.75.90: <b>Bunker</b> bắn ra đạn và hiệu ứng điểm chạm giống xe tăng (chớp nòng to như tăng), nhưng vẫn là súng máy: tiếng súng máy, sát thương súng máy.</li>

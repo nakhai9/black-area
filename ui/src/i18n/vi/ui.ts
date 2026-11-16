@@ -1,6 +1,7 @@
 /** Vietnamese texts for menus, overlays, status bar, map labels and in-world tags (English text → Vietnamese). */
 export default {
   // Faction picker
+  'Build bases, raise armies, conquer the world': 'Xây căn cứ, lập quân đội, chinh phục thế giới',
   Mobility: 'Cơ động',
   Armor: 'Giáp',
   Firepower: 'Hỏa lực',

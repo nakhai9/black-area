@@ -856,7 +856,7 @@ export class Game {
     if (!bar) {
       bar = document.createElement('div');
       bar.id = 'demo-factions';
-      bar.style.cssText = 'position:fixed;top:6px;left:50%;transform:translateX(-50%);z-index:50;display:flex;gap:4px;font:600 12px sans-serif';
+      bar.style.cssText = 'position:fixed;top:6px;left:50%;transform:translateX(-50%);z-index:50;display:flex;gap:4px;font:600 12px "Courier New", Courier, monospace';
       document.body.appendChild(bar);
       window.addEventListener('keydown', (e) => {
         if (!e.altKey) return;

@@ -47,9 +47,9 @@ const painters: Record<Allegiance, (ctx: CanvasRenderingContext2D, w: number, h:
   russia(ctx, w, h) {
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, w, h);
-    ctx.fillStyle = '#1565c0';
+    ctx.fillStyle = '#0b3d91';
     ctx.fillRect(0, h * 0.5, w, h * 0.5);
-    ctx.fillStyle = '#c92216';
+    ctx.fillStyle = '#ff3b2e';
     ctx.beginPath();
     starPath(ctx, w * 0.5, h * 0.51, h * 0.335, h * 0.335 * 0.4);
     ctx.fill();

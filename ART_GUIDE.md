@@ -244,3 +244,65 @@
 - [ ] Màu thật, cờ và phù hiệu theo thiết kế trong game / Real colours; game flag and marking designs
 - [ ] Tên hiển thị không đổi, áp dụng cho cả người chơi và AI / Display names unchanged; player and AI alike
 - [ ] `tsc` không lỗi, đã tăng phiên bản, đã cập nhật RULE và README / `tsc` passes, version bumped, RULE and README updated
+
+## 9. Logo phe (prompt AI) / Faction emblems (AI prompts)
+
+Logo phe nằm ở `ui/public/emblems/<id>.png` (512 × 512, PNG nền trong suốt, hình cân giữa, chừa lề ~8 px).
+Tạo bằng công cụ AI: ghép **[prompt phe] + [khối phong cách]**, xuất tối thiểu 1024 × 1024. Nếu ảnh có nền caro giả,
+cắt nền rồi thu về 512 px trước khi thay vào game.
+Faction emblems live in `ui/public/emblems/<id>.png` (512 × 512 transparent PNG, centred, ~8 px margin). Generate with an
+AI tool as **[faction prompt] + [style block]** at 1024 × 1024 or more; strip any fake checkerboard, then scale to 512 px.
+
+### Khối phong cách chung / Shared style block
+
+```
+STYLE: low-poly geometric emblem, flat vector logo, faceted polygons with sharp straight edges,
+gold and black only — 3 gold tones (light #FFE08A, mid #E8B84A, dark #B98A2C) plus solid black #0D0D0D,
+thin black seams between every facet, thick uniform black outer outline around the whole silhouette,
+no gradients, no glow, no shadow, no texture, no text.
+Single subject, centered, filling about 85% of the frame with even empty margin.
+Square 1:1, TRANSPARENT BACKGROUND (PNG with alpha channel), no background color, no backdrop,
+isolated emblem only, high resolution, crisp clean edges,
+esports / military crest logo look, consistent with a set of 5 matching emblems.
+```
+
+### Prompt từng phe / Per-faction prompts
+
+**`usa.png` — Paxamerica: đại bàng, quay PHẢI / eagle, facing right**
+```
+Bald eagle head in side profile facing RIGHT, fierce eye, large hooked beak pointing right,
+swept-back crest feathers on top, head and neck mostly black with gold feather streaks,
+gold beak and gold brow plate.
+```
+
+**`europe.png` — European Union: sư tử đội vương miện, quay TRÁI / crowned lion, facing left**
+```
+Lion head in side profile facing LEFT, wearing a small 3-point royal crown on top,
+gold face and muzzle, flowing black mane with sharp gold mane locks, calm proud expression,
+crown in gold sitting slightly tilted on the head.
+```
+
+**`russia.png` — Nordursia: gấu, quay TRÁI / bear, facing left**
+```
+Bear head in side profile facing LEFT, strong snout pointing left, one rounded ear on top,
+gold face, forehead and snout, black back of head and neck with a few gold fur facets,
+black nose and small black eye, calm powerful expression, mouth closed.
+```
+
+**`islamic.png` — Lunastron Union: trăng lưỡi liềm + sao 8 cánh / crescent and eight-pointed star**
+```
+Large crescent moon opening to the upper RIGHT, both horn tips pointed and clean,
+crescent made of triangular gold facets, plus one eight-pointed star placed in the upper right
+inside the opening of the crescent, star made of light/dark gold split facets.
+```
+
+**`china.png` — Longoria: rồng phương Đông, quay PHẢI / Chinese dragon, facing right**
+```
+Chinese dragon head in side profile facing RIGHT, two swept-back horns, open roaring jaws
+with sharp white-gold teeth, long snout with whiskers, scaled neck, almost fully gold
+with black facet seams and small black eye.
+```
+
+Mẹo / Tips: Midjourney thêm `--ar 1:1 --style raw --s 50` và `--sref <ảnh logo đầu tiên>` cho các logo sau;
+ChatGPT / Ideogram làm cả 5 trong cùng một cuộc hội thoại ("same style as the previous emblem").
+Giữ đúng hướng quay: đại bàng, rồng quay phải; gấu, sư tử quay trái; trăng mở về phía trên bên phải.

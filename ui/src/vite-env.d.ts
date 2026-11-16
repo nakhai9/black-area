@@ -11,4 +11,6 @@ interface ImportMetaEnv {
   readonly VITE_DEMO_ALL_FACTIONS?: string;
   /** Multiplayer server address, http(s):// or ws(s):// (see src/net/NetClient.ts). */
   readonly VITE_GAME_SERVER_API?: string;
+  /** Map cell grid: "true" always shown, "false" never; unset: only in DEMO test games. */
+  readonly VITE_SHOW_GRID?: string;
 }

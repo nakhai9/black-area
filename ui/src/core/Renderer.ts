@@ -47,7 +47,7 @@ import { drawSamMissile } from '../render/SamMissile';
 import { drawGradRocket } from '../render/GradRocket';
 import { drawBm21Sheet } from '../render/Bm21Sheets';
 import { drawVt12Sheet } from '../render/Vt12Sheets';
-import { BM21_ROCKETS } from '../constants';
+import { BM21_ROCKETS, SHOW_GRID } from '../constants';
 import { drawShell, drawShellImpact } from '../render/ShellSheet';
 import { drawBullet, drawBulletImpact } from '../render/BulletSheet';
 import { drawCharge, drawDemolitionBlast } from '../render/DemolitionArt';
@@ -297,7 +297,7 @@ export class Renderer {
     this.terrain.drawTiles(ctx, view, camera.zoom);
     this.terrain.drawWaterShimmer(ctx, view, scene.time);
     // DEMO: the whole grid of unit cells (ô đơn vị) over land and sea, to see exactly where everything stands.
-    if (demoActive) this.drawCellGrid(view);
+    if (SHOW_GRID ?? demoActive) this.drawCellGrid(view);
     this.upright();
     // Passes now; the peaks join the depth-sorted pass below (a soldier behind a peak is hidden by it).
     this.terrain.drawMountains(ctx, view, camera.zoom, this.visiblePeaks);
@@ -1061,7 +1061,7 @@ export class Renderer {
     if (strong) {
       const name = 'name' in u ? String((u as { name: string }).name) : t('Enemy');
       const text = `${name} · ${FACTIONS[u.banner as keyof typeof FACTIONS]?.shortName ?? u.banner}`;
-      ctx.font = `600 ${11 * k}px "Segoe UI", system-ui, sans-serif`;
+      ctx.font = `600 ${11 * k}px "Courier New", Courier, monospace`;
       const w = ctx.measureText(text).width + 10 * k;
       const h = 15 * k;
       const x = P.x - w / 2;
@@ -1084,7 +1084,7 @@ export class Renderer {
     const k = 1 / this.camera.zoom;
     const P = worldToIso(tip.x, tip.y);
     ctx.save();
-    ctx.font = `600 ${11 * k}px "Segoe UI", system-ui, sans-serif`;
+    ctx.font = `600 ${11 * k}px "Courier New", Courier, monospace`;
     const w = ctx.measureText(tip.name).width + 10 * k;
     const h = 15 * k;
     const x = P.x - w / 2;
@@ -1110,7 +1110,7 @@ export class Renderer {
     const text = 'name' in u ? String((u as { name: string }).name) : t('Enemy');
     const img = u.banner !== 'neutral' ? emblemImage(u.banner as FactionId) : null;
     ctx.save();
-    ctx.font = `600 ${11 * k}px "Segoe UI", system-ui, sans-serif`;
+    ctx.font = `600 ${11 * k}px "Courier New", Courier, monospace`;
     const s = 11 * k;
     const iw = img ? (s * img.naturalWidth) / Math.max(img.naturalWidth, img.naturalHeight) : 0;
     const ih = img ? (s * img.naturalHeight) / Math.max(img.naturalWidth, img.naturalHeight) : 0;
@@ -1143,7 +1143,7 @@ export class Renderer {
     const k = 1 / this.camera.zoom;
     const P = worldToIso(u.px, u.py);
     ctx.save();
-    ctx.font = `700 ${11 * k}px "Segoe UI", system-ui, sans-serif`;
+    ctx.font = `700 ${11 * k}px "Courier New", Courier, monospace`;
     const w = ctx.measureText(text).width + 10 * k;
     const h = 15 * k;
     const y = P.y - 7.2 - h; // above the raised flag
@@ -1191,7 +1191,7 @@ export class Renderer {
     // Full: only the red "FULL" label.
     const text = t.full ? tr('FULL') : `${prefix}${parts.join(' + ')}`;
     ctx.save();
-    ctx.font = `700 ${10 * k}px "Segoe UI", system-ui, sans-serif`;
+    ctx.font = `700 ${10 * k}px "Courier New", Courier, monospace`;
     const w = ctx.measureText(text).width + 8 * k;
     // Bottom-right cell of the shared plate (right of the medal, under the fuel bar), left-aligned.
     const box = this.plate(t);
@@ -1637,7 +1637,7 @@ export class Renderer {
       ctx.lineWidth = k;
       ctx.strokeRect(z.x, z.y, z.w, z.h);
       ctx.fillStyle = 'rgba(235,255,238,0.9)';
-      ctx.font = `700 ${Math.max(3, z.w * 0.14)}px "Segoe UI", system-ui, sans-serif`;
+      ctx.font = `700 ${Math.max(3, z.w * 0.14)}px "Courier New", Courier, monospace`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(t('SAFE ZONE'), z.x + z.w / 2, z.y + z.h / 2);
@@ -1700,7 +1700,7 @@ export class Renderer {
 
     if (g.reason) {
       const south = worldToIso(fx + fw, fy + fh);
-      ctx.font = `600 ${11 * ku}px "Segoe UI", system-ui, sans-serif`;
+      ctx.font = `600 ${11 * ku}px "Courier New", Courier, monospace`;
       const w = ctx.measureText(g.reason).width + 10 * ku;
       const h = 16 * ku;
       const x = c.x - w / 2;
@@ -1908,7 +1908,7 @@ export class Renderer {
       : b.indestructible
         ? `${b.spec.name} · ${health} · ${t('Neutral')} · ${t('Protected')}`
         : `${b.spec.name} · ${health}${inside}`;
-    ctx.font = `600 ${12 * k}px "Segoe UI", system-ui, sans-serif`;
+    ctx.font = `600 ${12 * k}px "Courier New", Courier, monospace`;
     const w = ctx.measureText(text).width + 12 * k;
     const h = 18 * k;
     const x = r.x + r.w / 2 - w / 2;

@@ -7,7 +7,7 @@ export type BadgeSize = 'sm' | 'md' | 'lg';
 const flagUrls = new Map<FactionId, string>();
 
 /** The faction's flag as a data URL, drawn once per faction. */
-function flagUrl(faction: FactionId): string {
+export function flagUrl(faction: FactionId): string {
   let url = flagUrls.get(faction);
   if (!url) {
     url = getFlagTexture(faction).toDataURL();

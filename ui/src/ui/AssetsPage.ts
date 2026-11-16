@@ -139,7 +139,7 @@ function assetsOf(kind: AssetKind, group?: VehicleGroup): Asset[] {
 
 const STYLE = `
   html, body { height: auto; overflow: auto; }
-  .ap-page { max-width: 1280px; margin: 0 auto; padding: 20px 16px 48px; color: #d8dee4; font: 14px system-ui, sans-serif; }
+  .ap-page { max-width: 1280px; margin: 0 auto; padding: 20px 16px 48px; color: #d8dee4; font: 14px 'Courier New', Courier, monospace; }
   .ap-head { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
   .ap-head h1 { margin: 0; font-size: 22px; letter-spacing: 1px; flex: 1; }
   .ap-btn { padding: 7px 16px; border: 1px solid #56626d; border-radius: 6px; background: #1d2731; color: #d8dee4; font: inherit; cursor: pointer; }

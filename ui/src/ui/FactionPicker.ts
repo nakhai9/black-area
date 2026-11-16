@@ -1,6 +1,6 @@
 import { DEMO_MODE, GAME_VERSION } from "../constants";
 import { FACTIONS } from "../factions";
-import { CARD_ORDER, factionCardHtml } from "./FactionCard";
+import { CARD_ORDER, factionDetailHtml, factionPosterHtml } from "./FactionCard";
 import type { FactionId } from "../types";
 import { continueLatestSave, pickSaveFile } from "./PauseMenu";
 import { hasSaveFolder } from "./SaveFolder";
@@ -41,21 +41,27 @@ export class FactionPicker {
         <span class="fp-version" title="${t("Game version of this build")}">v${GAME_VERSION}</span>
         <div class="fp-main">
           <header class="fp-header">
+            <div class="sb-logo"><img src="${import.meta.env.BASE_URL}logo.png" alt="Black Area" /></div>
             <h1 id="fp-title">${t("Choose your side")}</h1>
           </header>
           <div class="fp-grid"></div>
-          <footer class="fp-footer fp-langbar"></footer>
+          <footer class="fp-footer fp-langbar">
+          </footer>
         </div>
         <aside class="fp-side">
-          <div class="sb-logo"><img src="${import.meta.env.BASE_URL}logo.png" alt="Black Area" /></div>
           <div class="fp-actions">
-            <button class="fp-deploy" type="button">${t("Start")}</button>
-            ${DEMO_MODE ? `<button class="fp-demo" type="button" title="${t("Test game: play alone, the other nations do nothing; everything built, finances off")}">${t("Test")}</button>` : ""}
             <button class="fp-load fp-continue" type="button" ${hasSaveFolder() ? "" : "hidden"} title="${t("Continue the newest game saved in Downloads/BlackArea")}">${t("Continue")}</button>
             <button class="fp-load" type="button" title="${t("Continue a game saved to a .json file (pause menu → Save game)")}">${t("Load saved game")}</button>
             <button class="fp-load fp-mp" type="button" title="${t("Play with friends: create a room or join one by its code")}">${t("Play with friends")}</button>
-            <button class="fp-guide" type="button" title="${t("Open the game rules (RULE.html) in a new tab")}">${t("Guide")}</button>
+            <button class="fp-guide" type="button" title="${t("Open the game rules (RULE.html) in a new tab")}">${t("Readme")}</button>
             <button class="fp-desktop" type="button" hidden title="${t("Download the desktop version")}">${t("Download Desktop")}</button>
+          </div>
+          <div class="fp-detail-wrap">
+            <div class="fp-detail" hidden></div>
+            <div class="fp-start">
+              <button class="fp-deploy" type="button">${t("Start")}</button>
+              ${DEMO_MODE ? `<button class="fp-demo" type="button" title="${t("Test game: play alone, the other nations do nothing; everything built, finances off")}">${t("Test")}</button>` : ""}
+            </div>
           </div>
         </aside>
       </div>`;
@@ -75,6 +81,7 @@ export class FactionPicker {
     );
     const deploy = this.root.querySelector<HTMLButtonElement>(".fp-deploy");
     if (deploy) deploy.hidden = true;
+    this.showDetail(null);
     const demo = this.root.querySelector<HTMLButtonElement>(".fp-demo");
     if (demo) demo.hidden = true;
   }
@@ -161,22 +168,44 @@ export class FactionPicker {
     this.root.dataset.faction = id;
     const deploy = this.root.querySelector<HTMLButtonElement>(".fp-deploy");
     if (deploy) {
-      deploy.textContent = t("Start as {name}", { name: f.shortName });
+      deploy.textContent = t("Start");
       deploy.hidden = false;
     }
     const demo = this.root.querySelector<HTMLButtonElement>(".fp-demo");
     if (demo) demo.hidden = false;
+    this.showDetail(id);
     if (focus) this.cards.get(id)?.focus();
+  }
+
+  /** Side panel: details of the nation hovered, else the one picked (hidden while none is). */
+  private showDetail(id: FactionId | null): void {
+    const box = this.root.querySelector<HTMLElement>(".fp-detail");
+    if (!box) return;
+    box.hidden = false;
+    // Start belongs to the nation picked: hidden while the panel shows another one (hovered card).
+    box.parentElement?.classList.toggle("fp-peek", id !== this.selected);
+    if (id === null) {
+      // No nation picked yet: a slideshow of the game (bases of three nations) as an introduction.
+      box.style.removeProperty("--team");
+      if (box.querySelector(".fp-intro")) return; // keep the slideshow running where it is
+      const base = import.meta.env.BASE_URL;
+      box.innerHTML = `<div class="fp-intro">${[1, 2, 3].map((n) => `<img src="${base}intro/${n}.jpg" alt="">`).join("")}<p>${t("Build bases, raise armies, conquer the world")}</p></div>`;
+      return;
+    }
+    box.style.setProperty("--team", FACTIONS[id].colors.primary);
+    box.innerHTML = factionDetailHtml(id);
   }
 
   private buildCard(id: FactionId): HTMLElement {
     const f = FACTIONS[id];
     const card = document.createElement("button");
     card.type = "button";
-    card.className = "fp-card";
+    card.className = "fp-card fp-poster";
     card.setAttribute("role", "radio");
     card.style.setProperty("--team", f.colors.primary);
-    card.innerHTML = factionCardHtml(id);
+    card.innerHTML = factionPosterHtml(id);
+    card.addEventListener("mouseenter", () => this.showDetail(id));
+    card.addEventListener("mouseleave", () => this.showDetail(this.selected));
     return card;
   }
 }

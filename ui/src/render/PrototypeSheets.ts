@@ -185,7 +185,7 @@ export function drawPrototype(canvas: HTMLCanvasElement, p: Prototype, dir: numb
   g.clearRect(0, 0, w, h);
   if (!prototypeReady(p)) {
     g.fillStyle = '#3a444e';
-    g.font = '13px system-ui';
+    g.font = '13px "Courier New", Courier, monospace';
     g.textAlign = 'center';
     g.fillText('Đang render sheet…', w / 2, h / 2);
     return;
