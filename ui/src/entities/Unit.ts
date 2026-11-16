@@ -67,6 +67,8 @@ export abstract class Unit extends Entity {
   heading = 0.6;
   /** Heading to turn to once the current path ends (formations); cleared by any new order. */
   faceOnArrival: number | null = null;
+  /** Game time a special-forces bomb was planted on it: it flashes once (Renderer), no bomb icon. */
+  blinkAt: number | null = null;
   /** Pulling over to let another vehicle pass (Game.giveWay): the only time a ground vehicle may drive in reverse. */
   givingWay = false;
   /** Advances while moving; drives leg swing / track animation. */

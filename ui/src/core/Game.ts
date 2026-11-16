@@ -635,6 +635,7 @@ export class Game {
     this.news = new NewsToast();
     this.placement = new PlacementSystem(this.map, this.entities);
     this.construction = new ConstructionSystem(this.players);
+    this.construction.owns = (p, type) => this.entities.buildings().some((b) => b.owner === p.id && b.alive && b.spec.type === type);
     this.construction.lostPrerequisite = (p, option) =>
       missingRequirement(option, this.ownedTypesOf(p), p.disarmedUntil !== undefined) !== null ||
       // A Parallel Government's right is spent when it is ordered: its order stays.
@@ -5754,7 +5755,9 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     if (!option) return;
     const result = this.production.enqueue(player, kind);
     if (result !== 'ok') this.sidebar.notify(
-      result === 'noCapital'
+      result === 'embargo'
+        ? t('Military embargo: no soldiers or military vehicles can be produced for now.')
+        : result === 'noCapital'
           ? t('Your capital is lost — you can no longer build any structure.')
         : result === 'full'
           ? t('Vehicle orders are full ({max}) — one more once an order is done.', { max: BUILD_LIMIT_VEHICLES })
@@ -6321,6 +6324,8 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       this.sidebar.notify(
         result === 'ok'
           ? t('Training {name} — {cost} {currency}', { name: option.name, cost: option.cost, currency: CURRENCY })
+          : result === 'embargo'
+            ? t('Military embargo: no soldiers or military vehicles can be produced for now.')
           : result === 'noCapital'
             ? t('Your capital is lost — you can no longer build any structure.')
           : result === 'tech'
@@ -6704,9 +6709,9 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
             bestD = d;
           }
         }
-        // An AI advance (attack-move) with no vehicle near: the special forces go for an enemy structure in reach.
+        // No vehicle near: the special forces go for an enemy structure in reach (bombs first; soldiers they shoot).
         let site: Building | null = null;
-        if (!best && u.attackMove !== null && !this.humanOwned(u)) {
+        if (!best) {
           let siteD = reach;
           for (const b of this.entities.buildings()) {
             if (!b.alive || b.indestructible || !isHostile(u, b) || this.safeZones.isSafe(b.centerWorld().x, b.centerWorld().y)) continue;
@@ -6741,6 +6746,10 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
         if (target instanceof Building) {
           // Red charge icon above the structure's roof, and the structure flashes once.
           fx.buildingId = target.id;
+          target.blinkAt = this.time;
+        } else if (u.isSpecial && target instanceof Unit) {
+          // Special forces' bomb on a vehicle: no icon, the vehicle just flashes once.
+          fx.hidden = true;
           target.blinkAt = this.time;
         }
         this.effects.add(fx);
@@ -7109,29 +7118,24 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     this.entities.remove(u.id);
     this.selection.selectedUnits.delete(u.id);
     if (!holder || !by) return;
-    for (const x of this.entities.buildings()) {
-      if (x.owner === holder.id && x.alive && MILITARY_BASES.includes(x.spec.type)) x.hp = 0;
+    // Only production stops: every soldier / vehicle order on hand is cancelled and refunded; nothing is destroyed.
+    const tq = this.training.queue(holder);
+    while (tq.items.length > 0) this.training.cancelOne(holder, tq.items[tq.items.length - 1]!);
+    const vq = this.production.queue(holder);
+    while (vq.items.length > 0) if (!this.production.cancelOne(holder, vq.items[vq.items.length - 1]!)) break;
+    // Only one Barracks, one War Factory and one Airfield are kept: those nearest the capital; every other one is torn down.
+    const c = b.centerWorld();
+    for (const type of MILITARY_BASES) {
+      const bases = this.entities.buildings().filter((x) => x.owner === holder.id && x.alive && x.spec.type === type);
+      bases.sort((x, y) => Math.hypot(x.centerWorld().x - c.x, x.centerWorld().y - c.y) - Math.hypot(y.centerWorld().x - c.x, y.centerWorld().y - c.y));
+      for (const x of bases.slice(1)) x.hp = 0;
     }
-    for (const s of this.construction.active(holder)) {
-      if (s.option && MILITARY_BASES.includes(s.option.id.split('@')[0] as BuildingType)) this.construction.cancel(holder, s.option.id);
-    }
-    if (holder.id === this.localId && this.placing && MILITARY_BASES.includes(this.placing.id.split('@')[0] as BuildingType)) this.placing = null;
-    // Every combat unit of the nation is disbanded too (soldiers, vehicles, aircraft, ships); unarmed ones stay.
-    for (const x of this.entities.all()) {
-      if (!(x instanceof Unit) || x.owner !== holder.id) continue;
-      if (x.weapon || (x instanceof Vehicle && (x.maxBombs > 0 || x.isDrone || x.isAircraftCarrier))) {
-        // Blown up where it stands (onDeath removes it next tick with its own death effect).
-        if (x.visible) this.explode(x.px, x.py, x instanceof Vehicle && x.flies ? 2 + x.altitude : 1, Math.max(6, x.radius * 2 * EXPLOSION_PER_BODY));
-        x.hp = 0;
-        continue;
-      }
-      x.attackTarget = null;
-      x.combatTarget = null;
-      x.attackMove = null;
+    for (const sl of this.construction.active(holder)) {
+      if (sl.option && MILITARY_BASES.includes(sl.option.id.split('@')[0] as BuildingType)) this.construction.cancel(holder, sl.option.id);
     }
     holder.disarmedUntil = this.time + CAPITAL_DISARM_SECONDS;
     const vars = { by: FACTIONS[by.faction].name, nation: FACTIONS[holder.faction].name, minutes: CAPITAL_DISARM_SECONDS / 60 };
-    this.breaking(t('{by} has put {nation} under a military embargo: its Barracks, War Factories, Airfields and combat units are gone and it cannot attack for {minutes} minutes.', vars), t('{by} put {nation} under a military embargo', vars), 'military');
+    this.breaking(t('{by} has put {nation} under a military embargo: it keeps a single Barracks, War Factory and Airfield by its capital and cannot train soldiers or build military vehicles for {minutes} minutes.', vars), t('{by} put {nation} under a military embargo', vars), 'military');
   }
 
   /**
@@ -7144,12 +7148,13 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       if (p.disarmedUntil === undefined) continue;
       if (this.time >= p.disarmedUntil) {
         delete p.disarmedUntil;
-        if (p.id === this.localId) this.sidebar.notify(t('The military embargo is over: you may build Barracks, War Factories and Airfields again.'), 6);
+        if (p.id === this.localId) this.sidebar.notify(t('The military embargo is over: you may train soldiers and build military vehicles again.'), 6);
         continue;
       }
       disarmed.add(p.id);
     }
-    setDisarmed(disarmed);
+    // A military embargo no longer stops anyone fighting: only production (TrainingSystem / VehicleSystem).
+    setDisarmed(new Set());
     setRuins(new Set(this.players.filter((p) => p.defeated).map((p) => p.id)), new Set(this.players.filter((p) => !p.isHuman).map((p) => p.id)));
     for (const p of this.players) {
       if (p.embargoUntil === undefined) continue;

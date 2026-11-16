@@ -46,7 +46,8 @@ function trainOptions(faction: FactionId, foreign = false): TrainOption[] {
 const FOREIGN = new Map<FactionId, TrainOption[]>();
 function foreignOptions(faction: FactionId): TrainOption[] {
   let list = FOREIGN.get(faction);
-  if (!list) FOREIGN.set(faction, (list = trainOptions(faction, true).filter((o) => !isDeleted('infantry', faction, o.tier))));
+  // Squatters are never sold abroad: a nation only ever fields its own flag bearers.
+  if (!list) FOREIGN.set(faction, (list = trainOptions(faction, true).filter((o) => o.tier !== 'squatters' && !isDeleted('infantry', faction, o.tier))));
   return list;
 }
 
@@ -54,13 +55,13 @@ function foreignOptions(faction: FactionId): TrainOption[] {
 function shopOptions(faction: FactionId): TrainOption[] {
   if (FACTIONS[faction].peaceful) return [];
   const own = trainOptions(faction).filter((o) => ownOffered('infantry', faction, o.tier));
-  const moved = movedInto('infantry', faction).flatMap(([design, tier]) => foreignOptions(design).filter((o) => o.tier === tier));
+  const moved = movedInto('infantry', faction).filter(([, tier]) => tier !== 'squatters').flatMap(([design, tier]) => foreignOptions(design).filter((o) => o.tier === tier));
   return [...own, ...moved];
 }
 
 export type TrainingState = 'idle' | 'training' | 'onHold' | 'noBarracks';
 
-export type EnqueueResult = 'ok' | 'full' | 'noBarracks' | 'tech' | 'ratio' | 'cap' | 'noCapital';
+export type EnqueueResult = 'ok' | 'embargo' | 'full' | 'noBarracks' | 'tech' | 'ratio' | 'cap' | 'noCapital';
 
 /** Orders waiting (BuildLimit) and the elite ratio. */
 export interface ArmyCount {
@@ -165,6 +166,7 @@ export class TrainingSystem implements GameSystem {
     const q = this.queue(player);
     const tier = splitKey(key).base;
     if (FACTIONS[player.faction].peaceful) return 'full';
+    if (player.disarmedUntil !== undefined) return 'embargo';
     if (!this.barracksOf(player) || !this.optionsFor(player).some((o) => o.key === key)) return 'noBarracks';
     if (TECH_TIERS.includes(tier) && !this.hasTech(player)) return 'tech';
     if (q.items.length >= BUILD_LIMIT_SOLDIERS) return 'full';

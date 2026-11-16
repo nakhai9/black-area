@@ -315,10 +315,10 @@ export function footprintOf(option: BuildOption, faction: FactionId): { w: numbe
  * but the Power Plant needs a standing Power Plant, and every one but the Power Plant and Ministry of Defence also needs a
  * Ministry of Defence — on top of its own `requires`. Player and AI both go through here.
  */
-export function missingRequirement(option: BuildOption, owned: ReadonlySet<BuildingType>, disarmed = false): BuildingType | null {
+export function missingRequirement(option: BuildOption, owned: ReadonlySet<BuildingType>, _disarmed = false): BuildingType | null {
+  // A military embargo only stops unit production (TrainingSystem / VehicleSystem): structures are never forbidden.
+  const disarmed = false;
   const base = option.id.split('@')[0] as BuildingType;
-  // Military embargo: the bases themselves are forbidden, and nothing else waits on them meanwhile.
-  if (disarmed && MILITARY_BASES.includes(base)) return base;
   const core: BuildingType[] = base === 'powerPlant' ? [] : base === 'barracks' ? ['powerPlant'] : ['powerPlant', 'barracks'];
   const own: readonly BuildingType[] = option.requires === undefined ? [] : typeof option.requires === 'string' ? [option.requires] : option.requires;
   return [...core, ...own].find((t) => !owned.has(t) && !(disarmed && MILITARY_BASES.includes(t))) ?? null;
@@ -363,6 +363,9 @@ export class ConstructionSystem implements GameSystem {
    */
   lostPrerequisite: ((player: PlayerState, option: BuildOption) => boolean) | null = null;
 
+  /** Does the nation own a standing structure of this type? (wired by Game) */
+  owns: (player: PlayerState, type: BuildingType) => boolean = () => false;
+
   constructor(private readonly players: readonly PlayerState[]) {
     for (const p of players) this.slots.set(p.id, new Map());
   }
@@ -397,7 +400,9 @@ export class ConstructionSystem implements GameSystem {
   start(player: PlayerState, option: BuildOption): boolean {
     const s = this.slot(player, option.id);
     if (s.state !== 'idle' || player.capitalLost) return false;
-    if (player.disarmedUntil !== undefined && MILITARY_BASES.includes(option.id.split('@')[0] as BuildingType)) return false;
+    // Military embargo: at most one Barracks / War Factory / Airfield each (Game.disarmCapital keeps one by the capital).
+    const mil = option.id.split('@')[0] as BuildingType;
+    if (player.disarmedUntil !== undefined && MILITARY_BASES.includes(mil) && this.owns(player, mil)) return false;
     // A Parallel Government uses up the right to it (given back if the order is cancelled).
     const gov = parallelGovNation(option.id);
     if (gov) {

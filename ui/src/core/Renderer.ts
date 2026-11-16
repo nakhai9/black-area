@@ -267,7 +267,11 @@ export class Renderer {
     this.ctx.setTransform(z, 0, 0, z, -camera.x * z, -camera.y * z);
   }
 
+  /** Game time of the frame being drawn. */
+  private frameTime = 0;
+
   render(scene: RenderScene): void {
+    this.frameTime = scene.time;
     const { ctx, camera } = this;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.fillStyle = '#05070a';
@@ -711,6 +715,20 @@ export class Renderer {
   }
 
   private drawUnitBody(u: Unit): void {
+    this.drawUnitBodyRaw(u);
+    // A bomb just planted on a vehicle: one quick bright flash (BLINK_SECONDS), as on a structure.
+    const blink = u.blinkAt === null ? 1 : (this.frameTime - u.blinkAt) / BLINK_SECONDS;
+    if (blink >= 0 && blink < 1) {
+      const { ctx } = this;
+      ctx.save();
+      ctx.globalAlpha = Math.sin(blink * Math.PI) * 0.7;
+      ctx.filter = 'brightness(2.6)';
+      this.drawUnitBodyRaw(u);
+      ctx.restore();
+    }
+  }
+
+  private drawUnitBodyRaw(u: Unit): void {
     const f = FACTIONS[u.faction as keyof typeof FACTIONS];
     if (!f) return;
     const { ctx } = this;
@@ -1377,7 +1395,8 @@ export class Renderer {
       } else if (e.kind === 'soldierDeath') {
         drawSoldierDeath(ctx, e.look, e.x, e.y, e.heading, e.age, e.ttl);
       } else if (e.kind === 'charge') {
-        drawCharge(ctx, e.x, e.y, e.ttl - e.age);
+        // On a vehicle nothing is drawn (it flashed once when the bomb went on); on a structure, its icon above the roof.
+        if (e.buildingId === undefined && !e.hidden) drawCharge(ctx, e.x, e.y, e.ttl - e.age);
         const b = e.buildingId !== undefined ? this.frameBuildingList.find((o) => o.id === e.buildingId) : undefined;
         if (b) {
           // Red charge icon floating just above the top of the structure's art, the size of one cell (its iso diamond is CELL_SIZE * 2 * ISO_Y tall).

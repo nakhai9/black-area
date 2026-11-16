@@ -581,6 +581,8 @@ export class CombatSystem implements GameSystem {
    */
   private protectedFrom(s: Unit, o: Unit): boolean {
     if (!o.retreating) return false;
+    // AI nations fight free of this rule: they may chase a retreating enemy.
+    if (aiOwners.has(s.owner)) return false;
     const at = o.fightingWith.get(s.owner);
     if (at === undefined || this.time - at > FIGHT_MEMORY_SECONDS) return false;
     // Still caught among that nation's units: while any unit of the retreating group is within weapon range of one of

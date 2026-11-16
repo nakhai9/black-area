@@ -34,7 +34,7 @@ export const DEMO_FACTION: FactionId = NATION_CODES[(import.meta.env.VITE_DEMO_F
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "3.75.85";
+export const GAME_VERSION = "3.75.89";
 
 /** An Allied Building within this many cells of any capital is an embassy; farther out it is a "Pro-<nation> regime". */
 export const EMBASSY_CAPITAL_CELLS = 25;
@@ -1152,10 +1152,11 @@ export const CAPITAL_EMBARGO_SECONDS = 180;
 /** AI engineer in an enemy capital: embargo when that nation holds at least this many TB, else take it over. */
 export const AI_EMBARGO_CREDITS = 1000;
 /**
- * Engineer in an enemy capital, military embargo (demilitarisation): that nation loses every Barracks, War Factory and
- * Airfield, may not rebuild them and its units cannot attack for this many seconds; afterwards it re-arms from scratch.
+ * Engineer in an enemy capital, military embargo: that nation may not train soldiers nor build military vehicles,
+ * aircraft or ships for this many seconds (orders on hand are cancelled and refunded). Nothing is destroyed and its
+ * units keep fighting.
  */
-export const CAPITAL_DISARM_SECONDS = 120;
+export const CAPITAL_DISARM_SECONDS = 240;
 /** Structures a military embargo tears down and forbids. */
 export const MILITARY_BASES: readonly BuildingType[] = ['barracks', 'warFactory', 'airfield'];
 

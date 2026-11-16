@@ -1,4 +1,3 @@
-import { squadFilter } from './Squad';
 import { LdewEmplacement } from '../entities/LdewEmplacement';
 import { holdsNation } from './Foreign';
 import { LDEW_SITE_NATION } from '../constants';
@@ -379,6 +378,8 @@ const LEASE_RANGE_CELLS = 120;
 const LEASE_MIN_RETURN = 2;
 /** Fights are judged within this distance (world px) of an engaged attacker. */
 const BATTLE_RADIUS = 12 * CELL_SIZE;
+/** AI combined arms: free strike units this close to a comrade in a fight move in to back it up. */
+const SUPPORT_RADIUS = 14 * CELL_SIZE;
 /** Attackers fall back home when the enemy force around them is this many times stronger. */
 const RETREAT_ODDS = 1.5;
 /** Seconds a unit that fell back rests at home before it may attack again. */
@@ -628,7 +629,7 @@ export class AISystem implements GameSystem {
       if (!anchor) return;
       this.sellOil(p, st);
       this.train(p, st, owned, this.threat(p, anchor));
-      if (!inTruce() && p.disarmedUntil === undefined) this.army(p, st, anchor);
+      if (!inTruce()) this.army(p, st, anchor);
       return;
     }
     const threat = this.threat(p, capital);
@@ -645,8 +646,8 @@ export class AISystem implements GameSystem {
     this.mendFleet(p);
     this.claimLand(p, st, capital, owned, threat);
     this.clearLand(p, capital, threat);
-    // Ceasefire, or a military embargo on the nation: it only builds up and launches no attack meanwhile.
-    if (inTruce() || p.disarmedUntil !== undefined) {
+    // Ceasefire: it only builds up and launches no attack meanwhile (a military embargo only stops its production).
+    if (inTruce()) {
       this.contestNations(p, st, capital, owned, threat);
       this.leaseOil(p, st, owned, threat);
       this.keepCeasefire(p, st, capital);
@@ -1896,6 +1897,8 @@ export class AISystem implements GameSystem {
     // Own capital taken and no combat unit of ours left near it: the attackers are called back to fight for it.
     if (this.recallToLostCapital(p, st, strike, all)) return;
     this.retreatFromLostFights(p, st, strike, army, home, all);
+    // Combined arms: units near a comrade under fire close in and fight beside it.
+    this.mutualSupport(p, st, strike);
 
     // Attackers never wait at home: they take on the nearest enemy, structure by structure.
     this.focusBuildings(p, strike);
@@ -2460,6 +2463,24 @@ export class AISystem implements GameSystem {
     }
   }
 
+  /**
+   * Mutual support (combined arms): every strike unit in a fight calls in its free comrades within SUPPORT_RADIUS —
+   * idle or marching elsewhere, not retreating nor resting — which attack-move to it, so the AI fights as an organised
+   * group instead of piecemeal.
+   */
+  private mutualSupport(_p: PlayerState, st: AIState, strike: readonly Unit[]): void {
+    const free = strike.filter((u) => u.combatTarget === null && !u.engaged && u.attackTarget === null && !u.retreating && !this.resting(st, u));
+    if (free.length === 0) return;
+    const taken = new Set<number>();
+    for (const u of strike) {
+      if (u.retreating || (u.combatTarget === null && !u.engaged)) continue;
+      const help = free.filter((o) => !taken.has(o.id) && Math.hypot(o.px - u.px, o.py - u.py) < SUPPORT_RADIUS);
+      if (help.length === 0) continue;
+      for (const o of help) taken.add(o.id);
+      this.host.orderAttackMove(help, { x: u.px, y: u.py });
+    }
+  }
+
   /** Idle attackers march on the nearest enemy structure they can reach (aircraft and swimmers go anywhere). */
   private advance(p: PlayerState, st: AIState, strike: readonly Unit[]): void {
     const idle = strike.filter(
@@ -2489,11 +2510,9 @@ export class AISystem implements GameSystem {
       st.massSince = undefined;
       st.offensiveUntil = this.time + AI_OFFENSIVE_SECONDS;
     }
-    const { going: ready, short } = squadFilter(going);
-    const waiting = going.filter((u) => !ready.includes(u));
-    going = ready;
-    if (waiting.length > 0) this.gatherAtStage(st, waiting, { x: cx, y: cy }, goal);
-    else if (short.length === 0) st.stage = null;
+    // AI fights free of the player's squad rule: the whole group sets off together, as one combined-arms force.
+    const waiting: Unit[] = [];
+    st.stage = null;
     // The nation's AWACS flies over the group (its radar lets them spot enemies farther).
     this.coverWithAwacs(p, going.length > 0 ? going : waiting);
     // Its aircraft carriers sail toward the target (the nearest sea to it), bringing their fighters within reach.
@@ -2815,7 +2834,7 @@ export class AISystem implements GameSystem {
     // SWIM_MAX_CELLS of the shore all the way, never across open sea).
     const gc = { x: Math.floor(goal.x / CELL_SIZE), y: Math.floor(goal.y / CELL_SIZE) };
     const swimTo = (u: Unit): boolean => u.swims && this.host.pathfinder.sameSwimArea(Math.floor(u.px / CELL_SIZE), Math.floor(u.py / CELL_SIZE), gc.x, gc.y);
-    const crossers = squadFilter(army.filter((u) => (u.aircraft || swimTo(u)) && !u.retreating && !this.resting(st, u))).going;
+    const crossers = army.filter((u) => (u.aircraft || swimTo(u)) && !u.retreating && !this.resting(st, u));
     const loaded = this.homeTransports(p).filter((t) => t.cargo.length > 0 && !this.carriesSquatters(t) && !t.cargo.some((c) => c.id === st.nationEngineer));
     const boarding = this.host.entities.fieldMovers().some((u) => u.owner === p.id && u.boardTarget !== null);
     const force = crossers.length + loaded.reduce((s, t) => s + t.cargo.length, 0);

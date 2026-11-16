@@ -83,7 +83,7 @@ function shopOptions(faction: FactionId): VehicleOption[] {
 }
 
 export type VehicleQueueState = 'idle' | 'building' | 'onHold' | 'noFactory' | 'noAirfield' | 'noPort' | 'noPower' | 'exitBlocked';
-export type VehicleEnqueueResult = 'ok' | 'full' | 'noFactory' | 'noAirfield' | 'noPort' | 'noParking' | 'tech' | 'cap' | 'transportCap' | 'noCapital';
+export type VehicleEnqueueResult = 'ok' | 'embargo' | 'full' | 'noFactory' | 'noAirfield' | 'noPort' | 'noParking' | 'tech' | 'cap' | 'transportCap' | 'noCapital';
 
 export interface VehicleQueue {
   /** Vehicles on order, built one at a time in the order they were ordered (first ordered, first finished). */
@@ -240,6 +240,7 @@ export class VehicleSystem implements GameSystem {
 
   enqueue(player: PlayerState, key: VehicleKey): VehicleEnqueueResult {
     if (FACTIONS[player.faction].peaceful) return 'full';
+    if (player.disarmedUntil !== undefined) return 'embargo';
     const q = this.queue(player);
     const kind = splitKey(key).base;
     const missing = this.missingBuilding(player, kind);
