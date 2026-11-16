@@ -80,6 +80,7 @@ const ENGINE_BY_KIND: Readonly<Record<VehicleKind, EngineProfile>> = {
   k9: 'dieselTank',
   ldew: 'dieselTank',
   ldewTruck: 'wheeled',
+  bm21: 'wheeled',
   awacs: 'airlifter',
 };
 /**
@@ -446,6 +447,48 @@ export class SoundSystem {
     }
   }
 
+  /**
+   * BM-21 rocket in flight: a shrill whistle (sine plus a hiss of band-passed noise) that falls in pitch as the rocket
+   * climbs and comes down, lasting its whole `flight` s. A salvo overlaps a few of them (one per 0.25 s at most).
+   */
+  rocketWhistle(at: WorldPoint, flight: number): void {
+    const ctx = this.ctx;
+    if (!ctx || !this.master || !this.noise || this.muted || ctx.state !== 'running') return;
+    const l = this.listener();
+    const vol = Math.max(0, 1 - Math.hypot(at.x - l.centre.x, at.y - l.centre.y) / (l.range * 1.4));
+    if (vol < 0.04 || this.active > 24) return;
+    const now = ctx.currentTime;
+    if (now - (this.lastPlayed.get('whistle') ?? -1) < 0.25) return;
+    this.lastPlayed.set('whistle', now);
+    const end = now + flight;
+    const out = ctx.createGain();
+    out.gain.setValueAtTime(0, now);
+    out.gain.linearRampToValueAtTime(0.11 * vol, now + 0.08);
+    out.gain.setValueAtTime(0.11 * vol, end - 0.12);
+    out.gain.exponentialRampToValueAtTime(0.0005, end);
+    out.connect(this.master);
+    const tone = ctx.createOscillator();
+    tone.type = 'sine';
+    tone.frequency.setValueAtTime(2600 + Math.random() * 400, now);
+    tone.frequency.exponentialRampToValueAtTime(900, end);
+    tone.connect(out);
+    tone.start(now);
+    tone.stop(end + 0.05);
+    const hiss = ctx.createBufferSource();
+    hiss.buffer = this.noise;
+    hiss.loop = true;
+    const band = ctx.createBiquadFilter();
+    band.type = 'bandpass';
+    band.Q.value = 6;
+    band.frequency.setValueAtTime(4200, now);
+    band.frequency.exponentialRampToValueAtTime(1500, end);
+    const hissGain = ctx.createGain();
+    hissGain.gain.value = 0.6;
+    hiss.connect(band).connect(hissGain).connect(out);
+    hiss.start(now);
+    hiss.stop(end + 0.05);
+  }
+
   play(kind: Kind, at: WorldPoint): void {
     const ctx = this.ctx;
     if (!ctx || !this.master || !this.noise || this.muted || ctx.state !== 'running') return;
@@ -655,6 +698,27 @@ export class SoundSystem {
     };
     say(line, 1.05, 0.8); // cheerful but deep: a man's voice even when only a neutral one is installed
     if (laugh) say('Heh heh heh!', 0.9, 0.6);
+  }
+
+  /**
+   * The BM-21 crew's line in Korean when the player sends one of them off: "모든 것은 김 수령님을 위하여!" ("All for
+   * the Leader Kim!"), in a Korean voice when the system has one. Rate-limited like the pilot's lines.
+   */
+  bm21Move(): void {
+    if (this.muted || typeof speechSynthesis === 'undefined' || !this.ctx) return;
+    const line = '모든 것은 김 수령님을 위하여!';
+    const now = performance.now() / 1000;
+    if (now - (this.lastLine.get(line) ?? -99) < ANNOUNCE_COOLDOWN) return;
+    if (speechSynthesis.pending) return;
+    this.lastLine.set(line, now);
+    const u = new SpeechSynthesisUtterance(line);
+    u.lang = 'ko-KR';
+    const voice = this.voices.find((v) => v.lang.toLowerCase().startsWith('ko'));
+    if (voice) u.voice = voice;
+    u.rate = 1.0;
+    u.pitch = 0.8;
+    u.volume = 1;
+    speechSynthesis.speak(u);
   }
 
   /** A pilot's distress call when one of the player's aircraft goes down: "Mayday, mayday, mayday!" */

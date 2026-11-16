@@ -16,6 +16,9 @@ import {
   K9_RANGE,
   LDEW_DAMAGE,
   LDEW_RANGE,
+  BM21_ROCKETS,
+  BM21_RELOAD_ROCKETS,
+  BM21_RELOAD_SECONDS,
   isAircraftKind,
 } from '../constants';
 import { FACTIONS } from '../factions';
@@ -59,6 +62,7 @@ const HANDLING: Readonly<Record<VehicleKind, { accel: number; turn: number; pivo
   k9: { accel: 1.0, turn: 2.0, pivot: true },
   ldew: { accel: 1.2, turn: 1.2, pivot: true },
   ldewTruck: { accel: 0.6, turn: 3.0, pivot: true },
+  bm21: { accel: 0.7, turn: 2.6, pivot: true },
   awacs: { accel: 1.0, turn: 1.3, pivot: false },
 };
 
@@ -72,6 +76,7 @@ function transportFits(soldiers: number, vehicles: number): boolean {
 export const NATION_VEHICLE_PROFILES: Readonly<Partial<Record<VehicleKind, VehicleProfile>>> = {
   k9: { name: 'K9 Thunder', description: '155 mm self-propelled howitzer: long-range shelling. On sale only while you hold Seoul.' },
   ldew: { name: 'LDEW Laser', description: 'Ground laser weapon (counter-UAS): slow to move, the head turns all round. On sale only while you hold London.' },
+  bm21: { name: 'BM-21 Grad', description: '122 mm rocket launcher on a Ural truck: ripples 16 rockets on a long arc at ground targets, structures and aircraft. On sale only while you hold Pyongyang.' },
   ldewTruck: { name: 'LDEW Laser Truck', description: 'Laser weapon on a MAN SV truck: fast, the head turns all round. On sale only while you hold London.' },
 };
 
@@ -221,6 +226,10 @@ export class Vehicle extends Unit {
   seekRepathAt = 0;
   /** Repair vehicle only: alongside its target and working on it right now (drives the crane animation). */
   mending = false;
+  /** BM-21 only: rockets loaded (0..BM21_ROCKETS), whether a salvo is rippling now, and the reload clock (s). */
+  rockets = BM21_ROCKETS;
+  salvo = false;
+  reloadClock = 0;
   /** Seconds left of a scramble: shot at while parked, it took off and circles away from danger until 0. */
   scramble = 0;
 
@@ -434,6 +443,14 @@ export class Vehicle extends Unit {
       return;
     }
     super.update(dt);
+    // BM-21: while it is not firing, the tubes are reloaded BM21_RELOAD_ROCKETS at a time every BM21_RELOAD_SECONDS.
+    if (this.type === 'bm21') {
+      if (this.salvo || this.rockets >= BM21_ROCKETS) this.reloadClock = 0;
+      else if ((this.reloadClock += dt) >= BM21_RELOAD_SECONDS) {
+        this.reloadClock -= BM21_RELOAD_SECONDS;
+        this.rockets = Math.min(BM21_ROCKETS, this.rockets + BM21_RELOAD_ROCKETS);
+      }
+    }
     // A tank's turret swings on its own (any way round, right over the engine deck) to the target, and back to the
     // front once it has none. The air-defence vehicle's launcher is fixed to its hull.
     if (this.type === 'mantis' || this.type === 'ldewTruck') this.turretHeading = this.heading;

@@ -36,6 +36,8 @@ export type Effect =
   | { kind: 'missile'; x0: number; y0: number; x1: number; y1: number; age: number; ttl: number }
   /** Air-defence vehicle's missile (Patriot / SAMP/T NG / S-400 / HQ-9) on a lofted arc, flying for `flight` s; its trail lingers to `ttl`. */
   | { kind: 'samMissile'; x0: number; y0: number; x1: number; y1: number; age: number; ttl: number; flight: number; buk: boolean }
+  /** BM-21 Grad rocket on a high arc (x0, y0) → (x1, y1) for `flight` s, then its blast (an air burst when `air`). */
+  | { kind: 'gradRocket'; x0: number; y0: number; x1: number; y1: number; age: number; ttl: number; flight: number; air: boolean }
   /** Its impact: a small burst on an aircraft (`air`), the large explosion on the ground. */
   | { kind: 'missileBlast'; x: number; y: number; age: number; ttl: number; air: boolean }
   /** The bomb sheet's explosion and burning crater. */

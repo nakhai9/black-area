@@ -2,7 +2,7 @@ import type { FactionId } from '../types';
 import type { Mobility } from '../map/Pathfinder';
 import { demoActive } from '../core/Demo';
 import { movesRight } from '../core/IsoView';
-import { BOMB_FALL_SECONDS, HIGH_GROUND_DAMAGE, HIGH_GROUND_RANGE, LOW_GROUND_DAMAGE, MANTIS_HIT_SHARE, MANTIS_RANGE_CELLS, MANTIS_RANK_BONUS, MANTIS_EVADE_CELLS, HELI_VS_MANTIS_SHARE, JET_VS_MANTIS_SHARE, MANTIS_VS_JET_SHARE, MANTIS_VS_HELI_SHARE, MANTIS_RELOAD, MANTIS_GUN_NATIONS, PGZ_RELOAD, PGZ_HIT_FACTOR, JET_BOMB_VS_STRUCTURE, JET_BOMB_VS_VEHICLE, ACQUIRE_PERIOD, RANK_FIREPOWER, RANK_RELOAD, BOMB_GROUP_RADIUS_CELLS, BOMB_GROUP_SIZE, BOMB_TOUGH_DAMAGE, BOMB_TOUGH_STRUCTURES, BOMBS_PER_DROP, CELL_SIZE, CHASE_GIVE_UP_SECONDS, CHASE_LIMIT_CELLS, CHASE_PERIOD, FIGHT_MEMORY_SECONDS, GUARD_VISION_FACTOR, NEUTRAL_OWNER, RETALIATE_RANGE_FACTOR, WEAPONS, FIGHTER_DRONE_ALERT, FELL_SPREAD_CELLS, TREE_BOMB_RADIUS_CELLS, TREE_STICK_RADIUS_CELLS } from '../constants';
+import { BM21_MIN_SALVO, bm21Flight, BOMB_FALL_SECONDS, HIGH_GROUND_DAMAGE, HIGH_GROUND_RANGE, LOW_GROUND_DAMAGE, MANTIS_HIT_SHARE, MANTIS_RANGE_CELLS, MANTIS_RANK_BONUS, MANTIS_EVADE_CELLS, HELI_VS_MANTIS_SHARE, JET_VS_MANTIS_SHARE, MANTIS_VS_JET_SHARE, MANTIS_VS_HELI_SHARE, MANTIS_RELOAD, MANTIS_GUN_NATIONS, PGZ_RELOAD, PGZ_HIT_FACTOR, JET_BOMB_VS_STRUCTURE, JET_BOMB_VS_VEHICLE, ACQUIRE_PERIOD, RANK_FIREPOWER, RANK_RELOAD, BOMB_GROUP_RADIUS_CELLS, BOMB_GROUP_SIZE, BOMB_TOUGH_DAMAGE, BOMB_TOUGH_STRUCTURES, BOMBS_PER_DROP, CELL_SIZE, CHASE_GIVE_UP_SECONDS, CHASE_LIMIT_CELLS, CHASE_PERIOD, FIGHT_MEMORY_SECONDS, GUARD_VISION_FACTOR, NEUTRAL_OWNER, RETALIATE_RANGE_FACTOR, WEAPONS, FIGHTER_DRONE_ALERT, FELL_SPREAD_CELLS, TREE_BOMB_RADIUS_CELLS, TREE_STICK_RADIUS_CELLS } from '../constants';
 import { Building } from '../entities/Building';
 import { Bunker } from '../entities/Bunker';
 import { LdewEmplacement } from '../entities/LdewEmplacement';
@@ -121,7 +121,8 @@ export function canTarget(shooter: Unit, target: Entity): boolean {
   // Air-defence vehicle (Patriot / SAMP/T NG / S-400 / HQ-9 / PGZ-09): any enemy aircraft off the ground (altitude > 0), whatever it is doing —
   // cruising, hovering, lifting off, climbing, descending. Never one standing on the ground.
   if (shooter instanceof Vehicle && shooter.type === 'mantis') return target instanceof Vehicle && (target.aircraft || target.isDrone) && target.altitude > 0;
-  if (target instanceof Unit && target.flies) return shooter.aircraft && w.hitsAir;
+  // BM-21 Grad: its rockets also reach aircraft in flight.
+  if (target instanceof Unit && target.flies) return (shooter.aircraft || (shooter instanceof Vehicle && shooter.type === 'bm21')) && w.hitsAir;
   // Special forces never shoot ground vehicles: they plant a bomb on them instead (Game.processDemolition).
   if (shooter instanceof Infantry && shooter.isSpecial && target instanceof Vehicle) return false;
   return true;
@@ -175,7 +176,7 @@ export class CombatSystem implements GameSystem {
    * Bomb hits still falling: each lands (deals its damage) at `at` — a bomber's stick or one fighter bomb on an enemy
    * (`target`), or the same dropped on the trees of a clearing order ('treeStick' / 'treeBomb', no target). Plain data (saved games).
    */
-  private readonly falling: { at: number; kind: 'stick' | 'jet' | 'treeStick' | 'treeBomb'; shooter: Vehicle; target: Entity | null; impact: WorldPoint }[] = [];
+  private readonly falling: { at: number; kind: 'stick' | 'jet' | 'treeStick' | 'treeBomb' | 'rocket'; shooter: Vehicle; target: Entity | null; impact: WorldPoint }[] = [];
 
   constructor(
     private readonly entities: EntityManager,
@@ -383,6 +384,8 @@ export class CombatSystem implements GameSystem {
     s.combatTarget = target?.id ?? null;
 
     if (!target) {
+      // BM-21: nothing left to shoot ends the salvo (the next one needs BM21_MIN_SALVO rockets again).
+      if (s instanceof Vehicle && s.type === 'bm21') s.salvo = false;
       // Nobody to fight: a clearing order goes on (the trees are shot once the enemies are gone).
       if (s.fellTarget !== null && this.fell(s, w)) return;
       // Back home (or stopped) with nobody to fight: the next chase measures from here.
@@ -618,7 +621,7 @@ export class CombatSystem implements GameSystem {
   }
 
   /** A falling bomb reaches the ground. */
-  private land(f: { kind: 'stick' | 'jet' | 'treeStick' | 'treeBomb'; shooter: Vehicle; target: Entity | null; impact: WorldPoint }): void {
+  private land(f: { kind: 'stick' | 'jet' | 'treeStick' | 'treeBomb' | 'rocket'; shooter: Vehicle; target: Entity | null; impact: WorldPoint }): void {
     const { shooter: s, target: t } = f;
     if (!s) return; // (a saved game whose bomber no longer exists)
     // On the trees (clearing order): every tree within the blast falls.
@@ -631,6 +634,10 @@ export class CombatSystem implements GameSystem {
       this.bombsLand(s, t, f.impact);
       return;
     }
+    if (f.kind === 'rocket') {
+      this.rocketLands(s, t, f.impact);
+      return;
+    }
     // The trees round the impact fall too.
     this.hooks.trees.fellRadius(f.impact.x, f.impact.y, TREE_BOMB_RADIUS_CELLS * CELL_SIZE);
     if (!t.alive) return;
@@ -639,6 +646,31 @@ export class CombatSystem implements GameSystem {
     t.damage(t instanceof Building ? t.maxHp * JET_BOMB_VS_STRUCTURE : t instanceof Vehicle ? t.maxHp * vsVehicle : Infinity); // a soldier: dead, veteran or not
     t.lastAttackerId = s.id;
     t.lastAttackedAt = this.time;
+  }
+
+  /**
+   * A BM-21 rocket comes down: its target (still alive) takes the hit; on the ground the blast also hurts the enemy
+   * soldiers and vehicles within the splash and the trees there. An aircraft is hit alone (an air burst).
+   */
+  private rocketLands(s: Vehicle, t: Entity, impact: WorldPoint): void {
+    const w = s.weapon;
+    if (!w) return;
+    const dmg = w.damage * RANK_FIREPOWER[s.rank];
+    const hit = (o: Entity, amount: number): void => {
+      if (!o.alive || !isHostile(s, o)) return;
+      o.damage(amount);
+      o.lastAttackerId = s.id;
+      o.lastAttackedAt = this.time;
+    };
+    const air = t instanceof Unit && t.flies;
+    hit(t, dmg * (t instanceof Building ? w.vsBuilding : 1) * (air ? 1 : this.heightFactor(s, t)));
+    if (air) return;
+    const at = t instanceof Unit ? { x: t.px, y: t.py } : impact;
+    this.hooks.trees.damageRadius(at.x, at.y, w.splash, dmg * 0.5);
+    for (const o of this.entities.fieldMovers()) {
+      if (o === t || o.flies || this.sheltered(o)) continue;
+      if (Math.hypot(o.px - at.x, o.py - at.y) <= w.splash) hit(o, dmg * 0.5);
+    }
   }
 
   /** The bomber's stick explodes: a structure is flattened (tough ones lose half), or the troops round the impact die. */
@@ -673,6 +705,21 @@ export class CombatSystem implements GameSystem {
     s.fightingWith.set(t.owner, this.time);
     if (t instanceof Unit) t.fightingWith.set(s.owner, this.time);
     const impact = this.impactPoint(t);
+    if (s instanceof Vehicle && s.type === 'bm21') {
+      // A salvo starts only with BM21_MIN_SALVO rockets or more, then ripples one rocket per cooldown until empty.
+      if (!s.salvo && s.rockets < BM21_MIN_SALVO) {
+        s.cooldown = 0;
+        return;
+      }
+      s.rockets--;
+      s.salvo = s.rockets > 0;
+      s.cooldown = w.cooldown;
+      // The rocket only hits when it comes down at the end of its arc.
+      this.falling.push({ at: this.time + bm21Flight(distanceTo(s.px, s.py, t)), kind: 'rocket', shooter: s, target: t, impact });
+      s.engaged = true;
+      this.hooks.onFire(s, t, w, impact);
+      return;
+    }
     if (s instanceof Vehicle && s.type === 'bomber') {
       this.dropBombs(s, t, impact);
       s.engaged = true;

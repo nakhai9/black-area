@@ -44,6 +44,9 @@ import type { Camera } from './Camera';
 import { drawBombBlast, drawBombFall } from '../render/BombSheets';
 import { drawMissile, drawMissileBlast } from '../render/MissileSheet';
 import { drawSamMissile } from '../render/SamMissile';
+import { drawGradRocket } from '../render/GradRocket';
+import { drawBm21Sheet } from '../render/Bm21Sheets';
+import { BM21_ROCKETS } from '../constants';
 import { drawShell, drawShellImpact } from '../render/ShellSheet';
 import { drawBullet, drawBulletImpact } from '../render/BulletSheet';
 import { drawCharge, drawDemolitionBlast } from '../render/DemolitionArt';
@@ -394,7 +397,7 @@ export class Renderer {
     }
     // Effects are stored in iso px already.
     const isoIn = (x: number, y: number): boolean => x >= left && x <= right && y >= top && y <= bottom + margin;
-    if (scene.effects) this.drawEffects(scene.effects.filter((e) => (e.kind === 'tracer' || e.kind === 'laser' || e.kind === 'bombFall' || e.kind === 'missile' || e.kind === 'samMissile' || e.kind === 'shell' || e.kind === 'bullet' ? isoIn(e.x0, e.y0) || isoIn(e.x1, e.y1) : isoIn(e.x, e.y))));
+    if (scene.effects) this.drawEffects(scene.effects.filter((e) => (e.kind === 'tracer' || e.kind === 'laser' || e.kind === 'bombFall' || e.kind === 'missile' || e.kind === 'samMissile' || e.kind === 'gradRocket' || e.kind === 'shell' || e.kind === 'bullet' ? isoIn(e.x0, e.y0) || isoIn(e.x1, e.y1) : isoIn(e.x, e.y))));
 
     const focused = this.focusedIds;
     focused.clear();
@@ -717,6 +720,11 @@ export class Renderer {
       // K9 Thunder, LDEW, LDEW truck: sheet only (nothing drawn for the few frames its sheets are still loading).
       if (hasNationVehicleSheet(u.type)) {
         drawNationVehicleSheet(ctx, u, P.x, P.y);
+        return;
+      }
+      // BM-21 Grad: sheet only (nothing drawn while its sheets are still loading).
+      if (u.type === 'bm21') {
+        drawBm21Sheet(ctx, u, P.x, P.y);
         return;
       }
       if (u.type === 'repair' && drawRepairSheet(ctx, u, P.x, P.y)) return;
@@ -1234,6 +1242,21 @@ export class Renderer {
     ctx.fillRect(x - k, y - k, w + 2 * k, 0.4 + 2 * k);
     ctx.fillStyle = ratio > 0.5 ? '#3fdc4a' : ratio > 0.25 ? '#f0d23a' : '#e8452f';
     ctx.fillRect(x, y, w * ratio, 0.4);
+    if (u instanceof Vehicle && u.type === 'bm21') this.drawRockets(u, x, y + 0.4 + 3 * k, w);
+  }
+
+  /** BM-21 magazine: a bar of BM21_ROCKETS equal segments right under the health bar, lit for each rocket loaded. */
+  private drawRockets(v: Vehicle, x: number, y: number, w: number): void {
+    const { ctx } = this;
+    const k = 1 / this.camera.zoom;
+    const h = 0.3;
+    ctx.fillStyle = 'rgba(0,0,0,0.75)';
+    ctx.fillRect(x - k, y - k, w + 2 * k, h + 2 * k);
+    const seg = w / BM21_ROCKETS;
+    for (let i = 0; i < BM21_ROCKETS; i++) {
+      ctx.fillStyle = i < v.rockets ? '#f0c23a' : '#3a3420';
+      ctx.fillRect(x + i * seg + (i > 0 ? k * 0.5 : 0), y, seg - (i > 0 ? k * 0.5 : 0), h);
+    }
   }
 
   /** The owner's national flag on the plate's top row (see plate). */
@@ -1375,6 +1398,8 @@ export class Renderer {
         drawShell(ctx, e.x0, e.y0, e.x1, e.y1, t, e.age);
       } else if (e.kind === 'shellImpact') {
         drawShellImpact(ctx, e.x, e.y, e.age, e.ttl, e.armour);
+      } else if (e.kind === 'gradRocket') {
+        drawGradRocket(ctx, e.x0, e.y0, e.x1, e.y1, e.age, e.flight, e.air);
       } else if (e.kind === 'samMissile') {
         drawSamMissile(ctx, e.x0, e.y0, e.x1, e.y1, e.age, e.flight, e.buk);
       } else if (e.kind === 'missile') {

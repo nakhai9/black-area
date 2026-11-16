@@ -180,6 +180,8 @@ const VEHICLE_WEIGHT: Readonly<Partial<Record<VehicleKind, number>>> = {
   k9: 0.15,
   // Only while the AI holds London.
   ldewTruck: 0.08,
+  // Only while the AI holds Pyongyang.
+  bm21: 0.12,
   // Only the Islamic world has the drone: it loves it, so it is a big share of what that AI builds.
   drone: 0.3,
 };

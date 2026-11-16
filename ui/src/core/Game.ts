@@ -167,6 +167,8 @@ import { BRIDGE_LAYER_DEATH_SECONDS } from '../render/BridgeLayerSheets';
 import { MANTIS_DEATH_SECONDS, hasMantisSheet } from '../render/MantisSheet';
 import { heavyMissile, samGun } from '../render/SamModel';
 import { SAM_TRAIL_SECONDS } from '../render/SamMissile';
+import { GRAD_BLAST_SECONDS, GRAD_TRAIL_SECONDS } from '../render/GradRocket';
+import { bm21Flight } from '../constants';
 import { TRUCK_DEATH_SECONDS, hasTruckSheet } from '../render/TruckSheets';
 import { TANK_DEATH_SECONDS, hasTankSheet } from '../render/TankSheets';
 import { CRAFT_DEATH_SECONDS, craftKey } from '../render/CraftSheets';
@@ -3330,6 +3332,8 @@ export class Game {
       if (hostile && aircraft.some((v) => v.canFight && !v.isTransport)) return this.sound.pilot('Target locked!', true);
     }
     if (move && aircraft.some((v) => v.isTransport && v.cargo.length > 0)) return this.sound.pilot("Let's go!");
+    // A BM-21 sent off: its crew answers in Korean, "All for the Leader Kim!".
+    if ((move || cmd.k === 'waypoints') && mine.some((u) => u instanceof Vehicle && u.type === 'bm21')) return this.sound.bm21Move();
     // Ground vehicles / soldiers sent somewhere (not at an enemy): the female voice answers "Moving" or "Orders received" (one at random).
     if (move || cmd.k === 'waypoints') {
       const target = cmd.k === 'right' || cmd.k === 'left' ? (this.selection.pickUnit(cmd.w) ?? this.selection.pick(cmd.w)) : null;
@@ -5126,7 +5130,18 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     const my = s.py + ((ty - s.py) / dist) * reach;
     const muzzle = this.fx(mx, my, this.aimHeight(s, s instanceof Vehicle ? 1 : 0.8));
     const hit = this.fx(tx, ty, tlift);
-    const ttl = { rifle: 0.09, smg: 0.06, sniper: 0.14, mg: 0.06, autocannon: 0.08, cannon: 0.22, missile: 0.35, bomb: BOMB_FALL_SECONDS }[w.kind];
+    const ttl = { rifle: 0.09, smg: 0.06, sniper: 0.14, mg: 0.06, autocannon: 0.08, cannon: 0.22, rocket: 0.5, missile: 0.35, bomb: BOMB_FALL_SECONDS }[w.kind];
+    // BM-21 Grad: each rocket of the salvo leaves the raised tubes and comes down on a high arc (it hits on landing, CombatSystem).
+    if (s instanceof Vehicle && s.type === 'bm21') {
+      const flight = bm21Flight(t ? distanceTo(s.px, s.py, t) : dist);
+      const tube = this.fx(s.px, s.py, this.aimHeight(s, 1.6));
+      const k = (s.rockets % 4) - 1.5;
+      const to = { x: hit.x + k * 0.8, y: hit.y + ((s.rockets * 3) % 5 - 2) * 0.5 };
+      this.effects.add({ kind: 'gradRocket', x0: tube.x, y0: tube.y, x1: to.x, y1: to.y, age: 0, ttl: flight + Math.max(GRAD_TRAIL_SECONDS, GRAD_BLAST_SECONDS), flight, air: t instanceof Unit && t.flies });
+      this.sound.play('missile', { x: s.px, y: s.py });
+      this.sound.rocketWhistle({ x: s.px, y: s.py }, flight);
+      return;
+    }
     if (w.kind === 'bomb' || (s instanceof Vehicle && s.type === 'bomber')) {
       if (s instanceof Vehicle && s.type === 'bomber' && hasBombSheet(s.faction)) {
         // Bomber with a bomb sheet: the stick of bombs falls from the bay and blows up on the ground.
