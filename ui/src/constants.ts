@@ -34,7 +34,7 @@ export const DEMO_FACTION: FactionId = NATION_CODES[(import.meta.env.VITE_DEMO_F
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "3.75.72";
+export const GAME_VERSION = "3.75.74";
 
 /** An Allied Building within this many cells of any capital is an embassy; farther out it is a "Pro-<nation> regime". */
 export const EMBASSY_CAPITAL_CELLS = 25;
@@ -734,7 +734,7 @@ export const WEAPONS: Readonly<Record<WeaponKind, WeaponSpec>> = {
   /** BM-21 Grad 122 mm rocket (one of a ripple salvo, see BM21_*): lobbed on an arc, long reach, hits ground, structures and aircraft. */
   rocket: {
     kind: "rocket",
-    damage: 28,
+    damage: 14, // halved (v3.75.73): BM-21s are meant to be fielded in numbers and fire massed salvos from afar
     range: 140,
     cooldown: 0.12,
     vsBuilding: 1.6,
@@ -805,7 +805,7 @@ export const VEHICLE_BASE = {
   /** K9 Thunder 155 mm self-propelled howitzer: sold only to the holder of Seoul (South Korea's capital), see K9_NATION. */
   k9: { cost: 1800, trainSeconds: 18, maxHp: 360, speed: 1.2, radius: 4.4 },
   /** BM-21 Grad rocket launcher on the Ural-4320: sold only to the holder of Pyongyang (North Korea's capital), see NATION_VEHICLES and BM21_*. */
-  bm21: { cost: 2000, trainSeconds: 18, maxHp: 260, speed: 1.6, radius: 4.6 },
+  bm21: { cost: 1200, trainSeconds: 18, maxHp: 260, speed: 1.6, radius: 4.6 },
   /** LDEW laser (counter-UAS), ground emplacement: crawls into place, then guards it. Holder of London only (NATION_VEHICLES). */
   ldew: { cost: 1500, trainSeconds: 16, maxHp: 320, speed: 0.4, radius: 4.0 },
   /** LDEW laser on the European MAN SV truck bed. Holder of London only (NATION_VEHICLES). */
