@@ -2898,13 +2898,16 @@ input:disabled {
   gap: 22px;
   width: min(1080px, 100%); /* side column +80 px, cards keep their width */
 }
+/* The nation photo shows behind the cards only: the side column is a plain dark panel out to the steel frame. */
 .fp-menu .fp-side {
   display: flex;
   flex-direction: column;
   align-items: stretch;
   gap: 18px;
-  padding: 8px 0 0 22px;
-  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  margin: -17px -17px -17px 0; /* modal padding (22 px) less the 5 px steel frame */
+  padding: 25px 17px 17px 22px;
+  background: linear-gradient(180deg, #1b232b, #0e1318);
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
 }
 .fp-menu .fp-header .sb-logo {
   display: flex;
@@ -2967,7 +2970,9 @@ input:disabled {
   }
   .fp-menu .fp-side {
     order: -1;
+    margin: 0;
     padding: 0;
+    background: none;
     border-left: none;
   }
 }
