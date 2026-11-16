@@ -68,6 +68,18 @@ function nationOption(faction: FactionId, kind: VehicleKind): VehicleOption {
 
 /** Another nation's machines, as offered to whoever holds its War Factory / Airfield. */
 const FOREIGN = new Map<FactionId, VehicleOption[]>();
+/** Machines that are the same for every nation: the shop lists one of each (the first: own nation's, else the first captured). */
+const SHARED_KINDS: ReadonlySet<string> = new Set(['bridgeLayer', 'repair']);
+function onePerSharedKind(list: VehicleOption[]): VehicleOption[] {
+  const seen = new Set<string>();
+  return list.filter((o) => {
+    if (!SHARED_KINDS.has(o.kind)) return true;
+    if (seen.has(o.kind)) return false;
+    seen.add(o.kind);
+    return true;
+  });
+}
+
 function foreignOptions(faction: FactionId): VehicleOption[] {
   let list = FOREIGN.get(faction);
   if (!list) FOREIGN.set(faction, (list = vehicleOptions(faction, true).filter((o) => !isDeleted('vehicle', faction, o.kind))));
@@ -133,6 +145,10 @@ export class VehicleSystem implements GameSystem {
    * from a captured Airfield of that nation.
    */
   optionsFor(player: PlayerState): VehicleOption[] {
+    return onePerSharedKind(this.allOptionsFor(player));
+  }
+
+  private allOptionsFor(player: PlayerState): VehicleOption[] {
     const own = this.options.get(player.id) ?? [];
     if (own.length === 0) return own;
     const ground = takenNations(this.entities, player, 'warFactory');

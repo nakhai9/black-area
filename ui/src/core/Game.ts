@@ -15,6 +15,7 @@ import {
   ENGINEER_REPAIR_SHARE,
   CAPITAL_EMBARGO_SECONDS,
   CAPITAL_DISARM_SECONDS,
+  BM21_RELOAD_COST,
   MILITARY_BASES,
   AI_EMBARGO_CREDITS,
   DERRICK_GRACE_GAP,
@@ -636,6 +637,13 @@ export class Game {
     this.placement = new PlacementSystem(this.map, this.entities);
     this.construction = new ConstructionSystem(this.players);
     this.construction.owns = (p, type) => this.entities.buildings().some((b) => b.owner === p.id && b.alive && b.spec.type === type);
+    // BM-21 reload: BM21_RELOAD_COST TB a time from the owner's treasury (player and AI alike); no money, no rockets.
+    Vehicle.payReload = (v) => {
+      const p = this.players.find((o) => o.id === v.owner);
+      if (!p || p.credits < BM21_RELOAD_COST) return false;
+      p.credits -= BM21_RELOAD_COST;
+      return true;
+    };
     this.construction.lostPrerequisite = (p, option) =>
       missingRequirement(option, this.ownedTypesOf(p), p.disarmedUntil !== undefined) !== null ||
       // A Parallel Government's right is spent when it is ordered: its order stays.
@@ -713,6 +721,7 @@ export class Game {
     );
     this.combat = new CombatSystem(this.entities, this.pathfinder, {
       onFire: (s, t, w, impact) => this.onFire(s, t, w, impact),
+      onIntercept: (guard, launcher, target, impact, flight) => this.onIntercept(guard, launcher, target, impact, flight),
       onBunkerFire: (b, t) => this.onBunkerFire(b, t),
       onDeath: (e, killer) => this.onDeath(e, killer),
       onSpare: (nation, fugitive) => this.payMercyBonus(nation, fugitive),
@@ -4926,6 +4935,26 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     this.alertUnderAttack(t, b);
   }
 
+  /**
+   * A BM-21 rocket shot down: it climbs off the rails as usual but bursts high over the target area, met there by the
+   * air-defence vehicle's missile (or flak) — no ground blast, no boom on the ground.
+   */
+  private onIntercept(guard: Vehicle, launcher: Vehicle, target: Entity, impact: WorldPoint, flight: number): void {
+    this.countAttackOnPlayer(launcher, target);
+    const meet = flight * 0.75;
+    const tube = this.fx(launcher.px, launcher.py, this.aimHeight(launcher, 1.6));
+    const burst = this.fx(impact.x, impact.y, 26);
+    this.effects.add({ kind: 'gradRocket', x0: tube.x, y0: tube.y, x1: burst.x, y1: burst.y, age: 0, ttl: meet + Math.max(GRAD_TRAIL_SECONDS, GRAD_BLAST_SECONDS), flight: meet, air: true, ring: 0 });
+    this.sound.gradLaunch({ x: launcher.px, y: launcher.py });
+    const buk = heavyMissile(guard.faction as FactionId);
+    const sam = buk ? 0.55 : 0.4;
+    const from = this.fx(guard.px, guard.py, this.aimHeight(guard, 1));
+    const delay = Math.max(0, meet - sam);
+    this.effects.add({ kind: 'samMissile', x0: from.x, y0: from.y, x1: burst.x, y1: burst.y, age: -delay, ttl: sam + SAM_TRAIL_SECONDS, flight: sam, buk });
+    if (hasMissileSheet()) this.effects.add({ kind: 'missileBlast', x: burst.x, y: burst.y, age: -meet, ttl: MISSILE_BLAST_SECONDS, air: true });
+    setTimeout(() => this.sound.play('missile', { x: guard.px, y: guard.py }), delay * 1000);
+  }
+
   private onFire(s: Unit, t: Entity, w: WeaponSpec, _impact: WorldPoint): void {
     this.countAttackOnPlayer(s, t);
     this.alertUnderAttack(t, s);
@@ -5173,8 +5202,10 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       const edge = this.fx(tx + BM21_SHOCK_CELLS * CELL_SIZE, ty, tlift);
       const ring = Math.hypot(edge.x - hit.x, edge.y - hit.y);
       this.effects.add({ kind: 'gradRocket', x0: tube.x, y0: tube.y, x1: to.x, y1: to.y, age: 0, ttl: flight + Math.max(GRAD_TRAIL_SECONDS, GRAD_BLAST_SECONDS), flight, air: t instanceof Unit && t.flies, ring });
-      this.sound.play('missile', { x: s.px, y: s.py });
-      this.sound.rocketWhistle({ x: s.px, y: s.py }, flight);
+      // Launch roar, the rocket tearing through the air, then the boom where it lands.
+      this.sound.gradLaunch({ x: s.px, y: s.py });
+      this.sound.rocketWhistle({ x: s.px, y: s.py }, flight, { x: tx, y: ty });
+      this.sound.gradImpact({ x: tx, y: ty }, flight);
       return;
     }
     if (w.kind === 'bomb' || (s instanceof Vehicle && s.type === 'bomber')) {

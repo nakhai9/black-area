@@ -23,7 +23,7 @@ import {
   isAircraftKind,
 } from '../constants';
 import { FACTIONS } from '../factions';
-import type { FactionId, VehicleKind, VehicleProfile, WorldPoint } from '../types';
+import type { FactionId, VehicleKind, VehicleProfile, WeaponSpec, WorldPoint } from '../types';
 import { Unit } from './Unit';
 
 /**
@@ -102,6 +102,9 @@ export function vehicleStrength(faction: FactionId, kind: VehicleKind): number {
 const TURRET_TURN_RATE = 2.5;
 
 export class Vehicle extends Unit {
+  /** BM-21 reload: charges the owner BM21_RELOAD_COST and says whether it could pay (set by Game; free until then). */
+  static payReload: (v: Vehicle) => boolean = () => true;
+
   readonly profile: VehicleProfile;
   /** Top speed empty (world px/s). */
   readonly baseSpeed: number;
@@ -207,6 +210,8 @@ export class Vehicle extends Unit {
   ejectClock = 0;
   /** Transport / helicopter: fuel left (0..1), it falls out of the sky at 0. */
   fuel = 1;
+  /** VT 1-2 only: its coaxial machine gun (CombatSystem.fire picks it against soldiers within its range). */
+  coaxGun: WeaponSpec | null = null;
   /** Aircraft: the pilot has already called mayday (going down, or badly hit in the air). */
   maydaySent = false;
   /** Fighter only: own unit (any but buildings / mantis) it flies guard on (GUARD_TRAIL_CELLS behind it), or null. */
@@ -264,6 +269,11 @@ export class Vehicle extends Unit {
       // A-29: ground attack only (its missiles never reach aircraft).
       if (type === 'a29') this.weapon = { ...this.weapon, hitsAir: false };
       if (type === 'ldew' || type === 'ldewTruck') this.weapon = { ...this.weapon, damage: this.weapon.damage * LDEW_DAMAGE, range: this.weapon.range * LDEW_RANGE };
+      // VT 1-2: a coaxial machine gun next to its two cannons — rapid fire, like a rifle squad, for soldiers close by.
+      if (type === 'vt12') {
+        const mg = WEAPONS.mg;
+        this.coaxGun = { ...mg, damage: mg.damage * strength * 1.4, range: mg.range * 1.2 * f.stats.range, hitsAir: false };
+      }
     }
     this.bombs = this.maxBombs;
     const h = HANDLING[type];
@@ -455,7 +465,8 @@ export class Vehicle extends Unit {
       if (this.salvo || this.rockets >= BM21_ROCKETS) this.reloadClock = 0;
       else if ((this.reloadClock += dt) >= BM21_RELOAD_SECONDS) {
         this.reloadClock -= BM21_RELOAD_SECONDS;
-        this.rockets = Math.min(BM21_ROCKETS, this.rockets + BM21_RELOAD_ROCKETS);
+        // The rockets are paid for (Vehicle.payReload, wired by Game): a nation without the money cannot reload.
+        if (Vehicle.payReload(this)) this.rockets = Math.min(BM21_ROCKETS, this.rockets + BM21_RELOAD_ROCKETS);
       }
     }
     // A tank's turret swings on its own (any way round, right over the engine deck) to the target, and back to the

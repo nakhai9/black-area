@@ -133,7 +133,7 @@ const HEALTH_PIPS = 24;
 const FUEL_ROW = 0.9;
 /** Fuel gauge shown: a transport out on a sortie (parked / taxiing at home it is idle), a helicopter not full. */
 function showsFuel(u: Unit): boolean {
-  return u instanceof Vehicle && ((u.isTransport && u.flight !== 'parked' && u.flight !== 'taxi' && u.flight !== 'taxiHome') || (u.isHeli && u.fuel < 1));
+  return u instanceof Vehicle && ((u.isTransport && u.flight !== 'parked' && u.flight !== 'taxi' && u.flight !== 'taxiHome') || (u.isHeli && u.fuel < 1) || (u.type === 'a29' && u.flight !== 'parked' && u.flight !== 'taxi' && u.flight !== 'taxiHome'));
 }
 /** Length of a structure's flash when a charge is planted on it (s). */
 const BLINK_SECONDS = 0.35;

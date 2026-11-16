@@ -2,7 +2,7 @@ import type { FactionId } from '../types';
 import type { Mobility } from '../map/Pathfinder';
 import { demoActive } from '../core/Demo';
 import { movesRight } from '../core/IsoView';
-import { BM21_MIN_SALVO, BM21_SHOCK_CELLS, BM21_SHOCK_PEAK, bm21Flight, BOMB_FALL_SECONDS, HIGH_GROUND_DAMAGE, HIGH_GROUND_RANGE, LOW_GROUND_DAMAGE, MANTIS_HIT_SHARE, MANTIS_RANGE_CELLS, MANTIS_RANK_BONUS, MANTIS_EVADE_CELLS, HELI_VS_MANTIS_SHARE, JET_VS_MANTIS_SHARE, MANTIS_VS_JET_SHARE, MANTIS_VS_HELI_SHARE, MANTIS_RELOAD, MANTIS_GUN_NATIONS, PGZ_RELOAD, PGZ_HIT_FACTOR, JET_BOMB_VS_STRUCTURE, JET_BOMB_VS_VEHICLE, ACQUIRE_PERIOD, RANK_FIREPOWER, RANK_RELOAD, BOMB_GROUP_RADIUS_CELLS, BOMB_GROUP_SIZE, BOMB_TOUGH_DAMAGE, BOMB_TOUGH_STRUCTURES, BOMBS_PER_DROP, CELL_SIZE, CHASE_GIVE_UP_SECONDS, CHASE_LIMIT_CELLS, CHASE_PERIOD, FIGHT_MEMORY_SECONDS, GUARD_VISION_FACTOR, NEUTRAL_OWNER, RETALIATE_RANGE_FACTOR, WEAPONS, FIGHTER_DRONE_ALERT, FELL_SPREAD_CELLS, TREE_BOMB_RADIUS_CELLS, TREE_STICK_RADIUS_CELLS } from '../constants';
+import { BM21_INTERCEPT_CHANCE, BM21_MIN_SALVO, BM21_SHOCK_CELLS, BM21_SHOCK_PEAK, bm21Flight, BOMB_FALL_SECONDS, HIGH_GROUND_DAMAGE, HIGH_GROUND_RANGE, LOW_GROUND_DAMAGE, MANTIS_HIT_SHARE, MANTIS_RANGE_CELLS, MANTIS_RANK_BONUS, MANTIS_EVADE_CELLS, HELI_VS_MANTIS_SHARE, JET_VS_MANTIS_SHARE, MANTIS_VS_JET_SHARE, MANTIS_VS_HELI_SHARE, MANTIS_RELOAD, MANTIS_GUN_NATIONS, PGZ_RELOAD, PGZ_HIT_FACTOR, JET_BOMB_VS_STRUCTURE, JET_BOMB_VS_VEHICLE, ACQUIRE_PERIOD, RANK_FIREPOWER, RANK_RELOAD, BOMB_GROUP_RADIUS_CELLS, BOMB_GROUP_SIZE, BOMB_TOUGH_DAMAGE, BOMB_TOUGH_STRUCTURES, BOMBS_PER_DROP, CELL_SIZE, CHASE_GIVE_UP_SECONDS, CHASE_LIMIT_CELLS, CHASE_PERIOD, FIGHT_MEMORY_SECONDS, GUARD_VISION_FACTOR, NEUTRAL_OWNER, RETALIATE_RANGE_FACTOR, WEAPONS, FIGHTER_DRONE_ALERT, FELL_SPREAD_CELLS, TREE_BOMB_RADIUS_CELLS, TREE_STICK_RADIUS_CELLS } from '../constants';
 import { Building } from '../entities/Building';
 import { Bunker } from '../entities/Bunker';
 import { LdewEmplacement } from '../entities/LdewEmplacement';
@@ -37,6 +37,8 @@ export interface CombatHooks {
   readonly trees: TreeLayer;
   /** A shot was fired on the trees (clearing order): draw it landing at `at` (world px) and play the sound. */
   onFellFire(shooter: Unit, weapon: WeaponSpec, at: WorldPoint): void;
+  /** An air-defence vehicle shot down a BM-21 rocket bound for `impact` (it would have flown `flight` s): draw both. */
+  onIntercept(guard: Vehicle, launcher: Vehicle, target: Entity, impact: WorldPoint, flight: number): void;
 }
 
 /** Two entities are enemies when they belong to different nations (neutral ones are never targets). */
@@ -408,6 +410,15 @@ export class CombatSystem implements GameSystem {
       this.resumeAttackMove(s);
       return;
     }
+    // Too close for this weapon (BM-21 rockets fire at long range only): hold fire, let the target go (an explicit
+    // attack order waits until it is far enough).
+    if (w.minRange !== undefined && d < w.minRange) {
+      if (s instanceof Vehicle && s.type === 'bm21') s.salvo = false;
+      s.combatTarget = null;
+      s.engaged = false;
+      if (s.attackTarget === null) this.resumeAttackMove(s);
+      return;
+    }
     const tx = target instanceof Unit ? target.px : target instanceof Building ? target.centerWorld().x : s.px;
     const ty = target instanceof Unit ? target.py : target instanceof Building ? target.centerWorld().y : s.py;
     s.aimHeading = Math.atan2(ty - s.py, tx - s.px);
@@ -557,6 +568,7 @@ export class CombatSystem implements GameSystem {
         for (const o of cell) {
           if (!isHostile(s, o) || !this.canHit(s, w, o)) continue;
           const d = Math.hypot(o.px - s.px, o.py - s.py);
+          if (w.minRange !== undefined && d < w.minRange) continue; // too close for it (BM-21)
           if ((this.protectedFrom(s, o) && d > w.range) || this.sheltered(o)) continue;
           if (d > w.range && (s.ignoreUntil.get(o.id) ?? 0) > this.time) continue;
           if (d < bestD) {
@@ -707,7 +719,29 @@ export class CombatSystem implements GameSystem {
     for (const o of group.slice(0, dead)) hit(o, Infinity);
   }
 
+  /**
+   * The enemy air-defence vehicle that shoots down a BM-21 rocket from `s` landing at `impact`, if any: one that is
+   * hostile to `s`, ready to fire (reloaded, radar powered) and has the landing spot within its range. Every one that
+   * tries uses up its reload; each succeeds with BM21_INTERCEPT_CHANCE (deterministic, so all clients agree).
+   */
+  private interceptor(s: Vehicle, impact: WorldPoint): Vehicle | null {
+    for (const v of this.entities.vehicles()) {
+      if (v.type !== 'mantis' || !v.alive || v.cooldown > 0 || !v.weapon || !isHostile(v, s)) continue;
+      const d = Math.hypot(v.px - impact.x, v.py - impact.y);
+      if (d > v.weapon.range || this.hooks.powerShort(v.owner)) continue;
+      const flakGun = MANTIS_GUN_NATIONS.includes(v.faction as FactionId);
+      v.cooldown = flakGun ? PGZ_RELOAD : MANTIS_RELOAD;
+      v.aimHeading = Math.atan2(impact.y - v.py, impact.x - v.px);
+      const roll = ((v.id * 7919 + s.id * 104729 + s.rockets * 131 + Math.floor(this.time * 20)) % 1000) / 1000;
+      if (roll < BM21_INTERCEPT_CHANCE) return v;
+    }
+    return null;
+  }
+
   private fire(s: Unit, t: Entity, w: WeaponSpec): void {
+    // VT 1-2 (player and AI alike): soldiers within its machine gun's reach get rapid fire from the coaxial gun, anything
+    // else (vehicles, structures, soldiers farther off) one round at a time from the cannons.
+    if (s instanceof Vehicle && s.coaxGun && t instanceof Infantry && distanceTo(s.px, s.py, t) <= s.coaxGun.range) w = s.coaxGun;
     // The air-defence vehicle reloads in MANTIS_RELOAD (one missile at a time, so it never keeps firing at an aircraft it
     // has already brought down).
     // has already brought down); the gun-armed PGZ-09 keeps firing every PGZ_RELOAD instead, lighter rounds.
@@ -725,8 +759,16 @@ export class CombatSystem implements GameSystem {
       s.rockets--;
       s.salvo = s.rockets > 0;
       s.cooldown = w.cooldown;
+      const flight = bm21Flight(distanceTo(s.px, s.py, t));
+      // Enemy air defence round the landing spot may shoot it down on the way (BM21_INTERCEPT_CHANCE).
+      const guard = this.interceptor(s, impact);
+      if (guard) {
+        s.engaged = true;
+        this.hooks.onIntercept(guard, s, t, impact, flight);
+        return;
+      }
       // The rocket only hits when it comes down at the end of its arc.
-      this.falling.push({ at: this.time + bm21Flight(distanceTo(s.px, s.py, t)), kind: 'rocket', shooter: s, target: t, impact });
+      this.falling.push({ at: this.time + flight, kind: 'rocket', shooter: s, target: t, impact });
       s.engaged = true;
       this.hooks.onFire(s, t, w, impact);
       return;

@@ -1,4 +1,4 @@
-import { BOMB_COST, BOMB_LOAD_SECONDS, CARRIER_JETS, JET_BOMB_COST, CELL_SIZE, TURBO_RECHARGE_SECONDS, TURBO_SECONDS, TRANSPORT_FUEL_CELLS, PORT_AIR_SLOTS, HELI_FUEL_CELLS, AWACS_RADIUS_CELLS } from '../constants';
+import { BOMB_COST, BOMB_LOAD_SECONDS, CARRIER_JETS, JET_BOMB_COST, CELL_SIZE, TURBO_RECHARGE_SECONDS, TURBO_SECONDS, TRANSPORT_FUEL_CELLS, PORT_AIR_SLOTS, A29_FUEL_CELLS, A29_FUEL_RETURN, HELI_FUEL_CELLS, AWACS_RADIUS_CELLS } from '../constants';
 import type { Unit } from '../entities/Unit';
 import { canTarget } from './CombatSystem';
 import type { Building } from '../entities/Building';
@@ -195,6 +195,14 @@ export class AircraftSystem implements GameSystem {
       }
       if (v.isTransport) this.fuel(v, prev);
       else if (v.isHeli) this.fuel(v, prev, HELI_FUEL_CELLS);
+      else if (v.type === 'a29') {
+        // A-29 Super Tucano: burns fuel in the air (gauge on its plate) and turns back to its airfield once low on it.
+        this.fuel(v, prev, A29_FUEL_CELLS);
+        if (v.fuel < A29_FUEL_RETURN && v.flight === 'airborne' && !v.returningHome) {
+          const home = this.home(v);
+          if (home) this.land(v, home);
+        }
+      }
       const base = this.home(v);
       // Drawn right after its airfield only while it is on the airfield's apron or runway.
       const onAirfield = v.flight === 'parked' || v.flight === 'taxi' || v.flight === 'takeoff' || v.flight === 'landing' || v.flight === 'taxiHome';

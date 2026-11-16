@@ -39,7 +39,7 @@ export const DEMO_FACTION: FactionId = NATION_CODES[(import.meta.env.VITE_DEMO_F
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "3.75.126";
+export const GAME_VERSION = "3.75.135";
 
 /** An Allied Building within this many cells of any capital is an embassy; farther out it is a "Pro-<nation> regime". */
 export const EMBASSY_CAPITAL_CELLS = 25;
@@ -201,9 +201,9 @@ export const BRIDGE_HP = 900;
 /** A bridge layer deploys once within this many cells of the spot it was sent to (its bow at the bridge's near end). */
 export const BRIDGE_DEPLOY_CELLS = 2.5;
 /** Attack orders go out in squads (player and AI): at least this many regular soldiers, special forces, tanks. */
-export const SQUAD_MIN_REGULAR = 9;
+export const SQUAD_MIN_REGULAR = 1; // squad rule lifted (v3.75.131): any number may attack
 export const SQUAD_MIN_SPECIAL = 1;
-export const SQUAD_MIN_TANKS = 6;
+export const SQUAD_MIN_TANKS = 1;
 /** A bridge may only be laid this close (cells, from the layer to the near end of the bridge) to where its layer stands. */
 export const BRIDGE_REACH_CELLS = 4;
 /** Pyramids of Giza (neutral monument). */
@@ -291,7 +291,9 @@ export const MERCY_BONUS = 100;
  * attacks (all nations together) on the player's structures. An attack starts when a nation hits one of them after
  * DERRICK_GRACE_GAP seconds without having hit any.
  */
-export const DERRICK_GRACE_ATTACKS = 5;
+// 0: no grace any more — the player's derricks can be attacked and destroyed like every nation's; only those managed
+// by the Global Monitoring Center (OilDerrick.bankManaged) can never be destroyed.
+export const DERRICK_GRACE_ATTACKS = 0;
 export const DERRICK_GRACE_GAP = 30;
 export const CAMERA_PAN_SPEED = 1100; // screen px / second (keyboard)
 /** Slower pan while the cursor rests on the screen edge, so the view does not fly off. */
@@ -741,6 +743,7 @@ export const WEAPONS: Readonly<Record<WeaponKind, WeaponSpec>> = {
     kind: "rocket",
     damage: 14, // halved (v3.75.73): BM-21s are meant to be fielded in numbers and fire massed salvos from afar
     range: 140,
+    minRange: 56, // 8 cells: long range only, it never fires at anything closer
     cooldown: 0.12,
     vsBuilding: 1.6,
     hitsAir: true,
@@ -969,6 +972,9 @@ export const BOMB_GROUP_SIZE = 10;
 export const TRANSPORT_FUEL_CELLS = GRID_HEIGHT * 1.25;
 /** Helicopter fuel: a full tank flies this many cells; refilled on the ground anywhere (like the transport), empty in
  * the air = it crashes. Carried in a transport it burns none. */
+/** A-29 Super Tucano: cells it flies on a full tank, and the share left at which it heads home to refuel. */
+export const A29_FUEL_CELLS = Math.round(GRID_HEIGHT * 0.6);
+export const A29_FUEL_RETURN = 0.3;
 export const HELI_FUEL_CELLS = Math.round(GRID_HEIGHT * 0.4);
 
 /** Aircraft are built at the Airfield and use its runway; everything else rolls out of the War Factory. */
@@ -1071,6 +1077,14 @@ export const BM21_SHOCK_CELLS = 2;
 export const BM21_SHOCK_PEAK = 0.6;
 export const BM21_RELOAD_ROCKETS = 4;
 export const BM21_RELOAD_SECONDS = 2;
+/**
+ * Air defence vs BM-21: an enemy air-defence vehicle (ready to fire, its radar powered) within its range of where a
+ * rocket will land shoots it down in the air with this chance; each try uses up its reload, so a full salvo always
+ * gets some rockets through. Player and AI alike.
+ */
+export const BM21_INTERCEPT_CHANCE = 0.5;
+/** Each reload (BM21_RELOAD_ROCKETS rockets) costs this many TB from the owner's treasury; no money, no reload. */
+export const BM21_RELOAD_COST = 60;
 export const bm21Flight = (distance: number): number => 0.5 + distance / 110;
 /** K9 howitzer shell vs the tank cannon: range and damage factors (slower to reload). */
 export const K9_RANGE = 2.2;

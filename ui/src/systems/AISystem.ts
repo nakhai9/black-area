@@ -317,13 +317,9 @@ const GUARD_SHARE = 1 / 3;
 /** Idle attackers set out together once at least this many are ready (or all of them are). */
 const STRIKE_GROUP = 3;
 /**
- * Timing an offensive (advance): the strike force masses at the staging point until its strength (unit value × health)
- * is AI_ATTACK_ODDS × the enemy's round the target (units within AI_TARGET_SCAN cells, plus bunkers), or it has
- * waited AI_MASS_MAX s (the AI always attacks in the end). Meanwhile AI_WAR_CHEST credits are kept back from training;
+ * Offensive (advance): the strike force sets off at once, no massing. Meanwhile AI_WAR_CHEST credits are kept back from training;
  * once the attack is launched the chest is spent on reinforcements for AI_OFFENSIVE_SECONDS.
  */
-const AI_ATTACK_ODDS = 1.3;
-const AI_MASS_MAX = 150;
 const AI_WAR_CHEST = 2500;
 const AI_OFFENSIVE_SECONDS = 60;
 const AI_TARGET_SCAN = 14;
@@ -359,8 +355,6 @@ const AI_RAID_FLEE = 0.5;
 const AI_RAID_REST = 30;
 const AI_DEEP_MIN = 8;
 const AI_DEEP_SHARE = 0.35;
-/** Squads waiting at the staging point stand within this many cells of it. */
-const STAGE_RADIUS_CELLS = 6;
 /** AWACS the AI keeps (one), built once it has at least this many vehicles. */
 const AI_AWACS = 1;
 const AI_AWACS_AFTER = 6;
@@ -2496,17 +2490,9 @@ export class AISystem implements GameSystem {
     let going = idle.filter(
       (u) => u.aircraft || (cell !== null && (u.swims ? this.host.pathfinder.sameSwimArea(Math.floor(u.px / CELL_SIZE), Math.floor(u.py / CELL_SIZE), cell.x, cell.y) : this.host.pathfinder.sameLandmass(Math.floor(u.px / CELL_SIZE), Math.floor(u.py / CELL_SIZE), cell.x, cell.y))),
     );
-    // Squad rule (same as the player's): kinds still too few gather at a staging point toward the target and set off
-    // together once there are enough of them — a blitz from wherever the staging point is.
-    // Timing: the force masses at the staging point until it clearly outweighs the target's defenders.
+    // No waiting to mass or to gather every arm: the group sets off at once (combined arms comes from moving and
+    // fighting together — mutualSupport).
     if (going.length > 0 && !this.onOffensive(st)) {
-      const ours = this.forceOf(going);
-      const theirs = this.defenceAt(p, goal);
-      st.massSince ??= this.time;
-      if (ours < AI_ATTACK_ODDS * theirs && this.time - st.massSince < AI_MASS_MAX) {
-        this.gatherAtStage(st, going, { x: cx, y: cy }, goal);
-        return;
-      }
       st.massSince = undefined;
       st.offensiveUntil = this.time + AI_OFFENSIVE_SECONDS;
     }
@@ -2540,20 +2526,6 @@ export class AISystem implements GameSystem {
     const y = units.reduce((s, u) => s + u.py, 0) / units.length;
     const eyes = this.host.entities.fieldMovers().filter((u): u is Vehicle => u instanceof Vehicle && u.type === 'awacs' && u.owner === p.id && u.alive && !u.moving && Math.hypot(u.px - x, u.py - y) > CELL_SIZE * 6);
     if (eyes.length > 0) this.host.orderMoveUnits(eyes, { x, y });
-  }
-
-  /** Sends squads still too small to the staging point (picked a third of the way from `from` to `goal`, on dry ground). */
-  private gatherAtStage(st: AIState, units: readonly Unit[], from: WorldPoint, goal: WorldPoint): void {
-    if (!st.stage) {
-      const x = from.x + (goal.x - from.x) / 3;
-      const y = from.y + (goal.y - from.y) / 3;
-      const cell = this.host.pathfinder.nearestPassable(Math.floor(x / CELL_SIZE), Math.floor(y / CELL_SIZE), 12, undefined, 'vehicle');
-      if (!cell) return;
-      st.stage = { x: (cell.x + 0.5) * CELL_SIZE, y: (cell.y + 0.5) * CELL_SIZE };
-    }
-    const stage = st.stage;
-    const far = units.filter((u) => !u.aircraft && Math.hypot(u.px - stage.x, u.py - stage.y) > STAGE_RADIUS_CELLS * CELL_SIZE);
-    if (far.length > 0) this.host.orderMoveUnits(far, stage);
   }
 
   /**

@@ -449,46 +449,144 @@ export class SoundSystem {
     }
   }
 
-  /**
-   * BM-21 rocket in flight: a shrill whistle (sine plus a hiss of band-passed noise) that falls in pitch as the rocket
-   * climbs and comes down, lasting its whole `flight` s. A salvo overlaps a few of them (one per 0.25 s at most).
-   */
-  rocketWhistle(at: WorldPoint, flight: number): void {
+  /** Volume (0..1) of a sound at `at` for the current view, 0 when too far or the audio is off. */
+  private volAt(at: WorldPoint): number {
     const ctx = this.ctx;
-    if (!ctx || !this.master || !this.noise || this.muted || ctx.state !== 'running') return;
+    if (!ctx || !this.master || !this.noise || this.muted || ctx.state !== 'running' || this.active > 24) return 0;
     const l = this.listener();
     const vol = Math.max(0, 1 - Math.hypot(at.x - l.centre.x, at.y - l.centre.y) / (l.range * 1.4));
-    if (vol < 0.04 || this.active > 24) return;
+    return vol < 0.04 ? 0 : vol;
+  }
+
+  /** A burst of filtered noise from `t0`: `type` filter at f0 -> f1 Hz, gain `peak` decaying over `len` s. */
+  private noiseBurst(t0: number, len: number, peak: number, type: BiquadFilterType, f0: number, f1: number, q = 0.7): void {
+    const ctx = this.ctx!;
+    const src = ctx.createBufferSource();
+    src.buffer = this.noise;
+    src.loop = true;
+    const filter = ctx.createBiquadFilter();
+    filter.type = type;
+    filter.Q.value = q;
+    filter.frequency.setValueAtTime(f0, t0);
+    filter.frequency.exponentialRampToValueAtTime(f1, t0 + len);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(peak, t0 + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + len);
+    src.connect(filter).connect(g).connect(this.master!);
+    src.start(t0, Math.random() * 0.5);
+    src.stop(t0 + len + 0.05);
+  }
+
+  /** A low sine thump from `t0`: f0 -> f1 Hz, gain `peak` decaying over `len` s. */
+  private lowThump(t0: number, len: number, peak: number, f0: number, f1: number): void {
+    const ctx = this.ctx!;
+    const o = ctx.createOscillator();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(f0, t0);
+    o.frequency.exponentialRampToValueAtTime(f1, t0 + len);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(peak, t0 + 0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + len);
+    o.connect(g).connect(this.master!);
+    o.start(t0);
+    o.stop(t0 + len + 0.05);
+  }
+
+  /**
+   * BM-21 launch: the rocket motor lights with a sharp crack and a low thump, then roars off the rail (a deep, fading
+   * rush of noise) — one per rocket of the ripple (at most one every 0.12 s).
+   */
+  gradLaunch(at: WorldPoint): void {
+    const vol = this.volAt(at);
+    if (vol <= 0) return;
+    const now = this.ctx!.currentTime;
+    if (now - (this.lastPlayed.get('gradLaunch') ?? -1) < 0.12) return;
+    this.lastPlayed.set('gradLaunch', now);
+    this.sfxUntil = now + SFX_DUCK_HOLD;
+    this.music?.setDuck(SFX_DUCK);
+    this.noiseBurst(now, 0.09, 0.5 * vol, 'highpass', 3200, 1800); // ignition crack
+    this.lowThump(now, 0.35, 0.55 * vol, 95, 38); // the push off the rail
+    this.noiseBurst(now + 0.01, 0.95, 0.42 * vol, 'lowpass', 2200, 260); // motor roar, fading as it climbs away
+    this.noiseBurst(now + 0.02, 0.6, 0.16 * vol, 'bandpass', 900, 500, 1.2); // rasp of the exhaust
+  }
+
+  /**
+   * BM-21 rocket in flight: wind tearing past the airframe — a rushing, fluttering hiss that rises as the rocket
+   * climbs and falls in pitch as it dives, with a thin whistle over it; heard from the launcher and (louder) near the
+   * target as it comes in. Lasts its whole `flight` s; a salvo overlaps a few (one per 0.25 s at most).
+   */
+  rocketWhistle(at: WorldPoint, flight: number, target: WorldPoint = at): void {
+    const vol = Math.max(this.volAt(at) * 0.7, this.volAt(target));
+    if (vol <= 0) return;
+    const ctx = this.ctx!;
     const now = ctx.currentTime;
     if (now - (this.lastPlayed.get('whistle') ?? -1) < 0.25) return;
     this.lastPlayed.set('whistle', now);
     const end = now + flight;
+    const peak = now + flight * 0.3;
     const out = ctx.createGain();
-    out.gain.setValueAtTime(0, now);
-    out.gain.linearRampToValueAtTime(0.11 * vol, now + 0.08);
-    out.gain.setValueAtTime(0.11 * vol, end - 0.12);
-    out.gain.exponentialRampToValueAtTime(0.0005, end);
-    out.connect(this.master);
+    out.gain.setValueAtTime(0.0001, now);
+    out.gain.exponentialRampToValueAtTime(0.06 * vol, now + 0.15);
+    out.gain.exponentialRampToValueAtTime(0.16 * vol, end - 0.05); // coming in: louder and louder
+    out.gain.exponentialRampToValueAtTime(0.0001, end + 0.03);
+    // Flutter of the air over the fins.
+    const lfo = ctx.createOscillator();
+    lfo.frequency.value = 14 + Math.random() * 8;
+    const depth = ctx.createGain();
+    depth.gain.value = 0.25;
+    const trem = ctx.createGain();
+    trem.gain.value = 0.75;
+    lfo.connect(depth).connect(trem.gain);
+    trem.connect(out);
+    out.connect(this.master!);
+    // Rushing wind: two bands of noise sweeping up then down (Doppler as it passes overhead and dives).
+    for (const [q, f0, fTop, f1, g] of [[2.2, 1600, 3400, 700, 1], [5, 3000, 5200, 1600, 0.5]] as const) {
+      const src = ctx.createBufferSource();
+      src.buffer = this.noise;
+      src.loop = true;
+      const band = ctx.createBiquadFilter();
+      band.type = 'bandpass';
+      band.Q.value = q;
+      band.frequency.setValueAtTime(f0, now);
+      band.frequency.exponentialRampToValueAtTime(fTop, peak);
+      band.frequency.exponentialRampToValueAtTime(f1, end);
+      const gg = ctx.createGain();
+      gg.gain.value = g;
+      src.connect(band).connect(gg).connect(trem);
+      src.start(now, Math.random() * 0.5);
+      src.stop(end + 0.05);
+    }
+    // Thin falling whistle on top.
     const tone = ctx.createOscillator();
     tone.type = 'sine';
-    tone.frequency.setValueAtTime(2600 + Math.random() * 400, now);
-    tone.frequency.exponentialRampToValueAtTime(900, end);
-    tone.connect(out);
-    tone.start(now);
-    tone.stop(end + 0.05);
-    const hiss = ctx.createBufferSource();
-    hiss.buffer = this.noise;
-    hiss.loop = true;
-    const band = ctx.createBiquadFilter();
-    band.type = 'bandpass';
-    band.Q.value = 6;
-    band.frequency.setValueAtTime(4200, now);
-    band.frequency.exponentialRampToValueAtTime(1500, end);
-    const hissGain = ctx.createGain();
-    hissGain.gain.value = 0.6;
-    hiss.connect(band).connect(hissGain).connect(out);
-    hiss.start(now);
-    hiss.stop(end + 0.05);
+    tone.frequency.setValueAtTime(1800 + Math.random() * 300, now);
+    tone.frequency.exponentialRampToValueAtTime(2900, peak);
+    tone.frequency.exponentialRampToValueAtTime(650, end);
+    const tg = ctx.createGain();
+    tg.gain.value = 0.18;
+    tone.connect(tg).connect(trem);
+    for (const n of [lfo, tone]) {
+      n.start(now);
+      n.stop(end + 0.05);
+    }
+  }
+
+  /**
+   * BM-21 rocket landing `delay` s from now at `at`: a heavy boom — a sharp crack, a deep falling thump and a long
+   * rolling rumble (at most one every 0.1 s, so a salvo rolls like thunder).
+   */
+  gradImpact(at: WorldPoint, delay: number): void {
+    const vol = this.volAt(at);
+    if (vol <= 0) return;
+    const t0 = this.ctx!.currentTime + Math.max(0, delay);
+    if (t0 - (this.lastPlayed.get('gradImpact') ?? -1) < 0.1) return;
+    this.lastPlayed.set('gradImpact', t0);
+    const v = Math.min(1, vol * 1.15);
+    this.noiseBurst(t0, 0.12, 0.6 * v, 'highpass', 2500, 900); // crack
+    this.lowThump(t0, 0.9, 0.95 * v, 75, 26); // the deep boom
+    this.noiseBurst(t0 + 0.01, 1.4, 0.55 * v, 'lowpass', 1100, 90); // rolling rumble and debris
   }
 
   play(kind: Kind, at: WorldPoint): void {

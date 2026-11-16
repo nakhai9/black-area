@@ -91,6 +91,8 @@ export interface WeaponSpec {
   vsBuilding: number;
   /** Can shoot aircraft. */
   hitsAir: boolean;
+  /** Closest it can fire at, world px (BM-21: rockets need distance to arc down); nearer targets are left alone. */
+  minRange?: number;
   /** Splash radius in world px (0 = single target). */
   splash: number;
 }
