@@ -4909,8 +4909,13 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     const off = bunkerMuzzle(b.faction, b.aimHeading);
     const muzzle = { x: base.x + off.x, y: base.y + off.y };
     const hit = this.fx(t.px, t.py, this.aimHeight(t, 0.6));
-    this.effects.add({ kind: 'flash', x: muzzle.x, y: muzzle.y, age: 0, ttl: 0.07, size: 2.2 });
-    if (hasBulletSheet()) this.addBullet(muzzle, hit, 'bunker');
+    // Looks like a tank round (bullet, flash and impact as a tank's); it is still a machine gun (sound, damage).
+    this.effects.add({ kind: 'flash', x: muzzle.x, y: muzzle.y, age: 0, ttl: 0.07, size: 3.6 });
+    if (hasBulletSheet()) this.addBullet(muzzle, hit, 'tank');
+    else if (hasShellSheet()) {
+      this.effects.add({ kind: 'shell', x0: muzzle.x, y0: muzzle.y, x1: hit.x, y1: hit.y, age: 0, ttl: SHELL_FLIGHT_SECONDS });
+      this.effects.add({ kind: 'shellImpact', x: hit.x, y: hit.y, age: -SHELL_FLIGHT_SECONDS, ttl: SHELL_IMPACT_SECONDS, armour: t instanceof Vehicle });
+    }
     else {
       this.effects.add({ kind: 'tracer', x0: muzzle.x, y0: muzzle.y, x1: hit.x, y1: hit.y, age: 0, ttl: 0.06, color: '#ffe9a0', width: 0.45, shell: false });
       this.effects.add({ kind: 'blast', x: hit.x, y: hit.y, age: -0.06, ttl: 0.18, radius: 1.6 });
