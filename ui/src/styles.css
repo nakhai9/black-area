@@ -3228,3 +3228,28 @@ input:disabled {
   background: var(--team);
   border-radius: 2px;
 }
+
+/* Load confirm: "Start as <nation>" under the saved nation's emblem. */
+.lc-caption {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  text-align: center;
+  color: #fff;
+}
+.lc-nation {
+  font-size: 22px;
+  color: #d4a017; /* deep gold */
+}
+/* Load confirm: emblem, nation name and buttons 10 px apart. */
+.lc-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+.lc-card .pause-actions {
+  margin: 0;
+}

@@ -15,10 +15,14 @@ export function confirmLoadedGame(info: { faction: FactionId; savedAt: string },
   root.setAttribute('role', 'dialog');
   root.setAttribute('aria-modal', 'true');
   const card = document.createElement('div');
-  card.className = 'end-card';
+  card.className = 'end-card lc-card';
   card.style.setProperty('--end-color', '#f5c542'); // same as the pause menu
   // The saved nation's emblem (with its flag) stands in for a title.
   const title = factionBadge(info.faction, 'lg');
+  const caption = document.createElement('div');
+  caption.className = 'lc-caption';
+  // The saved nation's name, in gold.
+  caption.innerHTML = `<b class="lc-nation">${f.shortName}</b>`;
   const start = document.createElement('button');
   start.type = 'button';
   start.textContent = t('Continue'); // carries on the saved game
@@ -34,7 +38,7 @@ export function confirmLoadedGame(info: { faction: FactionId; savedAt: string },
   actions.className = 'pause-actions';
   actions.append(back, start); // Main menu on the left
   // X = Main menu.
-  card.append(modalCloseButton(() => back.click()), title, actions);
+  card.append(modalCloseButton(() => back.click()), title, caption, actions);
   root.append(card);
   parent.append(root);
   return new Promise((resolve) => {
