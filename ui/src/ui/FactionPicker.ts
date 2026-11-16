@@ -3,7 +3,6 @@ import { FACTIONS } from "../factions";
 import { CARD_ORDER, factionDetailHtml, factionPosterHtml } from "./FactionCard";
 import type { FactionId } from "../types";
 import { continueLatestSave, pickSaveFile } from "./PauseMenu";
-import { hasSaveFolder } from "./SaveFolder";
 import { MultiplayerLobby, type MultiplayerStart } from "./MultiplayerLobby";
 import { getLang, languageSelect, setLang, t } from "../i18n";
 // The rules document at the repo root, served (and copied into the build) as a plain file.
@@ -50,7 +49,7 @@ export class FactionPicker {
         </div>
         <aside class="fp-side">
           <div class="fp-actions">
-            <button class="fp-load fp-continue" type="button" ${hasSaveFolder() ? "" : "hidden"} title="${t("Continue the newest game saved in Downloads/BlackArea")}">${t("Continue")}</button>
+            <button class="fp-load fp-continue" type="button" hidden title="${t("Continue the newest game saved in Downloads/BlackArea")}">${t("Continue")}</button>
             <button class="fp-load" type="button" title="${t("Continue a game saved to a .json file (pause menu → Save game)")}">${t("Load saved game")}</button>
             <button class="fp-load fp-mp" type="button" title="${t("Play with friends: create a room or join one by its code")}">${t("Play with friends")}</button>
             <button class="fp-guide" type="button" title="${t("Open the game rules (RULE.html) in a new tab")}">${t("Readme")}</button>
