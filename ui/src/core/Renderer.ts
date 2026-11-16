@@ -46,6 +46,7 @@ import { drawMissile, drawMissileBlast } from '../render/MissileSheet';
 import { drawSamMissile } from '../render/SamMissile';
 import { drawGradRocket } from '../render/GradRocket';
 import { drawBm21Sheet } from '../render/Bm21Sheets';
+import { drawVt12Sheet } from '../render/Vt12Sheets';
 import { BM21_ROCKETS } from '../constants';
 import { drawShell, drawShellImpact } from '../render/ShellSheet';
 import { drawBullet, drawBulletImpact } from '../render/BulletSheet';
@@ -723,6 +724,7 @@ export class Renderer {
         return;
       }
       // BM-21 Grad: sheet only (nothing drawn while its sheets are still loading).
+      if (u.type === 'vt12' && drawVt12Sheet(ctx, u, P.x, P.y)) return;
       if (u.type === 'bm21') {
         drawBm21Sheet(ctx, u, P.x, P.y);
         return;

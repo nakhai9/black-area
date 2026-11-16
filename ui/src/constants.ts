@@ -34,7 +34,7 @@ export const DEMO_FACTION: FactionId = NATION_CODES[(import.meta.env.VITE_DEMO_F
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "3.75.74";
+export const GAME_VERSION = "3.75.85";
 
 /** An Allied Building within this many cells of any capital is an embassy; farther out it is a "Pro-<nation> regime". */
 export const EMBASSY_CAPITAL_CELLS = 25;
@@ -759,6 +759,8 @@ export const VEHICLE_WEAPON: Readonly<
   tank: "cannon",
   k9: "cannon",
   bm21: "rocket",
+  vt12: "cannon",
+  a29: "missile",
   ldew: "autocannon",
   ldewTruck: "autocannon",
   ifv: "autocannon",
@@ -802,10 +804,14 @@ export const VEHICLE_BASE = {
   },
   light: { cost: 600, trainSeconds: 8, maxHp: 180, speed: 2.4, radius: 3.4 },
   tank: { cost: 1200, trainSeconds: 14, maxHp: 420, speed: 1.4, radius: 4.2 },
+  /** VT 1-2 (Europe only): twin 120 mm guns fixed in a turretless hull; cheaper, lighter and much faster than the tank. */
+  vt12: { cost: 800, trainSeconds: 10, maxHp: 330, speed: 2.2, radius: 4.2 },
   /** K9 Thunder 155 mm self-propelled howitzer: sold only to the holder of Seoul (South Korea's capital), see K9_NATION. */
   k9: { cost: 1800, trainSeconds: 18, maxHp: 360, speed: 1.2, radius: 4.4 },
   /** BM-21 Grad rocket launcher on the Ural-4320: sold only to the holder of Pyongyang (North Korea's capital), see NATION_VEHICLES and BM21_*. */
   bm21: { cost: 1200, trainSeconds: 18, maxHp: 260, speed: 1.6, radius: 4.6 },
+  /** A-29 Super Tucano light attack turboprop (Brazil's holder only, NATION_VEHICLES): slower than a fighter, ground targets only. Price A29_PRICE. */
+  a29: { cost: 2400, trainSeconds: 16, maxHp: 200, speed: 6, radius: 3.2 },
   /** LDEW laser (counter-UAS), ground emplacement: crawls into place, then guards it. Holder of London only (NATION_VEHICLES). */
   ldew: { cost: 1500, trainSeconds: 16, maxHp: 320, speed: 0.4, radius: 4.0 },
   /** LDEW laser on the European MAN SV truck bed. Holder of London only (NATION_VEHICLES). */
@@ -963,6 +969,7 @@ export const HELI_FUEL_CELLS = Math.round(GRID_HEIGHT * 0.4);
 /** Aircraft are built at the Airfield and use its runway; everything else rolls out of the War Factory. */
 export const isAircraftKind = (kind: VehicleKind): boolean =>
   kind === "jet" ||
+  kind === "a29" ||
   kind === "heli" ||
   kind === "transport" ||
   kind === "bomber" ||
@@ -1013,6 +1020,7 @@ export const AVAILABLE_VEHICLES: readonly VehicleKind[] = [
   "k9",
   "ldewTruck",
   "bm21",
+  "vt12",
 ];
 /**
  * Machines of a contested nation: on sale (War Factory, in the holder's colours) only while that nation's capital is
@@ -1020,8 +1028,21 @@ export const AVAILABLE_VEHICLES: readonly VehicleKind[] = [
  */
 export const NATION_VEHICLES: Readonly<Partial<Record<ContestedNationId, readonly VehicleKind[]>>> = {
   southKorea: ["k9"],
+  // BM-21 from any of these capitals: one BM-21 in the shop however many of them are held (heldNationVehicles dedupes).
   northKorea: ["bm21"],
+  ukraine: ["bm21"],
+  belarus: ["bm21"],
+  // A-29 Super Tucano: light attack aircraft, built at the Airfield.
+  brazil: ["a29"],
   unitedKingdom: ["ldewTruck"],
+};
+/**
+ * Another nation's design on sale to the holder of a contested capital (Airfield / War Factory as usual, the design's
+ * own art and name): India's holder may buy the USA's C-17 transport. Lost with the capital, like NATION_VEHICLES.
+ * Player and AI alike.
+ */
+export const NATION_DESIGNS: Readonly<Partial<Record<ContestedNationId, readonly { faction: FactionId; kind: VehicleKind }[]>>> = {
+  india: [{ faction: "usa", kind: "transport" }],
 };
 /** LDEW laser vs the autocannon it fires with: damage and range factors. */
 export const LDEW_DAMAGE = 2.5;
@@ -1032,6 +1053,8 @@ export const LDEW_RANGE = 1.6;
  * the tubes are empty (or nothing is left to shoot). While not firing it reloads BM21_RELOAD_ROCKETS rockets every
  * BM21_RELOAD_SECONDS s. Each rocket flies bm21Flight(distance) s on its arc and only hits when it lands. Player and AI alike.
  */
+/** A-29 price: two Type 99 tanks (Longoria's tank price), whoever buys it. */
+export const A29_PRICE = 2 * 1200;
 export const BM21_ROCKETS = 16;
 /** A salvo needs the tubes at least 2/3 full: 11 of 16 rockets. */
 export const BM21_MIN_SALVO = Math.ceil((BM21_ROCKETS * 2) / 3);
@@ -1177,7 +1200,7 @@ export const VEHICLE_PRICE: Readonly<
     bomber: 5200,
   },
   china: { tank: 1200, heli: 1260, mantis: 3000, jet: 3420, transport: 1550, bomber: 4200 }, // H-6K: older, 4 bombs, cheaper
-  europe: { tank: 1780, heli: 1920, mantis: 2680, jet: 3940, transport: 1230 },
+  europe: { tank: 1780, heli: 1920, mantis: 2680, jet: 3940, transport: 1230, vt12: 600 }, // VT 1-2: cheap and fast
   // The B-767 kamikaze drone is cheap: the Islamic world fields it in numbers.
   islamic: { tank: 760, heli: 1300, mantis: 3000, jet: 3600, drone: 500 },
 };
@@ -1317,15 +1340,15 @@ export const NATION_PRESENCE_FEES: Readonly<Record<ContestedNationId, number>> =
     japan: 1720,
     unitedKingdom: 0,
     canada: 1260,
-    brazil: 1260,
+    brazil: 0,
     australia: 1140,
-    // South Korea and the United Kingdom pay no presence fee: their capital gives its holder their machines instead
-    // (K9 Thunder / LDEW, NATION_VEHICLES and the LDEW emplacement).
+    // South Korea, the United Kingdom, North Korea, India and Brazil pay no presence fee: their capital gives its holder
+    // machines instead (K9 Thunder / LDEW / BM-21 / A-29: NATION_VEHICLES and the LDEW emplacement; C-17: NATION_DESIGNS).
     southKorea: 0,
     cuba: 560,
-    northKorea: 320,
+    northKorea: 0,
     belarus: 520,
-    india: 1980,
+    india: 0,
     ukraine: 640,
   };
 export function presenceFee(nation: string): number {

@@ -1,11 +1,13 @@
 import type { FactionConfig } from "../types";
 import { t } from "../i18n";
 
-/** China — heavy armour and mass production; cheap and tough, with cheap, fast and nimble infantry, and the H-6K bomber. */
+/**
+ * Longoria (id 'china', formerly shown as China): Long (the dragon) + -oria (from Oriens, the East, with the land
+ * ending -ia): "land of the Eastern Dragon". Heavy armour and mass production; cheap and tough, with cheap, fast and nimble infantry, and the H-6K bomber. */
 export const CHINA: FactionConfig = {
   id: "china",
-  name: "China",
-  shortName: "China",
+  name: "Longoria",
+  shortName: "Longoria",
   leader: { title: "President", name: "Xi Jinping" },
   doctrine:
     t("Heavy armour and mass: cheap, durable units fielded in overwhelming numbers."),

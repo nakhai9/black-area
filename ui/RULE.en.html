@@ -99,13 +99,21 @@ npm run build:earth  # regenerate public/data/earth.png (scripts/build-earth.mjs
 <h3>Factions</h3>
 <table>
 <tr><th>Faction</th><th>Color</th><th>unitSpeed</th><th>armor</th><th>firepower</th><th>range</th><th>buildSpeed</th><th>cost</th><th>trainDelay</th><th>Capital HP</th><th>Notes</th></tr>
-<tr><td>USA</td><td><code>#2f6fe0</code></td><td>1.25</td><td>0.9</td><td>1.0</td><td>1.05</td><td>1.1</td><td>1.3</td><td>2</td><td>15000</td><td>Has the B-1A Lancer bomber</td></tr>
-<tr><td>Russia</td><td><code>#d22b2b</code></td><td>0.95</td><td>1.1</td><td>1.2</td><td>1.3</td><td>0.95</td><td>1.0</td><td>0</td><td>16500</td><td>Has the Tu-160 bomber</td></tr>
-<tr><td>China</td><td><code>#e8b10a</code></td><td>0.85</td><td>1.3</td><td>1.0</td><td>0.95</td><td>1.2</td><td>0.85</td><td>0</td><td>18000</td><td>No bomber; cheap + fast infantry: <code>infantryCost 0.7</code> (infantry cost ≈ 0.6 × base), <code>infantrySpeed 1.35</code> (infantry speed ≈ 1.15 × base)</td></tr>
+<tr><td>Paxamerica (<code>usa</code>)</td><td><code>#2f6fe0</code></td><td>1.25</td><td>0.9</td><td>1.0</td><td>1.05</td><td>1.1</td><td>1.3</td><td>2</td><td>15000</td><td>Has the B-1A Lancer bomber</td></tr>
+<tr><td>Nordursia (<code>russia</code>)</td><td><code>#d22b2b</code></td><td>0.95</td><td>1.1</td><td>1.2</td><td>1.3</td><td>0.95</td><td>1.0</td><td>0</td><td>16500</td><td>Has the Tu-160 bomber</td></tr>
+<tr><td>Longoria (<code>china</code>)</td><td><code>#e8b10a</code></td><td>0.85</td><td>1.3</td><td>1.0</td><td>0.95</td><td>1.2</td><td>0.85</td><td>0</td><td>18000</td><td>No bomber; cheap + fast infantry: <code>infantryCost 0.7</code> (infantry cost ≈ 0.6 × base), <code>infantrySpeed 1.35</code> (infantry speed ≈ 1.15 × base)</td></tr>
 <tr><td>Europe</td><td><code>#8a5cf6</code></td><td>1.05</td><td>1.0</td><td>1.05</td><td>1.1</td><td>1.05</td><td>1.25</td><td>2</td><td>15600</td><td></td></tr>
-<tr><td>Islamic</td><td><code>#1f9d4a</code></td><td>1.0</td><td>1.05</td><td>1.0</td><td>1.0</td><td>1.0</td><td>0.95</td><td>1</td><td>16000</td><td><code>oilCartel</code>, <code>leasesOil</code></td></tr>
+<tr><td>Lunastron Union (<code>islamic</code>)</td><td><code>#1f9d4a</code></td><td>1.0</td><td>1.05</td><td>1.0</td><td>1.0</td><td>1.0</td><td>0.95</td><td>1</td><td>16000</td><td><code>oilCartel</code>, <code>leasesOil</code></td></tr>
 </table>
 <ul>
+  <li><b>Faction names</b> (display names only; ids, colours, stats and capitals are unchanged):
+    <ul>
+      <li><b>Paxamerica</b> (id <code>usa</code>, formerly United States / USA, then Thircolonia; v3.75.82): from <b>Pax Americana</b>, the "American peace" — the world order the nation led after 1945. <i>Pax</i> (Latin: peace) + <i>America</i>: the world is at peace only on its terms.</li>
+      <li><b>Nordursia</b> (id <code>russia</code>, formerly Russia, v3.75.79): <b>Nord</b> (the cold North) + <b>Ursus</b> (Latin for the bear, the faction's emblem) + the country ending <b>-ia</b>.</li>
+      <li><b>Lunastron Union</b> (id <code>islamic</code>, formerly Islamic Union, v3.75.80): <b>Lunastron</b> from <b>Luna</b> (the moon) and <b>Stella</b> (the star), in Latin — the crescent and star of its emblem; classical and majestic. It keeps the word <b>Union</b>; short name Lunastron.</li>
+      <li><b>Longoria</b> (id <code>china</code>, formerly China, v3.75.81): <b>Long</b> (dragon) + <b>-oria</b> (short for <i>Oriens</i>, the East, with the land ending <b>-ia</b>): "land of the Eastern Dragon"; smooth and easy to say.</li>
+    </ul>
+  </li>
   <li>Actual cost = <code>round(giá gốc × cost / 10) × 10</code>; training time + <code>trainDelay</code>; unit HP = <code>maxHp × armor</code>.</li>
   <li><code>peaceful</code> (currently used by no faction; Islamic now fights): <b>trains no soldiers, produces no vehicles/aircraft</b> (<code>TrainingSystem</code>/<code>VehicleSystem</code> return an empty list).</li>
   <li>Islamic leases at most <code>OIL_LEASE_MAX = 4</code> derricks at a time (including engineers on their way to lease). Islamic troops do not shoot engineers coming to lease their derricks. All other rules about Islamic derricks are unchanged (no destroying, no capturing, 180 s lease, 30% of the oil money goes to Islamic).</li>

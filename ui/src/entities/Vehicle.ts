@@ -17,6 +17,7 @@ import {
   LDEW_DAMAGE,
   LDEW_RANGE,
   BM21_ROCKETS,
+  A29_PRICE,
   BM21_RELOAD_ROCKETS,
   BM21_RELOAD_SECONDS,
   isAircraftKind,
@@ -63,6 +64,8 @@ const HANDLING: Readonly<Record<VehicleKind, { accel: number; turn: number; pivo
   ldew: { accel: 1.2, turn: 1.2, pivot: true },
   ldewTruck: { accel: 0.6, turn: 3.0, pivot: true },
   bm21: { accel: 0.7, turn: 2.6, pivot: true },
+  a29: { accel: 0.6, turn: 2.6, pivot: false },
+  vt12: { accel: 0.6, turn: 3.2, pivot: true },
   awacs: { accel: 1.0, turn: 1.3, pivot: false },
 };
 
@@ -76,12 +79,14 @@ function transportFits(soldiers: number, vehicles: number): boolean {
 export const NATION_VEHICLE_PROFILES: Readonly<Partial<Record<VehicleKind, VehicleProfile>>> = {
   k9: { name: 'K9 Thunder', description: '155 mm self-propelled howitzer: long-range shelling. On sale only while you hold Seoul.' },
   ldew: { name: 'LDEW Laser', description: 'Ground laser weapon (counter-UAS): slow to move, the head turns all round. On sale only while you hold London.' },
-  bm21: { name: 'BM-21 Grad', description: '122 mm rocket launcher on a Ural truck: ripples 16 rockets on a long arc at ground targets, structures and aircraft. On sale only while you hold Pyongyang.' },
+  bm21: { name: 'BM-21 Grad', description: '122 mm rocket launcher on a Ural truck: ripples 16 rockets on a long arc at ground targets, structures and aircraft. On sale while you hold Pyongyang, Kyiv or Minsk.' },
+  a29: { name: 'A-29 Super Tucano', description: 'Light attack turboprop: rockets and guns on soldiers, vehicles and structures; cannot fight aircraft. On sale while you hold Brasília.' },
   ldewTruck: { name: 'LDEW Laser Truck', description: 'Laser weapon on a MAN SV truck: fast, the head turns all round. On sale only while you hold London.' },
 };
 
 /** Price (TB) of a nation's machine: its own entry in VEHICLE_PRICE, else VEHICLE_BASE cost × the nation's cost factor. */
 export function vehiclePrice(faction: FactionId, kind: VehicleKind): number {
+  if (kind === 'a29') return A29_PRICE;
   return VEHICLE_PRICE[faction][kind] ?? Math.round((VEHICLE_BASE[kind].cost * FACTIONS[faction].stats.cost) / 10) * 10;
 }
 
@@ -256,6 +261,8 @@ export class Vehicle extends Unit {
       const power = type === 'heli' ? HELI_FIREPOWER : type === 'mantis' ? MANTIS_FIREPOWER : 1;
       this.weapon = { ...spec, damage: spec.damage * strength * power, range: type === 'mantis' ? MANTIS_RANGE_CELLS * CELL_SIZE : spec.range * f.stats.range };
       if (type === 'k9') this.weapon = { ...this.weapon, damage: this.weapon.damage * K9_DAMAGE, range: this.weapon.range * K9_RANGE, cooldown: spec.cooldown * K9_COOLDOWN };
+      // A-29: ground attack only (its missiles never reach aircraft).
+      if (type === 'a29') this.weapon = { ...this.weapon, hitsAir: false };
       if (type === 'ldew' || type === 'ldewTruck') this.weapon = { ...this.weapon, damage: this.weapon.damage * LDEW_DAMAGE, range: this.weapon.range * LDEW_RANGE };
     }
     this.bombs = this.maxBombs;

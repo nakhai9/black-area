@@ -58,6 +58,12 @@ const SHEETS: Partial<Record<`${FactionId}:${VehicleKind}`, AircraftSheet>> = {
   'china:awacs': sheet('awacs-china.webp', 192, AWACS_LENGTH),
   'russia:awacs': sheet('awacs-russia.webp', 192, AWACS_LENGTH),
   'islamic:awacs': sheet('awacs-islamic.webp', 192, AWACS_LENGTH),
+  // A-29 Super Tucano (Brazil's holder, every nation): tools/blender/a29_render.py, team band on the flanks; fighter length.
+  'usa:a29': sheet('a29-usa.webp', 192, 9.5),
+  'russia:a29': sheet('a29-russia.webp', 192, 9.5),
+  'china:a29': sheet('a29-china.webp', 192, 9.5),
+  'europe:a29': sheet('a29-europe.webp', 192, 9.5),
+  'islamic:a29': sheet('a29-islamic.webp', 192, 9.5),
   // Kamikaze drone (Islamic world's B-767).
   'islamic:drone': sheet('drone-islamic.webp', 96, 9.5), // same size as the fighters
 };

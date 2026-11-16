@@ -1,5 +1,5 @@
 import { demoPrice } from '../core/Demo';
-import { AVAILABLE_VEHICLES, BUILD_LIMIT_VEHICLES, NATION_VEHICLES, MAX_GROUND_VEHICLES, MAX_TRANSPORTS, TECH_VEHICLES, VEHICLE_BASE, needsAirfield } from '../constants';
+import { AVAILABLE_VEHICLES, BUILD_LIMIT_VEHICLES, NATION_DESIGNS, NATION_VEHICLES, MAX_GROUND_VEHICLES, MAX_TRANSPORTS, TECH_VEHICLES, VEHICLE_BASE, needsAirfield } from '../constants';
 import type { Building } from '../entities/Building';
 import type { EntityManager } from '../entities/EntityManager';
 import { FACTIONS } from '../factions';
@@ -31,7 +31,7 @@ export interface VehicleOption {
   needsAirfield: boolean;
 }
 
-const KINDS: readonly VehicleKind[] = ['light', 'tank', 'ifv', 'jet', 'heli', 'bomber', 'transport', 'repair', 'truck', 'mantis', 'drone', 'bridgeLayer', 'awacs', 'carrier'];
+const KINDS: readonly VehicleKind[] = ['light', 'tank', 'vt12', 'ifv', 'jet', 'heli', 'bomber', 'transport', 'repair', 'truck', 'mantis', 'drone', 'bridgeLayer', 'awacs', 'carrier'];
 
 function vehicleOptions(faction: FactionId, foreign = false): VehicleOption[] {
   const f = FACTIONS[faction];
@@ -50,7 +50,7 @@ function vehicleOptions(faction: FactionId, foreign = false): VehicleOption[] {
   }));
 }
 
-/** A contested nation's machine (NATION_VEHICLES) as offered to the holder of its capital: built at its War Factory in the holder's colours. */
+/** A contested nation's machine (NATION_VEHICLES) as offered to the holder of its capital: built at its War Factory (aircraft: Airfield) in the holder's colours. */
 function nationOption(faction: FactionId, kind: VehicleKind): VehicleOption {
   const p = NATION_VEHICLE_PROFILES[kind];
   return {
@@ -61,8 +61,8 @@ function nationOption(faction: FactionId, kind: VehicleKind): VehicleOption {
     description: p?.description ?? '',
     cost: demoPrice(vehiclePrice(faction, kind)),
     trainSeconds: VEHICLE_BASE[kind].trainSeconds + FACTIONS[faction].stats.trainDelay,
-    requires: 'warFactory',
-    needsAirfield: false,
+    requires: needsAirfield(kind) ? 'airfield' : 'warFactory',
+    needsAirfield: needsAirfield(kind),
   };
 }
 
@@ -137,7 +137,7 @@ export class VehicleSystem implements GameSystem {
     if (own.length === 0) return own;
     const ground = takenNations(this.entities, player, 'warFactory');
     const air = takenNations(this.entities, player, 'airfield');
-    const held = this.heldNationVehicles(player).map((k) => nationOption(player.faction, k));
+    const held = [...this.heldNationVehicles(player).map((k) => nationOption(player.faction, k)), ...this.heldNationDesigns(player, own)];
     if (ground.length === 0 && air.length === 0) return [...own, ...held];
     const foreign = [...new Set([...ground, ...air])].sort().flatMap((f) =>
       foreignOptions(f).filter((o) => (o.needsAirfield ? air : ground).includes(f)),
@@ -146,6 +146,31 @@ export class VehicleSystem implements GameSystem {
     // each foreign design has its own key `kind@faction` and shows that nation's flag).
     const keys = new Set(own.map((o) => o.key));
     return [...own, ...held, ...foreign.filter((o) => !keys.has(o.key))];
+  }
+
+  /** Other nations' designs sold by the contested capitals the player holds (NATION_DESIGNS: the C-17 for New Delhi), minus ones already in `own`. */
+  private heldNationDesigns(player: PlayerState, own: readonly VehicleOption[]): VehicleOption[] {
+    const out: VehicleOption[] = [];
+    for (const b of this.entities.buildings()) {
+      if (b.owner !== player.id || !b.alive || b.spec.type !== 'nationCapital' || !('nation' in b)) continue;
+      for (const d of NATION_DESIGNS[b.nation as keyof typeof NATION_DESIGNS] ?? []) {
+        // A nation's own design is already in its shop (the USA holding India gets nothing new).
+        if (d.faction === player.faction) continue;
+        for (const o of foreignOptions(d.faction)) if (o.kind === d.kind && !own.some((x) => x.key === o.key) && !out.some((x) => x.key === o.key)) out.push(o);
+      }
+    }
+    return out;
+  }
+
+  /** Key to order a transport aircraft with: the nation's own, else a foreign one on sale to it (captured Airfield, C-17 from India). */
+  transportKey(player: PlayerState): VehicleKey {
+    const opts = this.optionsFor(player).filter((o) => o.kind === 'transport');
+    return (opts.find((o) => o.faction === player.faction) ?? opts[0])?.key ?? 'transport';
+  }
+
+  /** Is a transport aircraft (any design) on order? */
+  transportQueued(player: PlayerState): boolean {
+    return this.queue(player).items.some((k) => splitKey(k).base === 'transport');
   }
 
   /** Machines of the contested nations whose capital the player holds (K9 for Seoul, LDEW for London…). */

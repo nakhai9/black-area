@@ -1,11 +1,13 @@
 import type { FactionConfig } from "../types";
 import { t } from "../i18n";
 
-/** Islamic — one nation for the whole Islamic world, seated in Saudi Arabia: sits on the richest oil fields, fields tough, cheap forces. */
+/**
+ * Lunastron Union (id 'islamic', formerly shown as the Islamic Union): Luna (the moon) + -stron from Stella (the
+ * star), Latin, the crescent and star of its emblem. One nation for the whole Islamic world, seated in Saudi Arabia: sits on the richest oil fields, fields tough, cheap forces. */
 export const ISLAMIC: FactionConfig = {
   id: "islamic",
-  name: "Islamic Union",
-  shortName: "Islamic",
+  name: "Lunastron Union",
+  shortName: "Lunastron",
   leader: { title: "Custodian of the Two Holy Mosques", name: "King Salman" },
   doctrine:
     t("Oil and endurance: leads the oil cartel — cutting or flooding production moves the world oil price — and the richest oil fields pay for cheap, hardy forces."),

@@ -26,7 +26,7 @@
 <body>
 <main>
 <img class="logo" src="/logo.png" alt="Black Area" />
-<h1>Black Area — RULE <small>v3.75.74</small></h1>
+<h1>Black Area — RULE <small>v3.75.85</small></h1>
 <p class="lead">Tài liệu luật chơi + kiến trúc code dành cho AI/dev sửa game. Mọi con số gameplay chính xác nằm trong <code>src/constants.ts</code> và <code>src/factions/*.ts</code>. Nếu tài liệu này khác code thì <b>code đúng</b>. <b>Khi đổi luật/số trong code, phải cập nhật file này.</b></p>
 <nav><a href="#s1">Quy tắc làm việc cho AI</a><a href="#s2">Chạy dự án</a><a href="#s3">Kiến trúc thư mục</a><a href="#s4">Thế giới</a><a href="#s5">Kinh tế (dầu)</a><a href="#s6">Công trình (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Quân đội</a><a href="#s8">Chiến đấu</a><a href="#s9">Điều khiển (Game.handleKey, handleInput)</a><a href="#s10">Giới hạn &amp; hiệu năng</a><a href="#s11">Thắng / thua &amp; AI</a><a href="#s12">Công thức sửa thường gặp</a></nav>
 <h2 id="s1">0. Quy tắc làm việc cho AI</h2>
@@ -99,13 +99,17 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 <h3>Phe</h3>
 <table>
 <tr><th>Phe</th><th>Màu</th><th>unitSpeed</th><th>armor</th><th>firepower</th><th>range</th><th>buildSpeed</th><th>cost</th><th>trainDelay</th><th>HP thủ đô</th><th>Ghi chú</th></tr>
-<tr><td>USA</td><td><code>#2f6fe0</code></td><td>1.25</td><td>0.9</td><td>1.0</td><td>1.05</td><td>1.1</td><td>1.3</td><td>2</td><td>15000</td><td>Có bomber B-1A Lancer</td></tr>
-<tr><td>Russia</td><td><code>#d22b2b</code></td><td>0.95</td><td>1.1</td><td>1.2</td><td>1.3</td><td>0.95</td><td>1.0</td><td>0</td><td>16500</td><td>Có bomber Tu-160</td></tr>
-<tr><td>China</td><td><code>#e8b10a</code></td><td>0.85</td><td>1.3</td><td>1.0</td><td>0.95</td><td>1.2</td><td>0.85</td><td>0</td><td>18000</td><td>Bomber H-6K (cánh cố định, 4 bom, 4200 TB); lính rẻ + nhanh: <code>infantryCost 0.7</code> (giá lính ≈ 0.6 × gốc), <code>infantrySpeed 1.35</code> (tốc độ lính ≈ 1.15 × gốc)</td></tr>
+<tr><td>Paxamerica (<code>usa</code>)</td><td><code>#2f6fe0</code></td><td>1.25</td><td>0.9</td><td>1.0</td><td>1.05</td><td>1.1</td><td>1.3</td><td>2</td><td>15000</td><td>Có bomber B-1A Lancer</td></tr>
+<tr><td>Nordursia (<code>russia</code>)</td><td><code>#d22b2b</code></td><td>0.95</td><td>1.1</td><td>1.2</td><td>1.3</td><td>0.95</td><td>1.0</td><td>0</td><td>16500</td><td>Có bomber Tu-160</td></tr>
+<tr><td>Longoria (<code>china</code>)</td><td><code>#e8b10a</code></td><td>0.85</td><td>1.3</td><td>1.0</td><td>0.95</td><td>1.2</td><td>0.85</td><td>0</td><td>18000</td><td>Bomber H-6K (cánh cố định, 4 bom, 4200 TB); lính rẻ + nhanh: <code>infantryCost 0.7</code> (giá lính ≈ 0.6 × gốc), <code>infantrySpeed 1.35</code> (tốc độ lính ≈ 1.15 × gốc)</td></tr>
 <tr><td>Europe</td><td><code>#6532d6</code></td><td>1.05</td><td>1.0</td><td>1.05</td><td>1.1</td><td>1.05</td><td>1.25</td><td>2</td><td>15600</td><td></td></tr>
-<tr><td>Islamic</td><td><code>#1f9d4a</code></td><td>1.0</td><td>1.05</td><td>1.0</td><td>1.0</td><td>1.0</td><td>0.95</td><td>1</td><td>16000</td><td><code>oilCartel</code>, <code>leasesOil</code></td></tr>
+<tr><td>Lunastron Union (<code>islamic</code>)</td><td><code>#1f9d4a</code></td><td>1.0</td><td>1.05</td><td>1.0</td><td>1.0</td><td>1.0</td><td>0.95</td><td>1</td><td>16000</td><td><code>oilCartel</code>, <code>leasesOil</code></td></tr>
 </table>
 <ul>
+  <li><b>Tên phe Paxamerica</b> (id <code>usa</code>, trước đây hiện là United States / USA, rồi Thircolonia; đổi ở v3.75.82): lấy từ <b>Pax Americana</b> — "nền hòa bình kiểu Mỹ", trật tự thế giới do nước này dẫn dắt từ sau 1945. Tên ghép <i>Pax</i> (tiếng Latinh: hòa bình) với <i>America</i>, nói lên tham vọng: thế giới chỉ yên ổn khi theo luật của họ. Chỉ đổi tên hiển thị; id, màu, chỉ số, thủ đô giữ nguyên.</li>
+  <li><b>Tên phe Nordursia</b> (id <code>russia</code>, trước đây hiện là Russia, v3.75.79): ghép <b>Nord</b> (phương Bắc lạnh giá) + <b>Ursus</b> (tiếng Latinh: loài gấu, biểu tượng của phe) + đuôi tên quốc gia <b>-ia</b>. Chỉ đổi tên hiển thị; id, màu, chỉ số, thủ đô giữ nguyên.</li>
+  <li><b>Tên phe Lunastron Union</b> (id <code>islamic</code>, trước đây hiện là Islamic Union / Liên minh Hồi giáo, v3.75.80): <b>Lunastron</b> ghép từ <b>Luna</b> (mặt trăng) và <b>Stella</b> (ngôi sao) theo tiếng Latinh — trăng lưỡi liềm và ngôi sao trên biểu tượng phe; nghe cổ điển và uy nghiêm. Vẫn giữ chữ <b>Union</b> / <b>Liên minh</b> (Liên minh Lunastron); tên ngắn: Lunastron. Chỉ đổi tên hiển thị; id, màu, chỉ số, thủ đô giữ nguyên.</li>
+  <li><b>Tên phe Longoria</b> (id <code>china</code>, trước đây hiện là China / Trung Quốc, v3.75.81): ghép <b>Long</b> (Rồng) với <b>-oria</b> (rút gọn từ <i>Oriens</i> — Phương Đông — cộng đuôi vùng đất <b>-ia</b>): "Vùng đất Rồng Phương Đông". Tên mượt mà, dễ phát âm. Chỉ đổi tên hiển thị; id, màu, chỉ số, thủ đô giữ nguyên.</li>
   <li>Giá thực = <code>round(giá gốc × cost / 10) × 10</code>; thời gian luyện + <code>trainDelay</code>; HP unit = <code>maxHp × armor</code>.</li>
   <li><code>peaceful</code> (hiện không phe nào dùng; Islamic đã được tham chiến): <b>không luyện lính, không sản xuất xe/máy bay</b> (<code>TrainingSystem</code>/<code>VehicleSystem</code> trả về danh sách rỗng).</li>
   <li>Islamic cho thuê tối đa <code>OIL_LEASE_MAX = 4</code> giếng cùng lúc (tính cả kỹ sư đang trên đường tới thuê). Quân Islamic không bắn kỹ sư đang đi tới thuê giếng của mình. Mọi luật khác về giếng Islamic giữ nguyên (không chiếm, thuê 180 s, 30% tiền dầu về Islamic); từ v3.75.68 giếng Islamic <b>bị phá hủy được</b> như giếng các phe khác. <b>Từ v3.75.69 bỏ luật thuê giếng</b>: giếng Islamic như giếng các phe khác (phá được, kỹ sư chiếm được), không ai thuê được nữa.</li>
@@ -701,6 +705,17 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
   <li>v3.41.5: Sửa lỗi máy bay vận tải bay vòng tròn mãi quanh điểm hạ cánh (không đáp được, không nhận lệnh di chuyển): khi điểm đến nằm trong vòng quay, máy bay bay thẳng tới. Lệnh di chuyển mới trong lúc đang bay tới điểm hạ cánh giờ được nhận (hủy hạ cánh, bay đi).</li>
   <li>v3.41.5: Máy bay không còn nhận <b>Cảng (Naval Port)</b> làm sân bay nhà (không đậu, không hạ cánh, không được sinh ra ở cảng). Loại máy bay được đậu ở cảng sẽ quy ước sau: thêm vào <code>PORT_AIRCRAFT</code> trong <code>src/systems/AircraftSystem.ts</code>. Máy bay đang lấy cảng làm nhà (bản lưu cũ) sẽ chuyển sang sân bay khác của phe; không còn sân bay nào thì rơi như luật cũ.</li>
     <li>v3.56.1: <b>Giảm tiếng động cơ mọi phương tiện</b>: <code>VEHICLE_BED_GAIN</code> 1.6 → 1.0, máy bay / trực thăng <code>AIR_BED_BOOST</code> 2.2 → 1.5. <b>Máy bay vận tải</b> (C-17, Il-76, Y-20, A400M, mặc định) tăng gain 0.85–0.9 → 1.35 để to ngang các máy bay khác (tiếng động cơ trầm, ít tiếng rít nên trước nghe nhỏ hơn).</li>
+    <li>v3.75.85: VT 1-2 giá 600.</li>
+    <li>v3.75.84: Châu Âu có thêm xe tăng <b>VT 1-2</b> (2 pháo 120 mm cố định trên thân, không tháp pháo) ở Nhà máy xe: giá gốc 800 (Leopard 2: 1200+), máu 330, tốc độ 2,2 (xe tăng 1,4), sản xuất 10 s; cả thân xe quay để ngắm. Sprite A-29 Super Tucano (5 màu phe) đã có. Cả người chơi lẫn AI.</li>
+    <li>v3.75.83: Brazil không còn thu phí hiện diện quân sự; bù lại nước giữ Brasília mua được <b>A-29 Super Tucano</b> ở Sân bay (giá 2400 = 2 xe tăng Type 99, mọi phe như nhau). Máy bay cường kích cánh quạt, chậm hơn tiêm kích, chỉ tấn công mục tiêu mặt đất (lính, xe, công trình), không bắn được máy bay. Cả người chơi lẫn AI.</li>
+    <li>v3.75.82: Phe Mỹ đổi tên hiển thị từ Thircolonia thành <b>Paxamerica</b> (từ Pax Americana; xem ý nghĩa ở mục Phe).</li>
+    <li>v3.75.81: Phe Trung Quốc đổi tên hiển thị thành <b>Longoria</b> (Long + Oriens + -ia, "Vùng đất Rồng Phương Đông"; xem ý nghĩa ở mục Phe).</li>
+    <li>v3.75.80: Phe Hồi giáo đổi tên hiển thị thành <b>Lunastron Union</b> (Liên minh Lunastron; Luna + Stella; xem ý nghĩa ở mục Phe).</li>
+    <li>v3.75.79: Phe Nga đổi tên hiển thị thành <b>Nordursia</b> (Nord + Ursus + -ia; xem ý nghĩa ở mục Phe).</li>
+    <li>v3.75.78: Phe Mỹ đổi tên hiển thị thành <b>Thircolonia</b> (Thir- của Thirteen + -colonia của Colonies; xem ý nghĩa ở mục Phe).</li>
+    <li>v3.75.77: BM-21 bán cho nước giữ thủ đô Triều Tiên, Ukraine hoặc Belarus; giữ nhiều thủ đô cùng lúc thì cửa hàng vẫn chỉ hiện một BM-21. Cả người chơi lẫn AI.</li>
+    <li>v3.75.76: Ấn Độ và Triều Tiên khi bị chiếm không trả phí hiện diện quân sự nữa; bù lại nước giữ thủ đô mua được C-17 (New Delhi) và BM-21 (Bình Nhưỡng).</li>
+    <li>v3.75.75: Giữ thủ đô Ấn Độ (New Delhi) thì mua được máy bay vận tải C-17 (thiết kế Mỹ) ở Sân bay, như khi chiếm sân bay của Mỹ; mất thủ đô thì hết bán, đơn đang chờ được hoàn tiền. Mỹ đã có sẵn C-17 nên không thêm gì. AI cũng dùng (phe không có máy bay vận tải như Hồi giáo sẽ mua C-17 khi cần chở quân qua biển).</li>
     <li>v3.75.74: BM-21 giá 1200 (trước 2000). Cả người chơi lẫn AI.</li>
     <li>v3.75.73: BM-21: sát thương mỗi quả rocket giảm một nửa (28 → 14, sóng xung kích giảm theo) — dùng nhiều xe phóng loạt từ xa. Cả người chơi lẫn AI.</li>
     <li>v3.75.72: BM-21: chỉ được bắt đầu loạt khi đã nạp ≥ 2/3 băng (11/16 quả). Mỗi quả rocket tạo sóng xung kích bán kính 2 ô ở điểm rơi: lính, xe mặt đất và công trình đối phương trong vùng đều bị sát thương, gần tâm càng mạnh (60% sát thương quả rocket ở tâm, giảm dần về 0 ở mép). Cả người chơi lẫn AI.</li>

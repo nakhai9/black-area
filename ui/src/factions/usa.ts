@@ -1,11 +1,13 @@
 import type { FactionConfig } from '../types';
 import { t } from "../i18n";
 
-/** United States — high-tech, fast and precise; slightly pricier units. */
+/**
+ * Paxamerica (id 'usa', formerly shown as the United States): from Pax Americana, the "American peace" — the order
+ * the nation kept over the world after 1945. High-tech, fast and precise; slightly pricier units. */
 export const USA: FactionConfig = {
   id: 'usa',
-  name: 'United States',
-  shortName: 'USA',
+  name: 'Paxamerica',
+  shortName: 'Paxamerica',
   leader: { title: 'President', name: 'Donald Trump' },
   doctrine: t('High-tech mobility: fast units, air superiority and precision strikes.'),
   colors: { primary: '#2f6fe0', light: '#9cc0ff', dark: '#14306b' },

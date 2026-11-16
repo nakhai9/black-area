@@ -1,11 +1,13 @@
 import type { FactionConfig } from "../types";
 import { t } from "../i18n";
 
-/** Russia — long-range artillery and hardened defences. */
+/**
+ * Nordursia (id 'russia', formerly shown as Russia): Nord (the cold North) + Ursus (the bear) + the country-name ending
+ * -ia. Long-range artillery and hardened defences. */
 export const RUSSIA: FactionConfig = {
   id: "russia",
-  name: "Russia",
-  shortName: "Russia",
+  name: "Nordursia",
+  shortName: "Nordursia",
   leader: { title: "President", name: "Vladimir Putin" },
   doctrine:
     t("Artillery and defence: long-range firepower behind fortified lines."),

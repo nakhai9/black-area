@@ -169,6 +169,8 @@ const DRONE_TIER_CIVIL = 2;
 const DRONE_GROUP_CELLS = 2.5;
 const VEHICLE_WEIGHT: Readonly<Partial<Record<VehicleKind, number>>> = {
   tank: 0.34,
+  // Europe only: cheap, fast twin-gun tank.
+  vt12: 0.2,
   ifv: 0.12,
   light: 0.06,
   jet: 0.16,
@@ -182,6 +184,8 @@ const VEHICLE_WEIGHT: Readonly<Partial<Record<VehicleKind, number>>> = {
   ldewTruck: 0.08,
   // Only while the AI holds Pyongyang.
   bm21: 0.12,
+  // Only while the AI holds Brasília.
+  a29: 0.1,
   // Only the Islamic world has the drone: it loves it, so it is a big share of what that AI builds.
   drone: 0.3,
 };
@@ -962,7 +966,7 @@ export class AISystem implements GameSystem {
     if (!overland) {
       if (!owned.has('airfield')) return;
       const transports = this.host.entities.vehicles().filter((v) => v.owner === p.id && v.alive && v.isTransport).length;
-      if (transports === 0 && !this.host.production.queue(p).items.includes('transport')) this.host.production.enqueue(p, 'transport');
+      if (transports === 0 && !this.host.production.transportQueued(p)) this.host.production.enqueue(p, this.host.production.transportKey(p));
     }
     this.host.training.enqueue(p, 'squatters');
   }
@@ -1605,10 +1609,10 @@ export class AISystem implements GameSystem {
         const transports = this.host.entities
           .fieldMovers()
           .filter((u) => u instanceof Vehicle && u.owner === p.id && u.alive && u.isTransport).length;
-        const queuedTransports = q.items.filter((k) => k === 'transport').length;
+        const queuedTransports = q.items.filter((k) => k.split('@')[0] === 'transport').length;
         const evacuating = this.host.safeZones.zonesOf(p.id).length > 0;
         if ((st.overseas || evacuating) && able('transport') && transports + queuedTransports < OVERSEAS_TRANSPORTS) {
-          production.enqueue(p, 'transport');
+          production.enqueue(p, production.transportKey(p));
           return;
         }
         // Trucks: soldiers tire on long marches, so keep one truck for every 8 soldiers (at most MAX_TRUCKS) to
@@ -2213,8 +2217,8 @@ export class AISystem implements GameSystem {
         }
       }
       // Antarctic oil still wanted: get a transport ready so it can be flown in on a later round.
-      if (wantsLift && owned.has('airfield') && !this.host.entities.vehicles().some((v) => v.owner === p.id && v.alive && v.isTransport) && !this.host.production.queue(p).items.includes('transport'))
-        this.host.production.enqueue(p, 'transport');
+      if (wantsLift && owned.has('airfield') && !this.host.entities.vehicles().some((v) => v.owner === p.id && v.alive && v.isTransport) && !this.host.production.transportQueued(p))
+        this.host.production.enqueue(p, this.host.production.transportKey(p));
       if (!target) return;
       st.nationTarget = target.id;
     }
@@ -2257,8 +2261,8 @@ export class AISystem implements GameSystem {
     if (!owned.has('airfield')) return;
     const t = this.homeTransports(p).find((v) => !this.carriesSquatters(v) && v.cargo.length < TRANSPORT_LOAD);
     if (t) this.host.orderBoard(t, [engineer]);
-    else if (!this.host.entities.vehicles().some((v) => v.owner === p.id && v.alive && v.isTransport) && !this.host.production.queue(p).items.includes('transport'))
-      this.host.production.enqueue(p, 'transport');
+    else if (!this.host.entities.vehicles().some((v) => v.owner === p.id && v.alive && v.isTransport) && !this.host.production.transportQueued(p))
+      this.host.production.enqueue(p, this.host.production.transportKey(p));
   }
 
   /**
