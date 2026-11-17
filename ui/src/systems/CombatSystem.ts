@@ -20,7 +20,7 @@ export interface CombatHooks {
   /** A shot was fired: draw tracers and play the sound. `impact` is where it lands (world px). */
   onFire(shooter: Unit, target: Entity, weapon: WeaponSpec, impact: WorldPoint): void;
   /** A bunker's machine gun fired at `target`: tracer and muzzle flash. */
-  onBunkerFire(bunker: Bunker, target: Unit): void;
+  onBunkerFire(bunker: Bunker, target: Unit | Building): void;
   /** An entity ran out of health: remove it and show the explosion. */
   onDeath(entity: Entity, killer: Entity | undefined): void;
   /** `nation` let the retreating `fugitive` go instead of chasing it (once per nation per retreat). */
@@ -264,15 +264,31 @@ export class CombatSystem implements GameSystem {
           }
         }
       }
-      if (!best) continue;
+      // With no unit in reach: an enemy bunker inside its range (any bunker, player and AI alike); the missile
+      // launchers (R-12 Dvina, 2K12 Kub) take any enemy structure. Nearest first, edge to edge.
+      let site: Building | undefined;
+      if (!best) {
+        for (const o of this.entities.buildings()) {
+          if (o === b || !isHostile(b, o) || !(b.hitsStructures || o instanceof Bunker)) continue;
+          const g = o.footprintWorld();
+          const d = Math.hypot(Math.max(g.x - (f.x + f.w), 0, f.x - (g.x + g.w)), Math.max(g.y - (f.y + f.h), 0, f.y - (g.y + g.h)));
+          if (d <= b.range && d < bestD) {
+            bestD = d;
+            site = o;
+          }
+        }
+      }
+      const target = best ?? site;
+      if (!target) continue;
       b.cooldown = b.shotCooldown;
       b.firing = 0.3;
-      b.aimHeading = Math.atan2(best.py - c.y, best.px - c.x);
-      best.damage(b.shotDamage * (best instanceof Vehicle ? b.vsVehicle : 1));
-      best.lastAttackerId = b.id;
-      best.lastAttackedAt = this.time;
-      best.fightingWith.set(b.owner, this.time);
-      this.hooks.onBunkerFire(b, best);
+      const tc = target instanceof Building ? target.centerWorld() : { x: target.px, y: target.py };
+      b.aimHeading = Math.atan2(tc.y - c.y, tc.x - c.x);
+      target.damage(b.shotDamage * (target instanceof Vehicle ? b.vsVehicle : 1));
+      target.lastAttackerId = b.id;
+      target.lastAttackedAt = this.time;
+      if (target instanceof Unit) target.fightingWith.set(b.owner, this.time);
+      this.hooks.onBunkerFire(b, target);
     }
   }
 

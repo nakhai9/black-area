@@ -9,6 +9,7 @@ import { Flagpole } from '../entities/Flagpole';
 import { HappyCity } from '../entities/HappyCity';
 import { Bunker } from '../entities/Bunker';
 import { LdewEmplacement } from '../entities/LdewEmplacement';
+import { DvinaLauncher, KubLauncher } from '../entities/DvinaLauncher';
 import { Wall } from '../entities/Wall';
 import { Gate } from '../entities/Gate';
 import { Infantry } from '../entities/Infantry';
@@ -63,6 +64,8 @@ const ENTITY_CLASSES: Readonly<Record<string, abstract new (...args: never[]) =>
   ParallelGovernment,
   Bunker,
   LdewEmplacement,
+  DvinaLauncher,
+  KubLauncher,
   Wall,
   Gate,
   Infantry,

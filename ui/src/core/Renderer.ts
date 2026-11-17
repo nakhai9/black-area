@@ -7,6 +7,8 @@ import { t, t as tr } from '../i18n';
 import { drawBunkerGhost, drawBunkerSheet } from '../render/BunkerSheet';
 import { Bunker } from '../entities/Bunker';
 import { LdewEmplacement } from '../entities/LdewEmplacement';
+import { DvinaLauncher } from '../entities/DvinaLauncher';
+import { drawSite } from '../render/DvinaSheets';
 import { drawExplosion } from '../render/ExplosionSheet';
 import { emblemImage } from '../render/Emblems';
 import { demoActive } from './Demo';
@@ -67,6 +69,8 @@ export interface PlacementGhost {
   readonly mirrored: boolean;
   /** The LDEW laser emplacement: drawn from its own sheets, not the bunker art its sprite key falls back to. */
   readonly ldew?: boolean;
+  readonly dvina?: boolean;
+  readonly kub?: boolean;
   readonly ok: boolean;
   readonly reason: string | null;
 }
@@ -582,7 +586,7 @@ export class Renderer {
       ctx.clip();
     }
     // USA / Europe bunkers come from a pre-drawn sheet (gun facing + damage stage).
-    const sheet = b instanceof LdewEmplacement ? drawLdewEmplacement(ctx, b, c.x, c.y) : b instanceof Bunker && drawBunkerSheet(ctx, b, c.x, c.y);
+    const sheet = b instanceof DvinaLauncher ? drawSite(ctx, b.site, b, c.x, c.y) : b instanceof LdewEmplacement ? drawLdewEmplacement(ctx, b, c.x, c.y) : b instanceof Bunker && drawBunkerSheet(ctx, b, c.x, c.y);
     if (!sheet) {
       ctx.save();
       ctx.translate(c.x, c.y);
@@ -1690,7 +1694,9 @@ export class Renderer {
     const scale = this.sprites.fitScale(g.spriteKey);
     const c = worldToIso(fx + fw / 2, fy + fh / 2);
     ctx.globalAlpha = g.ok ? 0.75 : 0.45;
-    const custom = g.ldew
+    const custom = g.dvina || g.kub
+      ? drawSite(ctx, g.kub ? 'kub' : 'dvina', { faction: g.faction, aimHeading: Math.PI / 4, loaded: true }, c.x, c.y)
+      : g.ldew
       ? drawLdewEmplacement(ctx, { faction: g.faction, aimHeading: Math.PI / 4 }, c.x, c.y)
       : g.spriteKey.startsWith('bunker:') && drawBunkerGhost(ctx, g.faction as FactionId, c.x, c.y);
     if (!custom) {

@@ -1,4 +1,5 @@
-import { type ContestedNationId, HIDDEN_BUILDS, LDEW_SITE_COST, LDEW_SITE_NATION } from '../constants';
+import { type ContestedNationId, DVINA_COST, DVINA_NATION, FOOTPRINT_DVINA, FOOTPRINT_KUB, KUB_COST, KUB_NATIONS, HIDDEN_BUILDS, LDEW_SITE_COST, LDEW_SITE_NATION } from '../constants';
+import { DvinaLauncher, KubLauncher } from '../entities/DvinaLauncher';
 import { demoPrice } from '../core/Demo';
 import {
   MILITARY_BASES,
@@ -59,7 +60,7 @@ import type { GameSystem } from './GameSystem';
 import { isDeleted, sellerOf } from '../core/GameAssets';
 
 /** A structure that can be produced from the sidebar's Build tab. */
-type BaseBuildId = 'powerPlant' | 'barracks' | 'warFactory' | 'airfield' | 'port' | 'radarTower' | 'fuelStation' | 'techCenter' | 'happyCity' | 'flagpole' | 'alliedBuilding' | 'parallelGov' | 'bunker' | 'wall' | 'gate' | 'ldew';
+type BaseBuildId = 'powerPlant' | 'barracks' | 'warFactory' | 'airfield' | 'port' | 'radarTower' | 'fuelStation' | 'techCenter' | 'happyCity' | 'flagpole' | 'alliedBuilding' | 'parallelGov' | 'bunker' | 'wall' | 'gate' | 'ldew' | 'dvina' | 'kub';
 
 export interface BuildOption {
   /** `base@faction` for another nation's design (on sale while that nation's capital is held). */
@@ -68,6 +69,8 @@ export interface BuildOption {
   foreign?: FactionId;
   /** A contested nation's design: offered only while its capital is held (the LDEW for London). */
   nation?: ContestedNationId;
+  /** Several contested nations: offered while any one of their capitals is held (the 2K12 Kub: Minsk or Kyiv). */
+  nations?: readonly ContestedNationId[];
   name: string;
   /** Tech tree: these buildings must already stand (power plant → barracks → war factory + radar tower → airfield → happy city). */
   requires?: BuildingType | readonly BuildingType[];
@@ -137,6 +140,30 @@ const OWN_OPTIONS: readonly BuildOption[] = [
     footprint: FOOTPRINT_BUNKER,
     spriteKey: (f) => `bunker:${f}`,
     create: (owner, faction, x, y) => new LdewEmplacement(owner, faction, center(x, y, FOOTPRINT_BUNKER)),
+  },
+  {
+    // R-12 Dvina missile launcher: hits aircraft, ground units and structures; on sale only to the holder of Havana.
+    id: 'dvina',
+    name: 'R-12 Dvina',
+    requires: 'barracks',
+    cost: DVINA_COST,
+    fixedCost: true,
+    nation: DVINA_NATION,
+    footprint: FOOTPRINT_DVINA,
+    spriteKey: (f) => `bunker:${f}`,
+    create: (owner, faction, x, y) => new DvinaLauncher(owner, faction, center(x, y, FOOTPRINT_DVINA)),
+  },
+  {
+    // 2K12 Kub launcher: hits aircraft, ground units and structures; on sale only to the holder of Minsk or Kyiv.
+    id: 'kub',
+    name: '2K12 Kub',
+    requires: 'barracks',
+    cost: KUB_COST,
+    fixedCost: true,
+    nations: KUB_NATIONS,
+    footprint: FOOTPRINT_KUB,
+    spriteKey: (f) => `bunker:${f}`,
+    create: (owner, faction, x, y) => new KubLauncher(owner, faction, center(x, y, FOOTPRINT_KUB)),
   },
   {
     // One block of the nation's wall: stops enemy ground units.
@@ -293,7 +320,7 @@ export function buildOffered(option: BuildOption, nation: FactionId): boolean | 
   // `powerPlant@russia` for Russia is its own Power Plant a second time: never offered (it showed as a duplicate cameo).
   if (option.foreign === nation && FOREIGN_BUILDS.has(base)) return false;
   // A contested nation's design: on sale only while its capital is held (decided by the caller).
-  if (option.nation) return null;
+  if (option.nation || option.nations) return null;
   const design = option.foreign ?? nation;
   if (isDeleted('building', design, base)) return false;
   if (!option.foreign) return sellerOf('building', design, base) === nation;

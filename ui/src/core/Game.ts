@@ -211,6 +211,8 @@ import { BRIDGE_JOIN_HIGH, BRIDGE_JOIN_LOW, BRIDGE_JOIN_SIDE_HIGH, BRIDGE_JOIN_S
 import { WALL_E, WALL_N, WALL_S, WALL_W } from '../render/sprites/Wall';
 import { Bunker } from '../entities/Bunker';
 import { LdewEmplacement } from '../entities/LdewEmplacement';
+import { DvinaLauncher } from '../entities/DvinaLauncher';
+import { sitePreview, siteRailHeight } from '../render/DvinaSheets';
 import { ldewLensHeight, ldewPreview } from '../render/PrototypeSheets';
 import { PowerSystem } from '../systems/PowerSystem';
 import { SAFE_ZONE_SIZE, type SafeZone, SafeZoneSystem } from '../systems/SafeZoneSystem';
@@ -823,7 +825,7 @@ export class Game {
         if (this.placing?.id === option.id) this.stopPlacing();
         this.issue({ k: 'buildCancel', opt: option.id });
       },
-      preview: (option) => (option.id === 'bunker' ? bunkerPreview(human.faction) : option.id === 'ldew' ? ldewPreview(human.faction) : null) ?? this.sprites.get(option.spriteKey(human.faction)).canvas,
+      preview: (option) => (option.id === 'bunker' ? bunkerPreview(human.faction) : option.id === 'ldew' ? ldewPreview(human.faction) : option.id === 'dvina' || option.id === 'kub' ? sitePreview(option.id, human.faction) : null) ?? this.sprites.get(option.spriteKey(human.faction)).canvas,
       onTrain: (option) => this.issue({ k: 'train', tier: option.key }),
       onTrainCancel: (option) => this.issue({ k: 'trainCancel', tier: option.key }),
       trainPreview: (option) => soldierPortrait(option.faction, option.tier),
@@ -4730,6 +4732,7 @@ export class Game {
   /** Another nation's design is on sale only while its capital, or a structure of that type of it, taken by an engineer, is held. */
   private buildAvailable(player: PlayerState, option: BuildOption): boolean {
     if (option.nation) return holdsNation(this.entities, player, option.nation);
+    if (option.nations) return option.nations.some((n) => holdsNation(this.entities, player, n));
     const offered = buildOffered(option, player.faction);
     if (offered !== null) return offered;
     return foreignBuildAllowed(this.entities, player, option.id, option.foreign!);
@@ -4814,6 +4817,8 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       spriteKey: this.placing.spriteKey(this.humanPlayer.faction),
       faction: this.humanPlayer.faction,
       ldew: this.placing.id === 'ldew',
+      dvina: this.placing.id === 'dvina',
+      kub: this.placing.id === 'kub',
       x,
       y,
       w,
@@ -4904,20 +4909,33 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
   }
 
   /** A bunker's machine gun: muzzle flash at the barrel drawn on its sheet, a bullet from the bullet sheet and a hit spark. */
-  private onBunkerFire(b: Bunker, t: Unit): void {
+  private onBunkerFire(b: Bunker, target: Unit | Building): void {
     const c = b.centerWorld();
     const base = worldToIso(c.x, c.y);
+    if (b instanceof DvinaLauncher) {
+      // R-12 Dvina: the missile leaves the rail on a lofted climb with a heavy smoke trail, then bursts on the target.
+      const tc = target instanceof Building ? target.centerWorld() : { x: target.px, y: target.py };
+      const hit = this.fx(tc.x, tc.y, target instanceof Unit ? this.aimHeight(target, 0.6) : 4);
+      const from = { x: base.x, y: base.y - siteRailHeight(b.site) };
+      const flight = 0.7;
+      this.effects.add({ kind: 'samMissile', x0: from.x, y0: from.y, x1: hit.x, y1: hit.y, age: 0, ttl: flight + SAM_TRAIL_SECONDS, flight, buk: true });
+      if (hasMissileSheet()) this.effects.add({ kind: 'missileBlast', x: hit.x, y: hit.y, age: -flight, ttl: MISSILE_BLAST_SECONDS, air: target instanceof Unit && target.flies });
+      this.sound.play('missile', c);
+      if (target instanceof Unit) this.alertUnderAttack(target, b);
+      return;
+    }
+    const t = target;
     if (b instanceof LdewEmplacement) {
       // Laser: a red beam from the beam director straight onto the target, a hot spot where it lands.
       const lens = { x: base.x, y: base.y - ldewLensHeight() };
-      const hit = this.fx(t.px, t.py, this.aimHeight(t, 0.6));
+      const hit = (t instanceof Unit ? this.fx(t.px, t.py, this.aimHeight(t, 0.6)) : this.fx(t.centerWorld().x, t.centerWorld().y, 2));
       this.effects.add({ kind: 'laser', x0: lens.x, y0: lens.y, x1: hit.x, y1: hit.y, age: 0, ttl: LASER_TTL, color: FACTIONS[b.faction as FactionId].colors.primary });
       this.sound.play('laser', c);
       return;
     }
     const off = bunkerMuzzle(b.faction, b.aimHeading);
     const muzzle = { x: base.x + off.x, y: base.y + off.y };
-    const hit = this.fx(t.px, t.py, this.aimHeight(t, 0.6));
+    const hit = (t instanceof Unit ? this.fx(t.px, t.py, this.aimHeight(t, 0.6)) : this.fx(t.centerWorld().x, t.centerWorld().y, 2));
     // Looks like a tank round (bullet, flash and impact as a tank's); it is still a machine gun (sound, damage).
     this.effects.add({ kind: 'flash', x: muzzle.x, y: muzzle.y, age: 0, ttl: 0.07, size: 3.6 });
     if (hasBulletSheet()) this.addBullet(muzzle, hit, 'tank');
@@ -4932,7 +4950,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     const mx = c.x;
     const my = c.y;
     this.sound.play('mg', { x: mx, y: my });
-    this.alertUnderAttack(t, b);
+    if (t instanceof Unit) this.alertUnderAttack(t, b);
   }
 
   /**

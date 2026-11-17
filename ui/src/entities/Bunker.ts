@@ -14,11 +14,11 @@ export class Bunker extends Building {
   /** World heading of the gun (towards the last target; starts facing screen south). */
   aimHeading = Math.PI / 4;
 
-  constructor(owner: number, faction: FactionId, center: WorldPoint, kind: { name?: string; maxHp?: number; powerDrain?: number } = {}) {
+  constructor(owner: number, faction: FactionId, center: WorldPoint, kind: { name?: string; maxHp?: number; powerDrain?: number; footprint?: { w: number; d: number } } = {}) {
     super(owner, faction, center, {
       type: 'bunker',
       name: kind.name ?? 'Bunker',
-      footprint: FOOTPRINT_BUNKER,
+      footprint: kind.footprint ?? FOOTPRINT_BUNKER,
       maxHp: kind.maxHp ?? BUNKER_HP,
       powerOutput: 0,
       powerDrain: kind.powerDrain ?? BUNKER_POWER_DRAIN,
@@ -43,6 +43,10 @@ export class Bunker extends Building {
   }
   /** Can it shoot aircraft in flight? */
   get hitsAir(): boolean {
+    return false;
+  }
+  /** Can it shoot enemy structures too (the R-12 Dvina)? */
+  get hitsStructures(): boolean {
     return false;
   }
 
