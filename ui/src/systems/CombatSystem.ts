@@ -2,10 +2,11 @@ import type { FactionId } from '../types';
 import type { Mobility } from '../map/Pathfinder';
 import { demoActive } from '../core/Demo';
 import { movesRight } from '../core/IsoView';
-import { BM21_INTERCEPT_CHANCE, BM21_MIN_SALVO, BM21_SHOCK_CELLS, BM21_SHOCK_PEAK, bm21Flight, BOMB_FALL_SECONDS, HIGH_GROUND_DAMAGE, HIGH_GROUND_RANGE, LOW_GROUND_DAMAGE, MANTIS_HIT_SHARE, MANTIS_RANGE_CELLS, MANTIS_RANK_BONUS, MANTIS_EVADE_CELLS, HELI_VS_MANTIS_SHARE, JET_VS_MANTIS_SHARE, MANTIS_VS_JET_SHARE, MANTIS_VS_HELI_SHARE, MANTIS_RELOAD, MANTIS_GUN_NATIONS, PGZ_RELOAD, PGZ_HIT_FACTOR, JET_BOMB_VS_STRUCTURE, JET_BOMB_VS_VEHICLE, ACQUIRE_PERIOD, RANK_FIREPOWER, RANK_RELOAD, BOMB_GROUP_RADIUS_CELLS, BOMB_GROUP_SIZE, BOMB_TOUGH_DAMAGE, BOMB_TOUGH_STRUCTURES, BOMBS_PER_DROP, CELL_SIZE, CHASE_GIVE_UP_SECONDS, CHASE_LIMIT_CELLS, CHASE_PERIOD, FIGHT_MEMORY_SECONDS, GUARD_VISION_FACTOR, NEUTRAL_OWNER, RETALIATE_RANGE_FACTOR, WEAPONS, FIGHTER_DRONE_ALERT, FELL_SPREAD_CELLS, TREE_BOMB_RADIUS_CELLS, TREE_STICK_RADIUS_CELLS } from '../constants';
+import { BM21_INTERCEPT_CHANCE, BM21_MIN_SALVO, BM21_SHOCK_CELLS, BM21_SHOCK_PEAK, bm21Flight, DVINA_AIM_TOLERANCE, DVINA_RELOAD, DVINA_TURN_RATE, BOMB_FALL_SECONDS, HIGH_GROUND_DAMAGE, HIGH_GROUND_RANGE, LOW_GROUND_DAMAGE, MANTIS_HIT_SHARE, MANTIS_RANGE_CELLS, MANTIS_RANK_BONUS, MANTIS_EVADE_CELLS, HELI_VS_MANTIS_SHARE, JET_VS_MANTIS_SHARE, MANTIS_VS_JET_SHARE, MANTIS_VS_HELI_SHARE, MANTIS_RELOAD, MANTIS_GUN_NATIONS, PGZ_RELOAD, PGZ_HIT_FACTOR, JET_BOMB_VS_STRUCTURE, JET_BOMB_VS_VEHICLE, ACQUIRE_PERIOD, RANK_FIREPOWER, RANK_RELOAD, BOMB_GROUP_RADIUS_CELLS, BOMB_GROUP_SIZE, BOMB_TOUGH_DAMAGE, BOMB_TOUGH_STRUCTURES, BOMBS_PER_DROP, CELL_SIZE, CHASE_GIVE_UP_SECONDS, CHASE_LIMIT_CELLS, CHASE_PERIOD, FIGHT_MEMORY_SECONDS, GUARD_VISION_FACTOR, NEUTRAL_OWNER, RETALIATE_RANGE_FACTOR, WEAPONS, FIGHTER_DRONE_ALERT, FELL_SPREAD_CELLS, TREE_BOMB_RADIUS_CELLS, TREE_STICK_RADIUS_CELLS } from '../constants';
 import { Building } from '../entities/Building';
 import { Bunker } from '../entities/Bunker';
 import { LdewEmplacement } from '../entities/LdewEmplacement';
+import { DvinaLauncher } from '../entities/DvinaLauncher';
 import type { Entity } from '../entities/Entity';
 import type { EntityManager } from '../entities/EntityManager';
 import { Infantry } from '../entities/Infantry';
@@ -240,6 +241,10 @@ export class CombatSystem implements GameSystem {
       if (!(b instanceof Bunker) || !b.alive || b.owner === NEUTRAL_OWNER) continue;
       b.cooldown = Math.max(0, b.cooldown - dt);
       b.firing = Math.max(0, b.firing - dt);
+      if (b instanceof DvinaLauncher) {
+        this.dvina(b, dt);
+        continue;
+      }
       if (b.cooldown > 0) continue;
       // The laser emplacement runs on the grid: with the nation short of power it cannot fire.
       if (b instanceof LdewEmplacement && this.hooks.powerShort(b.owner)) continue;
@@ -300,6 +305,75 @@ export class CombatSystem implements GameSystem {
       if (target instanceof Unit) target.fightingWith.set(b.owner, this.time);
       this.hooks.onBunkerFire(b, target);
     }
+  }
+
+  /**
+   * R-12 Dvina, driven like a vehicle: the launcher turns (DVINA_TURN_RATE) to its locked target (kept until it dies,
+   * fired on once in range), else the nearest enemy in range, else the direction it was turned to. It fires only when
+   * laid on the target with a missile on the rail; each new missile is paid for (DvinaLauncher.payMissile) and loaded
+   * in DVINA_RELOAD s. The warhead hits everything hostile within the blast radius (full at the centre). Player and AI.
+   */
+  private dvina(b: DvinaLauncher, dt: number): void {
+    if (!b.armed && b.cooldown <= 0 && DvinaLauncher.payMissile(b)) {
+      b.armed = true;
+      b.cooldown = DVINA_RELOAD;
+    }
+    const c = b.centerWorld();
+    const f = b.footprintWorld();
+    const gap = (o: Unit | Building): number => {
+      const g = o instanceof Building ? o.footprintWorld() : { x: o.px, y: o.py, w: 0, h: 0 };
+      return Math.hypot(Math.max(g.x - (f.x + f.w), 0, f.x - (g.x + g.w)), Math.max(g.y - (f.y + f.h), 0, f.y - (g.y + g.h)));
+    };
+    const fair = (o: Entity | undefined): o is Unit | Building =>
+      (o instanceof Unit || o instanceof Building) && o.alive && o !== b && isHostile(b, o) && !this.hooks.shielded(o) && !(o instanceof Unit && this.sheltered(o));
+    let target: Unit | Building | undefined;
+    if (b.forcedTarget !== null) {
+      const o = this.entities.get(b.forcedTarget);
+      if (fair(o)) target = o;
+      else b.forcedTarget = null;
+    }
+    if (!target && !this.hooks.safeAt(c.x, c.y)) {
+      let bestD = Infinity;
+      for (const o of this.entities.fieldMovers()) {
+        if (!fair(o)) continue;
+        const d = gap(o);
+        if (d <= b.range && d < bestD) [bestD, target] = [d, o];
+      }
+      if (!target)
+        for (const o of this.entities.buildings()) {
+          if (!fair(o)) continue;
+          const d = gap(o);
+          if (d <= b.range && d < bestD) [bestD, target] = [d, o];
+        }
+    }
+    const tc = target ? (target instanceof Building ? target.centerWorld() : { x: target.px, y: target.py }) : null;
+    const want = tc ? Math.atan2(tc.y - c.y, tc.x - c.x) : b.aimOrder;
+    if (want === null) return;
+    const off = (): number => Math.atan2(Math.sin(want - b.aimHeading), Math.cos(want - b.aimHeading));
+    const step = DVINA_TURN_RATE * dt;
+    const diff = off();
+    b.aimHeading = Math.abs(diff) <= step ? want : b.aimHeading + Math.sign(diff) * step;
+    if (!target || !tc || !b.loaded || gap(target) > b.range || this.hooks.safeAt(c.x, c.y) || Math.abs(off()) > DVINA_AIM_TOLERANCE) return;
+    b.armed = false;
+    b.cooldown = 0;
+    b.firing = 0.3;
+    // Warhead: the target and everything hostile round it (aircraft only by a direct hit).
+    const radius = b.blastRadius;
+    const hit = (o: Unit | Building, amount: number): void => {
+      if (!o.alive || !isHostile(b, o) || amount <= 0) return;
+      o.damage(amount);
+      o.lastAttackerId = b.id;
+      o.lastAttackedAt = this.time;
+      if (o instanceof Unit) o.fightingWith.set(b.owner, this.time);
+    };
+    hit(target, b.shotDamage);
+    if (!(target instanceof Unit && target.flies)) {
+      const blast = (d: number): number => b.shotDamage * Math.max(0, 1 - d / radius);
+      this.hooks.trees.damageRadius(tc.x, tc.y, radius, b.shotDamage);
+      for (const o of this.entities.fieldMovers()) if (o !== target && !o.flies && !this.sheltered(o)) hit(o, blast(Math.hypot(o.px - tc.x, o.py - tc.y)));
+      for (const o of this.entities.buildings()) if (o !== target && !this.sheltered(o)) hit(o, blast(distanceTo(tc.x, tc.y, o)));
+    }
+    this.hooks.onBunkerFire(b, target);
   }
 
   // ------------------------------------------------------------------ per-unit logic

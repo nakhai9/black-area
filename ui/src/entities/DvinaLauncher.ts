@@ -1,4 +1,4 @@
-import { CELL_SIZE, DVINA_DAMAGE, DVINA_HP, DVINA_POWER_DRAIN, DVINA_RANGE_CELLS, DVINA_RELOAD, FOOTPRINT_DVINA } from '../constants';
+import { CELL_SIZE, DVINA_BLAST_CELLS, DVINA_DAMAGE, DVINA_HP, DVINA_POWER_DRAIN, DVINA_RANGE_CELLS, DVINA_RELOAD, FOOTPRINT_DVINA } from '../constants';
 import type { SiteId } from '../render/DvinaSheets';
 import type { FactionId, WorldPoint } from '../types';
 import { Bunker } from './Bunker';
@@ -10,6 +10,13 @@ import { Bunker } from './Bunker';
  * reloads (drawn from the dvina sheets: stand, launcher, missile).
  */
 export class DvinaLauncher extends Bunker {
+  /** Pays DVINA_MISSILE_COST for the next missile (wired by Game: owner's treasury, player and AI alike). */
+  static payMissile: (b: DvinaLauncher) => boolean = () => true;
+  /** A missile is on the rail or being loaded (paid for); false once fired until the next one is paid. */
+  armed = true;
+  /** World heading the owner turned the launcher to (left-click on the ground); null = free. */
+  aimOrder: number | null = null;
+
   /** Which sheets draw it. */
   get site(): SiteId {
     return 'dvina';
@@ -17,6 +24,8 @@ export class DvinaLauncher extends Bunker {
 
   constructor(owner: number, faction: FactionId, center: WorldPoint, kind: { name: string; maxHp: number; powerDrain: number; footprint: { w: number; d: number } } = { name: 'R-12 Dvina', maxHp: DVINA_HP, powerDrain: DVINA_POWER_DRAIN, footprint: FOOTPRINT_DVINA }) {
     super(owner, faction, center, kind);
+    // Faces screen-left when placed (world heading 3π/4 → iso -x).
+    this.aimHeading = Math.PI * 0.75;
   }
 
   override get range(): number {
@@ -39,7 +48,11 @@ export class DvinaLauncher extends Bunker {
   }
   /** A missile sits on the rail (none while it reloads). */
   get loaded(): boolean {
-    return this.cooldown <= 0;
+    return this.armed && this.cooldown <= 0;
+  }
+  /** Blast radius round the impact (world px). */
+  get blastRadius(): number {
+    return DVINA_BLAST_CELLS * CELL_SIZE;
   }
 }
 

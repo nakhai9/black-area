@@ -1694,7 +1694,7 @@ export class Renderer {
     const c = worldToIso(fx + fw / 2, fy + fh / 2);
     ctx.globalAlpha = g.ok ? 0.75 : 0.45;
     const custom = g.dvina
-      ? drawSite(ctx, 'dvina', { faction: g.faction, aimHeading: Math.PI / 4, loaded: true }, c.x, c.y)
+      ? drawSite(ctx, 'dvina', { faction: g.faction, aimHeading: Math.PI * 0.75, loaded: true }, c.x, c.y)
       : g.ldew
       ? drawLdewEmplacement(ctx, { faction: g.faction, aimHeading: Math.PI / 4 }, c.x, c.y)
       : g.spriteKey.startsWith('bunker:') && drawBunkerGhost(ctx, g.faction as FactionId, c.x, c.y);

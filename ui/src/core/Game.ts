@@ -15,7 +15,7 @@ import {
   ENGINEER_REPAIR_SHARE,
   CAPITAL_EMBARGO_SECONDS,
   CAPITAL_DISARM_SECONDS,
-  BM21_RELOAD_COST,
+  BM21_RELOAD_COST, DVINA_MISSILE_COST,
   MILITARY_BASES,
   AI_EMBARGO_CREDITS,
   DERRICK_GRACE_GAP,
@@ -266,6 +266,7 @@ export type GameCommand = (
   | { k: 'sellBuilding'; b: number }
   | { k: 'rally'; b: number; x: number; y: number; clear: boolean }
   | { k: 'siteTarget'; b: number; tg: number }
+  | { k: 'siteAim'; b: number; h: number }
   /** DEMO only: Ctrl+click on one of my own structures / units: the selection fires on it (force fire). */
   | { k: 'forceAttack'; t: number }
   /** Clearing order: the armed selection fires on wooded cell (x, y) and the wooded cells round it (TREE_* in constants). */
@@ -645,6 +646,13 @@ export class Game {
       const p = this.players.find((o) => o.id === v.owner);
       if (!p || p.credits < BM21_RELOAD_COST) return false;
       p.credits -= BM21_RELOAD_COST;
+      return true;
+    };
+    // R-12 Dvina: every missile after the first costs DVINA_MISSILE_COST from the owner's treasury (player and AI alike).
+    DvinaLauncher.payMissile = (b) => {
+      const p = this.players.find((o) => o.id === b.owner);
+      if (!p || p.credits < DVINA_MISSILE_COST) return false;
+      p.credits -= DVINA_MISSILE_COST;
       return true;
     };
     this.construction.lostPrerequisite = (p, option) =>
@@ -3468,7 +3476,18 @@ export class Game {
       case 'siteTarget': {
         const b = this.entities.get(cmd.b);
         const tg = this.entities.get(cmd.tg);
-        if (b instanceof DvinaLauncher && b.alive && b.owner === me && tg && tg.alive && isHostile(b, tg)) b.forcedTarget = tg.id;
+        if (b instanceof DvinaLauncher && b.alive && b.owner === me && tg && tg.alive && isHostile(b, tg)) {
+          b.forcedTarget = tg.id;
+          b.aimOrder = null;
+        }
+        break;
+      }
+      case 'siteAim': {
+        const b = this.entities.get(cmd.b);
+        if (b instanceof DvinaLauncher && b.alive && b.owner === me) {
+          b.forcedTarget = null;
+          b.aimOrder = cmd.h;
+        }
         break;
       }
       case 'rally': {
@@ -4268,10 +4287,17 @@ export class Game {
         const f = site.footprintWorld();
         const g = tg instanceof Building ? tg.footprintWorld() : { x: (tg as Unit).px, y: (tg as Unit).py, w: 0, h: 0 };
         const d = Math.hypot(Math.max(g.x - (f.x + f.w), 0, f.x - (g.x + g.w)), Math.max(g.y - (f.y + f.h), 0, f.y - (g.y + g.h)));
-        if (d <= site.range && !(tg instanceof Unit && tg.flies && !site.hitsAir)) {
-          this.issue({ k: 'siteTarget', b: site.id, tg: tg.id });
-          this.moveMarker = { x: world.x, y: world.y, at: this.time };
-        } else this.sidebar.notify(t('Target out of range.'), 1.5);
+        // Locked: the launcher turns to it and keeps it until it dies; out of range it waits for it to come in.
+        this.issue({ k: 'siteTarget', b: site.id, tg: tg.id });
+        this.moveMarker = { x: world.x, y: world.y, at: this.time };
+        if (d > site.range) this.sidebar.notify(t('Target out of range.'), 1.5);
+        return;
+      }
+      // Click on open ground: the launcher turns that way (drops its lock); right-click deselects.
+      if (site instanceof DvinaLauncher && site.alive && site.owner === me && !pu && !hit) {
+        const c = site.centerWorld();
+        this.issue({ k: 'siteAim', b: site.id, h: Math.atan2(world.y - c.y, world.x - c.x) });
+        this.moveMarker = { x: world.x, y: world.y, at: this.time };
         return;
       }
     }

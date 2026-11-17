@@ -39,7 +39,7 @@ export const DEMO_FACTION: FactionId = NATION_CODES[(import.meta.env.VITE_DEMO_F
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "3.75.141";
+export const GAME_VERSION = "3.75.143";
 
 /** An Allied Building within this many cells of any capital is an embassy; farther out it is a "Pro-<nation> regime". */
 export const EMBASSY_CAPITAL_CELLS = 25;
@@ -394,8 +394,17 @@ export const KUB_COOLDOWN = 3.5;
 export const DVINA_COST = 2500;
 export const DVINA_HP = 1400;
 export const DVINA_RANGE_CELLS = 12;
-export const DVINA_DAMAGE = 260;
+/** Warhead at the point of impact (the game has no nuclear weapon: taken as 1/5 of a notional 15000-damage nuke). */
+export const DVINA_DAMAGE = 3000;
+/** Blast radius (cells) round the impact: full damage at the centre, none at the edge (structures and units alike). */
+export const DVINA_BLAST_CELLS = 3;
+/** Seconds to load the next missile once it is paid for. */
 export const DVINA_RELOAD = 6;
+/** Every missile after the first (included in the purchase) costs this from the owner's treasury; no money, empty rail. */
+export const DVINA_MISSILE_COST = 2500;
+/** Launcher traverse (radians / s); it fires only once laid on the target (within DVINA_AIM_TOLERANCE rad). */
+export const DVINA_TURN_RATE = 1.2;
+export const DVINA_AIM_TOLERANCE = 0.08;
 export const DVINA_POWER_DRAIN = 3;
 export const DVINA_NATION = "cuba";
 export const FOOTPRINT_DVINA = { w: 2, d: 2 } as const;
