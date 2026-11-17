@@ -265,6 +265,7 @@ export type GameCommand = (
   | { k: 'guard'; ward: number }
   | { k: 'sellBuilding'; b: number }
   | { k: 'rally'; b: number; x: number; y: number; clear: boolean }
+  | { k: 'siteTarget'; b: number; tg: number }
   /** DEMO only: Ctrl+click on one of my own structures / units: the selection fires on it (force fire). */
   | { k: 'forceAttack'; t: number }
   /** Clearing order: the armed selection fires on wooded cell (x, y) and the wooded cells round it (TREE_* in constants). */
@@ -3464,6 +3465,12 @@ export class Game {
         }
         break;
       }
+      case 'siteTarget': {
+        const b = this.entities.get(cmd.b);
+        const tg = this.entities.get(cmd.tg);
+        if (b instanceof DvinaLauncher && b.alive && b.owner === me && tg && tg.alive && isHostile(b, tg)) b.forcedTarget = tg.id;
+        break;
+      }
       case 'rally': {
         const b = this.entities.get(cmd.b);
         if (b instanceof Building && b.owner === me && RALLY_TYPES.has(b.spec.type)) b.rally = cmd.clear ? null : { x: cmd.x, y: cmd.y };
@@ -4253,6 +4260,21 @@ export class Game {
     const none = this.selection.selectedUnits.size === 0;
     // (Double-click on a selected loaded carrier lets its riders out: that is an order.)
     const unloads = double && !shift && pu instanceof Vehicle && pu.isCarrier && pu.cargo.length > 0 && this.selection.selectedUnits.has(pu.id);
+    // My R-12 Dvina selected + click on an enemy soldier / vehicle / structure: it fires at that one (like a vehicle's attack order).
+    if (none && this.selection.selectedId !== null) {
+      const site = this.entities.get(this.selection.selectedId);
+      const tg = pu ?? hit;
+      if (site instanceof DvinaLauncher && site.alive && site.owner === me && tg && tg !== site && tg.owner !== me && isHostile(site, tg)) {
+        const f = site.footprintWorld();
+        const g = tg instanceof Building ? tg.footprintWorld() : { x: (tg as Unit).px, y: (tg as Unit).py, w: 0, h: 0 };
+        const d = Math.hypot(Math.max(g.x - (f.x + f.w), 0, f.x - (g.x + g.w)), Math.max(g.y - (f.y + f.h), 0, f.y - (g.y + g.h)));
+        if (d <= site.range && !(tg instanceof Unit && tg.flies && !site.hitsAir)) {
+          this.issue({ k: 'siteTarget', b: site.id, tg: tg.id });
+          this.moveMarker = { x: world.x, y: world.y, at: this.time };
+        } else this.sidebar.notify(t('Target out of range.'), 1.5);
+        return;
+      }
+    }
     if (pu && pu.owner === me && !unloads && (none || shift || double)) {
       if (shift && !double) this.selection.toggleUnit(pu.id);
       else this.selection.selectUnits([pu.id]);

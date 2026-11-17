@@ -13,6 +13,8 @@ export class Bunker extends Building {
   firing = 0;
   /** World heading of the gun (towards the last target; starts facing screen south). */
   aimHeading = Math.PI / 4;
+  /** Target the owner ordered (R-12 Dvina: select it, click an enemy in range); shot before anything else while valid. */
+  forcedTarget: number | null = null;
 
   constructor(owner: number, faction: FactionId, center: WorldPoint, kind: { name?: string; maxHp?: number; powerDrain?: number; footprint?: { w: number; d: number } } = {}) {
     super(owner, faction, center, {

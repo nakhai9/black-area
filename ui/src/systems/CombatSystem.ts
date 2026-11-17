@@ -248,7 +248,17 @@ export class CombatSystem implements GameSystem {
       const f = b.footprintWorld();
       let best: Unit | undefined;
       let bestD = Infinity;
-      const r = Math.ceil((b.range + f.w) / HASH);
+      // Ordered target (R-12 Dvina, like a vehicle's attack order): kept while alive, hostile and in reach.
+      let forced: Unit | Building | undefined;
+      if (b.forcedTarget !== null) {
+        const o = this.entities.get(b.forcedTarget);
+        const ok = (o instanceof Unit || o instanceof Building) && o.alive && isHostile(b, o) && !(o instanceof Unit && ((o.flies && !b.hitsAir) || this.sheltered(o))) && !(o instanceof Building && !b.hitsStructures && !(o instanceof Bunker));
+        const g = ok ? (o instanceof Building ? o.footprintWorld() : { x: o.px, y: o.py, w: 0, h: 0 }) : null;
+        const d = g ? Math.hypot(Math.max(g.x - (f.x + f.w), 0, f.x - (g.x + g.w)), Math.max(g.y - (f.y + f.h), 0, f.y - (g.y + g.h))) : Infinity;
+        if (ok && d <= b.range) forced = o;
+        else b.forcedTarget = null;
+      }
+      const r = forced ? -1 : Math.ceil((b.range + f.w) / HASH);
       const hx = Math.floor(c.x / HASH);
       const hy = Math.floor(c.y / HASH);
       for (let gy = hy - r; gy <= hy + r; gy++) {
@@ -267,7 +277,7 @@ export class CombatSystem implements GameSystem {
       // With no unit in reach: an enemy bunker inside its range (any bunker, player and AI alike); the missile
       // launcher (R-12 Dvina) take any enemy structure. Nearest first, edge to edge.
       let site: Building | undefined;
-      if (!best) {
+      if (!best && !forced) {
         for (const o of this.entities.buildings()) {
           if (o === b || !isHostile(b, o) || !(b.hitsStructures || o instanceof Bunker)) continue;
           const g = o.footprintWorld();
@@ -278,7 +288,7 @@ export class CombatSystem implements GameSystem {
           }
         }
       }
-      const target = best ?? site;
+      const target = forced ?? best ?? site;
       if (!target) continue;
       b.cooldown = b.shotCooldown;
       b.firing = 0.3;

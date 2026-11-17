@@ -163,6 +163,7 @@ export default {
   'The {name} is in the air — land it on the ground first, then unload.': '{name} đang bay — hãy cho đáp xuống mặt đất rồi mới thả quân.',
   '{name} has landed beside the War Factory.': '{name} đã đáp xuống cạnh xưởng xe.',
   'Rally point set.': 'Đã đặt điểm tập kết.',
+  'Target out of range.': 'Mục tiêu ngoài tầm bắn.',
   'Rally point cleared.': 'Đã xoá điểm tập kết.',
   'No free parking spot on that airfield.': 'Sân bay đó đã hết chỗ đỗ.',
   'The carrier deck is full ({max} fighters at most).': 'Boong tàu sân bay đã đầy (tối đa {max} tiêm kích).',

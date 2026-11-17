@@ -4,7 +4,7 @@ import type { FactionId, WorldPoint } from '../types';
 import { Bunker } from './Bunker';
 
 /**
- * R-12 Dvina missile launcher (3×3, Defense tab): sold only to the holder of Havana (BuildOption.nation). A bunker to
+ * R-12 Dvina missile launcher (2×2, Defense tab): sold only to the holder of Havana (BuildOption.nation). A bunker to
  * the rest of the game (placement, capture, AI), but it fires one heavy missile at a time (CombatSystem.bunkers) at
  * aircraft, ground units and structures; the launcher turns towards the target and the rail stays empty while it
  * reloads (drawn from the dvina sheets: stand, launcher, missile).

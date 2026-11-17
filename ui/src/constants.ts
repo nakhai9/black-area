@@ -39,7 +39,7 @@ export const DEMO_FACTION: FactionId = NATION_CODES[(import.meta.env.VITE_DEMO_F
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "3.75.140";
+export const GAME_VERSION = "3.75.141";
 
 /** An Allied Building within this many cells of any capital is an embassy; farther out it is a "Pro-<nation> regime". */
 export const EMBASSY_CAPITAL_CELLS = 25;
@@ -380,7 +380,7 @@ export const LDEW_SITE_DAMAGE = 30;
 export const LDEW_SITE_COOLDOWN = 0.9;
 export const LDEW_SITE_NATION = "unitedKingdom";
 /**
- * R-12 Dvina missile launcher (Defense tab, 3×3): on sale only while the nation holds Havana (Cuba's capital), for the
+ * R-12 Dvina missile launcher (Defense tab, 2×2): on sale only while the nation holds Havana (Cuba's capital), for the
  * player and the AI alike. Fires on its own like a bunker: one heavy missile at aircraft, ground units or structures
  * within DVINA_RANGE_CELLS cells, then the rail stands empty for DVINA_RELOAD seconds while the next missile is loaded.
  */
@@ -398,7 +398,7 @@ export const DVINA_DAMAGE = 260;
 export const DVINA_RELOAD = 6;
 export const DVINA_POWER_DRAIN = 3;
 export const DVINA_NATION = "cuba";
-export const FOOTPRINT_DVINA = { w: 3, d: 3 } as const;
+export const FOOTPRINT_DVINA = { w: 2, d: 2 } as const;
 /** Power a Tech Center draws; the laser is a high-energy weapon: emplacement 1.5× that, LDEW vehicles 1×. Short of power → lasers stop. */
 export const TECH_CENTER_POWER_DRAIN = 6;
 export const LDEW_SITE_POWER_DRAIN = TECH_CENTER_POWER_DRAIN * 1.5;
@@ -1056,6 +1056,7 @@ export const AVAILABLE_VEHICLES: readonly VehicleKind[] = [
   "bm21",
   "kub",
   "vt12",
+  "a29",
 ];
 /**
  * Machines of a contested nation: on sale (War Factory, in the holder's colours) only while that nation's capital is
