@@ -39,7 +39,7 @@ export const DEMO_FACTION: FactionId = NATION_CODES[(import.meta.env.VITE_DEMO_F
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "3.75.137";
+export const GAME_VERSION = "3.75.140";
 
 /** An Allied Building within this many cells of any capital is an embassy; farther out it is a "Pro-<nation> regime". */
 export const EMBASSY_CAPITAL_CELLS = 25;
@@ -384,6 +384,13 @@ export const LDEW_SITE_NATION = "unitedKingdom";
  * player and the AI alike. Fires on its own like a bunker: one heavy missile at aircraft, ground units or structures
  * within DVINA_RANGE_CELLS cells, then the rail stands empty for DVINA_RELOAD seconds while the next missile is loaded.
  */
+/**
+ * 2K12 Kub (War Factory vehicle, holder of Minsk or Kyiv): its missile hits KUB_DAMAGE × the base missile, reaches
+ * KUB_RANGE × as far, one every KUB_COOLDOWN s; aircraft, ground units and structures. Player and AI alike.
+ */
+export const KUB_DAMAGE = 2.5;
+export const KUB_RANGE = 1.6;
+export const KUB_COOLDOWN = 3.5;
 export const DVINA_COST = 2500;
 export const DVINA_HP = 1400;
 export const DVINA_RANGE_CELLS = 12;
@@ -392,19 +399,6 @@ export const DVINA_RELOAD = 6;
 export const DVINA_POWER_DRAIN = 3;
 export const DVINA_NATION = "cuba";
 export const FOOTPRINT_DVINA = { w: 3, d: 3 } as const;
-/**
- * 2K12 Kub launcher (Defense tab, 3×3): the tracked launcher dug in on its own ground pad, three missiles on a turning
- * rack. On sale only while the nation holds Minsk or Kyiv (Belarus / Ukraine), player and AI alike. Fires on its own at
- * aircraft, ground units and structures within KUB_RANGE_CELLS cells; one missile every KUB_RELOAD seconds.
- */
-export const KUB_COST = 2200;
-export const KUB_HP = 1600;
-export const KUB_RANGE_CELLS = 10;
-export const KUB_DAMAGE = 150;
-export const KUB_RELOAD = 3.5;
-export const KUB_POWER_DRAIN = 3;
-export const KUB_NATIONS: readonly ContestedNationId[] = ["belarus", "ukraine"];
-export const FOOTPRINT_KUB = { w: 3, d: 3 } as const;
 /** Power a Tech Center draws; the laser is a high-energy weapon: emplacement 1.5× that, LDEW vehicles 1×. Short of power → lasers stop. */
 export const TECH_CENTER_POWER_DRAIN = 6;
 export const LDEW_SITE_POWER_DRAIN = TECH_CENTER_POWER_DRAIN * 1.5;
@@ -793,6 +787,7 @@ export const VEHICLE_WEAPON: Readonly<
   tank: "cannon",
   k9: "cannon",
   bm21: "rocket",
+  kub: "missile",
   vt12: "cannon",
   a29: "missile",
   ldew: "autocannon",
@@ -844,6 +839,8 @@ export const VEHICLE_BASE = {
   k9: { cost: 1800, trainSeconds: 18, maxHp: 360, speed: 1.2, radius: 4.4 },
   /** BM-21 Grad rocket launcher on the Ural-4320: sold only to the holder of Pyongyang (North Korea's capital), see NATION_VEHICLES and BM21_*. */
   bm21: { cost: 1200, trainSeconds: 18, maxHp: 260, speed: 1.6, radius: 4.6 },
+  /** 2K12 Kub tracked SAM launcher (holder of Minsk or Kyiv, NATION_VEHICLES): three missiles at aircraft, ground units and structures, see KUB_*. */
+  kub: { cost: 2200, trainSeconds: 18, maxHp: 380, speed: 1.3, radius: 4.4 },
   /** A-29 Super Tucano light attack turboprop (Brazil's holder only, NATION_VEHICLES): slower than a fighter, ground targets only. Price A29_PRICE. */
   a29: { cost: 2400, trainSeconds: 16, maxHp: 200, speed: 6, radius: 3.2 },
   /** LDEW laser (counter-UAS), ground emplacement: crawls into place, then guards it. Holder of London only (NATION_VEHICLES). */
@@ -1057,6 +1054,7 @@ export const AVAILABLE_VEHICLES: readonly VehicleKind[] = [
   "k9",
   "ldewTruck",
   "bm21",
+  "kub",
   "vt12",
 ];
 /**
@@ -1067,8 +1065,9 @@ export const NATION_VEHICLES: Readonly<Partial<Record<ContestedNationId, readonl
   southKorea: ["k9"],
   // BM-21 from any of these capitals: one BM-21 in the shop however many of them are held (heldNationVehicles dedupes).
   northKorea: ["bm21"],
-  ukraine: ["bm21"],
-  belarus: ["bm21"],
+  // 2K12 Kub tracked missile launcher from Kyiv or Minsk (one in the shop however many are held).
+  ukraine: ["bm21", "kub"],
+  belarus: ["bm21", "kub"],
   // A-29 Super Tucano: light attack aircraft, built at the Airfield.
   brazil: ["a29"],
   unitedKingdom: ["ldewTruck"],

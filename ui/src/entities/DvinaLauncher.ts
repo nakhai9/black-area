@@ -1,4 +1,4 @@
-import { CELL_SIZE, DVINA_DAMAGE, DVINA_HP, DVINA_POWER_DRAIN, DVINA_RANGE_CELLS, DVINA_RELOAD, FOOTPRINT_DVINA, FOOTPRINT_KUB, KUB_DAMAGE, KUB_HP, KUB_POWER_DRAIN, KUB_RANGE_CELLS, KUB_RELOAD } from '../constants';
+import { CELL_SIZE, DVINA_DAMAGE, DVINA_HP, DVINA_POWER_DRAIN, DVINA_RANGE_CELLS, DVINA_RELOAD, FOOTPRINT_DVINA } from '../constants';
 import type { SiteId } from '../render/DvinaSheets';
 import type { FactionId, WorldPoint } from '../types';
 import { Bunker } from './Bunker';
@@ -43,24 +43,3 @@ export class DvinaLauncher extends Bunker {
   }
 }
 
-/**
- * 2K12 Kub launcher (3×3, Defense tab): sold only to the holder of Minsk or Kyiv (BuildOption.nations). Same rules as
- * the Dvina (aircraft, ground units, structures), lighter missiles, quicker reload.
- */
-export class KubLauncher extends DvinaLauncher {
-  override get site(): SiteId {
-    return 'kub';
-  }
-  constructor(owner: number, faction: FactionId, center: WorldPoint) {
-    super(owner, faction, center, { name: '2K12 Kub', maxHp: KUB_HP, powerDrain: KUB_POWER_DRAIN, footprint: FOOTPRINT_KUB });
-  }
-  override get range(): number {
-    return KUB_RANGE_CELLS * CELL_SIZE;
-  }
-  override get shotDamage(): number {
-    return KUB_DAMAGE;
-  }
-  override get shotCooldown(): number {
-    return KUB_RELOAD;
-  }
-}

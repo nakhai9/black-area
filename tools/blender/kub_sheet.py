@@ -1,7 +1,7 @@
 """
-2K12 Kub (SA-6) launcher as a Defense-tab emplacement, built from scratch in Blender after the 2P25 reference photos
+2K12 Kub (SA-6) self-propelled launcher (2P25), built from scratch in Blender after the 2P25 reference photos
 and the SA-6 Gainful drawing: the GM-578 tracked hull (six road wheels a side, sprocket front, idler rear, sloped
-glacis, side panels, unditching log, lights, hatches, engine grille) standing dug in on its own ground pad, a
+glacis, side panels, unditching log, lights, hatches, engine grille), a
 turntable on the deck with an elevating cradle, three launch rails (centre one raised) under the tubular guard
 hoops, and three 3M9 missiles: cylindrical body, four cropped-delta mid wings and four tail fins, light nose cone.
 Dark moss-green paint.
@@ -9,18 +9,16 @@ Dark moss-green paint.
 Real size, metres: hull 7.4 long (u), 3.18 wide (v); 3.6 high (z) with the rack at 30 deg; missile 5.8 long, 0.335
 across. Ground scale = M_TO_GRID (grid px per metre, shared with the game tanks).
 
-Three separately drawn parts:
-    base      hull + ground pad (fixed; faction band wrapped round the hull) - with the ground shadow
-    launcher  turntable, cradle, rails, guard frame - turns with its aim
-    missile   the three missiles alone - hidden in the game while they reload
-The hull keeps one yaw (along the world grid axis); launcher and missiles turn together, 32 facings, clockwise from
-screen North. Faction colour: TEAM band rendered alone into "kub-base-team"; the game tints it with the owner's colour.
+A tracked vehicle of the War Factory (moves like a tank). Two parts, 32 facings each, clockwise from screen North:
+    hull      GM-578 chassis with its ground shadow; faction band wrapped round the hull ("-team" mask)
+    launcher  turntable, cradle, three rails, guard frame and the three missiles - turns on its own like a turret
+The game tints the "-team" masks with the owner's hex colour.
 
-Sheets in ui/public/sprites: kub-base.png kub-base-team.png kub-launcher.png kub-missile.png
+Sheets in ui/public/sprites: kub-hull.png kub-hull-team.png kub-launcher.png kub-launcher-team.png
 
     "C:/Program Files/Blender Foundation/Blender 5.2/blender.exe" -b --factory-startup -P tools/blender/kub_sheet.py
 
-Env: KUB_SHEETS=base,... (all), KUB_SAMPLES=<n> (32), KUB_TEAM, KUB_PREVIEW=<file.png> (KUB_DIR=<0..31>).
+Env: KUB_SHEETS=hull,... (all), KUB_SAMPLES=<n> (32), KUB_TEAM, KUB_PREVIEW=<file.png> (KUB_DIR=<0..31>).
 Axes: +X front (u), +Y left (v), +Z up (z), metres.
 """
 import math
@@ -34,22 +32,24 @@ from mathutils import Vector
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(HERE))
 SPRITES = os.path.join(ROOT, "ui", "public", "sprites")
+CACHE = os.path.join(HERE, "_cache")  # finished cells of an interrupted run
+os.makedirs(CACHE, exist_ok=True)
 NAME = "kub"
-ALL_SHEETS = ("base", "base-team", "launcher", "missile")
+ALL_SHEETS = ("hull", "hull-team", "launcher", "launcher-team")
 SHEETS = tuple(s for s in os.environ.get("KUB_SHEETS", ",".join(ALL_SHEETS)).split(",") if s)
 TMP = os.path.join(HERE, f"_kub_{'_'.join(SHEETS)}_tmp.png")
 SPP = int(os.environ.get("KUB_SAMPLES", "32"))
 PREVIEW = os.environ.get("KUB_PREVIEW")
 TEAM_HEX = os.environ.get("KUB_TEAM", "#c8c8c8")
 
-GRID, DIRS = 128, 32
-OUT, SSAA = 384, 2
-PIVOT = (64, 84)
+GRID, DIRS = 96, 32
+OUT, SSAA = 384, 2  # 4x the 96 px layout cell, like the K9 Thunder sheets
+PIVOT = (48, 54)
 ELEV = math.radians(30)
 M_TO_GRID = 42 / 7.77
 LAUNCH = math.radians(30)  # rack elevation
 RAILS = ((0.0, 0.62), (0.95, 0.42), (-0.95, 0.42))  # (v, height over the rack) of the three rails
-STAND_YAW = math.radians(45)  # hull along a world grid axis
+STAND_YAW = 0.0
 
 MOSS = "#3f4a2a"  # dark moss green
 MOSS_SHADE = "#343e23"
@@ -235,10 +235,9 @@ def wheel(name, x, y, r, mat, hub, parent):
 
 
 def stand_model(moss, shade, steel, dark, team, glass, rubber, concrete):
-    """Fixed part: GM-578 tracked hull dug in on its own ground pad, faction band wrapped round the hull."""
-    stand = pivot("Stand", (0, 0, 0), None, (0, 0, STAND_YAW))
+    """Hull: GM-578 tracked chassis, faction band wrapped round it."""
+    stand = pivot("Stand", (0.4, 0, 0), None, (0, 0, STAND_YAW))  # turntable over the origin
     # ground pad the tracks stand on (keeps it fixed to the ground)
-    block("pad", (0, 0, 0.06), (8.2, 3.9, 0.12), concrete, stand, 0.03)
     for s in (-1, 1):
         y = s * 1.3
         # track run: ground run, return run, sprocket and idler
@@ -280,7 +279,7 @@ def stand_model(moss, shade, steel, dark, team, glass, rubber, concrete):
 
 def launcher_model(moss, shade, steel, dark, team, glass):
     """Turning part: turntable, elevating cradle with three launch rails, the tubular guard frame."""
-    top = pivot("Launcher", (-0.4, 0, 1.89), None)
+    top = pivot("Launcher", (0, 0, 1.89), None)
     rod("turntable", (0, 0, 0.12), 0.9, 0.24, "Z", moss, top, sides=40)
     block("cradle_base", (0, 0, 0.45), (1.4, 1.2, 0.42), moss, top, 0.03)
     for s in (-1, 1):
@@ -345,37 +344,43 @@ def build():
 
 def main():
     sc, ground = studio(512 if PREVIEW else OUT * SSAA)
-    stand, top, missile = build()
+    stand, top, missiles = build()
+    rig = pivot("Rig", (0, 0, 0), None)
+    for o in (stand, top):
+        loc = o.location.copy()
+        o.parent = rig
+        o.location = loc
 
     if PREVIEW:
-        top.rotation_euler = (0, 0, yaw_for(int(os.environ.get("KUB_DIR", "4"))))
+        rig.rotation_euler = (0, 0, yaw_for(int(os.environ.get("KUB_DIR", "4"))))
         sc.render.filepath = PREVIEW
         bpy.ops.render.render(write_still=True)
         return
 
-    on_stand = {o.name for o in [stand] + list(stand.children_recursive)}
-    on_missile = {o.name for o in [missile] + list(missile.children_recursive)}
+    on_hull = {o.name for o in [stand] + list(stand.children_recursive)}
     parts = [o for o in sc.objects if o.type == "MESH" and o is not ground]
     is_team = {o.name for o in parts if o.active_material and o.active_material.name == "TEAM"}
-
-    def part_of(o):
-        return "base" if o.name in on_stand else "missile" if o.name in on_missile else "launcher"
-
     out = {p: np.zeros((OUT, OUT * DIRS, 4), np.float32) for p in SHEETS}
     for k in range(DIRS):
-        top.rotation_euler = (0, 0, yaw_for(k))
+        rig.rotation_euler = (0, 0, yaw_for(k))
         for sheet in SHEETS:
-            want = sheet.split("-")[0]
+            want_hull = sheet.startswith("hull")
             mask = sheet.endswith("team")
             for o in parts:
-                o.visible_camera = part_of(o) == want
+                o.visible_camera = (o.name in on_hull) == want_hull
                 o.is_holdout = mask and o.name not in is_team
-                # The ground shadow leaves the missiles out: it is gone while the rail reloads.
-                o.visible_shadow = part_of(o) != "missile" or want == "missile"
-            ground.hide_render = want != "base"
+                # The launcher turns on its own: only the hull casts the ground shadow.
+                o.visible_shadow = o.name in on_hull or not want_hull
+            ground.hide_render = not want_hull or mask
+            # Each finished cell is cached on disk: a run that is cut off resumes where it stopped.
+            cache = os.path.join(CACHE, f"{NAME}-{sheet}-{k:02d}.npy")
+            if os.path.exists(cache):
+                out[sheet][:, k * OUT : (k + 1) * OUT] = np.load(cache)
+                continue
             rgb, alpha = grab(sc)
             out[sheet][:, k * OUT : (k + 1) * OUT, :3] = rgb
             out[sheet][:, k * OUT : (k + 1) * OUT, 3] = alpha
+            np.save(cache, out[sheet][:, k * OUT : (k + 1) * OUT])
         print(f"[{NAME}] direction {k + 1}/{DIRS}", flush=True)
     for sheet, arr in out.items():
         img = bpy.data.images.new(f"{NAME}-{sheet}", OUT * DIRS, OUT, alpha=True)
@@ -384,7 +389,12 @@ def main():
         img.file_format = "PNG"
         img.save()
         print(f"[{NAME}] wrote {NAME}-{sheet}.png")
-    os.remove(TMP)
+        for k in range(DIRS):
+            c = os.path.join(CACHE, f"{NAME}-{sheet}-{k:02d}.npy")
+            if os.path.exists(c):
+                os.remove(c)
+    if os.path.exists(TMP):
+        os.remove(TMP)
 
 
 main()

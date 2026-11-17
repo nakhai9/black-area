@@ -70,7 +70,6 @@ export interface PlacementGhost {
   /** The LDEW laser emplacement: drawn from its own sheets, not the bunker art its sprite key falls back to. */
   readonly ldew?: boolean;
   readonly dvina?: boolean;
-  readonly kub?: boolean;
   readonly ok: boolean;
   readonly reason: string | null;
 }
@@ -1694,8 +1693,8 @@ export class Renderer {
     const scale = this.sprites.fitScale(g.spriteKey);
     const c = worldToIso(fx + fw / 2, fy + fh / 2);
     ctx.globalAlpha = g.ok ? 0.75 : 0.45;
-    const custom = g.dvina || g.kub
-      ? drawSite(ctx, g.kub ? 'kub' : 'dvina', { faction: g.faction, aimHeading: Math.PI / 4, loaded: true }, c.x, c.y)
+    const custom = g.dvina
+      ? drawSite(ctx, 'dvina', { faction: g.faction, aimHeading: Math.PI / 4, loaded: true }, c.x, c.y)
       : g.ldew
       ? drawLdewEmplacement(ctx, { faction: g.faction, aimHeading: Math.PI / 4 }, c.x, c.y)
       : g.spriteKey.startsWith('bunker:') && drawBunkerGhost(ctx, g.faction as FactionId, c.x, c.y);

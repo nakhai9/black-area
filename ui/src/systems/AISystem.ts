@@ -1,14 +1,13 @@
 import { LdewEmplacement } from '../entities/LdewEmplacement';
 import { DvinaLauncher } from '../entities/DvinaLauncher';
-import { DVINA_NATION, KUB_NATIONS } from '../constants';
+import { DVINA_NATION } from '../constants';
 import { holdsNation } from './Foreign';
 import { LDEW_SITE_NATION } from '../constants';
 /** LDEW laser emplacements an AI keeps while it holds London. */
 const AI_LDEW_SITES = 3;
 /** Missile launchers the AI raises while it holds the capital that sells them. */
-const AI_MISSILE_SITES: readonly { id: 'dvina' | 'kub'; nations: readonly string[]; max: number }[] = [
+const AI_MISSILE_SITES: readonly { id: 'dvina'; nations: readonly string[]; max: number }[] = [
   { id: 'dvina', nations: [DVINA_NATION], max: 2 },
-  { id: 'kub', nations: KUB_NATIONS, max: 2 },
 ];
 import { bridgeAnchor } from '../entities/Bridge';
 import { AI_AIR_DEFENCE, FOOTPRINT_BRIDGE, AI_AIR_DEFENCE_PER_CITIES, AI_AIR_DEFENCE_PER_ENEMY_AIR, AI_AIR_DEFENCE_MAX, AI_AIR_DEFENCE_RING, AI_BUNKERS, AI_WALL_ALERT_SECONDS, AI_WALL_ENEMY_UNITS, AI_WALL_GAP, AI_WALL_WATCH_CELLS, AI_WALL_RING, AI_WALL_SEGMENT, BUNKER_RANGE, CELL_SIZE, INFANTRY_BASE, INFANTRY_MARCH_CELLS, EMBASSY_CAPITAL_CELLS, MAX_ALLIES, NATION_GARRISON, NATION_GARRISON_CELLS, NEUTRAL_OWNER, OIL_DERRICK_OUTPUT, OIL_LEASE_CARTEL_SHARE, OIL_LEASE_SECONDS, TECH_VEHICLES, TRUCE_ZONE_CELLS, TRUCK_MIN_RIDERS, TRUCK_SOLDIERS, NATION_PRESENCE_FEE, presenceFee, FOOTPRINT_PORT, AI_FLEET, AI_FELLERS } from '../constants';
@@ -190,6 +189,8 @@ const VEHICLE_WEIGHT: Readonly<Partial<Record<VehicleKind, number>>> = {
   ldewTruck: 0.08,
   // Only while the AI holds Pyongyang.
   bm21: 0.12,
+  // Only while the AI holds Kyiv or Minsk.
+  kub: 0.1,
   // Only while the AI holds Brasília.
   a29: 0.1,
   // Only the Islamic world has the drone: it loves it, so it is a big share of what that AI builds.
@@ -775,7 +776,7 @@ export class AISystem implements GameSystem {
       const lasers = this.host.entities.buildings().filter((b) => b.owner === p.id && b.alive && b instanceof LdewEmplacement).length;
       if (lasers < AI_LDEW_SITES) next = BUILD_OPTIONS.find((o) => o.id === 'ldew');
     }
-    // Holding Havana (R-12 Dvina) or Minsk / Kyiv (2K12 Kub): a few missile launchers round the base too (player rule).
+    // Holding Havana (R-12 Dvina): a few missile launchers round the base too (player rule).
     for (const site of AI_MISSILE_SITES) {
       if (next || !owned.has('barracks') || busy(site.id) || !site.nations.some((n) => holdsNation(this.host.entities, p, n))) continue;
       const have = this.host.entities.buildings().filter((b) => b.owner === p.id && b.alive && b instanceof DvinaLauncher && b.site === site.id).length;

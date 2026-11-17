@@ -1,5 +1,5 @@
-import { type ContestedNationId, DVINA_COST, DVINA_NATION, FOOTPRINT_DVINA, FOOTPRINT_KUB, KUB_COST, KUB_NATIONS, HIDDEN_BUILDS, LDEW_SITE_COST, LDEW_SITE_NATION } from '../constants';
-import { DvinaLauncher, KubLauncher } from '../entities/DvinaLauncher';
+import { type ContestedNationId, DVINA_COST, DVINA_NATION, FOOTPRINT_DVINA, HIDDEN_BUILDS, LDEW_SITE_COST, LDEW_SITE_NATION } from '../constants';
+import { DvinaLauncher } from '../entities/DvinaLauncher';
 import { demoPrice } from '../core/Demo';
 import {
   MILITARY_BASES,
@@ -60,7 +60,7 @@ import type { GameSystem } from './GameSystem';
 import { isDeleted, sellerOf } from '../core/GameAssets';
 
 /** A structure that can be produced from the sidebar's Build tab. */
-type BaseBuildId = 'powerPlant' | 'barracks' | 'warFactory' | 'airfield' | 'port' | 'radarTower' | 'fuelStation' | 'techCenter' | 'happyCity' | 'flagpole' | 'alliedBuilding' | 'parallelGov' | 'bunker' | 'wall' | 'gate' | 'ldew' | 'dvina' | 'kub';
+type BaseBuildId = 'powerPlant' | 'barracks' | 'warFactory' | 'airfield' | 'port' | 'radarTower' | 'fuelStation' | 'techCenter' | 'happyCity' | 'flagpole' | 'alliedBuilding' | 'parallelGov' | 'bunker' | 'wall' | 'gate' | 'ldew' | 'dvina';
 
 export interface BuildOption {
   /** `base@faction` for another nation's design (on sale while that nation's capital is held). */
@@ -69,7 +69,7 @@ export interface BuildOption {
   foreign?: FactionId;
   /** A contested nation's design: offered only while its capital is held (the LDEW for London). */
   nation?: ContestedNationId;
-  /** Several contested nations: offered while any one of their capitals is held (the 2K12 Kub: Minsk or Kyiv). */
+  /** Several contested nations: offered while any one of their capitals is held. */
   nations?: readonly ContestedNationId[];
   name: string;
   /** Tech tree: these buildings must already stand (power plant → barracks → war factory + radar tower → airfield → happy city). */
@@ -152,18 +152,6 @@ const OWN_OPTIONS: readonly BuildOption[] = [
     footprint: FOOTPRINT_DVINA,
     spriteKey: (f) => `bunker:${f}`,
     create: (owner, faction, x, y) => new DvinaLauncher(owner, faction, center(x, y, FOOTPRINT_DVINA)),
-  },
-  {
-    // 2K12 Kub launcher: hits aircraft, ground units and structures; on sale only to the holder of Minsk or Kyiv.
-    id: 'kub',
-    name: '2K12 Kub',
-    requires: 'barracks',
-    cost: KUB_COST,
-    fixedCost: true,
-    nations: KUB_NATIONS,
-    footprint: FOOTPRINT_KUB,
-    spriteKey: (f) => `bunker:${f}`,
-    create: (owner, faction, x, y) => new KubLauncher(owner, faction, center(x, y, FOOTPRINT_KUB)),
   },
   {
     // One block of the nation's wall: stops enemy ground units.

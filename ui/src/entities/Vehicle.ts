@@ -42,7 +42,7 @@ export type Flight = 'parked' | 'taxi' | 'takeoff' | 'airborne' | 'approach' | '
 export type CarrierState = 'idle' | 'loading' | 'carrying' | 'unloading';
 
 /** Cruise height of an aircraft above the ground (world px, drawn offset). */
-import { NATION_STRENGTH, STRENGTH_REF, VEHICLE_PRICE, TURBO_MULT, AIR_BOOST_FAR_CELLS, AIR_BOOST_NEAR_CELLS, AIR_SPEED_SCALE, GROUND_SPEED_SCALE, BOMBER_BOMBS, BOMBER_BOMBS_BY_FACTION, BOMB_LOAD_SLOWDOWN, CRUISE_ALTITUDE, JET_BOMBS, TRUCK_SOLDIERS } from '../constants';
+import { NATION_STRENGTH, STRENGTH_REF, VEHICLE_PRICE, TURBO_MULT, AIR_BOOST_FAR_CELLS, AIR_BOOST_NEAR_CELLS, AIR_SPEED_SCALE, GROUND_SPEED_SCALE, BOMBER_BOMBS, BOMBER_BOMBS_BY_FACTION, BOMB_LOAD_SLOWDOWN, CRUISE_ALTITUDE, JET_BOMBS, TRUCK_SOLDIERS, KUB_COOLDOWN, KUB_DAMAGE, KUB_RANGE } from '../constants';
 export { CRUISE_ALTITUDE };
 
 /** Handling per vehicle kind: seconds to full speed, turn rate (rad/s), whether it must face where it drives. */
@@ -64,6 +64,7 @@ const HANDLING: Readonly<Record<VehicleKind, { accel: number; turn: number; pivo
   ldew: { accel: 1.2, turn: 1.2, pivot: true },
   ldewTruck: { accel: 0.6, turn: 3.0, pivot: true },
   bm21: { accel: 0.7, turn: 2.6, pivot: true },
+  kub: { accel: 0.9, turn: 2.0, pivot: true },
   a29: { accel: 0.6, turn: 2.6, pivot: false },
   vt12: { accel: 0.6, turn: 3.2, pivot: true },
   awacs: { accel: 1.0, turn: 1.3, pivot: false },
@@ -79,6 +80,7 @@ function transportFits(soldiers: number, vehicles: number): boolean {
 export const NATION_VEHICLE_PROFILES: Readonly<Partial<Record<VehicleKind, VehicleProfile>>> = {
   k9: { name: 'K9 Thunder', description: '155 mm self-propelled howitzer: long-range shelling. On sale only while you hold Seoul.' },
   ldew: { name: 'LDEW Laser', description: 'Ground laser weapon (counter-UAS): slow to move, the head turns all round. On sale only while you hold London.' },
+  kub: { name: '2K12 Kub', description: 'Tracked missile launcher: three missiles on a turning rack, at aircraft, ground units and structures. On sale while you hold Kyiv or Minsk.' },
   bm21: { name: 'BM-21 Grad', description: '122 mm rocket launcher on a Ural truck: ripples 16 rockets on a long arc at ground targets, structures and aircraft. On sale while you hold Pyongyang, Kyiv or Minsk.' },
   a29: { name: 'A-29 Super Tucano', description: 'Light attack turboprop: rockets and guns on soldiers, vehicles and structures; cannot fight aircraft. On sale while you hold Brasília.' },
   ldewTruck: { name: 'LDEW Laser Truck', description: 'Laser weapon on a MAN SV truck: fast, the head turns all round. On sale only while you hold London.' },
@@ -266,6 +268,7 @@ export class Vehicle extends Unit {
       const power = type === 'heli' ? HELI_FIREPOWER : type === 'mantis' ? MANTIS_FIREPOWER : 1;
       this.weapon = { ...spec, damage: spec.damage * strength * power, range: type === 'mantis' ? MANTIS_RANGE_CELLS * CELL_SIZE : spec.range * f.stats.range };
       if (type === 'k9') this.weapon = { ...this.weapon, damage: this.weapon.damage * K9_DAMAGE, range: this.weapon.range * K9_RANGE, cooldown: spec.cooldown * K9_COOLDOWN };
+      if (type === 'kub') this.weapon = { ...this.weapon, damage: this.weapon.damage * KUB_DAMAGE, range: this.weapon.range * KUB_RANGE, cooldown: spec.cooldown * KUB_COOLDOWN, hitsAir: true };
       // A-29: ground attack only (its missiles never reach aircraft).
       if (type === 'a29') this.weapon = { ...this.weapon, hitsAir: false };
       if (type === 'ldew' || type === 'ldewTruck') this.weapon = { ...this.weapon, damage: this.weapon.damage * LDEW_DAMAGE, range: this.weapon.range * LDEW_RANGE };
@@ -472,7 +475,7 @@ export class Vehicle extends Unit {
     // A tank's turret swings on its own (any way round, right over the engine deck) to the target, and back to the
     // front once it has none. The air-defence vehicle's launcher is fixed to its hull.
     if (this.type === 'mantis' || this.type === 'ldewTruck') this.turretHeading = this.heading;
-    else if (this.type === 'tank' || this.type === 'k9' || this.type === 'ldew') {
+    else if (this.type === 'tank' || this.type === 'k9' || this.type === 'ldew' || this.type === 'kub') {
       // The gun is laid on an enemy, or on the trees of a clearing order (fellTarget); otherwise it rides with the hull.
       const want = this.combatTarget !== null || this.fellTarget !== null ? this.aimHeading : this.heading;
       let diff = want - this.turretHeading;

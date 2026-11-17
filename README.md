@@ -4,7 +4,7 @@
 
 <h1 align="center">Black Area</h1>
 
-<p align="center"><sub>Phiên bản 3.75.137 · Version 3.75.137</sub></p>
+<p align="center"><sub>Phiên bản 3.75.140 · Version 3.75.140</sub></p>
 
 <p align="center"><b><a href="https://black-area.vercel.app">▶ CHƠI NGAY / PLAY NOW: black-area.vercel.app</a></b></p>
 
@@ -16,23 +16,7 @@
 
 ## 🇻🇳 Tiếng Việt
 
-> **Thế giới chỉ cần một kẻ viết luật. Năm kẻ đang tranh nhau cây bút.**
-
-*Người ta bảo cuộc chiến này nổ ra vì dầu. Đó chỉ là cái cớ. Thứ họ thật sự muốn là quyền quyết định thế giới sẽ vận hành theo luật của ai, và nếu mình không thể làm chủ thì không ai được làm chủ cả.*
-
-### I. Cái cớ
-
-Năm 20XX, các giếng dầu lớn trên Trái Đất lần lượt cạn, và cả thế giới quay sang nhìn nhau: ai sẽ được chia phần, chia bao nhiêu, và ai có quyền quyết định cách chia. Nhưng những người ngồi trong các văn phòng kín ở Washington, Moscow, Bắc Kinh, Paris và Riyadh hiểu rằng dầu chỉ là câu hỏi nhỏ; câu hỏi lớn hơn là sau cơn khủng hoảng này, thế giới sẽ cần một người cầm trịch mới, và chiếc ghế ấy đang bỏ trống. Không ai chịu để kẻ khác ngồi vào đó: hễ một cường quốc vươn lên quá cao, những kẻ còn lại lập tức bắt tay nhau kéo nó xuống, bởi nếu mình không được làm chủ thì không ai được làm chủ cả. Thế giới cứ thế bị giữ ở một thế cân bằng mong manh, nơi không ai đứng một mình được và ai cũng phải phụ thuộc vào nhau, và chính thế cân bằng ấy là ngòi nổ của cuộc chiến.
-
-### II. Ngày Liên Hợp Quốc sụp đổ
-
-Người ta vẫn gọi đó là ngôi nhà chung của nhân loại, dù ai cũng biết chìa khóa của ngôi nhà ấy từ lâu đã nằm trong túi của vài vị chủ nhà quen thuộc: nghị quyết nào có lợi cho họ thì thông qua trong một buổi chiều, nghị quyết nào có lợi cho kẻ khác thì "cần thêm thời gian xem xét", lệnh trừng phạt luôn rơi trúng những nước không chịu nghe lời, còn lực lượng gìn giữ hòa bình thì kỳ lạ thay chỉ xuất hiện ở những nơi có dầu. Khi phiên họp khẩn cấp kéo dài mười chín ngày chỉ để những vị chủ nhà ấy một lần nữa viết luật theo cách của mình, những người khách còn lại lặng lẽ đứng dậy rời khỏi phòng, và Liên Hợp Quốc chết đi trong im lặng: cờ vẫn treo, loa vẫn bật, nhưng không còn ai tin những gì nó nói. Thế giới mất đi người trọng tài cuối cùng, và năm cường quốc nhận ra rằng từ nay, luật chơi sẽ thuộc về kẻ đủ mạnh để áp đặt nó.
-
-### III. Những cái tên mới
-
-Mỗi cái tên cũ là một sợi dây trói vào những hiệp ước đã ký và những lời hứa đã trao, nên các cường quốc lần lượt cắt đứt nó để bước vào thế giới mới không nợ ai, không cúi đầu trước ai. Washington không hỏi ý kiến bất kỳ ai, đơn phương tuyên bố với thế giới cái tên mới của mình: **Paxamerica**. Trên nóc điện Kremlin, lá cờ một lần nữa được kéo xuống như đã từng trong lịch sử, để một quốc gia mới mang tên **Nordursia** đứng lên từ băng tuyết. Bắc Kinh đã ngủ đủ lâu; khi thức dậy dưới cái tên **Longoria**, họ bắt đầu giấc mơ thống trị thế giới. Các quốc gia Hồi giáo gác lại mọi bất đồng để họp thành **Liên minh Lunastron**, liên minh tôn giáo đầu tiên của thế giới hiện đại. Chỉ có **Châu Âu** là không đổi: lục địa già vẫn giữ nguyên tên gọi, và cùng với nó là những giá trị mà họ tin rằng không cuộc chiến nào xóa được.
-
-### IV. Năm cực, năm bộ luật
+<h2 align="center">Thế giới đa cực mới</h2>
 
 <p align="center">
   <img src="ui/public/emblems/usa.png" alt="Paxamerica" height="72">
@@ -42,25 +26,72 @@ Mỗi cái tên cũ là một sợi dây trói vào những hiệp ước đã k
   <img src="ui/public/emblems/islamic.png" alt="Lunastron Union" height="72">
 </p>
 
-Mỗi cường quốc mang theo một bản luật cho thế giới mới và chỉ chờ cơ hội để buộc tất cả những kẻ còn lại phải ký: **Paxamerica** muốn một thế giới mà mọi đồng tiền đều chảy qua tay họ, và họ đánh nhanh, đánh xa, đánh chính xác để chứng minh điều đó; **Nordursia** muốn một thế giới chia thành những vùng ảnh hưởng, nơi tiếng Tu-160 rền vang trên bầu trời là lời nhắc rằng sân nhà của họ rộng đến đâu; **Longoria** muốn một thế giới vận hành theo kế hoạch của họ, với thép dày, quân đông và những công xưởng không bao giờ ngủ; **Châu Âu** muốn một thế giới của luật lệ và thể chế, miễn là luật lệ ấy do họ soạn; còn **Liên minh Lunastron** nắm cartel dầu trong tay và biết rằng chỉ một lệnh cắt giảm hay xả kho là đủ khiến ngân khố đối thủ sụp đổ trong một đêm, nên dầu với họ không phải mục tiêu mà là vũ khí.
+*Năm 20XX, giếng dầu lớn cuối cùng ngừng bơm. Liên Hợp Quốc triệu tập phiên họp khẩn. Nó kéo dài chín ngày, và khi kết thúc, thế giới cũ không còn nữa.*
 
-### V. Kẻ đứng giữa
+#### Ngày 1
 
-Ở Zürich, Global Monitoring Center là định chế cuối cùng còn đứng ngoài cuộc chơi: nó mua dầu của tất cả với cùng một giá, cho vay khi ngân khố cạn và luôn thu nợ trước mọi khoản khác; nó không chọn phe, nó chỉ đứng nhìn, vì nó biết kẻ thắng cuối cùng rồi cũng sẽ cần một ngân hàng.
+Khủng hoảng lan nhanh hơn mọi dự báo. Sáng nay, thêm ba thủ đô mất điện. Giá dầu nhảy mỗi giờ một mức. Biểu tình nổ ra ở hàng chục thành phố, biên giới đóng lại, và những chuyến tàu chở hàng nằm im ngoài cảng. Mỗi bản tin buổi tối lại tệ hơn bản tin buổi sáng.
 
-### VI. Những kẻ muốn đứng ngoài
+#### Ngày 2
 
-Anh, Canada, Cuba, Nhật Bản, Úc, Brazil, Ấn Độ, Ukraine, Belarus và hai miền Triều Tiên tuyên bố trung lập, tin rằng không chọn phe thì sẽ không ai chọn mình, nhưng trong cuộc tranh giành ngôi đàn anh này, trung lập chỉ có nghĩa là *chưa bị chiếm*: một kỹ sư lặng lẽ bước qua cổng thủ đô lúc nửa đêm là sáng hôm sau cả một quốc gia đã trở thành đàn em của một phe, mang theo tiền bạc hay kho vũ khí riêng của nó, từ pháo K9 ở Seoul, laser LDEW ở London, dàn phóng BM-21 ở Bình Nhưỡng, Kyiv và Minsk, C-17 ở New Delhi đến A-29 ở Brasília, và rồi lại đổi chủ khi kẻ khác kéo đến.
+Tổng thư ký đứng trước Đại hội đồng và đọc lời kêu gọi: mọi quốc gia phải **hoàn thành trách nhiệm và nghĩa vụ của mình đối với thế giới**. Quốc gia còn dầu phải chia sẻ. Quốc gia còn tiền phải góp quỹ cứu trợ. Quốc gia còn quân phải gửi lính tới những nơi đang bốc cháy. Hạn chót: ngày thứ chín.
 
-### VII. Lục địa trắng
+Hội trường vỗ tay.
 
-Dưới băng Nam Cực, năm giếng dầu vô chủ vẫn đang bơm; không ai được dựng dù chỉ một mái nhà trên lục địa ấy, nhưng ai cũng muốn cắm cờ lên đó, vì giữ được giếng dầu cuối cùng của Trái Đất là lời tuyên bố với cả thế giới rằng mình mới là kẻ đứng đầu.
+#### Ngày 5
 
-### VIII. Người đứng cuối cùng
+Đèn trong các phòng họp kín ở Washington, Moscow, Bắc Kinh, Paris và Riyadh sáng suốt đêm. Trên bàn là cùng một bản tính: dầu phải chia, tiền phải góp, lính phải gửi đi, tất cả cho những quốc gia chưa từng làm gì cho họ.
 
-Dầu bán lấy tiền, tiền mua xe tăng, xe tăng giành thêm đất, thêm đồng minh, thêm tiếng nói, và vòng tròn ấy cứ quay. Chỉ khi có một kẻ phá vỡ được thế cân bằng và đứng vững tới cuối cùng, kẻ ấy mới có được thứ quý hơn dầu rất nhiều: quyền viết luật cho cả thế giới mới.
+Không ai nói ra, nhưng ai cũng nghĩ cùng một câu hỏi: *nếu thế giới cũ đòi quá nhiều, tại sao phải ở lại trong nó?*
 
-<p align="center"><b>Black Area. Cuộc chiến giành ngôi đàn anh của thế giới bắt đầu.</b></p>
+#### Ngày 9
+
+Phái đoàn Washington bước lên bục:
+
+> *"Quốc gia từng ngồi ở chiếc ghế này không còn tồn tại. Chúng tôi là **Paxamerica**: một quốc gia mới, chưa ký hiệp ước nào, chưa từng là thành viên của tổ chức này. Những nghĩa vụ ấy không thuộc về chúng tôi."*
+
+Không ai biết phải phản đối theo điều khoản nào. Phiên họp kết thúc mà không có nghị quyết. Cờ vẫn treo, loa vẫn bật, nhưng không còn ai nghe.
+
+#### Những ngày sau
+
+- Một đêm tuyết rơi, lá cờ trên nóc Kremlin lại được hạ xuống. Lịch sử từng chứng kiến cảnh này một lần, khi một liên bang tan rã để một quốc gia mới bước ra, bỏ lại sau lưng những món nợ cũ. Sáng hôm sau, thế giới gọi họ là **Nordursia**.
+- Bắc Kinh im lặng suốt một tuần. Rồi họ lên tiếng với một cái tên mới là **Longoria**.
+- Các nước Hồi giáo gác lại mọi bất đồng và cùng nhau lập nên **Liên minh Lunastron**, nắm trong tay cả cartel dầu.
+- Giữa hội trường vắng dần, chỉ còn phái đoàn **Châu Âu** ngồi lại. Họ giữ nguyên tên gọi, và vẫn tin vào luật lệ.
+
+Không còn nghĩa vụ, nghĩa là không còn ai che chở ai. Các nước nhỏ bắt đầu tìm đến nhau, lập những liên minh riêng. Họ không cần mạnh, chỉ cần không đứng một mình.
+
+#### Năm học thuyết
+
+| Phe | Mục tiêu | Cách làm |
+|---|---|---|
+| **Paxamerica** | Mọi đồng tiền đi qua tay mình | Đánh nhanh, đánh xa, đánh chính xác |
+| **Nordursia** | Thế giới chia thành vùng ảnh hưởng | Hỏa lực áp đảo; tiếng Tu-160 đánh dấu sân nhà |
+| **Longoria** | Thế giới chạy theo kế hoạch của mình | Thép dày, quân đông, công xưởng không ngủ |
+| **Châu Âu** | Thế giới của luật lệ và thể chế | Cân bằng, bền bỉ, mặt trận nào cũng có mặt |
+| **Lunastron** | Dầu là vũ khí, không phải mục tiêu | Một lệnh cắt giảm hay xả kho, ngân khố đối thủ sụp trong một đêm |
+
+#### Zürich
+
+Khi tòa nhà ở New York im tiếng, thế giới dựng lên một nơi khác ở Zürich. **Global Monitoring Center** có đủ đại diện của mọi phe, có phòng họp, có lá cờ riêng, giống hệt một Liên Hợp Quốc thứ hai. Chỉ khác một điều, nó không ra nghị quyết, không đòi ai làm nghĩa vụ, không gửi một người lính nào.
+
+Nó chỉ đứng nhìn. Nó mua dầu của mọi bên với cùng một giá, cho vay khi ngân khố cạn, và luôn thu nợ trước. Nó không cần biết ai thắng, vì quốc gia thắng cuối cùng rồi cũng sẽ cần một ngân hàng.
+
+#### Các nước trung lập
+
+Anh, Canada, Cuba, Nhật Bản, Úc, Brazil, Ấn Độ, Ukraine, Belarus và hai miền Triều Tiên tuyên bố trung lập. Nhưng trung lập chỉ có nghĩa là **chưa bị chiếm**. Một kỹ sư lọt qua cổng thủ đô lúc nửa đêm, sáng hôm sau cả quốc gia đã đổi chủ, kèm theo kho vũ khí riêng của nó:
+
+> K9 ở Seoul · laser LDEW ở London · BM-21 ở Bình Nhưỡng, Kyiv, Minsk · 2K12 Kub ở Kyiv, Minsk · R-12 Dvina ở Havana · C-17 ở New Delhi · A-29 ở Brasília
+
+#### Nam Cực
+
+Năm giếng dầu vô chủ vẫn bơm dưới lớp băng. Không ai được dựng dù chỉ một mái nhà ở đó. Giếng thuộc về phe của kỹ sư cuối cùng chạm tay vào nó, và giữ được giếng dầu cuối cùng của Trái Đất là tuyên bố với cả thế giới quốc gia nào mới đứng đầu.
+
+#### Người đứng cuối cùng
+
+Dầu đổi lấy tiền. Tiền đổi lấy xe tăng. Xe tăng đổi lấy đất, đồng minh và tiếng nói. Mất thủ đô và quân đội, một quốc gia biến khỏi bản đồ như chưa từng tồn tại. Quốc gia đứng vững tới cuối cùng sẽ có thứ quý hơn dầu: **quyền viết luật cho thế giới mới.**
+
+<p align="center"><b>Black Area. Thế giới mới bắt đầu.</b></p>
 
 ### Chạy dự án
 
@@ -85,69 +116,82 @@ Thêm thư viện cho một phần: `npm install <gói> -w ui` hoặc `-w server
 
 ## 🇬🇧 English
 
-> **There is only one world. And there is not enough oil for everyone.**
+<h2 align="center">The new multipolar world</h2>
 
-*They still say the war did not begin with a gunshot, but with a number on the oil price board.*
+<p align="center">
+  <img src="ui/public/emblems/usa.png" alt="Paxamerica" height="72">
+  <img src="ui/public/emblems/russia.png" alt="Nordursia" height="72">
+  <img src="ui/public/emblems/china.png" alt="Longoria" height="72">
+  <img src="ui/public/emblems/europe.png" alt="Europe" height="72">
+  <img src="ui/public/emblems/islamic.png" alt="Lunastron Union" height="72">
+</p>
 
-### I. The day the wells ran dry
+*In the year 20XX, the last great oil well stopped pumping. The United Nations called an emergency session. It lasted nine days, and when it ended, the old world was gone.*
 
-In the year 20XX, on a morning like any other, engineers in Texas reported to Washington that the drill had hit bottom. That same week, the same news came from Western Siberia, from the Xinjiang desert, from the frozen rigs off Northern Europe. The Earth had given away almost everything it had.
+#### Day 1
 
-The world turned to New York, as it always did in a crisis.
+The crisis spreads faster than any forecast. This morning, three more capitals went dark. The oil price jumps by the hour. Riots break out in dozens of cities, borders close, and cargo ships sit idle outside the ports. Every evening bulletin is worse than the morning one.
 
-### II. The day the United Nations fell
+#### Day 2
 
-The Security Council's emergency session lasted nineteen days. Washington proposed sharing oil by purchasing power. Moscow vetoed. Beijing proposed sharing by population. Washington vetoed. Paris demanded a common oil fund run by an international committee, and this time both sides vetoed. Riyadh proposed nothing. It simply reminded everyone whose ground the oil lay under.
+The Secretary-General stood before the General Assembly and read the call: every nation must **fulfil its responsibilities and obligations to the world**. Those with oil must share it. Those with money must pay into a relief fund. Those with armies must send soldiers wherever the fires were burning. Deadline: day nine.
 
-By the twentieth day the chairs began to empty. One delegation went home "for consultations" and never came back; another stopped paying its dues. Nobody dissolved the United Nations. It just died quietly: a building by the East River, flags still flying, and no one left listening.
+The hall applauded.
 
-### III. The day the old names came down
+#### Day 5
 
-The old names carried a whole history with them: treaties signed, promises given, seats in a building nobody listened to any more. Keeping an old name meant staying tied to the old rules, and having to explain to the world why you were breaking your own word. No one wanted to drag those ropes into a multipolar world where nobody stands above anybody.
+The lights burn all night in the closed rooms of Washington, Moscow, Beijing, Paris and Riyadh. On every table lies the same bill: oil to share, money to pay, soldiers to send, all for nations that never did anything for them.
 
-So the great powers, who agreed on nothing, copied each other in exactly one thing: **erasing their own old names**. A new name is a blank page: it owes nothing, belongs to no bloc, and answers to no one.
+No one says it aloud, but everyone is asking the same question: *if the old world demands this much, why stay in it?*
 
-Washington went first. In a ceremony lasting exactly thirteen minutes, the old flag came down in front of the White House and the spokesman read the new name: **Paxamerica**. The world's press laughed for a week. Then it stopped laughing when the B-1A Lancers rolled out in the new insignia.
+#### Day 9
 
-Moscow would not be outdone. On a night of heavy snow, the Kremlin decreed the country's new name: **Nordursia**. Nobody dared ask why.
+The Washington delegation took the floor:
 
-Beijing thought longer, as always. When it spoke, it chose a name as smooth as silk: **Longoria**.
+> *"The nation that once sat in this chair no longer exists. We are **Paxamerica**: a new nation that has signed no treaty and has never been a member of this organisation. Those obligations are not ours."*
 
-Riyadh came last. It kept the one word it held more sacred than oil: *Union*. And it called itself the **Lunastron Union**.
+No one knew under which article to object. The session ended without a resolution. Flags still flying, speakers still on, and no one listening.
 
-Only Paris changed nothing. Europe stayed Europe. Real institutions, it said, need no new name to be respected. The others said Europe simply had not finished its meeting yet.
+#### The days after
 
-### IV. Five poles, five rulebooks
+- One snowy night, the flag over the Kremlin came down again. History had seen this once before, when a union dissolved so that a new nation could step out and leave its old debts behind. By morning the world was calling it **Nordursia**.
+- Beijing stayed silent for a whole week. Then it spoke with a new name, **Longoria**.
+- The Islamic nations set every quarrel aside and together founded the **Lunastron Union**, with the whole oil cartel in their hands.
+- In a hall slowly emptying, only the **European** delegation stayed seated. It kept its name, and its faith in rules.
 
-**Paxamerica** wants a world of free markets, where oil belongs to the highest bidder. It strikes fast, far and precisely.
+No obligations means no one protecting anyone. The small nations began to seek each other out and form unions of their own. They do not need to be strong, only not to stand alone.
 
-**Nordursia** wants a world of spheres of influence. It trusts overwhelming firepower, and the roar of the Tu-160 over the northern sky is a reminder of how big that backyard is.
+#### Five doctrines
 
-**Longoria** wants a world of order and planning. Its steel is thick, its armies are vast, and its factories never sleep.
+| Faction | Goal | Method |
+|---|---|---|
+| **Paxamerica** | Every dollar through its hands | Strike fast, far and precisely |
+| **Nordursia** | A world carved into spheres of influence | Overwhelming firepower; the Tu-160's roar marks its backyard |
+| **Longoria** | A world that runs on its plan | Thick steel, vast armies, factories that never sleep |
+| **Europe** | A world of rules and institutions | Balanced, enduring, on every front |
+| **Lunastron** | Oil as a weapon, not a prize | One order to cut or flood, and a rival's treasury collapses overnight |
 
-**Europe** wants a world of rules and institutions, even though no one will sit at the table to write them any more. Balanced and enduring, ready for every front.
+#### Zürich
 
-The **Lunastron Union** sits on the richest oil fields left and runs the oil cartel. One order to **cut**, and the oil price soars. One order to **flood**, and a rival's treasury collapses overnight.
+When the building in New York fell silent, the world raised another place in Zürich. The **Global Monitoring Center** has delegates from every side, meeting rooms and a flag of its own, exactly like a second United Nations. With one difference. It passes no resolutions, demands no obligations, and sends not a single soldier.
 
-### V. The one in the middle
+It only watches. It buys oil from everyone at one price, lends when treasuries run dry, and always collects first. It does not care who wins, because whoever wins will need a bank.
 
-In Zürich, among silent glass towers, the Global Monitoring Center counts money. It is the last buyer of oil, sets one price for everyone, lends when treasuries run dry, and always collects its debts first. It takes no side. It just waits patiently to see who goes bankrupt first.
+#### The neutrals
 
-### VI. Those who wanted to stay out
+Britain, Canada, Cuba, Japan, Australia, Brazil, India, Ukraine, Belarus and both Koreas declared themselves neutral. But neutral only means **not taken yet**. One engineer through a capital's gate at midnight, and by morning a whole nation has changed hands, together with its own arsenal:
 
-Britain, Canada, Cuba, Japan, Australia, Brazil, India, Ukraine, Belarus and both Koreas declared themselves neutral. They were wrong. In this war, neutral only means *not taken yet*. One engineer walking quietly through a capital's door is enough for a whole nation to change hands, bringing its military presence fee, or its own machines of war: Seoul's K9 howitzers, London's LDEW lasers, the BM-21 launchers of Pyongyang, Kyiv and Minsk, the C-17 airlifters of New Delhi.
+> K9 in Seoul · LDEW lasers in London · BM-21 in Pyongyang, Kyiv, Minsk · 2K12 Kub in Kyiv, Minsk · R-12 Dvina in Havana · C-17 in New Delhi · A-29 in Brasília
 
-### VII. The white continent
+#### Antarctica
 
-Under the Antarctic ice, five ownerless oil wells are still pumping. No one may raise even a single roof on that continent. A well belongs to the side of the last engineer who touched it, until someone else knocks it back to neutral and takes it.
+Five ownerless oil wells still pump under the ice. No one may raise even a single roof there. A well belongs to the side of the last engineer who touched it, and holding the last oil on Earth tells the whole world who stands on top.
 
-### VIII. The last one standing
+#### The last one standing
 
-Oil is sold for money. Money buys tanks. Tanks guard the oil wells. And the circle keeps turning. Lose your capital and your army, and your nation vanishes from the map as if it had never existed.
+Oil buys money. Money buys tanks. Tanks buy land, allies and a voice. Lose your capital and your army, and your nation vanishes from the map as if it had never existed. The last one standing gets something worth more than oil: **the right to write the rules of the new world.**
 
-Only the last one standing will decide what is left of the Earth.
-
-<p align="center"><b>Black Area. The war for the Earth begins.</b></p>
+<p align="center"><b>Black Area. The new world begins.</b></p>
 
 ### Running the project
 

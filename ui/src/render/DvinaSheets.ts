@@ -3,13 +3,13 @@ import { FACTIONS } from '../factions';
 import type { FactionId } from '../types';
 
 /**
- * Missile-launcher emplacements of the Defense tab (R-12 Dvina, 2K12 Kub), each drawn from three Blender sheets of
- * 32 facings in one row (tools/blender/dvina_sheet.py, tools/blender/kub_sheet.py):
- *   <id>-base      fixed ground part (cell k carries the ground shadow of the launcher facing k), "<id>-base-team" mask (Kub)
+ * Missile-launcher emplacements of the Defense tab (R-12 Dvina), each drawn from three Blender sheets of
+ * 32 facings in one row (tools/blender/dvina_sheet.py):
+ *   <id>-base      fixed ground part (cell k carries the ground shadow of the launcher facing k), optional "<id>-base-team" mask
  *   <id>-launcher  turning launcher, plus "<id>-launcher-team" (faction band, tinted with the owner's hex colour)
  *   <id>-missile   the missiles alone on their rails - drawn only while loaded (separate, so they can be reused)
  */
-export type SiteId = 'dvina' | 'kub';
+export type SiteId = 'dvina';
 
 interface SiteSheet {
   /** Layout grid px per cell (stored cell is 3× this), its ground point, and metres per grid px. */
@@ -25,7 +25,6 @@ const M_TO_GRID = 42 / 7.77;
 const PX_PER_M = 7 / 3;
 const SITES: Record<SiteId, SiteSheet> = {
   dvina: { grid: 128, pivot: [64, 84], railM: 2.6 },
-  kub: { grid: 128, pivot: [64, 84], railM: 3.2 },
 };
 
 const IMAGES = new Map<string, HTMLImageElement>();
@@ -85,7 +84,7 @@ export function drawSite(ctx: CanvasRenderingContext2D, id: SiteId, b: { faction
   const cell = (img: HTMLImageElement): void => {
     if (ready(img)) ctx.drawImage(img, d * img.naturalHeight, 0, img.naturalHeight, img.naturalHeight, left, up, size, size);
   };
-  // Faction band masks (Dvina: on the launcher cabinets; Kub: round the hull), tinted with the owner's colour.
+  // Faction band masks (Dvina: on the launcher cabinets), tinted with the owner's colour.
   const band = (file: string): void => {
     const m = image(file);
     if (ready(m)) ctx.drawImage(tinted(file, d, hex), 0, 0, m.naturalHeight, m.naturalHeight, left, up, size, size);

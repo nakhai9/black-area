@@ -187,7 +187,7 @@ export interface RankRow {
 
 /** Construction tabs (RA2 sidebar), shown as Lucide icons. */
 /** Protective structures: bought from the Defense tab, not the Build tab (main structures). */
-const DEFENSE_IDS: ReadonlySet<string> = new Set(['bunker', 'ldew', 'dvina', 'kub', 'wall', 'gate', 'flagpole']);
+const DEFENSE_IDS: ReadonlySet<string> = new Set(['bunker', 'ldew', 'dvina', 'wall', 'gate', 'flagpole']);
 
 const BUILD_TABS: readonly { id: TabId; label: string; icon: IconNode; enabled: boolean }[] = [
   { id: 'build', label: 'Build', icon: Hammer, enabled: true },

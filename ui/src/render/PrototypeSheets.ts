@@ -31,6 +31,14 @@ export const PROTOTYPES: Prototype[] = [
     grid: 96,
     pivot: [48, 54],
   },
+  {
+    id: 'kub',
+    name: '2K12 Kub',
+    lines: ['Xe phóng tên lửa phòng không bánh xích 2P25 (GM-578)', 'Kích thước thật: 7,4 × 3,18 m, 3 tên lửa 3M9 dài 5,8 m', 'Xanh rêu đậm, dải màu phe quanh thân xe'],
+    files: { base: 'kub-hull', top: 'kub-launcher', baseTeam: 'kub-hull-team', topTeam: 'kub-launcher-team' },
+    grid: 96,
+    pivot: [48, 54],
+  },
   ...(['ground', 'truck'] as const).map((v) => ({
     id: `ldew-${v}`,
     name: v === 'ground' ? 'LDEW (đặt đất)' : 'LDEW (gắn xe tải Châu Âu)',
@@ -110,7 +118,7 @@ const BED_BACK_M = -2.2;
 const BED_UP_M = 3.0;
 /** The laser on the MAN SV is drawn this much over true size, as big as the cargo body (≈ 6 m bed). */
 const TRUCK_LDEW_ZOOM = 2;
-const SHEET_OF: Partial<Record<VehicleKind, Prototype>> = { k9: PROTOTYPES[0]!, ldew: PROTOTYPES[1]!, ldewTruck: PROTOTYPES[2]! };
+const SHEET_OF: Partial<Record<VehicleKind, Prototype>> = { k9: PROTOTYPES[0]!, kub: PROTOTYPES[1]!, ldew: PROTOTYPES[2]!, ldewTruck: PROTOTYPES[3]! };
 for (const p of Object.values(SHEET_OF)) for (const f of Object.values(p!.files)) image(f); // start the downloads with the game
 
 /** Has `kind` its own sheet here (K9 Thunder, LDEW, LDEW truck)? */

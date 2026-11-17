@@ -825,7 +825,7 @@ export class Game {
         if (this.placing?.id === option.id) this.stopPlacing();
         this.issue({ k: 'buildCancel', opt: option.id });
       },
-      preview: (option) => (option.id === 'bunker' ? bunkerPreview(human.faction) : option.id === 'ldew' ? ldewPreview(human.faction) : option.id === 'dvina' || option.id === 'kub' ? sitePreview(option.id, human.faction) : null) ?? this.sprites.get(option.spriteKey(human.faction)).canvas,
+      preview: (option) => (option.id === 'bunker' ? bunkerPreview(human.faction) : option.id === 'ldew' ? ldewPreview(human.faction) : option.id === 'dvina' ? sitePreview('dvina', human.faction) : null) ?? this.sprites.get(option.spriteKey(human.faction)).canvas,
       onTrain: (option) => this.issue({ k: 'train', tier: option.key }),
       onTrainCancel: (option) => this.issue({ k: 'trainCancel', tier: option.key }),
       trainPreview: (option) => soldierPortrait(option.faction, option.tier),
@@ -4818,7 +4818,6 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       faction: this.humanPlayer.faction,
       ldew: this.placing.id === 'ldew',
       dvina: this.placing.id === 'dvina',
-      kub: this.placing.id === 'kub',
       x,
       y,
       w,
@@ -5294,9 +5293,9 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       this.sound.play('autocannon', { x: mx, y: my });
       return;
     }
-    if (s instanceof Vehicle && s.type === 'mantis') {
-      // Air-defence missile: lofted climb with a lingering smoke trail (S-400 / HQ-9 heavier and slower than Patriot / SAMP/T), then a burst on the aircraft.
-      const buk = heavyMissile(s.faction as FactionId);
+    if (s instanceof Vehicle && (s.type === 'mantis' || s.type === 'kub')) {
+      // Air-defence missile: lofted climb with a lingering smoke trail (S-400 / HQ-9 / 2K12 Kub heavier and slower than Patriot / SAMP/T), then a burst on the target.
+      const buk = s.type === 'kub' || heavyMissile(s.faction as FactionId);
       const flight = buk ? 0.55 : 0.4;
       this.effects.add({ kind: 'samMissile', x0: muzzle.x, y0: muzzle.y, x1: hit.x, y1: hit.y, age: 0, ttl: flight + SAM_TRAIL_SECONDS, flight, buk });
       if (hasMissileSheet()) this.effects.add({ kind: 'missileBlast', x: hit.x, y: hit.y, age: -flight, ttl: MISSILE_BLAST_SECONDS, air: t instanceof Unit && t.flies });

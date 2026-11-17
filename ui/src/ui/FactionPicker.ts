@@ -4,10 +4,8 @@ import { CARD_ORDER, factionDetailHtml, factionPosterHtml } from "./FactionCard"
 import type { FactionId } from "../types";
 import { continueLatestSave, pickSaveFile } from "./PauseMenu";
 import { MultiplayerLobby, type MultiplayerStart } from "./MultiplayerLobby";
-import { getLang, languageSelect, setLang, t } from "../i18n";
-// The rules document at the repo root, served (and copied into the build) as a plain file.
-import RULE_URL from "../../RULE.html?url";
-import RULE_EN_URL from "../../RULE.en.html?url";
+import { languageSelect, setLang, t } from "../i18n";
+import { openStory } from "./StoryModal";
 
 const STORAGE_KEY = "black-area:faction";
 
@@ -52,7 +50,7 @@ export class FactionPicker {
             <button class="fp-load fp-continue" type="button" hidden title="${t("Continue the newest game saved in Downloads/BlackArea")}">${t("Continue")}</button>
             <button class="fp-load" type="button" title="${t("Continue a game saved to a .json file (pause menu → Save game)")}">${t("Load saved game")}</button>
             <button class="fp-load fp-mp" type="button" title="${t("Play with friends: create a room or join one by its code")}">${t("Play with friends")}</button>
-            <button class="fp-guide" type="button" title="${t("Open the game rules (RULE.html) in a new tab")}">${t("Readme")}</button>
+            <button class="fp-guide" type="button" title="${t("Read the story of the new multipolar world")}">${t("Story")}</button>
             <button class="fp-desktop" type="button" hidden title="${t("Download the desktop version")}">${t("Download Desktop")}</button>
           </div>
           <div class="fp-detail-wrap">
@@ -143,9 +141,7 @@ export class FactionPicker {
         );
       this.root
         .querySelector(".fp-guide")
-        ?.addEventListener("click", () =>
-          window.open(getLang() === "vi" ? RULE_URL : RULE_EN_URL, "_blank", "noopener"),
-        );
+        ?.addEventListener("click", () => openStory());
       this.root
         .querySelector(".fp-demo")
         ?.addEventListener("click", () => this.selected && confirm(this.selected, true));

@@ -14,6 +14,8 @@ export default {
   'Download the desktop version': 'Tải phiên bản máy tính',
   'Download Desktop': 'Tải bản máy tính',
   'Open the game rules (RULE.html) in a new tab': 'Mở luật chơi (RULE.html) trong thẻ mới',
+  'Read the story of the new multipolar world': 'Đọc câu chuyện về thế giới đa cực mới',
+  Story: 'Cốt truyện',
   Guide: 'Hướng dẫn',
   'Continue a game saved to a .json file (pause menu → Save game)': 'Tiếp tục ván đã lưu vào tệp .json (menu tạm dừng → Lưu game)',
   'Load saved game': 'Tải bản lưu để chơi tiếp',

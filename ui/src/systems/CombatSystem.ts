@@ -124,7 +124,7 @@ export function canTarget(shooter: Unit, target: Entity): boolean {
   // cruising, hovering, lifting off, climbing, descending. Never one standing on the ground.
   if (shooter instanceof Vehicle && shooter.type === 'mantis') return target instanceof Vehicle && (target.aircraft || target.isDrone) && target.altitude > 0;
   // BM-21 Grad: its rockets also reach aircraft in flight.
-  if (target instanceof Unit && target.flies) return (shooter.aircraft || (shooter instanceof Vehicle && shooter.type === 'bm21')) && w.hitsAir;
+  if (target instanceof Unit && target.flies) return (shooter.aircraft || (shooter instanceof Vehicle && (shooter.type === 'bm21' || shooter.type === 'kub'))) && w.hitsAir;
   // Special forces never shoot ground vehicles: they plant a bomb on them instead (Game.processDemolition).
   if (shooter instanceof Infantry && shooter.isSpecial && target instanceof Vehicle) return false;
   return true;
@@ -265,7 +265,7 @@ export class CombatSystem implements GameSystem {
         }
       }
       // With no unit in reach: an enemy bunker inside its range (any bunker, player and AI alike); the missile
-      // launchers (R-12 Dvina, 2K12 Kub) take any enemy structure. Nearest first, edge to edge.
+      // launcher (R-12 Dvina) take any enemy structure. Nearest first, edge to edge.
       let site: Building | undefined;
       if (!best) {
         for (const o of this.entities.buildings()) {

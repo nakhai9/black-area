@@ -81,6 +81,7 @@ const ENGINE_BY_KIND: Readonly<Record<VehicleKind, EngineProfile>> = {
   ldew: 'dieselTank',
   ldewTruck: 'wheeled',
   bm21: 'wheeled',
+  kub: 'dieselTank',
   vt12: 'dieselTank',
   a29: 'airlifter',
   awacs: 'airlifter',

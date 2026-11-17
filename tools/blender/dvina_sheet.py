@@ -38,6 +38,8 @@ from mathutils import Vector
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(HERE))
 SPRITES = os.path.join(ROOT, "ui", "public", "sprites")
+CACHE = os.path.join(HERE, "_cache")  # finished cells of an interrupted run
+os.makedirs(CACHE, exist_ok=True)
 NAME = "dvina"
 ALL_SHEETS = ("base", "launcher", "launcher-team", "missile")
 SHEETS = tuple(s for s in os.environ.get("DVINA_SHEETS", ",".join(ALL_SHEETS)).split(",") if s)
@@ -388,9 +390,15 @@ def main():
                 # The stand's ground shadow leaves the missile out: it is gone while the rail reloads.
                 o.visible_shadow = part_of(o) != "missile" or want == "missile"
             ground.hide_render = want != "base"
+            # Each finished cell is cached on disk: a run that is cut off resumes where it stopped.
+            cache = os.path.join(CACHE, f"{NAME}-{sheet}-{k:02d}.npy")
+            if os.path.exists(cache):
+                out[sheet][:, k * OUT : (k + 1) * OUT] = np.load(cache)
+                continue
             rgb, alpha = grab(sc)
             out[sheet][:, k * OUT : (k + 1) * OUT, :3] = rgb
             out[sheet][:, k * OUT : (k + 1) * OUT, 3] = alpha
+            np.save(cache, out[sheet][:, k * OUT : (k + 1) * OUT])
         print(f"[{NAME}] direction {k + 1}/{DIRS}", flush=True)
     for sheet, arr in out.items():
         img = bpy.data.images.new(f"{NAME}-{sheet}", OUT * DIRS, OUT, alpha=True)
@@ -399,7 +407,12 @@ def main():
         img.file_format = "PNG"
         img.save()
         print(f"[{NAME}] wrote {NAME}-{sheet}.png")
-    os.remove(TMP)
+        for k in range(DIRS):
+            c = os.path.join(CACHE, f"{NAME}-{sheet}-{k:02d}.npy")
+            if os.path.exists(c):
+                os.remove(c)
+    if os.path.exists(TMP):
+        os.remove(TMP)
 
 
 main()
