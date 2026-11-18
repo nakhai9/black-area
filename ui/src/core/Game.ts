@@ -1,3 +1,4 @@
+import { saveToCloud } from '../net/CloudSave';
 import { BULLET_FLIGHT_SECONDS, BULLET_IMPACT_SECONDS, hasBulletSheet, type BulletSize } from '../render/BulletSheet';
 import { demoActive, setDemoActive } from './Demo';
 import {
@@ -1184,6 +1185,23 @@ export class Game {
       const text = JSON.stringify(save);
       const stamp = save.savedAt.slice(0, 16).replace(/[:T]/g, '-');
       const name = `black-area-${save.faction}-${stamp}.json`;
+      // Cloud save first (server MySQL, overwrites this browser's slot); unreachable → saved on this machine as before.
+      void saveToCloud(text).then(
+        () => this.sidebar.notify(t('Game saved to the cloud.'), 4),
+        (err: unknown) => {
+          console.error(err);
+          this.saveLocally(name, text);
+        },
+      );
+    } catch (err) {
+      console.error(err);
+      this.sidebar.notify(t('Could not save: {error}', { error: err instanceof Error ? err.message : String(err) }), 6);
+    }
+  }
+
+  /** The save on this machine: Downloads/BlackArea folder where the browser can, else a plain download. */
+  private saveLocally(name: string, text: string): void {
+    try {
       if (saveFolderSupported()) {
         void writeToSaveFolder(name, text).then(
           (folder) => (folder ? this.sidebar.notify(t('Game saved to Downloads/{folder}/{file}.', { folder, file: name }), 4) : this.downloadSaveFile(name, text)),

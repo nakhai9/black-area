@@ -2,6 +2,7 @@ import { type IconNode, Car, Globe, Music, ScreenShareOff, ZoomIn, X, createElem
 import { setEdgeLock, setZoomLock, settings } from '../core/Settings';
 import { type Lang, languageSelect, t } from '../i18n';
 import { newestSave } from './SaveFolder';
+import { loadFromCloud } from '../net/CloudSave';
 
 /** Key in sessionStorage: set when the page reloads only to switch the language, so the save loads without asking. */
 export const LANGUAGE_RELOAD_KEY = 'black-area.languageReload';
@@ -29,6 +30,12 @@ export function pickSaveFile(onError: (message: string) => void = (m) => window.
 
 /** Continue: loads the newest save of the Downloads/BlackArea folder (SaveFolder); false when there is none or no access. */
 export async function continueLatestSave(onError: (message: string) => void = (m) => window.alert(m)): Promise<boolean> {
+  // The cloud save (server MySQL) first, then the newest file of the BlackArea folder.
+  const cloud = await loadFromCloud();
+  if (cloud) {
+    loadSaveText(cloud, onError);
+    return true;
+  }
   const latest = await newestSave();
   if (!latest) return false;
   loadSaveText(latest.text, onError);
