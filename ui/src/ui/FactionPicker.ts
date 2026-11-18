@@ -171,7 +171,7 @@ export class FactionPicker {
         ?.addEventListener("click", () => this.selected && void confirm(this.selected, true));
       for (const [id, card] of this.cards) {
         card.addEventListener("click", () => this.highlight(id));
-        // Double-click a poster: unpick the nation (Continue / Import come back).
+        // Double-click a poster: unpick the nation (Continue / Import enabled again).
         card.addEventListener("dblclick", () => this.unpick());
       }
     });
@@ -199,7 +199,7 @@ export class FactionPicker {
     if (focus) this.cards.get(id)?.focus();
   }
 
-  /** Double-click on a poster: no nation picked any more; Start goes, Continue (returning player) and Import return. */
+  /** Double-click on a poster: no nation picked any more; Start goes, Continue and Import are enabled again. */
   private unpick(): void {
     this.selected = null;
     for (const card of this.cards.values()) {
@@ -216,12 +216,15 @@ export class FactionPicker {
     this.showDetail(null);
   }
 
-  /** Continue and Import saved file: shown only while no nation is picked (Continue also only for a returning player). */
-  private setSaveButtons(show: boolean): void {
+  /**
+   * Continue and Import saved file: enabled only while no nation is picked (disabled, not hidden, while one is).
+   * Continue stays hidden for a player with no id yet (nothing saved to continue).
+   */
+  private setSaveButtons(enabled: boolean): void {
     const cont = this.root.querySelector<HTMLButtonElement>(".fp-continue");
-    if (cont) cont.hidden = !show || !isReturningPlayer();
+    if (cont) cont.disabled = !enabled;
     const imp = this.root.querySelector<HTMLButtonElement>(".fp-load:not(.fp-mp):not(.fp-continue)");
-    if (imp) imp.hidden = !show;
+    if (imp) imp.disabled = !enabled;
   }
 
   /** Side panel: details of the nation hovered, else the one picked (hidden while none is). */

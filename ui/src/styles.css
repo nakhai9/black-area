@@ -3543,3 +3543,11 @@ body.pregame .corner-bar {
   color: #ff8a7a;
   font-size: 12px;
 }
+
+/* Main menu: Continue / Import saved file while a nation is picked. */
+.fp-load:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  filter: grayscale(0.6);
+  pointer-events: none;
+}

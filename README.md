@@ -4,7 +4,7 @@
 
 <h1 align="center">Black Area</h1>
 
-<p align="center"><sub>Phiên bản 3.75.212 · Version 3.75.212</sub></p>
+<p align="center"><sub>Phiên bản 3.75.213 · Version 3.75.213</sub></p>
 
 <p align="center"><b><a href="https://black-area.vercel.app">▶ CHƠI NGAY / PLAY NOW · black-area.vercel.app</a></b></p>
 
