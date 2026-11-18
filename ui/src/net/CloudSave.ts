@@ -2,8 +2,9 @@ import { t } from '../i18n';
 import { SERVER_URL } from './NetClient';
 
 /**
- * Cloud save on the game server (server/src/saves.js, MySQL): one slot per browser, overwritten on every save.
- * The slot id is a random id kept in localStorage; VITE_SAVE_API_KEY is sent if the server has SAVE_API_KEY set.
+ * Cloud save on the game server (server/src/saves.js, MySQL): one row per player, overwritten on every save.
+ * The player id is issued by the server on the first save (POST) and kept in localStorage under ID_KEY; it stands
+ * for the player until real accounts with login come. VITE_SAVE_API_KEY is sent if the server has SAVE_API_KEY set.
  */
 /** localStorage key of the player id: an opaque name on purpose. */
 const ID_KEY = '_x9f1eadd4cb865';
@@ -12,34 +13,39 @@ const LEGACY_ID_KEY = 'black-area.cloudSaveId';
 const API = SERVER_URL.replace(/^ws/, 'http').replace(/\/+$/, '');
 const API_KEY = (import.meta.env.VITE_SAVE_API_KEY ?? '').trim();
 
-/**
- * Player id (stands for the player until real accounts with login come): read once per page from localStorage,
- * created and stored there on the very first visit. `returning` is false on that first visit (and whenever
- * localStorage is unavailable: a fresh id kept for this page only, never a shared fallback).
- */
-const player: { id: string; returning: boolean } = (() => {
+/** The stored player id, or null when the server has not issued one to this browser yet. */
+function readId(): string | null {
   try {
     const legacy = localStorage.getItem(LEGACY_ID_KEY);
     if (legacy) {
       if (!localStorage.getItem(ID_KEY)) localStorage.setItem(ID_KEY, legacy);
       localStorage.removeItem(LEGACY_ID_KEY);
     }
-    const stored = localStorage.getItem(ID_KEY);
-    if (stored) return { id: stored, returning: true };
-    const id = crypto.randomUUID();
-    localStorage.setItem(ID_KEY, id);
-    return { id, returning: false };
+    return localStorage.getItem(ID_KEY);
   } catch {
-    return { id: crypto.randomUUID(), returning: false };
+    return null;
   }
-})();
+}
 
-/** This player's id (created on the first visit). */
-export const playerId = (): string => player.id;
-/** True when the id already existed before this visit: the player has been here before (Continue is offered). */
-export const isReturningPlayer = (): boolean => player.returning;
+/** Player id for this page: read once at start, replaced by the one the server issues on the first save. */
+let currentId: string | null = readId();
+/** Whether this browser already had a player id when the page opened (Continue is offered). */
+const returning = currentId !== null;
 
-const slotId = playerId;
+function storeId(id: string | null): void {
+  currentId = id;
+  try {
+    if (id) localStorage.setItem(ID_KEY, id);
+    else localStorage.removeItem(ID_KEY);
+  } catch {
+    /* no local storage: the id lives for this page only */
+  }
+}
+
+/** This player's id issued by the server, or null before the first cloud save. */
+export const playerId = (): string | null => currentId;
+/** True when the browser had a player id when the page opened: the player has saved before (Continue is offered). */
+export const isReturningPlayer = (): boolean => returning;
 
 const headers = (): Record<string, string> => ({
   'content-type': 'application/json',
@@ -68,19 +74,35 @@ async function busy<T>(label: string, job: () => Promise<T>): Promise<T> {
   }
 }
 
-/** Overwrites this browser's cloud save; throws with the server's message on failure. */
+/**
+ * Saves to the cloud: overwrites this player's save (PUT), or, with no id yet (or one the server does not know),
+ * creates it (POST) and keeps the player id the server sends back. Throws with the server's message on failure.
+ */
 export function saveToCloud(text: string): Promise<void> {
   return busy(t('Saving to the cloud…'), async () => {
-    const r = await fetch(`${API}/api/saves/${slotId()}`, { method: 'PUT', headers: headers(), body: text });
-    if (!r.ok) throw new Error(((await r.json().catch(() => null)) as { error?: string } | null)?.error ?? `HTTP ${r.status}`);
+    const fail = async (r: Response): Promise<never> => {
+      throw new Error(((await r.json().catch(() => null)) as { error?: string } | null)?.error ?? `HTTP ${r.status}`);
+    };
+    if (currentId) {
+      const r = await fetch(`${API}/api/saves/${encodeURIComponent(currentId)}`, { method: 'PUT', headers: headers(), body: text });
+      if (r.ok) return;
+      if (r.status !== 404) await fail(r);
+    }
+    const r = await fetch(`${API}/api/saves`, { method: 'POST', headers: headers(), body: text });
+    if (!r.ok) await fail(r);
+    const { id } = (await r.json()) as { id?: string };
+    if (!id) throw new Error('The server sent no player id');
+    storeId(id);
   });
 }
 
 /** This browser's cloud save as JSON text, or null when there is none / the server is unreachable. */
 export function loadFromCloud(): Promise<string | null> {
+  const id = currentId;
+  if (!id) return Promise.resolve(null);
   return busy(t('Loading cloud save…'), async () => {
     try {
-      const r = await fetch(`${API}/api/saves/${slotId()}`, { headers: headers() });
+      const r = await fetch(`${API}/api/saves/${encodeURIComponent(id)}`, { headers: headers() });
       return r.ok ? await r.text() : null;
     } catch {
       return null;
@@ -126,17 +148,16 @@ export function showPendingMenuToast(): void {
  * page goes back to the main menu. A failed delete does not hold the player back.
  */
 export async function finishGameAndReturnToMenu(): Promise<void> {
-  await busy(t('Closing the game…'), async () => {
-    try {
-      await fetch(`${API}/api/saves/${slotId()}`, { method: 'DELETE', headers: headers() });
-    } catch (err) {
-      console.error(err);
-    }
-  });
-  try {
-    localStorage.removeItem(ID_KEY);
-  } catch {
-    /* no local storage: nothing stored */
+  const id = currentId;
+  if (id) {
+    await busy(t('Closing the game…'), async () => {
+      try {
+        await fetch(`${API}/api/saves/${encodeURIComponent(id)}`, { method: 'DELETE', headers: headers() });
+      } catch (err) {
+        console.error(err);
+      }
+    });
   }
+  storeId(null);
   window.location.assign(window.location.pathname);
 }

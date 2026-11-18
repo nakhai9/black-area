@@ -1,15 +1,19 @@
 /**
  * Cloud saves in MySQL (Aiven): one row per save slot, overwritten on every save.
  *
- *   PUT    /api/saves/:id   body = the save JSON (JSON.stringify(game.exportSave()))  → { ok, bytes, updatedAt }
+ *   POST   /api/saves       body = the save JSON → { ok, id, bytes, updatedAt }: first save of a new player; the server
+ *                            creates the player id (UUID) and the client keeps it for the next saves
+ *   PUT    /api/saves/:id   body = the save JSON (JSON.stringify(game.exportSave()))  → { ok, id, bytes, updatedAt };
+ *                            overwrites an existing player's save (404 for an id the server never issued)
  *   GET    /api/saves/:id   → the save JSON as stored (404 if none)
  *   DELETE /api/saves/:id   → { ok }
  *
- * :id is the slot key chosen by the client (e.g. a player id), 1–64 chars of [A-Za-z0-9_-].
+ * :id is the player id issued by POST (a UUID).
  * If SAVE_API_KEY is set, every request must send the header `x-api-key: <SAVE_API_KEY>`.
  * The table is created on first use. Config comes from the environment (server/.env).
  */
 import fs from 'node:fs';
+import { randomUUID } from 'node:crypto';
 import mysql from 'mysql2/promise';
 
 const ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
@@ -43,6 +47,8 @@ function getPool() {
     ssl: sslOptions(),
     connectionLimit: Number(process.env.DB_POOL_SIZE) || 5,
     waitForConnections: true,
+    // affectedRows counts matched rows (an unchanged save still "exists" for PUT).
+    flags: ['+FOUND_ROWS'],
   });
   ready ??= pool.query(
     `CREATE TABLE IF NOT EXISTS \`${TABLE}\` (
@@ -59,7 +65,7 @@ function getPool() {
 
 const cors = {
   'access-control-allow-origin': process.env.CORS_ORIGIN || '*',
-  'access-control-allow-methods': 'GET, PUT, DELETE, OPTIONS',
+  'access-control-allow-methods': 'GET, POST, PUT, DELETE, OPTIONS',
   'access-control-allow-headers': 'content-type, x-api-key',
 };
 
@@ -89,15 +95,33 @@ function readBody(req) {
 /** Handles /api/saves/* requests; returns false for any other URL so the caller can serve it. */
 export async function handleSaves(req, res) {
   const url = new URL(req.url, 'http://x');
-  const m = /^\/api\/saves\/([^/]+)\/?$/.exec(url.pathname);
+  const m = /^\/api\/saves(?:\/([^/]+))?\/?$/.exec(url.pathname);
   if (!m) return false;
   if (req.method === 'OPTIONS') return reply(res, 204, ''), true;
   if (!savesEnabled()) return reply(res, 503, { error: 'Cloud saves are not configured (DB_HOST missing)' }), true;
   if (process.env.SAVE_API_KEY && req.headers['x-api-key'] !== process.env.SAVE_API_KEY) {
     return reply(res, 401, { error: 'Unauthorized' }), true;
   }
-  const id = decodeURIComponent(m[1]);
-  if (!ID_RE.test(id)) return reply(res, 400, { error: 'Bad save id' }), true;
+  const id = m[1] === undefined ? null : decodeURIComponent(m[1]);
+  if (id === null ? req.method !== 'POST' : !ID_RE.test(id)) return reply(res, 400, { error: 'Bad save id' }), true;
+
+  /** The request body, checked to be a Black Area save; null after replying with an error. */
+  const readSave = async () => {
+    const body = await readBody(req);
+    let save;
+    try {
+      save = JSON.parse(body);
+    } catch {
+      reply(res, 400, { error: 'Body is not JSON' });
+      return null;
+    }
+    if (save?.format !== 'black-area-save') {
+      reply(res, 400, { error: 'Not a Black Area save' });
+      return null;
+    }
+    return body;
+  };
+  const saved = (sid, body) => reply(res, 200, { ok: true, id: sid, bytes: Buffer.byteLength(body), updatedAt: new Date().toISOString() });
 
   try {
     const db = getPool();
@@ -107,20 +131,21 @@ export async function handleSaves(req, res) {
       if (!rows.length) return reply(res, 404, { error: 'No save' }), true;
       return reply(res, 200, rows[0].data), true;
     }
-    if (req.method === 'PUT' || req.method === 'POST') {
-      const body = await readBody(req);
-      let save;
-      try {
-        save = JSON.parse(body);
-      } catch {
-        return reply(res, 400, { error: 'Body is not JSON' }), true;
-      }
-      if (save?.format !== 'black-area-save') return reply(res, 400, { error: 'Not a Black Area save' }), true;
-      await db.query(
-        `INSERT INTO \`${TABLE}\` (id, data) VALUES (?, ?) ON DUPLICATE KEY UPDATE data = VALUES(data)`,
-        [id, body],
-      );
-      return reply(res, 200, { ok: true, bytes: Buffer.byteLength(body), updatedAt: new Date().toISOString() }), true;
+    if (id === null) {
+      // First save of a new player: the server issues the player id.
+      const body = await readSave();
+      if (body === null) return true;
+      const sid = randomUUID();
+      await db.query(`INSERT INTO \`${TABLE}\` (id, data) VALUES (?, ?)`, [sid, body]);
+      return saved(sid, body), true;
+    }
+    if (req.method === 'PUT') {
+      const body = await readSave();
+      if (body === null) return true;
+      // Only ids issued by POST: an unknown id is refused (the client then asks for a new one).
+      const [r] = await db.query(`UPDATE \`${TABLE}\` SET data = ? WHERE id = ?`, [body, id]);
+      if (!r.affectedRows) return reply(res, 404, { error: 'Unknown player id' }), true;
+      return saved(id, body), true;
     }
     if (req.method === 'DELETE') {
       await db.query(`DELETE FROM \`${TABLE}\` WHERE id = ?`, [id]);
