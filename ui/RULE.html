@@ -26,7 +26,7 @@
 <body>
 <main>
 <img class="logo" src="/logo.png" alt="Black Area" />
-<h1>Black Area — RULE <small>v3.75.143</small></h1>
+<h1>Black Area — RULE <small>v3.75.147</small></h1>
 <p class="lead">Tài liệu luật chơi + kiến trúc code dành cho AI/dev sửa game. Mọi con số gameplay chính xác nằm trong <code>src/constants.ts</code> và <code>src/factions/*.ts</code>. Nếu tài liệu này khác code thì <b>code đúng</b>. <b>Khi đổi luật/số trong code, phải cập nhật file này.</b></p>
 <nav><a href="#s1">Quy tắc làm việc cho AI</a><a href="#s2">Chạy dự án</a><a href="#s3">Kiến trúc thư mục</a><a href="#s4">Thế giới</a><a href="#s5">Kinh tế (dầu)</a><a href="#s6">Công trình (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Quân đội</a><a href="#s8">Chiến đấu</a><a href="#s9">Điều khiển (Game.handleKey, handleInput)</a><a href="#s10">Giới hạn &amp; hiệu năng</a><a href="#s11">Thắng / thua &amp; AI</a><a href="#s12">Công thức sửa thường gặp</a></nav>
 <h2 id="s1">0. Quy tắc làm việc cho AI</h2>
@@ -705,6 +705,10 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
   <li>v3.41.5: Sửa lỗi máy bay vận tải bay vòng tròn mãi quanh điểm hạ cánh (không đáp được, không nhận lệnh di chuyển): khi điểm đến nằm trong vòng quay, máy bay bay thẳng tới. Lệnh di chuyển mới trong lúc đang bay tới điểm hạ cánh giờ được nhận (hủy hạ cánh, bay đi).</li>
   <li>v3.41.5: Máy bay không còn nhận <b>Cảng (Naval Port)</b> làm sân bay nhà (không đậu, không hạ cánh, không được sinh ra ở cảng). Loại máy bay được đậu ở cảng sẽ quy ước sau: thêm vào <code>PORT_AIRCRAFT</code> trong <code>src/systems/AircraftSystem.ts</code>. Máy bay đang lấy cảng làm nhà (bản lưu cũ) sẽ chuyển sang sân bay khác của phe; không còn sân bay nào thì rơi như luật cũ.</li>
     <li>v3.56.1: <b>Giảm tiếng động cơ mọi phương tiện</b>: <code>VEHICLE_BED_GAIN</code> 1.6 → 1.0, máy bay / trực thăng <code>AIR_BED_BOOST</code> 2.2 → 1.5. <b>Máy bay vận tải</b> (C-17, Il-76, Y-20, A400M, mặc định) tăng gain 0.85–0.9 → 1.35 để to ngang các máy bay khác (tiếng động cơ trầm, ít tiếng rít nên trước nghe nhỏ hơn).</li>
+    <li>v3.75.147: <b>Trực thăng</b> của mọi nước (AH-64, Ka-52, Z-10) to thêm 30%.</li>
+    <li>v3.75.146: Thêm nút <b>khóa zoom</b> cạnh nút Settings trên sidebar (vàng = đang khóa; đồng bộ với ô khóa zoom trong menu tạm dừng).</li>
+    <li>v3.75.145: Nhãn <b>Budget</b> trong thẻ quốc gia thay bằng biểu tượng đồng xu.</li>
+    <li>v3.75.144: Nút <b>Home</b> chuyển vào thẻ quốc gia (thứ tự: Home · Vay tiền · Đồng hồ chiến tranh); thanh tọa độ/zoom/FPS chỉ hiện ở chế độ demo.</li>
     <li>v3.75.143: <b>R-12 Dvina</b> điều khiển như xe: chọn Dvina rồi bấm vào địch để <b>khóa mục tiêu</b> (giữ đến khi mục tiêu chết; ngoài tầm thì chờ địch vào tầm), bấm ra đất trống để <b>xoay hướng bắn</b> (bỏ khóa), chuột phải để bỏ chọn. Bệ xoay từ từ (1,2 rad/s), chỉ bắn khi đã ngắm trúng. Quả tên lửa đầu đi kèm khi mua; mỗi quả nạp sau tốn <b>2500</b>, không đủ tiền thì ray để trống. Đầu đạn 3000 sát thương, nổ lan bán kính 3 ô (giảm dần ra mép); máy bay chỉ bị trúng trực tiếp. Cả người chơi lẫn AI.</li>
     <li>v3.75.142: <b>R-12 Dvina</b> mặc định quay về hướng trái màn hình khi vừa đặt xuống đất (cả bóng xem trước khi đặt) — cả người chơi lẫn AI.</li>
     <li>v3.75.141: <b>R-12 Dvina</b> thu nhỏ còn 2×2. Chọn Dvina rồi bấm vào lính/xe/công trình địch trong tầm: Dvina bắn mục tiêu đó trước (như ra lệnh tấn công cho xe); ngoài tầm thì báo "Mục tiêu ngoài tầm bắn". Sửa lỗi không mua được <b>A-29 Super Tucano</b> (thiếu trong danh sách xe được sản xuất) — cả người chơi lẫn AI.</li>

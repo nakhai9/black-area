@@ -20,6 +20,7 @@ export const settings = {
 
 export function setZoomLock(on: boolean): void {
   settings.zoomLock = on;
+  window.dispatchEvent(new CustomEvent('black-area:zoomlock')); // keep the sidebar button and pause menu in sync
   try {
     localStorage.setItem(ZOOM_LOCK_KEY, on ? '1' : '0');
   } catch {

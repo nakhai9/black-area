@@ -149,6 +149,7 @@ export class PauseMenu {
     zoomBox.type = 'checkbox';
     zoomBox.checked = settings.zoomLock;
     zoomBox.addEventListener('change', () => setZoomLock(zoomBox.checked));
+    window.addEventListener('black-area:zoomlock', () => (zoomBox.checked = settings.zoomLock));
     const zoomText = document.createElement('span');
     zoomText.textContent = t('Lock zoom');
     zoomLock.append(zoomBox, zoomText);

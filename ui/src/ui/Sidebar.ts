@@ -1,3 +1,4 @@
+import { setZoomLock, settings } from '../core/Settings';
 import { CHARGE_ICON_PATH } from '../render/ChargeIcon';
 import { AlertToast } from './NewsToast';
 import { type IconNode, Settings, Clock, House, Handshake, X, Wallet, Info, Keyboard, Droplet, Hammer, LogIn, LogOut, Minus, Plane, Rocket, Shield, TrendingDown, TrendingUp, Zap, createElement } from 'lucide';
@@ -153,6 +154,8 @@ function powerColor(strength: number): string {
 /** News button icon (Google Material Icons, notifications active). */
 /** Get a loan: hand receiving money (Freehand free icons by Streamline, CC BY 4.0). */
 const LOAN_ICON = '<svg class="sb-loan-icon" xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><g fill="currentColor" fill-rule="evenodd" clip-rule="evenodd"><path d="M17.478 17.629q-.264.027-.52.1a1.57 1.57 0 0 0-.648-1.758a1.42 1.42 0 0 0-1.997.22a4.4 4.4 0 0 1-1.439 1.278a7.3 7.3 0 0 1-1.807.699c-.39-.05-.749-.11-.999-.17v-.1a1.3 1.3 0 0 1-.06-.3a6 6 0 0 0-.29-1.507a1.16 1.16 0 0 0-.708-.62a1 1 0 0 0-1.188.1c-.25.285-.422.63-.5 1c-.024.243-.11.477-.25.678a1.7 1.7 0 0 1-.539.3c-.459.17-.998.27-1.418.41a2.4 2.4 0 0 1-.509-.45c.11-.28.5-.72.6-.919l.08-.15a.5.5 0 0 0 0-.14c0-.349-.18-.439-.35-.449a4 4 0 0 0-1.029.12c-.779.15-1.588.44-2.277.57a.29.29 0 0 0-.23.319a.28.28 0 0 0 .32.23c.7-.12 1.518-.33 2.297-.42h.24c-.17.29-.37.61-.45.789a.64.64 0 0 0 0 .59c.205.299.458.562.75.778c.283.21.592.384.918.52c0 0 .23 0 .41.06v.1c-.17.189-.37.398-.52.578c-.147.17-.25.371-.3.59c0 .08.24 1.398.37 2.216a9 9 0 0 0-1.997-.649c-.34 0-.62-.06-.87-.07q-.952.052-1.906 0a.34.34 0 0 0-.35.29a.33.33 0 0 0 .28.35c.898.11 1.358.06 1.937.11q.389.024.769.11a14 14 0 0 1 2.247.928a.8.8 0 0 0 .659-.07a.48.48 0 0 0 .21-.35q.015-.18 0-.36c0-.229-.07-.578-.12-.938c1.677.06 3.884.18 5.682.19c.947.035 1.895-.039 2.826-.22a8.6 8.6 0 0 0 2.716-1.328a2.86 2.86 0 0 0 1.198-1.917a1.280 1.280 0 0 0-.23-.949a1.07 1.07 0 0 0-1.008-.39m-3.815.42a5.3 5.3 0 0 0 1.458-1.19c.17-.199.41-.129.6 0a1 1 0 0 1 .309.32c0 .09.1.18.06.27c-.102.265-.27.499-.49.679a.5.5 0 0 1-.1.06l-.329.08c-.705.092-1.417.12-2.127.08q.32-.129.62-.3m3.206 1.996c-.706.542-1.5.957-2.347 1.229c-.841.196-1.702.297-2.566.3c-1.818.07-4.075 0-5.752.05c-.06-.36-.11-.67-.12-.78s.18-.24.31-.38q.338-.329.559-.748a.9.9 0 0 0 0-.829a.63.63 0 0 0-.3-.28a3.4 3.4 0 0 0-.639-.2q.38-.065.749-.18c.278-.085.538-.22.769-.398c.167-.152.29-.345.36-.56q.149-.512.369-.998c.08-.13.21-.17.42-.07s.249.41.289.699q.032.628.14 1.248a1 1 0 0 0 .679.749c.901.219 1.82.36 2.746.42c.933.096 1.873.096 2.806 0c.63-.11 1.228-.39 1.847-.54q.193-.05.39-.07h.05v.16c-.09.476-.363.899-.76 1.178m-8.938-8.386a1 1 0 0 0 0 .25v.609a.31.31 0 0 0 .08.46a.31.31 0 0 0 .41-.18a4 4 0 0 0 .39-.5q.08-.151.119-.32a1 1 0 0 0 .08-.219a.5.5 0 0 0 0-.12c.36.06.728.06 1.088 0a1.57 1.57 0 0 0 1.448-1.338a1.34 1.34 0 0 0-.41-1.168a4.5 4.5 0 0 0-1.647-.76a2.5 2.5 0 0 1-.599-.269a.41.41 0 0 1-.22-.29c-.06-.499.31-.699.75-.738a3.1 3.1 0 0 1 1.587.399a.28.28 0 0 0 .38-.08a.26.26 0 0 0-.04-.41a3 3 0 0 0-.83-.419a1 1 0 0 0 .08-.1q.065-.11.11-.23c0-.08 0-.16.05-.249c.05-.09 0-.4 0-.61a.32.32 0 1 0-.589-.229a4 4 0 0 0-.39.5a1.3 1.3 0 0 0-.119.24a1 1 0 0 0-.06.459q-.36-.045-.719 0a1.36 1.36 0 0 0-1.168 1.547a1.33 1.33 0 0 0 .559 1.089a7 7 0 0 0 1.598.689c.33.12.659.21.629.58c-.03.369-.46.548-.909.598a3 3 0 0 1-1.578-.32a1.2 1.2 0 0 1-.35-.319a3.5 3.5 0 0 1-.259-.47a.32.32 0 0 0-.39-.169a.32.32 0 0 0-.16.42q.136.381.36.718q.175.252.43.42q.213.155.46.25a1 1 0 0 0-.17.28"/><path d="M8.081 3.299a5.99 5.99 0 0 0-4.573 3.685a5.21 5.21 0 0 0 1.198 5.911q.438.427.929.79a5 5 0 0 0 1.088.598c.452.168.927.265 1.408.29c.695.027 1.391-.016 2.077-.13a.28.28 0 0 0 .23-.31a.27.27 0 0 0-.31-.239a9.6 9.6 0 0 1-1.937 0a4.6 4.6 0 0 1-1.178-.32a4.4 4.4 0 0 1-.909-.599a7 7 0 0 1-.779-.759a4.39 4.39 0 0 1-.849-4.903a5.68 5.68 0 0 1 3.995-3.285a5.73 5.73 0 0 1 3.305.36c.944.272 1.761.87 2.307 1.687c.22.21.579 0 .549-.35C12.685 2.61 8.82 3.170 8.082 3.3m6.071 7.678c-.15.26-.31.5-.48.739c-.17.24-.36.46-.559.67a4.55 4.55 0 0 1-1.688 1.167a.3.3 0 0 0-.22.38a.31.31 0 0 0 .39.22a4.84 4.84 0 0 0 2.936-1.808q.32-.424.52-.919c.211-.505.34-1.041.379-1.587l-.65-.28q-.234.744-.628 1.418"/><path d="M23.09 6.624a.31.31 0 0 0-.43.12a2 2 0 0 1-.549.61a1.850 1.850 0 0 1-.739.329q-.195.022-.389 0a11.4 11.4 0 0 0-1.997-.24c-.74.09-1.997.869-3.066 1.059a1 1 0 0 1-1.258-.52c-.17-.32.13-.47.43-.669c.738-.48 1.767-.938 2.166-1.647a1.54 1.54 0 0 0 .12-1.389c-.42-1.188-1.148-1.517-1.897-1.398a2.4 2.4 0 0 0-1.758 1.109a.3.3 0 0 0 .13.503a.3.3 0 0 0 .33-.124c.24-.338.595-.579.998-.679c.56-.22 1.109 0 1.358.83c.16.578-.29.848-.729 1.167c-.858.64-1.078.46-1.877 1.199a1.18 1.18 0 0 0-.21 1.568c.75 1.328 2.367 1.218 3.755.559a8.5 8.5 0 0 1 1.618-.71q.955-.009 1.897.15q.294.005.58-.07c.366-.087.708-.258.998-.499a2.5 2.5 0 0 0 .689-.828a.31.31 0 0 0-.17-.43"/><path d="M23.51 3.848L20.993 2.51c-.719-.44-1.398-1.079-2.117-1.588a5.1 5.1 0 0 0-1.758-.859a3.45 3.45 0 0 0-3.145.999a9.8 9.8 0 0 0-1.418 1.718c-.34.529.17.798.53.419q.692-.77 1.467-1.458a2.6 2.6 0 0 1 2.337-.66a5.6 5.6 0 0 1 1.787.91q.925.682 1.918 1.258l2.646 1.168a.32.32 0 0 0 .42-.14a.33.33 0 0 0-.15-.429"/></g></svg>';
+/** Budget label: coin icon (Arcticons by Donnnno, CC BY-SA 4.0). */
+const BUDGET_ICON = '<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="21.5" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="24" cy="24" r="12.5" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><path fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" d="M18.794 29.31a3.14 3.14 0 0 0 3.062 1.49h2.013a4.26 4.26 0 0 0 4.015-3.4h0a2.752 2.752 0 0 0-2.772-3.4h-2.224a2.752 2.752 0 0 1-2.772-3.4h0a4.26 4.26 0 0 1 4.015-3.4h2.013a3.14 3.14 0 0 1 3.062 1.49m-3.963-1.49l.311-1.7m-3.108 17l.311-1.7M24 36.5v8.999M13.194 17.716l-7.779-4.524m29.449 4.626l7.822-4.451"/></svg>';
 const NEWS_ICON = '<svg class="sb-loan-icon" xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M18 16v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.68-1.5-1.51-1.5S10.5 3.17 10.5 4v.68C7.63 5.36 6 7.92 6 11v5l-1.3 1.29c-.63.63-.19 1.71.7 1.71h13.17c.89 0 1.34-1.08.71-1.71zm-6.01 6c1.1 0 2-.9 2-2h-4a2 2 0 0 0 2 2M6.77 4.73c.42-.38.43-1.03.03-1.43a1 1 0 0 0-1.39-.02a10.42 10.42 0 0 0-3.27 6.06c-.09.61.38 1.16 1 1.16c.48 0 .9-.35.98-.83a8.44 8.44 0 0 1 2.65-4.94M18.6 3.28c-.4-.37-1.02-.36-1.4.02c-.4.4-.38 1.04.03 1.42c1.38 1.27 2.35 3 2.65 4.94c.07.48.49.83.98.83c.61 0 1.09-.55.99-1.16c-.38-2.37-1.55-4.48-3.25-6.05"/></svg>';
 
 /** A capital held by another nation (News window): the capital, the nation it belongs to and the one holding it. */
@@ -420,6 +423,7 @@ export class Sidebar {
     root.innerHTML = `
       <header class="sb-header">
         <div class="sb-logo"><img src="${import.meta.env.BASE_URL}logo.png" alt="Black Area" /></div>
+        <button class="sb-zoomlock" type="button" aria-label="${t('Zoom lock')}"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11a3 3 0 1 0 6 0a3 3 0 0 0-6 0m8 5l-2.5-2.5M3 7V5a2 2 0 0 1 2-2h2M3 17v2a2 2 0 0 0 2 2h2M17 3h2a2 2 0 0 1 2 2v2m-4 14h2a2 2 0 0 0 2-2v-2"/></svg></button>
         <button class="sb-settings" type="button" title="${t('Settings: screen lock, volume, language (pause menu, Esc).')}" aria-label="${t('Settings')}"></button>
         <button class="sb-collapse" title="${t('Hide sidebar (Tab)')}" aria-label="${t('Hide sidebar')}"></button>
       </header>
@@ -433,7 +437,7 @@ export class Sidebar {
           </div>
         </div>
         <div class="sb-budget-row">
-          <span class="sb-budget-label">${t('Budget')}</span>
+          <span class="sb-budget-label" title="${t('Budget')}" aria-label="${t('Budget')}">${BUDGET_ICON}</span>
           <span class="sb-credits"><span>0</span> <small>${CURRENCY}</small></span>
         </div>
         <div class="sb-cartel" hidden>
@@ -589,7 +593,20 @@ export class Sidebar {
       this.airTools.append(b);
       return b;
     };
-    tool(House, t('Home (H): jump the camera to your capital.'), () => this.handlers.onHome());
+    // Home: first in the faction card's bottom row (Home · Get a loan · war clock).
+    const home = document.createElement('button');
+    home.type = 'button';
+    home.className = 'sb-sell sb-home';
+    home.title = t('Home (H): jump the camera to your capital.');
+    home.setAttribute('aria-label', home.title);
+    home.append(createElement(House, { width: 20, height: 20, 'stroke-width': 2, 'aria-hidden': 'true' }));
+    home.addEventListener('pointerdown', (e) => e.preventDefault());
+    home.addEventListener('click', () => {
+      home.blur();
+      this.handlers.onHome();
+    });
+    this.loanButton.before(home);
+    this.loanButton.after(this.loanButton.parentElement!.querySelector('.sb-war-clock')!);
     this.turboButton = tool(Rocket, t('Turbo (T): the selected aircraft fly much faster for a while, then the turbo has to recharge before it can be used again.'), () => this.handlers.onTurbo());
     this.turboBadge = document.createElement('span');
     this.turboBadge.className = 'air-tool-ring'; // recharge progress: a ring that closes around the button
@@ -653,6 +670,17 @@ export class Sidebar {
     collapse.append(createElement(LogOut, { width: 16, height: 16, 'stroke-width': 2, 'aria-hidden': 'true' }));
     collapse.addEventListener('click', () => this.toggle());
     // Settings: top-right of the sidebar header (the hide button is top-left).
+    // Zoom lock (Tabler Icons, MIT): toggles the same setting as the pause menu checkbox.
+    const zoomLockButton = q<HTMLButtonElement>('.sb-zoomlock');
+    const syncZoomLock = (): void => {
+      zoomLockButton.classList.toggle('on', settings.zoomLock);
+      zoomLockButton.setAttribute('aria-pressed', String(settings.zoomLock));
+      zoomLockButton.title = settings.zoomLock ? t('Zoom lock: on (mouse wheel and +/- do not zoom). Click to unlock.') : t('Zoom lock: off. Click to lock the zoom.');
+    };
+    syncZoomLock();
+    window.addEventListener('black-area:zoomlock', syncZoomLock);
+    zoomLockButton.addEventListener('pointerdown', (e) => e.preventDefault());
+    zoomLockButton.addEventListener('click', () => setZoomLock(!settings.zoomLock));
     const settingsButton = q('.sb-settings');
     settingsButton.append(createElement(Settings, { width: 16, height: 16, 'stroke-width': 2, 'aria-hidden': 'true' }));
     settingsButton.addEventListener('click', () => this.handlers.onSettings());

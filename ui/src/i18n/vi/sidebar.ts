@@ -1,5 +1,8 @@
 /** Vietnamese texts for the sidebar (English text → Vietnamese). */
 export default {
+  "Zoom lock": "Khóa zoom",
+  "Zoom lock: on (mouse wheel and +/- do not zoom). Click to unlock.": "Khóa zoom: bật (con lăn chuột và +/- không zoom). Bấm để mở khóa.",
+  "Zoom lock: off. Click to lock the zoom.": "Khóa zoom: tắt. Bấm để khóa zoom.",
   "Hide sidebar (Tab)": "Ẩn thanh bên (Tab)",
   "Hide sidebar": "Ẩn thanh bên",
   "Offer your oil to the Global Monitoring Center: it decides whether and how much to buy (at most 25% per sale) and pays the posted price into your budget": "Chào bán dầu cho Trung tâm Giám sát Toàn cầu: trung tâm quyết định có mua hay không và mua bao nhiêu (tối đa 25% mỗi lần), rồi trả theo giá niêm yết vào ngân sách của bạn",

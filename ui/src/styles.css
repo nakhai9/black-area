@@ -3258,3 +3258,52 @@ input:disabled {
 .lc-card .pause-actions {
   margin: 0;
 }
+
+/* Faction card bottom row: Home · Get a loan · war clock. */
+.sb-resources .sb-actions.sb-oil-actions {
+  grid-template-columns: auto auto 1fr;
+}
+.sb-resources .sb-oil-actions .sb-sell.sb-home {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+}
+
+/* Budget label: coin icon instead of the word. */
+.sb-budget-label {
+  display: flex;
+  align-items: center;
+}
+.sb-budget-label svg {
+  display: block;
+  width: 22px;
+  height: 22px;
+}
+
+/* Zoom lock: left of Settings in the sidebar header; highlighted while the lock is on. */
+.sb-zoomlock {
+  position: absolute;
+  top: 2px;
+  right: 30px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  width: 24px;
+  height: 24px;
+  color: #cfd8e0;
+  background: #222b33;
+  border: 1px solid #3a4652;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.sb-zoomlock:hover {
+  border-color: var(--btn-border-hover);
+}
+.sb-zoomlock.on {
+  color: #2a1e00;
+  background: linear-gradient(#ffd84a, #e0a800);
+  border-color: #ffe08a;
+}

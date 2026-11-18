@@ -787,6 +787,7 @@ export class Game {
     // UI.
     this.mountSidebar();
     this.status = new StatusBar(dom.status, this.map);
+    if (!demo) dom.status.style.display = 'none'; // coordinates / zoom / FPS readout: demo only
 
     this.bus.on('camera:focus', (p) => {
       if (!this.paused) this.camera.centerOn(p.x, p.y);
