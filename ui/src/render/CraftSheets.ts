@@ -1,4 +1,4 @@
-import { ISO_X, ISO_Y } from '../constants';
+import { ISO_X, ISO_Y, TRANSPORT_LENGTH } from '../constants';
 import type { Vehicle } from '../entities/Vehicle';
 import type { FactionId, VehicleKind } from '../types';
 import { spriteUrl } from './spriteUrl';
@@ -65,7 +65,7 @@ const ah64: CraftSheet = {
   heli: true,
   // 1.5x the old 2/3-tank size: 17.4 m fuselage drawn 11.52 iso px long -> 0.662 iso px/m; axis v (stub-wing span
   // 5.35 m) = 3.54 iso px = 1.0 tank (Abrams 3.94 m at 0.897 iso px/m = 3.53), axis z 5.36 m = 3.55 iso px.
-  length: 11.52 * 1.3, // +30% (v3.75.147)
+  length: 11.52 * 1.3 * 0.95, // +30% (v3.75.147), -5% (v3.75.222)
   rig: { rotor: img('rotor-ah64.webp'), blades: 4, phases: 16, groundDrop: 15.56, hubLift: 14.5 },
 };
 
@@ -79,7 +79,7 @@ const ka52: CraftSheet = {
   span: 0.74,
   heli: true,
   // 1.3x the AH-64 world scale: drawn as long as the AH-64 (11.52 iso px for the 13.4 m fuselage, 0.86 iso px/m).
-  length: 11.52 * 1.3, // +30% (v3.75.147)
+  length: 11.52 * 1.3 * 0.95, // +30% (v3.75.147), -5% (v3.75.222)
   rig: { rotor: img('rotor-ka52.webp'), blades: 3, phases: 16, groundDrop: 19.65, hubLift: 18.46 },
 };
 
@@ -93,7 +93,7 @@ const z10: CraftSheet = {
   span: 0.74,
   heli: true,
   // Drawn as long as the AH-64 and Ka-52 (11.52 iso px for the 14.3 m fuselage).
-  length: 11.52 * 1.3, // +30% (v3.75.147)
+  length: 11.52 * 1.3 * 0.95, // +30% (v3.75.147), -5% (v3.75.222)
   rig: { rotor: img('rotor-z10.webp'), blades: 5, phases: 16, groundDrop: 16.39, hubLift: 14.58 },
 };
 
@@ -108,7 +108,7 @@ const MODELS: Readonly<Record<string, CraftSheet>> = {
 const TRANSPORT: Partial<Record<FactionId, string>> = { islamic: 'air:y20' };
 const HELI: Record<FactionId, string> = { usa: 'heli:ah64', europe: 'heli:ah64', russia: 'heli:ka52', islamic: 'heli:ka52', china: 'heli:z10' };
 /** Iso px each kind is drawn long. */
-const LENGTH: Partial<Record<VehicleKind, number>> = { transport: 13, heli: 11.4 * 1.3 };
+const LENGTH: Partial<Record<VehicleKind, number>> = { transport: TRANSPORT_LENGTH, heli: 11.4 * 1.3 * 0.95 };
 
 /** Model key of a nation's aircraft of `kind`, or null when it is not drawn from these sheets. */
 export function craftKey(faction: FactionId, kind: VehicleKind): string | null {
