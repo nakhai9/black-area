@@ -4,7 +4,7 @@
 
 <h1 align="center">Black Area</h1>
 
-<p align="center"><sub>Phiên bản 3.75.213 · Version 3.75.213</sub></p>
+<p align="center"><sub>Phiên bản 3.75.215 · Version 3.75.215</sub></p>
 
 <p align="center"><b><a href="https://black-area.vercel.app">▶ CHƠI NGAY / PLAY NOW · black-area.vercel.app</a></b></p>
 
@@ -92,6 +92,10 @@ Năm giếng dầu vô chủ vẫn bơm dưới lớp băng. Không ai được 
 Dầu đổi lấy tiền. Tiền đổi lấy xe tăng. Xe tăng đổi lấy đất, đồng minh và tiếng nói. Mất thủ đô và quân đội, một quốc gia biến khỏi bản đồ như chưa từng tồn tại. Quốc gia đứng vững tới cuối cùng sẽ có thứ quý hơn dầu, đó là **quyền viết luật cho thế giới mới.**
 
 <p align="center"><b>Black Area. Thế giới mới bắt đầu.</b></p>
+
+### Tác giả
+
+Game do **Khai Nguyen** thực hiện. Mọi góp ý, ý tưởng bổ sung hay báo lỗi xin gửi về email: [nakhai.fw@gmail.com](mailto:nakhai.fw@gmail.com).
 
 ### Chạy dự án
 
@@ -192,6 +196,10 @@ Five ownerless oil wells still pump under the ice. No one may raise even a singl
 Oil buys money. Money buys tanks. Tanks buy land, allies and a voice. Lose your capital and your army, and your nation vanishes from the map as if it had never existed. The last one standing gets something worth more than oil, **the right to write the rules of the new world.**
 
 <p align="center"><b>Black Area. The new world begins.</b></p>
+
+### Author
+
+Made by **Khai Nguyen**. Feedback, ideas for new features and bug reports are welcome by email: [nakhai.fw@gmail.com](mailto:nakhai.fw@gmail.com).
 
 ### Running the project
 
