@@ -21,9 +21,11 @@
  *   { t: 'left', id, faction }       while loading: that player left (counts as beaten); in game it comes as a
  *                                    `leftMatch` order in a turn, so every machine takes it at the same tick
  */
+import 'dotenv/config';
 import http from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { WebSocketServer } from 'ws';
+import { handleSaves, savesEnabled } from './saves.js';
 import { addPlayer, cleanCode, cleanName, createRoom, validCode, findRoom, pickFaction, removePlayer, roomCount, roomView, takeExpiredRooms } from './rooms.js';
 
 const PORT = Number(process.env.PORT) || 8787;
@@ -31,10 +33,12 @@ const MAX_MESSAGE_BYTES = 16 * 1024;
 /** Lockstep turn length: each turn is 3 game ticks at 30 ticks/s. */
 const TURN_MS = 100;
 
-const server = http.createServer((req, res) => {
+const server = http.createServer(async (req, res) => {
+  // Cloud saves (MySQL): /api/saves/:id — see saves.js.
+  if (await handleSaves(req, res)) return;
   // Render health check / quick status.
   res.writeHead(200, { 'content-type': 'application/json', 'access-control-allow-origin': '*' });
-  res.end(JSON.stringify({ ok: true, rooms: roomCount() }));
+  res.end(JSON.stringify({ ok: true, rooms: roomCount(), saves: savesEnabled() }));
 });
 
 const wss = new WebSocketServer({ server, maxPayload: MAX_MESSAGE_BYTES });

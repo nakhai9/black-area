@@ -8,11 +8,13 @@
     "node": ">=18"
   },
   "scripts": {
-    "build": "node --check src/index.js && node --check src/rooms.js",
+    "build": "node --check src/index.js && node --check src/rooms.js && node --check src/saves.js",
     "start": "node src/index.js",
     "dev": "node --watch src/index.js"
   },
   "dependencies": {
+    "dotenv": "^16.4.5",
+    "mysql2": "^3.11.0",
     "ws": "^8.18.0"
   }
 }
