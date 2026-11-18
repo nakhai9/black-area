@@ -1,3 +1,4 @@
+import { finishGameAndReturnToMenu } from '../net/CloudSave';
 import { modalCloseButton } from './ModalClose';
 import { t } from '../i18n';
 import { FACTIONS } from '../factions';
@@ -64,9 +65,11 @@ export class EndScreen {
     const button = document.createElement('button');
     button.type = 'button';
     button.textContent = t('New game');
-    button.addEventListener('click', () => window.location.reload());
-    // X: hide the panel to look at the map; New game stays the only way on.
-    card.append(modalCloseButton(() => root.remove()), head, title, kind, body, ...(newGame ? [button] : []));
+    // The war is over: closing the letter (X or New game) deletes the cloud save and the player id, then goes back to
+    // the main menu (nothing left to Continue). Multiplayer (no New game): X only hides the panel, as before.
+    const finish = (): void => void finishGameAndReturnToMenu();
+    button.addEventListener('click', finish);
+    card.append(modalCloseButton(newGame ? finish : () => root.remove()), head, title, kind, body, ...(newGame ? [button] : []));
     root.append(card);
     parent.append(root);
   }

@@ -1,4 +1,4 @@
-import { saveToCloud } from '../net/CloudSave';
+import { backToMenuWithToast, saveToCloud } from '../net/CloudSave';
 import { BULLET_FLIGHT_SECONDS, BULLET_IMPACT_SECONDS, hasBulletSheet, type BulletSize } from '../render/BulletSheet';
 import { demoActive, setDemoActive } from './Demo';
 import {
@@ -1187,7 +1187,7 @@ export class Game {
       const name = `black-area-${save.faction}-${stamp}.json`;
       // Cloud save first (server MySQL, overwrites this browser's slot); unreachable → saved on this machine as before.
       void saveToCloud(text).then(
-        () => this.sidebar.notify(t('Game saved to the cloud.'), 4),
+        () => backToMenuWithToast(t('Game saved to the cloud.')),
         (err: unknown) => {
           console.error(err);
           this.saveLocally(name, text);

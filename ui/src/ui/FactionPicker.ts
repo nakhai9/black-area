@@ -3,6 +3,7 @@ import { FACTIONS } from "../factions";
 import { CARD_ORDER, factionDetailHtml, factionPosterHtml } from "./FactionCard";
 import type { FactionId } from "../types";
 import { continueLatestSave, pickSaveFile } from "./PauseMenu";
+import { isReturningPlayer, showPendingMenuToast } from "../net/CloudSave";
 import { MultiplayerLobby, type MultiplayerStart } from "./MultiplayerLobby";
 import { languageSelect, setLang, t } from "../i18n";
 import { openStory } from "./StoryModal";
@@ -28,6 +29,7 @@ export class FactionPicker {
   private selected: FactionId | null = null;
 
   constructor(private readonly host: HTMLElement) {
+    showPendingMenuToast();
     this.root = document.createElement("div");
     this.root.className = "fp-backdrop";
     this.root.setAttribute("role", "dialog");
@@ -47,8 +49,8 @@ export class FactionPicker {
         </div>
         <aside class="fp-side">
           <div class="fp-actions">
-            <button class="fp-load fp-continue" type="button" title="${t("Continue the game saved to the cloud (pause menu → Save game)")}">${t("Continue")}</button>
-            <button class="fp-load" type="button" title="${t("Load a game from a saved .json file")}">${t("Load saved game")}</button>
+            <button class="fp-load fp-continue" type="button"${isReturningPlayer() ? "" : " hidden"} title="${t("Continue the game saved to the cloud (pause menu → Save game)")}">${t("Continue")}</button>
+            <button class="fp-load" type="button" title="${t("Load a game from a saved .json file")}">${t("Import saved file")}</button>
             <button class="fp-load fp-mp" type="button" title="${t("Play with friends: create a room or join one by its code")}">${t("Play with friends")}</button>
             <button class="fp-guide" type="button" title="${t("Read the story of the new multipolar world")}">${t("Story")}</button>
             <button class="fp-desktop" type="button" hidden title="${t("Download the desktop version")}">${t("Download Desktop")}</button>
@@ -131,7 +133,7 @@ export class FactionPicker {
         .querySelector(".fp-continue")
         ?.addEventListener("click", () => {
           void continueLatestSave().then((ok) => {
-            if (!ok) window.alert(t("No cloud save found (or the server is unreachable). Use Load saved game to pick a file."));
+            if (!ok) window.alert(t("No cloud save found (or the server is unreachable). Use Import saved file to pick a file."));
           });
         });
       this.root

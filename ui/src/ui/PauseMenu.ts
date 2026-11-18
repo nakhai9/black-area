@@ -183,7 +183,7 @@ export class PauseMenu {
     const save = document.createElement('button');
     save.type = 'button';
     save.textContent = t('Save game');
-    save.title = t('Download this game as a .json file, to continue it later with Load saved game.');
+    save.title = t('Download this game as a .json file, to continue it later with Import saved file.');
     save.addEventListener('click', () => saves.onSave());
     const actions = document.createElement('div');
     actions.className = 'pause-actions';
