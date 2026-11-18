@@ -4,7 +4,7 @@
 
 <h1 align="center">Black Area</h1>
 
-<p align="center"><sub>Phiên bản 3.75.216 · Version 3.75.216</sub></p>
+<p align="center"><sub>Phiên bản 3.75.217 · Version 3.75.217</sub></p>
 
 <p align="center"><b><a href="https://black-area.vercel.app">▶ CHƠI NGAY / PLAY NOW · black-area.vercel.app</a></b></p>
 
@@ -95,7 +95,7 @@ Dầu đổi lấy tiền. Tiền đổi lấy xe tăng. Xe tăng đổi lấy �
 
 ### Tác giả
 
-Game do **Khai Nguyen** thực hiện. Mọi góp ý, ý tưởng bổ sung hay báo lỗi xin gửi về email: [nakhai.fw@gmail.com](mailto:nakhai.fw@gmail.com).
+Game do **Nguyen Anh Khai** thực hiện. Mọi góp ý, ý tưởng bổ sung hay báo lỗi xin gửi về email: [nakhai.fw@gmail.com](mailto:nakhai.fw@gmail.com).
 
 ### Chạy dự án
 
@@ -199,7 +199,7 @@ Oil buys money. Money buys tanks. Tanks buy land, allies and a voice. Lose your 
 
 ### Author
 
-Made by **Khai Nguyen**. Feedback, ideas for new features and bug reports are welcome by email: [nakhai.fw@gmail.com](mailto:nakhai.fw@gmail.com).
+Made by **Nguyen Anh Khai**. Feedback, ideas for new features and bug reports are welcome by email: [nakhai.fw@gmail.com](mailto:nakhai.fw@gmail.com).
 
 ### Running the project
 
