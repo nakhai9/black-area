@@ -3261,15 +3261,14 @@ input:disabled {
 
 /* Faction card bottom row: Home · Get a loan · war clock. */
 .sb-resources .sb-actions.sb-oil-actions {
-  grid-template-columns: auto auto 1fr;
+  grid-template-columns: auto 1fr;
 }
-.sb-resources .sb-oil-actions .sb-sell.sb-home {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 34px;
-  height: 34px;
-  padding: 0;
+/* Faction emblem = Home button. */
+.sb-home-emblem {
+  cursor: pointer;
+}
+.sb-home-emblem:hover {
+  filter: brightness(1.2);
 }
 
 /* Budget label: coin icon instead of the word. */
@@ -3277,10 +3276,13 @@ input:disabled {
   display: flex;
   align-items: center;
 }
+.sb-budget-label {
+  color: #ffd84a;
+}
 .sb-budget-label svg {
   display: block;
-  width: 22px;
-  height: 22px;
+  width: 18px;
+  height: 18px;
 }
 
 /* Zoom lock: left of Settings in the sidebar header; highlighted while the lock is on. */
@@ -3350,4 +3352,19 @@ input:disabled {
   color: #15191c;
   background: linear-gradient(180deg, #c3c9ce 0%, #a0a8af 50%, #868e96 100%);
   border-color: var(--steel-edge);
+}
+
+/* Info sub-tabs (Finance / Oil / Capitals / Controls) and their content: one panel, no gap between. */
+.sb-page-links {
+  margin-bottom: -8px; /* cancels the sidebar's 8px gap */
+  padding: 8px 8px 0;
+  background: var(--panel);
+  border: 1px solid var(--panel-edge);
+  border-bottom: 0;
+  border-radius: 4px 4px 0 0;
+}
+.sb-page-links ~ .sb-info > .sb-panel:first-child {
+  border-top: 0;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
 }

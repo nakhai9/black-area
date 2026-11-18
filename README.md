@@ -4,7 +4,7 @@
 
 <h1 align="center">Black Area</h1>
 
-<p align="center"><sub>Phiên bản 3.75.173 · Version 3.75.173</sub></p>
+<p align="center"><sub>Phiên bản 3.75.175 · Version 3.75.175</sub></p>
 
 <p align="center"><b><a href="https://black-area.vercel.app">▶ CHƠI NGAY / PLAY NOW · black-area.vercel.app</a></b></p>
 
@@ -26,7 +26,7 @@
   <img src="ui/public/emblems/islamic.png" alt="Lunastron Union" height="72">
 </p>
 
-*Năm 20XX, giếng dầu lớn cuối cùng ngừng bơm. Liên Hợp Quốc triệu tập phiên họp khẩn. Nó kéo dài chín ngày, và khi kết thúc, thế giới cũ không còn nữa.*
+*Năm 20XX, giếng dầu lớn cuối cùng ngừng bơm. Liên Hợp Quốc triệu tập phiên họp khẩn kéo dài chín ngày, và khi kết thúc, thế giới cũ không còn nữa.*
 
 #### Ngày 1
 
@@ -40,7 +40,7 @@ Tổng thư ký đứng trước Đại hội đồng và đọc lời kêu gọ
 
 Tối hôm đó, quốc hội ở Washington, Moscow, Bắc Kinh, các nước châu Âu và các nước Hồi giáo cùng họp khẩn.
 
-Ngay trong tối, kết quả bỏ phiếu ở khắp nơi giống nhau đến lạ. Chỉ khoảng **30%** đại biểu đồng ý giao quân đội và tài sản cho Liên Hợp Quốc điều động. Số còn lại phản đối, và họ không dừng ở lần bỏ phiếu này. Họ không muốn tham gia thêm bất kỳ sứ mệnh nào Liên Hợp Quốc đưa ra nữa. Với họ, quốc gia của mình là trên hết. Chủ nghĩa dân tộc đã thắng trong phòng họp, và nó sẽ không dừng lại ở đó.
+Ngay trong tối, kết quả bỏ phiếu ở khắp nơi giống nhau đến lạ. Chỉ khoảng **30%** đại biểu đồng ý giao quân đội và tài sản cho Liên Hợp Quốc điều động. Số còn lại phản đối, và họ không dừng ở lần bỏ phiếu này. Họ không muốn tham gia thêm bất kỳ sứ mệnh nào Liên Hợp Quốc đưa ra nữa. Với họ, quốc gia của mình là trên hết. Chủ nghĩa dân tộc đã thắng trong phòng họp, và sẽ không dừng lại ở đó.
 
 Không ai nói ra, nhưng ai cũng nghĩ cùng một câu hỏi. *Nếu thế giới cũ đòi quá nhiều, tại sao phải ở lại trong nó?*
 
@@ -48,7 +48,7 @@ Không ai nói ra, nhưng ai cũng nghĩ cùng một câu hỏi. *Nếu thế gi
 
 Phái đoàn Washington bước lên bục.
 
-> *"Chúng tôi là **Paxamerica**. Chúng tôi không phải Hợp chúng quốc Hoa Kỳ. Quốc gia mà các vị gọi tên ấy, chúng tôi cũng không biết nó nằm ở đâu trên bản đồ. Chúng tôi chưa ký hiệp ước nào, chưa từng là thành viên của tổ chức này. Những nghĩa vụ ấy không thuộc về chúng tôi."*
+> *"Chúng tôi là **Paxamerica**. Chúng tôi không phải Hợp chúng quốc Hoa Kỳ. Quốc gia mà các vị gọi tên ấy, chúng tôi cũng không biết nằm ở đâu trên bản đồ. Chúng tôi chưa ký hiệp ước nào, chưa từng là thành viên của tổ chức này. Những nghĩa vụ ấy không thuộc về chúng tôi."*
 
 Không ai biết phải phản đối theo điều khoản nào. Phiên họp kết thúc mà không có nghị quyết. Cờ các nước vẫn treo trước tòa nhà.
 

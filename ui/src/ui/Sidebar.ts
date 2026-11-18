@@ -1,7 +1,7 @@
 import { setZoomLock, settings } from '../core/Settings';
 import { CHARGE_ICON_PATH } from '../render/ChargeIcon';
 import { AlertToast } from './NewsToast';
-import { type IconNode, Settings, Clock, House, Handshake, X, Wallet, Info, Keyboard, Droplet, Hammer, LogIn, LogOut, Minus, Plane, Rocket, Shield, TrendingDown, TrendingUp, Zap, createElement } from 'lucide';
+import { type IconNode, Settings, Clock, Handshake, X, Wallet, Info, Keyboard, Droplet, Hammer, LogIn, LogOut, Minus, Plane, Rocket, Shield, TrendingDown, TrendingUp, Zap, createElement } from 'lucide';
 
 /** Government building (Emoji One v1, CC BY-SA 4.0): in full colour, 64×64 grid scaled to the 24×24 icon box. */
 const Government: IconNode = [
@@ -593,19 +593,12 @@ export class Sidebar {
       this.airTools.append(b);
       return b;
     };
-    // Home: first in the faction card's bottom row (Home · Get a loan · war clock).
-    const home = document.createElement('button');
-    home.type = 'button';
-    home.className = 'sb-sell sb-home';
-    home.title = t('Home (H): jump the camera to your capital.');
-    home.setAttribute('aria-label', home.title);
-    home.append(createElement(House, { width: 20, height: 20, 'stroke-width': 2, 'aria-hidden': 'true' }));
-    home.addEventListener('pointerdown', (e) => e.preventDefault());
-    home.addEventListener('click', () => {
-      home.blur();
-      this.handlers.onHome();
-    });
-    this.loanButton.before(home);
+    // Home: click the faction emblem in the faction card (same as the H key).
+    const emblem = this.loanButton.closest('.sb-resources')!.querySelector<HTMLElement>('.sb-player .flag-badge')!;
+    emblem.classList.add('sb-home-emblem');
+    emblem.title = t('Home (H): jump the camera to your capital.');
+    emblem.setAttribute('role', 'button');
+    emblem.addEventListener('click', () => this.handlers.onHome());
     this.loanButton.after(this.loanButton.parentElement!.querySelector('.sb-war-clock')!);
     this.turboButton = tool(Rocket, t('Turbo (T): the selected aircraft fly much faster for a while, then the turbo has to recharge before it can be used again.'), () => this.handlers.onTurbo());
     this.turboBadge = document.createElement('span');
