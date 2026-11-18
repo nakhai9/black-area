@@ -81,7 +81,7 @@ export const NATION_VEHICLE_PROFILES: Readonly<Partial<Record<VehicleKind, Vehic
   k9: { name: 'K9 Thunder', description: '155 mm self-propelled howitzer: long-range shelling. On sale only while you hold Seoul.' },
   ldew: { name: 'LDEW Laser', description: 'Ground laser weapon (counter-UAS): slow to move, the head turns all round. On sale only while you hold London.' },
   kub: { name: '2K12 Kub', description: 'Tracked missile launcher: three missiles on a turning rack, at aircraft, ground units and structures. On sale while you hold Kyiv or Minsk.' },
-  bm21: { name: 'BM-21 Grad', description: '122 mm rocket launcher on a Ural truck: ripples 16 rockets on a long arc at ground targets, structures and aircraft. On sale while you hold Pyongyang, Kyiv or Minsk.' },
+  bm21: { name: 'BM-21 Grad', description: '122 mm rocket launcher on a Ural truck: ripples 12 rockets on a long arc at ground targets, structures and aircraft. On sale while you hold Pyongyang, Kyiv or Minsk.' },
   a29: { name: 'A-29 Super Tucano', description: 'Light attack turboprop: rockets and guns on soldiers, vehicles and structures; cannot fight aircraft. On sale while you hold Brasília.' },
   ldewTruck: { name: 'LDEW Laser Truck', description: 'Laser weapon on a MAN SV truck: fast, the head turns all round. On sale only while you hold London.' },
 };

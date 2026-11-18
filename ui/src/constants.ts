@@ -39,7 +39,7 @@ export const DEMO_FACTION: FactionId = NATION_CODES[(import.meta.env.VITE_DEMO_F
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "3.75.219";
+export const GAME_VERSION = "3.75.221";
 
 /** An Allied Building within this many cells of any capital is an embassy; farther out it is a "Pro-<nation> regime". */
 export const EMBASSY_CAPITAL_CELLS = 25;
@@ -412,7 +412,6 @@ export const DVINA_MISSILE_COST = 2500;
 /** Launcher traverse (radians / s); it fires only once laid on the target (within DVINA_AIM_TOLERANCE rad). */
 export const DVINA_TURN_RATE = 1.2;
 export const DVINA_AIM_TOLERANCE = 0.08;
-export const DVINA_POWER_DRAIN = 3;
 export const DVINA_NATION = "cuba";
 /** RS-24 Yars (Defense tab): listed in every shop, not for sale yet. */
 export const YARS_COST = 5000;
@@ -421,6 +420,8 @@ export const FOOTPRINT_DVINA = { w: 2, d: 2 } as const;
 export const TECH_CENTER_POWER_DRAIN = 6;
 export const LDEW_SITE_POWER_DRAIN = TECH_CENTER_POWER_DRAIN * 1.5;
 export const LDEW_VEHICLE_POWER_DRAIN = TECH_CENTER_POWER_DRAIN;
+/** S-75 Dvina draws 3× the laser emplacement's power. */
+export const DVINA_POWER_DRAIN = LDEW_SITE_POWER_DRAIN * 3;
 export const AI_BUNKERS = 2;
 /**
  * Wall (1×1, Defense tab): a block in the nation's own style (Russia / China red, Islamic blue, USA / Europe concrete)
@@ -1110,8 +1111,8 @@ export const LDEW_RANGE = 1.6;
  */
 /** A-29 price: two Type 99 tanks (Longoria's tank price), whoever buys it. */
 export const A29_PRICE = 2 * 1200;
-export const BM21_ROCKETS = 16;
-/** A salvo needs the tubes at least 2/3 full: 11 of 16 rockets. */
+export const BM21_ROCKETS = 12;
+/** A salvo needs the tubes at least 2/3 full: 8 of 12 rockets. */
 export const BM21_MIN_SALVO = Math.ceil((BM21_ROCKETS * 2) / 3);
 /**
  * Shock wave of each rocket: every enemy soldier, ground vehicle and structure within BM21_SHOCK_CELLS cells of the
@@ -1120,7 +1121,7 @@ export const BM21_MIN_SALVO = Math.ceil((BM21_ROCKETS * 2) / 3);
 export const BM21_SHOCK_CELLS = 2;
 export const BM21_SHOCK_PEAK = 0.6;
 export const BM21_RELOAD_ROCKETS = 4;
-export const BM21_RELOAD_SECONDS = 2;
+export const BM21_RELOAD_SECONDS = 6;
 /**
  * Air defence vs BM-21: an enemy air-defence vehicle (ready to fire, its radar powered) within its range of where a
  * rocket will land shoots it down in the air with this chance; each try uses up its reload, so a full salvo always
