@@ -14,7 +14,7 @@ export class EndScreen {
   private shown = false;
 
   /** `newGame`: offer the New game button (solo games only; a multiplayer match shows the letter alone). */
-  show(victory: boolean, message: string, faction?: FactionId, parent: HTMLElement = document.body, newGame = true): void {
+  show(victory: boolean, message: string, faction?: FactionId, parent: HTMLElement = document.body, newGame = true, leaderName?: string): void {
     if (this.shown) return;
     this.shown = true;
     const root = document.createElement('div');
@@ -43,7 +43,7 @@ export class EndScreen {
     const salute = document.createElement('p');
     salute.className = 'letter-salute';
     salute.textContent = f
-      ? t('Dear {title} {name},', { title: t(f.leader.title), name: f.leader.name })
+      ? t('Dear {title} {name},', { title: t(f.leader.title), name: leaderName && leaderName !== 'Commander' ? leaderName : f.leader.name })
       : t('Dear Sir or Madam,');
     const p1 = document.createElement('p');
     p1.textContent = f

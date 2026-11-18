@@ -7,6 +7,7 @@ import { isReturningPlayer, showPendingMenuToast } from "../net/CloudSave";
 import { MultiplayerLobby, type MultiplayerStart } from "./MultiplayerLobby";
 import { languageSelect, setLang, t } from "../i18n";
 import { openStory } from "./StoryModal";
+import { askLeaderName } from "./LeaderName";
 
 const STORAGE_KEY = "black-area:faction";
 
@@ -94,11 +95,32 @@ export class FactionPicker {
     const deploy = this.root.querySelector<HTMLButtonElement>(".fp-deploy");
 
     return new Promise((resolve) => {
-      const confirm = (id: FactionId, demo = false): void => {
+      let asking = false;
+      const confirm = async (id: FactionId, demo = false): Promise<void> => {
+        // A new game first asks the name of the nation's leader (the player); backing out returns to the picker.
+        if (!demo) {
+          if (asking) return;
+          asking = true;
+          window.removeEventListener("keydown", onKey);
+          const name = await askLeaderName(id);
+          asking = false;
+          if (name === null) {
+            window.addEventListener("keydown", onKey);
+            return;
+          }
+        }
         window.removeEventListener("keydown", onKey);
         remember(id);
-        this.root.classList.add("fp-leaving");
-        setTimeout(() => this.root.remove(), 180);
+        // The loading screen (z 10) shows at once and the picker (z 20, on top of it) goes now: a fade-out timer would
+        // be starved by the synchronous terrain bake, leaving the picker over the loading screen until the game is in.
+        const loading = document.getElementById("loading");
+        const loadingText = document.getElementById("loading-text");
+        if (loading) {
+          loading.classList.remove("error");
+          if (loadingText) loadingText.textContent = t("Generating Earth…");
+          loading.hidden = false;
+        }
+        this.root.remove();
         resolve({ faction: id, demo });
       };
       const onKey = (e: KeyboardEvent): void => {
@@ -112,7 +134,7 @@ export class FactionPicker {
         e.preventDefault();
       };
       window.addEventListener("keydown", onKey);
-      deploy?.addEventListener("click", () => this.selected && confirm(this.selected));
+      deploy?.addEventListener("click", () => this.selected && void confirm(this.selected));
       this.root.querySelector(".fp-mp")?.addEventListener("click", () => {
         this.root.hidden = true;
         window.removeEventListener("keydown", onKey);
@@ -146,7 +168,7 @@ export class FactionPicker {
         ?.addEventListener("click", () => openStory());
       this.root
         .querySelector(".fp-demo")
-        ?.addEventListener("click", () => this.selected && confirm(this.selected, true));
+        ?.addEventListener("click", () => this.selected && void confirm(this.selected, true));
       for (const [id, card] of this.cards) {
         card.addEventListener("click", () => this.highlight(id));
       }

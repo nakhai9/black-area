@@ -1,3 +1,4 @@
+import { storedLeaderName } from '../ui/LeaderName';
 import { backToMenuWithToast, saveToCloud } from '../net/CloudSave';
 import { BULLET_FLIGHT_SECONDS, BULLET_IMPACT_SECONDS, hasBulletSheet, type BulletSize } from '../render/BulletSheet';
 import { demoActive, setDemoActive } from './Demo';
@@ -577,7 +578,7 @@ export class Game {
     const absent = (f: FactionId): boolean => !!present && f !== playerFaction && !present.includes(f);
     this.players = FACTION_ORDER.map((faction, i) => ({
       id: i + 1,
-      name: faction === playerFaction ? 'Commander' : present?.includes(faction) ? FACTIONS[faction].shortName : `${FACTIONS[faction].shortName} AI`,
+      name: faction === playerFaction ? (mp ? 'Commander' : storedLeaderName() || 'Commander') : present?.includes(faction) ? FACTIONS[faction].shortName : `${FACTIONS[faction].shortName} AI`,
       faction,
       // Multiplayer: every nation in the room is played by a person (no AI); solo: only this screen's.
       isHuman: faction === playerFaction || !!present?.includes(faction),
@@ -960,6 +961,9 @@ export class Game {
           ? t('Every enemy capital is destroyed and no enemy soldier or combat vehicle remains. The war is won.')
           : t('Your capital has fallen and you have no combat force, barracks or factory left.'),
         this.humanPlayer.faction,
+        document.body,
+        true,
+        this.humanPlayer.name,
       );
     }
   }
@@ -5765,10 +5769,10 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     }
     if (this.humanPlayer.defeated) {
       this.ended = true;
-      this.endScreen.show(false, t('Your capital has fallen and you have no combat force, barracks or factory left.'), this.humanPlayer.faction, document.body, !this.lockstep);
+      this.endScreen.show(false, t('Your capital has fallen and you have no combat force, barracks or factory left.'), this.humanPlayer.faction, document.body, !this.lockstep, this.humanPlayer.name);
     } else if (this.players.every((p) => p.id === this.localId || p.defeated)) {
       this.ended = true;
-      this.endScreen.show(true, t('Every enemy capital is destroyed and no enemy soldier or combat vehicle remains. The war is won.'), this.humanPlayer.faction, document.body, !this.lockstep);
+      this.endScreen.show(true, t('Every enemy capital is destroyed and no enemy soldier or combat vehicle remains. The war is won.'), this.humanPlayer.faction, document.body, !this.lockstep, this.humanPlayer.name);
     }
   }
 

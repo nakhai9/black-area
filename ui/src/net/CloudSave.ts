@@ -5,7 +5,10 @@ import { SERVER_URL } from './NetClient';
  * Cloud save on the game server (server/src/saves.js, MySQL): one slot per browser, overwritten on every save.
  * The slot id is a random id kept in localStorage; VITE_SAVE_API_KEY is sent if the server has SAVE_API_KEY set.
  */
-const ID_KEY = 'black-area.cloudSaveId';
+/** localStorage key of the player id: an opaque name on purpose. */
+const ID_KEY = '_x9f1eadd4cb865';
+/** Former key (before v3.75.208): an id stored under it is moved to ID_KEY once. */
+const LEGACY_ID_KEY = 'black-area.cloudSaveId';
 const API = SERVER_URL.replace(/^ws/, 'http').replace(/\/+$/, '');
 const API_KEY = (import.meta.env.VITE_SAVE_API_KEY ?? '').trim();
 
@@ -16,6 +19,11 @@ const API_KEY = (import.meta.env.VITE_SAVE_API_KEY ?? '').trim();
  */
 const player: { id: string; returning: boolean } = (() => {
   try {
+    const legacy = localStorage.getItem(LEGACY_ID_KEY);
+    if (legacy) {
+      if (!localStorage.getItem(ID_KEY)) localStorage.setItem(ID_KEY, legacy);
+      localStorage.removeItem(LEGACY_ID_KEY);
+    }
     const stored = localStorage.getItem(ID_KEY);
     if (stored) return { id: stored, returning: true };
     const id = crypto.randomUUID();

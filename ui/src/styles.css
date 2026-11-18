@@ -3512,3 +3512,34 @@ body.pregame .corner-bar {
     transform: translate(-50%, 12px);
   }
 }
+
+/* Leader name prompt (new game). */
+.ln-card .ln-label {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  margin-top: 12px;
+  font-size: 13px;
+  color: var(--muted);
+  text-align: left;
+}
+.ln-card .ln-input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--panel-edge);
+  border-radius: 4px;
+  background: #0b1014;
+  color: var(--text);
+  font: inherit;
+  font-size: 15px;
+  user-select: text;
+}
+.ln-card .ln-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.ln-card .ln-error {
+  margin-top: 6px;
+  color: #ff8a7a;
+  font-size: 12px;
+}
