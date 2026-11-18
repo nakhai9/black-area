@@ -171,6 +171,8 @@ export class FactionPicker {
         ?.addEventListener("click", () => this.selected && void confirm(this.selected, true));
       for (const [id, card] of this.cards) {
         card.addEventListener("click", () => this.highlight(id));
+        // Double-click a poster: unpick the nation (Continue / Import come back).
+        card.addEventListener("dblclick", () => this.unpick());
       }
     });
   }
@@ -192,8 +194,34 @@ export class FactionPicker {
     }
     const demo = this.root.querySelector<HTMLButtonElement>(".fp-demo");
     if (demo) demo.hidden = false;
+    this.setSaveButtons(false);
     this.showDetail(id);
     if (focus) this.cards.get(id)?.focus();
+  }
+
+  /** Double-click on a poster: no nation picked any more; Start goes, Continue (returning player) and Import return. */
+  private unpick(): void {
+    this.selected = null;
+    for (const card of this.cards.values()) {
+      card.classList.remove("selected");
+      card.setAttribute("aria-checked", "false");
+    }
+    this.root.style.removeProperty("--team");
+    delete this.root.dataset.faction;
+    const deploy = this.root.querySelector<HTMLButtonElement>(".fp-deploy");
+    if (deploy) deploy.hidden = true;
+    const demo = this.root.querySelector<HTMLButtonElement>(".fp-demo");
+    if (demo) demo.hidden = true;
+    this.setSaveButtons(true);
+    this.showDetail(null);
+  }
+
+  /** Continue and Import saved file: shown only while no nation is picked (Continue also only for a returning player). */
+  private setSaveButtons(show: boolean): void {
+    const cont = this.root.querySelector<HTMLButtonElement>(".fp-continue");
+    if (cont) cont.hidden = !show || !isReturningPlayer();
+    const imp = this.root.querySelector<HTMLButtonElement>(".fp-load:not(.fp-mp):not(.fp-continue)");
+    if (imp) imp.hidden = !show;
   }
 
   /** Side panel: details of the nation hovered, else the one picked (hidden while none is). */
