@@ -48,6 +48,8 @@ import { drawMissile, drawMissileBlast } from '../render/MissileSheet';
 import { drawSamMissile } from '../render/SamMissile';
 import { drawGradRocket } from '../render/GradRocket';
 import { drawBm21Sheet } from '../render/Bm21Sheets';
+import { drawBushmasterSheet } from '../render/BushmasterSheets';
+import { drawTwinTankSheet } from '../render/TwinTankSheets';
 import { drawVt12Sheet } from '../render/Vt12Sheets';
 import { BM21_ROCKETS, SHOW_GRID } from '../constants';
 import { drawShell, drawShellImpact } from '../render/ShellSheet';
@@ -746,6 +748,8 @@ export class Renderer {
       }
       // BM-21 Grad: sheet only (nothing drawn while its sheets are still loading).
       if (u.type === 'vt12' && drawVt12Sheet(ctx, u, P.x, P.y)) return;
+      if (u.type === 'bushmaster' && drawBushmasterSheet(ctx, u, P.x, P.y)) return;
+      if (u.type === 'twinTank' && drawTwinTankSheet(ctx, u, P.x, P.y)) return;
       if (u.type === 'bm21') {
         drawBm21Sheet(ctx, u, P.x, P.y);
         return;
@@ -1188,7 +1192,7 @@ export class Renderer {
     // RA2 style: seats taken / seats there are (e.g. 3/12), plus what it is doing.
     const vehicles = t.vehiclesAboard;
     const parts = [`${t.soldiersAboard}/${t.soldierCapacity} ${tr('inf')}`];
-    if (vehicles > 0 && !t.isTruck) parts.push(`${vehicles}/${t.vehicleCapacity} ${tr('veh')}`);
+    if (vehicles > 0 && !t.isGroundCarrier) parts.push(`${vehicles}/${t.vehicleCapacity} ${tr('veh')}`);
     const state = t.carrierState;
     const prefix = t.full ? `${tr('FULL')} · ` : state === 'loading' ? `${tr('LOADING')} · ` : state === 'unloading' ? `${tr('UNLOADING')} · ` : '';
     // Full: only the red "FULL" label.

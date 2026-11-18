@@ -83,6 +83,8 @@ const ENGINE_BY_KIND: Readonly<Record<VehicleKind, EngineProfile>> = {
   bm21: 'wheeled',
   kub: 'dieselTank',
   vt12: 'dieselTank',
+  bushmaster: 'wheeled',
+  twinTank: 'dieselTank',
   a29: 'airlifter',
   awacs: 'airlifter',
 };

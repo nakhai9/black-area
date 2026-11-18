@@ -2,7 +2,7 @@ import type { FactionId } from '../types';
 import type { Mobility } from '../map/Pathfinder';
 import { demoActive } from '../core/Demo';
 import { movesRight } from '../core/IsoView';
-import { BM21_INTERCEPT_CHANCE, BM21_MIN_SALVO, BM21_SHOCK_CELLS, BM21_SHOCK_PEAK, bm21Flight, DVINA_AIM_TOLERANCE, DVINA_RELOAD, DVINA_TURN_RATE, BOMB_FALL_SECONDS, HIGH_GROUND_DAMAGE, HIGH_GROUND_RANGE, LOW_GROUND_DAMAGE, MANTIS_HIT_SHARE, MANTIS_RANGE_CELLS, MANTIS_RANK_BONUS, MANTIS_EVADE_CELLS, HELI_VS_MANTIS_SHARE, JET_VS_MANTIS_SHARE, MANTIS_VS_JET_SHARE, MANTIS_VS_HELI_SHARE, MANTIS_RELOAD, MANTIS_GUN_NATIONS, PGZ_RELOAD, PGZ_HIT_FACTOR, JET_BOMB_VS_STRUCTURE, JET_BOMB_VS_VEHICLE, ACQUIRE_PERIOD, RANK_FIREPOWER, RANK_RELOAD, BOMB_GROUP_RADIUS_CELLS, BOMB_GROUP_SIZE, BOMB_TOUGH_DAMAGE, BOMB_TOUGH_STRUCTURES, BOMBS_PER_DROP, CELL_SIZE, CHASE_GIVE_UP_SECONDS, CHASE_LIMIT_CELLS, CHASE_PERIOD, FIGHT_MEMORY_SECONDS, GUARD_VISION_FACTOR, NEUTRAL_OWNER, RETALIATE_RANGE_FACTOR, WEAPONS, FIGHTER_DRONE_ALERT, FELL_SPREAD_CELLS, TREE_BOMB_RADIUS_CELLS, TREE_STICK_RADIUS_CELLS } from '../constants';
+import { BM21_INTERCEPT_CHANCE, BM21_MIN_SALVO, BM21_SHOCK_CELLS, BM21_SHOCK_PEAK, bm21Flight, dvinaFlight, DVINA_AIM_TOLERANCE, DVINA_RELOAD, DVINA_TURN_RATE, BOMB_FALL_SECONDS, HIGH_GROUND_DAMAGE, HIGH_GROUND_RANGE, LOW_GROUND_DAMAGE, MANTIS_HIT_SHARE, MANTIS_RANGE_CELLS, MANTIS_RANK_BONUS, MANTIS_EVADE_CELLS, HELI_VS_MANTIS_SHARE, JET_VS_MANTIS_SHARE, MANTIS_VS_JET_SHARE, MANTIS_VS_HELI_SHARE, MANTIS_RELOAD, MANTIS_GUN_NATIONS, PGZ_RELOAD, PGZ_HIT_FACTOR, JET_BOMB_VS_STRUCTURE, JET_BOMB_VS_VEHICLE, ACQUIRE_PERIOD, RANK_FIREPOWER, RANK_RELOAD, BOMB_GROUP_RADIUS_CELLS, BOMB_GROUP_SIZE, BOMB_TOUGH_DAMAGE, BOMB_TOUGH_STRUCTURES, BOMBS_PER_DROP, CELL_SIZE, CHASE_GIVE_UP_SECONDS, CHASE_LIMIT_CELLS, CHASE_PERIOD, FIGHT_MEMORY_SECONDS, GUARD_VISION_FACTOR, NEUTRAL_OWNER, RETALIATE_RANGE_FACTOR, WEAPONS, FIGHTER_DRONE_ALERT, FELL_SPREAD_CELLS, TREE_BOMB_RADIUS_CELLS, TREE_STICK_RADIUS_CELLS } from '../constants';
 import { Building } from '../entities/Building';
 import { Bunker } from '../entities/Bunker';
 import { LdewEmplacement } from '../entities/LdewEmplacement';
@@ -22,6 +22,8 @@ export interface CombatHooks {
   onFire(shooter: Unit, target: Entity, weapon: WeaponSpec, impact: WorldPoint): void;
   /** A bunker's machine gun fired at `target`: tracer and muzzle flash. */
   onBunkerFire(bunker: Bunker, target: Unit | Building): void;
+  /** An R-12 Dvina warhead goes off at `at` (on `target` when it is still there). */
+  onDvinaBurst(at: WorldPoint, air: boolean, target: Unit | Building | null): void;
   /** An entity ran out of health: remove it and show the explosion. */
   onDeath(entity: Entity, killer: Entity | undefined): void;
   /** `nation` let the retreating `fugitive` go instead of chasing it (once per nation per retreat). */
@@ -179,6 +181,8 @@ export class CombatSystem implements GameSystem {
    * Bomb hits still falling: each lands (deals its damage) at `at` — a bomber's stick or one fighter bomb on an enemy
    * (`target`), or the same dropped on the trees of a clearing order ('treeStick' / 'treeBomb', no target). Plain data (saved games).
    */
+  /** R-12 Dvina missiles in the air: each bursts on its target (where it is then) when it arrives at `at`. */
+  private readonly dvinaShots: { at: number; launcher: DvinaLauncher; targetId: number; point: WorldPoint; air: boolean }[] = [];
   private readonly falling: { at: number; kind: 'stick' | 'jet' | 'treeStick' | 'treeBomb' | 'rocket'; shooter: Vehicle; target: Entity | null; impact: WorldPoint }[] = [];
 
   constructor(
@@ -199,6 +203,13 @@ export class CombatSystem implements GameSystem {
       if (due.length > 0) {
         this.falling.splice(0, this.falling.length, ...this.falling.filter((f) => f.at > this.time));
         for (const f of due) this.land(f);
+      }
+    }
+    if (this.dvinaShots.length > 0) {
+      const due = this.dvinaShots.filter((d) => d.at <= this.time);
+      if (due.length > 0) {
+        this.dvinaShots.splice(0, this.dvinaShots.length, ...this.dvinaShots.filter((d) => d.at > this.time));
+        for (const d of due) this.dvinaBurst(d);
       }
     }
     const movers = this.entities.fieldMovers();
@@ -351,23 +362,38 @@ export class CombatSystem implements GameSystem {
     b.armed = false;
     b.cooldown = 0;
     b.firing = 0.3;
-    // Warhead: the target and everything hostile round it (aircraft only by a direct hit).
+    // The missile flies dvinaFlight(distance) s; the target takes nothing until the warhead reaches it (dvinaBurst).
+    this.dvinaShots.push({ at: this.time + dvinaFlight(Math.hypot(tc.x - c.x, tc.y - c.y)), launcher: b, targetId: target.id, point: { ...tc }, air: target instanceof Unit && target.flies });
+    this.hooks.onBunkerFire(b, target);
+  }
+
+  /**
+   * A Dvina missile arrives: it bursts on its target where the target is now (it homes in), or, if the target is
+   * already gone, where it was aimed. Warhead: the target and everything hostile round it (aircraft only by a direct hit).
+   */
+  private dvinaBurst(d: { launcher: DvinaLauncher; targetId: number; point: WorldPoint; air: boolean }): void {
+    const b = d.launcher;
+    const o = this.entities.get(d.targetId);
+    const target = (o instanceof Unit || o instanceof Building) && o.alive ? o : null;
+    const tc = target ? (target instanceof Building ? target.centerWorld() : { x: target.px, y: target.py }) : d.point;
+    const air = target ? target instanceof Unit && target.flies : d.air;
+    this.hooks.onDvinaBurst(tc, air, target);
     const radius = b.blastRadius;
     const hit = (o: Unit | Building, amount: number): void => {
       if (!o.alive || !isHostile(b, o) || amount <= 0) return;
       o.damage(amount);
+      if (!b.alive) return;
       o.lastAttackerId = b.id;
       o.lastAttackedAt = this.time;
       if (o instanceof Unit) o.fightingWith.set(b.owner, this.time);
     };
-    hit(target, b.shotDamage);
-    if (!(target instanceof Unit && target.flies)) {
+    if (target) hit(target, b.shotDamage);
+    if (!air) {
       const blast = (d: number): number => b.shotDamage * Math.max(0, 1 - d / radius);
       this.hooks.trees.damageRadius(tc.x, tc.y, radius, b.shotDamage);
       for (const o of this.entities.fieldMovers()) if (o !== target && !o.flies && !this.sheltered(o)) hit(o, blast(Math.hypot(o.px - tc.x, o.py - tc.y)));
       for (const o of this.entities.buildings()) if (o !== target && !this.sheltered(o)) hit(o, blast(distanceTo(tc.x, tc.y, o)));
     }
-    this.hooks.onBunkerFire(b, target);
   }
 
   // ------------------------------------------------------------------ per-unit logic

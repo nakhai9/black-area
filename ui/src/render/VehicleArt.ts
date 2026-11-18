@@ -1,4 +1,6 @@
 import { drawBm21Portrait } from './Bm21Sheets';
+import { drawBushmasterPortrait } from './BushmasterSheets';
+import { drawTwinTankPortrait } from './TwinTankSheets';
 import { drawVt12Portrait } from './Vt12Sheets';
 import { drawBridgeLayerPortrait } from './BridgeLayerSheets';
 import { drawNationVehiclePortrait, hasNationVehicleSheet } from './PrototypeSheets';
@@ -547,6 +549,14 @@ export function vehiclePortrait(faction: FactionId, kind: VehicleKind): HTMLCanv
     // K9 Thunder, LDEW, LDEW truck: their sheets only; a blank cameo (not cached) until the sheets have loaded.
     if (kind === 'vt12') {
       if (drawVt12Portrait(ctx, faction, 128, 96, 0.45)) portraits.set(key, canvas);
+      return canvas;
+    }
+    if (kind === 'twinTank') {
+      if (drawTwinTankPortrait(ctx, faction, 128, 96, 0.45)) portraits.set(key, canvas);
+      return canvas;
+    }
+    if (kind === 'bushmaster') {
+      if (drawBushmasterPortrait(ctx, faction, 128, 96, 0.45)) portraits.set(key, canvas);
       return canvas;
     }
     if (kind === 'bm21') {

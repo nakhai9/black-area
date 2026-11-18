@@ -174,7 +174,7 @@ import { heavyMissile, samGun } from '../render/SamModel';
 import { SAM_TRAIL_SECONDS } from '../render/SamMissile';
 import { saveFolderSupported, writeToSaveFolder } from '../ui/SaveFolder';
 import { GRAD_BLAST_SECONDS, GRAD_TRAIL_SECONDS } from '../render/GradRocket';
-import { BM21_SHOCK_CELLS, bm21Flight } from '../constants';
+import { BM21_SHOCK_CELLS, bm21Flight, dvinaFlight } from '../constants';
 import { TRUCK_DEATH_SECONDS, hasTruckSheet } from '../render/TruckSheets';
 import { TANK_DEATH_SECONDS, hasTankSheet } from '../render/TankSheets';
 import { CRAFT_DEATH_SECONDS, craftKey } from '../render/CraftSheets';
@@ -745,6 +745,7 @@ export class Game {
       onFire: (s, t, w, impact) => this.onFire(s, t, w, impact),
       onIntercept: (guard, launcher, target, impact, flight) => this.onIntercept(guard, launcher, target, impact, flight),
       onBunkerFire: (b, t) => this.onBunkerFire(b, t),
+      onDvinaBurst: (at, air, t) => this.onDvinaBurst(at, air, t),
       onDeath: (e, killer) => this.onDeath(e, killer),
       onSpare: (nation, fugitive) => this.payMercyBonus(nation, fugitive),
       safeAt: (x, y) => this.safeZones.isSafe(x, y),
@@ -2566,12 +2567,12 @@ export class Game {
 
   /** AI: a truck lets its riders out where it stands. */
   unloadCarrier(t: Vehicle): void {
-    if (t.isTruck) this.unloadTruck(t);
+    if (t.isGroundCarrier) this.unloadTruck(t);
     else this.aircraft.requestUnload(t);
   }
 
   unloadTruck(t: Vehicle): void {
-    if (!t.isTruck || t.cargo.length === 0) return;
+    if (!t.isGroundCarrier || t.cargo.length === 0) return;
     t.stop();
     t.ejecting = true;
     t.ejectClock = 0;
@@ -2580,7 +2581,7 @@ export class Game {
   /** Trucks told to unload (U): they stand still and let their riders out one by one. */
   private processTruckUnloading(dt: number): void {
     for (const t of this.entities.vehicles()) {
-      if (!t.isTruck || !t.ejecting) continue;
+      if (!t.isGroundCarrier || !t.ejecting) continue;
       if (!t.alive || t.cargo.length === 0) {
         t.ejecting = false;
         continue;
@@ -2627,7 +2628,7 @@ export class Game {
   /** Lets the riders of these carriers out: a truck where it stands, an aircraft on the ground (setting down first). */
   private unloadCarriers(loaded: readonly Vehicle[]): void {
     for (const t of loaded) {
-      if (t.isTruck) {
+      if (t.isGroundCarrier) {
         t.stop();
         t.ejecting = true;
         t.ejectClock = 0;
@@ -2709,13 +2710,13 @@ export class Game {
    */
   orderBoard(t: Vehicle, riders: Unit[]): boolean {
     if (!t.isCarrier || !t.alive) return false;
-    if (!t.isTruck && (t.flight === 'airborne' || t.flight === 'approach') && !this.aircraft.setDownForPickup(t)) {
+    if (!t.isGroundCarrier && (t.flight === 'airborne' || t.flight === 'approach') && !this.aircraft.setDownForPickup(t)) {
       if (t.owner === this.humanPlayer.id) this.sidebar.notify(tr('The {name} cannot land here (open water) to take anyone aboard.', { name: t.name }));
       return true;
     }
     const grounded = t.boardable || (t.flight === 'unloading' && t.pickup);
     if (!grounded) return false;
-    if (t.isTruck) t.stop(); // a truck waits where it is for its riders
+    if (t.isGroundCarrier) t.stop(); // a truck waits where it is for its riders
     const spot = t.flight === 'unloading' && t.dropSpot ? t.dropSpot : { x: t.px, y: t.py };
     const here = this.map.cellAt(spot.x, spot.y);
     if (!here) return false;
@@ -2798,7 +2799,7 @@ export class Game {
       // Boarding needs contact: right up to a transport that stands in the field, or to the wall of the airfield.
       const home = t.homeId === null ? undefined : this.entities.get(t.homeId);
       const heli = u instanceof Vehicle && u.isHeli;
-      const reach = !t.isTruck && t.flight === 'parked' && home instanceof Building ? distanceTo(u.px, u.py, home) : Math.hypot(u.px - t.px, u.py - t.py) - t.radius * 0.5;
+      const reach = !t.isGroundCarrier && t.flight === 'parked' && home instanceof Building ? distanceTo(u.px, u.py, home) : Math.hypot(u.px - t.px, u.py - t.py) - t.radius * 0.5;
       if (reach > CELL_SIZE * (heli ? 3 : 1.3)) {
         if (!u.moving) u.boardTarget = null; // could not get close enough
         continue;
@@ -5034,6 +5035,14 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
   }
 
   /** A bunker's machine gun: muzzle flash at the barrel drawn on its sheet, a bullet from the bullet sheet and a hit spark. */
+  /** R-12 Dvina warhead: the burst on the target (or where it was aimed, the target gone). */
+  private onDvinaBurst(at: WorldPoint, air: boolean, target: Unit | Building | null): void {
+    const hit = this.fx(at.x, at.y, target instanceof Unit ? this.aimHeight(target, 0.6) : 4);
+    if (hasMissileSheet()) this.effects.add({ kind: 'missileBlast', x: hit.x, y: hit.y, age: 0, ttl: MISSILE_BLAST_SECONDS, air });
+    else this.effects.add({ kind: 'blast', x: hit.x, y: hit.y, age: 0, ttl: 0.4, radius: 4 });
+    this.sound.play('explosion', at);
+  }
+
   private onBunkerFire(b: Bunker, target: Unit | Building): void {
     const c = b.centerWorld();
     const base = worldToIso(c.x, c.y);
@@ -5042,9 +5051,9 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       const tc = target instanceof Building ? target.centerWorld() : { x: target.px, y: target.py };
       const hit = this.fx(tc.x, tc.y, target instanceof Unit ? this.aimHeight(target, 0.6) : 4);
       const from = { x: base.x, y: base.y - siteRailHeight(b.site) };
-      const flight = 0.7;
+      const flight = dvinaFlight(Math.hypot(tc.x - c.x, tc.y - c.y));
+      // The burst itself comes with the warhead (onDvinaBurst), when the missile gets there.
       this.effects.add({ kind: 'samMissile', x0: from.x, y0: from.y, x1: hit.x, y1: hit.y, age: 0, ttl: flight + SAM_TRAIL_SECONDS, flight, buk: true });
-      if (hasMissileSheet()) this.effects.add({ kind: 'missileBlast', x: hit.x, y: hit.y, age: -flight, ttl: MISSILE_BLAST_SECONDS, air: target instanceof Unit && target.flies });
       this.sound.play('missile', c);
       if (target instanceof Unit) this.alertUnderAttack(target, b);
       return;

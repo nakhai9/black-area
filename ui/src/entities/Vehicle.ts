@@ -17,6 +17,8 @@ import {
   LDEW_DAMAGE,
   LDEW_RANGE,
   BM21_ROCKETS,
+  BUSHMASTER_SOLDIERS,
+  TWIN_TANK_DAMAGE,
   A29_PRICE,
   BM21_RELOAD_ROCKETS,
   BM21_RELOAD_SECONDS,
@@ -67,6 +69,8 @@ const HANDLING: Readonly<Record<VehicleKind, { accel: number; turn: number; pivo
   kub: { accel: 0.9, turn: 2.0, pivot: true },
   a29: { accel: 0.6, turn: 2.6, pivot: false },
   vt12: { accel: 0.6, turn: 3.2, pivot: true },
+  bushmaster: { accel: 0.7, turn: 2.8, pivot: true },
+  twinTank: { accel: 1.2, turn: 1.6, pivot: true },
   awacs: { accel: 1.0, turn: 1.3, pivot: false },
 };
 
@@ -83,6 +87,8 @@ export const NATION_VEHICLE_PROFILES: Readonly<Partial<Record<VehicleKind, Vehic
   kub: { name: '2K12 Kub', description: 'Tracked missile launcher: three missiles on a turning rack, at aircraft, ground units and structures. On sale while you hold Kyiv or Minsk.' },
   bm21: { name: 'BM-21 Grad', description: '122 mm rocket launcher on a Ural truck: ripples 12 rockets on a long arc at ground targets, structures and aircraft. On sale while you hold Pyongyang, Kyiv or Minsk.' },
   a29: { name: 'A-29 Super Tucano', description: 'Light attack turboprop: rockets and guns on soldiers, vehicles and structures; cannot fight aircraft. On sale while you hold Brasília.' },
+  twinTank: { name: 'Twin-gun Tank', description: 'Heavy tank with two 125 mm guns on one turret: both fire together, hard-hitting but slow. On sale while you hold Tokyo.' },
+  bushmaster: { name: 'Bushmaster', description: 'Armoured 4x4 troop carrier: carries 6 soldiers, its roof machine gun fires at enemies in range. On sale while you hold Canberra.' },
   ldewTruck: { name: 'LDEW Laser Truck', description: 'Laser weapon on a MAN SV truck: fast, the head turns all round. On sale only while you hold London.' },
 };
 
@@ -274,6 +280,7 @@ export class Vehicle extends Unit {
       if (type === 'k9') this.weapon = { ...this.weapon, damage: this.weapon.damage * K9_DAMAGE, range: this.weapon.range * K9_RANGE, cooldown: spec.cooldown * K9_COOLDOWN };
       if (type === 'kub') this.weapon = { ...this.weapon, damage: this.weapon.damage * KUB_DAMAGE, range: this.weapon.range * KUB_RANGE, cooldown: spec.cooldown * KUB_COOLDOWN, hitsAir: true };
       // A-29: ground attack only (its missiles never reach aircraft).
+      if (type === 'twinTank') this.weapon = { ...this.weapon, damage: this.weapon.damage * TWIN_TANK_DAMAGE };
       if (type === 'a29') this.weapon = { ...this.weapon, hitsAir: false };
       if (type === 'ldew' || type === 'ldewTruck') this.weapon = { ...this.weapon, damage: this.weapon.damage * LDEW_DAMAGE, range: this.weapon.range * LDEW_RANGE };
       // VT 1-2: a coaxial machine gun next to its two cannons — rapid fire, like a rifle squad, for soldiers close by.
@@ -355,6 +362,16 @@ export class Vehicle extends Unit {
     return this.type === 'truck';
   }
 
+  /** Bushmaster PMV: armed (roof machine gun) ground carrier for BUSHMASTER_SOLDIERS soldiers. */
+  get isApc(): boolean {
+    return this.type === 'bushmaster';
+  }
+
+  /** Ground carrier for soldiers only (army truck or Bushmaster): stops where it is to load and unload. */
+  get isGroundCarrier(): boolean {
+    return this.isTruck || this.isApc;
+  }
+
   /** Armoured bridge layer: unarmed; one use, it unfolds into a Bridge (see Game.deployBridge). */
   get isBridgeLayer(): boolean {
     return this.type === 'bridgeLayer';
@@ -384,12 +401,12 @@ export class Vehicle extends Unit {
 
   /** Takes passengers: a transport aircraft, a helicopter (soldiers only), or an army truck on the ground. */
   get isCarrier(): boolean {
-    return this.isTransport || this.isHeli || this.isTruck;
+    return this.isTransport || this.isHeli || this.isGroundCarrier;
   }
 
   /** Standing where riders can climb in: a truck always (it stops for them), an aircraft only on the ground. */
   get boardable(): boolean {
-    return this.isTruck || this.flight === 'parked' || this.flight === 'landed';
+    return this.isGroundCarrier || this.flight === 'parked' || this.flight === 'landed';
   }
 
   /**
@@ -422,6 +439,7 @@ export class Vehicle extends Unit {
   /** The load limits of this carrier: the truck's (soldiers only) or the transport aircraft's. */
   private loadFits(soldiers: number, vehicles: number): boolean {
     if (this.isTruck) return vehicles === 0 && soldiers <= TRUCK_SOLDIERS;
+    if (this.isApc) return vehicles === 0 && soldiers <= BUSHMASTER_SOLDIERS;
     if (this.isHeli) return vehicles === 0 && soldiers <= HELI_SOLDIERS;
     return transportFits(soldiers, vehicles);
   }
@@ -429,13 +447,14 @@ export class Vehicle extends Unit {
   /** Soldier seats (a transport: 20 with no vehicle aboard, 10 beside vehicles; a helicopter: 8). */
   get soldierCapacity(): number {
     if (this.isTruck) return TRUCK_SOLDIERS;
+    if (this.isApc) return BUSHMASTER_SOLDIERS;
     if (this.isHeli) return HELI_SOLDIERS;
     return this.vehiclesAboard === 0 ? TRANSPORT_SOLDIERS_ONLY : TRANSPORT_SOLDIERS;
   }
 
   /** Vehicle places with the soldiers now aboard (a transport: 6, while 10 soldiers or fewer are aboard; a helicopter or a truck: none). */
   get vehicleCapacity(): number {
-    if (this.isHeli || this.isTruck) return 0;
+    if (this.isHeli || this.isGroundCarrier) return 0;
     return this.soldiersAboard <= TRANSPORT_SOLDIERS ? TRANSPORT_VEHICLES : 0;
   }
 

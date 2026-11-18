@@ -39,7 +39,7 @@ export const DEMO_FACTION: FactionId = NATION_CODES[(import.meta.env.VITE_DEMO_F
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "3.75.224";
+export const GAME_VERSION = "3.75.227";
 /** Transport aircraft (C-17, Il-76, Y-20, A400M) are drawn this many iso px long: 13, +20% (v3.75.224). */
 export const TRANSPORT_LENGTH = 13 * 1.2 * 0.9;
 
@@ -402,7 +402,10 @@ export const KUB_RANGE = 1.6;
 export const KUB_COOLDOWN = 3.5;
 export const DVINA_COST = 2500;
 export const DVINA_HP = 1400;
-export const DVINA_RANGE_CELLS = 12;
+/** Reach: 3 × the BM-21's rocket reach (60 cells), more than twice the K9 Thunder's. */
+export const DVINA_RANGE_CELLS = 3 * (140 / 7);
+/** Seconds the missile flies to a target `distance` world px away; its warhead goes off only when it gets there. */
+export const dvinaFlight = (distance: number): number => 0.7 + distance / 200;
 /** Warhead at the point of impact (the game has no nuclear weapon: taken as 1/5 of a notional 15000-damage nuke). */
 export const DVINA_DAMAGE = 3000;
 /** Blast radius (cells) round the impact: full damage at the centre, none at the edge (structures and units alike). */
@@ -810,6 +813,8 @@ export const VEHICLE_WEAPON: Readonly<
   bm21: "rocket",
   kub: "missile",
   vt12: "cannon",
+  bushmaster: "mg",
+  twinTank: "cannon",
   a29: "missile",
   ldew: "autocannon",
   ldewTruck: "autocannon",
@@ -856,6 +861,10 @@ export const VEHICLE_BASE = {
   tank: { cost: 1200, trainSeconds: 14, maxHp: 420, speed: 1.4, radius: 4.2 },
   /** VT 1-2 (Europe only): twin 120 mm guns fixed in a turretless hull; cheaper, lighter and much faster than the tank. */
   vt12: { cost: 800, trainSeconds: 10, maxHp: 330, speed: 2.2, radius: 4.2 },
+  /** Bushmaster PMV (Australia's holder, NATION_VEHICLES): armoured 4x4 with a roof machine gun; carries BUSHMASTER_SOLDIERS soldiers (no vehicles). */
+  bushmaster: { cost: 900, trainSeconds: 12, maxHp: 340, speed: 2.2, radius: 4.4 },
+  /** Twin-gun heavy tank (Japan's holder, NATION_VEHICLES): two 125 mm guns on one turret (TWIN_TANK_DAMAGE per shot), heavy and slow. */
+  twinTank: { cost: 2000, trainSeconds: 20, maxHp: 640, speed: 1.1, radius: 4.6 },
   /** K9 Thunder 155 mm self-propelled howitzer: sold only to the holder of Seoul (South Korea's capital), see K9_NATION. */
   k9: { cost: 1800, trainSeconds: 18, maxHp: 360, speed: 1.2, radius: 4.4 },
   /** BM-21 Grad rocket launcher on the Ural-4320: sold only to the holder of Pyongyang (North Korea's capital), see NATION_VEHICLES and BM21_*. */
@@ -1051,6 +1060,10 @@ export const INFANTRY_RECOVER_SECONDS = 10;
 export const TRUCK_SOLDIERS = 8;
 /** Trucks drive freely, loaded or empty. The AI only sends one out with at least this many soldiers aboard (no half-empty runs). */
 export const TRUCK_MIN_RIDERS = 4;
+/** Bushmaster PMV: soldier seats (no vehicles). */
+export const BUSHMASTER_SOLDIERS = 6;
+/** Twin-gun tank: both guns fire together, so each shot hits this many times as hard as a tank's single cannon. */
+export const TWIN_TANK_DAMAGE = 1.8;
 
 /**
  * Temporary: only these vehicles can be produced (sidebar and AI). The rest stay in the code but are
@@ -1078,6 +1091,8 @@ export const AVAILABLE_VEHICLES: readonly VehicleKind[] = [
   "kub",
   "vt12",
   "a29",
+  "bushmaster",
+  "twinTank",
 ];
 /**
  * Machines of a contested nation: on sale (War Factory, in the holder's colours) only while that nation's capital is
@@ -1093,6 +1108,10 @@ export const NATION_VEHICLES: Readonly<Partial<Record<ContestedNationId, readonl
   // A-29 Super Tucano: light attack aircraft, built at the Airfield.
   brazil: ["a29"],
   unitedKingdom: ["ldewTruck"],
+  // Bushmaster PMV: armoured troop carrier with a roof machine gun.
+  australia: ["bushmaster"],
+  // Twin-gun heavy tank.
+  japan: ["twinTank"],
 };
 /**
  * Another nation's design on sale to the holder of a contested capital (Airfield / War Factory as usual, the design's

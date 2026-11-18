@@ -193,6 +193,10 @@ const VEHICLE_WEIGHT: Readonly<Partial<Record<VehicleKind, number>>> = {
   kub: 0.1,
   // Only while the AI holds Brasília.
   a29: 0.1,
+  // Only while the AI holds Canberra.
+  bushmaster: 0.1,
+  // Only while the AI holds Tokyo.
+  twinTank: 0.15,
   // Only the Islamic world has the drone: it loves it, so it is a big share of what that AI builds.
   drone: 0.3,
 };
@@ -2568,10 +2572,10 @@ export class AISystem implements GameSystem {
     if (riders.length === 0) return going.filter((u) => !flown.has(u));
     const trucks = this.host.entities
       .vehicles()
-      .filter((t) => t.owner === p.id && t.alive && t.isTruck && t.insideId === null && !t.moving && t.cargo.length === 0 && t.incoming === 0 && !st.convoys.has(t.id));
+      .filter((t) => t.owner === p.id && t.alive && t.isGroundCarrier && t.insideId === null && !t.moving && t.cargo.length === 0 && t.incoming === 0 && !st.convoys.has(t.id));
     const aboard = new Set<Unit>();
     for (const t of trucks) {
-      const near = riders.filter((u) => !aboard.has(u) && Math.hypot(u.px - t.px, u.py - t.py) < TRUCK_PICKUP_CELLS * CELL_SIZE).slice(0, TRUCK_SEATS);
+      const near = riders.filter((u) => !aboard.has(u) && Math.hypot(u.px - t.px, u.py - t.py) < TRUCK_PICKUP_CELLS * CELL_SIZE).slice(0, t.soldierCapacity);
       if (near.length < TRUCK_MIN_RIDERS) continue; // a truck only drives with TRUCK_MIN_RIDERS aboard
       if (!this.host.orderBoard(t, near)) continue;
       for (const u of near) aboard.add(u);
@@ -2726,7 +2730,7 @@ export class AISystem implements GameSystem {
       .filter((v) => v.isHeli && (v.flight === 'parked' || v.flight === 'landed') && v.attackTarget === null && v.combatTarget === null && dist(v.px, v.py) < reach)
       .sort(byNear);
     const sameLand = (v: Vehicle): boolean => tcell !== null && pf.sameLandmass(Math.floor(v.px / CELL_SIZE), Math.floor(v.py / CELL_SIZE), tcell.x, tcell.y);
-    const truck = free.filter((v) => v.isTruck && !v.moving && dist(v.px, v.py) < reach && sameLand(v)).sort(byNear);
+    const truck = free.filter((v) => v.isGroundCarrier && !v.moving && dist(v.px, v.py) < reach && sameLand(v)).sort(byNear);
     const goal = this.safeDrop(p, { x: c.x, y: c.y + CELL_SIZE * 4 });
     for (const v of [...air, ...heli, ...truck]) {
       if (!this.host.orderBoard(v, [eng]) || eng.boardTarget !== v.id) continue;
@@ -2755,7 +2759,7 @@ export class AISystem implements GameSystem {
         continue;
       }
       if (v.incoming > 0 || v.ejecting) continue;
-      if (v.isTruck) {
+      if (v.isGroundCarrier) {
         if (!st.convoys.has(id)) st.convoys.set(id, lift.goal);
         continue;
       }
