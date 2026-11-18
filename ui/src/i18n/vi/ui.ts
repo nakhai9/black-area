@@ -19,6 +19,7 @@ export default {
   Guide: 'Hướng dẫn',
   'Continue a game saved to a .json file (pause menu → Save game)': 'Tiếp tục ván đã lưu vào tệp .json (menu tạm dừng → Lưu game)',
   'Name of the leader of {nation}': 'Tên người đứng đầu {nation}',
+  or: 'hoặc',
   'Please enter a name.': 'Vui lòng nhập tên.',
   'Closing the game…': 'Đang kết thúc trận đấu…',
   'Saving to the cloud…': 'Đang lưu lên đám mây…',

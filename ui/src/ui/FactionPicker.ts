@@ -51,6 +51,7 @@ export class FactionPicker {
         <aside class="fp-side">
           <div class="fp-actions">
             <button class="fp-load fp-continue" type="button"${isReturningPlayer() ? "" : " hidden"} title="${t("Continue the game saved to the cloud (pause menu → Save game)")}">${t("Continue")}</button>
+            <div class="fp-or" aria-hidden="true">${t("or")}</div>
             <button class="fp-load" type="button" title="${t("Load a game from a saved .json file")}">${t("Import saved file")}</button>
             <button class="fp-load fp-mp" type="button" title="${t("Play with friends: create a room or join one by its code")}">${t("Play with friends")}</button>
             <button class="fp-guide" type="button" title="${t("Read the story of the new multipolar world")}">${t("Story")}</button>
