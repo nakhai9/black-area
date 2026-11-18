@@ -241,6 +241,10 @@ export class Vehicle extends Unit {
   /** BM-21 only: rockets loaded (0..BM21_ROCKETS), whether a salvo is rippling now, and the reload clock (s). */
   rockets = BM21_ROCKETS;
   salvo = false;
+  /** BM-21 only: the target a salvo is locked on (id) and its last known ground point; kept until the tubes are empty. */
+  salvoTarget: number | null = null;
+  salvoAimX = 0;
+  salvoAimY = 0;
   reloadClock = 0;
   /** Seconds left of a scramble: shot at while parked, it took off and circles away from danger until 0. */
   scramble = 0;

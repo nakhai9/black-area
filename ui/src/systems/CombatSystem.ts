@@ -483,6 +483,19 @@ export class CombatSystem implements GameSystem {
     // Shot by an enemy bunker with no enemy soldier / vehicle to fight: go and attack that bunker (player and AI alike).
     const bunkerFoe = !target || target instanceof Building ? this.bunkerAttacker(s, w) : undefined;
     if (bunkerFoe) target = bunkerFoe;
+    // BM-21 mid-salvo (player and AI alike): the whole salvo goes at the target it started on; a new target is picked
+    // only once the tubes are empty. A new explicit attack order still takes over.
+    if (s instanceof Vehicle && s.type === 'bm21' && s.salvo && s.salvoTarget !== null && (s.attackTarget === null || s.attackTarget === s.salvoTarget)) {
+      const locked = this.entities.get(s.salvoTarget);
+      if (locked && locked.alive) target = locked;
+      else {
+        // Target gone: the rest of the salvo still lands on its last position.
+        s.combatTarget = null;
+        s.engaged = true;
+        if (s.cooldown <= 0) this.fireSalvoAtPoint(s, w, { x: s.salvoAimX, y: s.salvoAimY });
+        return;
+      }
+    }
     s.combatTarget = target?.id ?? null;
 
     if (!target) {
@@ -743,6 +756,10 @@ export class CombatSystem implements GameSystem {
       this.hooks.trees.fellRadius(f.impact.x, f.impact.y, (f.kind === 'treeStick' ? TREE_STICK_RADIUS_CELLS : TREE_BOMB_RADIUS_CELLS) * CELL_SIZE);
       return;
     }
+    if (f.kind === 'rocket' && !t) {
+      this.rocketLands(s, null, f.impact); // rest of a salvo whose target is gone: blast on the ground only
+      return;
+    }
     if (!t) return; // (a saved game whose target no longer exists)
     if (f.kind === 'stick') {
       this.bombsLand(s, t, f.impact);
@@ -766,7 +783,7 @@ export class CombatSystem implements GameSystem {
    * A BM-21 rocket comes down: its target (still alive) takes the hit; on the ground the blast also hurts the enemy
    * soldiers and vehicles within the splash and the trees there. An aircraft is hit alone (an air burst).
    */
-  private rocketLands(s: Vehicle, t: Entity, impact: WorldPoint): void {
+  private rocketLands(s: Vehicle, t: Entity | null, impact: WorldPoint): void {
     const w = s.weapon;
     if (!w) return;
     const dmg = w.damage * RANK_FIREPOWER[s.rank];
@@ -777,7 +794,7 @@ export class CombatSystem implements GameSystem {
       o.lastAttackedAt = this.time;
     };
     const air = t instanceof Unit && t.flies;
-    hit(t, dmg * (t instanceof Building ? w.vsBuilding : 1) * (air ? 1 : this.heightFactor(s, t)));
+    if (t) hit(t, dmg * (t instanceof Building ? w.vsBuilding : 1) * (air ? 1 : this.heightFactor(s, t)));
     if (air) return;
     // Shock wave: BM21_SHOCK_CELLS round the impact, strongest at the centre (BM21_SHOCK_PEAK × the rocket), none at the edge.
     const at = t instanceof Unit ? { x: t.px, y: t.py } : impact;
@@ -838,6 +855,18 @@ export class CombatSystem implements GameSystem {
     return null;
   }
 
+  /** BM-21: one rocket of a salvo whose target is gone, at the point it was last aimed at. */
+  private fireSalvoAtPoint(s: Vehicle, w: WeaponSpec, impact: WorldPoint): void {
+    s.rockets--;
+    s.salvo = s.rockets > 0;
+    if (!s.salvo) s.salvoTarget = null;
+    s.cooldown = w.cooldown;
+    s.aimHeading = Math.atan2(impact.y - s.py, impact.x - s.px);
+    const flight = bm21Flight(Math.hypot(impact.x - s.px, impact.y - s.py));
+    this.falling.push({ at: this.time + flight, kind: 'rocket', shooter: s, target: null, impact });
+    this.hooks.onFellFire(s, w, impact); // launch flash, rocket arc and sound, landing on the ground there
+  }
+
   private fire(s: Unit, t: Entity, w: WeaponSpec): void {
     // VT 1-2 (player and AI alike): soldiers within its machine gun's reach get rapid fire from the coaxial gun, anything
     // else (vehicles, structures, soldiers farther off) one round at a time from the cannons.
@@ -858,6 +887,9 @@ export class CombatSystem implements GameSystem {
       }
       s.rockets--;
       s.salvo = s.rockets > 0;
+      s.salvoTarget = s.salvo ? t.id : null;
+      s.salvoAimX = impact.x;
+      s.salvoAimY = impact.y;
       s.cooldown = w.cooldown;
       const flight = bm21Flight(distanceTo(s.px, s.py, t));
       // Enemy air defence round the landing spot may shoot it down on the way (BM21_INTERCEPT_CHANCE).

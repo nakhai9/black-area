@@ -19,12 +19,12 @@ export const EUROPE: FactionConfig = {
   },
   infantry: {
     regular: {
-      name: 'Eurocorps',
+      name: 'Conquetor',
       description: t('Combined European infantry with modern kit.'),
       look: { uniform: '#5e6c78', trousers: '#4a5661', headgear: 'helmet', headColor: '#515d68', weapon: 'rifle', camo: true, sprite: 'euRegular' },
     },
     special: {
-      name: 'EU Spec',
+      name: 'Conspec',
       description: t('European special operators — long-range precision marksmen.'),
       look: { uniform: '#5e6c78', trousers: '#4a5661', headgear: 'reverseCap', headColor: '#3f4a54', weapon: 'rifle', camo: true, sprite: 'euSpecial' },
     },
