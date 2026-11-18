@@ -1,10 +1,11 @@
+import { dissipate, spread } from './Smoke';
 /**
  * Surface-to-air missile of the air-defence vehicle, drawn in code: it leaves its canister in a launch flash and a
  * ground dust cloud, climbs on a lofted arc to the aircraft and leaves a smoke trail that lingers and drifts after it.
  * Patriot and SAMP/T NG fire a slim, fast missile with a thin white trail; S-400 and HQ-9 a heavier one with a thick
  * grey trail and a big boost plume.
  */
-export const SAM_TRAIL_SECONDS = 1.2;
+export const SAM_TRAIL_SECONDS = 2.5;
 const TRAIL_PUFFS = 14;
 
 /** Point on the lofted path at progress t (0..1): straight line raised by an arc `loft` px high. */
@@ -20,8 +21,6 @@ export function drawSamMissile(ctx: CanvasRenderingContext2D, x0: number, y0: nu
   const loft = Math.min(28, Math.hypot(x1 - x0, y1 - y0) * (buk ? 0.32 : 0.22));
   const t = Math.min(1, age / flight);
   const f = t * t * (buk ? 0.7 : 0.55) + t * (buk ? 0.3 : 0.45); // speeds up as the motor burns
-  const after = Math.max(0, age - flight);
-  const fade = Math.max(0, 1 - after / SAM_TRAIL_SECONDS);
   ctx.save();
   // Launch: dust thrown up round the vehicle and the boost flash.
   if (age < 0.5) {
@@ -47,8 +46,8 @@ export function drawSamMissile(ctx: CanvasRenderingContext2D, x0: number, y0: nu
     const born = (pt / Math.max(f, 1e-3)) * Math.min(age, flight);
     const old = age - born;
     const [px, py] = along(x0, y0, x1, y1, loft, pt);
-    const r = r0 + old * (buk ? 1.6 : 1.1);
-    const a = (buk ? 0.5 : 0.42) * fade * Math.max(0, 1 - old / (flight + SAM_TRAIL_SECONDS));
+    const r = spread(r0, buk ? 2 : 1.4, old);
+    const a = (buk ? 0.5 : 0.42) * dissipate(old / SAM_TRAIL_SECONDS);
     if (a <= 0.01) continue;
     ctx.fillStyle = buk ? `rgba(170,168,160,${a})` : `rgba(235,235,232,${a})`;
     ctx.beginPath();
@@ -87,37 +86,23 @@ export function drawSamMissile(ctx: CanvasRenderingContext2D, x0: number, y0: nu
 export const DVINA_TRAIL_SECONDS = 3;
 
 /**
- * A homing missile (R-12 Dvina) drawn from its live state. Its whole flight path stays on screen as a smoke trail: a
- * continuous white contrail line through every point it passed (iso px, `born` = the effect's age when laid) under
- * soft grey puffs that widen and drift up, all fading over DVINA_TRAIL_SECONDS. While it flies, the missile itself:
+ * A homing missile (R-12 Dvina) drawn from its live state. Its flight path stays on screen as a trail of grey smoke
+ * puffs (iso px, `born` = the effect's age when laid) that widen, drift up and fade over DVINA_TRAIL_SECONDS. While it flies, the missile itself:
  * a long pale body with a dark nose cone, cruciform fins at the tail and the motor's flame and glow behind.
  */
 export function drawHomingMissile(ctx: CanvasRenderingContext2D, x: number, y: number, ux: number, uy: number, flying: boolean, puffs: readonly { x: number; y: number; born: number }[], age: number): void {
   ctx.save();
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
-  // Soft puffs first (widening, drifting up), then the crisp trajectory line on top.
+  // Smoke puffs along the path flown, widening and drifting up as they age.
   for (const p of puffs) {
     const old = age - p.born;
-    const a = 0.32 * Math.max(0, 1 - old / DVINA_TRAIL_SECONDS);
+    const a = 0.45 * dissipate(old / DVINA_TRAIL_SECONDS);
     if (a <= 0.01) continue;
     ctx.fillStyle = `rgba(178,176,168,${a})`;
     ctx.beginPath();
-    ctx.arc(p.x, p.y - old * 1.2, 1 + old * 1.3, 0, Math.PI * 2);
+    ctx.arc(p.x, p.y - old * 1.2, spread(1, 2, old), 0, Math.PI * 2);
     ctx.fill();
-  }
-  for (let i = 1; i < puffs.length; i++) {
-    const a0 = puffs[i - 1]!;
-    const a1 = puffs[i]!;
-    const old = age - a1.born;
-    const a = 0.85 * Math.max(0, 1 - old / DVINA_TRAIL_SECONDS);
-    if (a <= 0.01) continue;
-    ctx.strokeStyle = `rgba(245,244,238,${a})`;
-    ctx.lineWidth = 0.7 + old * 0.35;
-    ctx.beginPath();
-    ctx.moveTo(a0.x, a0.y - (age - a0.born) * 1.2);
-    ctx.lineTo(a1.x, a1.y - old * 1.2);
-    ctx.stroke();
   }
   if (flying) {
     const len = 6; // body length (iso px)

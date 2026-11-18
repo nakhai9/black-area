@@ -1,3 +1,4 @@
+import { dissipate } from '../render/Smoke';
 import { drawHomingMissile } from '../render/SamMissile';
 import { drawChargeIcon } from '../render/ChargeIcon';
 import { BRIDGE_DECK_PX, bridgeDeckAt } from '../render/sprites/Bridge';
@@ -1476,8 +1477,9 @@ export class Renderer {
       } else if (e.kind === 'bridgeLayerDeath') {
         drawBridgeLayerDeath(ctx, e.faction, e.heading, e.x, e.y, e.age, e.ttl);
       } else {
-        const r = e.radius * (0.5 + t * 1.2);
-        ctx.globalAlpha = 0.5 * (1 - t);
+        // Smoke (gun smoke, burning wrecks…): spreads and thins out gradually (render/Smoke.ts).
+        const r = e.radius * (0.5 + 1.2 * Math.sqrt(t));
+        ctx.globalAlpha = 0.5 * dissipate(t);
         ctx.fillStyle = SMOKE;
         ctx.beginPath();
         ctx.ellipse(e.x, e.y - t * 6, r, r * 0.8, 0, 0, Math.PI * 2);

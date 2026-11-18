@@ -354,10 +354,12 @@ export class CombatSystem implements GameSystem {
     };
     const fair = (o: Entity | undefined): o is Unit | Building =>
       (o instanceof Unit || o instanceof Building) && o.alive && o !== b && isHostile(b, o) && !this.hooks.shielded(o) && !(o instanceof Unit && this.sheltered(o));
-    // Only massed targets are worth a missile: a unit is a target only inside a group of more than DVINA_GROUP_SOLDIERS
+    // Only massed ground targets are worth a missile (anything flying is always one): a ground unit is a target only inside a group of more than DVINA_GROUP_SOLDIERS
     // soldiers or more than DVINA_GROUP_VEHICLES vehicles of its owner within DVINA_GROUP_CELLS of it (structures: on order).
     const massed = (o: Unit | Building): boolean => {
       if (o instanceof Building) return true;
+      // Aircraft and helicopters in the air are fair game even alone.
+      if (o.flies) return true;
       const soldier = o instanceof Infantry;
       const r = DVINA_GROUP_CELLS * CELL_SIZE;
       let n = 0;

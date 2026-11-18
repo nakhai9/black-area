@@ -1,8 +1,9 @@
+import { dissipate, spread } from './Smoke';
 /**
  * BM-21 Grad 122 mm rocket, drawn in code: it leaves the tube in a flash, climbs on a high ballistic arc with a grey
  * smoke trail and comes down on the target, where a blast goes off with a shock-wave ring (an air burst on an aircraft).
  */
-export const GRAD_TRAIL_SECONDS = 0.9;
+export const GRAD_TRAIL_SECONDS = 2;
 export const GRAD_BLAST_SECONDS = 0.55;
 const PUFFS = 12;
 
@@ -27,16 +28,16 @@ export function drawGradRocket(ctx: CanvasRenderingContext2D, x0: number, y0: nu
     ctx.fill();
   }
   // Smoke trail along the arc flown so far, older puffs wider and fainter.
-  const fade = Math.max(0, 1 - after / GRAD_TRAIL_SECONDS);
+  // Every puff thins out on its own clock (dissipate), so the trail dissolves from its oldest end.
   for (let i = 0; i < PUFFS; i++) {
     const pt = (t * i) / PUFFS;
     const old = age - pt * flight;
-    const a = 0.38 * fade * Math.max(0, 1 - old / (flight + GRAD_TRAIL_SECONDS));
+    const a = 0.38 * dissipate(old / GRAD_TRAIL_SECONDS);
     if (a <= 0.01) continue;
     const [px, py] = along(x0, y0, x1, y1, loft, pt);
     ctx.fillStyle = `rgba(190,188,182,${a})`;
     ctx.beginPath();
-    ctx.arc(px, py - old * 1.2, 0.5 + old * 1.1, 0, Math.PI * 2);
+    ctx.arc(px, py - old * 1.2, spread(0.5, 1.4, old), 0, Math.PI * 2);
     ctx.fill();
   }
   if (t < 1) {
