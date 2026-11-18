@@ -68,6 +68,8 @@ export default {
   'Delete': 'Xóa',
   'Restore': 'Khôi phục',
   'Close': 'Đóng',
+  'Map': 'Bản đồ',
+  'World Map': 'Bản đồ thế giới',
   'Deleted': 'Đã xóa',
   'Moved': 'Đã chuyển',
   'Add': 'Thêm',

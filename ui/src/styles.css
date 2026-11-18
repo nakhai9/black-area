@@ -2722,29 +2722,33 @@ input:disabled {
   grid-template-columns: 1fr auto;
   align-items: stretch;
 }
-/* Get a loan: a square as tall as the war clock beside it. */
+/* Get a loan: text then icon, 34px tall (the war clock moved to the corner bar). */
 .sb-oil-actions .sb-sell.sb-loan {
-  width: 34px;
+  gap: 6px;
   height: 34px;
-  aspect-ratio: 1;
-  padding: 0;
+  padding: 0 10px;
+}
+.sb-loan-text {
+  white-space: nowrap;
 }
 .sb-oil-sell {
   grid-template-columns: repeat(2, 1fr);
 }
 
-/* War clock + loan button now sit at the bottom of the faction card (top of the sidebar, every page). */
+/* Loan button at the bottom of the faction card (the war clock moved to the corner bar): one full-width button, text + icon. */
 .sb-resources .sb-actions.sb-oil-actions {
-  grid-template-columns: 1fr auto;
+  grid-template-columns: 1fr;
   align-items: stretch;
   margin-top: 8px;
   padding: 0;
 }
 .sb-resources .sb-oil-actions .sb-sell.sb-loan {
-  width: 34px;
+  width: 100%;
   height: 34px;
-  aspect-ratio: 1;
-  padding: 0;
+  gap: 8px;
+  padding: 0 12px;
+  margin: 0;
+  font-weight: 700;
 }
 
 /* News (bell): top right of the faction card, plain sidebar colours. */
@@ -3367,4 +3371,99 @@ input:disabled {
   border-top: 0;
   border-top-left-radius: 0;
   border-top-right-radius: 0;
+}
+
+/* ------------------------------------------------------------- big map (Map button, bottom-left of the battlefield) */
+.corner-bar {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  background: rgba(8, 12, 16, 0.85);
+  border-top: 1px solid var(--panel-edge);
+  border-right: 1px solid var(--panel-edge);
+  border-top-right-radius: 4px;
+}
+body.pregame .corner-bar {
+  display: none;
+}
+.corner-btn {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  min-width: 0;
+  padding: 0;
+  color: var(--btn-color);
+  background: var(--btn-bg);
+  border: var(--btn-border);
+  border-radius: var(--btn-radius);
+  cursor: pointer;
+}
+.corner-btn:hover {
+  background: var(--btn-bg-hover);
+  border-color: var(--btn-border-hover);
+}
+/* Zoom lock toggle moved from the sidebar header into the corner bar. */
+.corner-slot {
+  display: contents;
+}
+.corner-bar .sb-zoomlock {
+  position: static;
+  width: 28px;
+  height: 28px;
+}
+.corner-bar .sb-zoomlock.on {
+  color: #2a1e00;
+  background: linear-gradient(#ffd84a, #e0a800);
+  border-color: #ffe08a;
+}
+/* War clock in the corner bar: no badge, engraved into the bar (red at war, green in the ceasefire). */
+.corner-bar .sb-war-clock {
+  gap: 5px;
+  padding: 0 6px 0 8px;
+  margin-left: 2px;
+  border-left: 1px solid var(--panel-edge);
+  border-radius: 0;
+  background: none;
+  font-size: 16px;
+  color: #e5483f;
+  text-shadow: 0 -1px 0 #000, 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+.corner-bar .sb-war-clock.peace {
+  background: none;
+  color: #4caf50;
+}
+.corner-bar .sb-war-icon,
+.corner-bar .sb-war-icon svg {
+  width: 18px;
+  height: 18px;
+  filter: drop-shadow(0 -1px 0 #000) drop-shadow(0 1px 0 rgba(255, 255, 255, 0.12));
+}
+/* Demo status readout inside the corner bar. */
+.corner-bar #status {
+  position: static;
+  margin-left: 4px;
+}
+/* Controls guide modal: wider than the default card, left-aligned list, scrolls if tall. */
+.controls-card {
+  max-width: min(720px, calc(100vw - 32px));
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  text-align: left;
+}
+.controls-card h1 {
+  text-align: center;
+}
+/* The World Map uses the shared modal template (.end-screen + .end-card + h1); only the width cap is lifted. */
+.bigmap-card {
+  max-width: none;
+}
+.bigmap-canvas {
+  display: block;
+  cursor: crosshair;
 }

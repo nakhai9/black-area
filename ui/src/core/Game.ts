@@ -225,6 +225,7 @@ import { type VehicleKey, VehicleSystem } from '../systems/VehicleSystem';
 import type { BuildingType, FactionId, GameEvents, GridPoint, OilPolicy, PlayerState, UnitTier, VehicleKind, WeaponSpec, WorldPoint } from '../types';
 import { HASH_EVERY_TURNS, type Lockstep, type Turn } from '../net/Lockstep';
 import { Minimap } from '../ui/Minimap';
+import { BigMap } from '../ui/BigMap';
 import { sweepUnitSprites, unitSpriteBytes } from '../render/UnitSprites';
 import { type AircraftInfo, type TransportInfo, type RankRow, type AllyInfo, type OccupiedCapital, Sidebar } from '../ui/Sidebar';
 import { StatusBar } from '../ui/StatusBar';
@@ -518,6 +519,9 @@ export class Game {
   private readonly lastQueueState = new Map<string, QueueState>();
   private sidebar!: Sidebar;
   private minimap!: Minimap;
+  /** Bottom-left corner bar (Home, World Map, Controls, zoom). */
+  private bigMap: BigMap | null = null;
+  private bigMinimap!: Minimap;
   private readonly status: StatusBar;
   private readonly loop: GameLoop;
 
@@ -787,6 +791,7 @@ export class Game {
     // UI.
     this.mountSidebar();
     this.status = new StatusBar(dom.status, this.map);
+    this.bigMap?.bar.append(dom.status); // demo readout sits in the bottom-left corner bar
     if (!demo) dom.status.style.display = 'none'; // coordinates / zoom / FPS readout: demo only
 
     this.bus.on('camera:focus', (p) => {
@@ -863,6 +868,18 @@ export class Game {
     });
     this.minimap = new Minimap(
       this.sidebar.minimapCanvas,
+      this.terrain,
+      this.camera,
+      (p) => this.bus.emit('camera:focus', p),
+      (p) => this.minimapOrder(p),
+    );
+    this.bigMap ??= new BigMap(this.dom.canvas.parentElement ?? document.body, this.sidebar.minimapCanvas, this.sidebar.controlsGuide, () => {
+      if (!this.paused) this.focusOwnCapital();
+    });
+    this.bigMap.setZoomLock(this.sidebar.zoomLockButton);
+    this.bigMap.setWarClock(this.sidebar.warClock);
+    this.bigMinimap = new Minimap(
+      this.bigMap.canvas,
       this.terrain,
       this.camera,
       (p) => this.bus.emit('camera:focus', p),
@@ -4039,6 +4056,7 @@ export class Game {
     if (this.minimapTimer >= 1 / 12) {
       this.minimapTimer = 0;
       this.minimap.render(buildings, units, this.humanPlayer.id, this.ownedCache.has('radarTower'), drawTime);
+      if (this.bigMap?.open) this.bigMinimap.render(buildings, units, this.humanPlayer.id, this.ownedCache.has('radarTower'), drawTime);
     }
     this.status.update(dt, this.mouseWorld, this.camera.zoom);
 

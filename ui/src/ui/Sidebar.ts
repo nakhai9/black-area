@@ -1,7 +1,7 @@
 import { setZoomLock, settings } from '../core/Settings';
 import { CHARGE_ICON_PATH } from '../render/ChargeIcon';
 import { AlertToast } from './NewsToast';
-import { type IconNode, Settings, Clock, Handshake, X, Wallet, Info, Keyboard, Droplet, Hammer, LogIn, LogOut, Minus, Plane, Rocket, Shield, TrendingDown, TrendingUp, Zap, createElement } from 'lucide';
+import { type IconNode, Settings, Clock, Handshake, X, Wallet, Info, Droplet, Hammer, LogIn, LogOut, Minus, Plane, Rocket, Shield, TrendingDown, TrendingUp, Zap, createElement } from 'lucide';
 
 /** Government building (Emoji One v1, CC BY-SA 4.0): in full colour, 64×64 grid scaled to the 24×24 icon box. */
 const Government: IconNode = [
@@ -105,7 +105,7 @@ const LEAVE_ICON = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="1
 const CAPITALS_TAB_ICON = '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="M6.146 2.153a.5.5 0 0 1 .354-.146h3a.5.5 0 0 1 .5.5V4.51a.5.5 0 0 1-.5.5H8.497V7h4.5a.5.5 0 0 1 .5.5V10H14.5a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-.5.5h-3a.5.5 0 0 1-.5-.5v-2a.5.5 0 0 1 .5-.5h.997V8h-4v2H9.5a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-.5.5h-3a.5.5 0 0 1-.5-.5v-2a.5.5 0 0 1 .5-.5h.997V8h-4v2H4.5a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-.5.5h-3a.5.5 0 0 1-.5-.5v-2a.5.5 0 0 1 .5-.5h.997V7.5a.5.5 0 0 1 .5-.5h4.5V5.01H6.5a.5.5 0 0 1-.5-.5V2.508a.5.5 0 0 1 .146-.354" clip-rule="evenodd"/></svg>';
 const OIL_TAB_ICON = '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 64 64" aria-hidden="true"><ellipse cx="31.992" cy="57.33" fill="#636666" rx="21.82" ry="6.18"/><path fill="#808184" d="M52.55 6.747c0-2.406-2.421-4.357-5.405-4.357h-30.3c-2.984 0-5.405 1.951-5.405 4.357v47.556c0 .196.023.389.056.578a1.6 1.6 0 0 0-.056.396c0 3.204 9.178 5.805 20.497 5.805s20.495-2.601 20.495-5.805c0-.016-.004-.032-.004-.046c.079-.301.125-.609.125-.929V6.747"/><path fill="#c4c4c5" d="M27.552 55.54c0-.116.018-.229.041-.342a3.5 3.5 0 0 1-.041-.497V13.837c0-2.066 1.879-3.742 4.195-3.742h-9.829c-2.313 0-4.193 1.675-4.193 3.742v40.864c0 .17.018.334.041.497a1.7 1.7 0 0 0-.041.342c0 2.753 7.121 4.984 15.905 4.984c1.716 0 3.365-.085 4.915-.242c-6.38-.648-10.993-2.527-10.993-4.742"/><ellipse cx="31.991" cy="5.05" fill="#636666" rx="22.473" ry="5.05"/><ellipse cx="32.03" cy="4.06" fill="#cdccd2" rx="20.318" ry="3.213"/><path fill="#b8b8ba" d="M22.796 4.58c0-1.318.755-2.529 2.02-3.489c-7.657.461-13.1 1.631-13.1 3c0 1.307 4.937 2.431 12.02 2.934c-.593-.74-.937-1.569-.937-2.448"/><ellipse cx="39.671" cy="3.79" fill="#243438" rx="5.07" ry="2.182"/><path fill="#a6a8ab" d="M31.993 21.436c-9.898 0-18.212-1.92-20.551-4.519c-.43.477-.657.976-.657 1.49c0 3.317 9.494 6.01 21.21 6.01c11.711 0 21.21-2.689 21.21-6.01c0-.515-.228-1.014-.657-1.49c-2.338 2.599-10.65 4.519-20.549 4.519m-.006 17.354c-9.898 0-18.212-1.922-20.551-4.519c-.43.477-.657.974-.657 1.488c0 3.317 9.494 6.01 21.21 6.01c11.711 0 21.21-2.689 21.21-6.01c0-.515-.228-1.012-.657-1.488c-2.338 2.597-10.65 4.519-20.549 4.519"/></svg>';
 
-type InfoId = 'finance' | 'oil' | 'capitals' | 'controls';
+type InfoId = 'finance' | 'oil' | 'capitals';
 
 /** One of the player's allies (Allied Building) or a claim flag still waiting for its ally, for the Allies tab. */
 export interface AllyInfo {
@@ -335,6 +335,10 @@ const WAR_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><g fill="none" str
 
 export class Sidebar {
   readonly minimapCanvas: HTMLCanvasElement;
+  /** The Controls guide list (shown in the corner bar's Controls modal). */
+  readonly controlsGuide: HTMLUListElement;
+  /** Zoom lock toggle (moved into the bottom-left corner bar by Game). */
+  readonly zoomLockButton: HTMLButtonElement;
 
   private readonly credits: HTMLElement;
   private readonly income: HTMLElement;
@@ -354,7 +358,8 @@ export class Sidebar {
   private readonly powerPrice: HTMLElement;
   private readonly priceTrend: HTMLElement;
   private readonly priceClock: HTMLElement;
-  private readonly warClock: HTMLElement;
+  /** War / ceasefire countdown (moved into the bottom-left corner bar by Game; still updated here). */
+  readonly warClock: HTMLElement;
   private readonly priceLine: HTMLElement;
   private trendKey = 0;
   private readonly message: HTMLElement;
@@ -451,7 +456,7 @@ export class Sidebar {
         <div class="sb-power" title="${t('Power')}"><i data-icon="power"></i><div class="sb-power-bar">${'<i></i>'.repeat(POWER_SEGMENTS)}</div></div>
         <div class="sb-actions sb-oil-actions">
           <b class="sb-war-clock" title="${t('War cycle: {war} minutes of war, then {peace} seconds of ceasefire (no attacks, no takeovers)', { war: WAR_SECONDS / 60, peace: PEACE_SECONDS })}"><i class="sb-war-icon"></i><span class="sb-war-time"></span></b>
-          <button class="sb-sell sb-loan" type="button" title="${t('Get a loan')}" aria-label="${t('Get a loan')}">${LOAN_ICON}</button>
+          <button class="sb-sell sb-loan" type="button" title="${t('Get a loan')}" aria-label="${t('Get a loan')}"><span class="sb-loan-text">${t('Get a loan')}</span>${LOAN_ICON}</button>
         </div>
       </section>
       <nav class="sb-main-tabs" aria-label="${t('Sidebar pages')}"></nav>
@@ -627,7 +632,11 @@ export class Sidebar {
     this.buildMainTabs(q('.sb-main-tabs'), q('.sb-page-links'));
     this.views.set('command', q('[data-page=command]'));
     this.views.set('production', q('[data-page=production]'));
-    for (const id of ['finance', 'oil', 'capitals', 'controls'] as const) this.infoPanes.set(id, q(`[data-info=${id}]`));
+    for (const id of ['finance', 'oil', 'capitals'] as const) this.infoPanes.set(id, q(`[data-info=${id}]`));
+    // The Controls guide lives in the bottom-left corner bar's modal, not in the sidebar.
+    const help = q('[data-info=controls]');
+    this.controlsGuide = q<HTMLUListElement>('.sb-help ul');
+    help.remove();
     this.capitalsBody = q('.sb-capitals-body');
     this.allyList = q('.sb-ally-list');
     this.allyCount = q('.sb-allies-count');
@@ -665,6 +674,7 @@ export class Sidebar {
     // Settings: top-right of the sidebar header (the hide button is top-left).
     // Zoom lock (Tabler Icons, MIT): toggles the same setting as the pause menu checkbox.
     const zoomLockButton = q<HTMLButtonElement>('.sb-zoomlock');
+    this.zoomLockButton = zoomLockButton;
     const syncZoomLock = (): void => {
       zoomLockButton.classList.toggle('on', settings.zoomLock);
       zoomLockButton.setAttribute('aria-pressed', String(settings.zoomLock));
@@ -907,7 +917,6 @@ export class Sidebar {
       { id: 'finance', label: 'Finance', icon: Wallet },
       { id: 'oil', label: 'Oil', icon: OIL_TAB_ICON },
       { id: 'capitals', label: 'Occupied capitals', icon: CAPITALS_TAB_ICON },
-      { id: 'controls', label: 'Controls', icon: Keyboard },
     ];
     for (const info of infos) {
       const btn = tabButton(t(info.label), info.icon, info.id === this.activeInfo, () => this.switchInfo(info.id));
