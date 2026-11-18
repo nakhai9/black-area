@@ -39,7 +39,7 @@ export const DEMO_FACTION: FactionId = NATION_CODES[(import.meta.env.VITE_DEMO_F
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "3.75.193";
+export const GAME_VERSION = "3.75.196";
 
 /** An Allied Building within this many cells of any capital is an embassy; farther out it is a "Pro-<nation> regime". */
 export const EMBASSY_CAPITAL_CELLS = 25;
@@ -407,6 +407,8 @@ export const DVINA_TURN_RATE = 1.2;
 export const DVINA_AIM_TOLERANCE = 0.08;
 export const DVINA_POWER_DRAIN = 3;
 export const DVINA_NATION = "cuba";
+/** RS-24 Yars (Defense tab): listed in every shop, not for sale yet. */
+export const YARS_COST = 5000;
 export const FOOTPRINT_DVINA = { w: 2, d: 2 } as const;
 /** Power a Tech Center draws; the laser is a high-energy weapon: emplacement 1.5× that, LDEW vehicles 1×. Short of power → lasers stop. */
 export const TECH_CENTER_POWER_DRAIN = 6;

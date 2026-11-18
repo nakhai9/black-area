@@ -213,6 +213,7 @@ import { Bunker } from '../entities/Bunker';
 import { LdewEmplacement } from '../entities/LdewEmplacement';
 import { DvinaLauncher } from '../entities/DvinaLauncher';
 import { sitePreview, siteRailHeight } from '../render/DvinaSheets';
+import { yarsPreview } from '../render/YarsSheets';
 import { ldewLensHeight, ldewPreview } from '../render/PrototypeSheets';
 import { PowerSystem } from '../systems/PowerSystem';
 import { SAFE_ZONE_SIZE, type SafeZone, SafeZoneSystem } from '../systems/SafeZoneSystem';
@@ -840,7 +841,7 @@ export class Game {
         if (this.placing?.id === option.id) this.stopPlacing();
         this.issue({ k: 'buildCancel', opt: option.id });
       },
-      preview: (option) => (option.id === 'bunker' ? bunkerPreview(human.faction) : option.id === 'ldew' ? ldewPreview(human.faction) : option.id === 'dvina' ? sitePreview('dvina', human.faction) : null) ?? this.sprites.get(option.spriteKey(human.faction)).canvas,
+      preview: (option) => (option.id === 'bunker' ? bunkerPreview(human.faction) : option.id === 'ldew' ? ldewPreview(human.faction) : option.id === 'dvina' ? sitePreview('dvina', human.faction) : option.id === 'yars' ? yarsPreview(human.faction) : null) ?? this.sprites.get(option.spriteKey(human.faction)).canvas,
       onTrain: (option) => this.issue({ k: 'train', tier: option.key }),
       onTrainCancel: (option) => this.issue({ k: 'trainCancel', tier: option.key }),
       trainPreview: (option) => soldierPortrait(option.faction, option.tier),
@@ -4812,6 +4813,10 @@ export class Game {
       if (!this.buildAvailable(player, option)) return;
       if (option.id === 'alliedBuilding' && this.alliesOf(player) >= MAX_ALLIES) {
         this.sidebar.notify(t('A nation has at most {max} embassies.', { max: MAX_ALLIES }));
+        return;
+      }
+      if (option.comingSoon) {
+        this.sidebar.notify(t('{name}: coming soon.', { name: option.name }));
         return;
       }
       const need = missingRequirement(option, this.ownedTypes(), player.disarmedUntil !== undefined);

@@ -17,6 +17,11 @@ export class DvinaLauncher extends Bunker {
   /** World heading the owner turned the launcher to (left-click on the ground); null = free. */
   aimOrder: number | null = null;
 
+  /** Default heading: screen-left (world 3π/4 → iso -x); the launcher turns back to it once it has no target or order. */
+  get restHeading(): number {
+    return Math.PI * 0.75;
+  }
+
   /** Which sheets draw it. */
   get site(): SiteId {
     return 'dvina';
@@ -25,7 +30,7 @@ export class DvinaLauncher extends Bunker {
   constructor(owner: number, faction: FactionId, center: WorldPoint, kind: { name: string; maxHp: number; powerDrain: number; footprint: { w: number; d: number } } = { name: 'R-12 Dvina', maxHp: DVINA_HP, powerDrain: DVINA_POWER_DRAIN, footprint: FOOTPRINT_DVINA }) {
     super(owner, faction, center, kind);
     // Faces screen-left when placed (world heading 3π/4 → iso -x).
-    this.aimHeading = Math.PI * 0.75;
+    this.aimHeading = this.restHeading;
   }
 
   override get range(): number {

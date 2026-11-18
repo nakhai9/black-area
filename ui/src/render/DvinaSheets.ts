@@ -27,6 +27,8 @@ const PX_PER_M = 7 / 3;
 const SITES: Record<SiteId, SiteSheet> = {
   dvina: { grid: 128, pivot: [64, 84], railM: 2.6 },
 };
+/** Draw scale per emplacement (the cameo compensates, so it keeps its size). */
+const GAME_SCALE: Record<SiteId, number> = { dvina: 0.5 };
 
 const IMAGES = new Map<string, HTMLImageElement>();
 function image(file: string): HTMLImageElement {
@@ -75,7 +77,7 @@ export function drawSite(ctx: CanvasRenderingContext2D, id: SiteId, b: { faction
   const base = image(`${id}-base`);
   const top = image(`${id}-launcher`);
   if (!ready(base) || !ready(top)) return false;
-  const size = (s.grid / M_TO_GRID) * PX_PER_M * zoom;
+  const size = (s.grid / M_TO_GRID) * PX_PER_M * GAME_SCALE[id] * zoom;
   const left = x - (s.pivot[0] / s.grid) * size;
   const up = y - (s.pivot[1] / s.grid) * size;
   const d = direction(b.aimHeading);
@@ -100,7 +102,7 @@ export function drawSite(ctx: CanvasRenderingContext2D, id: SiteId, b: { faction
 }
 
 /** Height (iso px) above the ground point where the missile leaves the rail. */
-export const siteRailHeight = (id: SiteId): number => SITES[id].railM * Math.cos(Math.PI / 6) * PX_PER_M;
+export const siteRailHeight = (id: SiteId): number => SITES[id].railM * Math.cos(Math.PI / 6) * PX_PER_M * GAME_SCALE[id];
 
 /** Defense-tab cameo in `faction` colours (null while the sheets load). */
 export function sitePreview(id: SiteId, faction: FactionId): HTMLCanvasElement | null {
@@ -108,7 +110,7 @@ export function sitePreview(id: SiteId, faction: FactionId): HTMLCanvasElement |
   c.width = 128;
   c.height = 96;
   // Fit about 12 m of launcher across the cameo.
-  return drawSite(c.getContext('2d')!, id, { faction, aimHeading: Math.PI * 0.75, loaded: true }, 64, 70, 128 / (12 * PX_PER_M)) ? c : null;
+  return drawSite(c.getContext('2d')!, id, { faction, aimHeading: Math.PI * 0.75, loaded: true }, 64, 70, 128 / (12 * PX_PER_M * GAME_SCALE[id])) ? c : null;
 }
 
 // R-12 Dvina shorthands.

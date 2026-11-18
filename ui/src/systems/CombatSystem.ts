@@ -347,8 +347,7 @@ export class CombatSystem implements GameSystem {
         }
     }
     const tc = target ? (target instanceof Building ? target.centerWorld() : { x: target.px, y: target.py }) : null;
-    const want = tc ? Math.atan2(tc.y - c.y, tc.x - c.x) : b.aimOrder;
-    if (want === null) return;
+    const want = tc ? Math.atan2(tc.y - c.y, tc.x - c.x) : (b.aimOrder ?? b.restHeading);
     const off = (): number => Math.atan2(Math.sin(want - b.aimHeading), Math.cos(want - b.aimHeading));
     const step = DVINA_TURN_RATE * dt;
     const diff = off();

@@ -1,4 +1,4 @@
-import { type ContestedNationId, DVINA_COST, DVINA_NATION, FOOTPRINT_DVINA, HIDDEN_BUILDS, LDEW_SITE_COST, LDEW_SITE_NATION } from '../constants';
+import { type ContestedNationId, DVINA_COST, YARS_COST, DVINA_NATION, FOOTPRINT_DVINA, HIDDEN_BUILDS, LDEW_SITE_COST, LDEW_SITE_NATION } from '../constants';
 import { DvinaLauncher } from '../entities/DvinaLauncher';
 import { demoPrice } from '../core/Demo';
 import {
@@ -60,7 +60,7 @@ import type { GameSystem } from './GameSystem';
 import { isDeleted, sellerOf } from '../core/GameAssets';
 
 /** A structure that can be produced from the sidebar's Build tab. */
-type BaseBuildId = 'powerPlant' | 'barracks' | 'warFactory' | 'airfield' | 'port' | 'radarTower' | 'fuelStation' | 'techCenter' | 'happyCity' | 'flagpole' | 'alliedBuilding' | 'parallelGov' | 'bunker' | 'wall' | 'gate' | 'ldew' | 'dvina';
+type BaseBuildId = 'powerPlant' | 'barracks' | 'warFactory' | 'airfield' | 'port' | 'radarTower' | 'fuelStation' | 'techCenter' | 'happyCity' | 'flagpole' | 'alliedBuilding' | 'parallelGov' | 'bunker' | 'wall' | 'gate' | 'ldew' | 'dvina' | 'yars';
 
 export interface BuildOption {
   /** `base@faction` for another nation's design (on sale while that nation's capital is held). */
@@ -75,6 +75,8 @@ export interface BuildOption {
   /** Tech tree: these buildings must already stand (power plant → barracks → war factory + radar tower → airfield → happy city). */
   requires?: BuildingType | readonly BuildingType[];
   cost: number;
+  /** Shown in the shop but not for sale yet (locked for player and AI alike). */
+  comingSoon?: boolean;
   /** Same price for every nation (the faction cost multiplier is not applied). */
   fixedCost?: boolean;
   footprint: { w: number; d: number };
@@ -152,6 +154,18 @@ const OWN_OPTIONS: readonly BuildOption[] = [
     footprint: FOOTPRINT_DVINA,
     spriteKey: (f) => `bunker:${f}`,
     create: (owner, faction, x, y) => new DvinaLauncher(owner, faction, center(x, y, FOOTPRINT_DVINA)),
+  },
+  {
+    // RS-24 Yars ICBM: every nation's shop shows it, not for sale yet (comingSoon).
+    id: 'yars',
+    name: 'RS-24 Yars',
+    requires: 'barracks',
+    comingSoon: true,
+    cost: YARS_COST,
+    fixedCost: true,
+    footprint: FOOTPRINT_BUNKER,
+    spriteKey: (f) => `bunker:${f}`,
+    create: (owner, faction, x, y) => new Bunker(owner, faction, center(x, y, FOOTPRINT_BUNKER)),
   },
   {
     // One block of the nation's wall: stops enemy ground units.
@@ -334,6 +348,8 @@ export function missingRequirement(option: BuildOption, owned: ReadonlySet<Build
   // A military embargo only stops unit production (TrainingSystem / VehicleSystem): structures are never forbidden.
   const disarmed = false;
   const base = option.id.split('@')[0] as BuildingType;
+  // Not for sale yet: reported as needing itself, so the cameo stays locked and the AI never orders it.
+  if (option.comingSoon) return base;
   const core: BuildingType[] = base === 'powerPlant' ? [] : base === 'barracks' ? ['powerPlant'] : ['powerPlant', 'barracks'];
   const own: readonly BuildingType[] = option.requires === undefined ? [] : typeof option.requires === 'string' ? [option.requires] : option.requires;
   return [...core, ...own].find((t) => !owned.has(t) && !(disarmed && MILITARY_BASES.includes(t))) ?? null;
