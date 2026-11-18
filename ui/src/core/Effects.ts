@@ -36,6 +36,8 @@ export type Effect =
   | { kind: 'missile'; x0: number; y0: number; x1: number; y1: number; age: number; ttl: number }
   /** Air-defence vehicle's missile (Patriot / SAMP/T NG / S-400 / HQ-9) on a lofted arc, flying for `flight` s; its trail lingers to `ttl`. */
   | { kind: 'samMissile'; x0: number; y0: number; x1: number; y1: number; age: number; ttl: number; flight: number; buk: boolean }
+  /** R-12 Dvina missile chasing its target: head (x, y) and screen direction (ux, uy) updated every frame by Game; smoke puffs left behind (iso px, born = effect age). */
+  | { kind: 'dvinaMissile'; x: number; y: number; ux: number; uy: number; flying: boolean; puffs: { x: number; y: number; born: number }[]; age: number; ttl: number }
   /** BM-21 Grad rocket on a high arc (x0, y0) → (x1, y1) for `flight` s, then its blast (an air burst when `air`). */
   | { kind: 'gradRocket'; x0: number; y0: number; x1: number; y1: number; age: number; ttl: number; flight: number; air: boolean; /** Shock-wave reach (iso px). */ ring: number }
   /** Its impact: a small burst on an aircraft (`air`), the large explosion on the ground. */

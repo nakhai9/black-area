@@ -1,6 +1,7 @@
 import { ISO_X, ISO_Y } from '../constants';
 import type { Vehicle } from '../entities/Vehicle';
 import type { FactionId } from '../types';
+import { lazyImage } from './onDemand';
 import { spriteUrl } from './spriteUrl';
 
 /**
@@ -17,9 +18,7 @@ const SCALE = 0.1693;
 const FACTIONS: readonly FactionId[] = ['usa', 'russia', 'china', 'europe', 'islamic'];
 const SHEETS = new Map<FactionId, HTMLImageElement>(
   FACTIONS.map((f) => {
-    const img = new Image();
-    img.src = spriteUrl(`tank-vt12-${f}.webp`);
-    return [f, img];
+    return [f, lazyImage(spriteUrl(`tank-vt12-${f}.webp`))];
   }),
 );
 const loaded = (img: HTMLImageElement | undefined): img is HTMLImageElement => !!img && img.complete && img.naturalWidth > 0;

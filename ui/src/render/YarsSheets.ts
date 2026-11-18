@@ -1,5 +1,6 @@
 import { FACTIONS } from '../factions';
 import type { FactionId } from '../types';
+import { lazyImage } from './onDemand';
 import { spriteUrl } from './spriteUrl';
 
 /**
@@ -10,8 +11,7 @@ const IMAGES = new Map<string, HTMLImageElement>();
 function image(file: string): HTMLImageElement {
   let img = IMAGES.get(file);
   if (!img) {
-    img = new Image();
-    img.src = spriteUrl(`${file}.webp`);
+    img = lazyImage(spriteUrl(`${file}.webp`));
     IMAGES.set(file, img);
   }
   return img;

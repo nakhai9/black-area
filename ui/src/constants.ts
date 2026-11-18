@@ -39,7 +39,7 @@ export const DEMO_FACTION: FactionId = NATION_CODES[(import.meta.env.VITE_DEMO_F
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "3.75.227";
+export const GAME_VERSION = "3.75.229";
 /** Transport aircraft (C-17, Il-76, Y-20, A400M) are drawn this many iso px long: 13, +20% (v3.75.224). */
 export const TRANSPORT_LENGTH = 13 * 1.2 * 0.9;
 
@@ -405,7 +405,13 @@ export const DVINA_HP = 1400;
 /** Reach: 3 × the BM-21's rocket reach (60 cells), more than twice the K9 Thunder's. */
 export const DVINA_RANGE_CELLS = 3 * (140 / 7);
 /** Seconds the missile flies to a target `distance` world px away; its warhead goes off only when it gets there. */
+/** Dvina only fires on massed units: more than this many soldiers, or vehicles, of one owner within DVINA_GROUP_CELLS. */
+export const DVINA_GROUP_SOLDIERS = 8;
+export const DVINA_GROUP_VEHICLES = 5;
+export const DVINA_GROUP_CELLS = 3;
 export const dvinaFlight = (distance: number): number => 0.7 + distance / 200;
+/** Dvina missile: ground speed (world px / s, far faster than any aircraft) — it chases its target until it hits. */
+export const DVINA_MISSILE_SPEED = 200;
 /** Warhead at the point of impact (the game has no nuclear weapon: taken as 1/5 of a notional 15000-damage nuke). */
 export const DVINA_DAMAGE = 3000;
 /** Blast radius (cells) round the impact: full damage at the centre, none at the edge (structures and units alike). */

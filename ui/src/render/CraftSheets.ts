@@ -1,6 +1,7 @@
 import { ISO_X, ISO_Y, TRANSPORT_LENGTH } from '../constants';
 import type { Vehicle } from '../entities/Vehicle';
 import type { FactionId, VehicleKind } from '../types';
+import { onDemand } from './onDemand';
 import { spriteUrl } from './spriteUrl';
 
 /**
@@ -50,7 +51,7 @@ const ROTOR_ROW = { still: 0, spin: 1, stillShadow: 2, spinShadow: 3 } as const;
 const img = (file: string): HTMLImageElement => {
   const i = new Image();
   i.dataset.src = spriteUrl(`${file}`);
-  return i;
+  return onDemand(i, i.dataset.src);
 };
 const air = (model: string, span: number): CraftSheet => ({ image: img(`air-${model}.webp`), fx: img(`air-${model}-fx.webp`), cell: 96, fxCell: 128, fxFrames: 20, span, heli: false });
 

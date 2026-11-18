@@ -367,6 +367,11 @@ export class TerrainRenderer {
     });
   }
 
+  /** Resolves once the detailed ground of `view` (and round it) is painted: see TileTerrain.prepare. */
+  prepareTiles(view: Rect): Promise<void> {
+    return this.tiles.prepare(view);
+  }
+
   /** Is world point (x, y) on a bridge deck? */
   onBridge(x: number, y: number): boolean {
     return this.map.isBridge(Math.floor(x / CELL_SIZE), Math.floor(y / CELL_SIZE));

@@ -2,6 +2,7 @@ import { ISO_X, ISO_Y, TRANSPORT_LENGTH } from '../constants';
 import type { Vehicle } from '../entities/Vehicle';
 import type { FactionId, VehicleKind } from '../types';
 import { drawCraftPortrait, drawCraftSheet, loadCraftSprites } from './CraftSheets';
+import { lazyImage } from './onDemand';
 import { spriteUrl } from './spriteUrl';
 
 /**
@@ -23,7 +24,7 @@ interface AircraftSheet {
 
 const sheet = (file: string, cell: number, length: number): AircraftSheet => ({
   url: spriteUrl(`${file}`),
-  image: new Image(),
+  image: lazyImage(spriteUrl(`${file}`)),
   cell,
   // Side-on the aircraft spans ≈ 0.74 of a cell; it is drawn `length` iso px long.
   scale: length / (cell * 0.74),

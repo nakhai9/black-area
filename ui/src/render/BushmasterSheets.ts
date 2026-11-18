@@ -2,6 +2,7 @@ import { ISO_X, ISO_Y } from '../constants';
 import type { Vehicle } from '../entities/Vehicle';
 import { FACTIONS } from '../factions';
 import type { FactionId } from '../types';
+import { lazyImage } from './onDemand';
 import { spriteUrl } from './spriteUrl';
 import { tintedCell } from './TeamTint';
 
@@ -17,9 +18,7 @@ const PIVOT_Y = 54;
 const SCALE = 0.1693;
 
 const load = (file: string): HTMLImageElement => {
-  const img = new Image();
-  img.src = spriteUrl(file);
-  return img;
+  return lazyImage(spriteUrl(file));
 };
 const BASE = load('bushmaster.webp');
 const TEAM = load('bushmaster-team.webp');

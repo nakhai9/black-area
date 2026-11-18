@@ -82,3 +82,93 @@ export function drawSamMissile(ctx: CanvasRenderingContext2D, x0: number, y0: nu
   }
   ctx.restore();
 }
+
+/** How long the Dvina's smoke trail stays in the sky after it is laid (s): the whole path stays readable. */
+export const DVINA_TRAIL_SECONDS = 3;
+
+/**
+ * A homing missile (R-12 Dvina) drawn from its live state. Its whole flight path stays on screen as a smoke trail: a
+ * continuous white contrail line through every point it passed (iso px, `born` = the effect's age when laid) under
+ * soft grey puffs that widen and drift up, all fading over DVINA_TRAIL_SECONDS. While it flies, the missile itself:
+ * a long pale body with a dark nose cone, cruciform fins at the tail and the motor's flame and glow behind.
+ */
+export function drawHomingMissile(ctx: CanvasRenderingContext2D, x: number, y: number, ux: number, uy: number, flying: boolean, puffs: readonly { x: number; y: number; born: number }[], age: number): void {
+  ctx.save();
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  // Soft puffs first (widening, drifting up), then the crisp trajectory line on top.
+  for (const p of puffs) {
+    const old = age - p.born;
+    const a = 0.32 * Math.max(0, 1 - old / DVINA_TRAIL_SECONDS);
+    if (a <= 0.01) continue;
+    ctx.fillStyle = `rgba(178,176,168,${a})`;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y - old * 1.2, 1 + old * 1.3, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  for (let i = 1; i < puffs.length; i++) {
+    const a0 = puffs[i - 1]!;
+    const a1 = puffs[i]!;
+    const old = age - a1.born;
+    const a = 0.85 * Math.max(0, 1 - old / DVINA_TRAIL_SECONDS);
+    if (a <= 0.01) continue;
+    ctx.strokeStyle = `rgba(245,244,238,${a})`;
+    ctx.lineWidth = 0.7 + old * 0.35;
+    ctx.beginPath();
+    ctx.moveTo(a0.x, a0.y - (age - a0.born) * 1.2);
+    ctx.lineTo(a1.x, a1.y - old * 1.2);
+    ctx.stroke();
+  }
+  if (flying) {
+    const len = 6; // body length (iso px)
+    const px = -uy;
+    const py = ux;
+    const tx = x - ux * len;
+    const ty = y - uy * len;
+    // Motor glow and flame behind the tail.
+    const g = ctx.createRadialGradient(tx, ty, 0, tx, ty, 3.2);
+    g.addColorStop(0, 'rgba(255,255,235,1)');
+    g.addColorStop(0.35, 'rgba(255,200,80,0.95)');
+    g.addColorStop(1, 'rgba(255,90,20,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(tx, ty, 3.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255,230,150,0.95)';
+    ctx.beginPath();
+    ctx.moveTo(tx + px * 0.6, ty + py * 0.6);
+    ctx.lineTo(tx - ux * 3.5, ty - uy * 3.5);
+    ctx.lineTo(tx - px * 0.6, ty - py * 0.6);
+    ctx.closePath();
+    ctx.fill();
+    // Tail fins.
+    ctx.fillStyle = '#5f6650';
+    ctx.beginPath();
+    ctx.moveTo(tx + ux * 1.6, ty + uy * 1.6);
+    ctx.lineTo(tx + px * 1.5, ty + py * 1.5);
+    ctx.lineTo(tx - px * 1.5, ty - py * 1.5);
+    ctx.closePath();
+    ctx.fill();
+    // Body: pale with a darker belly line, then the dark nose cone.
+    ctx.strokeStyle = '#e4e2d6';
+    ctx.lineWidth = 1.3;
+    ctx.beginPath();
+    ctx.moveTo(tx, ty);
+    ctx.lineTo(x - ux * 1.4, y - uy * 1.4);
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(90,92,80,0.6)';
+    ctx.lineWidth = 0.4;
+    ctx.beginPath();
+    ctx.moveTo(tx + px * 0.45, ty + py * 0.45);
+    ctx.lineTo(x - ux * 1.4 + px * 0.45, y - uy * 1.4 + py * 0.45);
+    ctx.stroke();
+    ctx.fillStyle = '#3c4034';
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x - ux * 1.6 + px * 0.65, y - uy * 1.6 + py * 0.65);
+    ctx.lineTo(x - ux * 1.6 - px * 0.65, y - uy * 1.6 - py * 0.65);
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.restore();
+}

@@ -1,6 +1,7 @@
 import type { Vehicle } from '../entities/Vehicle';
 import type { FactionId } from '../types';
 import { ISO_X, ISO_Y } from '../constants';
+import { onDemand } from './onDemand';
 import { spriteUrl } from './spriteUrl';
 
 /**
@@ -16,7 +17,7 @@ const SCALE = 0.23;
 const img = (file: string): HTMLImageElement => {
   const i = new Image();
   i.dataset.src = spriteUrl(`${file}`);
-  return i;
+  return onDemand(i, i.dataset.src);
 };
 const SHEETS: Partial<Record<FactionId, HTMLImageElement>> = { usa: img('ship-cvn80.webp'), europe: img('ship-r08.webp'), china: img('ship-type004.webp') };
 let loaded: Promise<void> | null = null;

@@ -1,3 +1,6 @@
+import { DVINA_TRAIL_SECONDS } from '../render/SamMissile';
+import type { DvinaMissile } from '../systems/CombatSystem';
+import { startedLoaded } from '../render/onDemand';
 import { askSaveTarget } from '../ui/SaveChoice';
 import { storedLeaderName } from '../ui/LeaderName';
 import { backToMenuWithToast, saveToCloud } from '../net/CloudSave';
@@ -174,7 +177,7 @@ import { heavyMissile, samGun } from '../render/SamModel';
 import { SAM_TRAIL_SECONDS } from '../render/SamMissile';
 import { saveFolderSupported, writeToSaveFolder } from '../ui/SaveFolder';
 import { GRAD_BLAST_SECONDS, GRAD_TRAIL_SECONDS } from '../render/GradRocket';
-import { BM21_SHOCK_CELLS, bm21Flight, dvinaFlight } from '../constants';
+import { BM21_SHOCK_CELLS, bm21Flight } from '../constants';
 import { TRUCK_DEATH_SECONDS, hasTruckSheet } from '../render/TruckSheets';
 import { TANK_DEATH_SECONDS, hasTankSheet } from '../render/TankSheets';
 import { CRAFT_DEATH_SECONDS, craftKey } from '../render/CraftSheets';
@@ -746,6 +749,7 @@ export class Game {
       onIntercept: (guard, launcher, target, impact, flight) => this.onIntercept(guard, launcher, target, impact, flight),
       onBunkerFire: (b, t) => this.onBunkerFire(b, t),
       onDvinaBurst: (at, air, t) => this.onDvinaBurst(at, air, t),
+      onDvinaLaunch: (m) => this.onDvinaLaunch(m),
       onDeath: (e, killer) => this.onDeath(e, killer),
       onSpare: (nation, fugitive) => this.payMercyBonus(nation, fugitive),
       safeAt: (x, y) => this.safeZones.isSafe(x, y),
@@ -1048,6 +1052,17 @@ export class Game {
   }
 
   /** Replaces the freshly generated game with a saved one (same nation, same world). */
+  /**
+   * Before the first frame: asks for the sheet of every unit on the map (and the shop cameos of the player's nation),
+   * then waits for those downloads, so nothing the player sees starts out blank (render/onDemand.ts).
+   */
+  async warmUp(): Promise<void> {
+    this.renderer.warmUnits([...this.entities.vehicles()]);
+    for (const o of this.production.optionsFor(this.humanPlayer)) vehiclePortrait(o.faction, o.kind);
+    // The detailed ground of the first view (and round it) is painted before the game shows: no blurry patches.
+    await Promise.all([startedLoaded(), this.terrain.prepareTiles(this.camera.viewRect())]);
+  }
+
   importSave(save: SaveFile): void {
     migrateSave(save); // checks the format and upgrades an older save to the current one
     const codec = new SaveCodec(this.players);
@@ -4071,6 +4086,7 @@ export class Game {
       this.dom.canvas.style.cursor = cursor;
     }
 
+    this.syncDvinaMissiles();
     this.effects.update(dt);
     this.smokeFromDamagedBuildings(dt);
     const buildings = this.entities.buildings();
@@ -5036,6 +5052,40 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
 
   /** A bunker's machine gun: muzzle flash at the barrel drawn on its sheet, a bullet from the bullet sheet and a hit spark. */
   /** R-12 Dvina warhead: the burst on the target (or where it was aimed, the target gone). */
+  /** Dvina missiles in the air and the effect that draws each one (see syncDvinaMissiles). */
+  private readonly dvinaFx = new Map<DvinaMissile, Extract<Effect, { kind: 'dvinaMissile' }>>();
+
+  private onDvinaLaunch(m: DvinaMissile): void {
+    const rail = this.fx(m.x, m.y, siteRailHeight(m.launcher.site));
+    const e: Extract<Effect, { kind: 'dvinaMissile' }> = { kind: 'dvinaMissile', x: rail.x, y: rail.y, ux: 0, uy: -1, flying: true, puffs: [], age: 0, ttl: Infinity };
+    this.effects.add(e);
+    this.dvinaFx.set(m, e);
+  }
+
+  /** Moves each Dvina missile's picture onto its live position and lays its smoke trail; ends the trail once it hit. */
+  private syncDvinaMissiles(): void {
+    for (const [m, e] of this.dvinaFx) {
+      const p = this.fx(m.x, m.y, m.lift + 1.5);
+      const dx = p.x - e.x;
+      const dy = p.y - e.y;
+      const d = Math.hypot(dx, dy);
+      if (d > 0.05) {
+        e.ux = dx / d;
+        e.uy = dy / d;
+      }
+      // A puff about every 0.6 px flown, so the trail reads as one continuous plume.
+      const last = e.puffs[e.puffs.length - 1];
+      if (!last || Math.hypot(p.x - last.x, p.y - last.y) > 0.6) e.puffs.push({ x: p.x, y: p.y, born: e.age });
+      e.x = p.x;
+      e.y = p.y;
+      if (m.done) {
+        e.flying = false;
+        e.ttl = e.age + DVINA_TRAIL_SECONDS;
+        this.dvinaFx.delete(m);
+      }
+    }
+  }
+
   private onDvinaBurst(at: WorldPoint, air: boolean, target: Unit | Building | null): void {
     const hit = this.fx(at.x, at.y, target instanceof Unit ? this.aimHeight(target, 0.6) : 4);
     if (hasMissileSheet()) this.effects.add({ kind: 'missileBlast', x: hit.x, y: hit.y, age: 0, ttl: MISSILE_BLAST_SECONDS, air });
@@ -5047,13 +5097,10 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     const c = b.centerWorld();
     const base = worldToIso(c.x, c.y);
     if (b instanceof DvinaLauncher) {
-      // R-12 Dvina: the missile leaves the rail on a lofted climb with a heavy smoke trail, then bursts on the target.
-      const tc = target instanceof Building ? target.centerWorld() : { x: target.px, y: target.py };
-      const hit = this.fx(tc.x, tc.y, target instanceof Unit ? this.aimHeight(target, 0.6) : 4);
+      // R-12 Dvina: launch flash and roar; the missile itself is drawn chasing its target (onDvinaLaunch), the burst
+      // comes when it touches it (onDvinaBurst).
       const from = { x: base.x, y: base.y - siteRailHeight(b.site) };
-      const flight = dvinaFlight(Math.hypot(tc.x - c.x, tc.y - c.y));
-      // The burst itself comes with the warhead (onDvinaBurst), when the missile gets there.
-      this.effects.add({ kind: 'samMissile', x0: from.x, y0: from.y, x1: hit.x, y1: hit.y, age: 0, ttl: flight + SAM_TRAIL_SECONDS, flight, buk: true });
+      this.effects.add({ kind: 'flash', x: from.x, y: from.y, age: 0, ttl: 0.12, size: 5 });
       this.sound.play('missile', c);
       if (target instanceof Unit) this.alertUnderAttack(target, b);
       return;

@@ -1,6 +1,7 @@
 import { ISO_X, ISO_Y } from '../constants';
 import type { Vehicle } from '../entities/Vehicle';
 import type { FactionId } from '../types';
+import { lazyImage } from './onDemand';
 import { spriteUrl } from './spriteUrl';
 
 /**
@@ -16,9 +17,7 @@ const PIVOT_Y = 41;
 export const BM21_SCALE = 0.1693;
 
 const sheet = (file: string): HTMLImageElement => {
-  const img = new Image();
-  img.src = spriteUrl(`${file}.webp`);
-  return img;
+  return lazyImage(spriteUrl(`${file}.webp`));
 };
 const FACTIONS: readonly FactionId[] = ['usa', 'russia', 'china', 'europe', 'islamic'];
 const CHASSIS = new Map<FactionId, HTMLImageElement>(FACTIONS.map((f) => [f, sheet(`ural4320-${f}-chassis`)]));

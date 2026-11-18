@@ -2,6 +2,7 @@ import type { Vehicle } from '../entities/Vehicle';
 import type { FactionId } from '../types';
 import { ISO_X, ISO_Y } from '../constants';
 import { SAM_CELL, samLength, samPivotOffset, samSheetCell } from './SamModel';
+import { lazyImage } from './onDemand';
 import { spriteUrl } from './spriteUrl';
 
 /**
@@ -37,8 +38,7 @@ const SHEETS = new Map<FactionId, HTMLImageElement>();
 function sheet(f: FactionId): HTMLImageElement | null {
   let img = SHEETS.get(f);
   if (!img) {
-    img = new Image();
-    img.src = spriteUrl(`mantis-${SHEET_MODEL[f]}.webp`);
+    img = lazyImage(spriteUrl(`mantis-${SHEET_MODEL[f]}.webp`));
     SHEETS.set(f, img);
   }
   return img.complete && img.naturalWidth > 0 ? img : null;

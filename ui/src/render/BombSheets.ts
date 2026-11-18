@@ -1,4 +1,5 @@
 import type { FactionId } from '../types';
+import { lazyImage } from './onDemand';
 import { spriteUrl } from './spriteUrl';
 
 /**
@@ -21,7 +22,7 @@ interface BombSheet {
   readonly image: HTMLImageElement;
 }
 
-const sheet = (file: string): BombSheet => ({ url: spriteUrl(`${file}`), image: new Image() });
+const sheet = (file: string): BombSheet => ({ url: spriteUrl(`${file}`), image: lazyImage(spriteUrl(`${file}`)) });
 
 const SHEETS: Partial<Record<FactionId, BombSheet>> = {
   russia: sheet('bomb-tu160.webp'),

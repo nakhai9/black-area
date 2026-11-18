@@ -1,3 +1,4 @@
+import { drawHomingMissile } from '../render/SamMissile';
 import { drawChargeIcon } from '../render/ChargeIcon';
 import { BRIDGE_DECK_PX, bridgeDeckAt } from '../render/sprites/Bridge';
 import { BRIDGE_JOIN_HIGH, BRIDGE_JOIN_LOW, type Bridge } from '../entities/Bridge';
@@ -224,7 +225,7 @@ function blastSprite(): HTMLCanvasElement {
 const byDepth = (a: { depth: number }, b: { depth: number }): number => a.depth - b.depth;
 
 export class Renderer {
-  private readonly ctx: CanvasRenderingContext2D;
+  private ctx: CanvasRenderingContext2D;
   /** Per-frame scratch lists, reused so drawing a frame allocates no new arrays. */
   private readonly visibleBuildings: Building[] = [];
   private readonly visibleUnits: Unit[] = [];
@@ -730,6 +731,28 @@ export class Renderer {
       ctx.filter = 'brightness(2.6)';
       this.drawUnitBodyRaw(u);
       ctx.restore();
+    }
+  }
+
+  /**
+   * Draws every unit once onto a throw-away canvas, so each sheet they need is asked for (render/onDemand.ts) before
+   * the first real frame; the caller then waits for those downloads.
+   */
+  warmUnits(units: Iterable<Unit>): void {
+    const real = this.ctx;
+    const scratch = document.createElement('canvas');
+    scratch.width = scratch.height = 1;
+    this.ctx = scratch.getContext('2d')!;
+    try {
+      for (const u of units) {
+        try {
+          this.drawUnitBodyRaw(u);
+        } catch {
+          // a unit that cannot draw outside a frame just skips the warm-up
+        }
+      }
+    } finally {
+      this.ctx = real;
     }
   }
 
@@ -1430,6 +1453,8 @@ export class Renderer {
         drawGradRocket(ctx, e.x0, e.y0, e.x1, e.y1, e.age, e.flight, e.air, e.ring);
       } else if (e.kind === 'samMissile') {
         drawSamMissile(ctx, e.x0, e.y0, e.x1, e.y1, e.age, e.flight, e.buk);
+      } else if (e.kind === 'dvinaMissile') {
+        drawHomingMissile(ctx, e.x, e.y, e.ux, e.uy, e.flying, e.puffs, e.age);
       } else if (e.kind === 'missile') {
         drawMissile(ctx, e.x0, e.y0, e.x1, e.y1, t, e.age);
       } else if (e.kind === 'missileBlast') {

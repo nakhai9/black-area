@@ -1,3 +1,4 @@
+import { prefetchRest } from './render/onDemand';
 import { loadPictureArts } from './render/sprites/PictureArt';
 import './styles.css';
 import { t } from './i18n';
@@ -5,17 +6,11 @@ import { DEMO_FACTION, DEMO_MODE,EARTH_TEXTURE_URL, FACTION_ORDER } from './cons
 import { SoundSystem } from './audio/SoundSystem';
 import { Game } from './core/Game';
 import { loadEarthData } from './map/EarthData';
-import { loadAircraftSprites } from './render/AircraftSheets';
-import { loadBombSprites } from './render/BombSheets';
 import { loadExplosionSprites } from './render/ExplosionSheet';
 import { loadMissileSprites } from './render/MissileSheet';
 import { loadShellSprites } from './render/ShellSheet';
 import { loadBulletSprites } from './render/BulletSheet';
 import { loadTreeSprites } from './render/TreeSheet';
-import { loadRepairSprites } from './render/RepairSheets';
-import { loadMantisSprites } from './render/MantisSheet';
-import { loadCarrierSprites } from './render/CarrierSheet';
-import { loadTruckSprites } from './render/TruckSheets';
 import { loadTankSprites } from './render/TankSheets';
 import { loadBunkerSprites } from './render/BunkerSheet';
 import { loadSoldierSprites } from './render/InfantryArt';
@@ -99,19 +94,12 @@ async function boot(): Promise<void> {
   earth.catch(() => undefined); // surfaced below once awaited
   const soldiers = loadSoldierSprites();
   soldiers.catch(() => undefined);
-  const aircraft = loadAircraftSprites();
-  aircraft.catch(() => undefined);
   const tanks = loadTankSprites();
   tanks.catch(() => undefined);
-  loadMantisSprites().catch(() => undefined);
-  loadCarrierSprites().catch(() => undefined);
-  const repairs = loadRepairSprites();
-  repairs.catch(() => undefined);
   const bunkers = loadBunkerSprites();
   bunkers.catch(() => undefined);
-  const trucks = loadTruckSprites();
-  trucks.catch(() => undefined);
-  loadBombSprites().catch(() => undefined);
+  // Aircraft, truck, carrier, air-defence, bomb and contested-nation vehicle sheets are not fetched here: each
+  // downloads the first time one is drawn (render/onDemand.ts), so a match never pays for machines it does not see.
   loadExplosionSprites().catch(() => undefined);
   loadMissileSprites().catch(() => undefined);
   loadShellSprites().catch(() => undefined);
@@ -191,6 +179,8 @@ async function boot(): Promise<void> {
       mp ? { present: mp.room.players.map((p) => p.faction), seed: mp.seed } : undefined,
     );
     if (pending) game.importSave(pending);
+    // Every sheet on the map / in the shop at the first frame is downloaded before the game shows.
+    await game.warmUp();
     // Dev only: the running game, for automated play tests from the browser console.
     if (import.meta.env.DEV) (window as unknown as { __game?: unknown }).__game = game;
     setProgress(100);
@@ -211,6 +201,8 @@ async function boot(): Promise<void> {
       mp.net.onClose = () => game.warnDisconnected();
     }
     loading.remove();
+    // The other machines' sheets follow in the background (the player's own nation first).
+    prefetchRest(faction);
     document.body.classList.remove('pregame');
     game.start();
 

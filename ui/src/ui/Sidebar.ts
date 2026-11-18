@@ -1,3 +1,4 @@
+import { startedLoaded } from '../render/onDemand';
 import { setZoomLock, settings } from '../core/Settings';
 import { CHARGE_ICON_PATH } from '../render/ChargeIcon';
 import { AlertToast } from './NewsToast';
@@ -1463,7 +1464,11 @@ export class Sidebar {
         <span class="sb-cameo-badge" hidden></span>
         <span class="sb-cameo-state"></span>`;
       const canvas = el.querySelector('canvas');
-      if (canvas) drawPreview(canvas, this.handlers.vehiclePreview(option));
+      if (canvas) {
+        drawPreview(canvas, this.handlers.vehiclePreview(option));
+        // A sheet still downloading leaves the cameo blank: draw it again once it has arrived.
+        void startedLoaded().then(() => drawPreview(canvas, this.handlers.vehiclePreview(option)));
+      }
       addInfoIcon(el, this.foreignName(option));
       this.addForeignFlag(el, option.faction);
       el.addEventListener('click', () => this.handlers.onVehicle(option));

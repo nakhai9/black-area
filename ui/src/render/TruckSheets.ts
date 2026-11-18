@@ -2,6 +2,7 @@ import { ISO_X, ISO_Y } from '../constants';
 import type { Vehicle } from '../entities/Vehicle';
 import type { FactionId } from '../types';
 import { drawTankBlast } from './TankSheets';
+import { onDemand } from './onDemand';
 import { spriteUrl } from './spriteUrl';
 
 /**
@@ -19,7 +20,7 @@ export const TRUCK_DEATH_SECONDS = 4.5;
 const sheet = (file: string): HTMLImageElement => {
   const img = new Image();
   img.dataset.src = spriteUrl(`${file}`);
-  return img;
+  return onDemand(img, img.dataset.src);
 };
 const KAMAZ = sheet('truck-kamaz.webp');
 /**
