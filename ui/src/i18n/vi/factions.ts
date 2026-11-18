@@ -24,7 +24,7 @@ export default {
   'Type 99II armoured recovery vehicle: slow and unarmed; click a damaged friendly ground vehicle to drive up and repair it, or select damaged vehicles and click it to send them in for repair (5% of its max health every 2 s).': 'Xe cứu kéo bọc thép Type 99II: chậm và không vũ trang; nhấp vào xe mặt đất phe ta bị hư hại để chạy tới sửa, hoặc chọn các xe hư hại rồi nhấp vào nó để đưa chúng tới sửa (5% máu tối đa mỗi 2 giây).',
   // Europe
   'Economic power and coalition: strong income, advanced air defence and balanced forces.': 'Sức mạnh kinh tế và liên minh: thu nhập mạnh, phòng không hiện đại và lực lượng cân bằng.',
-  'Unified command of the European Union, flanked by the flags of its member states.': 'Bộ chỉ huy thống nhất của Liên minh châu Âu, hai bên là cờ các nước thành viên.',
+  'Unified command of the Conquistalia Union, flanked by the flags of its member states.': 'Bộ chỉ huy thống nhất của Liên minh Conquistalia, hai bên là cờ các nước thành viên.',
   'Combined European infantry with modern kit.': 'Bộ binh liên hợp châu Âu với trang bị hiện đại.',
   'European special operators — long-range precision marksmen.': 'Đặc nhiệm châu Âu — xạ thủ chính xác tầm xa.',
   'EU engineer: repairs buildings and captures enemy structures.': 'Công binh EU: sửa chữa công trình và chiếm công trình địch.',

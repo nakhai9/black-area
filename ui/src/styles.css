@@ -3349,5 +3349,5 @@ input:disabled {
 .fp-actions button.fp-desktop:hover {
   color: #15191c;
   background: linear-gradient(180deg, #c3c9ce 0%, #a0a8af 50%, #868e96 100%);
-  border-color: var(--btn-border-hover);
+  border-color: var(--steel-edge);
 }

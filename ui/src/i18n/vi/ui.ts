@@ -194,7 +194,7 @@ export default {
   'Commission President': 'Chủ tịch Ủy ban',
   'Custodian of the Two Holy Mosques': 'Người giám hộ Hai Thánh đường',
   Longoria: 'Longoria',
-  'European Union': 'Liên minh châu Âu',
+  'Conquistalia Union': 'Liên minh Conquistalia',
   'Lunastron Union': 'Liên minh Lunastron',
   Nordursia: 'Nordursia',
   Paxamerica: 'Paxamerica',

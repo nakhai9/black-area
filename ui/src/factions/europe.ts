@@ -1,11 +1,11 @@
 import type { FactionConfig } from '../types';
 import { t } from "../i18n";
 
-/** European Union — economic powerhouse and coalition defence. */
+/** Conquistalia (id 'europe', formerly shown as European Union / Europe, v3.75.163) — economic powerhouse and coalition defence. */
 export const EUROPE: FactionConfig = {
   id: 'europe',
-  name: 'European Union',
-  shortName: 'Europe',
+  name: 'Conquistalia Union',
+  shortName: 'Conquistalia',
   leader: { title: 'Commission President', name: 'Ursula von der Leyen' },
   doctrine: t('Economic power and coalition: strong income, advanced air defence and balanced forces.'),
   colors: { primary: '#6532d6', light: '#a487ec', dark: '#28155e' },
@@ -13,7 +13,7 @@ export const EUROPE: FactionConfig = {
   capital: {
     name: 'EU Headquarters',
     city: 'Paris',
-    description: t('Unified command of the European Union, flanked by the flags of its member states.'),
+    description: t('Unified command of the Conquistalia Union, flanked by the flags of its member states.'),
     maxHp: 15600,
     powerOutput: 0,
   },

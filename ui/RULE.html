@@ -26,7 +26,7 @@
 <body>
 <main>
 <img class="logo" src="/logo.png" alt="Black Area" />
-<h1>Black Area — RULE <small>v3.75.149</small></h1>
+<h1>Black Area — RULE <small>v3.75.173</small></h1>
 <p class="lead">Tài liệu luật chơi + kiến trúc code dành cho AI/dev sửa game. Mọi con số gameplay chính xác nằm trong <code>src/constants.ts</code> và <code>src/factions/*.ts</code>. Nếu tài liệu này khác code thì <b>code đúng</b>. <b>Khi đổi luật/số trong code, phải cập nhật file này.</b></p>
 <nav><a href="#s1">Quy tắc làm việc cho AI</a><a href="#s2">Chạy dự án</a><a href="#s3">Kiến trúc thư mục</a><a href="#s4">Thế giới</a><a href="#s5">Kinh tế (dầu)</a><a href="#s6">Công trình (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Quân đội</a><a href="#s8">Chiến đấu</a><a href="#s9">Điều khiển (Game.handleKey, handleInput)</a><a href="#s10">Giới hạn &amp; hiệu năng</a><a href="#s11">Thắng / thua &amp; AI</a><a href="#s12">Công thức sửa thường gặp</a></nav>
 <h2 id="s1">0. Quy tắc làm việc cho AI</h2>
@@ -102,11 +102,12 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
 <tr><td>Paxamerica (<code>usa</code>)</td><td><code>#2f6fe0</code></td><td>1.25</td><td>0.9</td><td>1.0</td><td>1.05</td><td>1.1</td><td>1.3</td><td>2</td><td>15000</td><td>Có bomber B-1A Lancer</td></tr>
 <tr><td>Nordursia (<code>russia</code>)</td><td><code>#d22b2b</code></td><td>0.95</td><td>1.1</td><td>1.2</td><td>1.3</td><td>0.95</td><td>1.0</td><td>0</td><td>16500</td><td>Có bomber Tu-160</td></tr>
 <tr><td>Longoria (<code>china</code>)</td><td><code>#e8b10a</code></td><td>0.85</td><td>1.3</td><td>1.0</td><td>0.95</td><td>1.2</td><td>0.85</td><td>0</td><td>18000</td><td>Bomber H-6K (cánh cố định, 4 bom, 4200 TB); lính rẻ + nhanh: <code>infantryCost 0.7</code> (giá lính ≈ 0.6 × gốc), <code>infantrySpeed 1.35</code> (tốc độ lính ≈ 1.15 × gốc)</td></tr>
-<tr><td>Europe</td><td><code>#6532d6</code></td><td>1.05</td><td>1.0</td><td>1.05</td><td>1.1</td><td>1.05</td><td>1.25</td><td>2</td><td>15600</td><td></td></tr>
+<tr><td>Conquistalia (<code>europe</code>)</td><td><code>#6532d6</code></td><td>1.05</td><td>1.0</td><td>1.05</td><td>1.1</td><td>1.05</td><td>1.25</td><td>2</td><td>15600</td><td></td></tr>
 <tr><td>Lunastron Union (<code>islamic</code>)</td><td><code>#1f9d4a</code></td><td>1.0</td><td>1.05</td><td>1.0</td><td>1.0</td><td>1.0</td><td>0.95</td><td>1</td><td>16000</td><td><code>oilCartel</code>, <code>leasesOil</code></td></tr>
 </table>
 <ul>
   <li><b>Tên phe Paxamerica</b> (id <code>usa</code>, trước đây hiện là United States / USA, rồi Thircolonia; đổi ở v3.75.82): lấy từ <b>Pax Americana</b> — "nền hòa bình kiểu Mỹ", trật tự thế giới do nước này dẫn dắt từ sau 1945. Tên ghép <i>Pax</i> (tiếng Latinh: hòa bình) với <i>America</i>, nói lên tham vọng: thế giới chỉ yên ổn khi theo luật của họ. Chỉ đổi tên hiển thị; id, màu, chỉ số, thủ đô giữ nguyên.</li>
+  <li><b>Tên phe Conquistalia Union</b> (Liên minh Conquistalia) (id <code>europe</code>, trước đây hiện là European Union / Europe, v3.75.163): ghép <b>Conquista</b> (tiếng Tây Ban Nha / Bồ Đào Nha: cuộc chinh phục, gợi tới các <i>conquistador</i> thời Đại phát kiến địa lý đi khắp các đại dương, mang ngôn ngữ, luật lệ và đức tin châu Âu tới mọi lục địa) với đuôi tên nước <b>-lia</b>. Châu Âu tự nhận đã khai sáng thế giới và muốn giữ văn hóa của mình cho trật tự mới.</li>
   <li><b>Tên phe Nordursia</b> (id <code>russia</code>, trước đây hiện là Russia, v3.75.79): ghép <b>Nord</b> (phương Bắc lạnh giá) + <b>Ursus</b> (tiếng Latinh: loài gấu, biểu tượng của phe) + đuôi tên quốc gia <b>-ia</b>. Chỉ đổi tên hiển thị; id, màu, chỉ số, thủ đô giữ nguyên.</li>
   <li><b>Tên phe Lunastron Union</b> (id <code>islamic</code>, trước đây hiện là Islamic Union / Liên minh Hồi giáo, v3.75.80): <b>Lunastron</b> ghép từ <b>Luna</b> (mặt trăng) và <b>Stella</b> (ngôi sao) theo tiếng Latinh — trăng lưỡi liềm và ngôi sao trên biểu tượng phe; nghe cổ điển và uy nghiêm. Vẫn giữ chữ <b>Union</b> / <b>Liên minh</b> (Liên minh Lunastron); tên ngắn: Lunastron. Chỉ đổi tên hiển thị; id, màu, chỉ số, thủ đô giữ nguyên.</li>
   <li><b>Tên phe Longoria</b> (id <code>china</code>, trước đây hiện là China / Trung Quốc, v3.75.81): ghép <b>Long</b> (Rồng) với <b>-oria</b> (rút gọn từ <i>Oriens</i> — Phương Đông — cộng đuôi vùng đất <b>-ia</b>): "Vùng đất Rồng Phương Đông". Tên mượt mà, dễ phát âm. Chỉ đổi tên hiển thị; id, màu, chỉ số, thủ đô giữ nguyên.</li>
@@ -705,6 +706,30 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
   <li>v3.41.5: Sửa lỗi máy bay vận tải bay vòng tròn mãi quanh điểm hạ cánh (không đáp được, không nhận lệnh di chuyển): khi điểm đến nằm trong vòng quay, máy bay bay thẳng tới. Lệnh di chuyển mới trong lúc đang bay tới điểm hạ cánh giờ được nhận (hủy hạ cánh, bay đi).</li>
   <li>v3.41.5: Máy bay không còn nhận <b>Cảng (Naval Port)</b> làm sân bay nhà (không đậu, không hạ cánh, không được sinh ra ở cảng). Loại máy bay được đậu ở cảng sẽ quy ước sau: thêm vào <code>PORT_AIRCRAFT</code> trong <code>src/systems/AircraftSystem.ts</code>. Máy bay đang lấy cảng làm nhà (bản lưu cũ) sẽ chuyển sang sân bay khác của phe; không còn sân bay nào thì rơi như luật cũ.</li>
     <li>v3.56.1: <b>Giảm tiếng động cơ mọi phương tiện</b>: <code>VEHICLE_BED_GAIN</code> 1.6 → 1.0, máy bay / trực thăng <code>AIR_BED_BOOST</code> 2.2 → 1.5. <b>Máy bay vận tải</b> (C-17, Il-76, Y-20, A400M, mặc định) tăng gain 0.85–0.9 → 1.35 để to ngang các máy bay khác (tiếng động cơ trầm, ít tiếng rít nên trước nghe nhỏ hơn).</li>
+    <li>v3.75.173: README mục Zürich dùng "quốc gia" thay cho "nó"; không đứng về phe nào trong các cuộc chiến.</li>
+    <li>v3.75.172: README mục Zürich viết lại: quốc gia luôn trung lập, giữ an toàn tài sản cả thế giới, chỉ muốn hòa bình.</li>
+    <li>v3.75.171: README đoạn Conquistalia viết gọn lại (bỏ câu thượng đẳng và Brussels mỉm cười).</li>
+    <li>v3.75.170: README Conquistalia coi mình là cha đẻ của Paxamerica.</li>
+    <li>v3.75.169: README Brussels: Paxamerica là đứa con do châu Âu sinh ra.</li>
+    <li>v3.75.168: README viết lại câu Brussels mỉm cười về tên Paxamerica.</li>
+    <li>v3.75.167: README đoạn Conquistalia viết gọn lại, giọng coi mình là thượng đẳng.</li>
+    <li>v3.75.166: README Conquistalia cười, cho rằng cái tên Paxamerica cũng do châu Âu tạo ra.</li>
+    <li>v3.75.165: README bỏ câu đề xuất giữ lại văn hóa châu Âu.</li>
+    <li>v3.75.164: README và RULE giải thích tên Conquistalia (các conquistador thời Đại phát kiến địa lý).</li>
+    <li>v3.75.163: Phe châu Âu đổi tên hiển thị thành <b>Conquistalia Union / Liên minh Conquistalia</b> (trong game, README, RULE).</li>
+    <li>v3.75.162: README châu Âu tự nhận đã khai sáng thế giới.</li>
+    <li>v3.75.161: README các nước châu Âu muốn thế giới chịu ảnh hưởng của mình, đề xuất giữ lại văn hóa châu Âu.</li>
+    <li>v3.75.160: README Ngày 9 bỏ vế loa vẫn bật.</li>
+    <li>v3.75.159: README Ngày 9 cờ các nước vẫn treo trước tòa nhà.</li>
+    <li>v3.75.158: README Ngày 9 Paxamerica từ chối tên cũ, không biết quốc gia đó ở đâu trên bản đồ.</li>
+    <li>v3.75.157: README Ngày 5 dùng "các nước châu Âu" và "các nước Hồi giáo" thay cho Paris và Riyadh.</li>
+    <li>v3.75.156: README Ngày 5 họp và công bố kết quả ngay trong buổi tối.</li>
+    <li>v3.75.155: README Ngày 5 thêm ý quốc gia trên hết, chủ nghĩa dân tộc.</li>
+    <li>v3.75.154: README Ngày 5 bỏ câu về dự luật trên bàn.</li>
+    <li>v3.75.153: README Ngày 5 thành phiên bỏ phiếu ở quốc hội (chỉ 30% đồng ý theo Liên Hợp Quốc).</li>
+    <li>v3.75.152: README bỏ câu "Hội trường vỗ tay".</li>
+    <li>v3.75.151: README viết lại, hạn chế dùng dấu hai chấm.</li>
+    <li>v3.75.150: Nút menu chính không còn viền vàng khi di chuột.</li>
     <li>v3.75.149: Nút ở menu chính (Load saved game, Play with friends, Story…) thành tấm thép xám, chữ trông như khắc chìm vào kim loại.</li>
     <li>v3.75.148: Các nút tùy chọn tròn (Turbo, Unload, Bridge, Mine) đổi từ xanh lá sang màu thép xám.</li>
     <li>v3.75.147: <b>Trực thăng</b> của mọi nước (AH-64, Ka-52, Z-10) to thêm 30%.</li>

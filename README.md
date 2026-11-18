@@ -4,9 +4,9 @@
 
 <h1 align="center">Black Area</h1>
 
-<p align="center"><sub>Phiên bản 3.75.149 · Version 3.75.143</sub></p>
+<p align="center"><sub>Phiên bản 3.75.173 · Version 3.75.173</sub></p>
 
-<p align="center"><b><a href="https://black-area.vercel.app">▶ CHƠI NGAY / PLAY NOW: black-area.vercel.app</a></b></p>
+<p align="center"><b><a href="https://black-area.vercel.app">▶ CHƠI NGAY / PLAY NOW · black-area.vercel.app</a></b></p>
 
 <p align="center"><a href="#tieng-viet">Tiếng Việt</a> · <a href="#english">English</a></p>
 
@@ -22,7 +22,7 @@
   <img src="ui/public/emblems/usa.png" alt="Paxamerica" height="72">
   <img src="ui/public/emblems/russia.png" alt="Nordursia" height="72">
   <img src="ui/public/emblems/china.png" alt="Longoria" height="72">
-  <img src="ui/public/emblems/europe.png" alt="Europe" height="72">
+  <img src="ui/public/emblems/europe.png" alt="Conquistalia Union" height="72">
   <img src="ui/public/emblems/islamic.png" alt="Lunastron Union" height="72">
 </p>
 
@@ -34,30 +34,30 @@ Khủng hoảng lan nhanh hơn mọi dự báo. Sáng nay, thêm ba thủ đô m
 
 #### Ngày 2
 
-Tổng thư ký đứng trước Đại hội đồng và đọc lời kêu gọi: mọi quốc gia phải **hoàn thành trách nhiệm và nghĩa vụ của mình đối với thế giới**. Quốc gia còn dầu phải chia sẻ. Quốc gia còn tiền phải góp quỹ cứu trợ. Quốc gia còn quân phải gửi lính tới những nơi đang bốc cháy. Hạn chót: ngày thứ chín.
-
-Hội trường vỗ tay.
+Tổng thư ký đứng trước Đại hội đồng và đọc lời kêu gọi. Mọi quốc gia phải **hoàn thành trách nhiệm và nghĩa vụ của mình đối với thế giới**. Quốc gia còn dầu phải chia sẻ. Quốc gia còn tiền phải góp quỹ cứu trợ. Quốc gia còn quân phải gửi lính tới những nơi đang bốc cháy. Hạn chót là ngày thứ chín.
 
 #### Ngày 5
 
-Đèn trong các phòng họp kín ở Washington, Moscow, Bắc Kinh, Paris và Riyadh sáng suốt đêm. Trên bàn là cùng một bản tính: dầu phải chia, tiền phải góp, lính phải gửi đi, tất cả cho những quốc gia chưa từng làm gì cho họ.
+Tối hôm đó, quốc hội ở Washington, Moscow, Bắc Kinh, các nước châu Âu và các nước Hồi giáo cùng họp khẩn.
 
-Không ai nói ra, nhưng ai cũng nghĩ cùng một câu hỏi: *nếu thế giới cũ đòi quá nhiều, tại sao phải ở lại trong nó?*
+Ngay trong tối, kết quả bỏ phiếu ở khắp nơi giống nhau đến lạ. Chỉ khoảng **30%** đại biểu đồng ý giao quân đội và tài sản cho Liên Hợp Quốc điều động. Số còn lại phản đối, và họ không dừng ở lần bỏ phiếu này. Họ không muốn tham gia thêm bất kỳ sứ mệnh nào Liên Hợp Quốc đưa ra nữa. Với họ, quốc gia của mình là trên hết. Chủ nghĩa dân tộc đã thắng trong phòng họp, và nó sẽ không dừng lại ở đó.
+
+Không ai nói ra, nhưng ai cũng nghĩ cùng một câu hỏi. *Nếu thế giới cũ đòi quá nhiều, tại sao phải ở lại trong nó?*
 
 #### Ngày 9
 
-Phái đoàn Washington bước lên bục:
+Phái đoàn Washington bước lên bục.
 
-> *"Quốc gia từng ngồi ở chiếc ghế này không còn tồn tại. Chúng tôi là **Paxamerica**: một quốc gia mới, chưa ký hiệp ước nào, chưa từng là thành viên của tổ chức này. Những nghĩa vụ ấy không thuộc về chúng tôi."*
+> *"Chúng tôi là **Paxamerica**. Chúng tôi không phải Hợp chúng quốc Hoa Kỳ. Quốc gia mà các vị gọi tên ấy, chúng tôi cũng không biết nó nằm ở đâu trên bản đồ. Chúng tôi chưa ký hiệp ước nào, chưa từng là thành viên của tổ chức này. Những nghĩa vụ ấy không thuộc về chúng tôi."*
 
-Không ai biết phải phản đối theo điều khoản nào. Phiên họp kết thúc mà không có nghị quyết. Cờ vẫn treo, loa vẫn bật, nhưng không còn ai nghe.
+Không ai biết phải phản đối theo điều khoản nào. Phiên họp kết thúc mà không có nghị quyết. Cờ các nước vẫn treo trước tòa nhà.
 
 #### Những ngày sau
 
 - Một đêm tuyết rơi, lá cờ trên nóc Kremlin lại được hạ xuống. Lịch sử từng chứng kiến cảnh này một lần, khi một liên bang tan rã để một quốc gia mới bước ra, bỏ lại sau lưng những món nợ cũ. Sáng hôm sau, thế giới gọi họ là **Nordursia**.
 - Bắc Kinh im lặng suốt một tuần. Rồi họ lên tiếng với một cái tên mới là **Longoria**.
 - Các nước Hồi giáo gác lại mọi bất đồng và cùng nhau lập nên **Liên minh Lunastron**, nắm trong tay cả cartel dầu.
-- Giữa hội trường vắng dần, chỉ còn phái đoàn **Châu Âu** ngồi lại. Họ giữ nguyên tên gọi, và vẫn tin vào luật lệ.
+- Các nước châu Âu hợp lại thành **Liên minh Conquistalia**, theo tên những đoàn *conquistador* năm xưa đã chinh phục khắp thế giới. Họ tự nhận là những người đã khai sáng nhân loại, và là **cha đẻ** của Paxamerica. Con có đổi tên thì vẫn là con.
 
 Không còn nghĩa vụ, nghĩa là không còn ai che chở ai. Các nước nhỏ bắt đầu tìm đến nhau, lập những liên minh riêng. Họ không cần mạnh, chỉ cần không đứng một mình.
 
@@ -68,18 +68,18 @@ Không còn nghĩa vụ, nghĩa là không còn ai che chở ai. Các nước nh
 | **Paxamerica** | Mọi đồng tiền đi qua tay mình | Đánh nhanh, đánh xa, đánh chính xác |
 | **Nordursia** | Thế giới chia thành vùng ảnh hưởng | Hỏa lực áp đảo; tiếng Tu-160 đánh dấu sân nhà |
 | **Longoria** | Thế giới chạy theo kế hoạch của mình | Thép dày, quân đông, công xưởng không ngủ |
-| **Châu Âu** | Thế giới của luật lệ và thể chế | Cân bằng, bền bỉ, mặt trận nào cũng có mặt |
+| **Conquistalia** | Thế giới của luật lệ và thể chế | Cân bằng, bền bỉ, mặt trận nào cũng có mặt |
 | **Lunastron** | Dầu là vũ khí, không phải mục tiêu | Một lệnh cắt giảm hay xả kho, ngân khố đối thủ sụp trong một đêm |
 
 #### Zürich
 
-Khi tòa nhà ở New York im tiếng, thế giới dựng lên một nơi khác ở Zürich. **Global Monitoring Center** có đủ đại diện của mọi phe, có phòng họp, có lá cờ riêng, giống hệt một Liên Hợp Quốc thứ hai. Chỉ khác một điều, nó không ra nghị quyết, không đòi ai làm nghĩa vụ, không gửi một người lính nào.
+Có một quốc gia không bao giờ đứng về phe nào trong các cuộc chiến. Hầm két của quốc gia ấy giữ vàng, tiền và bí mật của cả thế giới, và chưa ai chạm được vào chúng. Quốc gia ấy không muốn thống trị thế giới, chỉ muốn hòa bình.
 
-Nó chỉ đứng nhìn. Nó mua dầu của mọi bên với cùng một giá, cho vay khi ngân khố cạn, và luôn thu nợ trước. Nó không cần biết ai thắng, vì quốc gia thắng cuối cùng rồi cũng sẽ cần một ngân hàng.
+Khi tòa nhà ở New York im tiếng, quốc gia ấy mở cửa **Global Monitoring Center** ở Zürich. Ở đó có đại diện của mọi phe, nhưng không có nghị quyết, không có nghĩa vụ, không có một người lính nào. Quốc gia ấy mua dầu của mọi bên với cùng một giá, cho vay khi ngân khố cạn, và luôn thu nợ trước. Ai thắng cũng được, vì quốc gia thắng cuối cùng rồi cũng sẽ cần một ngân hàng.
 
 #### Các nước trung lập
 
-Anh, Canada, Cuba, Nhật Bản, Úc, Brazil, Ấn Độ, Ukraine, Belarus và hai miền Triều Tiên tuyên bố trung lập. Nhưng trung lập chỉ có nghĩa là **chưa bị chiếm**. Một kỹ sư lọt qua cổng thủ đô lúc nửa đêm, sáng hôm sau cả quốc gia đã đổi chủ, kèm theo kho vũ khí riêng của nó:
+Anh, Canada, Cuba, Nhật Bản, Úc, Brazil, Ấn Độ, Ukraine, Belarus và hai miền Triều Tiên tuyên bố trung lập. Nhưng trung lập chỉ có nghĩa là **chưa bị chiếm**. Một kỹ sư lọt qua cổng thủ đô lúc nửa đêm, sáng hôm sau cả quốc gia đã đổi chủ, kèm theo kho vũ khí riêng của nó.
 
 > K9 ở Seoul · laser LDEW ở London · BM-21 ở Bình Nhưỡng, Kyiv, Minsk · 2K12 Kub ở Kyiv, Minsk · R-12 Dvina ở Havana · C-17 ở New Delhi · A-29 ở Brasília
 
@@ -89,13 +89,13 @@ Năm giếng dầu vô chủ vẫn bơm dưới lớp băng. Không ai được 
 
 #### Người đứng cuối cùng
 
-Dầu đổi lấy tiền. Tiền đổi lấy xe tăng. Xe tăng đổi lấy đất, đồng minh và tiếng nói. Mất thủ đô và quân đội, một quốc gia biến khỏi bản đồ như chưa từng tồn tại. Quốc gia đứng vững tới cuối cùng sẽ có thứ quý hơn dầu: **quyền viết luật cho thế giới mới.**
+Dầu đổi lấy tiền. Tiền đổi lấy xe tăng. Xe tăng đổi lấy đất, đồng minh và tiếng nói. Mất thủ đô và quân đội, một quốc gia biến khỏi bản đồ như chưa từng tồn tại. Quốc gia đứng vững tới cuối cùng sẽ có thứ quý hơn dầu, đó là **quyền viết luật cho thế giới mới.**
 
 <p align="center"><b>Black Area. Thế giới mới bắt đầu.</b></p>
 
 ### Chạy dự án
 
-Dự án dùng **npm workspaces**: `ui/` và `server/` dùng chung một `node_modules` và một `package-lock.json` ở thư mục gốc. Chỉ cần cài một lần ở thư mục gốc:
+Dự án dùng **npm workspaces**. `ui/` và `server/` dùng chung một `node_modules` và một `package-lock.json` ở thư mục gốc. Chỉ cần cài một lần ở thư mục gốc.
 
 ```
 npm install
@@ -108,7 +108,7 @@ npm run server:dev   # máy chủ phòng chơi (server/, cổng 8787 hoặc PORT
 | `ui/` | Game (Vite + TypeScript) |
 | `server/` | Máy chủ phòng chơi nhiều người (Node + WebSocket) |
 
-Thêm thư viện cho một phần: `npm install <gói> -w ui` hoặc `-w server`. Game kết nối máy chủ qua `VITE_GAME_SERVER_API` (ví dụ `https://black-area.onrender.com`; không đặt thì dùng `http://localhost:8787` khi dev và `https://black-area.onrender.com` khi build). Triển khai: máy chủ lên Render bằng `render.yaml`, game lên Vercel bằng `vercel.json`.
+Thêm thư viện cho một phần bằng `npm install <gói> -w ui` hoặc `-w server`. Game kết nối máy chủ qua `VITE_GAME_SERVER_API` (ví dụ `https://black-area.onrender.com`). Không đặt thì dùng `http://localhost:8787` khi dev và `https://black-area.onrender.com` khi build. Máy chủ lên Render bằng `render.yaml`, game lên Vercel bằng `vercel.json`.
 
 ---
 
@@ -122,7 +122,7 @@ Thêm thư viện cho một phần: `npm install <gói> -w ui` hoặc `-w server
   <img src="ui/public/emblems/usa.png" alt="Paxamerica" height="72">
   <img src="ui/public/emblems/russia.png" alt="Nordursia" height="72">
   <img src="ui/public/emblems/china.png" alt="Longoria" height="72">
-  <img src="ui/public/emblems/europe.png" alt="Europe" height="72">
+  <img src="ui/public/emblems/europe.png" alt="Conquistalia Union" height="72">
   <img src="ui/public/emblems/islamic.png" alt="Lunastron Union" height="72">
 </p>
 
@@ -134,30 +134,30 @@ The crisis spreads faster than any forecast. This morning, three more capitals w
 
 #### Day 2
 
-The Secretary-General stood before the General Assembly and read the call: every nation must **fulfil its responsibilities and obligations to the world**. Those with oil must share it. Those with money must pay into a relief fund. Those with armies must send soldiers wherever the fires were burning. Deadline: day nine.
-
-The hall applauded.
+The Secretary-General stood before the General Assembly and read the call. Every nation must **fulfil its responsibilities and obligations to the world**. Those with oil must share it. Those with money must pay into a relief fund. Those with armies must send soldiers wherever the fires were burning. The deadline was day nine.
 
 #### Day 5
 
-The lights burn all night in the closed rooms of Washington, Moscow, Beijing, Paris and Riyadh. On every table lies the same bill: oil to share, money to pay, soldiers to send, all for nations that never did anything for them.
+That evening, the parliaments of Washington, Moscow, Beijing, the European nations and the Islamic nations meet in emergency session.
 
-No one says it aloud, but everyone is asking the same question: *if the old world demands this much, why stay in it?*
+Before the night is out, the votes everywhere are strangely alike. Only about **30%** of the members agree to hand their armies and assets to the United Nations. The rest vote no, and they do not stop at this vote. They want no part in any mission the United Nations sends them ever again. For them, their own nation comes first. Nationalism has won the chamber, and it will not stop there.
+
+No one says it aloud, but everyone is asking the same question. *If the old world demands this much, why stay in it?*
 
 #### Day 9
 
-The Washington delegation took the floor:
+The Washington delegation took the floor.
 
-> *"The nation that once sat in this chair no longer exists. We are **Paxamerica**: a new nation that has signed no treaty and has never been a member of this organisation. Those obligations are not ours."*
+> *"We are **Paxamerica**. We are not the United States of America. The country you keep naming, we could not even find it on a map. We have signed no treaty and have never been a member of this organisation. Those obligations are not ours."*
 
-No one knew under which article to object. The session ended without a resolution. Flags still flying, speakers still on, and no one listening.
+No one knew under which article to object. The session ended without a resolution. The flags of every nation still fly in front of the building.
 
 #### The days after
 
 - One snowy night, the flag over the Kremlin came down again. History had seen this once before, when a union dissolved so that a new nation could step out and leave its old debts behind. By morning the world was calling it **Nordursia**.
 - Beijing stayed silent for a whole week. Then it spoke with a new name, **Longoria**.
 - The Islamic nations set every quarrel aside and together founded the **Lunastron Union**, with the whole oil cartel in their hands.
-- In a hall slowly emptying, only the **European** delegation stayed seated. It kept its name, and its faith in rules.
+- The European nations united as the **Conquistalia Union**, named after the *conquistadores* who once conquered the world. They call themselves the ones who enlightened mankind, and the **father** of Paxamerica. A son who changes his name is still a son.
 
 No obligations means no one protecting anyone. The small nations began to seek each other out and form unions of their own. They do not need to be strong, only not to stand alone.
 
@@ -168,18 +168,18 @@ No obligations means no one protecting anyone. The small nations began to seek e
 | **Paxamerica** | Every dollar through its hands | Strike fast, far and precisely |
 | **Nordursia** | A world carved into spheres of influence | Overwhelming firepower; the Tu-160's roar marks its backyard |
 | **Longoria** | A world that runs on its plan | Thick steel, vast armies, factories that never sleep |
-| **Europe** | A world of rules and institutions | Balanced, enduring, on every front |
+| **Conquistalia** | A world of rules and institutions | Balanced, enduring, on every front |
 | **Lunastron** | Oil as a weapon, not a prize | One order to cut or flood, and a rival's treasury collapses overnight |
 
 #### Zürich
 
-When the building in New York fell silent, the world raised another place in Zürich. The **Global Monitoring Center** has delegates from every side, meeting rooms and a flag of its own, exactly like a second United Nations. With one difference. It passes no resolutions, demands no obligations, and sends not a single soldier.
+There is one nation that never takes a side in any war. Its vaults hold the gold, the money and the secrets of the whole world, and no one has ever touched them. It does not want to rule the world. It only wants peace.
 
-It only watches. It buys oil from everyone at one price, lends when treasuries run dry, and always collects first. It does not care who wins, because whoever wins will need a bank.
+When the building in New York fell silent, that nation opened the **Global Monitoring Center** in Zürich. Every side has delegates there, but there are no resolutions, no obligations and not a single soldier. It buys oil from everyone at one price, lends when treasuries run dry, and always collects first. Anyone may win, because whoever wins will need a bank.
 
 #### The neutrals
 
-Britain, Canada, Cuba, Japan, Australia, Brazil, India, Ukraine, Belarus and both Koreas declared themselves neutral. But neutral only means **not taken yet**. One engineer through a capital's gate at midnight, and by morning a whole nation has changed hands, together with its own arsenal:
+Britain, Canada, Cuba, Japan, Australia, Brazil, India, Ukraine, Belarus and both Koreas declared themselves neutral. But neutral only means **not taken yet**. One engineer through a capital's gate at midnight, and by morning a whole nation has changed hands, together with its own arsenal.
 
 > K9 in Seoul · LDEW lasers in London · BM-21 in Pyongyang, Kyiv, Minsk · 2K12 Kub in Kyiv, Minsk · R-12 Dvina in Havana · C-17 in New Delhi · A-29 in Brasília
 
@@ -189,13 +189,13 @@ Five ownerless oil wells still pump under the ice. No one may raise even a singl
 
 #### The last one standing
 
-Oil buys money. Money buys tanks. Tanks buy land, allies and a voice. Lose your capital and your army, and your nation vanishes from the map as if it had never existed. The last one standing gets something worth more than oil: **the right to write the rules of the new world.**
+Oil buys money. Money buys tanks. Tanks buy land, allies and a voice. Lose your capital and your army, and your nation vanishes from the map as if it had never existed. The last one standing gets something worth more than oil, **the right to write the rules of the new world.**
 
 <p align="center"><b>Black Area. The new world begins.</b></p>
 
 ### Running the project
 
-The project uses **npm workspaces**: `ui/` and `server/` share one `node_modules` and one `package-lock.json` at the root. Install once at the root:
+The project uses **npm workspaces**. `ui/` and `server/` share one `node_modules` and one `package-lock.json` at the root. Install once at the root.
 
 ```
 npm install
@@ -208,4 +208,4 @@ npm run server:dev   # the room server (server/, port 8787 or PORT)
 | `ui/` | The game (Vite + TypeScript) |
 | `server/` | Multiplayer room server (Node + WebSocket) |
 
-Add a library to one part: `npm install <package> -w ui` or `-w server`. The game reaches the server through `VITE_GAME_SERVER_API` (e.g. `https://black-area.onrender.com`; unset, it uses `http://localhost:8787` in dev and `https://black-area.onrender.com` in builds). Deployment: the server on Render via `render.yaml`, the game on Vercel via `vercel.json`.
+Add a library to one part with `npm install <package> -w ui` or `-w server`. The game reaches the server through `VITE_GAME_SERVER_API` (e.g. `https://black-area.onrender.com`). Unset, it uses `http://localhost:8787` in dev and `https://black-area.onrender.com` in builds. The server deploys to Render via `render.yaml`, the game to Vercel via `vercel.json`.
