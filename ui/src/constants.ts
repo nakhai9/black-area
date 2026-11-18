@@ -39,7 +39,7 @@ export const DEMO_FACTION: FactionId = NATION_CODES[(import.meta.env.VITE_DEMO_F
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "3.75.197";
+export const GAME_VERSION = "3.75.199";
 
 /** An Allied Building within this many cells of any capital is an embassy; farther out it is a "Pro-<nation> regime". */
 export const EMBASSY_CAPITAL_CELLS = 25;
@@ -209,7 +209,7 @@ export const BRIDGE_REACH_CELLS = 4;
 /** Pyramids of Giza (neutral monument). */
 export const FOOTPRINT_PYRAMIDS = { w: 6, d: 6 } as const;
 /** Symbol landmarks (Monument): the Statue of Liberty on Liberty Island. */
-export type MonumentId = "liberty";
+export type MonumentId = "liberty" | "eiffel";
 export const MONUMENTS: Readonly<
   Record<
     MonumentId,
@@ -225,8 +225,15 @@ export const MONUMENTS: Readonly<
     city: "New York",
     footprint: { w: 2, d: 2 },
   },
+  eiffel: {
+    name: "Eiffel Tower",
+    city: "Paris",
+    footprint: { w: 3, d: 3 },
+  },
 };
 export const STATUE_OF_LIBERTY_LOCATION = { lon: -74.04, lat: 40.69 };
+/** The Eiffel Tower on the Champ de Mars, Paris (France). */
+export const EIFFEL_TOWER_LOCATION = { lon: 2.2945, lat: 48.8584 };
 /** Flagpole: exactly one cell. */
 export const FOOTPRINT_FLAGPOLE = { w: 1, d: 1 } as const;
 /** Bunker: a small pillbox filling one cell. */

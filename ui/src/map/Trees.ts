@@ -16,8 +16,18 @@ const CLUMP_CELLS = 11;
 const WOOD_THRESHOLD = 0.5;
 /** No trees above this elevation (metres): bare alpine ground. */
 const TREE_LINE_M = 1800;
-/** Tree sprite varieties (columns of sprites/trees.png). */
+/** Fir tree sprite varieties (the first columns of sprites/trees.webp). */
 export const TREE_VARIANTS = 14;
+/** Palm sprite varieties (the next columns of sprites/trees.webp: tones TREE_VARIANTS..+PALM_VARIANTS-1). */
+export const PALM_VARIANTS = 6;
+/** Latitude (deg) up to which a wood is fully tropical; palms fade out by TROPIC_FADE_DEG. */
+const TROPIC_DEG = 23.5;
+const TROPIC_FADE_DEG = 32;
+/** Share of a tropical wood's trees that are palms (the rest stay green broadleaf/fir). */
+const TROPIC_PALM_SHARE = 0.6;
+/** Oases on bare desert ground: noise above this (in the desert climate) grows a small palm grove. */
+const OASIS_THRESHOLD = 0.8;
+const OASIS_CELLS = 5;
 
 /**
  * All trees on the map as gameplay data (not just decoration): each tree marks its grid cell as wooded, which blocks
@@ -33,7 +43,7 @@ export class TreeLayer {
   readonly xs: Float32Array;
   readonly ys: Float32Array;
   readonly rs: Float32Array;
-  /** Sprite variety (0..TREE_VARIANTS-1). */
+  /** Sprite variety: 0..TREE_VARIANTS-1 firs, then PALM_VARIANTS palms. */
   readonly tones: Uint8Array;
   /** Health left of each tree. */
   readonly hp: Float32Array;
@@ -59,11 +69,31 @@ export class TreeLayer {
     );
     let total = 0;
     const noise = new ValueNoise(seed + 11);
+    const oasis = new ValueNoise(seed + 13);
     for (let cy = 0; cy < map.height; cy++) {
       for (let cx = 0; cx < map.width; cx++) {
         const t = map.typeAt(cx, cy);
-        if (t !== 'grass' && t !== 'forest') continue;
         const i = map.index(cx, cy);
+        const lat = Math.abs(90 - ((cy + 0.5) / map.height) * 180);
+        const tropic = lat <= TROPIC_DEG ? 1 : lat >= TROPIC_FADE_DEG ? 0 : (TROPIC_FADE_DEG - lat) / (TROPIC_FADE_DEG - TROPIC_DEG);
+        const desert = Math.min(1, biomes.desert[i] ?? 0);
+        // Share of this cell's trees that are palms: all in the desert climate, most in the tropics.
+        const palmShare = Math.max(desert, tropic * TROPIC_PALM_SHARE);
+        const palmRng = tileRng(cx, cy, seed + 9);
+        const palmTone = (): number => TREE_VARIANTS + (Math.floor(palmRng() * PALM_VARIANTS) % PALM_VARIANTS);
+        if ((t === 'desert' || t === 'sand') && desert > 0.3) {
+          // Oasis: a small palm grove here and there on the desert ground.
+          if ((map.mountain[i] ?? 0) !== 0 || oasis.fbm(cx / OASIS_CELLS, cy / OASIS_CELLS, 2) < OASIS_THRESHOLD) continue;
+          const list = perCell[i];
+          if (!list) continue;
+          const n = 1 + Math.floor(palmRng() * 2);
+          for (let k = 0; k < n; k++) {
+            list.push({ x: (cx + 0.15 + palmRng() * 0.7) * CELL_SIZE, y: (cy + 0.15 + palmRng() * 0.7) * CELL_SIZE, r: 1.4 + palmRng() * 1.0, tone: palmTone() });
+            total++;
+          }
+          continue;
+        }
+        if (t !== 'grass' && t !== 'forest') continue;
         if ((map.mountain[i] ?? 0) !== 0 || map.heightAt(cx, cy) > TREE_LINE_M) continue;
         const climate = biomes.forest[i] ?? 0;
         const base = (t === 'forest' ? FOREST_TYPE_WEIGHT : 0) + climate * CLIMATE_WEIGHT;
@@ -80,8 +110,10 @@ export class TreeLayer {
           const x = (cx + 0.15 + rng() * 0.7) * CELL_SIZE;
           const y = (cy + 0.15 + rng() * 0.7) * CELL_SIZE;
           const r = 1.3 + rng() * 1.1;
-          const tone = Math.floor(rng() * TREE_VARIANTS) % TREE_VARIANTS;
+          const fir = Math.floor(rng() * TREE_VARIANTS) % TREE_VARIANTS;
           if (rng() >= TREE_DENSITY) continue; // thinned out (TREE_DENSITY)
+          // Palms take the place of green trees in deserts and the tropics.
+          const tone = palmRng() < palmShare ? palmTone() : fir;
           list.push({ x, y, r, tone });
           total++;
         }

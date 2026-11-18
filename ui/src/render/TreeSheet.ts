@@ -5,7 +5,7 @@ import { spriteUrl } from './spriteUrl';
  * Drawn as upright billboards on the iso ground (TerrainRenderer.drawTrees); before the sheet loads the trees are
  * painted as simple canopies.
  */
-export const TREE_COLS = 14;
+export const TREE_COLS = 20; // 14 firs + 6 date palms (tools/palm_sheet.py)
 const CW = 64;
 const CH = 96;
 const BASE_PAD = 2;

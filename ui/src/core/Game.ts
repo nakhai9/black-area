@@ -107,6 +107,7 @@ import {
   BRIDGE_DEPLOY_CELLS,
   BRIDGE_REACH_CELLS,
   STATUE_OF_LIBERTY_LOCATION,
+  EIFFEL_TOWER_LOCATION,
   AWACS_RADIUS_CELLS,
   SQUAD_MIN_REGULAR,
   SQUAD_MIN_SPECIAL,
@@ -623,6 +624,8 @@ export class Game {
     this.placeOnGrid(this.entities.buildings(), trees);
     // The Statue of Liberty in New York harbour (on the nearest dry ground if the island is not on the map).
     this.placeOnGrid([this.entities.add(new Monument('liberty', geoToWorld(STATUE_OF_LIBERTY_LOCATION)))], trees);
+    // The Eiffel Tower in Paris (France).
+    this.placeOnGrid([this.entities.add(new Monument('eiffel', geoToWorld(EIFFEL_TOWER_LOCATION)))], trees);
     this.placeOilRows(trees);
     this.placeAntarcticOil(trees);
     this.clearStartingGround(trees);
