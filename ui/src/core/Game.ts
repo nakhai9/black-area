@@ -1,3 +1,4 @@
+import { askSaveTarget } from '../ui/SaveChoice';
 import { storedLeaderName } from '../ui/LeaderName';
 import { backToMenuWithToast, saveToCloud } from '../net/CloudSave';
 import { BULLET_FLIGHT_SECONDS, BULLET_IMPACT_SECONDS, hasBulletSheet, type BulletSize } from '../render/BulletSheet';
@@ -1189,11 +1190,26 @@ export class Game {
       const text = JSON.stringify(save);
       const stamp = save.savedAt.slice(0, 16).replace(/[:T]/g, '-');
       const name = `black-area-${save.faction}-${stamp}.json`;
-      // Cloud save first (server MySQL, overwrites this browser's slot); unreachable → saved on this machine as before.
+      // The player picks: cloud (server MySQL, overwrites this player's save; unreachable → saved on this machine)
+      // or a .json file on this machine.
+      void askSaveTarget().then((target) => {
+        if (target === 'file') this.saveLocally(name, text);
+        else if (target === 'cloud') this.saveCloud(name, text);
+      });
+    } catch (err) {
+      console.error(err);
+      this.sidebar.notify(t('Could not save: {error}', { error: err instanceof Error ? err.message : String(err) }), 6);
+    }
+  }
+
+  /** Save to cloud: back to the main menu with a toast on success; on failure saved on this machine instead. */
+  private saveCloud(name: string, text: string): void {
+    try {
       void saveToCloud(text).then(
         () => backToMenuWithToast(t('Game saved to the cloud.')),
         (err: unknown) => {
           console.error(err);
+          this.sidebar.notify(t('Could not save to the cloud ({error}): saved to a file instead.', { error: err instanceof Error ? err.message : String(err) }), 6);
           this.saveLocally(name, text);
         },
       );
