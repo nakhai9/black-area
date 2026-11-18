@@ -339,12 +339,7 @@ export class CombatSystem implements GameSystem {
         const d = gap(o);
         if (d <= b.range && d < bestD) [bestD, target] = [d, o];
       }
-      if (!target)
-        for (const o of this.entities.buildings()) {
-          if (!fair(o)) continue;
-          const d = gap(o);
-          if (d <= b.range && d < bestD) [bestD, target] = [d, o];
-        }
+      // Structures are hit only on an attack order (forcedTarget), never picked on its own.
     }
     const tc = target ? (target instanceof Building ? target.centerWorld() : { x: target.px, y: target.py }) : null;
     const want = tc ? Math.atan2(tc.y - c.y, tc.x - c.x) : (b.aimOrder ?? b.restHeading);
