@@ -1,6 +1,7 @@
 import { ISO_X, ISO_Y } from '../constants';
 import { FACTIONS } from '../factions';
 import type { FactionId } from '../types';
+import { spriteUrl } from './spriteUrl';
 
 /**
  * Missile-launcher emplacements of the Defense tab (R-12 Dvina), each drawn from three Blender sheets of
@@ -32,7 +33,7 @@ function image(file: string): HTMLImageElement {
   let img = IMAGES.get(file);
   if (!img) {
     img = new Image();
-    img.src = `${import.meta.env.BASE_URL}sprites/${file}.webp`;
+    img.src = spriteUrl(`${file}.webp`);
     IMAGES.set(file, img);
   }
   return img;

@@ -1,3 +1,4 @@
+import { spriteUrl } from './spriteUrl';
 /**
  * Explosion + smoke sheet (tools/explosion_sheet.py): 12 frames × 16 variants of 128 px. A flash, the fireball,
  * then black smoke rising and fading. Used whenever a structure, a ground vehicle or an aircraft blows up; its size
@@ -15,7 +16,7 @@ const BODY_PX = 115;
 export const EXPLOSION_SECONDS = 1.8;
 const FADE_SECONDS = 0.5;
 
-const url = `${import.meta.env.BASE_URL}sprites/explosion.webp`;
+const url = spriteUrl(`explosion.webp`);
 const image = new Image();
 let ready = false;
 let loaded: Promise<void> | null = null;

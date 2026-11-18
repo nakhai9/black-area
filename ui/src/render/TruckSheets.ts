@@ -2,6 +2,7 @@ import { ISO_X, ISO_Y } from '../constants';
 import type { Vehicle } from '../entities/Vehicle';
 import type { FactionId } from '../types';
 import { drawTankBlast } from './TankSheets';
+import { spriteUrl } from './spriteUrl';
 
 /**
  * Army truck sheets, rendered from 3D models by tools/ground_model_sheet.py: 32 columns of 64 px — screen headings
@@ -17,7 +18,7 @@ export const TRUCK_DEATH_SECONDS = 4.5;
 
 const sheet = (file: string): HTMLImageElement => {
   const img = new Image();
-  img.dataset.src = `${import.meta.env.BASE_URL}sprites/${file}`;
+  img.dataset.src = spriteUrl(`${file}`);
   return img;
 };
 const KAMAZ = sheet('truck-kamaz.webp');
@@ -82,9 +83,7 @@ function blitLayers(ctx: CanvasRenderingContext2D, imgs: CanvasImageSource[], co
 /** Sheet per nation that fields a truck. */
 const SHEETS: Partial<Record<FactionId, HTMLImageElement>> = {
   russia: KAMAZ,
-
   islamic: KAMAZ,
-  europe: sheet('truck-zetros.webp'),
 };
 let loaded: Promise<void> | null = null;
 

@@ -1,6 +1,7 @@
 import { ISO_X, ISO_Y } from '../constants';
 import type { Vehicle } from '../entities/Vehicle';
 import type { FactionId } from '../types';
+import { spriteUrl } from './spriteUrl';
 
 /**
  * BM-21 Grad, rendered by tools/blender/bm21_render.py: the Ural-4320 truck in its owner's colours
@@ -16,7 +17,7 @@ export const BM21_SCALE = 0.1693;
 
 const sheet = (file: string): HTMLImageElement => {
   const img = new Image();
-  img.src = `${import.meta.env.BASE_URL}sprites/${file}.webp`;
+  img.src = spriteUrl(`${file}.webp`);
   return img;
 };
 const FACTIONS: readonly FactionId[] = ['usa', 'russia', 'china', 'europe', 'islamic'];

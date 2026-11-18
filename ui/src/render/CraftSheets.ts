@@ -1,6 +1,7 @@
 import { ISO_X, ISO_Y } from '../constants';
 import type { Vehicle } from '../entities/Vehicle';
 import type { FactionId, VehicleKind } from '../types';
+import { spriteUrl } from './spriteUrl';
 
 /**
  * Transport aircraft and helicopter sheets (tools/aircraft_model_sheet.py / tools/heli_model_sheet.py, rendered from 3D
@@ -48,12 +49,10 @@ const ROTOR_ROW = { still: 0, spin: 1, stillShadow: 2, spinShadow: 3 } as const;
 
 const img = (file: string): HTMLImageElement => {
   const i = new Image();
-  i.dataset.src = `${import.meta.env.BASE_URL}sprites/${file}`;
+  i.dataset.src = spriteUrl(`${file}`);
   return i;
 };
 const air = (model: string, span: number): CraftSheet => ({ image: img(`air-${model}.webp`), fx: img(`air-${model}-fx.webp`), cell: 96, fxCell: 128, fxFrames: 20, span, heli: false });
-/** `fx`: the model whose explosion sheet it uses (the Z-10 blows up with the old Z-19E explosion). */
-const heli = (model: string, span: number, fx = model): CraftSheet => ({ image: img(`heli-${model}.webp`), fx: img(`heli-${fx}-fx.webp`), cell: 80, fxCell: 128, fxFrames: 16, span, heli: true });
 
 /** USA AH-64E Apache: body (tools/blender/ah64_render.py) + 4-blade rotor (rotor_render.py --name ah64), 192 px cells. */
 const ah64: CraftSheet = {
@@ -98,12 +97,9 @@ const z10: CraftSheet = {
   rig: { rotor: img('rotor-z10.webp'), blades: 5, phases: 16, groundDrop: 16.39, hubLift: 14.58 },
 };
 
-/** Every model, by key ('air:c17', 'heli:apache', …). Spans as measured by the build script. */
+/** Every model, by key ('air:y20', 'heli:ah64', …). Spans as measured by the build script. */
 const MODELS: Readonly<Record<string, CraftSheet>> = {
-  'air:c17': air('c17', 0.833),
-  'air:il76': air('il76', 0.76),
   'air:y20': air('y20', 0.833),
-  'heli:apache': heli('apache', 0.825),
   'heli:ah64': ah64,
   'heli:ka52': ka52,
   'heli:z10': z10,

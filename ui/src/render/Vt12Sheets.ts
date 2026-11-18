@@ -1,6 +1,7 @@
 import { ISO_X, ISO_Y } from '../constants';
 import type { Vehicle } from '../entities/Vehicle';
 import type { FactionId } from '../types';
+import { spriteUrl } from './spriteUrl';
 
 /**
  * VT 1-2 twin-gun turretless tank, rendered by tools/blender/vt12_render.py: one sheet per nation colour
@@ -17,7 +18,7 @@ const FACTIONS: readonly FactionId[] = ['usa', 'russia', 'china', 'europe', 'isl
 const SHEETS = new Map<FactionId, HTMLImageElement>(
   FACTIONS.map((f) => {
     const img = new Image();
-    img.src = `${import.meta.env.BASE_URL}sprites/tank-vt12-${f}.webp`;
+    img.src = spriteUrl(`tank-vt12-${f}.webp`);
     return [f, img];
   }),
 );

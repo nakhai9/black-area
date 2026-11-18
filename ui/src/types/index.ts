@@ -118,7 +118,7 @@ export interface VehicleProfile {
 export type UnitTier = 'regular' | 'special' | 'engineer' | 'squatters' | 'demolition';
 
 /** Soldier sprite sheets in public/sprites (see render/InfantryArt). */
-export type SoldierSheetId = 'gi' | 'ranger' | 'spetsnaz' | 'conscript' | 'usRegular' | 'usSpecial' | 'ruRegular' | 'ruSpecial' | 'cnRegular' | 'cnSpecial' | 'euRegular' | 'euSpecial' | 'usEngineer' | 'ruEngineer' | 'cnEngineer' | 'euEngineer' | 'euSquatters' | 'ruSquatters' | 'usSquatters' | 'cnSquatters' | 'islamicRegular' | 'islamicSpecial' | 'islamicSquatters' | 'islamicEngineer' | 'islamicDemolition' | 'usRegularOld' | 'usSpecialOld' | 'ruRegularOld' | 'ruSpecialOld' | 'cnRegularOld' | 'cnSpecialOld' | 'euRegularOld' | 'euSpecialOld' | 'islamicSpecialOld' | 'euSquattersOld' | 'ruSquattersOld' | 'usSquattersOld' | 'cnSquattersOld' | 'islamicSquattersOld' | 'islamicDemolitionOld';
+export type SoldierSheetId = 'usRegular' | 'usSpecial' | 'ruRegular' | 'ruSpecial' | 'cnRegular' | 'cnSpecial' | 'euRegular' | 'euSpecial' | 'usEngineer' | 'ruEngineer' | 'cnEngineer' | 'euEngineer' | 'euSquatters' | 'ruSquatters' | 'usSquatters' | 'cnSquatters' | 'islamicRegular' | 'islamicSpecial' | 'islamicSquatters' | 'islamicEngineer' | 'islamicDemolition';
 
 /** Procedural look of a soldier (team colour is added as a vest stripe). */
 export interface InfantryLook {

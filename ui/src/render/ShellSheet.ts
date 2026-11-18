@@ -1,3 +1,4 @@
+import { spriteUrl } from './spriteUrl';
 /**
  * Pre-drawn tank shell sheet (16 × 7 cells of 64 px), shared by every main battle tank.
  * Rows 0–1 / 2–3: the shell in flight with its tracer, frames A / B, 32 screen headings clockwise from N (0–15 in
@@ -20,7 +21,7 @@ const SHELL_BURST_SECONDS = 0.45;
 export const SHELL_IMPACT_SECONDS = 1.8;
 
 const image = new Image();
-const url = `${import.meta.env.BASE_URL}sprites/shell-tank.webp`;
+const url = spriteUrl(`shell-tank.webp`);
 let loaded: Promise<void> | null = null;
 
 /** Starts (once) and returns the shell sheet download. */

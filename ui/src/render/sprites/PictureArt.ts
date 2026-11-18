@@ -1,5 +1,6 @@
 import type { IsoPainter } from '../IsoPainter';
 import type { BuildingArt } from './BuildingArt';
+import { spriteUrl } from '../spriteUrl';
 
 /**
  * Structures rendered in Blender / from 3D models (tools/blender/building_render.py, tools/monument_model_sheet.py)
@@ -25,7 +26,7 @@ function image(file: string): HTMLImageElement {
   let i = images.get(file);
   if (!i) {
     i = new Image();
-    i.dataset.src = `${import.meta.env.BASE_URL}sprites/${file}.webp`;
+    i.dataset.src = spriteUrl(`${file}.webp`);
     images.set(file, i);
   }
   return i;

@@ -1,3 +1,4 @@
+import { spriteUrl } from './spriteUrl';
 /**
  * Tree sprite sheet (public/sprites/trees.webp): TREE_COLS columns of CW × CH px, one fir tree variety per column
  * (side views cut from a real-time billboard pack), the trunk base BASE_PAD px above the bottom edge, centred.
@@ -10,7 +11,7 @@ const CH = 96;
 const BASE_PAD = 2;
 
 const image = new Image();
-const url = `${import.meta.env.BASE_URL}sprites/trees.webp`;
+const url = spriteUrl(`trees.webp`);
 let loaded: Promise<void> | null = null;
 
 /** Starts (once) and returns the tree sheet download. */

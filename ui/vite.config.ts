@@ -5,6 +5,11 @@ import { defineConfig } from 'vite';
 const GAME_VERSION = /GAME_VERSION\s*=\s*"([^"]+)"/.exec(readFileSync(new URL('./src/constants.ts', import.meta.url), 'utf8'))![1];
 
 export default defineConfig({
+  build: {
+    // The whole game is one ~0.9 MB bundle (≈290 KB gzipped) that the first frame needs anyway: splitting it would
+    // only add round trips, so the 500 kB default warning is raised instead.
+    chunkSizeWarningLimit: 1200,
+  },
   plugins: [
     {
       // index.html's <title> always shows GAME_VERSION (dev and build), whatever number is written in the file.

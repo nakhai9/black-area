@@ -1,4 +1,5 @@
 import type { FactionId } from '../types';
+import { spriteUrl } from './spriteUrl';
 
 /**
  * Pre-drawn falling-bomb sheets (8 × 11 cells of 96 px), per bomber nation. Columns: 8 screen headings, clockwise
@@ -20,7 +21,7 @@ interface BombSheet {
   readonly image: HTMLImageElement;
 }
 
-const sheet = (file: string): BombSheet => ({ url: `${import.meta.env.BASE_URL}sprites/${file}`, image: new Image() });
+const sheet = (file: string): BombSheet => ({ url: spriteUrl(`${file}`), image: new Image() });
 
 const SHEETS: Partial<Record<FactionId, BombSheet>> = {
   russia: sheet('bomb-tu160.webp'),

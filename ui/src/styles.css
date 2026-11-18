@@ -1201,7 +1201,7 @@ body.sidebar-hidden .alert-stack {
 }
 .sb-rank-list li {
   display: grid;
-  grid-template-columns: 18px 22px 1fr;
+  grid-template-columns: 22px 1fr; /* flag, value (no position number) */
   align-items: center;
   gap: 6px;
   padding: 4px 6px;

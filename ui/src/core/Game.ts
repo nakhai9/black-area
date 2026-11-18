@@ -176,7 +176,7 @@ import { TANK_DEATH_SECONDS, hasTankSheet } from '../render/TankSheets';
 import { CRAFT_DEATH_SECONDS, craftKey } from '../render/CraftSheets';
 import { SpriteCache } from '../render/SpriteCache';
 import { BUILDING_ART } from '../render/sprites';
-import { AIRFIELD_SLOTS, RUNWAY_D, AIRFIELD_SIZE } from '../render/sprites/Airfield';
+import { airfieldLayout } from '../render/sprites/Airfield';
 import { AircraftSystem, canBaseAt, isAirBase, type AirfieldGeometry } from '../systems/AircraftSystem';
 import { AISystem } from '../systems/AISystem';
 import { StructureIndex } from '../systems/StructureIndex';
@@ -5895,11 +5895,13 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     // A turned building shows its art mirrored: the art's (u, v) lands on the cell v right, u down.
     const pt = (u: number, v: number): WorldPoint =>
       b.rotated ? { x: (b.x + v) * CELL_SIZE, y: (b.y + u) * CELL_SIZE } : { x: (b.x + u) * CELL_SIZE, y: (b.y + v) * CELL_SIZE };
-    const start = pt(0.5, RUNWAY_D / 2);
-    const end = pt(AIRFIELD_SIZE.w - 0.5, RUNWAY_D / 2);
+    // Each nation's design has its own runway and stands (Russia: runway down the middle, stands either side).
+    const layout = airfieldLayout(b.spec.type === 'port' ? 'port' : b.origin); // a Naval Port keeps its back-edge airstrip
+    const start = pt(...layout.start);
+    const end = pt(...layout.end);
     const heading = Math.atan2(end.y - start.y, end.x - start.x);
     return {
-      slots: (b.spec.type === 'port' ? PORT_SLOTS : AIRFIELD_SLOTS).map(([u, v]) => pt(u, v)),
+      slots: (b.spec.type === 'port' ? PORT_SLOTS : layout.slots).map(([u, v]) => pt(u, v)),
       runwayStart: start,
       runwayEnd: end,
       heading,

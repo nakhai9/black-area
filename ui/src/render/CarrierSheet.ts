@@ -1,6 +1,7 @@
 import type { Vehicle } from '../entities/Vehicle';
 import type { FactionId } from '../types';
 import { ISO_X, ISO_Y } from '../constants';
+import { spriteUrl } from './spriteUrl';
 
 /**
  * Aircraft carrier sheets, rendered from 3D models by tools/carrier_model_sheet.py: 32 columns of 192 px — screen
@@ -14,7 +15,7 @@ const SCALE = 0.23;
 
 const img = (file: string): HTMLImageElement => {
   const i = new Image();
-  i.dataset.src = `${import.meta.env.BASE_URL}sprites/${file}`;
+  i.dataset.src = spriteUrl(`${file}`);
   return i;
 };
 const SHEETS: Partial<Record<FactionId, HTMLImageElement>> = { usa: img('ship-cvn80.webp'), europe: img('ship-r08.webp'), china: img('ship-type004.webp') };

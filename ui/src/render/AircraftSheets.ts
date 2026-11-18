@@ -2,6 +2,7 @@ import { ISO_X, ISO_Y } from '../constants';
 import type { Vehicle } from '../entities/Vehicle';
 import type { FactionId, VehicleKind } from '../types';
 import { drawCraftPortrait, drawCraftSheet, loadCraftSprites } from './CraftSheets';
+import { spriteUrl } from './spriteUrl';
 
 /**
  * Fighter and bomber sheets (transports and helicopters: see CraftSheets), rendered from 3D models by
@@ -21,7 +22,7 @@ interface AircraftSheet {
 }
 
 const sheet = (file: string, cell: number, length: number): AircraftSheet => ({
-  url: `${import.meta.env.BASE_URL}sprites/${file}`,
+  url: spriteUrl(`${file}`),
   image: new Image(),
   cell,
   // Side-on the aircraft spans ≈ 0.74 of a cell; it is drawn `length` iso px long.

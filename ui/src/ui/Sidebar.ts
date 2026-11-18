@@ -496,9 +496,9 @@ export class Sidebar {
       </div>
       <div class="sb-info" data-info="rank" hidden>
         <section class="sb-panel sb-rank">
-          <h3 class="sb-rank-title">${t('ECONOMY ')}<small>${t('oil + assets + budget + spare power')}</small></h3>
+          <h3 class="sb-rank-title">${t('ECONOMY ')}</h3>
           <ol class="sb-rank-list" data-rank="economy"></ol>
-          <h3 class="sb-rank-title">${t('MILITARY ')}<small>${t('rank 1 = strongest · updated every 4 min')}</small></h3>
+          <h3 class="sb-rank-title">${t('MILITARY ')}</h3>
           <ol class="sb-rank-list" data-rank="military"></ol>
         </section>
       </div>
@@ -1155,13 +1155,10 @@ export class Sidebar {
     const fill = (list: HTMLElement, key: 'economy' | 'military', detail: ((r: RankRow) => string) | null): void => {
       const sorted = [...rows].sort((a, b) => Number(a.defeated) - Number(b.defeated) || b[key] - a[key]);
       list.replaceChildren(
-        ...sorted.map((r, i) => {
+        ...sorted.map((r) => {
           const li = document.createElement('li');
           li.classList.toggle('me', r.isHuman);
           li.classList.toggle('out', r.defeated);
-          const pos = document.createElement('span');
-          pos.className = 'sb-rank-pos';
-          pos.textContent = r.defeated ? '✕' : String(i + 1);
           const flag = document.createElement('img');
           flag.className = 'sb-rank-flag';
           flag.alt = '';
@@ -1172,7 +1169,7 @@ export class Sidebar {
             const name = document.createElement('span');
             name.className = 'sb-rank-value';
             name.textContent = r.name;
-            li.append(pos, flag, name);
+            li.append(flag, name); // no position number: the order says it
             return li;
           }
           const value = document.createElement('span');
@@ -1187,7 +1184,7 @@ export class Sidebar {
           debt.style.color = r.debt > 0 ? '#ff6b5e' : '#8fbf8f';
           debt.title = r.debt > 0 ? t('Debt {v} {c}', { v: Math.round(r.debt).toLocaleString('en-US'), c: CURRENCY }) : t('No debt');
           value.append(debt);
-          li.append(pos, flag, value);
+          li.append(flag, value);
           return li;
         }),
       );

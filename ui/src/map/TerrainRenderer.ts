@@ -14,6 +14,7 @@ import { TileTerrain } from './TileTerrain';
 import { RiverLayer } from './Rivers';
 import type { TreeLayer } from './Trees';
 import { drawTree, hasTreeSheet } from '../render/TreeSheet';
+import { spriteUrl } from '../render/spriteUrl';
 
 /**
  * Red Alert 2 palette: deep green lowlands, ochre plateaus, brown-orange rock ridges, grey-white snow, sand
@@ -97,7 +98,7 @@ export interface Peak {
  */
 const ROCK_SHEET = (() => {
   const i = new Image();
-  i.src = `${import.meta.env.BASE_URL}sprites/rocks.webp`;
+  i.src = spriteUrl(`rocks.webp`);
   return i;
 })();
 /** Crest: the tall, jagged massifs (sheet columns 0–6). Ledge (foothills): the low, wide rock heaps (7–10). The

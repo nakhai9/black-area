@@ -2,6 +2,7 @@ import { FACTIONS } from '../factions';
 import type { FactionId, InfantryLook, SoldierSheetId, UnitTier } from '../types';
 import { createCanvas } from './Canvas';
 import { drawCarriedFlag } from './Flags';
+import { spriteUrl } from './spriteUrl';
 
 export interface SoldierPose {
   x: number;
@@ -54,18 +55,6 @@ interface SoldierSheet {
 
 /** Rows of every sheet: S, SE, E, NE, N (west-facing poses are mirrored). */
 const FIRE_FRAMES = 3;
-const sheet = (file: string, cw: number, ch: number, feetY: number, walk: number, height: number, patch: readonly [number, number]): SoldierSheet => ({
-  url: `${import.meta.env.BASE_URL}sprites/${file}`,
-  layout: 'rows8',
-  image: new Image(),
-  cw,
-  ch,
-  feetX: cw / 2,
-  feetY,
-  walk,
-  scale: 4 / height, // every soldier stands ≈4 world px tall
-  patch,
-});
 /**
  * Layout of the older 16-direction sheets (1536², 96 px cells): idle, 4 walk frames, aim, fire, 4 dying, 4 swimming,
  * ground shadow. No sheet uses it any more; kept so one can be brought back.
@@ -81,8 +70,8 @@ const SQUAD_ROW = { walk: 0, fire: 8, escortFalls: 16, bearerFalls: 17, bothFall
 const DIR8_ROW = { fire: 0, walk: 1, idle: 9, dying: 10, swim: 11, tread: 19 } as const;
 /** Treading-water cycle of an 8-direction swimmer sheet (frames per second). */
 const TREAD_FPS = 6;
-const sheet8 = (file: string, fallback: SoldierSheetId, swim = false): SoldierSheet => ({
-  url: `${import.meta.env.BASE_URL}sprites/${file}`,
+const sheet8 = (file: string, fallback?: SoldierSheetId, swim = false): SoldierSheet => ({
+  url: spriteUrl(`${file}`),
   layout: 'dir8',
   fallback,
   swim,
@@ -100,54 +89,35 @@ const sheet8 = (file: string, fallback: SoldierSheetId, swim = false): SoldierSh
  * cells, the soldier ≈90 px tall with the feet at (64, 98) — twice the detail of the older sheets, so they stay sharp
  * when zoomed in. Falls back to the older sheet if the file is missing.
  */
-const sheetHD = (file: string, fallback: SoldierSheetId, swim = false): SoldierSheet => ({ ...sheet8(file, fallback, swim), cw: 128, ch: 128, feetX: 64, feetY: 98, scale: 4 / 90 });
-/** Squad sheet (see SoldierSheet.squad): the pair stands ≈40 px tall with the feet at (48, 78). */
-const squad8 = (file: string, fallback: SoldierSheetId): SoldierSheet => ({ ...sheet8(file, fallback), cw: 96, ch: 96, feetX: 48, feetY: 78, scale: 4 / 40, squad: true });
+const sheetHD = (file: string, fallback?: SoldierSheetId, swim = false): SoldierSheet => ({ ...sheet8(file, fallback, swim), cw: 128, ch: 128, feetX: 64, feetY: 98, scale: 4 / 90 });
 /** Blender-built squatters team (bearer and escort rendered in two passes laid over each other), 192 px cells. */
-const squadHD = (file: string, fallback: SoldierSheetId): SoldierSheet => ({ ...sheet8(file, fallback), cw: 192, ch: 192, feetX: 96, feetY: 150, scale: 4 / 90, squad: true });
+const squadHD = (file: string, fallback?: SoldierSheetId): SoldierSheet => ({ ...sheet8(file, fallback), cw: 192, ch: 192, feetX: 96, feetY: 150, scale: 4 / 90, squad: true });
+/** Sheet of a look that names none (every faction soldier names its own). */
+export const DEFAULT_SHEET: SoldierSheetId = 'usRegular';
 const SHEETS: Record<SoldierSheetId, SoldierSheet> = {
-  usRegular: sheetHD('us-regular-hd.webp', 'usRegularOld'),
-  usRegularOld: sheet8('us-regular-8dir.webp', 'gi'),
-  usSpecial: sheetHD('us-special-hd.webp', 'usSpecialOld', true),
-  usSpecialOld: sheet8('us-special-8dir.webp', 'ranger', true),
-  ruRegular: sheetHD('ru-regular-hd.webp', 'ruRegularOld'),
-  ruRegularOld: sheet8('ru-regular-8dir.webp', 'conscript'),
-  ruSpecial: sheetHD('ru-special-hd.webp', 'ruSpecialOld', true),
-  ruSpecialOld: sheet8('ru-special-8dir.webp', 'spetsnaz', true),
-  cnRegular: sheetHD('cn-regular-hd.webp', 'cnRegularOld'),
-  cnRegularOld: sheet8('cn-regular-8dir.webp', 'gi'),
-  cnSpecial: sheetHD('cn-special-hd.webp', 'cnSpecialOld', true),
-  cnSpecialOld: sheet8('cn-special-8dir.webp', 'gi', true),
-  euRegular: sheetHD('eu-regular-hd.webp', 'euRegularOld'),
-  euRegularOld: sheet8('eu-regular-8dir.webp', 'gi'),
-  euSpecial: sheetHD('eu-special-hd.webp', 'euSpecialOld', true),
-  euSpecialOld: sheet8('eu-special-8dir.webp', 'gi', true),
-  islamicRegular: sheetHD('islamic-regular-hd.webp', 'ruRegularOld'),
-  islamicSpecial: sheetHD('islamic-special-hd.webp', 'islamicSpecialOld', true),
-  islamicSpecialOld: sheet8('islamic-special-8dir.webp', 'ruSpecialOld', true),
-  euSquatters: squadHD('eu-squatters-hd.webp', 'euSquattersOld'),
-  ruSquatters: squadHD('ru-squatters-hd.webp', 'ruSquattersOld'),
-  usSquatters: squadHD('us-squatters-hd.webp', 'usSquattersOld'),
-  cnSquatters: squadHD('cn-squatters-hd.webp', 'cnSquattersOld'),
-  islamicSquatters: squadHD('islamic-squatters-hd.webp', 'islamicSquattersOld'),
-  euSquattersOld: squad8('eu-squatters-8dir.webp', 'euSpecial'),
-  ruSquattersOld: squad8('ru-squatters-8dir.webp', 'ruSpecial'),
-  usSquattersOld: squad8('us-squatters-8dir.webp', 'usSpecial'),
-  cnSquattersOld: squad8('cn-squatters-8dir.webp', 'cnSpecial'),
-  islamicSquattersOld: squad8('islamic-squatters-8dir.webp', 'islamicSpecial'),
+  usRegular: sheetHD('us-regular-hd.webp'),
+  usSpecial: sheetHD('us-special-hd.webp', undefined, true),
+  ruRegular: sheetHD('ru-regular-hd.webp'),
+  ruSpecial: sheetHD('ru-special-hd.webp', undefined, true),
+  cnRegular: sheetHD('cn-regular-hd.webp'),
+  cnSpecial: sheetHD('cn-special-hd.webp', undefined, true),
+  euRegular: sheetHD('eu-regular-hd.webp'),
+  euSpecial: sheetHD('eu-special-hd.webp', undefined, true),
+  islamicRegular: sheetHD('islamic-regular-hd.webp'),
+  islamicSpecial: sheetHD('islamic-special-hd.webp', undefined, true),
+  euSquatters: squadHD('eu-squatters-hd.webp'),
+  ruSquatters: squadHD('ru-squatters-hd.webp'),
+  usSquatters: squadHD('us-squatters-hd.webp'),
+  cnSquatters: squadHD('cn-squatters-hd.webp'),
+  islamicSquatters: squadHD('islamic-squatters-hd.webp'),
   // Engineers (tools/engineer-render): hard hat, safety vest, wrench; no swim rows.
-  usEngineer: { ...sheetHD('us-engineer-hd.webp', 'gi'), walkOnly: true },
-  ruEngineer: { ...sheetHD('ru-engineer-hd.webp', 'gi'), walkOnly: true },
-  cnEngineer: { ...sheetHD('cn-engineer-hd.webp', 'gi'), walkOnly: true },
-  euEngineer: { ...sheetHD('eu-engineer-hd.webp', 'gi'), walkOnly: true },
-  islamicEngineer: { ...sheetHD('islamic-engineer-hd.webp', 'gi'), walkOnly: true },
+  usEngineer: { ...sheetHD('us-engineer-hd.webp'), walkOnly: true },
+  ruEngineer: { ...sheetHD('ru-engineer-hd.webp'), walkOnly: true },
+  cnEngineer: { ...sheetHD('cn-engineer-hd.webp'), walkOnly: true },
+  euEngineer: { ...sheetHD('eu-engineer-hd.webp'), walkOnly: true },
+  islamicEngineer: { ...sheetHD('islamic-engineer-hd.webp'), walkOnly: true },
   // Crazy Soldier: rows 11–12 hold his charge and its blast (render/DemolitionArt).
-  islamicDemolition: sheetHD('islamic-demolition-hd.webp', 'islamicDemolitionOld'),
-  islamicDemolitionOld: sheet8('islamic-demolition-8dir.webp', 'islamicRegular'),
-  gi: sheet('gi.webp', 64, 64, 61, 4, 51, [-3, -40]),
-  ranger: sheet('ranger.webp', 96, 128, 124, 6, 112, [-6, -82]),
-  spetsnaz: sheet('spetsnaz.webp', 64, 64, 61, 8, 52, [-3, -40]),
-  conscript: sheet('conscript.webp', 64, 64, 61, 8, 52, [-3, -38]),
+  islamicDemolition: sheetHD('islamic-demolition-hd.webp'),
 };
 /** Screen octant (0 = E, clockwise) → [sheet row, mirrored]. */
 const OCTANT_ROW: readonly (readonly [number, boolean])[] = [
@@ -174,8 +144,8 @@ function loadSheet(s: SoldierSheet): Promise<void> {
  * only if a 16-direction sheet fails to load.
  */
 export function loadSoldierSprites(): Promise<void> {
-  const used = new Set<SoldierSheetId>(['gi']);
-  for (const f of Object.values(FACTIONS)) for (const t of Object.values(f.infantry)) used.add(t.look.sprite ?? 'gi');
+  const used = new Set<SoldierSheetId>();
+  for (const f of Object.values(FACTIONS)) for (const t of Object.values(f.infantry)) used.add(t.look.sprite ?? DEFAULT_SHEET);
   sheetsLoaded ??= Promise.all([...used].map((id) => loadSheet(SHEETS[id]))).then(() => undefined);
   return sheetsLoaded;
 }
@@ -232,7 +202,7 @@ export function drawSoldier(
 
 /** The sheet actually drawn for `look` (its fallback while a 16-direction sheet is missing). */
 function activeSheet(look: InfantryLook): SoldierSheet {
-  const sh = SHEETS[look.sprite ?? 'gi'];
+  const sh = SHEETS[look.sprite ?? DEFAULT_SHEET];
   if (sh.fallback && (!sh.image.complete || sh.image.naturalWidth === 0)) return SHEETS[sh.fallback];
   return sh;
 }

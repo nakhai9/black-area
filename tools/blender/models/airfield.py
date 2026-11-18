@@ -119,4 +119,5 @@ def airfield(faction):
     kit.ZS = 1.35
 
 
-MODELS = {f"airfield-{f}": (lambda f=f: airfield(f)) for f in TEAM}
+# Russia, China and the Islamic nations use the runway-down-the-middle layout: models/airfield_russia.py.
+MODELS = {f"airfield-{f}": (lambda f=f: airfield(f)) for f in TEAM if f not in ("russia", "china", "islamic")}

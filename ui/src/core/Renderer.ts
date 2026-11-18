@@ -21,7 +21,7 @@ import { Vehicle } from '../entities/Vehicle';
 import { SQUASH, drawVehicle } from '../render/VehicleArt';
 import { isoHeading, liftAt, worldToIso } from './IsoView';
 import type { Effect } from './Effects';
-import { drawSoldier, drawSoldierDeath, drawsOwnSwim, drawsSquad } from '../render/InfantryArt';
+import { drawSoldier, drawSoldierDeath, drawsOwnSwim, drawsSquad, DEFAULT_SHEET } from '../render/InfantryArt';
 import { drawCarriedFlag, getFlagTexture } from '../render/Flags';
 import { drawAircraftSheet } from '../render/AircraftSheets';
 import { drawFlagOnPole, drawNationalPole } from '../render/Flags';
@@ -802,7 +802,7 @@ export class Renderer {
       const aiming = !u.stepping && u.engaged;
       const oct = ((Math.round(u.viewHeading / (Math.PI / 8)) % 16) + 16) % 16;
       const look = u.profile.look;
-      const soldier = (fire: number, aiming: boolean) => unitSprite(`${look.sprite ?? 'gi'}:${f.colors.primary}:${special ? 1 : 0}:${oct}:${frame}:${fire}:${aiming ? 1 : 0}`, 6, 6, 3, 5, (c) =>
+      const soldier = (fire: number, aiming: boolean) => unitSprite(`${look.sprite ?? DEFAULT_SHEET}:${f.colors.primary}:${special ? 1 : 0}:${oct}:${frame}:${fire}:${aiming ? 1 : 0}`, 6, 6, 3, 5, (c) =>
         drawSoldier(
           c,
           {

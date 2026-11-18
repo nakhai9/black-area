@@ -1,3 +1,4 @@
+import { spriteUrl } from './spriteUrl';
 /**
  * Crazy Soldier's charge and blast, from rows 11–12 of its soldier sheet (64 px cells): row 11 col 6 / 7 = the
  * planted charge with its light on / off (it blinks faster as the fuse runs out); row 12 = the explosion (8 frames).
@@ -10,7 +11,7 @@ const CHARGE_SCALE = 0.12;
 const BLAST_SCALE = 0.42;
 
 const image = new Image();
-image.src = `${import.meta.env.BASE_URL}sprites/islamic-demolition-8dir.webp`;
+image.src = spriteUrl(`islamic-demolition-8dir.webp`);
 
 const ready = (): boolean => image.complete && image.naturalWidth > 0;
 

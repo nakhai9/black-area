@@ -2,6 +2,7 @@ import type { Vehicle } from '../entities/Vehicle';
 import type { FactionId } from '../types';
 import { ISO_X, ISO_Y } from '../constants';
 import { SAM_CELL, samLength, samPivotOffset, samSheetCell } from './SamModel';
+import { spriteUrl } from './spriteUrl';
 
 /**
  * Air-defence vehicle (`mantis`) in the game: every nation's polygon model from SamModel (Patriot for the USA, SAMP/T NG
@@ -37,7 +38,7 @@ function sheet(f: FactionId): HTMLImageElement | null {
   let img = SHEETS.get(f);
   if (!img) {
     img = new Image();
-    img.src = `${import.meta.env.BASE_URL}sprites/mantis-${SHEET_MODEL[f]}.webp`;
+    img.src = spriteUrl(`mantis-${SHEET_MODEL[f]}.webp`);
     SHEETS.set(f, img);
   }
   return img.complete && img.naturalWidth > 0 ? img : null;
@@ -59,7 +60,7 @@ export function loadMantisSprites(): Promise<void> {
         new Promise<void>((resolve) => {
           const img = new Image();
           img.onload = img.onerror = () => resolve();
-          img.src = `${import.meta.env.BASE_URL}sprites/mantis-${SHEET_MODEL[f]}.webp`;
+          img.src = spriteUrl(`mantis-${SHEET_MODEL[f]}.webp`);
           SHEETS.set(f, img);
         }),
     ),

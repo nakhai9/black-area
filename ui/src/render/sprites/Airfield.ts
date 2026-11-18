@@ -24,6 +24,21 @@ export const AIRFIELD_SLOTS: readonly (readonly [number, number])[] = [
   [6, ROW_3],
   [10, ROW_3],
 ];
+/**
+ * Russia's own layout (tools/blender/models/airfield_russia.py): the runway runs down the middle along v, as long as
+ * the airfield is wide (u ∈ [5.2, 6.8], centre u = 6), with stands either side: two columns west, one east.
+ */
+/** Nations whose airfield uses Russia's runway-down-the-middle design (Nordursia, Longoria, Lunastron). */
+const MIDDLE_RUNWAY: ReadonlySet<string> = new Set(['russia', 'china', 'islamic']);
+export const RUSSIA_RUNWAY = { u0: 5.2, u1: 6.8, cu: 6 } as const;
+const RU_ROWS = [1.4, 4.0, 6.6];
+export const RUSSIA_SLOTS: readonly (readonly [number, number])[] = RU_ROWS.flatMap((v) => [[1.4, v], [3.6, v], [8.4, v]] as const);
+
+/** Runway centre line ends (tile u, v; take-off rolls start → end) and parking spots of a nation's airfield design. */
+export function airfieldLayout(faction: string): { start: readonly [number, number]; end: readonly [number, number]; slots: readonly (readonly [number, number])[] } {
+  if (MIDDLE_RUNWAY.has(faction)) return { start: [RUSSIA_RUNWAY.cu, 0.5], end: [RUSSIA_RUNWAY.cu, D - 0.5], slots: RUSSIA_SLOTS };
+  return { start: [0.5, RUNWAY_D / 2], end: [W - 0.5, RUNWAY_D / 2], slots: AIRFIELD_SLOTS };
+}
 const LIGHTS_U: number[] = [];
 for (let u = 0.15; u < W; u += 1.1) LIGHTS_U.push(u);
 
@@ -42,17 +57,20 @@ export function createAirfieldArt(faction: FactionId): BuildingArt {
       // Blinking runway lights along both edges.
       const on = Math.sin(time * 4) > 0;
       p.ctx.fillStyle = on ? '#ffe9a0' : '#8a7a40';
-      for (const u of LIGHTS_U) {
-        for (const v of [0.03, RUNWAY_D - 0.03]) {
-          const [x, y] = p.project(u, v, 2.3);
-          p.ctx.beginPath();
-          p.ctx.arc(x, y, 0.9, 0, Math.PI * 2);
-          p.ctx.fill();
-        }
+      const lamp = (u: number, v: number): void => {
+        const [x, y] = p.project(u, v, 2.3);
+        p.ctx.beginPath();
+        p.ctx.arc(x, y, 0.9, 0, Math.PI * 2);
+        p.ctx.fill();
+      };
+      if (MIDDLE_RUNWAY.has(faction)) {
+        for (let v = 0.15; v < D; v += 1.1) for (const u of [RUSSIA_RUNWAY.u0 + 0.03, RUSSIA_RUNWAY.u1 - 0.03]) lamp(u, v);
+      } else {
+        for (const u of LIGHTS_U) for (const v of [0.03, RUNWAY_D - 0.03]) lamp(u, v);
       }
       // Tower beacon.
       if (Math.sin(time * 2.4) > 0.3) {
-        const [x, y] = p.project(W - 0.6, D - 0.6, 45);
+        const [x, y] = MIDDLE_RUNWAY.has(faction) ? p.project(11.2, 7.1, 45) : p.project(W - 0.6, D - 0.6, 45);
         p.ctx.fillStyle = '#ff3b30';
         p.ctx.beginPath();
         p.ctx.arc(x, y, 1.4, 0, Math.PI * 2);

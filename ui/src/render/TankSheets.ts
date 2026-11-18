@@ -2,6 +2,7 @@ import { ISO_X, ISO_Y } from '../constants';
 import type { Vehicle } from '../entities/Vehicle';
 import type { FactionId } from '../types';
 import { drawCraftBlast } from './CraftSheets';
+import { spriteUrl } from './spriteUrl';
 
 /**
  * Main battle tank sheets rendered from 3D models (tools/tank_model_sheet.py), one hull and one turret sheet per nation: 32 columns of 64 px —
@@ -18,7 +19,7 @@ export const TANK_DEATH_SECONDS = 4.5;
 
 const sheet = (file: string): HTMLImageElement => {
   const img = new Image();
-  img.dataset.src = `${import.meta.env.BASE_URL}sprites/${file}`;
+  img.dataset.src = spriteUrl(`${file}`);
   return img;
 };
 const FACTIONS: FactionId[] = ['usa', 'europe', 'russia', 'islamic', 'china'];

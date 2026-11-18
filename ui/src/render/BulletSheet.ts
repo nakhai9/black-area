@@ -1,3 +1,4 @@
+import { spriteUrl } from './spriteUrl';
 /**
  * Pre-drawn bullet sheet (4 × 4 cells of 256 × 140 px), shared by every gun in the game.
  * Row 0: the bullet in flight pointing right (+x), 4 frames; cell 4 (row 1, col 0) is the bullet striking;
@@ -35,7 +36,7 @@ export const BULLET_FLIGHT_SECONDS = 0.16;
 export const BULLET_IMPACT_SECONDS = 0.7;
 
 const image = new Image();
-const url = `${import.meta.env.BASE_URL}sprites/bullet.webp`;
+const url = spriteUrl(`bullet.webp`);
 let loaded: Promise<void> | null = null;
 
 /** Starts (once) and returns the bullet sheet download. */

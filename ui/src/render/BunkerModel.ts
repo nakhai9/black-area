@@ -1,6 +1,7 @@
 import type { FactionId } from '../types';
 import { K, KZ } from './ArvModel';
 import { createCanvas } from './Canvas';
+import { spriteUrl } from './spriteUrl';
 
 /**
  * Every nation's bunker, rendered in Blender (tools/blender/models/bunker.py) into one sheet per nation,
@@ -32,7 +33,7 @@ const MUZZLE: Partial<Record<FactionId, readonly [number, number, number]>> = {
 const sheets = new Map<FactionId, HTMLImageElement>();
 for (const f of NATIONS) {
   const i = new Image();
-  i.dataset.src = `${import.meta.env.BASE_URL}sprites/bunker-${f}.webp`;
+  i.dataset.src = spriteUrl(`bunker-${f}.webp`);
   sheets.set(f, i);
 }
 let loaded: Promise<void> | null = null;

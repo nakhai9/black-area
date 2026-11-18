@@ -1,3 +1,4 @@
+import { spriteUrl } from './spriteUrl';
 /**
  * Pre-drawn air-launched missile sheet (16 × 9 cells of 64 px), shared by every aircraft that fires missiles.
  * Rows 0–1 / 2–3: the missile in level flight, exhaust frames A / B, 32 screen headings clockwise from N (0–15 in the
@@ -20,7 +21,7 @@ export const MISSILE_FLIGHT_SECONDS = 0.3;
 export const MISSILE_BLAST_SECONDS = 0.6;
 
 const image = new Image();
-const url = `${import.meta.env.BASE_URL}sprites/missile-air.webp`;
+const url = spriteUrl(`missile-air.webp`);
 let loaded: Promise<void> | null = null;
 
 /** Starts (once) and returns the missile sheet download. */

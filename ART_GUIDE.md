@@ -86,6 +86,10 @@
 | Lính / Soldiers | `<sheet>.png` | 128 | 8 × (11 hoặc / or 27) | 🇻🇳 các khung hình động tác · 🇬🇧 animation frames (`InfantryArt`) |
 | Công trình / Structures | `building-<kind>-<faction>.png` | 🇻🇳 theo nền / 🇬🇧 by plot | 1 ảnh / 1 image | 🇻🇳 `kit.render(name, footprint, height)` in ra `originX/originY` để ghi vào `PictureSpec` · 🇬🇧 prints `originX/originY` for the `PictureSpec` |
 
+**Thư mục sprite / Sprite folders**
+- 🇻🇳 Script vẫn ghi PNG vào `ui/public/sprites/`. Chạy `python tools/to_webp.py`: đổi sang WebP rồi tự xếp vào `sprites/<phe>/<nhóm>/` (nhiều ảnh cùng nhóm, ví dụ radar + khung ăng-ten, các mảnh tường) hoặc `sprites/<phe>/` (chỉ một ảnh), và cập nhật `ui/src/render/spriteManifest.ts`. Thủ đô các nước khác (`building-nation-<nước>`) xếp vào `sprites/capitals/<nước>/` theo cùng quy tắc. Ảnh không thuộc phe nào nằm ở gốc `sprites/`. Trong code luôn lấy đường dẫn qua `spriteUrl(file)`.
+- 🇬🇧 Scripts still write their PNG into `ui/public/sprites/`. Run `python tools/to_webp.py`: it converts to WebP, then sorts files into `sprites/<nation>/<group>/` (several in one group, e.g. radar + antenna frames, wall pieces) or `sprites/<nation>/` (a single one) and refreshes `ui/src/render/spriteManifest.ts`. The other nations' capitals (`building-nation-<country>`) go under `sprites/capitals/<country>/` the same way. Sprites of no nation stay at the `sprites/` root. In code always build the path with `spriteUrl(file)`.
+
 **Kích thước trên màn hình / On-screen size**
 - 🇻🇳 Đo chiều dài theo phương ngang, đơn vị iso px. Mọi model trong cùng một nhóm phải có cùng chiều dài.
 - 🇬🇧 Length side-on, in iso px. Every model in a group has the same length.
@@ -190,6 +194,8 @@
 - **Màu phe / Faction colours**
   - 🇻🇳 Dùng `TEAM` trong `kit.py` cho dải màu nhận diện phe. Màu thân chính theo màu thật của model, ví dụ C-17 xanh xám đậm, Il-76 trắng có dải xanh, Tu-160 trắng.
   - 🇬🇧 Use `TEAM` in `kit.py` for the faction identity band. The main colour is the real one, e.g. C-17 dark blue-grey, Il-76 white with a blue cheatline, Tu-160 white.
+  - 🇻🇳 **Bắt buộc:** mọi **công trình, lính và phương tiện** luôn phải có ít nhất một **line nhận dạng màu phe** (dải, viền, sọc hoặc mảng tô bằng đúng màu `TEAM`), nhìn rõ ở cỡ sprite. Đây là phần game đổi sang màu của chủ mới khi công trình / đơn vị bị chiếm, nên phải dùng đúng mã `TEAM`, không pha, không đổ bóng màu khác lên. Ví dụ: sân bay có line màu phe dọc mép bãi đỗ, ở đầu mỗi chỗ đỗ, ở đai tháp chỉ huy và nắp bồn nhiên liệu.
+  - 🇬🇧 **Required:** every **structure, soldier and vehicle** always carries at least one **faction identity line** (a band, trim, stripe or patch in the exact `TEAM` colour) that reads at sprite size. It is the part the game recolours to the new owner when the structure / unit is taken, so use the exact `TEAM` value, unmixed. Example: the airfield has the team line along the apron edges, at the head of every stand, on the tower band and on the fuel-tank caps.
 - **Cờ và phù hiệu / Flags and markings**
   - 🇻🇳 Cờ phe luôn dùng **thiết kế cờ trong game** (`ui/src/render/Flags.ts`). Không dùng cờ quốc gia ngoài đời.
   - 🇬🇧 Faction flags always use the **game's own flag designs** (`ui/src/render/Flags.ts`), never real-world national flags.
@@ -242,6 +248,7 @@
 - [ ] Khối cứng chỗ cần khối, bo tròn chỗ cần bo / Hard where hard, rounded where rounded
 - [ ] Chi tiết đủ, sắc nét, không như lego hay hoạt hình / Detailed, sharp, no Lego or cartoon look
 - [ ] Màu thật, cờ và phù hiệu theo thiết kế trong game / Real colours; game flag and marking designs
+- [ ] Có line nhận dạng màu phe (`TEAM`) trên công trình, lính, phương tiện / Faction identity line (`TEAM`) on structures, soldiers, vehicles
 - [ ] Tên hiển thị không đổi, áp dụng cho cả người chơi và AI / Display names unchanged; player and AI alike
 - [ ] `tsc` không lỗi, đã tăng phiên bản, đã cập nhật RULE và README / `tsc` passes, version bumped, RULE and README updated
 

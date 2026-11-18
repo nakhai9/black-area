@@ -3,6 +3,7 @@ import type { Vehicle } from '../entities/Vehicle';
 import { FACTIONS } from '../factions';
 import type { FactionId, VehicleKind } from '../types';
 import { drawTruckChassis } from './TruckSheets';
+import { spriteUrl } from './spriteUrl';
 
 /**
  * New Blender designs not yet wired into the game as units, shown on the Assets page: each has a fixed sheet (hull /
@@ -54,7 +55,7 @@ function image(file: string): HTMLImageElement {
   let img = IMAGES.get(file);
   if (!img) {
     img = new Image();
-    img.src = `${import.meta.env.BASE_URL}sprites/${file}.webp`;
+    img.src = spriteUrl(`${file}.webp`);
     IMAGES.set(file, img);
   }
   return img;
