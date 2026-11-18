@@ -498,7 +498,7 @@ export class Game {
       get: () => this.sound.vehicleLevel,
       set: (v) => this.sound.setVehicleVolume(v),
     },
-    { onSave: () => this.downloadSave(), onLanguage: (lang) => this.switchLanguage(lang) },
+    { onSave: () => this.downloadSave(), onQuit: () => this.quitGame(), onLanguage: (lang) => this.switchLanguage(lang) },
   );
   /** The war is decided (victory or game over): the simulation stops. */
   private ended = false;
@@ -1185,52 +1185,65 @@ export class Game {
    * folder the first time); where the browser cannot (no File System Access API, or the picker is cancelled) it is downloaded.
    */
   private downloadSave(): void {
+    const file = this.saveFile();
+    if (file) void this.saveLocally(file.name, file.text);
+  }
+
+  /** The game as save text and its file name, or null (after a notice) when it cannot be written. */
+  private saveFile(): { name: string; text: string } | null {
     try {
       const save = this.exportSave();
-      const text = JSON.stringify(save);
       const stamp = save.savedAt.slice(0, 16).replace(/[:T]/g, '-');
-      const name = `black-area-${save.faction}-${stamp}.json`;
-      // The player picks: cloud (server MySQL, overwrites this player's save; unreachable → saved on this machine)
-      // or a .json file on this machine.
-      void askSaveTarget().then((target) => {
-        if (target === 'file') this.saveLocally(name, text);
-        else if (target === 'cloud') this.saveCloud(name, text);
-      });
+      return { name: `black-area-${save.faction}-${stamp}.json`, text: JSON.stringify(save) };
     } catch (err) {
       console.error(err);
       this.sidebar.notify(t('Could not save: {error}', { error: err instanceof Error ? err.message : String(err) }), 6);
+      return null;
     }
   }
 
-  /** Save to cloud: back to the main menu with a toast on success; on failure saved on this machine instead. */
-  private saveCloud(name: string, text: string): void {
-    try {
-      void saveToCloud(text).then(
-        () => backToMenuWithToast(t('Game saved to the cloud.')),
-        (err: unknown) => {
-          console.error(err);
-          this.sidebar.notify(t('Could not save to the cloud ({error}): saved to a file instead.', { error: err instanceof Error ? err.message : String(err) }), 6);
-          this.saveLocally(name, text);
-        },
-      );
-    } catch (err) {
-      console.error(err);
-      this.sidebar.notify(t('Could not save: {error}', { error: err instanceof Error ? err.message : String(err) }), 6);
-    }
+  /**
+   * Pause menu → Quit game: asks how to keep the game — to the cloud (server MySQL, overwrites this player's save),
+   * to a .json file, or not at all — then goes back to the main menu. A failed cloud save stays in the game.
+   * Multiplayer: quits at once (no saves).
+   */
+  private quitGame(): void {
+    const toMenu = (): void => window.location.assign(window.location.pathname);
+    if (this.lockstep) return toMenu();
+    void askSaveTarget().then(async (target) => {
+      if (target === null) return; // closed: stay in the game
+      if (target === 'none') return toMenu();
+      const file = this.saveFile();
+      if (!file) return;
+      if (target === 'file') {
+        await this.saveLocally(file.name, file.text);
+        // Give the browser a moment to start a plain download before the page goes.
+        setTimeout(() => backToMenuWithToast(t('Game saved to a file.')), 600);
+        return;
+      }
+      try {
+        await saveToCloud(file.text);
+        backToMenuWithToast(t('Game saved to the cloud.'));
+      } catch (err) {
+        console.error(err);
+        this.sidebar.notify(t('Could not save to the cloud: {error}', { error: err instanceof Error ? err.message : String(err) }), 6);
+      }
+    });
   }
 
   /** The save on this machine: Downloads/BlackArea folder where the browser can, else a plain download. */
-  private saveLocally(name: string, text: string): void {
+  private async saveLocally(name: string, text: string): Promise<void> {
     try {
       if (saveFolderSupported()) {
-        void writeToSaveFolder(name, text).then(
-          (folder) => (folder ? this.sidebar.notify(t('Game saved to Downloads/{folder}/{file}.', { folder, file: name }), 4) : this.downloadSaveFile(name, text)),
-          (err: unknown) => {
-            console.error(err);
-            this.downloadSaveFile(name, text);
-          },
-        );
-        return;
+        try {
+          const folder = await writeToSaveFolder(name, text);
+          if (folder) {
+            this.sidebar.notify(t('Game saved to Downloads/{folder}/{file}.', { folder, file: name }), 4);
+            return;
+          }
+        } catch (err) {
+          console.error(err);
+        }
       }
       this.downloadSaveFile(name, text);
     } catch (err) {

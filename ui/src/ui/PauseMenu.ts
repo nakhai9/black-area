@@ -15,6 +15,8 @@ export interface MusicVolumeControl {
 /** Save / load actions of the pause menu. */
 export interface SaveActions {
   onSave: () => void;
+  /** Quit game: asks how to save (cloud / file / not at all), then back to the main menu. */
+  onQuit: () => void;
   /** Settings → Language: the game switches to it (carried over through a save and a reload). */
   onLanguage: (lang: Lang) => void;
 }
@@ -178,12 +180,11 @@ export class PauseMenu {
     const quit = document.createElement('button');
     quit.type = 'button';
     quit.textContent = t('Quit game');
-    // Reload without query params (e.g. ?faction=…) so the faction picker opens again.
-    quit.addEventListener('click', () => window.location.assign(window.location.pathname));
+    quit.addEventListener('click', () => saves.onQuit());
     const save = document.createElement('button');
     save.type = 'button';
     save.textContent = t('Save game');
-    save.title = t('Save to the cloud or to a .json file.');
+    save.title = t('Download this game as a .json file, to continue it later with Import saved file.');
     save.addEventListener('click', () => saves.onSave());
     const actions = document.createElement('div');
     actions.className = 'pause-actions';

@@ -1,9 +1,10 @@
 import { t } from '../i18n';
 import { modalCloseButton } from './ModalClose';
 
-export type SaveTarget = 'cloud' | 'file';
+/** Where to keep the game when quitting ('none': quit without saving). */
+export type SaveTarget = 'cloud' | 'file' | 'none';
 
-/** Pause menu → Save game: asks where to save. Resolves with the choice, or null when closed (X / Esc). */
+/** Pause menu → Quit game: asks how to keep the game first. Resolves with the choice, or null when closed (X / Esc). */
 export function askSaveTarget(parent: HTMLElement = document.body): Promise<SaveTarget | null> {
   const root = document.createElement('div');
   root.className = 'end-screen pause-screen save-choice';
@@ -13,7 +14,7 @@ export function askSaveTarget(parent: HTMLElement = document.body): Promise<Save
   card.className = 'end-card';
   card.style.setProperty('--end-color', '#f5c542');
   const title = document.createElement('h1');
-  title.textContent = t('Save game');
+  title.textContent = t('Save before quitting?');
   const cloud = document.createElement('button');
   cloud.type = 'button';
   cloud.textContent = t('Save to cloud');
@@ -22,9 +23,12 @@ export function askSaveTarget(parent: HTMLElement = document.body): Promise<Save
   file.type = 'button';
   file.textContent = t('Save to file');
   file.title = t('Download this game as a .json file, to continue it later with Import saved file.');
+  const none = document.createElement('button');
+  none.type = 'button';
+  none.textContent = t('Quit without saving');
   const actions = document.createElement('div');
   actions.className = 'pause-actions';
-  actions.append(cloud, file);
+  actions.append(cloud, file, none);
   root.append(card);
   parent.append(root);
 
@@ -43,6 +47,7 @@ export function askSaveTarget(parent: HTMLElement = document.body): Promise<Save
     window.addEventListener('keydown', onKey, true);
     cloud.addEventListener('click', () => close('cloud'));
     file.addEventListener('click', () => close('file'));
+    none.addEventListener('click', () => close('none'));
     card.append(modalCloseButton(() => close(null)), title, actions);
     cloud.focus();
   });
