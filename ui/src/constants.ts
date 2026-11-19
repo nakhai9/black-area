@@ -39,7 +39,7 @@ export const DEMO_FACTION: FactionId = NATION_CODES[(import.meta.env.VITE_DEMO_F
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "3.75.247";
+export const GAME_VERSION = "3.75.248";
 /** Transport aircraft (C-17, Il-76, Y-20, A400M) are drawn this many iso px long: 13, +20% (v3.75.224). */
 export const TRANSPORT_LENGTH = 13 * 1.2 * 0.9;
 
@@ -418,6 +418,8 @@ export const DVINA_SLOW_FACTOR = 0.6;
 export const DVINA_INTERCEPT_FLIGHT = 0.35;
 /** Warhead at the point of impact (the game has no nuclear weapon: taken as 1/5 of a notional 15000-damage nuke). */
 export const DVINA_DAMAGE = 3000;
+/** A Dvina burst in the air (on an aircraft, or shot down) still deals this share of its blast to the ground below. */
+export const DVINA_AIR_GROUND_SHARE = 0.2;
 /** Blast radius (cells) round the impact: full damage at the centre, none at the edge (structures and units alike). */
 export const DVINA_BLAST_CELLS = 3;
 /** Seconds to load the next missile once it is paid for. */

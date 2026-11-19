@@ -52,7 +52,7 @@ function recolored(cell: HTMLCanvasElement, owner: FactionId, design: FactionId)
   if (!byOwner) RECOLORED.set(cell, (byOwner = new Map()));
   let c = byOwner.get(owner);
   if (!c) {
-    const { canvas, ctx } = createCanvas(cell.width, cell.height);
+    const { canvas, ctx } = createCanvas(cell.width, cell.height, { willReadFrequently: true });
     ctx.drawImage(cell, 0, 0);
     const img = ctx.getImageData(0, 0, cell.width, cell.height);
     recolorPixels(img.data, owner, design);

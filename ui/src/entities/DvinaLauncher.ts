@@ -16,6 +16,8 @@ export class DvinaLauncher extends Bunker {
   armed = true;
   /** World heading the owner turned the launcher to (left-click on the ground); null = free. */
   aimOrder: number | null = null;
+  /** forcedTarget came from the owner's attack order (true) or from its own pick of an aircraft (false). */
+  ordered = false;
 
   /** Default heading: screen-left (world 3π/4 → iso -x); the launcher turns back to it once it has no target or order. */
   get restHeading(): number {

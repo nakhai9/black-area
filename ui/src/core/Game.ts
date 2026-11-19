@@ -875,7 +875,12 @@ export class Game {
         if (this.placing?.id === option.id) this.stopPlacing();
         this.issue({ k: 'buildCancel', opt: option.id });
       },
-      preview: (option) => (option.id === 'bunker' ? bunkerPreview(human.faction) : option.id === 'ldew' ? ldewPreview(human.faction) : option.id === 'dvina' ? sitePreview('dvina', human.faction) : option.id === 'yars' ? yarsPreview(human.faction) : null) ?? this.sprites.get(option.spriteKey(human.faction)).canvas,
+      preview: (option) => {
+        // Sheet-drawn cameos (bunker, LDEW, Dvina, Yars) are null while their sheets load: the sidebar retries them.
+        const custom = option.id === 'bunker' || option.id === 'ldew' || option.id === 'dvina' || option.id === 'yars';
+        const art = option.id === 'bunker' ? bunkerPreview(human.faction) : option.id === 'ldew' ? ldewPreview(human.faction) : option.id === 'dvina' ? sitePreview('dvina', human.faction) : option.id === 'yars' ? yarsPreview(human.faction) : null;
+        return { canvas: art ?? this.sprites.get(option.spriteKey(human.faction)).canvas, final: !custom || art !== null };
+      },
       onTrain: (option) => this.issue({ k: 'train', tier: option.key }),
       onTrainCancel: (option) => this.issue({ k: 'trainCancel', tier: option.key }),
       trainPreview: (option) => soldierPortrait(option.faction, option.tier),
@@ -3598,6 +3603,7 @@ export class Game {
         if (b instanceof DvinaLauncher && b.alive && b.owner === me && tg && tg.alive && isHostile(b, tg)) {
           b.forcedTarget = tg.id;
           b.aimOrder = null;
+          b.ordered = true;
         }
         break;
       }
@@ -3614,6 +3620,7 @@ export class Game {
         if (b instanceof DvinaLauncher && b.alive && b.owner === me) {
           b.forcedTarget = null;
           b.aimOrder = cmd.h;
+          b.ordered = false;
         }
         break;
       }
@@ -4222,6 +4229,13 @@ export class Game {
           trainOptions: this.training.optionsFor(this.humanPlayer),
           vehicleOptions: this.production.optionsFor(this.humanPlayer),
           buildAvailable: (option) => this.buildAvailable(this.humanPlayer, option),
+          buildAffordable: (option) => {
+            const p = this.humanPlayer;
+            if (p.credits < buildCost(option, p.faction)) return false;
+            if (option.id === 'yars' && (p.scientists ?? 0) < SILO_SCIENTISTS) return false;
+            if (option.id === 'alliedBuilding' && this.alliesOf(p) >= MAX_ALLIES) return false;
+            return true;
+          },
           training: this.training.queue(this.humanPlayer),
           vehicleQueue: this.production.queue(this.humanPlayer),
           owned: (this.ownedCache = this.ownedTypes()),
@@ -4425,7 +4439,7 @@ export class Game {
         // Locked: the launcher turns to it and keeps it until it dies; out of range it waits for it to come in.
         this.issue({ k: 'siteTarget', b: site.id, tg: tg.id });
         this.moveMarker = { x: world.x, y: world.y, at: this.time };
-        if (d > site.range) this.sidebar.notify(t('Target out of range.'), 1.5);
+        if (d > site.range) this.sidebar.notify(t('Target is too far away: out of range.'), 2.5);
         return;
       }
       // Click on open ground: the launcher turns that way (drops its lock); right-click deselects.
@@ -7382,7 +7396,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     const at = u ? { x: u.px, y: u.py } : b ? b.centerWorld() : world;
     const c = s.centerWorld();
     if (Math.hypot(at.x - c.x, at.y - c.y) > s.range) {
-      this.sidebar.notify(t('Target out of range.'), 1.5);
+      this.sidebar.notify(t('Target is too far away: out of range.'), 2.5);
       return;
     }
     this.issue({ k: 'siloStrike', b: s.id, x: at.x, y: at.y });

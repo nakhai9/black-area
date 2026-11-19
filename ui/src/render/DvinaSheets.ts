@@ -7,7 +7,7 @@ import { spriteUrl } from './spriteUrl';
 /**
  * Missile-launcher emplacements of the Defense tab (R-12 Dvina), each drawn from three Blender sheets of
  * 32 facings in one row (tools/blender/dvina_sheet.py):
- *   <id>-base      fixed ground part (cell k carries the ground shadow of the launcher facing k), optional "<id>-base-team" mask
+ *   <id>-base      fixed ground part (cell k carries the ground shadow of the launcher facing k), (no team mask)
  *   <id>-launcher  turning launcher, plus "<id>-launcher-team" (faction band, tinted with the owner's hex colour)
  *   <id>-missile   the missiles alone on their rails - drawn only while loaded (separate, so they can be reused)
  */
@@ -41,7 +41,7 @@ function image(file: string): HTMLImageElement {
   return img;
 }
 const ready = (img: HTMLImageElement): boolean => img.complete && img.naturalWidth > 0;
-for (const id of Object.keys(SITES)) for (const p of ['base', 'base-team', 'launcher', 'launcher-team', 'missile']) image(`${id}-${p}`);
+for (const id of Object.keys(SITES)) for (const p of ['base', 'launcher', 'launcher-team', 'missile']) image(`${id}-${p}`);
 
 const TINTED = new Map<string, HTMLCanvasElement>();
 function tinted(file: string, dir: number, hex: string): HTMLCanvasElement {
@@ -93,7 +93,6 @@ export function drawSite(ctx: CanvasRenderingContext2D, id: SiteId, b: { faction
     if (ready(m)) ctx.drawImage(tinted(file, d, hex), 0, 0, m.naturalHeight, m.naturalHeight, left, up, size, size);
   };
   cell(base);
-  band(`${id}-base-team`);
   cell(top);
   band(`${id}-launcher-team`);
   if (b.loaded) cell(image(`${id}-missile`));
@@ -117,3 +116,52 @@ export function sitePreview(id: SiteId, faction: FactionId): HTMLCanvasElement |
 export const drawDvina = (ctx: CanvasRenderingContext2D, b: { faction: string; aimHeading: number; loaded: boolean }, x: number, y: number): boolean => drawSite(ctx, 'dvina', b, x, y);
 export const dvinaRailHeight = (): number => siteRailHeight('dvina');
 export const dvinaPreview = (faction: FactionId): HTMLCanvasElement | null => sitePreview('dvina', faction);
+
+/** Per facing: centre of the missile's pixels in its sheet cell (cell px), found once from the sheet's alpha. */
+const MISSILE_CENTRE = new Map<number, { x: number; y: number } | null>();
+function missileCentre(img: HTMLImageElement, dir: number): { x: number; y: number } | null {
+  if (MISSILE_CENTRE.has(dir)) return MISSILE_CENTRE.get(dir)!;
+  const cell = img.naturalHeight;
+  const c = document.createElement('canvas');
+  c.width = c.height = cell;
+  const g = c.getContext('2d', { willReadFrequently: true })!;
+  g.drawImage(img, dir * cell, 0, cell, cell, 0, 0, cell, cell);
+  const data = g.getImageData(0, 0, cell, cell).data;
+  let sx = 0;
+  let sy = 0;
+  let n = 0;
+  for (let y = 0; y < cell; y++) {
+    for (let x = 0; x < cell; x++) {
+      if (data[(y * cell + x) * 4 + 3]! > 40) {
+        sx += x;
+        sy += y;
+        n++;
+      }
+    }
+  }
+  const out = n > 0 ? { x: sx / n, y: sy / n } : null;
+  MISSILE_CENTRE.set(dir, out);
+  return out;
+}
+
+/**
+ * The launcher's own missile in flight (the `<id>-missile` sheet, same scale as on the rail), centred on (x, y) and
+ * facing the screen direction (ux, uy). False while the sheet loads.
+ */
+export function drawSiteMissile(ctx: CanvasRenderingContext2D, id: SiteId, x: number, y: number, ux: number, uy: number): boolean {
+  const img = image(`${id}-missile`);
+  if (!ready(img)) return false;
+  const s = SITES[id];
+  const size = (s.grid / M_TO_GRID) * PX_PER_M * GAME_SCALE[id];
+  const a = Math.atan2(ux, -uy);
+  const d = ((Math.round((a / (Math.PI * 2)) * DIRS) % DIRS) + DIRS) % DIRS;
+  const cell = img.naturalHeight;
+  const m = missileCentre(img, d);
+  if (!m) return false;
+  const k = size / cell;
+  const prev = ctx.imageSmoothingEnabled;
+  ctx.imageSmoothingEnabled = true;
+  ctx.drawImage(img, d * cell, 0, cell, cell, x - m.x * k, y - m.y * k, size, size);
+  ctx.imageSmoothingEnabled = prev;
+  return true;
+}

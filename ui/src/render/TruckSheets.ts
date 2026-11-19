@@ -67,7 +67,8 @@ const layeredScale = (faction: FactionId): number => LAYERED[faction]?.scale ?? 
 /** Loaded layers for `faction`, or null. */
 function layers(faction: FactionId): HTMLImageElement[] | null {
   const l = LAYERED[faction];
-  return l && loadedImg(l.chassis) ? [l.chassis, l.module].filter(loadedImg) : null;
+  // Both layers or none: a chassis drawn (and a cameo cached) before its cargo body arrived showed a truck without its bed.
+  return l && loadedImg(l.chassis) && loadedImg(l.module) ? [l.chassis, l.module] : null;
 }
 /** Screen offset (px, up) that puts the layered sheet's ground point on the unit when drawn `size` px square. */
 const lift = (faction: FactionId, size: number): number => (((LAYERED[faction]?.pivotY ?? CELL / 2) - CELL / 2) / CELL) * size;

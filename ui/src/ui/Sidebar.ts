@@ -243,6 +243,8 @@ export interface SidebarModel {
   vehicleOptions: readonly VehicleOption[];
   /** Is this structure on sale now (another nation's design needs that nation's captured capital)? */
   buildAvailable: (option: BuildOption) => boolean;
+  /** Can this structure be ordered right now (treasury, engineers for the Yars, embassy cap)? False greys its cameo out. */
+  buildAffordable: (option: BuildOption) => boolean;
   training: TrainingQueue;
   vehicleQueue: VehicleQueue;
   /** Types of the player's living buildings (drives the tech tree). */
@@ -288,7 +290,8 @@ export interface SidebarHandlers {
   /** Right click on a build cameo (cancel / refund). */
   onCancel: (option: BuildOption) => void;
   /** Sprite canvas used as the cameo picture. */
-  preview: (option: BuildOption) => HTMLCanvasElement;
+  /** Cameo picture; final = false while its sheets still load (the sidebar draws it again until final). */
+  preview: (option: BuildOption) => { canvas: HTMLCanvasElement; final: boolean };
   onVehicle: (option: VehicleOption) => void;
   onVehicleCancel: (option: VehicleOption) => void;
   vehiclePreview: (option: VehicleOption) => HTMLCanvasElement;
@@ -742,7 +745,17 @@ export class Sidebar {
     this.transportState.textContent = t(CARRIER_STATE_LABEL[tr.state]);
   }
 
+  /** Structure cameos whose sheets were still loading when drawn: drawn again until they are ready. */
+  private pendingPreviews: { canvas: HTMLCanvasElement; option: BuildOption }[] = [];
+
   update(model: SidebarModel, dt: number): void {
+    if (this.pendingPreviews.length > 0) {
+      this.pendingPreviews = this.pendingPreviews.filter(({ canvas, option }) => {
+        const p = this.handlers.preview(option);
+        if (p.final) drawPreview(canvas, p.canvas, STRUCTURE_CAMEO_BG);
+        return !p.final;
+      });
+    }
     const { player } = model;
     this.credits.textContent = Math.floor(player.credits).toLocaleString('en-US');
     this.renderAllies(model.allies);
@@ -864,7 +877,7 @@ export class Sidebar {
       const missing = missingRequirement(option, model.owned, model.disarmed);
       // Capital lost = government gone: no structure can be bought any more, their cameos are hidden.
       const gone = model.capitalLost && !mine;
-      const locked = (missing !== null && !mine) || gone;
+      const locked = ((missing !== null || !model.buildAffordable(option)) && !mine) || gone;
       c.el.classList.toggle('sb-placeholder', gone);
       c.el.classList.toggle('locked', locked);
       (c.el as HTMLButtonElement).disabled = locked;
@@ -1566,7 +1579,11 @@ export class Sidebar {
         <span class="sb-cameo-info"></span>
         <span class="sb-cameo-state"></span>`;
       const canvas = el.querySelector('canvas');
-      if (canvas) drawPreview(canvas, this.handlers.preview(option), STRUCTURE_CAMEO_BG);
+      if (canvas) {
+        const p = this.handlers.preview(option);
+        drawPreview(canvas, p.canvas, STRUCTURE_CAMEO_BG);
+        if (!p.final) this.pendingPreviews.push({ canvas, option });
+      }
       addInfoIcon(el, option.name);
       if (option.foreign) this.addForeignFlag(el, option.foreign);
       el.addEventListener('click', () => this.handlers.onBuild(option));

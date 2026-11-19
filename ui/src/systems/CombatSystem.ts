@@ -20,7 +20,7 @@ import type { FactionId } from '../types';
 import type { Mobility } from '../map/Pathfinder';
 import { demoActive } from '../core/Demo';
 import { movesRight } from '../core/IsoView';
-import { BM21_INTERCEPT_CHANCE, BM21_MIN_SALVO, BM21_SHOCK_CELLS, BM21_SHOCK_PEAK, bm21Flight, DVINA_MISSILE_SPEED, DVINA_SLOW_FACTOR, SILO_BLAST_CELLS, SILO_DAMAGE, SILO_LID_HOLD, SILO_LID_MOVE, SILO_RELOAD, icbmFlight, DVINA_INTERCEPT_FLIGHT, DVINA_AIM_TOLERANCE, DVINA_GROUP_CELLS, DVINA_GROUP_SOLDIERS, DVINA_GROUP_VEHICLES, DVINA_RELOAD, DVINA_TURN_RATE, BOMB_FALL_SECONDS, CRUISE_ALTITUDE, HIGH_GROUND_DAMAGE, HIGH_GROUND_RANGE, LOW_GROUND_DAMAGE, MANTIS_HIT_SHARE, MANTIS_RANGE_CELLS, MANTIS_RANK_BONUS, MANTIS_EVADE_CELLS, HELI_VS_MANTIS_SHARE, JET_VS_MANTIS_SHARE, MANTIS_VS_JET_SHARE, MANTIS_VS_HELI_SHARE, MANTIS_RELOAD, MANTIS_GUN_NATIONS, PGZ_RELOAD, PGZ_HIT_FACTOR, JET_BOMB_VS_STRUCTURE, JET_BOMB_VS_VEHICLE, ACQUIRE_PERIOD, RANK_FIREPOWER, RANK_RELOAD, BOMB_GROUP_RADIUS_CELLS, BOMB_GROUP_SIZE, BOMB_TOUGH_DAMAGE, BOMB_TOUGH_STRUCTURES, BOMBS_PER_DROP, CELL_SIZE, CHASE_GIVE_UP_SECONDS, CHASE_LIMIT_CELLS, CHASE_PERIOD, FIGHT_MEMORY_SECONDS, GUARD_VISION_FACTOR, NEUTRAL_OWNER, RETALIATE_RANGE_FACTOR, WEAPONS, FIGHTER_DRONE_ALERT, FELL_SPREAD_CELLS, TREE_BOMB_RADIUS_CELLS, TREE_STICK_RADIUS_CELLS } from '../constants';
+import { BM21_INTERCEPT_CHANCE, BM21_MIN_SALVO, BM21_SHOCK_CELLS, BM21_SHOCK_PEAK, bm21Flight, DVINA_MISSILE_SPEED, DVINA_SLOW_FACTOR, DVINA_AIR_GROUND_SHARE, SILO_BLAST_CELLS, SILO_DAMAGE, SILO_LID_HOLD, SILO_LID_MOVE, SILO_RELOAD, icbmFlight, DVINA_INTERCEPT_FLIGHT, DVINA_AIM_TOLERANCE, DVINA_GROUP_CELLS, DVINA_GROUP_SOLDIERS, DVINA_GROUP_VEHICLES, DVINA_RELOAD, DVINA_TURN_RATE, BOMB_FALL_SECONDS, CRUISE_ALTITUDE, HIGH_GROUND_DAMAGE, HIGH_GROUND_RANGE, LOW_GROUND_DAMAGE, MANTIS_HIT_SHARE, MANTIS_RANGE_CELLS, MANTIS_RANK_BONUS, MANTIS_EVADE_CELLS, HELI_VS_MANTIS_SHARE, JET_VS_MANTIS_SHARE, MANTIS_VS_JET_SHARE, MANTIS_VS_HELI_SHARE, MANTIS_RELOAD, MANTIS_GUN_NATIONS, PGZ_RELOAD, PGZ_HIT_FACTOR, JET_BOMB_VS_STRUCTURE, JET_BOMB_VS_VEHICLE, ACQUIRE_PERIOD, RANK_FIREPOWER, RANK_RELOAD, BOMB_GROUP_RADIUS_CELLS, BOMB_GROUP_SIZE, BOMB_TOUGH_DAMAGE, BOMB_TOUGH_STRUCTURES, BOMBS_PER_DROP, CELL_SIZE, CHASE_GIVE_UP_SECONDS, CHASE_LIMIT_CELLS, CHASE_PERIOD, FIGHT_MEMORY_SECONDS, GUARD_VISION_FACTOR, NEUTRAL_OWNER, RETALIATE_RANGE_FACTOR, WEAPONS, FIGHTER_DRONE_ALERT, FELL_SPREAD_CELLS, TREE_BOMB_RADIUS_CELLS, TREE_STICK_RADIUS_CELLS } from '../constants';
 import { Building } from '../entities/Building';
 import { Bunker } from '../entities/Bunker';
 import { LdewEmplacement } from '../entities/LdewEmplacement';
@@ -415,14 +415,16 @@ export class CombatSystem implements GameSystem {
       return false;
     };
     let target: Unit | Building | undefined;
+    const ai = aiOwners.has(b.owner);
     if (b.forcedTarget !== null) {
       const o = this.entities.get(b.forcedTarget);
-      if (fair(o)) target = o;
-      else b.forcedTarget = null;
+      // Its own pick (no order) is only ever an aircraft in the air: once it lands or is gone, it is dropped, so a
+      // player's launcher never turns on a ground target by itself.
+      if (fair(o) && (b.ordered || ai || (o instanceof Unit && o.flies))) target = o;
+      else [b.forcedTarget, b.ordered] = [null, false];
     }
     // On its own it fires only at aircraft / helicopters in the air (player and AI); ground units and structures need an
     // order. The AI gives itself that order too (a massed group in range). One missile per order or pick.
-    const ai = aiOwners.has(b.owner);
     if (!target && b.loaded && !this.hooks.safeAt(c.x, c.y)) {
       let bestD = Infinity;
       for (const o of this.entities.fieldMovers()) {
@@ -430,7 +432,7 @@ export class CombatSystem implements GameSystem {
         const d = gap(o);
         if (d <= b.range && d < bestD && massed(o) && !claimed(o)) [bestD, target] = [d, o];
       }
-      if (target) b.forcedTarget = target.id;
+      if (target) [b.forcedTarget, b.ordered] = [target.id, false];
       // Structures are hit only on an attack order (forcedTarget), never picked on its own.
     }
     if (target instanceof Unit && target.flies) this.dvinaAir.set(b.id, target.id);
@@ -447,6 +449,7 @@ export class CombatSystem implements GameSystem {
     b.firing = 0.3;
     // One shot ends the order: the launcher holds this heading and waits for a new order.
     b.forcedTarget = null;
+    b.ordered = false;
     b.aimOrder = b.aimHeading;
     this.dvinaAir.delete(b.id);
     // The missile chases its target (flyDvina) and only bursts when it touches it: nothing is hit before that.
@@ -596,9 +599,30 @@ export class CombatSystem implements GameSystem {
     for (const o of this.entities.buildings()) hit(o, blast(distanceTo(at.x, at.y, o)));
   }
 
+  /**
+   * A Dvina warhead bursting in the air (on an aircraft, or shot down): every hostile ground unit and structure inside
+   * the blast radius below takes DVINA_AIR_GROUND_SHARE of the blast (falling off from the centre). Player and AI alike.
+   */
+  private dvinaGroundSplash(b: DvinaLauncher, at: WorldPoint, skip: Unit | Building | null): void {
+    const radius = b.blastRadius;
+    const amount = (dist: number): number => b.shotDamage * DVINA_AIR_GROUND_SHARE * Math.max(0, 1 - dist / radius);
+    const hit = (o: Unit | Building, n: number): void => {
+      if (o === skip || !o.alive || !isHostile(b, o) || n <= 0) return;
+      o.damage(n);
+      if (!b.alive) return;
+      o.lastAttackerId = b.id;
+      o.lastAttackedAt = this.time;
+      if (o instanceof Unit) o.fightingWith.set(b.owner, this.time);
+    };
+    for (const o of this.entities.fieldMovers()) if (!o.flies && !this.sheltered(o)) hit(o, amount(Math.hypot(o.px - at.x, o.py - at.y)));
+    for (const o of this.entities.buildings()) if (!this.sheltered(o)) hit(o, amount(distanceTo(at.x, at.y, o)));
+  }
+
   private dvinaBurst(d: DvinaMissile): void {
     if (d.shotDown) {
       this.hooks.onDvinaShotDown({ x: d.x, y: d.y }, d.lift);
+      // Brought down in the air: its warhead still showers the ground below (DVINA_AIR_GROUND_SHARE).
+      this.dvinaGroundSplash(d.launcher, { x: d.x, y: d.y }, null);
       return;
     }
     const b = d.launcher;
@@ -617,7 +641,10 @@ export class CombatSystem implements GameSystem {
       if (o instanceof Unit) o.fightingWith.set(b.owner, this.time);
     };
     if (target) hit(target, b.shotDamage);
-    if (!air) {
+    if (air) {
+      // Air burst: the blast still reaches the ground below at DVINA_AIR_GROUND_SHARE of its strength.
+      this.dvinaGroundSplash(b, tc, target);
+    } else {
       const blast = (d: number): number => b.shotDamage * Math.max(0, 1 - d / radius);
       this.hooks.trees.damageRadius(tc.x, tc.y, radius, b.shotDamage);
       for (const o of this.entities.fieldMovers()) if (o !== target && !o.flies && !this.sheltered(o)) hit(o, blast(Math.hypot(o.px - tc.x, o.py - tc.y)));

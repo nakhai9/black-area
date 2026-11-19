@@ -1,3 +1,4 @@
+import { drawSiteMissile } from './DvinaSheets';
 import { dissipate, spread } from './Smoke';
 /**
  * Surface-to-air missile of the air-defence vehicle, drawn in code: it leaves its canister in a launch flash and a
@@ -104,7 +105,20 @@ export function drawHomingMissile(ctx: CanvasRenderingContext2D, x: number, y: n
     ctx.arc(p.x, p.y - old * 1.2, spread(1, 2, old), 0, Math.PI * 2);
     ctx.fill();
   }
-  if (flying) {
+  if (flying && drawSiteMissile(ctx, 'dvina', x - ux * 3, y - uy * 3, ux, uy)) {
+    // The launcher's own missile (dvina-missile sheet); only the motor flame behind it is drawn here.
+    // R-12: ~22 m long, drawn at ~1.17 iso px / m, so its tail is about 13 px behind the centre.
+    const tx = x - ux * 16;
+    const ty = y - uy * 16;
+    const g = ctx.createRadialGradient(tx, ty, 0, tx, ty, 3);
+    g.addColorStop(0, 'rgba(255,255,235,1)');
+    g.addColorStop(0.35, 'rgba(255,200,80,0.95)');
+    g.addColorStop(1, 'rgba(255,90,20,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(tx, ty, 3, 0, Math.PI * 2);
+    ctx.fill();
+  } else if (flying) {
     const len = 6; // body length (iso px)
     const px = -uy;
     const py = ux;

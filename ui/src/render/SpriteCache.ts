@@ -178,7 +178,7 @@ export class SpriteCache {
     const centerY = anchorY + ((w + d) / 2) * HALF_TH;
 
     const paint = (a: BuildingArt, mask = false): { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D } => {
-      const out = createCanvas(width * RASTER_SCALE, height * RASTER_SCALE);
+      const out = createCanvas(width * RASTER_SCALE, height * RASTER_SCALE, { willReadFrequently: true });
       let painter: IsoPainter | null = null;
       const c = mask ? roofMaskContext(out.ctx, () => painter) : out.ctx;
       c.scale(RASTER_SCALE, RASTER_SCALE);

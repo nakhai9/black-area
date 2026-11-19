@@ -10,6 +10,7 @@ import { HappyCity } from '../entities/HappyCity';
 import { Bunker } from '../entities/Bunker';
 import { LdewEmplacement } from '../entities/LdewEmplacement';
 import { DvinaLauncher } from '../entities/DvinaLauncher';
+import { MissileSilo } from '../entities/MissileSilo';
 import { Wall } from '../entities/Wall';
 import { Gate } from '../entities/Gate';
 import { Infantry } from '../entities/Infantry';
@@ -65,6 +66,7 @@ const ENTITY_CLASSES: Readonly<Record<string, abstract new (...args: never[]) =>
   Bunker,
   LdewEmplacement,
   DvinaLauncher,
+  MissileSilo,
   Wall,
   Gate,
   Infantry,
