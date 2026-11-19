@@ -192,6 +192,16 @@ const BURST: Readonly<Record<string, { rounds: number; gap: number }>> = {
 /** While weapons / explosions are heard the music drops to this share, then comes back after SFX_DUCK_HOLD s. */
 const SFX_DUCK = 0.35;
 const SFX_DUCK_HOLD = 0.8;
+/** A dying soldier's cry of "Mommy!" in each nation's language (Europe: French, its capital being Paris). */
+const MOMMY: Readonly<Record<string, { text: string; lang: string }>> = {
+  usa: { text: 'MOMMYYYYY!!!', lang: 'en-US' },
+  russia: { text: 'МАМАААА!!!', lang: 'ru-RU' },
+  china: { text: '妈妈啊啊啊!!!', lang: 'zh-CN' },
+  europe: { text: 'MAMAAAAN !!!', lang: 'fr-FR' },
+  islamic: { text: 'يا أمييييي!!!', lang: 'ar-SA' },
+};
+/** Seconds between two dying screams (radiation deaths), however many soldiers die. */
+const SCREAM_GAP = 0.7;
 /**
  * The recordings public/sounds/ actually ships (file names with extension). Only these are fetched, so a missing
  * recording costs no 404 request; add a file's name here when you drop one into public/sounds/.
@@ -301,6 +311,8 @@ export class SoundSystem {
   private lastAlarm = -99;
   /** Audio time until which a weapon / explosion keeps the music ducked. */
   private sfxUntil = 0;
+  /** When the last dying scream started (audio clock). */
+  private lastScream = -99;
   private lastMayday = -99;
   /** When each announcement was last spoken (see announce). */
   private readonly lastLine = new Map<string, number>();
@@ -628,6 +640,93 @@ export class SoundSystem {
       return;
     }
     this.shot(kind, vol);
+  }
+
+  /**
+   * Strategic sounds heard over the whole map (never cut off by distance, only quieter far away): the ICBM's launch
+   * roar and the nuclear burst. Synthesised; player and AI launches alike.
+   */
+  strategic(kind: 'icbmLaunch' | 'nuke', at: WorldPoint): void {
+    const ctx = this.ctx;
+    if (!ctx || !this.master || !this.noise || this.muted || ctx.state !== 'running') return;
+    const l = this.listener();
+    const dist = Math.hypot(at.x - l.centre.x, at.y - l.centre.y);
+    const vol = Math.max(kind === 'nuke' ? 0.6 : 0.35, 1 - dist / (l.range * 1.4));
+    this.sfxUntil = ctx.currentTime + SFX_DUCK_HOLD * 3;
+    this.music?.setDuck(SFX_DUCK);
+    if (kind === 'icbmLaunch') {
+      // Ignition crack, then a long low rocket roar that swells and fades as the missile climbs away.
+      this.burst(vol * 0.5, 0.25, 'highpass', 1800, 0.7);
+      this.thump(vol * 0.8, 60, 0.9);
+      this.roar(vol * 0.9, 0.6, 3.2, 2.6, 220, 900);
+      return;
+    }
+    // Nuclear burst: a sharp crack, a huge low boom, then a long rolling rumble (the shock wave going out).
+    this.burst(vol * 0.9, 0.08, 'highpass', 1500, 0.6);
+    this.thump(vol * 1.2, 34, 2.4);
+    this.burst(vol * 1.0, 2.2, 'lowpass', 320, 0.6);
+    this.roar(vol * 0.8, 0.4, 2.5, 5, 140, 90, 0.15);
+  }
+
+  /**
+   * A dying soldier (any cause) cries out "Mommy!" in his nation's language (spoken, a man's voice). Positional like gunfire; at most one every SCREAM_GAP s so a whole
+   * squad dying at once does not turn into a wall of noise.
+   */
+  dyingScream(at: WorldPoint, faction?: string): void {
+    const ctx = this.ctx;
+    if (!ctx || !this.master || this.muted || ctx.state !== 'running') return;
+    const l = this.listener();
+    const vol = Math.max(0, 1 - Math.hypot(at.x - l.centre.x, at.y - l.centre.y) / (l.range * 1.4));
+    if (vol < 0.04) return;
+    const now = ctx.currentTime;
+    if (now - this.lastScream < SCREAM_GAP) return;
+    this.lastScream = now;
+    // The cry "Mommy!" in the soldier's own nation's language, in a man's voice of that language when the system
+    // has one (else any voice of it, else English "Mommy!").
+    if (typeof speechSynthesis !== 'undefined' && !speechSynthesis.pending) {
+      const cry = MOMMY[faction ?? ''] ?? MOMMY.usa!;
+      const ofLang = this.voices.filter((v) => v.lang.toLowerCase().startsWith(cry.lang.slice(0, 2)));
+      const male = (v: SpeechSynthesisVoice): boolean => /(male|man|david|mark|guy|george|james|daniel|fred|alex|pavel|dmitri|kangkang|yunyang|paul|claude|naayf|hamed)/i.test(v.name) && !/female/i.test(v.name);
+      const english = this.voices.filter((v) => v.lang.toLowerCase().startsWith('en'));
+      const native = ofLang.length > 0;
+      const u = new SpeechSynthesisUtterance(native ? cry.text : MOMMY.usa!.text);
+      u.lang = native ? cry.lang : 'en-US';
+      const voice = native ? (ofLang.find(male) ?? ofLang[0]) : (english.find(male) ?? english[0]);
+      if (voice) u.voice = voice;
+      // Screamed, not read out: drawn-out vowels in the text, the highest pitch and full volume.
+      u.rate = 1.15;
+      u.pitch = 2;
+      u.volume = 1;
+      speechSynthesis.speak(u);
+    }
+  }
+
+  /** Filtered noise with attack, hold and release (s); its low-pass cutoff glides from `f0` to `f1` Hz. */
+  private roar(gain: number, attack: number, hold: number, release: number, f0: number, f1: number, delay = 0): void {
+    const ctx = this.ctx;
+    if (!ctx || !this.master || !this.noise) return;
+    const src = ctx.createBufferSource();
+    src.buffer = this.noise;
+    src.loop = true;
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.Q.value = 0.7;
+    const t = ctx.currentTime + delay;
+    const end = t + attack + hold + release;
+    filter.frequency.setValueAtTime(f0, t);
+    filter.frequency.exponentialRampToValueAtTime(f1, end);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0005, t);
+    g.gain.exponentialRampToValueAtTime(gain, t + attack);
+    g.gain.setValueAtTime(gain, t + attack + hold);
+    g.gain.exponentialRampToValueAtTime(0.0005, end);
+    src.connect(filter).connect(g).connect(this.master);
+    src.start(t, Math.random() * 0.8);
+    src.stop(end + 0.02);
+    this.active++;
+    src.onended = () => {
+      this.active--;
+    };
   }
 
   /** One round / blast of `kind` at volume `vol` (recording if there is one, else synthesised). */

@@ -26,7 +26,7 @@
 <body>
 <main>
 <img class="logo" src="/logo.png" alt="Black Area" />
-<h1>Black Area — RULE <small>v3.75.251</small></h1>
+<h1>Black Area — RULE <small>v3.75.297</small></h1>
 <p class="lead">Tài liệu luật chơi + kiến trúc code dành cho AI/dev sửa game. Mọi con số gameplay chính xác nằm trong <code>src/constants.ts</code> và <code>src/factions/*.ts</code>. Nếu tài liệu này khác code thì <b>code đúng</b>. <b>Khi đổi luật/số trong code, phải cập nhật file này.</b></p>
 <nav><a href="#s1">Quy tắc làm việc cho AI</a><a href="#s2">Chạy dự án</a><a href="#s3">Kiến trúc thư mục</a><a href="#s4">Thế giới</a><a href="#s5">Kinh tế (dầu)</a><a href="#s6">Công trình (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Quân đội</a><a href="#s8">Chiến đấu</a><a href="#s9">Điều khiển (Game.handleKey, handleInput)</a><a href="#s10">Giới hạn &amp; hiệu năng</a><a href="#s11">Thắng / thua &amp; AI</a><a href="#s12">Công thức sửa thường gặp</a></nav>
 <h2 id="s1">0. Quy tắc làm việc cho AI</h2>
@@ -706,6 +706,52 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
   <li>v3.41.5: Sửa lỗi máy bay vận tải bay vòng tròn mãi quanh điểm hạ cánh (không đáp được, không nhận lệnh di chuyển): khi điểm đến nằm trong vòng quay, máy bay bay thẳng tới. Lệnh di chuyển mới trong lúc đang bay tới điểm hạ cánh giờ được nhận (hủy hạ cánh, bay đi).</li>
   <li>v3.41.5: Máy bay không còn nhận <b>Cảng (Naval Port)</b> làm sân bay nhà (không đậu, không hạ cánh, không được sinh ra ở cảng). Loại máy bay được đậu ở cảng sẽ quy ước sau: thêm vào <code>PORT_AIRCRAFT</code> trong <code>src/systems/AircraftSystem.ts</code>. Máy bay đang lấy cảng làm nhà (bản lưu cũ) sẽ chuyển sang sân bay khác của phe; không còn sân bay nào thì rơi như luật cũ.</li>
     <li>v3.56.1: <b>Giảm tiếng động cơ mọi phương tiện</b>: <code>VEHICLE_BED_GAIN</code> 1.6 → 1.0, máy bay / trực thăng <code>AIR_BED_BOOST</code> 2.2 → 1.5. <b>Máy bay vận tải</b> (C-17, Il-76, Y-20, A400M, mặc định) tăng gain 0.85–0.9 → 1.35 để to ngang các máy bay khác (tiếng động cơ trầm, ít tiếng rít nên trước nghe nhỏ hơn).</li>
+    <li>v3.75.297: Nhiễm xạ càng gần tâm nổ càng nặng: liều ở tâm gấp 2,5 lần, giảm đều xuống 0,25 lần ở mép vòng. Lính ở tâm chết sau ~2 giây, ở mép ~20 giây; phương tiện ở tâm ~12 giây, ở mép ~120 giây (nếu vòng còn). Cả người chơi và AI.</li>
+    <li>v3.75.296: Tiếng kêu "Mommy" của lính được thét lên (kéo dài nguyên âm, giọng cao nhất, âm lượng tối đa) thay vì đọc bình thường.</li>
+    <li>v3.75.295: Lính kêu "Mommy" bằng ngôn ngữ của phe mình: Mỹ "Mommy!", Nga "Мама!", Trung Quốc "妈妈!", Châu Âu (Pháp) "Maman !", Liên minh Hồi giáo "يا أمي!". Máy không có giọng đọc ngôn ngữ đó thì kêu "Mommy!" tiếng Anh.</li>
+    <li>v3.75.294: Vùng nhiễm xạ rộng thêm 40% diện tích (nay ≈ 2,56 × diện tích vùng nổ; bán kính ≈ 1,6 × bán kính nổ). Lính chết dưới mọi hình thức (đạn, nổ, nhiễm xạ, chết theo xe chở) đều kêu "Mommy!". Cả người chơi và AI.</li>
+    <li>v3.75.293: Lính chết vì nhiễm xạ chỉ kêu "Mommy!" (giọng nam, đọc bằng giọng máy), bỏ tiếng thét tổng hợp và các câu khác.</li>
+    <li>v3.75.292: Tiếng thét của lính chết vì nhiễm xạ làm lại: giọng "aah" (3 formant nguyên âm a), hơi thở, rung giọng không đều, vỡ giọng rồi rên nhỏ dần. Có thể thay bằng file ghi âm thật <code>public/sounds/scream.mp3</code>.</li>
+    <li>v3.75.291: Lính trong vùng nhiễm xạ chết sau 5 giây (trước 15 giây).</li>
+    <li>v3.75.290: Lính chết vì nhiễm xạ hét lên đau đớn (tiếng thét tổng hợp); 1/3 số lần kèm câu kêu "Mommy!", "Aaaargh!", "It burns!"… Nghe theo khoảng cách như tiếng súng, tối đa 1 tiếng thét mỗi 0,7 giây.</li>
+    <li>v3.75.289: Lính nhiễm xạ nhanh hơn phương tiện (mất toàn bộ máu trong 15 giây thay vì 30). Vùng nhiễm xạ rộng thêm 60% diện tích (nay ≈ 1,83 × diện tích vùng nổ; bán kính ≈ 1,35 × bán kính nổ). Cả người chơi và AI.</li>
+    <li>v3.75.288: Vùng nhiễm xạ rộng thêm 10% diện tích (nay ≈ 1,144 × diện tích vùng nổ; bán kính ≈ 1,07 × bán kính nổ).</li>
+    <li>v3.75.287: Lính bộ binh cũng bị nhiễm xạ trong vòng tròn phóng xạ (như phương tiện mặt đất: mất toàn bộ máu trong 30 giây nếu ở lại). Cả người chơi và AI.</li>
+    <li>v3.75.286: Vòng tròn phóng xạ rộng thêm 4% diện tích (bán kính × √1,04 ≈ 1,02; cả vùng gây nhiễm xạ). Nền nhấp nháy khoảng 1 lần/giây và mờ dần đều tới khi biến mất sau 60 giây.</li>
+    <li>v3.75.285: Vòng tròn phóng xạ: nền xanh lá nhạt đều màu, viền đúng 1 px trên màn hình ở mọi mức zoom.</li>
+    <li>v3.75.284: Viền vòng tròn phóng xạ mảnh lại (bỏ quầng sáng và dải viền đậm).</li>
+    <li>v3.75.283: Bất kỳ phe địch nào phóng ICBM (vừa ra khỏi silo) là có cảnh báo ngẫu nhiên 1 trong 3 câu, hiện chữ và đọc thành tiếng: "Warning: enemy ICBM inbound!", "Incoming nuclear strike. Take cover!", "Nuclear launch detected." (trước đây chỉ khi bị nhắm trúng).</li>
+    <li>v3.75.282: <b>Nhiễm xạ</b>: sau vụ nổ hạt nhân, một vòng tròn xanh phóng xạ bán kính bằng bán kính nổ nằm trên mặt đất 60 giây. Mọi phương tiện mặt đất (của bất kỳ phe nào, kể cả phe phóng) ở trong vòng bị nhiễm xạ, mất toàn bộ máu trong 30 giây nếu ở lại (chạy ra khỏi vòng thì ngừng mất máu). Cả người chơi và AI.</li>
+    <li>v3.75.281: Câu thoại khi phóng ICBM ("Silo open. Bird is in the air."…) và câu cảnh báo khi bị nhắm ("Nuclear launch detected."…) giờ được đọc thành tiếng (giọng tiếng Anh), không chỉ hiện chữ.</li>
+    <li>v3.75.280: Thời gian nạp tên lửa RS-24 Yars tăng từ 3 phút lên 6 phút. Cả người chơi và AI.</li>
+    <li>v3.75.279: Sửa lỗi không vào được game ("Cannot read properties of undefined (reading 'open')") do nút vali hạt nhân được cập nhật trước khi bảng vali được tạo.</li>
+    <li>v3.75.278: Nút vali hạt nhân ở thanh góc dưới: mờ và không bấm được khi chưa có silo nào; sáng xanh lá khi có ít nhất 1 silo sẵn sàng phóng.</li>
+    <li>v3.75.277: ICBM có âm thanh: tiếng gầm khi phóng và tiếng nổ hạt nhân lớn, nghe được trên toàn bản đồ (xa thì nhỏ hơn). Tốc độ bay bằng Tu-160 khi bật Turbo ở tốc độ hành trình tối đa. Cuối đường bay đầu đạn rơi thẳng đứng xuống mục tiêu. Cả người chơi và AI.</li>
+    <li>v3.75.276: DEMO tất cả các phe: chỉ nước đang được chọn (active trên thanh phe) được tấn công; các nước khác ngừng bắn (đơn vị, công trình phòng thủ, silo). Đổi nước thì quyền tấn công chuyển theo.</li>
+    <li>v3.75.275: Tầm phóng RS-24 Yars = 3/4 chiều cao bản đồ từ cực Bắc đến cực Nam (≈ 1207 ô). Cả người chơi và AI.</li>
+    <li>v3.75.274: Bỏ hố cháy (vành đen) và đốm lửa cam hình elip dưới chân vụ nổ hạt nhân.</li>
+    <li>v3.75.273: Tầm phóng RS-24 Yars tăng thêm 2/3 (240 → 400 ô; gấp 4 × 5/3 tầm Dvina). Khi chọn điểm phóng, con trỏ là biểu tượng phóng xạ trong tầm và biểu tượng cấm (not-allowed) ngoài tầm. Cả người chơi và AI.</li>
+    <li>v3.75.272: Đổi sprite nổ hạt nhân (nuke-cloud) sang bộ mới 36 khung: quả cầu lửa bốc thành cột, mũ nấm cháy rực, chuyển khói đen rồi tan dần.</li>
+    <li>v3.75.271: Nhãn khi rê chuột lên silo có số hiệu tương ứng với vali hạt nhân (ví dụ: RS-24 Yars #1 · 100%). Số đánh theo thứ tự xây của từng phe.</li>
+    <li>v3.75.270: Vali hạt nhân: tiêu đề cùng màu các modal khác; mỗi silo là một hàng ngang (#1 · 3 đèn · trạng thái · nút phóng tròn kim loại).</li>
+    <li>v3.75.269: Mỗi silo trong vali hạt nhân có 3 đèn: vàng (đang chuẩn bị: chưa trả tiền / đang nạp / đang phóng), đỏ nhấp nháy (thiếu năng lượng, ngừng nạp), xanh lá (sẵn sàng phóng). Chỉ đèn đúng trạng thái sáng.</li>
+    <li>v3.75.268: Bom hạt nhân nổ dùng sprite cột khói hình nấm mới (nuke-cloud, 64 khung: cột lửa bốc lên, mũ nấm cháy, thành khói đen rồi tan). Con trỏ khi chọn điểm phóng là biểu tượng phóng xạ vàng đen thay cho dấu +.</li>
+    <li>v3.75.267: Tên lửa ICBM bay thẳng đứng lên khỏi silo (22% thời gian bay, cao 60 px, tăng tốc dần) rồi mới chúc hướng theo đường cong về mục tiêu.</li>
+    <li>v3.75.266: Tên lửa ICBM nổ lệch tối đa 10 m so với điểm ngắm (hướng và khoảng lệch ngẫu nhiên, giống nhau trên mọi máy). Áp dụng cho cả người chơi và AI.</li>
+    <li>v3.75.265: Thiết kế lại nội dung bảng vali hạt nhân: thanh trạng thái (đèn báo, ĐÃ KÍCH HOẠT / CHỜ LỆNH, Sẵn sàng N/M) và lưới ô silo, mỗi ô có đèn LED, tên, nút phóng tròn lớn và trạng thái.</li>
+    <li>v3.75.264: Tên lửa đạn đạo bay trên bản đồ dùng sprite tên lửa ICBM RS-24 Yars (yars-missile, 32 hướng, sọc màu phe) thay cho nét vẽ; lửa động cơ ở đuôi.</li>
+    <li>v3.75.263: Vụ nổ hạt nhân dùng sprite nổ có sẵn (explosion.webp): quả cầu lửa lớn ở tâm, hai đợt bùng lên cao, và vòng 10 vụ nổ phụ lan ra theo sóng xung kích.</li>
+    <li>v3.75.262: Thiết kế lại bảng vali hạt nhân (vỏ da, khóa đồng, hàng silo sẵn sàng viền đỏ); nút <b>Phóng</b> giờ là icon tên lửa tròn đỏ.</li>
+    <li>v3.75.261: Nút <b>Phóng</b> của mỗi silo chỉ nằm trong bảng vali hạt nhân (không còn nút trên bản đồ). Bảng liệt kê mọi silo của phe với trạng thái (Sẵn sàng / đang nạp N s / Chưa trả tiền / Đang phóng…); bấm Phóng rồi chọn điểm đánh trên bản đồ.</li>
+    <li>v3.75.260: (Demo) Silo luôn sẵn sàng bắn: không trả tiền tên lửa, không nạp, không cần điện; bắn xong có tên lửa mới ngay.</li>
+    <li>v3.75.259: Tiêu đề bảng vali hạt nhân theo phe đang chỉ huy: Mỹ <b>Nuclear Football</b>, Nga <b>Cheget</b>, các phe khác <b>Vali hạt nhân</b>.</li>
+    <li>v3.75.258: Nút Radiation (trước nút khóa zoom) mở bảng <b>Nuclear Football · Cheget</b> — bảng điều khiển vali hạt nhân: liệt kê các silo RS-24 Yars của phe đang có tên lửa sẵn sàng bắn; bấm một silo để chọn nó và đưa camera tới.</li>
+    <li>v3.75.257: (Demo) Silo nạp tên lửa tức thì, không phải chờ SILO_RELOAD.</li>
+    <li>v3.75.256: (Demo) Căn cứ demo có sẵn thêm Silo RS-24 Yars, Trạm xăng và Happy City.</li>
+    <li>v3.75.255: (Demo) Hiện đủ mọi công trình (bỏ điều kiện tiên quyết và giới hạn quốc gia); Trung tâm Công nghệ cao luôn tính đủ 10 kỹ sư. Đồng hồ chiến tranh chuyển ra trước nút Home.</li>
+    <li>v3.75.254: (Demo) Sửa: ô tọa độ bị gắn lại vào thanh nút góc phải trên; giờ nằm hẳn ở thanh chọn phe góc trái dưới.</li>
+    <li>v3.75.253: (Demo) Ô tọa độ / Zoom / FPS chuyển xuống góc trái dưới, nằm cùng thanh chọn phe.</li>
+    <li>v3.75.252: (Demo) Thanh chọn phe chuyển xuống góc trái dưới; thanh nút góc (Home / Bản đồ / Phím tắt / Camera / đồng hồ / trạng thái) chuyển lên góc phải trên, sát sidebar.</li>
     <li>v3.75.251: Phóng RS-24 Yars: phe bắn thấy ngẫu nhiên 1 câu (Silo open. Bird is in the air. / Say goodbye to their capital. / From the depths, fire rises. / Judgment is on its way. / Good morninggggggg Vietnam!); người chơi có công trình/đơn vị trong bán kính nổ (<code>SILO_BLAST_CELLS</code>) của điểm đích thấy ngẫu nhiên 1 cảnh báo (Warning: enemy ICBM inbound! / Incoming nuclear strike. Take cover! / Nuclear launch detected.). Giữ tiếng Anh, chỉ hiển thị, không ảnh hưởng luật chơi.</li>
     <li>v3.75.250: Tên lửa Dvina bị bắn hạ chỉ gây 20% sát thương xuống mặt đất khi đã bay tới gần mục tiêu (cách điểm nhắm ≤ bán kính nổ <code>DVINA_BLAST_CELLS</code>); bị bắn hạ khi còn xa thì không gây sát thương. Nổ trúng máy bay vẫn gây 20% xuống mặt đất bên dưới.</li>
     <li>v3.75.249: Ảnh cửa hàng luôn đầy đủ: mọi cameo công trình / xe / máy bay / lính còn trống (sheet đang tải) được vẽ lại mỗi 0,5 s cho tới khi có hình; ảnh lính trống không bị lưu cache. Bỏ chọn R-12 Dvina của mình = huỷ lệnh tấn công đang chờ (không tự bắn mặt đất/công trình khi không còn được chọn; vẫn tự bắn máy bay).</li>

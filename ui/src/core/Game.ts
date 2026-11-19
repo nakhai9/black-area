@@ -5,7 +5,7 @@ import { askSaveTarget } from '../ui/SaveChoice';
 import { storedLeaderName } from '../ui/LeaderName';
 import { backToMenuWithToast, saveToCloud } from '../net/CloudSave';
 import { BULLET_FLIGHT_SECONDS, BULLET_IMPACT_SECONDS, hasBulletSheet, type BulletSize } from '../render/BulletSheet';
-import { demoActive, setDemoActive } from './Demo';
+import { demoActive, setDemoActive, setDemoAttacker } from './Demo';
 import {
   DEMO_ALL_FACTIONS,
   DEMO_CREDITS,
@@ -21,7 +21,7 @@ import {
   ENGINEER_REPAIR_SHARE,
   CAPITAL_EMBARGO_SECONDS,
   CAPITAL_DISARM_SECONDS,
-  BM21_RELOAD_COST, AIRCRAFT_MIN_POWER, DVINA_MISSILE_COST, SILO_MISSILE_COST, SILO_SCIENTISTS, SILO_BLAST_CELLS, NUKE_SECONDS, ISO_X, ISO_Y,
+  BM21_RELOAD_COST, AIRCRAFT_MIN_POWER, DVINA_MISSILE_COST, SILO_MISSILE_COST, SILO_SCIENTISTS, NUKE_SECONDS, NUKE_RAD_SECONDS, NUKE_RAD_RADIUS_SCALE, ISO_X, ISO_Y,
   MILITARY_BASES,
   AI_EMBARGO_CREDITS,
   DERRICK_GRACE_GAP,
@@ -372,6 +372,14 @@ const ENTER_CURSOR = `url("data:image/svg+xml,${encodeURIComponent(
     '<path d="M4 14v6h16v-6M12 2v11M7 8l5 5 5-5" stroke="#000" stroke-width="4"/>' +
     '<path d="M4 14v6h16v-6M12 2v11M7 8l5 5 5-5" stroke="#5cff6a" stroke-width="2"/></svg>',
 )}") 12 12, pointer`;
+/** ICBM aiming cursor: a yellow-and-black radiation trefoil, hotspot at its centre. */
+const NUKE_CURSOR = `url("data:image/svg+xml,${encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">' +
+    '<circle cx="16" cy="16" r="14.5" fill="#ffd23a" stroke="#000" stroke-width="2"/>' +
+    '<g transform="translate(16 16)" fill="#000">' +
+    [0, 120, 240].map((a) => `<path transform="rotate(${a})" d="M-2 -3.46L-6.5 -11.26A13 13 0 0 1 6.5 -11.26L2 -3.46A4 4 0 0 0 -2 -3.46Z"/>`).join('') +
+    '<circle r="2.4"/></g></svg>',
+)}") 16 16, crosshair`;
 /** RA2 scatter (X): how far each selected unit runs from the group (cells; aircraft twice as far). */
 const SCATTER_CELLS = 3;
 /** Landmark labels sit a bit above the footprint centre when focusing. */
@@ -826,7 +834,8 @@ export class Game {
     // UI.
     this.mountSidebar();
     this.status = new StatusBar(dom.status, this.map);
-    this.bigMap?.bar.append(dom.status); // demo readout sits in the bottom-left corner bar
+    if (DEMO_ALL_FACTIONS) document.getElementById('demo-factions')?.append(dom.status); // readout sits with the faction bar
+    else this.bigMap?.bar.append(dom.status); // demo readout sits in the corner bar
     if (!demo) dom.status.style.display = 'none'; // coordinates / zoom / FPS readout: demo only
 
     this.bus.on('camera:focus', (p) => {
@@ -917,6 +926,13 @@ export class Game {
       if (!this.paused) this.focusOwnCapital();
     });
     this.bigMap.setZoomLock(this.sidebar.zoomLockButton);
+    this.bigMap.onSiloLaunch = (id) => {
+      const b = this.entities.get(id);
+      if (!(b instanceof MissileSilo) || !b.alive || b.owner !== this.localId || !b.loaded || b.launchClock !== null || b.strike !== null) return;
+      this.selection.select(id);
+      this.siloAiming = id;
+      this.sidebar.notify(t('Pick the strike point on the map (Esc: cancel).'), 3);
+    };
     this.bigMap.setWarClock(this.sidebar.warClock);
     this.bigMinimap = new Minimap(
       this.bigMap.canvas,
@@ -925,7 +941,10 @@ export class Game {
       (p) => this.bus.emit('camera:focus', p),
       (p) => this.minimapOrder(p),
     );
-    if (DEMO_ALL_FACTIONS) this.mountFactionBar();
+    if (DEMO_ALL_FACTIONS) {
+      setDemoAttacker(this.localId);
+      this.mountFactionBar();
+    }
   }
 
   /** DEMO_ALL_FACTIONS: a bar of every nation at the top of the screen; click one (or Alt+1..5) to command it. */
@@ -934,7 +953,7 @@ export class Game {
     if (!bar) {
       bar = document.createElement('div');
       bar.id = 'demo-factions';
-      bar.style.cssText = 'position:fixed;top:6px;left:50%;transform:translateX(-50%);z-index:50;display:flex;gap:4px;font:600 12px "Courier New", Courier, monospace';
+      bar.style.cssText = 'position:fixed;bottom:6px;left:6px;z-index:50;display:flex;gap:4px;font:600 12px "Courier New", Courier, monospace';
       document.body.appendChild(bar);
       window.addEventListener('keydown', (e) => {
         if (!e.altKey) return;
@@ -959,6 +978,9 @@ export class Game {
           return b;
         }),
     );
+    const status = document.getElementById('status');
+    if (status) bar.append(status); // coordinates / zoom / FPS readout sits next to the faction buttons
+    bar.style.alignItems = 'center';
   }
 
   /** DEMO_ALL_FACTIONS: takes command of player `id` (its sidebar, selection, camera on its capital). */
@@ -971,6 +993,7 @@ export class Game {
     this.selection.selectedUnits.clear();
     this.selection.selectedId = null;
     this.localId = id;
+    setDemoAttacker(id);
     this.mountSidebar();
     this.sidebarTimer = SIDEBAR_REFRESH;
     this.focusOwnCapital();
@@ -1379,7 +1402,7 @@ export class Game {
     const cy = capital.y + Math.floor(capital.d / 2);
     // Plus another nation's Parallel Government (its own architecture), and a Naval Port on the nearest shore (demoPort).
     const host = (Object.keys(FACTIONS) as FactionId[]).find((f) => f !== me.faction) ?? 'usa';
-    const ids = ['powerPlant', 'powerPlant', 'barracks', 'warFactory', 'radarTower', 'airfield', 'techCenter', 'alliedBuilding', `parallelGov@${host}`, 'bunker', 'flagpole'];
+    const ids = ['powerPlant', 'powerPlant', 'barracks', 'warFactory', 'radarTower', 'airfield', 'techCenter', 'yars', 'fuelStation', 'happyCity', 'alliedBuilding', `parallelGov@${host}`, 'bunker', 'flagpole'];
     const placed: Building[] = [capital];
     for (const id of ids) {
       const option = BUILD_OPTIONS.find((o) => o.id === id);
@@ -3334,6 +3357,8 @@ export class Game {
    * every machine at the same tick); a machine behind the others plays a few ticks per frame to catch up.
    */
   private tick(dt: number): void {
+    // DEMO: every Tech Center counts as staffed by the full SILO_SCIENTISTS engineers.
+    if (demoActive) for (const p of this.players) if ((p.scientists ?? 0) < SILO_SCIENTISTS) p.scientists = SILO_SCIENTISTS;
     const ls = this.lockstep;
     if (!ls) {
       this.simTick(dt);
@@ -4126,7 +4151,7 @@ export class Game {
     const entering = !this.placing && hoverUnit instanceof Vehicle && this.canBoardSelected(hoverUnit);
     this.updateSiloButton();
     this.dropDvinaOrderOnDeselect();
-    const cursor = this.placing || aiming || this.siloAiming !== null ? 'crosshair' : entering ? ENTER_CURSOR : hovering ? 'pointer' : 'default';
+    const cursor = this.siloAiming !== null ? (this.siloInRange(this.mouseWorld) ? NUKE_CURSOR : 'not-allowed') : this.placing || aiming ? 'crosshair' : entering ? ENTER_CURSOR : hovering ? 'pointer' : 'default';
     // Style writes only when the cursor actually changes (not every frame).
     if (cursor !== this.lastCursor) {
       this.lastCursor = cursor;
@@ -4137,6 +4162,19 @@ export class Game {
     this.effects.update(dt);
     this.smokeFromDamagedBuildings(dt);
     const buildings = this.entities.buildings();
+    // Silo numbers per owner (#1, #2… in build order), shared by the briefcase rows and the hover label.
+    {
+      const count = new Map<number, number>();
+      let mineReady = false;
+      for (const b of buildings) {
+        if (!(b instanceof MissileSilo) || !b.alive) continue;
+        const n = (count.get(b.owner) ?? 0) + 1;
+        count.set(b.owner, n);
+        b.siloNo = n;
+        if (b.owner === this.localId && b.loaded && b.launchClock === null && b.strike === null) mineReady = true;
+      }
+      this.bigMap?.setNuclearState(count.has(this.localId), mineReady);
+    }
     const units = this.entities.fieldMovers();
     this.drawInterpolated(units, alpha, () => this.renderer.render({
       buildings,
@@ -4176,6 +4214,24 @@ export class Game {
       this.minimapTimer = 0;
       this.minimap.render(buildings, units, this.humanPlayer.id, this.ownedCache.has('radarTower'), drawTime);
       if (this.bigMap?.open) this.bigMinimap.render(buildings, units, this.humanPlayer.id, this.ownedCache.has('radarTower'), drawTime);
+      if (this.bigMap?.nuclearOpen) {
+        this.bigMap.setSilos(
+          buildings
+            .filter((b): b is MissileSilo => b instanceof MissileSilo && b.alive && b.owner === this.localId)
+            .map((b) => {
+              const busy = b.launchClock !== null || b.strike !== null;
+              const ready = b.loaded && !busy;
+              // Lamp: green = ready to fire, red = loading stalled for lack of power, yellow = preparing (paying, loading, launching).
+              const noPower = !ready && !busy && b.loading && this.humanPlayer.powerShort;
+              const lamp = ready ? 'ready' : noPower ? 'power' : 'prep';
+              const status = busy ? t('Launching…') : ready ? t('Ready') : noPower ? t('Low power') : b.loading ? `${Math.ceil(Math.max(0, b.loadClock))} s` : t('Not paid');
+              return { id: b.id, label: `#${b.siloNo}`, status, ready, lamp } as const;
+            }),
+        );
+        // [Unverified] US "Nuclear Football", Russia "Cheget"; no widely known name for the others: generic.
+        const f = this.humanPlayer.faction;
+        this.bigMap.setNuclearTitle(f === 'usa' ? 'Nuclear Football' : f === 'russia' ? 'Cheget' : t('Nuclear Briefcase'));
+      }
     }
     this.status.update(dt, this.mouseWorld, this.camera.zoom);
 
@@ -4930,6 +4986,7 @@ export class Game {
   /** Cameo left-click: start building, or pick up a finished structure to place it. */
   /** Another nation's design is on sale only while its capital, or a structure of that type of it, taken by an engineer, is held. */
   private buildAvailable(player: PlayerState, option: BuildOption): boolean {
+    if (demoActive) return true; // DEMO: every structure of every nation shown
     if (option.nation) return holdsNation(this.entities, player, option.nation);
     if (option.nations) return option.nations.some((n) => holdsNation(this.entities, player, n));
     const offered = buildOffered(option, player.faction);
@@ -5162,28 +5219,30 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     const c = silo.centerWorld();
     const from = this.fx(c.x, c.y, 4);
     const end = this.fx(to.x, to.y, 0);
-    this.effects.add({ kind: 'icbm', x0: from.x, y0: from.y, x1: end.x, y1: end.y, age: 0, ttl: flight + ICBM_TRAIL_SECONDS, flight });
-    this.sound.play('missile', c);
+    this.effects.add({ kind: 'icbm', x0: from.x, y0: from.y, x1: end.x, y1: end.y, age: 0, ttl: flight + ICBM_TRAIL_SECONDS, flight, faction: silo.faction as FactionId });
+    this.sound.strategic('icbmLaunch', c);
     // Lines left in English on purpose (not translated); picked at random on this screen only (no effect on the game).
     const pick = (lines: readonly string[]): string => lines[Math.floor(Math.random() * lines.length)]!;
     if (silo.owner === this.localId) {
-      this.sidebar.notify(pick(['Silo open. Bird is in the air.', 'Say goodbye to their capital.', 'From the depths, fire rises.', 'Judgment is on its way.', 'Good morninggggggg Vietnam!']), 4);
+      const line = pick(['Silo open. Bird is in the air.', 'Say goodbye to their capital.', 'From the depths, fire rises.', 'Judgment is on its way.', 'Good morninggggggg Vietnam!']);
+      this.sidebar.notify(line, 4);
+      this.sound.announce(line); // spoken too (English voice)
       return;
     }
-    // The local player has something under the strike (within the blast radius): warn them.
-    const reach = SILO_BLAST_CELLS * CELL_SIZE;
-    const me = this.localId;
-    const threatened =
-      this.entities.buildings().some((b) => b.alive && b.owner === me && Math.hypot(b.centerWorld().x - to.x, b.centerWorld().y - to.y) <= reach + Math.max(b.footprintWorld().w, b.footprintWorld().h) / 2) ||
-      this.entities.fieldMovers().some((u) => u.alive && u.owner === me && Math.hypot(u.px - to.x, u.py - to.y) <= reach);
-    if (threatened) this.sidebar.notify(pick(['Warning: enemy ICBM inbound!', 'Incoming nuclear strike. Take cover!', 'Nuclear launch detected.']), 5);
+    // Any enemy nation's ICBM leaving its silo: warn the local player (one of three lines at random, shown and spoken).
+    const mine = this.entities.buildings().find((b) => b.alive && b.owner === this.localId);
+    if (mine && !isHostile(silo, mine)) return; // an ally's launch
+    const line = pick(['Warning: enemy ICBM inbound!', 'Incoming nuclear strike. Take cover!', 'Nuclear launch detected.']);
+    this.sidebar.notify(line, 5);
+    this.sound.announce(line);
   }
 
   /** The ICBM's nuclear burst: flash, fireball, shock wave, crater and mushroom cloud (NUKE_SECONDS). */
   private onNuke(at: WorldPoint, radius: number): void {
     const p = this.fx(at.x, at.y, 0);
+    this.effects.add({ kind: 'fallout', x: p.x, y: p.y, rx: radius * NUKE_RAD_RADIUS_SCALE * ISO_X * Math.SQRT2, ry: radius * NUKE_RAD_RADIUS_SCALE * ISO_Y * Math.SQRT2, age: 0, ttl: NUKE_RAD_SECONDS });
     this.effects.add({ kind: 'nuke', x: p.x, y: p.y, rx: radius * ISO_X * Math.SQRT2, ry: radius * ISO_Y * Math.SQRT2, age: 0, ttl: NUKE_SECONDS });
-    this.sound.play('explosion', at);
+    this.sound.strategic('nuke', at);
   }
 
   /** An air-defence vehicle fires at a Dvina missile: its own missile streaks to where the two meet. */
@@ -5979,6 +6038,8 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
   /** Something ran out of health: remove it with an explosion. */
   private onDeath(e: Entity, killer?: Entity): void {
     this.awardKill(e, killer);
+    // Every soldier cries "Mommy!" as he dies, whatever killed him (positional, rate-limited in SoundSystem).
+    if (e instanceof Infantry) this.sound.dyingScream({ x: e.px, y: e.py }, e.faction);
     if (e.owner === this.humanPlayer.id) {
       const hostile = killer && killer.owner !== e.owner ? this.players.find((p) => p.id === killer.owner) : undefined;
       if (e instanceof Vehicle && e.aircraft) {
@@ -5993,6 +6054,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       // Everyone aboard a destroyed transport goes down with it.
       if (e instanceof Vehicle && e.cargo.length > 0) {
         for (const c of e.cargo) {
+          if (c instanceof Infantry) this.sound.dyingScream({ x: e.px, y: e.py }, c.faction);
           this.selection.selectedUnits.delete(c.id);
           this.entities.remove(c.id);
         }
@@ -7412,11 +7474,16 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     });
     const s = this.selectedSilo();
     if (!s || this.siloAiming !== s.id || !s.loaded) this.siloAiming = s && this.siloAiming === s.id && s.loaded ? s.id : null;
-    if (!s) return this.siloButton.update({ kind: 'hidden' });
-    if (s.launchClock !== null || s.strike !== null) return this.siloButton.update({ kind: 'busy' });
-    if (s.loaded) return this.siloButton.update({ kind: 'ready', aiming: this.siloAiming === s.id });
-    if (s.loading) return this.siloButton.update({ kind: 'loading', seconds: Math.max(0, s.loadClock) });
-    this.siloButton.update({ kind: 'unpaid' });
+    // Launching is done from the nuclear briefcase panel only: the battlefield button stays hidden.
+    this.siloButton.update({ kind: 'hidden' });
+  }
+
+  /** The point under the mouse is within the aiming silo's reach (cursor: trefoil inside, not-allowed outside). */
+  private siloInRange(world: WorldPoint | null): boolean {
+    const s = this.siloAiming === null ? undefined : this.entities.get(this.siloAiming);
+    if (!(s instanceof MissileSilo) || !world) return true;
+    const c = s.centerWorld();
+    return Math.hypot(world.x - c.x, world.y - c.y) <= s.range;
   }
 
   /** Aiming click: the strike point (anywhere on land or sea, on a structure or a unit) if in range. */

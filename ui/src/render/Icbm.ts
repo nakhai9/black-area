@@ -1,20 +1,56 @@
+import { drawExplosion, EXPLOSION_SECONDS } from './ExplosionSheet';
 import { dissipate, spread } from './Smoke';
+import { drawNukeCloud, hasNukeCloud } from './NukeCloudSheet';
+import { drawYarsMissile, YARS_HALF_LENGTH } from './YarsSheets';
+import type { FactionId } from '../types';
 
 /**
  * RS-24 Yars ICBM and its nuclear burst, drawn in code (iso px).
  * The missile leaves the silo in a big launch flash and dust, climbs on a very high ballistic arc with a thick white
  * smoke trail and dives on its target. The burst: a white flash, a fireball, a shock wave running out across the
- * ground to the blast edge, a scorched crater, and a mushroom cloud that rises, spreads and slowly drifts away.
+ * ground to the blast edge, and a mushroom cloud that rises, spreads and slowly drifts away.
  */
 export const ICBM_TRAIL_SECONDS = 4;
 const TRAIL_PUFFS = 26;
 
+/** Share of the flight spent climbing straight up out of the silo before the missile pitches over. */
+const CLIMB_SHARE = 0.22;
+/** Height (iso px) of that vertical climb. */
+const CLIMB_HEIGHT = 60;
+/** Last share of the flight: the warhead falls straight down onto the target from DROP_HEIGHT. */
+const DROP_SHARE = 0.18;
+const DROP_HEIGHT = 70;
+
+/**
+ * Point `t` (0..1 of the flight) on the path: straight up from the silo to CLIMB_HEIGHT (speeding up), a cubic arc
+ * that leaves the top vertically, peaks `loft` higher and comes down vertically over the target, then a straight
+ * vertical fall of DROP_HEIGHT onto (x1, y1).
+ */
 function along(x0: number, y0: number, x1: number, y1: number, loft: number, t: number): [number, number] {
-  return [x0 + (x1 - x0) * t, y0 + (y1 - y0) * t - Math.sin(Math.PI * t) * loft];
+  if (t <= CLIMB_SHARE) {
+    const k = t / CLIMB_SHARE;
+    return [x0, y0 - CLIMB_HEIGHT * k * k];
+  }
+  if (t >= 1 - DROP_SHARE) {
+    const k = (t - (1 - DROP_SHARE)) / DROP_SHARE;
+    return [x1, y1 - DROP_HEIGHT * (1 - k)];
+  }
+  const k = (t - CLIMB_SHARE) / (1 - CLIMB_SHARE - DROP_SHARE);
+  const ax = x0;
+  const ay = y0 - CLIMB_HEIGHT;
+  const dx = x1;
+  const dy = y1 - DROP_HEIGHT;
+  // Control points straight above both ends: vertical exit from the climb, vertical entry into the fall.
+  const top = Math.min(ay, dy) - loft;
+  const u = 1 - k;
+  return [
+    u * u * u * ax + 3 * u * u * k * ax + 3 * u * k * k * dx + k * k * k * dx,
+    u * u * u * ay + 3 * u * u * k * top + 3 * u * k * k * top + k * k * k * dy,
+  ];
 }
 
 /** The ICBM `age` s after launch, flying (x0, y0) → (x1, y1) for `flight` s; its trail lingers ICBM_TRAIL_SECONDS. */
-export function drawIcbm(ctx: CanvasRenderingContext2D, x0: number, y0: number, x1: number, y1: number, age: number, flight: number): void {
+export function drawIcbm(ctx: CanvasRenderingContext2D, x0: number, y0: number, x1: number, y1: number, age: number, flight: number, faction: FactionId): void {
   const loft = Math.min(220, 40 + Math.hypot(x1 - x0, y1 - y0) * 0.45);
   const t = Math.min(1, age / flight);
   ctx.save();
@@ -48,37 +84,49 @@ export function drawIcbm(ctx: CanvasRenderingContext2D, x0: number, y0: number, 
   }
   if (t < 1) {
     const [mx, my] = along(x0, y0, x1, y1, loft, t);
-    const [nx, ny] = along(x0, y0, x1, y1, loft, Math.min(1, t + 0.01));
+    // Heading from the path just ahead (just behind at the very end, so the falling warhead still points down).
+    const [nx, ny] = t > 0.99 ? ((p) => [mx + (mx - p[0]), my + (my - p[1])] as [number, number])(along(x0, y0, x1, y1, loft, t - 0.01)) : along(x0, y0, x1, y1, loft, t + 0.01);
     const d = Math.hypot(nx - mx, ny - my) || 1;
     const ux = (nx - mx) / d;
     const uy = (ny - my) / d;
-    const len = 6;
-    const g = ctx.createRadialGradient(mx - ux * len, my - uy * len, 0, mx - ux * len, my - uy * len, 3.5);
+    // The Yars sprite (yars-missile sheet) with its motor flame; the drawn stick only while the sheet loads.
+    const sprite = drawYarsMissile(ctx, mx, my, ux, uy, faction);
+    const len = sprite ? YARS_HALF_LENGTH + 1 : 6;
+    const fr = sprite ? 5 : 3.5;
+    const g = ctx.createRadialGradient(mx - ux * len, my - uy * len, 0, mx - ux * len, my - uy * len, fr);
     g.addColorStop(0, 'rgba(255,255,235,1)');
     g.addColorStop(0.4, 'rgba(255,190,70,0.9)');
     g.addColorStop(1, 'rgba(255,90,20,0)');
     ctx.fillStyle = g;
     ctx.beginPath();
-    ctx.arc(mx - ux * len, my - uy * len, 3.5, 0, Math.PI * 2);
+    ctx.arc(mx - ux * len, my - uy * len, fr, 0, Math.PI * 2);
     ctx.fill();
-    ctx.lineCap = 'round';
-    ctx.strokeStyle = '#4f5a44';
-    ctx.lineWidth = 1.8;
-    ctx.beginPath();
-    ctx.moveTo(mx - ux * len, my - uy * len);
-    ctx.lineTo(mx, my);
-    ctx.stroke();
-    ctx.strokeStyle = '#d9d9d2';
-    ctx.lineWidth = 1.6;
-    ctx.beginPath();
-    ctx.moveTo(mx - ux * 1.6, my - uy * 1.6);
-    ctx.lineTo(mx + ux * 0.6, my + uy * 0.6);
-    ctx.stroke();
+    if (!sprite) {
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = '#4f5a44';
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      ctx.moveTo(mx - ux * len, my - uy * len);
+      ctx.lineTo(mx, my);
+      ctx.stroke();
+      ctx.strokeStyle = '#d9d9d2';
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.moveTo(mx - ux * 1.6, my - uy * 1.6);
+      ctx.lineTo(mx + ux * 0.6, my + uy * 0.6);
+      ctx.stroke();
+    }
   }
   ctx.restore();
 }
 
 const clamp01 = (v: number): number => Math.max(0, Math.min(1, v));
+
+/** Share of the nuke effect's life the mushroom cloud sheet takes to play through. */
+const CLOUD_SHARE = 0.85;
+
+/** Secondary blasts from the explosion sheet ringing the nuclear fireball. */
+const NUKE_RING = 10;
 
 /**
  * The nuclear burst at iso (x, y), `age` s after impact, out of `ttl` s; the blast reaches the ellipse rx × ry
@@ -87,24 +135,6 @@ const clamp01 = (v: number): number => Math.max(0, Math.min(1, v));
 export function drawNuke(ctx: CanvasRenderingContext2D, x: number, y: number, rx: number, ry: number, age: number, ttl: number): void {
   const fade = clamp01((ttl - age) / (ttl * 0.4));
   ctx.save();
-  // Scorched crater and burnt ground, fading at the end.
-  {
-    const g = ctx.createRadialGradient(x, y, 0, x, y, rx * 0.5);
-    g.addColorStop(0, `rgba(20,16,12,${0.85 * fade})`);
-    g.addColorStop(0.55, `rgba(45,36,28,${0.6 * fade})`);
-    g.addColorStop(1, 'rgba(60,50,40,0)');
-    ctx.fillStyle = g;
-    ctx.beginPath();
-    ctx.ellipse(x, y, rx * 0.5, ry * 0.5, 0, 0, Math.PI * 2);
-    ctx.fill();
-    if (age < 12) {
-      const glow = clamp01(1 - age / 12);
-      ctx.fillStyle = `rgba(255,110,30,${0.45 * glow})`;
-      ctx.beginPath();
-      ctx.ellipse(x, y, rx * 0.18, ry * 0.18, 0, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  }
   // Shock wave running out over the ground with a dust ring behind it.
   if (age < 2.2) {
     const k = age / 2.2;
@@ -126,7 +156,7 @@ export function drawNuke(ctx: CanvasRenderingContext2D, x: number, y: number, rx
   const drift = age * 0.6;
   const lit = clamp01(1 - age / 6);
   const grey = (a: number): string => `rgba(${Math.round(120 + 110 * lit)},${Math.round(112 + 60 * lit)},${Math.round(104 + 10 * lit)},${a})`;
-  if (age > 0.3) {
+  if (age > 0.3 && !hasNukeCloud()) {
     for (let i = 0; i < 10; i++) {
       const f = i / 9;
       const sx = x + drift * f;
@@ -162,19 +192,43 @@ export function drawNuke(ctx: CanvasRenderingContext2D, x: number, y: number, rx
       ctx.fill();
     }
   }
-  // Fireball on the ground.
-  if (age < 4) {
-    const k = age / 4;
-    const r = rx * (0.12 + 0.25 * Math.sqrt(k));
-    const g = ctx.createRadialGradient(x, y - r * 0.5, 0, x, y - r * 0.5, r);
-    g.addColorStop(0, `rgba(255,255,240,${1 - k})`);
-    g.addColorStop(0.35, `rgba(255,200,80,${0.95 * (1 - k)})`);
-    g.addColorStop(1, 'rgba(200,60,20,0)');
-    ctx.fillStyle = g;
-    ctx.beginPath();
-    ctx.arc(x, y - r * 0.5, r, 0, Math.PI * 2);
-    ctx.fill();
+  // Fireball from the explosion sheet: a huge central blast, a second one as it rolls up, then a ring of blasts
+  // running out with the shock wave over the blast ellipse. Falls back to a drawn fireball until the sheet loads.
+  {
+    // [delay s, dx (× rx), dy (× ry), size (× rx), variant]; the central three only without the cloud sheet.
+    const blasts: [number, number, number, number, number][] = hasNukeCloud()
+      ? []
+      : [
+          [0, 0, 0, 1.1, 0],
+          [0.5, 0, -0.35, 0.9, 5],
+          [1.0, 0, -0.7, 0.7, 9],
+        ];
+    for (let i = 0; i < NUKE_RING; i++) {
+      const a = (i / NUKE_RING) * Math.PI * 2 + 0.3;
+      const d = i % 2 ? 0.75 : 0.45;
+      blasts.push([0.15 + d * 1.2 + (i % 3) * 0.1, Math.cos(a) * d, Math.sin(a) * d, 0.35 + (i % 3) * 0.06, i + 2]);
+    }
+    let drawn = true;
+    for (const [delay, dx, dy, size, variant] of blasts) {
+      const t = age - delay;
+      if (t < 0 || t > EXPLOSION_SECONDS) continue;
+      if (!drawExplosion(ctx, x + dx * rx, y + dy * ry, t, size * rx, variant)) drawn = false;
+    }
+    if (!drawn && age < 4) {
+      const k = age / 4;
+      const r = rx * (0.12 + 0.25 * Math.sqrt(k));
+      const g = ctx.createRadialGradient(x, y - r * 0.5, 0, x, y - r * 0.5, r);
+      g.addColorStop(0, `rgba(255,255,240,${1 - k})`);
+      g.addColorStop(0.35, `rgba(255,200,80,${0.95 * (1 - k)})`);
+      g.addColorStop(1, 'rgba(200,60,20,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(x, y - r * 0.5, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
+  // Mushroom cloud from the nuke-cloud sheet: fire column, cap, dark smoke drifting away over CLOUD_SHARE of the effect.
+  drawNukeCloud(ctx, x, y, age / (ttl * CLOUD_SHARE), rx * 1.25, fade);
   // The flash.
   if (age < 0.35) {
     const k = age / 0.35;
@@ -187,5 +241,29 @@ export function drawNuke(ctx: CanvasRenderingContext2D, x: number, y: number, rx
     ctx.arc(x, y, r, 0, Math.PI * 2);
     ctx.fill();
   }
+  ctx.restore();
+}
+
+/**
+ * Fallout circle `age` s into its `ttl`: a translucent green disc over the blast ellipse rx × ry with a thin,
+ * slowly pulsing rim; fades in over 1 s and out over the last 8 s.
+ */
+export function drawFallout(ctx: CanvasRenderingContext2D, x: number, y: number, rx: number, ry: number, age: number, ttl: number): void {
+  const a = clamp01(age / 1) * clamp01((ttl - age) / 8);
+  if (a <= 0) return;
+  const pulse = 0.75 + 0.25 * Math.sin(age * 2.4);
+  ctx.save();
+  // Flat light-green fill and a 1 screen-px rim (line width undone from the camera zoom).
+  // The fill blinks (about once a second) and fades steadily from full to nothing over the circle's life.
+  const life = clamp01(1 - age / ttl);
+  const blink = 0.55 + 0.45 * Math.cos(age * Math.PI * 2);
+  ctx.fillStyle = `rgba(150,255,140,${0.26 * clamp01(age / 1) * life * blink})`;
+  ctx.beginPath();
+  ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2);
+  ctx.fill();
+  const m = ctx.getTransform();
+  ctx.strokeStyle = `rgba(120,255,110,${0.9 * a * pulse})`;
+  ctx.lineWidth = 1 / (Math.hypot(m.a, m.b) || 1);
+  ctx.stroke();
   ctx.restore();
 }

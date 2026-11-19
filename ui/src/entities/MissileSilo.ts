@@ -22,6 +22,8 @@ export class MissileSilo extends Building {
   launchClock: number | null = null;
   /** The launch already fired in this sequence. */
   launched = false;
+  /** Its number among its owner's silos (#1, #2…: briefcase rows and hover label); refreshed by Game each frame. */
+  siloNo = 0;
 
   constructor(owner: number, faction: FactionId, center: WorldPoint) {
     super(owner, faction, center, {

@@ -39,7 +39,7 @@ export const DEMO_FACTION: FactionId = NATION_CODES[(import.meta.env.VITE_DEMO_F
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "3.75.251";
+export const GAME_VERSION = "3.75.297";
 /** Transport aircraft (C-17, Il-76, Y-20, A400M) are drawn this many iso px long: 13, +20% (v3.75.224). */
 export const TRANSPORT_LENGTH = 13 * 1.2 * 0.9;
 
@@ -445,17 +445,50 @@ export const SILO_LID_MOVE = 2;
 export const SILO_LID_HOLD = 3;
 /**
  * RS-24 Yars ICBM (nuclear warhead), fired only on order at any point on land or sea (a structure, a unit or open
- * ground) within SILO_RANGE_CELLS: 4 × the Dvina's reach, 4 × its damage at the centre, 3 × its blast radius with the
+ * ground) within SILO_RANGE_CELLS: 3/4 of the map's north-pole-to-south-pole height (WORLD_HEIGHT), 4 × its damage at the centre, 3 × its blast radius with the
  * damage falling off from the centre to nothing at the edge (shock wave). Each missile costs SILO_MISSILE_COST and
  * takes SILO_RELOAD s to load (only while the owner has power). Player and AI alike.
  */
-export const SILO_RANGE_CELLS = DVINA_RANGE_CELLS * 4;
+export const SILO_RANGE_CELLS = (0.75 * WORLD_HEIGHT) / CELL_SIZE;
 export const SILO_DAMAGE = DVINA_DAMAGE * 4;
 export const SILO_BLAST_CELLS = DVINA_BLAST_CELLS * 3;
 export const SILO_MISSILE_COST = 12000;
-export const SILO_RELOAD = 180;
-/** ICBM flight time (s) over `distance` world px: a high ballistic arc. */
-export const icbmFlight = (distance: number): number => 4 + distance / 120;
+export const SILO_RELOAD = 360; // 6 minutes
+/**
+ * ICBM accuracy: the warhead bursts at most SILO_MISS_M metres from the aim point (random direction and distance,
+ * deterministic so all clients agree). 1 cell = 3 m (CELL_SIZE 7 world px), so 10 m = 10/3 cells.
+ */
+export const SILO_MISS_M = 10;
+export const SILO_MISS_PX = (SILO_MISS_M / 3) * CELL_SIZE;
+/** ICBM flight time (s) over `distance` world px at icbmSpeed (at least 3 s for the climb out of the silo). */
+export const icbmFlight = (distance: number): number => Math.max(3, distance / icbmSpeed());
+/**
+ * ICBM speed (world px/s) = a Tu-160 with its turbo on at full long-haul cruise: the bomber's base speed × Russia's
+ * unit speed × AIR_SPEED_SCALE × TURBO_MULT (a function: those constants are declared further down).
+ */
+export const icbmSpeed = (): number => VEHICLE_BASE.bomber.speed * TU160_UNIT_SPEED * CELL_SIZE * AIR_SPEED_SCALE * TURBO_MULT;
+/** Russia's unit speed (factions/russia.ts stats.unitSpeed), for the Tu-160 above. */
+const TU160_UNIT_SPEED = 0.95;
+/**
+ * Fallout: a green radiation circle of the blast radius (SILO_BLAST_CELLS) stays NUKE_RAD_SECONDS on the ground. Every
+ * soldier and ground vehicle inside it (any nation, the launcher's own too) is irradiated and loses its full health over
+ * NUKE_RAD_KILL_SECONDS while it stays inside (it can drive out). Player and AI alike.
+ */
+export const NUKE_RAD_SECONDS = 60;
+export const NUKE_RAD_KILL_SECONDS = 30;
+/** Soldiers (people) are irradiated faster than vehicles: full health lost over this many seconds inside. */
+export const NUKE_RAD_KILL_SECONDS_INFANTRY = 5;
+/**
+ * Radiation dose by distance from ground zero (`k` = distance / circle radius, 0..1): NUKE_RAD_DOSE_CENTRE × the
+ * rate at the centre falling linearly to NUKE_RAD_DOSE_EDGE × at the rim. The *_KILL_SECONDS above are the dose-1
+ * times: a soldier at ground zero dies in 5 / 2.5 = 2 s, one at the rim in 5 / 0.25 = 20 s.
+ */
+export const NUKE_RAD_DOSE_CENTRE = 2.5;
+export const NUKE_RAD_DOSE_EDGE = 0.25;
+export const nukeRadDose = (k: number): number => NUKE_RAD_DOSE_CENTRE + (NUKE_RAD_DOSE_EDGE - NUKE_RAD_DOSE_CENTRE) * Math.min(1, Math.max(0, k));
+/** The radiation circle covers this many times the blast circle's area (radius × √ of it). */
+export const NUKE_RAD_AREA = 1.04 * 1.1 * 1.6 * 1.4; // +4 %, +10 %, +60 %, then +40 % more (≈ 2.56)
+export const NUKE_RAD_RADIUS_SCALE = Math.sqrt(NUKE_RAD_AREA);
 /** How long the mushroom cloud and the scorched crater stay on the map (s). */
 export const NUKE_SECONDS = 30;
 export const FOOTPRINT_DVINA = { w: 2, d: 2 } as const;

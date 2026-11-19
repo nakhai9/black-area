@@ -43,9 +43,11 @@ export type Effect =
   /** Its impact: a small burst on an aircraft (`air`), the large explosion on the ground. */
   | { kind: 'missileBlast'; x: number; y: number; age: number; ttl: number; air: boolean }
   /** RS-24 Yars ICBM on its high ballistic arc (x0, y0) → (x1, y1) for `flight` s; its trail lingers to `ttl`. */
-  | { kind: 'icbm'; x0: number; y0: number; x1: number; y1: number; age: number; ttl: number; flight: number }
+  | { kind: 'icbm'; x0: number; y0: number; x1: number; y1: number; age: number; ttl: number; flight: number; faction: FactionId }
   /** Nuclear burst at (x, y): flash, fireball, shock wave to the blast ellipse rx × ry (iso px), crater, mushroom cloud. */
   | { kind: 'nuke'; x: number; y: number; rx: number; ry: number; age: number; ttl: number }
+  /** Fallout: the green radiation circle (blast radius rx × ry, iso px) left on the ground NUKE_RAD_SECONDS. */
+  | { kind: 'fallout'; x: number; y: number; rx: number; ry: number; age: number; ttl: number }
   /** The bomb sheet's explosion and burning crater. */
   | { kind: 'bombBlast'; x: number; y: number; age: number; ttl: number; faction: FactionId }
   /** A killed soldier falling and lying a moment, from their sheet's dying frames. */

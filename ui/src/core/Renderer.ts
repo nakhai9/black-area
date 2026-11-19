@@ -12,7 +12,7 @@ import { LdewEmplacement } from '../entities/LdewEmplacement';
 import { DvinaLauncher } from '../entities/DvinaLauncher';
 import { MissileSilo } from '../entities/MissileSilo';
 import { setSiloLid } from '../render/sprites/MissileSilo';
-import { drawIcbm, drawNuke } from '../render/Icbm';
+import { drawFallout, drawIcbm, drawNuke } from '../render/Icbm';
 import { drawSite } from '../render/DvinaSheets';
 import { drawExplosion } from '../render/ExplosionSheet';
 import { emblemImage } from '../render/Emblems';
@@ -1455,7 +1455,9 @@ export class Renderer {
       } else if (e.kind === 'shellImpact') {
         drawShellImpact(ctx, e.x, e.y, e.age, e.ttl, e.armour);
       } else if (e.kind === 'icbm') {
-        drawIcbm(ctx, e.x0, e.y0, e.x1, e.y1, e.age, e.flight);
+        drawIcbm(ctx, e.x0, e.y0, e.x1, e.y1, e.age, e.flight, e.faction);
+      } else if (e.kind === 'fallout') {
+        drawFallout(ctx, e.x, e.y, e.rx, e.ry, e.age, e.ttl);
       } else if (e.kind === 'nuke') {
         drawNuke(ctx, e.x, e.y, e.rx, e.ry, e.age, e.ttl);
       } else if (e.kind === 'gradRocket') {
@@ -1951,7 +1953,7 @@ export class Renderer {
       ? `${b.spec.name} · ${health} · ${t('Global Monitoring Center managed')}`
       : b.indestructible
         ? `${b.spec.name} · ${health} · ${t('Neutral')} · ${t('Protected')}`
-        : `${b.spec.name} · ${health}${inside}`;
+        : `${b.spec.name}${b instanceof MissileSilo && b.siloNo > 0 ? ` #${b.siloNo}` : ''} · ${health}${inside}`;
     ctx.font = `600 ${12 * k}px "Courier New", Courier, monospace`;
     const w = ctx.measureText(text).width + 12 * k;
     const h = 18 * k;

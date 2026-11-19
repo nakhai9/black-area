@@ -1,6 +1,6 @@
 import { type ContestedNationId, DVINA_COST, YARS_COST, SILO_SCIENTISTS, FOOTPRINT_SILO, DVINA_NATION, FOOTPRINT_DVINA, HIDDEN_BUILDS, LDEW_SITE_COST, LDEW_SITE_NATION } from '../constants';
 import { DvinaLauncher } from '../entities/DvinaLauncher';
-import { demoPrice } from '../core/Demo';
+import { demoActive, demoPrice } from '../core/Demo';
 import {
   MILITARY_BASES,
   AIRFIELD_COST,
@@ -351,6 +351,7 @@ export function missingRequirement(option: BuildOption, owned: ReadonlySet<Build
   const base = option.id.split('@')[0] as BuildingType;
   // Not for sale yet: reported as needing itself, so the cameo stays locked and the AI never orders it.
   if (option.comingSoon) return base;
+  if (demoActive) return null; // DEMO: every structure unlocked, no prerequisites
   const core: BuildingType[] = base === 'powerPlant' ? [] : base === 'barracks' ? ['powerPlant'] : ['powerPlant', 'barracks'];
   const own: readonly BuildingType[] = option.requires === undefined ? [] : typeof option.requires === 'string' ? [option.requires] : option.requires;
   return [...core, ...own].find((t) => !owned.has(t) && !(disarmed && MILITARY_BASES.includes(t))) ?? null;
