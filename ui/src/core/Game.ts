@@ -21,7 +21,7 @@ import {
   ENGINEER_REPAIR_SHARE,
   CAPITAL_EMBARGO_SECONDS,
   CAPITAL_DISARM_SECONDS,
-  BM21_RELOAD_COST, DVINA_MISSILE_COST, SILO_MISSILE_COST, SILO_SCIENTISTS, NUKE_SECONDS, ISO_X, ISO_Y,
+  BM21_RELOAD_COST, AIRCRAFT_MIN_POWER, DVINA_MISSILE_COST, SILO_MISSILE_COST, SILO_SCIENTISTS, NUKE_SECONDS, ISO_X, ISO_Y,
   MILITARY_BASES,
   AI_EMBARGO_CREDITS,
   DERRICK_GRACE_GAP,
@@ -738,7 +738,12 @@ export class Game {
       // Multiplayer: selections live on each machine only, so they never steer the shared game.
       selected: (v) => !this.lockstep && this.selection.selectedUnits.has(v.id),
       computer: (owner) => !this.players.find((p) => p.id === owner)?.isHuman,
-      powered: (owner) => !this.players.find((p) => p.id === owner)?.powerShort,
+      // Take-offs: held while the grid is short, or its bar (supply ÷ consumption) is at AIRCRAFT_MIN_POWER or below.
+      powered: (owner) => {
+        const p = this.players.find((o) => o.id === owner);
+        if (!p || p.powerShort) return false;
+        return p.powerConsumed <= 0 || p.powerSupply / p.powerConsumed > AIRCRAFT_MIN_POWER;
+      },
       mayday: (v) => {
         if (v.owner === this.humanPlayer.id) this.sound.mayday();
       },
