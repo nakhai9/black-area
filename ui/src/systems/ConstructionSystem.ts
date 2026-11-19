@@ -1,4 +1,4 @@
-import { type ContestedNationId, DVINA_COST, YARS_COST, DVINA_NATION, FOOTPRINT_DVINA, HIDDEN_BUILDS, LDEW_SITE_COST, LDEW_SITE_NATION } from '../constants';
+import { type ContestedNationId, DVINA_COST, YARS_COST, FOOTPRINT_SILO, DVINA_NATION, FOOTPRINT_DVINA, HIDDEN_BUILDS, LDEW_SITE_COST, LDEW_SITE_NATION } from '../constants';
 import { DvinaLauncher } from '../entities/DvinaLauncher';
 import { demoPrice } from '../core/Demo';
 import {
@@ -44,6 +44,7 @@ import { ParallelGovernment } from '../entities/ParallelGovernment';
 import { FACTIONS } from '../factions';
 import { HappyCity } from '../entities/HappyCity';
 import { Bunker } from '../entities/Bunker';
+import { MissileSilo } from '../entities/MissileSilo';
 import { LdewEmplacement } from '../entities/LdewEmplacement';
 import { PowerPlant } from '../entities/PowerPlant';
 import { TechCenter } from '../entities/TechCenter';
@@ -156,16 +157,16 @@ const OWN_OPTIONS: readonly BuildOption[] = [
     create: (owner, faction, x, y) => new DvinaLauncher(owner, faction, center(x, y, FOOTPRINT_DVINA)),
   },
   {
-    // RS-24 Yars ICBM: every nation's shop shows it, not for sale yet (comingSoon).
+    // RS-24 Yars: the underground missile silo (3 × 3), every nation; needs a Tech Center and a Radar Tower, draws
+    // SILO_POWER_DRAIN power.
     id: 'yars',
     name: 'RS-24 Yars',
-    requires: 'barracks',
-    comingSoon: true,
+    requires: ['techCenter', 'radarTower'],
     cost: YARS_COST,
     fixedCost: true,
-    footprint: FOOTPRINT_BUNKER,
-    spriteKey: (f) => `bunker:${f}`,
-    create: (owner, faction, x, y) => new Bunker(owner, faction, center(x, y, FOOTPRINT_BUNKER)),
+    footprint: FOOTPRINT_SILO,
+    spriteKey: (f) => `missileSilo:${f}`,
+    create: (owner, faction, x, y) => new MissileSilo(owner, faction, center(x, y, FOOTPRINT_SILO)),
   },
   {
     // One block of the nation's wall: stops enemy ground units.

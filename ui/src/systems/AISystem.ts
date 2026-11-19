@@ -786,6 +786,11 @@ export class AISystem implements GameSystem {
       const have = this.host.entities.buildings().filter((b) => b.owner === p.id && b.alive && b instanceof DvinaLauncher && b.site === site.id).length;
       if (have < site.max) next = BUILD_OPTIONS.find((o) => o.id === site.id);
     }
+    // RS-24 Yars: one underground missile silo once the Tech Center and Radar Tower stand (player rule: same requirements, same power drain).
+    if (!next && threat === 0 && owned.has('techCenter') && owned.has('radarTower') && !owned.has('missileSilo') && !busy('yars')) {
+      const silo = BUILD_OPTIONS.find((o) => o.id === 'yars');
+      if (silo && missingRequirement(silo, owned, p.disarmedUntil !== undefined) === null) next = silo;
+    }
     // A coastal base: one Naval Port on the shore, where its carriers are launched and repaired (player rule too).
     if (!next && threat === 0 && owned.has('warFactory') && !owned.has('port') && !busy('port') && this.portSiteSearch(p, st)) {
       next = BUILD_OPTIONS.find((o) => o.id === 'port');

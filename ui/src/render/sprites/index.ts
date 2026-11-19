@@ -19,6 +19,7 @@ import { createOilDerrickArt } from './OilDerrick';
 import { createPowerPlantArt } from './PowerPlant';
 import { createRadarTowerArt } from './RadarTower';
 import { createFuelStationArt } from './FuelStation';
+import { createMissileSiloArt } from './MissileSilo';
 import { createGrandMosqueArt } from './GrandMosque';
 import { createWashingtonWhiteHouseArt } from './WashingtonWhiteHouse';
 import { WorldBankArt } from './WorldBank';
@@ -96,6 +97,12 @@ export const BUILDING_ART: Readonly<Record<string, BuildingArt>> = {
   'radarTower:china': createRadarTowerArt('china'),
   'radarTower:europe': createRadarTowerArt('europe'),
   'radarTower:islamic': createRadarTowerArt('islamic'),
+  // Underground missile silo (3 × 3): moss-green collar, lid opening and closing on its own.
+  'missileSilo:usa': createMissileSiloArt('usa'),
+  'missileSilo:russia': createMissileSiloArt('russia'),
+  'missileSilo:china': createMissileSiloArt('china'),
+  'missileSilo:europe': createMissileSiloArt('europe'),
+  'missileSilo:islamic': createMissileSiloArt('islamic'),
   // Fuel Station (10 × 8): canopy in the nation's colour, aircraft spots, helipads, vehicle lot.
   'fuelStation:usa': createFuelStationArt('usa'),
   'fuelStation:russia': createFuelStationArt('russia'),
@@ -212,6 +219,8 @@ function rebuildArt(key: string): BuildingArt | undefined {
       return createRadarTowerArt(f);
     case 'fuelStation':
       return createFuelStationArt(f);
+    case 'missileSilo':
+      return createMissileSiloArt(f);
     default:
       return undefined;
   }

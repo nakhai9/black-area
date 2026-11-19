@@ -1,6 +1,6 @@
 """Convert the game's PNG art to WebP (much smaller downloads = faster game load).
 
-    python tools/to_webp.py            # converts ui/public/sprites/**/*.png, then sorts them into nation folders (organize_sprites.py) and ui/public/data/earth.png (the PNGs are kept as sources; only the .webp files are loaded)
+    python tools/to_webp.py            # converts ui/public/sprites/**/*.png, then sorts them into nation folders (organize_sprites.py) and ui/public/data/earth.png (each sprite PNG is deleted once its .webp is written — ART_GUIDE: no PNG kept; earth.png stays as the map source)
 
 Sprites: lossy q90 with full-quality alpha (~55-75% smaller). earth.png: lossless (its pixel colours are read as map data).
 Run it again after a Blender tool writes new PNG sheets into ui/public/sprites.
@@ -39,6 +39,13 @@ def main() -> None:
             total_b += b
             total_a += a
     print(f'{len(files)} files: {total_b / 1e6:.1f} MB -> {total_a / 1e6:.1f} MB')
+    # ART_GUIDE 4: no PNG is kept in the sprites once converted (the game loads only the .webp files).
+    removed = 0
+    for f in (ROOT / 'sprites').rglob('*.png'):
+        if f.with_suffix('.webp').exists():
+            f.unlink()
+            removed += 1
+    print(f'{removed} sprite PNGs removed')
     # Then move every nation's sprites into its folder (sprites/<nation>/[<group>/]) and refresh the game's lookup.
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import organize_sprites

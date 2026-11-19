@@ -249,6 +249,7 @@ export type BuildingType =
   | 'parallelGov'
   | 'oilDerrick'
   | 'bunker'
+  | 'missileSilo'
   | 'wall'
   | 'gate';
 

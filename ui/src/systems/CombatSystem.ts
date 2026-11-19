@@ -20,11 +20,12 @@ import type { FactionId } from '../types';
 import type { Mobility } from '../map/Pathfinder';
 import { demoActive } from '../core/Demo';
 import { movesRight } from '../core/IsoView';
-import { BM21_INTERCEPT_CHANCE, BM21_MIN_SALVO, BM21_SHOCK_CELLS, BM21_SHOCK_PEAK, bm21Flight, DVINA_MISSILE_SPEED, DVINA_SLOW_FACTOR, DVINA_INTERCEPT_FLIGHT, DVINA_AIM_TOLERANCE, DVINA_GROUP_CELLS, DVINA_GROUP_SOLDIERS, DVINA_GROUP_VEHICLES, DVINA_RELOAD, DVINA_TURN_RATE, BOMB_FALL_SECONDS, HIGH_GROUND_DAMAGE, HIGH_GROUND_RANGE, LOW_GROUND_DAMAGE, MANTIS_HIT_SHARE, MANTIS_RANGE_CELLS, MANTIS_RANK_BONUS, MANTIS_EVADE_CELLS, HELI_VS_MANTIS_SHARE, JET_VS_MANTIS_SHARE, MANTIS_VS_JET_SHARE, MANTIS_VS_HELI_SHARE, MANTIS_RELOAD, MANTIS_GUN_NATIONS, PGZ_RELOAD, PGZ_HIT_FACTOR, JET_BOMB_VS_STRUCTURE, JET_BOMB_VS_VEHICLE, ACQUIRE_PERIOD, RANK_FIREPOWER, RANK_RELOAD, BOMB_GROUP_RADIUS_CELLS, BOMB_GROUP_SIZE, BOMB_TOUGH_DAMAGE, BOMB_TOUGH_STRUCTURES, BOMBS_PER_DROP, CELL_SIZE, CHASE_GIVE_UP_SECONDS, CHASE_LIMIT_CELLS, CHASE_PERIOD, FIGHT_MEMORY_SECONDS, GUARD_VISION_FACTOR, NEUTRAL_OWNER, RETALIATE_RANGE_FACTOR, WEAPONS, FIGHTER_DRONE_ALERT, FELL_SPREAD_CELLS, TREE_BOMB_RADIUS_CELLS, TREE_STICK_RADIUS_CELLS } from '../constants';
+import { BM21_INTERCEPT_CHANCE, BM21_MIN_SALVO, BM21_SHOCK_CELLS, BM21_SHOCK_PEAK, bm21Flight, DVINA_MISSILE_SPEED, DVINA_SLOW_FACTOR, SILO_BLAST_CELLS, SILO_DAMAGE, SILO_LID_HOLD, SILO_LID_MOVE, SILO_RELOAD, icbmFlight, DVINA_INTERCEPT_FLIGHT, DVINA_AIM_TOLERANCE, DVINA_GROUP_CELLS, DVINA_GROUP_SOLDIERS, DVINA_GROUP_VEHICLES, DVINA_RELOAD, DVINA_TURN_RATE, BOMB_FALL_SECONDS, HIGH_GROUND_DAMAGE, HIGH_GROUND_RANGE, LOW_GROUND_DAMAGE, MANTIS_HIT_SHARE, MANTIS_RANGE_CELLS, MANTIS_RANK_BONUS, MANTIS_EVADE_CELLS, HELI_VS_MANTIS_SHARE, JET_VS_MANTIS_SHARE, MANTIS_VS_JET_SHARE, MANTIS_VS_HELI_SHARE, MANTIS_RELOAD, MANTIS_GUN_NATIONS, PGZ_RELOAD, PGZ_HIT_FACTOR, JET_BOMB_VS_STRUCTURE, JET_BOMB_VS_VEHICLE, ACQUIRE_PERIOD, RANK_FIREPOWER, RANK_RELOAD, BOMB_GROUP_RADIUS_CELLS, BOMB_GROUP_SIZE, BOMB_TOUGH_DAMAGE, BOMB_TOUGH_STRUCTURES, BOMBS_PER_DROP, CELL_SIZE, CHASE_GIVE_UP_SECONDS, CHASE_LIMIT_CELLS, CHASE_PERIOD, FIGHT_MEMORY_SECONDS, GUARD_VISION_FACTOR, NEUTRAL_OWNER, RETALIATE_RANGE_FACTOR, WEAPONS, FIGHTER_DRONE_ALERT, FELL_SPREAD_CELLS, TREE_BOMB_RADIUS_CELLS, TREE_STICK_RADIUS_CELLS } from '../constants';
 import { Building } from '../entities/Building';
 import { Bunker } from '../entities/Bunker';
 import { LdewEmplacement } from '../entities/LdewEmplacement';
 import { DvinaLauncher } from '../entities/DvinaLauncher';
+import { MissileSilo } from '../entities/MissileSilo';
 import type { Entity } from '../entities/Entity';
 import type { EntityManager } from '../entities/EntityManager';
 import { Infantry } from '../entities/Infantry';
@@ -46,6 +47,12 @@ export interface CombatHooks {
   onDvinaIntercept(guard: Vehicle, meet: WorldPoint, lift: number, flight: number): void;
   /** A Dvina missile shot down: it bursts in the air at `at`, `lift` px up, harming nobody. */
   onDvinaShotDown(at: WorldPoint, lift: number): void;
+  /** An RS-24 Yars ICBM leaves its silo for `to` (world px), arriving after `flight` s. */
+  onIcbmLaunch(silo: MissileSilo, to: WorldPoint, flight: number): void;
+  /** The ICBM's nuclear burst at `at`, blast radius `radius` world px. */
+  onNuke(at: WorldPoint, radius: number): void;
+  /** A silo's missile is loaded and ready (the owner may be told). */
+  onSiloReady(silo: MissileSilo): void;
   /** An R-12 Dvina missile leaves the rail (Game draws it from the live missile state). */
   onDvinaLaunch(m: DvinaMissile): void;
   /** An entity ran out of health: remove it and show the explosion. */
@@ -218,6 +225,8 @@ export class CombatSystem implements GameSystem {
    * that launcher holds it or its missile is in the air. Player and AI alike.
    */
   private readonly dvinaAir = new Map<number, number>();
+  /** RS-24 Yars ICBMs in the air: each bursts at `to` once `t` reaches `flight`. */
+  private readonly icbms: { silo: MissileSilo; owner: number; to: WorldPoint; t: number; flight: number }[] = [];
   private readonly falling: { at: number; kind: 'stick' | 'jet' | 'treeStick' | 'treeBomb' | 'rocket'; shooter: Vehicle; target: Entity | null; impact: WorldPoint }[] = [];
 
   constructor(
@@ -283,6 +292,7 @@ export class CombatSystem implements GameSystem {
       if (s instanceof Vehicle && s.isRepair && !s.flies && s.insideId === null) this.hooks.trees.fellCell(Math.floor(s.px / CELL_SIZE), Math.floor(s.py / CELL_SIZE));
     }
     this.bunkers(dt, grid, key);
+    this.silos(dt);
     this.reap();
   }
 
@@ -498,6 +508,83 @@ export class CombatSystem implements GameSystem {
     if (o instanceof Building && o.alive) return DVINA_SLOW_FACTOR;
     if (o instanceof Unit && o.alive && !o.flies && !o.moving) return DVINA_SLOW_FACTOR;
     return 1;
+  }
+
+  // ------------------------------------------------------------------ RS-24 Yars silos
+
+  /**
+   * Missile silos: a missile is paid (MissileSilo.payMissile) and loaded in SILO_RELOAD s while the owner has power;
+   * a loaded silo with an order (strike point in range) opens its lid, launches after SILO_LID_MOVE s, holds the lid
+   * open, then closes it. An AI silo picks its own target: the enemy point within range with the most enemy structures
+   * round it. ICBMs in flight burst on arrival (nuke). Player and AI alike.
+   */
+  private silos(dt: number): void {
+    for (const b of this.entities.buildings()) {
+      if (!(b instanceof MissileSilo) || !b.alive || b.owner === NEUTRAL_OWNER) continue;
+      if (!b.loaded) {
+        if (!b.loading) {
+          if (MissileSilo.payMissile(b)) [b.loading, b.loadClock] = [true, SILO_RELOAD];
+        } else if (!this.hooks.powerShort(b.owner) && (b.loadClock -= dt) <= 0) {
+          [b.loading, b.loaded] = [false, true];
+          this.hooks.onSiloReady(b);
+        }
+      }
+      if (b.loaded && b.strike === null && b.launchClock === null && aiOwners.has(b.owner)) b.strike = this.siloTarget(b);
+      if (b.launchClock === null && b.loaded && b.strike !== null) [b.launchClock, b.launched] = [0, false];
+      if (b.launchClock === null) continue;
+      b.launchClock += dt;
+      if (!b.launched && b.launchClock >= SILO_LID_MOVE && b.strike) {
+        const c = b.centerWorld();
+        const to = b.strike;
+        const flight = icbmFlight(Math.hypot(to.x - c.x, to.y - c.y));
+        this.icbms.push({ silo: b, owner: b.owner, to, t: 0, flight });
+        this.hooks.onIcbmLaunch(b, to, flight);
+        [b.launched, b.loaded, b.strike] = [true, false, null];
+      }
+      if (b.launchClock >= SILO_LID_MOVE * 2 + SILO_LID_HOLD) b.launchClock = null;
+    }
+    if (this.icbms.length > 0) {
+      for (const m of this.icbms) m.t += dt;
+      const due = this.icbms.filter((m) => m.t >= m.flight);
+      if (due.length > 0) {
+        this.icbms.splice(0, this.icbms.length, ...this.icbms.filter((m) => m.t < m.flight));
+        for (const m of due) this.nuke(m.silo, m.to);
+      }
+    }
+  }
+
+  /** AI silo: the enemy structure within range with the most enemy structures inside the blast round it. */
+  private siloTarget(s: MissileSilo): WorldPoint | null {
+    const c = s.centerWorld();
+    const r = SILO_BLAST_CELLS * CELL_SIZE;
+    const foes = this.entities.buildings().filter((o) => o.alive && isHostile(s, o) && Math.hypot(o.centerWorld().x - c.x, o.centerWorld().y - c.y) <= s.range);
+    let best: WorldPoint | null = null;
+    let bestN = 0;
+    for (const o of foes) {
+      const p = o.centerWorld();
+      let n = 0;
+      for (const q of foes) if (distanceTo(p.x, p.y, q) <= r) n++;
+      if (n > bestN) [best, bestN] = [{ ...p }, n];
+    }
+    return best;
+  }
+
+  /** Nuclear burst: SILO_DAMAGE at the centre falling off to nothing at SILO_BLAST_CELLS, on everything hostile on the ground. */
+  private nuke(s: MissileSilo, at: WorldPoint): void {
+    const radius = SILO_BLAST_CELLS * CELL_SIZE;
+    this.hooks.onNuke(at, radius);
+    const blast = (d: number): number => SILO_DAMAGE * Math.max(0, 1 - d / radius);
+    const hit = (o: Unit | Building, amount: number): void => {
+      if (!o.alive || !isHostile(s, o) || amount <= 0) return;
+      o.damage(amount);
+      if (!s.alive) return;
+      o.lastAttackerId = s.id;
+      o.lastAttackedAt = this.time;
+      if (o instanceof Unit) o.fightingWith.set(s.owner, this.time);
+    };
+    this.hooks.trees.damageRadius(at.x, at.y, radius, SILO_DAMAGE);
+    for (const o of this.entities.fieldMovers()) if (!o.flies) hit(o, blast(Math.hypot(o.px - at.x, o.py - at.y)));
+    for (const o of this.entities.buildings()) hit(o, blast(distanceTo(at.x, at.y, o)));
   }
 
   private dvinaBurst(d: DvinaMissile): void {

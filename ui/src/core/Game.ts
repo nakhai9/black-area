@@ -21,7 +21,7 @@ import {
   ENGINEER_REPAIR_SHARE,
   CAPITAL_EMBARGO_SECONDS,
   CAPITAL_DISARM_SECONDS,
-  BM21_RELOAD_COST, DVINA_MISSILE_COST,
+  BM21_RELOAD_COST, DVINA_MISSILE_COST, SILO_MISSILE_COST, NUKE_SECONDS, ISO_X, ISO_Y,
   MILITARY_BASES,
   AI_EMBARGO_CREDITS,
   DERRICK_GRACE_GAP,
@@ -175,6 +175,7 @@ import { BRIDGE_LAYER_DEATH_SECONDS } from '../render/BridgeLayerSheets';
 import { MANTIS_DEATH_SECONDS, hasMantisSheet } from '../render/MantisSheet';
 import { heavyMissile, samGun } from '../render/SamModel';
 import { SAM_TRAIL_SECONDS } from '../render/SamMissile';
+import { ICBM_TRAIL_SECONDS } from '../render/Icbm';
 import { saveFolderSupported, writeToSaveFolder } from '../ui/SaveFolder';
 import { GRAD_BLAST_SECONDS, GRAD_TRAIL_SECONDS } from '../render/GradRocket';
 import { BM21_SHOCK_CELLS, bm21Flight } from '../constants';
@@ -219,6 +220,8 @@ import { WALL_E, WALL_N, WALL_S, WALL_W } from '../render/sprites/Wall';
 import { Bunker } from '../entities/Bunker';
 import { LdewEmplacement } from '../entities/LdewEmplacement';
 import { DvinaLauncher } from '../entities/DvinaLauncher';
+import { MissileSilo } from '../entities/MissileSilo';
+import { SiloButton } from '../ui/SiloButton';
 import { sitePreview, siteRailHeight } from '../render/DvinaSheets';
 import { yarsPreview } from '../render/YarsSheets';
 import { ldewLensHeight, ldewPreview } from '../render/PrototypeSheets';
@@ -276,6 +279,7 @@ export type GameCommand = (
   | { k: 'rally'; b: number; x: number; y: number; clear: boolean }
   | { k: 'siteTarget'; b: number; tg: number }
   | { k: 'siteAim'; b: number; h: number }
+  | { k: 'siloStrike'; b: number; x: number; y: number }
   /** DEMO only: Ctrl+click on one of my own structures / units: the selection fires on it (force fire). */
   | { k: 'forceAttack'; t: number }
   /** Clearing order: the armed selection fires on wooded cell (x, y) and the wooded cells round it (TREE_* in constants). */
@@ -669,6 +673,13 @@ export class Game {
       p.credits -= DVINA_MISSILE_COST;
       return true;
     };
+    // RS-24 Yars: every ICBM costs SILO_MISSILE_COST from the owner's treasury before it is loaded (player and AI alike).
+    MissileSilo.payMissile = (b) => {
+      const p = this.players.find((o) => o.id === b.owner);
+      if (!p || p.credits < SILO_MISSILE_COST) return false;
+      p.credits -= SILO_MISSILE_COST;
+      return true;
+    };
     this.construction.lostPrerequisite = (p, option) =>
       missingRequirement(option, this.ownedTypesOf(p), p.disarmedUntil !== undefined) !== null ||
       // A Parallel Government's right is spent when it is ordered: its order stays.
@@ -750,6 +761,11 @@ export class Game {
       onBunkerFire: (b, t) => this.onBunkerFire(b, t),
       onDvinaBurst: (at, air, t) => this.onDvinaBurst(at, air, t),
       onDvinaLaunch: (m) => this.onDvinaLaunch(m),
+      onIcbmLaunch: (silo, to, flight) => this.onIcbmLaunch(silo, to, flight),
+      onNuke: (at, radius) => this.onNuke(at, radius),
+      onSiloReady: (silo) => {
+        if (silo.owner === this.localId) this.sidebar.notify(t('RS-24 Yars: missile loaded, ready to launch.'), 4);
+      },
       onDvinaIntercept: (guard, meet, lift, flight) => this.onDvinaIntercept(guard, meet, lift, flight),
       onDvinaShotDown: (at, lift) => this.onDvinaShotDown(at, lift),
       onDeath: (e, killer) => this.onDeath(e, killer),
@@ -996,7 +1012,7 @@ export class Game {
   }
 
   /** Game fields never written back from a save (screen / input state). */
-  private static readonly UNSAVED = ['systems', 'paths', 'paused', 'ended', 'dom', 'lastCursor', 'mouseWorld', 'ghost', 'placing', 'placingRotated', 'waypoints', 'moveMarker', 'pathPeekId', 'lastBuildingClick', 'shortRepaths', 'lastRepath', 'localId', 'actorId', 'lockstep', 'desyncWarned', 'capitalPrompts', 'trees', 'miningId'];
+  private static readonly UNSAVED = ['systems', 'paths', 'paused', 'ended', 'dom', 'lastCursor', 'mouseWorld', 'ghost', 'placing', 'placingRotated', 'waypoints', 'moveMarker', 'pathPeekId', 'lastBuildingClick', 'shortRepaths', 'lastRepath', 'localId', 'actorId', 'lockstep', 'desyncWarned', 'capitalPrompts', 'trees', 'miningId', 'siloAiming', 'siloButton'];
 
   /**
    * Everything needed to continue this game later, as plain JSON-ready data: players, every entity, the state of
@@ -3573,6 +3589,14 @@ export class Game {
         }
         break;
       }
+      case 'siloStrike': {
+        const b = this.entities.get(cmd.b);
+        if (b instanceof MissileSilo && b.alive && b.owner === me && b.loaded && b.launchClock === null) {
+          const c = b.centerWorld();
+          if (Math.hypot(cmd.x - c.x, cmd.y - c.y) <= b.range) b.strike = { x: cmd.x, y: cmd.y };
+        }
+        break;
+      }
       case 'siteAim': {
         const b = this.entities.get(cmd.b);
         if (b instanceof DvinaLauncher && b.alive && b.owner === me) {
@@ -4081,7 +4105,8 @@ export class Game {
     // RA2 Enter cursor: the selected units can climb into the transport under the mouse.
     const hoverUnit = this.selection.hoveredUnitId === null ? undefined : this.entities.get(this.selection.hoveredUnitId);
     const entering = !this.placing && hoverUnit instanceof Vehicle && this.canBoardSelected(hoverUnit);
-    const cursor = this.placing || aiming ? 'crosshair' : entering ? ENTER_CURSOR : hovering ? 'pointer' : 'default';
+    this.updateSiloButton();
+    const cursor = this.placing || aiming || this.siloAiming !== null ? 'crosshair' : entering ? ENTER_CURSOR : hovering ? 'pointer' : 'default';
     // Style writes only when the cursor actually changes (not every frame).
     if (cursor !== this.lastCursor) {
       this.lastCursor = cursor;
@@ -4238,6 +4263,11 @@ export class Game {
           if (this.placing) {
             if (ev.button === 'right') this.stopPlacing();
             else this.tryPlace();
+            break;
+          }
+          if (this.siloAiming !== null) {
+            if (ev.button === 'right') this.siloAiming = null;
+            else this.trySiloStrike(camera.screenToWorld(ev.x, ev.y));
             break;
           }
           const world = camera.screenToWorld(ev.x, ev.y);
@@ -4760,7 +4790,8 @@ export class Game {
         this.cycleOwnDerrick();
         break;
       case 'Escape':
-        if (this.placing) this.stopPlacing();
+        if (this.siloAiming !== null) this.siloAiming = null;
+        else if (this.placing) this.stopPlacing();
         else if (this.miningId !== null) this.stopMining();
         else if (this.bridging) this.stopBridging();
         else if (this.waypoints) this.waypoints = null; // Esc drops the route being plotted
@@ -5092,6 +5123,23 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     const hit = this.fx(at.x, at.y, target instanceof Unit ? this.aimHeight(target, 0.6) : 4);
     if (hasMissileSheet()) this.effects.add({ kind: 'missileBlast', x: hit.x, y: hit.y, age: 0, ttl: MISSILE_BLAST_SECONDS, air });
     else this.effects.add({ kind: 'blast', x: hit.x, y: hit.y, age: 0, ttl: 0.4, radius: 4 });
+    this.sound.play('explosion', at);
+  }
+
+  /** RS-24 Yars launch: the ICBM climbs out of the open silo on a high arc to its strike point. */
+  private onIcbmLaunch(silo: MissileSilo, to: WorldPoint, flight: number): void {
+    const c = silo.centerWorld();
+    const from = this.fx(c.x, c.y, 4);
+    const end = this.fx(to.x, to.y, 0);
+    this.effects.add({ kind: 'icbm', x0: from.x, y0: from.y, x1: end.x, y1: end.y, age: 0, ttl: flight + ICBM_TRAIL_SECONDS, flight });
+    this.sound.play('missile', c);
+    if (silo.owner === this.localId) this.sidebar.notify(t('RS-24 Yars launched.'), 3);
+  }
+
+  /** The ICBM's nuclear burst: flash, fireball, shock wave, crater and mushroom cloud (NUKE_SECONDS). */
+  private onNuke(at: WorldPoint, radius: number): void {
+    const p = this.fx(at.x, at.y, 0);
+    this.effects.add({ kind: 'nuke', x: p.x, y: p.y, rx: radius * ISO_X * Math.SQRT2, ry: radius * ISO_Y * Math.SQRT2, age: 0, ttl: NUKE_SECONDS });
     this.sound.play('explosion', at);
   }
 
@@ -7264,6 +7312,50 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
 
   /** Engineers of this screen's player already asked what to do in an enemy capital (not saved: asked again on load). */
   private capitalPrompts = new Set<number>();
+  /** RS-24 Yars: the silo whose launch button was pressed; the next left click on the map is its strike point. */
+  private siloAiming: number | null = null;
+  private siloButton: SiloButton | null = null;
+
+  /** The local player's selected silo, if one is selected. */
+  private selectedSilo(): MissileSilo | null {
+    const b = this.selection.selectedId === null ? undefined : this.entities.get(this.selection.selectedId);
+    return b instanceof MissileSilo && b.alive && b.owner === this.localId ? b : null;
+  }
+
+  /** Shows / updates the selected silo's launch button; drops aiming when the silo is no longer selected or ready. */
+  private updateSiloButton(): void {
+    this.siloButton ??= new SiloButton(this.dom.canvas.parentElement ?? document.body, () => {
+      const s = this.selectedSilo();
+      if (s && s.loaded && s.launchClock === null && s.strike === null) {
+        this.siloAiming = s.id;
+        this.sidebar.notify(t('Pick the strike point on the map (Esc: cancel).'), 3);
+      }
+    });
+    const s = this.selectedSilo();
+    if (!s || this.siloAiming !== s.id || !s.loaded) this.siloAiming = s && this.siloAiming === s.id && s.loaded ? s.id : null;
+    if (!s) return this.siloButton.update({ kind: 'hidden' });
+    if (s.launchClock !== null || s.strike !== null) return this.siloButton.update({ kind: 'busy' });
+    if (s.loaded) return this.siloButton.update({ kind: 'ready', aiming: this.siloAiming === s.id });
+    if (s.loading) return this.siloButton.update({ kind: 'loading', seconds: Math.max(0, s.loadClock) });
+    this.siloButton.update({ kind: 'unpaid' });
+  }
+
+  /** Aiming click: the strike point (anywhere on land or sea, on a structure or a unit) if in range. */
+  private trySiloStrike(world: WorldPoint): void {
+    const s = this.selectedSilo();
+    if (!s || this.siloAiming !== s.id) return;
+    const u = this.selection.pickUnit(world);
+    const b = u ? null : this.selection.pick(world);
+    const at = u ? { x: u.px, y: u.py } : b ? b.centerWorld() : world;
+    const c = s.centerWorld();
+    if (Math.hypot(at.x - c.x, at.y - c.y) > s.range) {
+      this.sidebar.notify(t('Target out of range.'), 1.5);
+      return;
+    }
+    this.issue({ k: 'siloStrike', b: s.id, x: at.x, y: at.y });
+    this.moveMarker = { x: at.x, y: at.y, at: this.time };
+    this.siloAiming = null;
+  }
 
   /** A nation's own main capital, held by its nation (not a contested NationCapital, not one already taken). */
   private isEnemyCapital(b: Building): boolean {

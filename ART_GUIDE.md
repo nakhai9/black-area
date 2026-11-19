@@ -89,6 +89,8 @@
 **Thư mục sprite / Sprite folders**
 - 🇻🇳 Script vẫn ghi PNG vào `ui/public/sprites/`. Chạy `python tools/to_webp.py`: đổi sang WebP rồi tự xếp vào `sprites/<phe>/<nhóm>/` (nhiều ảnh cùng nhóm, ví dụ radar + khung ăng-ten, các mảnh tường) hoặc `sprites/<phe>/` (chỉ một ảnh), và cập nhật `ui/src/render/spriteManifest.ts`. Thủ đô các nước khác (`building-nation-<nước>`) xếp vào `sprites/capitals/<nước>/` theo cùng quy tắc. Ảnh không thuộc phe nào nằm ở gốc `sprites/`. Trong code luôn lấy đường dẫn qua `spriteUrl(file)`.
 - 🇬🇧 Scripts still write their PNG into `ui/public/sprites/`. Run `python tools/to_webp.py`: it converts to WebP, then sorts files into `sprites/<nation>/<group>/` (several in one group, e.g. radar + antenna frames, wall pieces) or `sprites/<nation>/` (a single one) and refreshes `ui/src/render/spriteManifest.ts`. The other nations' capitals (`building-nation-<country>`) go under `sprites/capitals/<country>/` the same way. Sprites of no nation stay at the `sprites/` root. In code always build the path with `spriteUrl(file)`.
+- 🇻🇳 **Không giữ PNG:** xong một asset (đã chạy `tools/to_webp.py`, đã có bản WebP) thì **không giữ lại file PNG** nào trong `ui/public/sprites/`; `to_webp.py` tự xoá PNG sau khi đổi. PNG chỉ là file trung gian lúc render; ảnh kiểm tra / xem thử (`-preview`, `-check-*`) cũng xoá khi xong. Ngoại lệ: ảnh ngoài thư mục sprite mà code đọc trực tiếp dạng `.png` (logo phe `emblems/`, `favicon.png`, `logo.png`, `research-lab/`, `data/earth.png`).
+- 🇬🇧 **No PNG kept:** once an asset is done (`tools/to_webp.py` has run, the WebP exists), **no PNG stays** in `ui/public/sprites/`; `to_webp.py` deletes them after converting. PNGs are only render intermediates; check / preview images (`-preview`, `-check-*`) are deleted when done too. Exceptions: images outside the sprite folder that the code reads directly as `.png` (faction `emblems/`, `favicon.png`, `logo.png`, `research-lab/`, `data/earth.png`).
 
 **Kích thước trên màn hình / On-screen size**
 - 🇻🇳 Đo chiều dài theo phương ngang, đơn vị iso px. Mọi model trong cùng một nhóm phải có cùng chiều dài.
@@ -250,6 +252,7 @@
 - [ ] Màu thật, cờ và phù hiệu theo thiết kế trong game / Real colours; game flag and marking designs
 - [ ] Có line nhận dạng màu phe (`TEAM`) trên công trình, lính, phương tiện / Faction identity line (`TEAM`) on structures, soldiers, vehicles
 - [ ] Tên hiển thị không đổi, áp dụng cho cả người chơi và AI / Display names unchanged; player and AI alike
+- [ ] Đã đổi sang WebP, không còn PNG trong `ui/public/sprites/` / Converted to WebP, no PNG left in `ui/public/sprites/`
 - [ ] `tsc` không lỗi, đã tăng phiên bản, đã cập nhật RULE và README / `tsc` passes, version bumped, RULE and README updated
 
 ## 9. Logo phe (prompt AI) / Faction emblems (AI prompts)

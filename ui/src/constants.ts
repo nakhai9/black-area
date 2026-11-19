@@ -39,7 +39,7 @@ export const DEMO_FACTION: FactionId = NATION_CODES[(import.meta.env.VITE_DEMO_F
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "3.75.239";
+export const GAME_VERSION = "3.75.243";
 /** Transport aircraft (C-17, Il-76, Y-20, A400M) are drawn this many iso px long: 13, +20% (v3.75.224). */
 export const TRANSPORT_LENGTH = 13 * 1.2 * 0.9;
 
@@ -428,8 +428,30 @@ export const DVINA_MISSILE_COST = 2500;
 export const DVINA_TURN_RATE = 1.2;
 export const DVINA_AIM_TOLERANCE = 0.08;
 export const DVINA_NATION = "cuba";
-/** RS-24 Yars (Defense tab): listed in every shop, not for sale yet. */
-export const YARS_COST = 5000;
+/** RS-24 Yars (Defense tab): the underground missile silo (MissileSilo), every nation; needs a Tech Center and a Radar Tower. */
+export const YARS_COST = 8000;
+export const FOOTPRINT_SILO = { w: 3, d: 3 } as const;
+export const SILO_HP = 2500;
+/** The silo draws extremely much power: more than one Nuclear Power Plant yields (POWER_PLANT_OUTPUT 25). */
+export const SILO_POWER_DRAIN = 40;
+/** Launch lid: opens on its own for a launch (SILO_LID_MOVE s to swing), stays open SILO_LID_HOLD s after it, then closes. */
+export const SILO_LID_MOVE = 2;
+export const SILO_LID_HOLD = 3;
+/**
+ * RS-24 Yars ICBM (nuclear warhead), fired only on order at any point on land or sea (a structure, a unit or open
+ * ground) within SILO_RANGE_CELLS: 4 × the Dvina's reach, 4 × its damage at the centre, 3 × its blast radius with the
+ * damage falling off from the centre to nothing at the edge (shock wave). Each missile costs SILO_MISSILE_COST and
+ * takes SILO_RELOAD s to load (only while the owner has power). Player and AI alike.
+ */
+export const SILO_RANGE_CELLS = DVINA_RANGE_CELLS * 4;
+export const SILO_DAMAGE = DVINA_DAMAGE * 4;
+export const SILO_BLAST_CELLS = DVINA_BLAST_CELLS * 3;
+export const SILO_MISSILE_COST = 12000;
+export const SILO_RELOAD = 180;
+/** ICBM flight time (s) over `distance` world px: a high ballistic arc. */
+export const icbmFlight = (distance: number): number => 4 + distance / 120;
+/** How long the mushroom cloud and the scorched crater stay on the map (s). */
+export const NUKE_SECONDS = 30;
 export const FOOTPRINT_DVINA = { w: 2, d: 2 } as const;
 /** Power a Tech Center draws; the laser is a high-energy weapon: emplacement 1.5× that, LDEW vehicles 1×. Short of power → lasers stop. */
 export const TECH_CENTER_POWER_DRAIN = 6;

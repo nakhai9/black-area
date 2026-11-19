@@ -10,6 +10,9 @@ import { drawBunkerGhost, drawBunkerSheet } from '../render/BunkerSheet';
 import { Bunker } from '../entities/Bunker';
 import { LdewEmplacement } from '../entities/LdewEmplacement';
 import { DvinaLauncher } from '../entities/DvinaLauncher';
+import { MissileSilo } from '../entities/MissileSilo';
+import { setSiloLid } from '../render/sprites/MissileSilo';
+import { drawIcbm, drawNuke } from '../render/Icbm';
 import { drawSite } from '../render/DvinaSheets';
 import { drawExplosion } from '../render/ExplosionSheet';
 import { emblemImage } from '../render/Emblems';
@@ -409,7 +412,7 @@ export class Renderer {
     }
     // Effects are stored in iso px already.
     const isoIn = (x: number, y: number): boolean => x >= left && x <= right && y >= top && y <= bottom + margin;
-    if (scene.effects) this.drawEffects(scene.effects.filter((e) => (e.kind === 'tracer' || e.kind === 'laser' || e.kind === 'bombFall' || e.kind === 'missile' || e.kind === 'samMissile' || e.kind === 'gradRocket' || e.kind === 'shell' || e.kind === 'bullet' ? isoIn(e.x0, e.y0) || isoIn(e.x1, e.y1) : isoIn(e.x, e.y))));
+    if (scene.effects) this.drawEffects(scene.effects.filter((e) => (e.kind === 'tracer' || e.kind === 'laser' || e.kind === 'bombFall' || e.kind === 'missile' || e.kind === 'samMissile' || e.kind === 'gradRocket' || e.kind === 'icbm' || e.kind === 'shell' || e.kind === 'bullet' ? isoIn(e.x0, e.y0) || isoIn(e.x1, e.y1) : isoIn(e.x, e.y))));
 
     const focused = this.focusedIds;
     focused.clear();
@@ -619,6 +622,7 @@ export class Renderer {
       ctx.translate(c.x, c.y);
       const a = k * s.artScale;
       ctx.scale(b.rotated ? -a : a, a);
+      if (b instanceof MissileSilo) setSiloLid(b.lid);
       s.art.drawAnimated(new IsoPainter(ctx, s.originX / s.artScale, s.originY / s.artScale, s.zScale), time, b.active);
       ctx.restore();
     }
@@ -1450,6 +1454,10 @@ export class Renderer {
         drawShell(ctx, e.x0, e.y0, e.x1, e.y1, t, e.age);
       } else if (e.kind === 'shellImpact') {
         drawShellImpact(ctx, e.x, e.y, e.age, e.ttl, e.armour);
+      } else if (e.kind === 'icbm') {
+        drawIcbm(ctx, e.x0, e.y0, e.x1, e.y1, e.age, e.flight);
+      } else if (e.kind === 'nuke') {
+        drawNuke(ctx, e.x, e.y, e.rx, e.ry, e.age, e.ttl);
       } else if (e.kind === 'gradRocket') {
         drawGradRocket(ctx, e.x0, e.y0, e.x1, e.y1, e.age, e.flight, e.air, e.ring);
       } else if (e.kind === 'samMissile') {
