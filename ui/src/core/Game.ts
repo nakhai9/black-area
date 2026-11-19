@@ -21,7 +21,7 @@ import {
   ENGINEER_REPAIR_SHARE,
   CAPITAL_EMBARGO_SECONDS,
   CAPITAL_DISARM_SECONDS,
-  BM21_RELOAD_COST, AIRCRAFT_MIN_POWER, DVINA_MISSILE_COST, SILO_MISSILE_COST, SILO_SCIENTISTS, NUKE_SECONDS, ISO_X, ISO_Y,
+  BM21_RELOAD_COST, AIRCRAFT_MIN_POWER, DVINA_MISSILE_COST, SILO_MISSILE_COST, SILO_SCIENTISTS, SILO_BLAST_CELLS, NUKE_SECONDS, ISO_X, ISO_Y,
   MILITARY_BASES,
   AI_EMBARGO_CREDITS,
   DERRICK_GRACE_GAP,
@@ -5164,7 +5164,19 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     const end = this.fx(to.x, to.y, 0);
     this.effects.add({ kind: 'icbm', x0: from.x, y0: from.y, x1: end.x, y1: end.y, age: 0, ttl: flight + ICBM_TRAIL_SECONDS, flight });
     this.sound.play('missile', c);
-    if (silo.owner === this.localId) this.sidebar.notify(t('RS-24 Yars launched.'), 3);
+    // Lines left in English on purpose (not translated); picked at random on this screen only (no effect on the game).
+    const pick = (lines: readonly string[]): string => lines[Math.floor(Math.random() * lines.length)]!;
+    if (silo.owner === this.localId) {
+      this.sidebar.notify(pick(['Silo open. Bird is in the air.', 'Say goodbye to their capital.', 'From the depths, fire rises.', 'Judgment is on its way.', 'Good morninggggggg Vietnam!']), 4);
+      return;
+    }
+    // The local player has something under the strike (within the blast radius): warn them.
+    const reach = SILO_BLAST_CELLS * CELL_SIZE;
+    const me = this.localId;
+    const threatened =
+      this.entities.buildings().some((b) => b.alive && b.owner === me && Math.hypot(b.centerWorld().x - to.x, b.centerWorld().y - to.y) <= reach + Math.max(b.footprintWorld().w, b.footprintWorld().h) / 2) ||
+      this.entities.fieldMovers().some((u) => u.alive && u.owner === me && Math.hypot(u.px - to.x, u.py - to.y) <= reach);
+    if (threatened) this.sidebar.notify(pick(['Warning: enemy ICBM inbound!', 'Incoming nuclear strike. Take cover!', 'Nuclear launch detected.']), 5);
   }
 
   /** The ICBM's nuclear burst: flash, fireball, shock wave, crater and mushroom cloud (NUKE_SECONDS). */
