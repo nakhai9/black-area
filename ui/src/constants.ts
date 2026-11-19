@@ -39,7 +39,7 @@ export const DEMO_FACTION: FactionId = NATION_CODES[(import.meta.env.VITE_DEMO_F
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "3.75.243";
+export const GAME_VERSION = "3.75.246";
 /** Transport aircraft (C-17, Il-76, Y-20, A400M) are drawn this many iso px long: 13, +20% (v3.75.224). */
 export const TRANSPORT_LENGTH = 13 * 1.2 * 0.9;
 
@@ -430,6 +430,8 @@ export const DVINA_AIM_TOLERANCE = 0.08;
 export const DVINA_NATION = "cuba";
 /** RS-24 Yars (Defense tab): the underground missile silo (MissileSilo), every nation; needs a Tech Center and a Radar Tower. */
 export const YARS_COST = 8000;
+/** Engineers that must walk into the nation's own Tech Center (and are used up there) for each silo ordered: a nuclear site needs its brains. */
+export const SILO_SCIENTISTS = 10;
 export const FOOTPRINT_SILO = { w: 3, d: 3 } as const;
 export const SILO_HP = 2500;
 /** The silo draws extremely much power: more than one Nuclear Power Plant yields (POWER_PLANT_OUTPUT 25). */

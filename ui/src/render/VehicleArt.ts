@@ -5,10 +5,10 @@ import { drawVt12Portrait } from './Vt12Sheets';
 import { drawBridgeLayerPortrait } from './BridgeLayerSheets';
 import { drawNationVehiclePortrait, hasNationVehicleSheet } from './PrototypeSheets';
 import { drawCarrierPortrait } from './CarrierSheet';
-import { drawAircraftPortrait } from './AircraftSheets';
+import { drawAircraftPortrait, hasAircraftSheet } from './AircraftSheets';
 import { drawRepairPortrait } from './RepairSheets';
 import { drawMantisPortrait } from './MantisSheet';
-import { drawTruckPortrait } from './TruckSheets';
+import { drawTruckPortrait, hasTruckSheet } from './TruckSheets';
 import { drawTankPortrait } from './TankSheets';
 import { CRUISE_ALTITUDE } from '../constants';
 import { FACTIONS } from '../factions';
@@ -571,6 +571,8 @@ export function vehiclePortrait(faction: FactionId, kind: VehicleKind): HTMLCanv
       portraits.set(key, canvas);
       return canvas;
     }
+    // Sheet-drawn aircraft and trucks: a blank cameo (not cached) until the sheet has loaded — never the vector stand-in.
+    if (hasAircraftSheet(faction, kind) || (kind === 'truck' && hasTruckSheet(faction))) return canvas;
     // A jet hovers 7 px above its ground point, so its ground point sits lower in the picture.
     const air = kind === 'jet' || kind === 'heli' || kind === 'transport' || kind === 'awacs';
     const scale = kind === 'transport' || kind === 'awacs' ? 7.5 : air ? 9 : 13;

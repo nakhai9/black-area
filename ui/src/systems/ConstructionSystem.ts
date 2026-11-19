@@ -1,4 +1,4 @@
-import { type ContestedNationId, DVINA_COST, YARS_COST, FOOTPRINT_SILO, DVINA_NATION, FOOTPRINT_DVINA, HIDDEN_BUILDS, LDEW_SITE_COST, LDEW_SITE_NATION } from '../constants';
+import { type ContestedNationId, DVINA_COST, YARS_COST, SILO_SCIENTISTS, FOOTPRINT_SILO, DVINA_NATION, FOOTPRINT_DVINA, HIDDEN_BUILDS, LDEW_SITE_COST, LDEW_SITE_NATION } from '../constants';
 import { DvinaLauncher } from '../entities/DvinaLauncher';
 import { demoPrice } from '../core/Demo';
 import {
@@ -441,6 +441,11 @@ export class ConstructionSystem implements GameSystem {
       if (!player.parallelGovRights?.includes(gov)) return false;
       player.parallelGovRights = player.parallelGovRights.filter((n) => n !== gov);
     }
+    // RS-24 Yars silo: spends SILO_SCIENTISTS engineers who went into the Tech Center (given back if cancelled).
+    if (option.id === 'yars') {
+      if ((player.scientists ?? 0) < SILO_SCIENTISTS) return false;
+      player.scientists = (player.scientists ?? 0) - SILO_SCIENTISTS;
+    }
     Object.assign(s, { option, state: 'building', progress: 0, paid: 0 });
     return true;
   }
@@ -451,6 +456,7 @@ export class ConstructionSystem implements GameSystem {
     player.credits += s.paid;
     const gov = parallelGovNation(id);
     if (gov && s.state !== 'idle' && !player.parallelGovRights?.includes(gov)) player.parallelGovRights = [...(player.parallelGovRights ?? []), gov];
+    if (id === 'yars' && s.state !== 'idle') player.scientists = (player.scientists ?? 0) + SILO_SCIENTISTS;
     Object.assign(s, idleSlot());
   }
 

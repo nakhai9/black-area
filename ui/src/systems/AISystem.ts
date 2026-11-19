@@ -1,6 +1,6 @@
 import { LdewEmplacement } from '../entities/LdewEmplacement';
 import { DvinaLauncher } from '../entities/DvinaLauncher';
-import { DVINA_NATION } from '../constants';
+import { DVINA_NATION, SILO_SCIENTISTS } from '../constants';
 import { holdsNation } from './Foreign';
 import { LDEW_SITE_NATION } from '../constants';
 /** LDEW laser emplacements an AI keeps while it holds London. */
@@ -55,6 +55,8 @@ export interface AIHost {
   orderLease(u: Infantry, b: OilDerrick): boolean;
   /** Sends an engineer to repair an own damaged building. */
   orderRepair(u: Infantry, b: Building): void;
+  /** Sends an engineer into its own Tech Center for the nuclear programme (used up there). */
+  orderScience(u: Infantry, b: Building): boolean;
   /** Sends repair vehicles (ARV) among `units` to mend a damaged friendly ground vehicle. */
   orderMend(target: Vehicle, units: readonly Unit[]): boolean;
   orderMendBuilding(b: Building, units: readonly Unit[]): boolean;
@@ -648,6 +650,7 @@ export class AISystem implements GameSystem {
     this.build(p, st, capital, owned, threat);
     this.train(p, st, owned, threat);
     this.repairBase(p, st, owned);
+    this.staffSilo(p, st, owned);
     this.driveEngineerLifts(st);
     this.mendFleet(p);
     this.claimLand(p, st, capital, owned, threat);
@@ -787,7 +790,7 @@ export class AISystem implements GameSystem {
       if (have < site.max) next = BUILD_OPTIONS.find((o) => o.id === site.id);
     }
     // RS-24 Yars: one underground missile silo once the Tech Center and Radar Tower stand (player rule: same requirements, same power drain).
-    if (!next && threat === 0 && owned.has('techCenter') && owned.has('radarTower') && !owned.has('missileSilo') && !busy('yars')) {
+    if (!next && threat === 0 && owned.has('techCenter') && owned.has('radarTower') && !owned.has('missileSilo') && !busy('yars') && (p.scientists ?? 0) >= SILO_SCIENTISTS) {
       const silo = BUILD_OPTIONS.find((o) => o.id === 'yars');
       if (silo && missingRequirement(silo, owned, p.disarmedUntil !== undefined) === null) next = silo;
     }
@@ -1774,6 +1777,27 @@ export class AISystem implements GameSystem {
     const queued = this.host.training.queue(p).items.filter((t) => t === 'engineer').length;
     const needed = Math.min(3, hurt.filter((b) => !covered.has(b.id)).length);
     if (queued < needed && free.length === 0 && p.credits > 600) this.host.training.enqueue(p, 'engineer');
+  }
+
+  /**
+   * RS-24 Yars (player rule): SILO_SCIENTISTS engineers must go into the own Tech Center before the silo can be ordered.
+   * Once the Tech Center and Radar Tower stand and no silo exists, the nation trains engineers and sends them in.
+   */
+  private staffSilo(p: PlayerState, st: AIState, owned: Set<BuildingType>): void {
+    if (!owned.has('techCenter') || !owned.has('radarTower') || !owned.has('barracks') || owned.has('missileSilo')) return;
+    const engineers = this.host.entities.fieldUnits().filter((u): u is Infantry => u instanceof Infantry && u.owner === p.id && u.alive && u.isEngineer);
+    const going = engineers.filter((u) => u.task?.type === 'science').length;
+    if ((p.scientists ?? 0) + going >= SILO_SCIENTISTS) return;
+    const lab = this.host.entities.buildings().find((b) => b.owner === p.id && b.alive && b.spec.type === 'techCenter');
+    if (!lab) return;
+    let need = SILO_SCIENTISTS - (p.scientists ?? 0) - going;
+    for (const u of engineers) {
+      if (need <= 0) break;
+      if (u.task !== null || u.insideId !== null || u.id === st.nationEngineer) continue;
+      if (this.host.orderScience(u, lab)) need--;
+    }
+    const queued = this.host.training.queue(p).items.filter((t) => t === 'engineer').length;
+    if (need > 0 && queued < 2 && p.credits > 1500) this.host.training.enqueue(p, 'engineer');
   }
 
   /**

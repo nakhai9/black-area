@@ -222,6 +222,8 @@ export interface PlayerState {
   disarmedUntil?: number;
   /** Nations whose capital an engineer of this one entered to set up a parallel government: one Parallel Government of each may be ordered. */
   parallelGovRights?: FactionId[];
+  /** Engineers this nation has sent into its own Tech Center (used up there); SILO_SCIENTISTS are spent per silo ordered. */
+  scientists?: number;
   /** Building id chosen by double-click per producer type (barracks / warFactory / airfield): new units come out there. */
   primaryBuilding?: Partial<Record<string, number>>;
 }

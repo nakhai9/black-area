@@ -231,4 +231,6 @@ export default {
   "{name} has opened a new Happy City": "{name} khánh thành Thành phố Hạnh phúc mới",
   "{name} has won a new ally (Allied Building)": "{name} có thêm đồng minh mới (Allied Building)",
   "{name} has raised a Parallel Government": "{name} dựng Chính phủ song song",
+  "Engineer joined the nuclear programme: {n}/{need} for a missile silo.": "Kỹ sư đã vào chương trình hạt nhân: {n}/{need} cho một hầm phóng.",
+  "{name} needs {need} engineers sent into your Tech Center first ({n}/{need}).": "{name} cần {need} kỹ sư vào Trung tâm Công nghệ cao trước ({n}/{need}).",
 } satisfies Record<string, string>;

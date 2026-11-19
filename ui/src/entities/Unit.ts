@@ -9,7 +9,7 @@ const BLOCKED_GIVE_UP = 12;
 
 /** A standing order with a building as its target. */
 export interface UnitTask {
-  type: 'enter' | 'repair' | 'capture' | 'lease';
+  type: 'enter' | 'repair' | 'capture' | 'lease' | 'science';
   buildingId: number;
   /** Lease: the nation that owns the derrick. Its forces leave this engineer alone while he walks up to sign. */
   lessor?: number;

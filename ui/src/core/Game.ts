@@ -21,7 +21,7 @@ import {
   ENGINEER_REPAIR_SHARE,
   CAPITAL_EMBARGO_SECONDS,
   CAPITAL_DISARM_SECONDS,
-  BM21_RELOAD_COST, DVINA_MISSILE_COST, SILO_MISSILE_COST, NUKE_SECONDS, ISO_X, ISO_Y,
+  BM21_RELOAD_COST, DVINA_MISSILE_COST, SILO_MISSILE_COST, SILO_SCIENTISTS, NUKE_SECONDS, ISO_X, ISO_Y,
   MILITARY_BASES,
   AI_EMBARGO_CREDITS,
   DERRICK_GRACE_GAP,
@@ -2232,6 +2232,13 @@ export class Game {
     if (this.walkToDoor(u, b)) u.task = { type: 'repair', buildingId: b.id };
   }
 
+  /** An engineer walks into its nation's own Tech Center to work on the nuclear programme (used up there; see SILO_SCIENTISTS). */
+  orderScience(u: Infantry, b: Building): boolean {
+    if (!u.isEngineer || b.owner !== u.owner || b.spec.type !== 'techCenter' || b.hp < b.maxHp || !this.walkToDoor(u, b)) return false;
+    u.task = { type: 'science', buildingId: b.id };
+    return true;
+  }
+
   /** Focus: the units attack `target` (a structure needs exactly this order — units never shoot buildings on their own). */
   orderAttackTarget(units: readonly Unit[], target: Entity): void {
     for (const u of units) {
@@ -4026,7 +4033,7 @@ export class Game {
    * repair green, lease blue, enter white, a Crazy Soldier's charge red.
    */
   private taskLocks(): { entity: Building | Unit; color: string }[] {
-    const colors = { capture: '#ffd23f', repair: '#3fdc4a', lease: '#4ac8ff', enter: '#f2f5f8' } as const;
+    const colors = { capture: '#ffd23f', repair: '#3fdc4a', lease: '#4ac8ff', enter: '#f2f5f8', science: '#b98cff' } as const;
     const out = new Map<number, { entity: Building | Unit; color: string }>();
     for (const u of this.selection.selectedUnitList()) {
       if (!(u instanceof Infantry)) continue;
@@ -4932,6 +4939,10 @@ export class Game {
         this.sidebar.notify(
 t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.find((o) => o.id === need)?.name ?? need }),
         );
+        return;
+      }
+      if (option.id === 'yars' && (player.scientists ?? 0) < SILO_SCIENTISTS) {
+        this.sidebar.notify(t('{name} needs {need} engineers sent into your Tech Center first ({n}/{need}).', { name: option.name, need: SILO_SCIENTISTS, n: player.scientists ?? 0 }), 4);
         return;
       }
       if (!this.construction.start(player, option)) {
@@ -6836,7 +6847,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
         ordered++;
         continue;
       }
-      let type: 'enter' | 'repair' | 'capture' | 'lease' | null = null;
+      let type: 'enter' | 'repair' | 'capture' | 'lease' | 'science' | null = null;
       if (u.isEngineer && b instanceof OilDerrick && b.owner !== me.id && b.leasable) {
         if (this.leasesTaken(b.owner) >= OIL_LEASE_MAX) {
           this.sidebar.notify(t('{nation} leases at most {max} derricks at a time.', { nation: FACTIONS[b.faction as FactionId].shortName, max: OIL_LEASE_MAX }), 3);
@@ -6846,6 +6857,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       } else if (b.owner === me.id) {
         // A damaged structure is repaired first.
         if (u.isEngineer && b.hp < b.maxHp && !b.indestructible) type = 'repair';
+        else if (u.isEngineer && b.spec.type === 'techCenter') type = 'science';
         else if (b.canEnter(u)) type = 'enter';
       } else if (u.isEngineer && b.capturable && (b.faction !== 'neutral' || b instanceof NationCapital || (b instanceof OilDerrick && b.antarctic))) {
         if (this.captureBanned(b)) this.sidebar.notify(t("Ceasefire: no nation may take over another nation's buildings now."), 3);
@@ -7245,6 +7257,22 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
           u.insideId = b.id;
           u.stop();
           this.selection.selectedUnits.delete(u.id);
+        }
+      } else if (task.type === 'science') {
+        // Nuclear programme: the engineer goes into the own Tech Center for good (used up); SILO_SCIENTISTS per silo.
+        u.task = null;
+        const owner = this.players.find((p) => p.id === u.owner);
+        if (b.owner === u.owner && b.hp < b.maxHp && !b.indestructible) {
+          // The Tech Center is damaged: the engineer goes in to repair it, not for the nuclear programme (not counted).
+          b.crew.push(u);
+          u.insideId = b.id;
+          u.stop();
+          this.selection.selectedUnits.delete(u.id);
+        } else if (owner && b.owner === u.owner && b.spec.type === 'techCenter') {
+          owner.scientists = (owner.scientists ?? 0) + 1;
+          this.selection.selectedUnits.delete(u.id);
+          this.entities.remove(u.id);
+          if (u.owner === this.humanPlayer.id) this.sidebar.notify(t('Engineer joined the nuclear programme: {n}/{need} for a missile silo.', { n: owner.scientists, need: SILO_SCIENTISTS }), 3);
         }
       } else if (task.type === 'lease') {
         // Lease: the engineer signs for the derrick and stays at the door; the derrick pumps for his nation.

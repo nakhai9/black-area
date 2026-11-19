@@ -1,7 +1,7 @@
 import { ISO_X, ISO_Y, TRANSPORT_LENGTH } from '../constants';
 import type { Vehicle } from '../entities/Vehicle';
 import type { FactionId, VehicleKind } from '../types';
-import { drawCraftPortrait, drawCraftSheet, loadCraftSprites } from './CraftSheets';
+import { craftKey, drawCraftPortrait, drawCraftSheet, loadCraftSprites } from './CraftSheets';
 import { lazyImage } from './onDemand';
 import { spriteUrl } from './spriteUrl';
 
@@ -195,4 +195,9 @@ export function drawAircraftPortrait(ctx: CanvasRenderingContext2D, faction: Fac
   ctx.drawImage(img, col * sh.cell, ROW.flyA * sh.cell, sh.cell, sh.cell, (w - size) / 2, (h - size) / 2, size, size);
   ctx.restore();
   return true;
+}
+
+/** True when `faction`'s `kind` aircraft is drawn from a sheet (its cameo waits for the sheet instead of the vector art). */
+export function hasAircraftSheet(faction: FactionId, kind: VehicleKind): boolean {
+  return craftKey(faction, kind) !== null || SHEETS[`${faction}:${kind}`] !== undefined;
 }
