@@ -87,7 +87,7 @@ export const NATION_VEHICLE_PROFILES: Readonly<Partial<Record<VehicleKind, Vehic
   kub: { name: '2K12 Kub', description: 'Tracked missile launcher: three missiles on a turning rack, at aircraft, ground units and structures. On sale while you hold Kyiv or Minsk.' },
   bm21: { name: 'BM-21 Grad', description: '122 mm rocket launcher on a Ural truck: ripples 12 rockets on a long arc at ground targets, structures and aircraft. On sale while you hold Pyongyang, Kyiv or Minsk.' },
   a29: { name: 'A-29 Super Tucano', description: 'Light attack turboprop: rockets and guns on soldiers, vehicles and structures; cannot fight aircraft. On sale while you hold Brasília.' },
-  twinTank: { name: 'Twin-gun Tank', description: 'Heavy tank with two 125 mm guns on one turret: both fire together, hard-hitting but slow. On sale while you hold Tokyo.' },
+  twinTank: { name: 'Twins Shots Tank', description: 'Heavy tank with two 120 mm guns side by side on one turret: both fire together, hard-hitting but slow. The guns elevate to 50° to shoot helicopters. On sale while you hold Tokyo.' },
   bushmaster: { name: 'Bushmaster', description: 'Armoured 4x4 troop carrier: carries 6 soldiers, its roof machine gun fires at enemies in range. On sale while you hold Canberra.' },
   ldewTruck: { name: 'LDEW Laser Truck', description: 'Laser weapon on a MAN SV truck: fast, the head turns all round. On sale only while you hold London.' },
 };
@@ -155,6 +155,8 @@ export class Vehicle extends Unit {
   altitude = 0;
   /** Tank / air-defence vehicle: world heading of the turret (launcher) (eases towards `aimHeading` at TURRET_TURN_RATE, independent of the hull). */
   turretHeading = this.heading;
+  /** Twins Shots Tank: guns raised (about 50 degrees) at a helicopter it is fighting; set by CombatSystem. */
+  gunsUp = false;
   /** 0..1: how far it has climbed above cruise height to pass over another aircraft head-on. */
   climb = 0;
   /** Airfield this aircraft belongs to, and its parking spot there. */
@@ -280,7 +282,8 @@ export class Vehicle extends Unit {
       if (type === 'k9') this.weapon = { ...this.weapon, damage: this.weapon.damage * K9_DAMAGE, range: this.weapon.range * K9_RANGE, cooldown: spec.cooldown * K9_COOLDOWN };
       if (type === 'kub') this.weapon = { ...this.weapon, damage: this.weapon.damage * KUB_DAMAGE, range: this.weapon.range * KUB_RANGE, cooldown: spec.cooldown * KUB_COOLDOWN, hitsAir: true };
       // A-29: ground attack only (its missiles never reach aircraft).
-      if (type === 'twinTank') this.weapon = { ...this.weapon, damage: this.weapon.damage * TWIN_TANK_DAMAGE };
+      // Twins Shots Tank: its two guns also elevate at helicopters (CombatSystem.canTarget allows helicopters only).
+      if (type === 'twinTank') this.weapon = { ...this.weapon, damage: this.weapon.damage * TWIN_TANK_DAMAGE, hitsAir: true };
       if (type === 'a29') this.weapon = { ...this.weapon, hitsAir: false };
       if (type === 'ldew' || type === 'ldewTruck') this.weapon = { ...this.weapon, damage: this.weapon.damage * LDEW_DAMAGE, range: this.weapon.range * LDEW_RANGE };
       // VT 1-2: a coaxial machine gun next to its two cannons — rapid fire, like a rifle squad, for soldiers close by.
@@ -498,7 +501,7 @@ export class Vehicle extends Unit {
     // A tank's turret swings on its own (any way round, right over the engine deck) to the target, and back to the
     // front once it has none. The air-defence vehicle's launcher is fixed to its hull.
     if (this.type === 'mantis' || this.type === 'ldewTruck') this.turretHeading = this.heading;
-    else if (this.type === 'tank' || this.type === 'k9' || this.type === 'ldew' || this.type === 'kub') {
+    else if (this.type === 'tank' || this.type === 'twinTank' || this.type === 'k9' || this.type === 'ldew' || this.type === 'kub') {
       // The gun is laid on an enemy, or on the trees of a clearing order (fellTarget); otherwise it rides with the hull.
       const want = this.combatTarget !== null || this.fellTarget !== null ? this.aimHeading : this.heading;
       let diff = want - this.turretHeading;

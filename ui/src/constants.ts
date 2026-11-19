@@ -39,7 +39,7 @@ export const DEMO_FACTION: FactionId = NATION_CODES[(import.meta.env.VITE_DEMO_F
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "3.75.233";
+export const GAME_VERSION = "3.75.238";
 /** Transport aircraft (C-17, Il-76, Y-20, A400M) are drawn this many iso px long: 13, +20% (v3.75.224). */
 export const TRANSPORT_LENGTH = 13 * 1.2 * 0.9;
 
@@ -412,6 +412,10 @@ export const DVINA_GROUP_CELLS = 3;
 export const dvinaFlight = (distance: number): number => 0.7 + distance / 200;
 /** Dvina missile: ground speed (world px / s, far faster than any aircraft) — it chases its target until it hits. */
 export const DVINA_MISSILE_SPEED = 200;
+/** Dvina missile against a structure or a ground unit standing still: this fraction of DVINA_MISSILE_SPEED (40 % slower). */
+export const DVINA_SLOW_FACTOR = 0.6;
+/** An air-defence vehicle's missile reaches a Dvina missile in its range this many seconds after launch and downs it. */
+export const DVINA_INTERCEPT_FLIGHT = 0.35;
 /** Warhead at the point of impact (the game has no nuclear weapon: taken as 1/5 of a notional 15000-damage nuke). */
 export const DVINA_DAMAGE = 3000;
 /** Blast radius (cells) round the impact: full damage at the centre, none at the edge (structures and units alike). */
@@ -869,7 +873,7 @@ export const VEHICLE_BASE = {
   vt12: { cost: 800, trainSeconds: 10, maxHp: 330, speed: 2.2, radius: 4.2 },
   /** Bushmaster PMV (Australia's holder, NATION_VEHICLES): armoured 4x4 with a roof machine gun; carries BUSHMASTER_SOLDIERS soldiers (no vehicles). */
   bushmaster: { cost: 900, trainSeconds: 12, maxHp: 340, speed: 2.2, radius: 4.4 },
-  /** Twin-gun heavy tank (Japan's holder, NATION_VEHICLES): two 125 mm guns on one turret (TWIN_TANK_DAMAGE per shot), heavy and slow. */
+  /** Twins Shots Tank (Japan's holder, NATION_VEHICLES): Type 90 hull, two 120 mm guns on one turret (TWIN_TANK_DAMAGE per shot), heavy and slow; the guns also elevate at helicopters. */
   twinTank: { cost: 2000, trainSeconds: 20, maxHp: 640, speed: 1.1, radius: 4.6 },
   /** K9 Thunder 155 mm self-propelled howitzer: sold only to the holder of Seoul (South Korea's capital), see K9_NATION. */
   k9: { cost: 1800, trainSeconds: 18, maxHp: 360, speed: 1.2, radius: 4.4 },
@@ -1068,7 +1072,7 @@ export const TRUCK_SOLDIERS = 8;
 export const TRUCK_MIN_RIDERS = 4;
 /** Bushmaster PMV: soldier seats (no vehicles). */
 export const BUSHMASTER_SOLDIERS = 6;
-/** Twin-gun tank: both guns fire together, so each shot hits this many times as hard as a tank's single cannon. */
+/** Twins Shots Tank: both guns fire together, so each shot hits this many times as hard as a tank's single cannon. */
 export const TWIN_TANK_DAMAGE = 1.8;
 
 /**
@@ -1116,7 +1120,7 @@ export const NATION_VEHICLES: Readonly<Partial<Record<ContestedNationId, readonl
   unitedKingdom: ["ldewTruck"],
   // Bushmaster PMV: armoured troop carrier with a roof machine gun.
   australia: ["bushmaster"],
-  // Twin-gun heavy tank.
+  // Twins Shots Tank: twin-gun heavy tank (also shoots helicopters).
   japan: ["twinTank"],
 };
 /**

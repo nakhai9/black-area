@@ -10,13 +10,17 @@ export interface DvinaMissile {
   point: WorldPoint;
   air: boolean;
   done: boolean;
+  /** Combat time at which an enemy air-defence missile meets it (it bursts harmlessly in the air then); unset while untouched. */
+  killAt?: number;
+  /** Shot down in flight: no warhead damage. */
+  shotDown?: boolean;
 }
 
 import type { FactionId } from '../types';
 import type { Mobility } from '../map/Pathfinder';
 import { demoActive } from '../core/Demo';
 import { movesRight } from '../core/IsoView';
-import { BM21_INTERCEPT_CHANCE, BM21_MIN_SALVO, BM21_SHOCK_CELLS, BM21_SHOCK_PEAK, bm21Flight, DVINA_MISSILE_SPEED, DVINA_AIM_TOLERANCE, DVINA_GROUP_CELLS, DVINA_GROUP_SOLDIERS, DVINA_GROUP_VEHICLES, DVINA_RELOAD, DVINA_TURN_RATE, BOMB_FALL_SECONDS, HIGH_GROUND_DAMAGE, HIGH_GROUND_RANGE, LOW_GROUND_DAMAGE, MANTIS_HIT_SHARE, MANTIS_RANGE_CELLS, MANTIS_RANK_BONUS, MANTIS_EVADE_CELLS, HELI_VS_MANTIS_SHARE, JET_VS_MANTIS_SHARE, MANTIS_VS_JET_SHARE, MANTIS_VS_HELI_SHARE, MANTIS_RELOAD, MANTIS_GUN_NATIONS, PGZ_RELOAD, PGZ_HIT_FACTOR, JET_BOMB_VS_STRUCTURE, JET_BOMB_VS_VEHICLE, ACQUIRE_PERIOD, RANK_FIREPOWER, RANK_RELOAD, BOMB_GROUP_RADIUS_CELLS, BOMB_GROUP_SIZE, BOMB_TOUGH_DAMAGE, BOMB_TOUGH_STRUCTURES, BOMBS_PER_DROP, CELL_SIZE, CHASE_GIVE_UP_SECONDS, CHASE_LIMIT_CELLS, CHASE_PERIOD, FIGHT_MEMORY_SECONDS, GUARD_VISION_FACTOR, NEUTRAL_OWNER, RETALIATE_RANGE_FACTOR, WEAPONS, FIGHTER_DRONE_ALERT, FELL_SPREAD_CELLS, TREE_BOMB_RADIUS_CELLS, TREE_STICK_RADIUS_CELLS } from '../constants';
+import { BM21_INTERCEPT_CHANCE, BM21_MIN_SALVO, BM21_SHOCK_CELLS, BM21_SHOCK_PEAK, bm21Flight, DVINA_MISSILE_SPEED, DVINA_SLOW_FACTOR, DVINA_INTERCEPT_FLIGHT, DVINA_AIM_TOLERANCE, DVINA_GROUP_CELLS, DVINA_GROUP_SOLDIERS, DVINA_GROUP_VEHICLES, DVINA_RELOAD, DVINA_TURN_RATE, BOMB_FALL_SECONDS, HIGH_GROUND_DAMAGE, HIGH_GROUND_RANGE, LOW_GROUND_DAMAGE, MANTIS_HIT_SHARE, MANTIS_RANGE_CELLS, MANTIS_RANK_BONUS, MANTIS_EVADE_CELLS, HELI_VS_MANTIS_SHARE, JET_VS_MANTIS_SHARE, MANTIS_VS_JET_SHARE, MANTIS_VS_HELI_SHARE, MANTIS_RELOAD, MANTIS_GUN_NATIONS, PGZ_RELOAD, PGZ_HIT_FACTOR, JET_BOMB_VS_STRUCTURE, JET_BOMB_VS_VEHICLE, ACQUIRE_PERIOD, RANK_FIREPOWER, RANK_RELOAD, BOMB_GROUP_RADIUS_CELLS, BOMB_GROUP_SIZE, BOMB_TOUGH_DAMAGE, BOMB_TOUGH_STRUCTURES, BOMBS_PER_DROP, CELL_SIZE, CHASE_GIVE_UP_SECONDS, CHASE_LIMIT_CELLS, CHASE_PERIOD, FIGHT_MEMORY_SECONDS, GUARD_VISION_FACTOR, NEUTRAL_OWNER, RETALIATE_RANGE_FACTOR, WEAPONS, FIGHTER_DRONE_ALERT, FELL_SPREAD_CELLS, TREE_BOMB_RADIUS_CELLS, TREE_STICK_RADIUS_CELLS } from '../constants';
 import { Building } from '../entities/Building';
 import { Bunker } from '../entities/Bunker';
 import { LdewEmplacement } from '../entities/LdewEmplacement';
@@ -38,6 +42,10 @@ export interface CombatHooks {
   onBunkerFire(bunker: Bunker, target: Unit | Building): void;
   /** An R-12 Dvina warhead goes off at `at` (on `target` when it is still there). */
   onDvinaBurst(at: WorldPoint, air: boolean, target: Unit | Building | null): void;
+  /** An air-defence vehicle fires at a Dvina missile in flight; its missile meets it at `meet` after `flight` s. */
+  onDvinaIntercept(guard: Vehicle, meet: WorldPoint, lift: number, flight: number): void;
+  /** A Dvina missile shot down: it bursts in the air at `at`, `lift` px up, harming nobody. */
+  onDvinaShotDown(at: WorldPoint, lift: number): void;
   /** An R-12 Dvina missile leaves the rail (Game draws it from the live missile state). */
   onDvinaLaunch(m: DvinaMissile): void;
   /** An entity ran out of health: remove it and show the explosion. */
@@ -142,6 +150,11 @@ export function canTarget(shooter: Unit, target: Entity): boolean {
   // Air-defence vehicle (Patriot / SAMP/T NG / S-400 / HQ-9 / PGZ-09): any enemy aircraft off the ground (altitude > 0), whatever it is doing —
   // cruising, hovering, lifting off, climbing, descending. Never one standing on the ground.
   if (shooter instanceof Vehicle && shooter.type === 'mantis') return target instanceof Vehicle && (target.aircraft || target.isDrone) && target.altitude > 0;
+  // Twins Shots Tank: its guns elevate at helicopters off the ground, never at fixed-wing aircraft or drones off the
+  // ground — whatever they are doing (cruising, taking off, climbing, landing). Aircraft standing on the ground are
+  // ground targets as for any tank.
+  if (shooter instanceof Vehicle && shooter.type === 'twinTank' && target instanceof Vehicle && (target.aircraft || target.isDrone) && target.altitude > 0)
+    return target.isHeli && w.hitsAir;
   // BM-21 Grad: its rockets also reach aircraft in flight.
   if (target instanceof Unit && target.flies) return (shooter.aircraft || (shooter instanceof Vehicle && (shooter.type === 'bm21' || shooter.type === 'kub'))) && w.hitsAir;
   // Special forces never shoot ground vehicles: they plant a bomb on them instead (Game.processDemolition).
@@ -199,6 +212,12 @@ export class CombatSystem implements GameSystem {
    */
   /** R-12 Dvina missiles in the air: each bursts on its target (where it is then) when it arrives at `at`. */
   private readonly dvinaShots: DvinaMissile[] = [];
+  /**
+   * Aircraft each R-12 Dvina has picked on its own (launcher id -> target id): an aircraft inside the overlapping
+   * ranges of several of one owner's launchers is taken by one of them only (no salvo); the others pass it by while
+   * that launcher holds it or its missile is in the air. Player and AI alike.
+   */
+  private readonly dvinaAir = new Map<number, number>();
   private readonly falling: { at: number; kind: 'stick' | 'jet' | 'treeStick' | 'treeBomb' | 'rocket'; shooter: Vehicle; target: Entity | null; impact: WorldPoint }[] = [];
 
   constructor(
@@ -222,7 +241,13 @@ export class CombatSystem implements GameSystem {
       }
     }
     if (this.dvinaShots.length > 0) {
-      for (const m of this.dvinaShots) this.flyDvina(m, dt);
+      for (const m of this.dvinaShots) {
+        this.flyDvina(m, dt);
+        if (m.done) continue;
+        if (m.killAt !== undefined) {
+          if (this.time >= m.killAt) [m.done, m.shotDown] = [true, true];
+        } else this.interceptDvina(m);
+      }
       const hits = this.dvinaShots.filter((m) => m.done);
       if (hits.length > 0) {
         this.dvinaShots.splice(0, this.dvinaShots.length, ...this.dvinaShots.filter((m) => !m.done));
@@ -368,6 +393,17 @@ export class CombatSystem implements GameSystem {
       }
       return n > (soldier ? DVINA_GROUP_SOLDIERS : DVINA_GROUP_VEHICLES);
     };
+    // An aircraft another launcher of the same owner already holds (or has a missile on) is left to that one.
+    const claimed = (o: Unit | Building): boolean => {
+      if (!(o instanceof Unit && o.flies)) return false;
+      if (this.dvinaShots.some((m) => m.targetId === o.id && m.launcher.owner === b.owner && !m.done)) return true;
+      for (const [id, tid] of this.dvinaAir) {
+        if (tid !== o.id || id === b.id) continue;
+        const other = this.entities.get(id);
+        if (other instanceof DvinaLauncher && other.alive && other.owner === b.owner) return true;
+      }
+      return false;
+    };
     let target: Unit | Building | undefined;
     if (b.forcedTarget !== null) {
       const o = this.entities.get(b.forcedTarget);
@@ -379,10 +415,12 @@ export class CombatSystem implements GameSystem {
       for (const o of this.entities.fieldMovers()) {
         if (!fair(o)) continue;
         const d = gap(o);
-        if (d <= b.range && d < bestD && massed(o)) [bestD, target] = [d, o];
+        if (d <= b.range && d < bestD && massed(o) && !claimed(o)) [bestD, target] = [d, o];
       }
       // Structures are hit only on an attack order (forcedTarget), never picked on its own.
     }
+    if (target instanceof Unit && target.flies) this.dvinaAir.set(b.id, target.id);
+    else this.dvinaAir.delete(b.id);
     const tc = target ? (target instanceof Building ? target.centerWorld() : { x: target.px, y: target.py }) : null;
     const want = tc ? Math.atan2(tc.y - c.y, tc.x - c.x) : (b.aimOrder ?? b.restHeading);
     const off = (): number => Math.atan2(Math.sin(want - b.aimHeading), Math.cos(want - b.aimHeading));
@@ -419,7 +457,7 @@ export class CombatSystem implements GameSystem {
     const dx = m.point.x - m.x;
     const dy = m.point.y - m.y;
     const d = Math.hypot(dx, dy);
-    const step = DVINA_MISSILE_SPEED * dt;
+    const step = DVINA_MISSILE_SPEED * this.dvinaPace(m) * dt;
     const reach = (target instanceof Unit ? target.radius : target instanceof Building ? 4 : 0) + 1;
     if (d <= step + reach) {
       m.x = m.point.x;
@@ -437,7 +475,36 @@ export class CombatSystem implements GameSystem {
     m.lift += (want - m.lift) * Math.min(1, dt * 3);
   }
 
+  /**
+   * An enemy air-defence vehicle (any mantis kind) with a Dvina missile inside its range, reloaded and powered, fires
+   * at it: its missile meets the Dvina DVINA_INTERCEPT_FLIGHT s later, where the Dvina will be then, and brings it down.
+   * Every such vehicle in range at that moment fires together (each uses up its reload). Player and AI alike.
+   */
+  private interceptDvina(m: DvinaMissile): void {
+    for (const v of this.entities.vehicles()) {
+      if (v.type !== 'mantis' || !v.alive || v.cooldown > 0 || !v.weapon || !isHostile(v, m.launcher)) continue;
+      if (Math.hypot(v.px - m.x, v.py - m.y) > v.weapon.range || this.hooks.powerShort(v.owner)) continue;
+      v.cooldown = MANTIS_GUN_NATIONS.includes(v.faction as FactionId) ? PGZ_RELOAD : MANTIS_RELOAD;
+      v.aimHeading = Math.atan2(m.y - v.py, m.x - v.px);
+      m.killAt = this.time + DVINA_INTERCEPT_FLIGHT;
+      const ahead = DVINA_MISSILE_SPEED * this.dvinaPace(m) * DVINA_INTERCEPT_FLIGHT;
+      this.hooks.onDvinaIntercept(v, { x: m.x + m.hx * ahead, y: m.y + m.hy * ahead }, m.lift, DVINA_INTERCEPT_FLIGHT);
+    }
+  }
+
+  /** Dvina speed factor: DVINA_SLOW_FACTOR against a structure or a ground unit standing still, full speed otherwise. */
+  private dvinaPace(m: DvinaMissile): number {
+    const o = this.entities.get(m.targetId);
+    if (o instanceof Building && o.alive) return DVINA_SLOW_FACTOR;
+    if (o instanceof Unit && o.alive && !o.flies && !o.moving) return DVINA_SLOW_FACTOR;
+    return 1;
+  }
+
   private dvinaBurst(d: DvinaMissile): void {
+    if (d.shotDown) {
+      this.hooks.onDvinaShotDown({ x: d.x, y: d.y }, d.lift);
+      return;
+    }
     const b = d.launcher;
     const o = this.entities.get(d.targetId);
     const target = (o instanceof Unit || o instanceof Building) && o.alive ? o : null;
@@ -583,6 +650,7 @@ export class CombatSystem implements GameSystem {
       }
     }
     s.combatTarget = target?.id ?? null;
+    if (s instanceof Vehicle && s.type === 'twinTank') s.gunsUp = target instanceof Vehicle && target.isHeli && target.altitude > 0;
 
     if (!target) {
       // BM-21: nothing left to shoot ends the salvo (the next one needs BM21_MIN_SALVO rockets again).

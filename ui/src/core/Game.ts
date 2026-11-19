@@ -750,6 +750,8 @@ export class Game {
       onBunkerFire: (b, t) => this.onBunkerFire(b, t),
       onDvinaBurst: (at, air, t) => this.onDvinaBurst(at, air, t),
       onDvinaLaunch: (m) => this.onDvinaLaunch(m),
+      onDvinaIntercept: (guard, meet, lift, flight) => this.onDvinaIntercept(guard, meet, lift, flight),
+      onDvinaShotDown: (at, lift) => this.onDvinaShotDown(at, lift),
       onDeath: (e, killer) => this.onDeath(e, killer),
       onSpare: (nation, fugitive) => this.payMercyBonus(nation, fugitive),
       safeAt: (x, y) => this.safeZones.isSafe(x, y),
@@ -5090,6 +5092,23 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     const hit = this.fx(at.x, at.y, target instanceof Unit ? this.aimHeight(target, 0.6) : 4);
     if (hasMissileSheet()) this.effects.add({ kind: 'missileBlast', x: hit.x, y: hit.y, age: 0, ttl: MISSILE_BLAST_SECONDS, air });
     else this.effects.add({ kind: 'blast', x: hit.x, y: hit.y, age: 0, ttl: 0.4, radius: 4 });
+    this.sound.play('explosion', at);
+  }
+
+  /** An air-defence vehicle fires at a Dvina missile: its own missile streaks to where the two meet. */
+  private onDvinaIntercept(guard: Vehicle, meet: WorldPoint, lift: number, flight: number): void {
+    const buk = heavyMissile(guard.faction as FactionId);
+    const from = this.fx(guard.px, guard.py, this.aimHeight(guard, 1));
+    const to = this.fx(meet.x, meet.y, lift + 1.5);
+    this.effects.add({ kind: 'samMissile', x0: from.x, y0: from.y, x1: to.x, y1: to.y, age: 0, ttl: flight + SAM_TRAIL_SECONDS, flight, buk });
+    this.sound.play('missile', { x: guard.px, y: guard.py });
+  }
+
+  /** A Dvina missile shot down: an air burst where it was, nothing hit on the ground. */
+  private onDvinaShotDown(at: WorldPoint, lift: number): void {
+    const p = this.fx(at.x, at.y, lift + 1.5);
+    if (hasMissileSheet()) this.effects.add({ kind: 'missileBlast', x: p.x, y: p.y, age: 0, ttl: MISSILE_BLAST_SECONDS, air: true });
+    else this.effects.add({ kind: 'blast', x: p.x, y: p.y, age: 0, ttl: 0.4, radius: 4 });
     this.sound.play('explosion', at);
   }
 
