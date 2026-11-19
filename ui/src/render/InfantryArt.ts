@@ -363,6 +363,15 @@ function blackened(img: HTMLImageElement, row: number, ch: number): HTMLCanvasEl
 const portraits = new Map<string, HTMLCanvasElement>();
 
 /** Sidebar cameo picture of a faction's soldier (cached). */
+/** True when `c` has no visible pixel (sampled through a small read-optimised copy). */
+export function isBlankCanvas(c: HTMLCanvasElement): boolean {
+  const probe = createCanvas(32, 24, { willReadFrequently: true });
+  probe.ctx.drawImage(c, 0, 0, 32, 24);
+  const d = probe.ctx.getImageData(0, 0, 32, 24).data;
+  for (let i = 3; i < d.length; i += 4) if (d[i]! > 8) return false;
+  return true;
+}
+
 export function soldierPortrait(faction: FactionId, tier: UnitTier): HTMLCanvasElement {
   const key = `${faction}:${tier}`;
   let c = portraits.get(key);
@@ -382,6 +391,8 @@ export function soldierPortrait(faction: FactionId, tier: UnitTier): HTMLCanvasE
       drawSoldier(ctx, { ...pose, x: 1.2, y: 0.2 }, look, f.colors.primary, true);
       drawCarriedFlag(ctx, faction, 2.1, -2.4, 3.2, 0.4);
     } else drawSoldier(ctx, pose, (f.infantry[tier] ?? f.infantry.regular).look, f.colors.primary, tier === 'special');
+    // A sheet still loading draws nothing: not cached, so the next call draws it once the sheet is in.
+    if (isBlankCanvas(canvas)) return canvas;
     portraits.set(key, canvas);
     c = canvas;
   }

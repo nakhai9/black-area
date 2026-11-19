@@ -1022,7 +1022,7 @@ export class Game {
   }
 
   /** Game fields never written back from a save (screen / input state). */
-  private static readonly UNSAVED = ['systems', 'paths', 'paused', 'ended', 'dom', 'lastCursor', 'mouseWorld', 'ghost', 'placing', 'placingRotated', 'waypoints', 'moveMarker', 'pathPeekId', 'lastBuildingClick', 'shortRepaths', 'lastRepath', 'localId', 'actorId', 'lockstep', 'desyncWarned', 'capitalPrompts', 'trees', 'miningId', 'siloAiming', 'siloButton'];
+  private static readonly UNSAVED = ['systems', 'paths', 'paused', 'ended', 'dom', 'lastCursor', 'mouseWorld', 'ghost', 'placing', 'placingRotated', 'waypoints', 'moveMarker', 'pathPeekId', 'lastBuildingClick', 'shortRepaths', 'lastRepath', 'localId', 'actorId', 'lockstep', 'desyncWarned', 'capitalPrompts', 'trees', 'miningId', 'siloAiming', 'siloButton', 'focusedDvina'];
 
   /**
    * Everything needed to continue this game later, as plain JSON-ready data: players, every entity, the state of
@@ -4125,6 +4125,7 @@ export class Game {
     const hoverUnit = this.selection.hoveredUnitId === null ? undefined : this.entities.get(this.selection.hoveredUnitId);
     const entering = !this.placing && hoverUnit instanceof Vehicle && this.canBoardSelected(hoverUnit);
     this.updateSiloButton();
+    this.dropDvinaOrderOnDeselect();
     const cursor = this.placing || aiming || this.siloAiming !== null ? 'crosshair' : entering ? ENTER_CURSOR : hovering ? 'pointer' : 'default';
     // Style writes only when the cursor actually changes (not every frame).
     if (cursor !== this.lastCursor) {
@@ -7370,6 +7371,25 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
   }
 
   /** Shows / updates the selected silo's launch button; drops aiming when the silo is no longer selected or ready. */
+  /** The R-12 Dvina last selected (to notice when the player lets go of it). */
+  private focusedDvina: number | null = null;
+
+  /**
+   * Deselecting my R-12 Dvina takes back its pending attack order: unselected, it never goes on to fire at a ground
+   * unit or structure (it still shoots aircraft on its own). Goes through issue(), so multiplayer stays in step.
+   */
+  private dropDvinaOrderOnDeselect(): void {
+    const id = this.selection.selectedId;
+    const now = id !== null && this.entities.get(id) instanceof DvinaLauncher ? id : null;
+    const was = this.focusedDvina;
+    this.focusedDvina = now;
+    if (was === null || was === now) return;
+    const b = this.entities.get(was);
+    if (b instanceof DvinaLauncher && b.alive && b.owner === this.localId && b.forcedTarget !== null && b.ordered) {
+      this.issue({ k: 'siteAim', b: b.id, h: b.aimHeading });
+    }
+  }
+
   private updateSiloButton(): void {
     this.siloButton ??= new SiloButton(this.dom.canvas.parentElement ?? document.body, () => {
       const s = this.selectedSilo();

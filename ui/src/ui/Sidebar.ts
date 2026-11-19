@@ -1,4 +1,3 @@
-import { startedLoaded } from '../render/onDemand';
 import { setZoomLock, settings } from '../core/Settings';
 import { CHARGE_ICON_PATH } from '../render/ChargeIcon';
 import { AlertToast } from './NewsToast';
@@ -31,6 +30,7 @@ import { FACTIONS } from '../factions';
 import { getFlagTexture } from '../render/Flags';
 import { factionBadgeHtml } from './FactionBadge';
 import { nationFlag } from '../render/sprites/NationCapital';
+import { isBlankCanvas } from '../render/InfantryArt';
 import { isFactionNation, type NationId } from '../entities/NationCapital';
 import { type BuildOption, type QueueSlot, buildCost, footprintOf, missingRequirement } from '../systems/ConstructionSystem';
 import { MIN_SALE_STOCK } from '../systems/OilMarket';
@@ -748,12 +748,32 @@ export class Sidebar {
   /** Structure cameos whose sheets were still loading when drawn: drawn again until they are ready. */
   private pendingPreviews: { canvas: HTMLCanvasElement; option: BuildOption }[] = [];
 
+  /** Unit / vehicle cameos still blank (their sheet loading): drawn again every 0.5 s until they show. */
+  private blankCameos: { canvas: HTMLCanvasElement; picture: () => HTMLCanvasElement; background?: string }[] = [];
+  private retryClock = 0;
+
+  /** Draws a cameo now and, while its picture is still empty, again on later updates. */
+  private drawUntilComplete(canvas: HTMLCanvasElement, picture: () => HTMLCanvasElement, background?: string): void {
+    const p = picture();
+    drawPreview(canvas, p, background);
+    if (isBlankCanvas(p)) this.blankCameos.push({ canvas, picture, background });
+  }
+
   update(model: SidebarModel, dt: number): void {
-    if (this.pendingPreviews.length > 0) {
+    this.retryClock -= dt;
+    if ((this.blankCameos.length > 0 || this.pendingPreviews.length > 0) && this.retryClock <= 0) {
+      this.retryClock = 0.5;
+      this.blankCameos = this.blankCameos.filter(({ canvas, picture, background }) => {
+        const p = picture();
+        if (isBlankCanvas(p)) return true;
+        drawPreview(canvas, p, background);
+        return false;
+      });
       this.pendingPreviews = this.pendingPreviews.filter(({ canvas, option }) => {
         const p = this.handlers.preview(option);
-        if (p.final) drawPreview(canvas, p.canvas, STRUCTURE_CAMEO_BG);
-        return !p.final;
+        const done = p.final && !isBlankCanvas(p.canvas);
+        if (done) drawPreview(canvas, p.canvas, STRUCTURE_CAMEO_BG);
+        return !done;
       });
     }
     const { player } = model;
@@ -1478,9 +1498,8 @@ export class Sidebar {
         <span class="sb-cameo-state"></span>`;
       const canvas = el.querySelector('canvas');
       if (canvas) {
-        drawPreview(canvas, this.handlers.vehiclePreview(option));
-        // A sheet still downloading leaves the cameo blank: draw it again once it has arrived.
-        void startedLoaded().then(() => drawPreview(canvas, this.handlers.vehiclePreview(option)));
+        // A sheet still downloading leaves the cameo blank: drawn again (update) until the picture is there.
+        this.drawUntilComplete(canvas, () => this.handlers.vehiclePreview(option));
       }
       addInfoIcon(el, this.foreignName(option));
       this.addForeignFlag(el, option.faction);
@@ -1511,7 +1530,7 @@ export class Sidebar {
         <span class="sb-cameo-badge" hidden></span>
         <span class="sb-cameo-state"></span>`;
       const canvas = el.querySelector('canvas');
-      if (canvas) drawPreview(canvas, this.handlers.trainPreview(option));
+      if (canvas) this.drawUntilComplete(canvas, () => this.handlers.trainPreview(option));
       addInfoIcon(el, this.foreignName(option));
       this.addForeignFlag(el, option.faction);
       el.addEventListener('click', () => this.handlers.onTrain(option));
@@ -1582,7 +1601,7 @@ export class Sidebar {
       if (canvas) {
         const p = this.handlers.preview(option);
         drawPreview(canvas, p.canvas, STRUCTURE_CAMEO_BG);
-        if (!p.final) this.pendingPreviews.push({ canvas, option });
+        if (!p.final || isBlankCanvas(p.canvas)) this.pendingPreviews.push({ canvas, option });
       }
       addInfoIcon(el, option.name);
       if (option.foreign) this.addForeignFlag(el, option.foreign);
