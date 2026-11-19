@@ -621,8 +621,9 @@ export class CombatSystem implements GameSystem {
   private dvinaBurst(d: DvinaMissile): void {
     if (d.shotDown) {
       this.hooks.onDvinaShotDown({ x: d.x, y: d.y }, d.lift);
-      // Brought down in the air: its warhead still showers the ground below (DVINA_AIR_GROUND_SHARE).
-      this.dvinaGroundSplash(d.launcher, { x: d.x, y: d.y }, null);
+      // Brought down in the air: its warhead showers the ground below (DVINA_AIR_GROUND_SHARE) only when it was already
+      // close to its target (within the blast radius of the aim point); shot down far out it harms nobody.
+      if (Math.hypot(d.x - d.point.x, d.y - d.point.y) <= d.launcher.blastRadius) this.dvinaGroundSplash(d.launcher, { x: d.x, y: d.y }, null);
       return;
     }
     const b = d.launcher;
