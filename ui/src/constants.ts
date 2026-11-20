@@ -39,7 +39,7 @@ export const DEMO_FACTION: FactionId = NATION_CODES[(import.meta.env.VITE_DEMO_F
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "3.75.340";
+export const GAME_VERSION = "3.75.341";
 /** Transport aircraft (C-17, Il-76, Y-20, A400M) are drawn this many iso px long: 13, +20% (v3.75.224). */
 export const TRANSPORT_LENGTH = 13 * 1.2 * 0.9;
 
@@ -458,7 +458,7 @@ export const SILO_RANGE_CELLS = (0.75 * WORLD_HEIGHT) / CELL_SIZE;
 export const SILO_DAMAGE = DVINA_DAMAGE * 4;
 export const SILO_BLAST_CELLS = DVINA_BLAST_CELLS * 3;
 export const SILO_MISSILE_COST = 12000;
-export const SILO_RELOAD = 360; // 6 minutes
+export const SILO_RELOAD = 780; // 13 minutes
 /**
  * ICBM accuracy: the warhead bursts at most SILO_MISS_M metres from the aim point (random direction and distance,
  * deterministic so all clients agree). 1 cell = 3 m (CELL_SIZE 7 world px), so 10 m = 10/3 cells.

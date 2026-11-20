@@ -328,6 +328,7 @@ const BLOCK_REASONS: Readonly<Record<string, string>> = {
   tooFar: 'Too far from your base (max {max} cells)',
   claimed: 'Allied Buildings stand only on unclaimed land claimed with a Squatters team',
   nearOil: 'Too close to an oil derrick (keep {keep} free cells around it)',
+  mined: 'A land mine lies there',
   antarctica: 'Nothing can be built on Antarctica',
 };
 /** Structures of a defeated nation that stay on the map as they are (standing, same owner) instead of being destroyed. */
@@ -668,6 +669,8 @@ export class Game {
     this.oilMarket.news = (category, text) => this.intel(category, text);
     this.news = new NewsToast();
     this.placement = new PlacementSystem(this.map, this.entities);
+    // No structure goes on a mined cell (player and AI alike).
+    this.placement.mined = (x, y) => this.mines.some((m) => m.x === x && m.y === y);
     this.construction = new ConstructionSystem(this.players);
     this.construction.owns = (p, type) => this.entities.buildings().some((b) => b.owner === p.id && b.alive && b.spec.type === type);
     // BM-21 reload: BM21_RELOAD_COST TB a time from the owner's treasury (player and AI alike); no money, no rockets.

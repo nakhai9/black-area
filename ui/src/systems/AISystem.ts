@@ -17,6 +17,13 @@ import { StructureIndex } from './StructureIndex';
 import { OilDerrick } from '../entities/OilDerrick';
 import { NationCapital } from '../entities/NationCapital';
 import { Gate } from '../entities/Gate';
+
+/** Wall blocks and gates: broken only when they shut a structure in (AISystem.enemyStructures). */
+const isBarrier = (b: Building): boolean => b.spec.type === 'wall' || b.spec.type === 'gate';
+/** A structure is walled in when the free ground round it never reaches this many cells out. */
+const ENCLOSURE_CELLS = 40;
+/** Seconds between two enclosure checks of one structure. */
+const ENCLOSURE_RECHECK = 10;
 import type { Building } from '../entities/Building';
 import type { Entity } from '../entities/Entity';
 import type { EntityManager } from '../entities/EntityManager';
@@ -1877,7 +1884,7 @@ export class AISystem implements GameSystem {
     const enemy = (owner: number): boolean => owner !== p.id && owner !== NEUTRAL_OWNER && !isRuin(owner);
     const cands: { e: Entity; owner: number; tier: number; size: number; dist: number }[] = [];
     for (const b of this.host.entities.buildings()) {
-      if (!b.alive || !enemy(b.owner) || (b.indestructible || (b instanceof NationCapital && b.down)) || b.spec.type === 'oilDerrick' || this.host.isShielded(b) || !isHostile(first, b)) continue;
+      if (!b.alive || !enemy(b.owner) || (b.indestructible || (b instanceof NationCapital && b.down)) || b.spec.type === 'oilDerrick' || isBarrier(b) || this.host.isShielded(b) || !isHostile(first, b)) continue;
       const c = b.centerWorld();
       cands.push({ e: b, owner: b.owner, tier: DRONE_BUILDING_TIER[b.spec.type] ?? DRONE_TIER_CIVIL, size: 1, dist: Math.hypot(c.x - home.x, c.y - home.y) });
     }
@@ -2947,9 +2954,65 @@ export class AISystem implements GameSystem {
   }
 
   private enemyStructures(p: PlayerState): Building[] {
-    return this.host.entities
+    const all = this.host.entities
       .buildings()
       .filter((b) => b.alive && b.owner !== p.id && b.owner !== NEUTRAL_OWNER && !isRuin(b.owner) && !b.indestructible && !(b instanceof NationCapital && b.down) && !this.host.isShielded(b) && !concealedFrom(b, p.id));
+    // Walls and gates are only worth breaking when they shut a structure in (no way to it): then the nation's walls
+    // and gates become targets; otherwise the army walks round or through the gates. Player and AI alike.
+    const sealed = new Set<number>();
+    for (const b of all) if (!isBarrier(b) && !sealed.has(b.owner) && this.enclosed(b)) sealed.add(b.owner);
+    return all.filter((b) => !isBarrier(b) || sealed.has(b.owner));
+  }
+
+  /** Enclosure cache: structure id → [is it walled in, game time checked]. */
+  private readonly enclosure = new Map<number, [boolean, number]>();
+
+  /**
+   * Is structure `b` walled in: no passable cell round it leads out past ENCLOSURE_CELLS (flood from its edge over
+   * ground passable cells; structures and walls block, open gates do not)? Re-checked every ENCLOSURE_RECHECK s.
+   */
+  private enclosed(b: Building): boolean {
+    const hit = this.enclosure.get(b.id);
+    if (hit && this.time - hit[1] < ENCLOSURE_RECHECK) return hit[0];
+    const pf = this.host.pathfinder;
+    const minX = b.x - ENCLOSURE_CELLS;
+    const maxX = b.x + b.w + ENCLOSURE_CELLS;
+    const minY = b.y - ENCLOSURE_CELLS;
+    const maxY = b.y + b.d + ENCLOSURE_CELLS;
+    const seen = new Set<number>();
+    const queue: number[] = [];
+    const key = (x: number, y: number): number => y * 100000 + x;
+    for (let x = b.x - 1; x <= b.x + b.w; x++)
+      for (let y = b.y - 1; y <= b.y + b.d; y++) {
+        if (x >= b.x && x < b.x + b.w && y >= b.y && y < b.y + b.d) continue;
+        if (!pf.passable(x, y)) continue;
+        seen.add(key(x, y));
+        queue.push(x, y);
+      }
+    let open = false;
+    // No free cell at all round it: walled in only if a wall or gate is part of what blocks it.
+    let enclosed = queue.length > 0 || this.wallNear(b);
+    for (let i = 0; i < queue.length && !open; i += 2) {
+      const x = queue[i]!;
+      const y = queue[i + 1]!;
+      if (x <= minX || x >= maxX || y <= minY || y >= maxY) open = true;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+        const nx = x + dx;
+        const ny = y + dy;
+        const k = key(nx, ny);
+        if (seen.has(k) || !pf.passable(nx, ny)) continue;
+        seen.add(k);
+        queue.push(nx, ny);
+      }
+    }
+    if (open) enclosed = false;
+    this.enclosure.set(b.id, [enclosed, this.time]);
+    return enclosed;
+  }
+
+  /** A wall or gate of b's owner within 2 cells of it (its blocked edge is a wall, not just other buildings). */
+  private wallNear(b: Building): boolean {
+    return this.host.entities.buildings().some((w) => isBarrier(w) && w.alive && w.owner === b.owner && w.x >= b.x - 2 && w.x <= b.x + b.w + 1 && w.y >= b.y - 2 && w.y <= b.y + b.d + 1);
   }
 
   /** Army units near an enemy structure (and not busy) get an explicit order to destroy the most valuable one in reach. */

@@ -24,6 +24,7 @@ export default {
   'Too far from your base (max {max} cells)': 'Quá xa căn cứ (tối đa {max} ô)',
   'Allied Buildings stand only on unclaimed land claimed with a Squatters team': 'Allied Building chỉ được dựng trên vùng đất vô chủ đã được đội Squatters cắm cờ',
   'Too close to an oil derrick (keep {keep} free cells around it)': 'Quá gần giếng dầu (chừa trống {keep} ô xung quanh)',
+  'A land mine lies there': 'Có mìn đặt ở đó',
   'Nothing can be built on Antarctica': 'Không thể xây gì ở Nam Cực',
   'Happy City taxes: +{amount} {currency}.': 'Thuế Happy City: +{amount} {currency}.',
   'Military presence fee ({city}): +{fee} {currency}.': 'Phí hiện diện quân sự ({city}): +{fee} {currency}.',

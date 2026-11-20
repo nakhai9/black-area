@@ -23,7 +23,7 @@ export function isCoastal(type: string): boolean {
   return type === 'port';
 }
 
-export type PlacementResult = { ok: true } | { ok: false; reason: PlacementBlocker | 'units' | 'tooFar' | 'claimed' | 'nearOil' | 'antarctica' };
+export type PlacementResult = { ok: true } | { ok: false; reason: PlacementBlocker | 'units' | 'tooFar' | 'claimed' | 'nearOil' | 'antarctica' | 'mined' };
 
 /** Free cells every new structure (any nation) must leave between itself and the edge of any oil derrick. */
 export const OIL_DERRICK_CLEARANCE = 4;
@@ -76,6 +76,7 @@ export function cellGap(
  * 3. an Allied Building stands on unclaimed land only (land claimed by a Squatters team, see isClaimable);
  * 4. at least OIL_DERRICK_CLEARANCE free cells between it and the edge of every oil derrick (anyone's);
  * 5. no structure overlaps another one (whole footprints, margin ring included);
+ * 7. never on a cell with a land mine (anyone's), see `mined`;
  * 6. nothing is ever built on Antarctica (rows from ANTARCTIC_ROW down), whoever holds its derricks.
  */
 export class PlacementSystem {
@@ -83,6 +84,9 @@ export class PlacementSystem {
     private readonly map: TileMap,
     private readonly entities: EntityManager,
   ) {}
+
+  /** Is there a land mine on cell (x, y) (anyone's)? Wired by Game; nothing is built over a mine. */
+  mined: (x: number, y: number) => boolean = () => false;
 
   check(req: PlacementRequest): PlacementResult {
     const blocker = req.coastal ? this.coastBlocker(req) : this.map.placementBlocker(req.x, req.y, req.w, req.d, req.naval === true);
@@ -92,6 +96,7 @@ export class PlacementSystem {
     if (req.y + req.d > ANTARCTIC_ROW) return { ok: false, reason: 'antarctica' };
     if (req.unclaimedOnly && !this.allClaimable(req)) return { ok: false, reason: 'claimed' };
     if (this.nearDerrick(req)) return { ok: false, reason: 'nearOil' };
+    for (let y = req.y; y < req.y + req.d; y++) for (let x = req.x; x < req.x + req.w; x++) if (this.mined(x, y)) return { ok: false, reason: 'mined' };
     if (this.unitsInside(req)) return { ok: false, reason: 'units' };
     return this.nearOwnBase(req) ? { ok: true } : { ok: false, reason: 'tooFar' };
   }
