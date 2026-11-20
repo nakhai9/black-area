@@ -10,6 +10,9 @@ import {
   FOOTPRINT_RADAR_TOWER,
   FUEL_STATION_COST,
   FOOTPRINT_FUEL_STATION,
+  FOOTPRINT_RESERVE_CAPITAL,
+  RESERVE_CAPITAL_COST,
+  RESERVE_CAPITAL_NATIONS,
   BARRACKS_COST,
   BUNKER_COST,
   WALL_COST,
@@ -50,6 +53,7 @@ import { PowerPlant } from '../entities/PowerPlant';
 import { TechCenter } from '../entities/TechCenter';
 import { RadarTower } from '../entities/RadarTower';
 import { FuelStation } from '../entities/FuelStation';
+import { ReserveCapital } from '../entities/ReserveCapital';
 import { WarFactory } from '../entities/WarFactory';
 import { Barracks } from '../entities/Barracks';
 import { Flagpole } from '../entities/Flagpole';
@@ -61,7 +65,7 @@ import type { GameSystem } from './GameSystem';
 import { isDeleted, sellerOf } from '../core/GameAssets';
 
 /** A structure that can be produced from the sidebar's Build tab. */
-type BaseBuildId = 'powerPlant' | 'barracks' | 'warFactory' | 'airfield' | 'port' | 'radarTower' | 'fuelStation' | 'techCenter' | 'happyCity' | 'flagpole' | 'alliedBuilding' | 'parallelGov' | 'bunker' | 'wall' | 'gate' | 'ldew' | 'dvina' | 'yars';
+type BaseBuildId = 'powerPlant' | 'barracks' | 'warFactory' | 'airfield' | 'port' | 'radarTower' | 'fuelStation' | 'reserveCapital' | 'techCenter' | 'happyCity' | 'flagpole' | 'alliedBuilding' | 'parallelGov' | 'bunker' | 'wall' | 'gate' | 'ldew' | 'dvina' | 'yars';
 
 export interface BuildOption {
   /** `base@faction` for another nation's design (on sale while that nation's capital is held). */
@@ -70,6 +74,8 @@ export interface BuildOption {
   foreign?: FactionId;
   /** A contested nation's design: offered only while its capital is held (the LDEW for London). */
   nation?: ContestedNationId;
+  /** Only these nations' own shops sell it (the Reserve Capital). */
+  only?: readonly FactionId[];
   /** Several contested nations: offered while any one of their capitals is held. */
   nations?: readonly ContestedNationId[];
   name: string;
@@ -227,6 +233,17 @@ const OWN_OPTIONS: readonly BuildOption[] = [
     create: (owner, faction, x, y) => new FuelStation(owner, faction, center(x, y, FOOTPRINT_FUEL_STATION)),
   },
   {
+    // Wartime seat of government (Longoria, Nordursia; any number): takes over when the capital falls.
+    id: 'reserveCapital',
+    name: 'Reserve Capital',
+    only: RESERVE_CAPITAL_NATIONS as readonly FactionId[],
+    requires: 'techCenter',
+    cost: RESERVE_CAPITAL_COST,
+    footprint: FOOTPRINT_RESERVE_CAPITAL,
+    spriteKey: (f) => `reserveCapital:${f}`,
+    create: (owner, faction, x, y) => new ReserveCapital(owner, faction, center(x, y, FOOTPRINT_RESERVE_CAPITAL)),
+  },
+  {
     id: 'techCenter',
     name: 'High-Tech Center',
     requires: 'warFactory',
@@ -320,6 +337,7 @@ export const BUILD_OPTIONS: readonly BuildOption[] = [
 export function buildOffered(option: BuildOption, nation: FactionId): boolean | null {
   const base = option.id.split('@')[0]!;
   if (HIDDEN_BUILDS.has(base)) return false;
+  if (option.only && !option.only.includes(nation)) return false;
   // `powerPlant@russia` for Russia is its own Power Plant a second time: never offered (it showed as a duplicate cameo).
   if (option.foreign === nation && FOREIGN_BUILDS.has(base)) return false;
   // A contested nation's design: on sale only while its capital is held (decided by the caller).

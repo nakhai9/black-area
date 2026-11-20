@@ -1,4 +1,5 @@
 import { DVINA_TRAIL_SECONDS } from '../render/SamMissile';
+import { ReserveCapital, concealedFrom, isSeat } from '../entities/ReserveCapital';
 import type { DvinaMissile } from '../systems/CombatSystem';
 import { startedLoaded } from '../render/onDemand';
 import { askSaveTarget } from '../ui/SaveChoice';
@@ -139,6 +140,7 @@ import {
   MOUNTAIN_PASS_SPEED_INFANTRY,
   MOUNTAIN_PASS_SPEED_VEHICLE,
   GUARD_VISION_FACTOR,
+  RESERVE_CAPITAL_SPOT_CELLS,
 } from '../constants';
 import { worldToIso } from './IsoView';
 import { Building } from '../entities/Building';
@@ -3394,6 +3396,7 @@ export class Game {
     if (this.endCheck >= 1) {
       this.endCheck = 0;
       this.evaluateNations();
+      this.spotReserveCapitals();
     }
     for (const u of this.entities.fieldMovers()) {
       const cx = Math.floor(u.px / CELL_SIZE);
@@ -4161,7 +4164,8 @@ export class Game {
     this.syncDvinaMissiles();
     this.effects.update(dt);
     this.smokeFromDamagedBuildings(dt);
-    const buildings = this.entities.buildings();
+    // A Reserve Capital not yet the seat and not spotted is invisible to me (map, radar, big map).
+    const buildings = this.entities.buildings().filter((b) => !concealedFrom(b, this.humanPlayer.id));
     // Silo numbers per owner (#1, #2… in build order), shared by the briefcase rows and the hover label.
     {
       const count = new Map<number, number>();
@@ -5997,21 +6001,59 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
    * A nation is defeated when its capital is gone AND it has no soldiers or combat vehicles. The player loses
    * the game when defeated; the player wins once every other nation is defeated.
    */
+  /** A unit within RESERVE_CAPITAL_SPOT_CELLS of a hidden Reserve Capital reveals it to the unit's nation for good. */
+  private spotReserveCapitals(): void {
+    const reach = RESERVE_CAPITAL_SPOT_CELLS * CELL_SIZE;
+    const units = this.entities.units();
+    for (const b of this.entities.buildings()) {
+      if (!(b instanceof ReserveCapital) || !b.alive || b.seat) continue;
+      const c = b.centerWorld();
+      const r = reach + Math.max(b.w, b.d) * CELL_SIZE / 2;
+      for (const u of units) {
+        if (!u.alive || u.owner === b.owner || u.owner < 0 || b.spottedBy.includes(u.owner)) continue;
+        if (Math.hypot(u.px - c.x, u.py - c.y) <= r) {
+          b.spottedBy.push(u.owner);
+          if (u.owner === this.humanPlayer.id) this.sidebar.alert(t('An enemy Reserve Capital has been found!'), c);
+        }
+      }
+    }
+  }
+
   private evaluateNations(): void {
     // A nation whose own capital is destroyed or captured can no longer buy structures (a captured enemy capital
     // does not count as its own).
     for (const p of this.players) {
-      if (p.capitalLost) continue;
+      if (p.defeated) continue;
       const own = this.entities.buildings().some((b) => b.alive && b.owner === p.id && b.spec.type === 'capital' && b.spec.spriteKey === `capital:${p.faction}`);
-      if (own) continue;
+      // Reserve Capital: while the capital stands every reserve is an ordinary structure. Once it falls the
+      // government picks one standing reserve (the soundest) and moves there; it takes over the capital's jobs.
+      const reserves = own ? [] : (this.entities.buildings().filter((b) => b.alive && b.owner === p.id && b instanceof ReserveCapital) as ReserveCapital[]);
+      for (const r of this.entities.buildings()) if (r instanceof ReserveCapital && r.seat && (r.owner === p.id || r.faction === p.faction) && (own || !r.alive || r.owner !== p.id)) r.seat = false;
+      let seat = reserves.find((r) => r.seat);
+      if (!seat && reserves.length > 0) {
+        seat = reserves.reduce((x, r) => (r.hp > x.hp ? r : x));
+        seat.seat = true;
+        this.intel('politics', t('{name} has moved its government to the Reserve Capital.', { name: FACTIONS[p.faction].name }));
+        if (p.id === this.localId) {
+          this.sidebar.notify(t('Your capital is lost — the government has moved to the Reserve Capital.'), 6);
+          this.focusBuilding(seat.id);
+        }
+      }
+      if (own || seat) {
+        if (p.capitalLost) p.capitalLost = false;
+        p.reserveSeat = !!seat;
+        continue;
+      }
+      if (p.capitalLost) continue;
       p.capitalLost = true;
+      p.reserveSeat = false;
       if (p.id === this.localId) this.sidebar.notify(t('Your capital is lost — you can no longer build any structure.'), 6);
     }
     for (const p of this.players) {
       if (p.defeated) continue;
       // Beaten only with nothing left to fight or rebuild with: no capital, no combat force, and no Barracks /
       // War Factory / Airfield (with money left those could still raise a new army).
-      const hasCapital = this.entities.buildings().some((b) => b.owner === p.id && b.alive && b.spec.type === 'capital');
+      const hasCapital = this.entities.buildings().some((b) => b.owner === p.id && b.alive && isSeat(b));
       const producer = this.entities.buildings().some((b) => b.owner === p.id && b.alive && PRODUCERS.has(b.spec.type));
       if (hasCapital || producer || this.hasArmy(p)) continue;
       p.defeated = true;
@@ -7836,7 +7878,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
 
   /** A plain move that takes the unit closer to its own capital is a retreat (enemies may not chase it). */
   private isRetreat(u: Unit, to: WorldPoint): boolean {
-    const capital = this.entities.buildings().find((b) => b.owner === u.owner && b.alive && b.spec.type === 'capital');
+    const capital = this.entities.buildings().find((b) => b.owner === u.owner && b.alive && isSeat(b));
     if (!capital) return false;
     const home = capital.centerWorld();
     return Math.hypot(to.x - home.x, to.y - home.y) < Math.hypot(u.px - home.x, u.py - home.y);
@@ -8276,7 +8318,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
   }
 
   private focusOwnCapital(): void {
-    const own = this.landmarks.find((b) => b.owner === this.humanPlayer.id && b.spec.type === 'capital');
+    const own = this.landmarks.find((b) => b.owner === this.humanPlayer.id && b.spec.type === 'capital') ?? this.entities.buildings().find((b) => b.alive && b.owner === this.humanPlayer.id && isSeat(b));
     if (own) this.focusBuilding(own.id);
   }
 

@@ -14,6 +14,7 @@ export const SUPPORT_TYPES: ReadonlySet<string> = new Set(['bunker', 'wall', 'ga
 
 /** How far (cells) from an own structure's edge a structure of this kind may be placed. */
 export function buildRadius(type: string): number {
+  if (type === 'reserveCapital') return Number.POSITIVE_INFINITY; // hidden reserve: anywhere the nation can build
   return type === 'bunker' || type === 'ldew' || type === 'dvina' ? BUNKER_BUILD_RADIUS : type === 'wall' ? WALL_BUILD_RADIUS : type === 'gate' ? GATE_BUILD_RADIUS : BUILD_RADIUS;
 }
 

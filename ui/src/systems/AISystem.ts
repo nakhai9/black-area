@@ -1,4 +1,5 @@
 import { LdewEmplacement } from '../entities/LdewEmplacement';
+import { concealedFrom, isSeat } from '../entities/ReserveCapital';
 import { DvinaLauncher } from '../entities/DvinaLauncher';
 import { DVINA_NATION, SILO_SCIENTISTS } from '../constants';
 import { holdsNation } from './Foreign';
@@ -626,7 +627,8 @@ export class AISystem implements GameSystem {
   }
 
   private think(p: PlayerState, st: AIState): void {
-    const capital = this.host.entities.buildings().find((b) => b.owner === p.id && b.alive && b.spec.type === 'capital');
+    // Seat of government: the capital, or the Reserve Capital the government moved to (it takes over every job).
+    const capital = this.host.entities.buildings().find((b) => b.owner === p.id && b.alive && b.spec.type === 'capital') ?? this.host.entities.buildings().find((b) => b.owner === p.id && b.alive && isSeat(b));
     if (p.defeated) return;
     this.unloadLandedTransports(p);
     const owned = this.host.ownedTypesOf(p);
@@ -752,7 +754,7 @@ export class AISystem implements GameSystem {
         else this.host.construction.cancel(p, 'port');
         continue;
       }
-      const forward = this.forwardAnchor(p, option.id);
+      const forward = option.id === 'reserveCapital' ? this.safestAnchor(p, capital) : this.forwardAnchor(p, option.id);
       const site =
         option.id === 'alliedBuilding' ? this.alliedSiteSearch(p, st, option, capital) : option.id === 'wall' ? this.findWallSite(p, capital) : this.findSite(p, st, forward ?? capital, option);
       if (site) this.host.placeReady(p, option.id, site.x, site.y);
@@ -793,6 +795,12 @@ export class AISystem implements GameSystem {
     if (!next && threat === 0 && owned.has('techCenter') && owned.has('radarTower') && !owned.has('missileSilo') && !busy('yars') && (p.scientists ?? 0) >= SILO_SCIENTISTS) {
       const silo = BUILD_OPTIONS.find((o) => o.id === 'yars');
       if (silo && missingRequirement(silo, owned, p.disarmedUntil !== undefined) === null) next = silo;
+    }
+    // Longoria: one Reserve Capital once the High-Tech Center stands (player rule: same shop, same requirement), so the
+    // government survives the fall of the capital. Built in peace, or at once when the capital is under heavy attack.
+    if (!next && owned.has('techCenter') && !owned.has('reserveCapital') && !busy('reserveCapital') && (threat === 0 || (capital && capital.hp < capital.maxHp * 0.5))) {
+      const reserve = BUILD_OPTIONS.find((o) => o.id === 'reserveCapital');
+      if (reserve && buildOffered(reserve, p.faction) && missingRequirement(reserve, owned, p.disarmedUntil !== undefined) === null) next = reserve;
     }
     // A coastal base: one Naval Port on the shore, where its carriers are launched and repaired (player rule too).
     if (!next && threat === 0 && owned.has('warFactory') && !owned.has('port') && !busy('port') && this.portSiteSearch(p, st)) {
@@ -2916,10 +2924,30 @@ export class AISystem implements GameSystem {
   }
 
   /** Enemy structures this nation may attack (not its own, not neutral, not protected). */
+  /** Own structure farthest from every enemy structure: a Reserve Capital is hidden next to it (safety first). */
+  private safestAnchor(p: PlayerState, capital: Building): Building {
+    const enemies = this.host.entities.buildings().filter((b) => b.alive && b.owner !== p.id && b.owner !== NEUTRAL_OWNER && !isRuin(b.owner)).map((b) => b.centerWorld());
+    let best = capital;
+    let bestGap = -1;
+    for (const b of this.host.entities.buildings()) {
+      if (!b.alive || b.owner !== p.id || b.spec.type === 'wall' || b.spec.type === 'gate') continue;
+      const c = b.centerWorld();
+      const gap = enemies.reduce((m, e) => Math.min(m, Math.hypot(e.x - c.x, e.y - c.y)), Infinity);
+      // Away from the capital too, so one strike cannot take both.
+      const home = capital.centerWorld();
+      const score = gap + 0.5 * Math.hypot(home.x - c.x, home.y - c.y);
+      if (score > bestGap) {
+        bestGap = score;
+        best = b;
+      }
+    }
+    return best;
+  }
+
   private enemyStructures(p: PlayerState): Building[] {
     return this.host.entities
       .buildings()
-      .filter((b) => b.alive && b.owner !== p.id && b.owner !== NEUTRAL_OWNER && !isRuin(b.owner) && !b.indestructible && !(b instanceof NationCapital && b.down) && !this.host.isShielded(b));
+      .filter((b) => b.alive && b.owner !== p.id && b.owner !== NEUTRAL_OWNER && !isRuin(b.owner) && !b.indestructible && !(b instanceof NationCapital && b.down) && !this.host.isShielded(b) && !concealedFrom(b, p.id));
   }
 
   /** Army units near an enemy structure (and not busy) get an explicit order to destroy the most valuable one in reach. */

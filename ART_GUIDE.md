@@ -159,9 +159,18 @@
   - mái điện Trung Hoa / Chinese hall roof: 🇻🇳 cong, có đường ngói, nóc, góc vút · 🇬🇧 curved, tile ribs, ridge, swept corners;
   - mái mansard / mansard roof: 🇻🇳 dốc ngắn quanh mép, mặt trên phẳng · 🇬🇧 a short slope round the eaves, flat top;
   - mái tôn nhà xưởng / factory roof: 🇻🇳 dạng răng cưa · 🇬🇧 sawtooth.
+- **Mái không đơn điệu / No plain roofs**
+  - 🇻🇳 Mọi mặt mái và **hông mái** (các mặt dốc, gờ hông) không được để trơn một mảng màu. Phải có chi tiết nhìn rõ ở cỡ sprite: hàng ngói / gân ngói hoặc đường ghép tôn (standing seam), gờ nóc và gờ hông nổi, mép mái có viền hoặc đầu ngói, và ít nhất một điểm nhấn theo kiến trúc thật (cửa mái, tượng nóc, chóp, linh thú, lan can mái…). Mái nhiều tầng hoặc giật cấp khi kiến trúc thật có. Chi tiết phải phủ **đều trên mọi mặt mái** (trước, sau, hai hông), không chỗ có chỗ không.
+  - 🇬🇧 No roof face or **hip** (slopes, hip ridges) may be a bare single-colour slab. It needs detail that reads at sprite size: tile rows / ribs or standing seams, raised ridge and hip lines, a trimmed eave or tile caps, and at least one accent true to the architecture (dormers, ridge ornaments, finial, ridge beasts, roof balustrade…). Use tiered or stepped roofs where the real architecture has them. The detail covers **every roof face evenly** (front, back and both hips), never on some faces only.
+- **Không trùng kiểu dáng / No shared shapes**
+  - 🇻🇳 Mỗi công trình (kể cả cùng loại nhưng khác phe) phải có **kiểu dáng, hình khối và bóng dáng riêng**. Không dùng lại cùng một khối nền, cùng bố cục hay cùng hình dạng rồi chỉ đổi màu / đổi chi tiết nhỏ. Hai công trình đặt cạnh nhau phải phân biệt được ngay bằng hình dáng.
+  - 🇬🇧 Every structure (including the same kind for different nations) has its **own form, massing and silhouette**. Never reuse one base block, layout or shape and only change colours or small details. Two structures side by side must be told apart by shape alone.
 - **Chi tiết kiến trúc / Architectural detail**
   - 🇻🇳 Gờ phào, trụ áp tường, lan can, bậc thềm, chân đế.
   - 🇬🇧 Cornices, pilasters, balustrades, steps, plinths.
+- **Cây thật / Real trees**
+  - 🇻🇳 Cây (khi có) phải dựng như cây thật của đúng loài: thân thuôn có độ nghiêng, cành vươn ra, tán là nhiều cụm lá không đều (khối gồ ghề, hai sắc xanh), không dùng hình nón / quả cầu trơn.
+  - 🇬🇧 Trees (when present) are modelled like real trees of the right species: a tapering, slightly leaning trunk, branches reaching out, a canopy of irregular leaf clumps (rough blobs, two greens), never plain cones or spheres.
 - **Không tự thêm / Nothing extra**
   - 🇻🇳 **Không** đặt cây, hàng rào, cổng hay vật trang trí khi người dùng không yêu cầu.
   - 🇬🇧 **No** trees, fences, gates or decoration unless the user asks for them.
@@ -248,6 +257,8 @@
 - [ ] Camera orthographic 30°, ánh sáng chuẩn mục 2 / Orthographic 30° camera, standard lighting (section 2)
 - [ ] Kích thước trên màn hình đúng theo nhóm, công trình phủ kín nền / On-screen size per group, structures fill their plot
 - [ ] Khối cứng chỗ cần khối, bo tròn chỗ cần bo / Hard where hard, rounded where rounded
+- [ ] Mái và hông mái có chi tiết, không trơn đơn điệu / Roofs and hips detailed, never plain
+- [ ] Kiểu dáng riêng, không trùng hình khối với công trình khác / Own shape, no massing shared with another structure
 - [ ] Chi tiết đủ, sắc nét, không như lego hay hoạt hình / Detailed, sharp, no Lego or cartoon look
 - [ ] Màu thật, cờ và phù hiệu theo thiết kế trong game / Real colours; game flag and marking designs
 - [ ] Có line nhận dạng màu phe (`TEAM`) trên công trình, lính, phương tiện / Faction identity line (`TEAM`) on structures, soldiers, vehicles

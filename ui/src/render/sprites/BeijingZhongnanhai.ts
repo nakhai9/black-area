@@ -11,16 +11,16 @@ const SLOGAN = '#f4efe2';
 /** The tall flag pole stands in front of the gate on its centre line (u, v, pole height). */
 const FLAG_POLE: readonly [number, number, number] = [2.0 * S, 3.62 * S, 80];
 /** Red lanterns hanging under the lower eave either side of the doors. */
-const LANTERN_U = [1.15 * S, 2.85 * S] as const;
-const LANTERN_V = 3.02 * S;
-const LANTERN_Z = 17 * S;
+const LANTERN_U = [1.65, 3.35] as const;
+const LANTERN_V = 3.4;
+const LANTERN_Z = 17.5;
 
-/** Rendered in Blender (tools/blender/building_render.py capital-china). */
-const PICTURE: PictureSpec = { file: 'building-capital-china', originX: 166, originY: 83.625, scale: 3, footprint: { w: 5, d: 5 }, zScale: 1.35 };
+/** Rendered in Blender (tools/blender/models/capital_china.py, building_render.py capital-china). */
+const PICTURE: PictureSpec = { file: 'building-capital-china', originX: 166, originY: 87, scale: 3, footprint: { w: 5, d: 5 }, zScale: 1.35 };
 
 /** Slogan in white characters across the front face of a slogan wall (old art units u, w). */
 function slogan(p: IsoPainter, u: number, w: number, text: string): void {
-  p.faceTransform('left', u * S, (2.75 + 0.3) * S, S, (ctx) => {
+  p.faceTransform('left', u * S, 3.84, S, (ctx) => {
     const fw = w * S * HALF_TW;
     ctx.save();
     ctx.translate(fw / 2, 6 * S);
@@ -35,10 +35,10 @@ function slogan(p: IsoPainter, u: number, w: number, text: string): void {
 }
 
 /**
- * Beijing — Zhongnanhai's Xinhuamen (New China Gate): a two-storey red gate tower on a grey stone base — red columns
- * and red studded doors below, a golden-orange glazed lower eave with a white balustrade, a red upper storey of
- * lattice windows with the national emblem, and a curled double hip-and-gable roof with finials; red slogan walls
- * either side, stone lions, the tall flag pole on the centre line in front, and a hall and trees of the compound behind.
+ * Beijing — Zhongnanhai: Xinhuamen (New China Gate) on a white marble plinth — red columns and three studded doors,
+ * a golden glazed skirt eave with a white balustrade, a red upper storey with the national emblem and a double-eaved
+ * xieshan roof; red compound walls, the two slogan walls, stone lions, guard boxes and pines on the forecourt, the
+ * flag pole on the centre line; behind the wall the Nanhai lake with the Yingtai pavilion and the Qinzheng hall.
  */
 /** The landmark with `flag` flying over it (its own nation's, until it is captured). */
 export function createBeijingZhongnanhaiArt(flag: Allegiance = 'china'): BuildingArt {

@@ -39,7 +39,7 @@ export const DEMO_FACTION: FactionId = NATION_CODES[(import.meta.env.VITE_DEMO_F
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "3.75.307";
+export const GAME_VERSION = "3.75.319";
 /** Transport aircraft (C-17, Il-76, Y-20, A400M) are drawn this many iso px long: 13, +20% (v3.75.224). */
 export const TRANSPORT_LENGTH = 13 * 1.2 * 0.9;
 
@@ -540,6 +540,22 @@ export const FOOTPRINT_GATE = { w: 4, d: 1 } as const;
 export const FUEL_STATION_COST = 2500;
 export const FUEL_STATION_HP = 1800;
 export const FOOTPRINT_FUEL_STATION = { w: 10, d: 8 } as const;
+/**
+ * Reserve Capital (every nation, its own design, 3 × 4): the wartime seat of government. Any number, needs a High-Tech
+ * Center. An ordinary structure while the capital stands; when it falls the government picks one reserve and moves
+ * there: that one takes over every job of the capital (build, buy oil, home, defeat check). Player and AI alike.
+ */
+export const RESERVE_CAPITAL_COST = 6000;
+/** HP as a share of the nation's own capital. */
+export const RESERVE_CAPITAL_HP_SHARE = 0.7;
+/**
+ * A Reserve Capital is hidden from other nations (not drawn on the map, the radar or the big map, not a target) until
+ * it becomes the seat of government, or until one of their units comes within this many cells (then it stays known
+ * to that nation and may be attacked). It may be placed anywhere on the nation's reach (no build radius).
+ */
+export const RESERVE_CAPITAL_SPOT_CELLS = 12;
+export const RESERVE_CAPITAL_NATIONS: readonly string[] = ['usa', 'russia', 'china', 'europe', 'islamic'];
+export const FOOTPRINT_RESERVE_CAPITAL = { w: 3, d: 4 } as const;
 /** Radar Tower (2 × 2): runs the nation's radar (minimap); an Airfield needs one. */
 export const RADAR_TOWER_COST = 1500;
 export const RADAR_TOWER_HP = 1200;
@@ -1672,6 +1688,7 @@ export const BUILDING_VALUE: Readonly<Partial<Record<BuildingType, number>>> = {
   port: PORT_COST,
   radarTower: RADAR_TOWER_COST,
   fuelStation: FUEL_STATION_COST,
+  reserveCapital: RESERVE_CAPITAL_COST,
   techCenter: TECH_CENTER_COST,
   happyCity: HAPPY_CITY_COST,
   powerPlant: POWER_PLANT_COST,

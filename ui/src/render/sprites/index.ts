@@ -19,6 +19,7 @@ import { createOilDerrickArt } from './OilDerrick';
 import { createPowerPlantArt } from './PowerPlant';
 import { createRadarTowerArt } from './RadarTower';
 import { createFuelStationArt } from './FuelStation';
+import { createReserveCapitalArt } from './ReserveCapital';
 import { createMissileSiloArt } from './MissileSilo';
 import { createGrandMosqueArt } from './GrandMosque';
 import { createWashingtonWhiteHouseArt } from './WashingtonWhiteHouse';
@@ -109,6 +110,7 @@ export const BUILDING_ART: Readonly<Record<string, BuildingArt>> = {
   'fuelStation:china': createFuelStationArt('china'),
   'fuelStation:europe': createFuelStationArt('europe'),
   'fuelStation:islamic': createFuelStationArt('islamic'),
+  ...Object.fromEntries((['usa', 'russia', 'china', 'europe', 'islamic'] as const).map((f) => [`reserveCapital:${f}`, createReserveCapitalArt(f)] as const)),
   // Happy City in each nation's own architecture.
   'happyCity:usa': createHappyCityArt('usa'),
   'happyCity:russia': createHappyCityArt('russia'),
@@ -219,6 +221,8 @@ function rebuildArt(key: string): BuildingArt | undefined {
       return createRadarTowerArt(f);
     case 'fuelStation':
       return createFuelStationArt(f);
+    case 'reserveCapital':
+      return createReserveCapitalArt(f);
     case 'missileSilo':
       return createMissileSiloArt(f);
     default:
