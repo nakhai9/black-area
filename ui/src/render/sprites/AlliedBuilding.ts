@@ -45,16 +45,19 @@ export function mirrored(p: IsoPainter, u: number, v: number, z: number, draw: (
 }
 
 /** Allied Building (4×4 tiles) in the leading nation's architecture, with the owner's national flag (`flag`) and its ally flag (black, the nation's emblem) side by side at the front, facing each other. */
-export function createAlliedBuildingArt(faction: FactionId, flag: FactionId = faction): BuildingArt {
+/** `second`: a national flag for the right pole instead of the black ally flag (Parallel Government: the host nation's flag). */
+export function createAlliedBuildingArt(faction: FactionId, flag: FactionId = faction, second?: FactionId): BuildingArt {
   return pictureArt(PICTURE[faction], {
     overlay(p) {
-      for (const [u, v] of FLAGS) drawNationalPole(p, flag, u, v, 2 + WING_H, 30);
+      FLAGS.forEach(([u, v], i) => drawNationalPole(p, i === 1 && second ? second : flag, u, v, 2 + WING_H, 30));
     },
     drawAnimated(p, time) {
       FLAGS.forEach(([u, v], i) =>
         i === 0
           ? drawFlagOnPole(p, flag, u, v, 32 + WING_H, time, 0)
-          : mirrored(p, u, v, 32 + WING_H, () => drawEmblemFlagOnPole(p, flag, u, v, 32 + WING_H, time, 1.1)),
+          : mirrored(p, u, v, 32 + WING_H, () =>
+              second ? drawFlagOnPole(p, second, u, v, 32 + WING_H, time, 1.1) : drawEmblemFlagOnPole(p, flag, u, v, 32 + WING_H, time, 1.1),
+            ),
       );
     },
   });
