@@ -26,7 +26,7 @@
 <body>
 <main>
 <img class="logo" src="/logo.png" alt="Black Area" />
-<h1>Black Area — RULE <small>v3.75.335</small></h1>
+<h1>Black Area — RULE <small>v3.75.340</small></h1>
 <p class="lead">Tài liệu luật chơi + kiến trúc code dành cho AI/dev sửa game. Mọi con số gameplay chính xác nằm trong <code>src/constants.ts</code> và <code>src/factions/*.ts</code>. Nếu tài liệu này khác code thì <b>code đúng</b>. <b>Khi đổi luật/số trong code, phải cập nhật file này.</b></p>
 <nav><a href="#s1">Quy tắc làm việc cho AI</a><a href="#s2">Chạy dự án</a><a href="#s3">Kiến trúc thư mục</a><a href="#s4">Thế giới</a><a href="#s5">Kinh tế (dầu)</a><a href="#s6">Công trình (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Quân đội</a><a href="#s8">Chiến đấu</a><a href="#s9">Điều khiển (Game.handleKey, handleInput)</a><a href="#s10">Giới hạn &amp; hiệu năng</a><a href="#s11">Thắng / thua &amp; AI</a><a href="#s12">Công thức sửa thường gặp</a></nav>
 <h2 id="s1">0. Quy tắc làm việc cho AI</h2>
@@ -706,6 +706,11 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
   <li>v3.41.5: Sửa lỗi máy bay vận tải bay vòng tròn mãi quanh điểm hạ cánh (không đáp được, không nhận lệnh di chuyển): khi điểm đến nằm trong vòng quay, máy bay bay thẳng tới. Lệnh di chuyển mới trong lúc đang bay tới điểm hạ cánh giờ được nhận (hủy hạ cánh, bay đi).</li>
   <li>v3.41.5: Máy bay không còn nhận <b>Cảng (Naval Port)</b> làm sân bay nhà (không đậu, không hạ cánh, không được sinh ra ở cảng). Loại máy bay được đậu ở cảng sẽ quy ước sau: thêm vào <code>PORT_AIRCRAFT</code> trong <code>src/systems/AircraftSystem.ts</code>. Máy bay đang lấy cảng làm nhà (bản lưu cũ) sẽ chuyển sang sân bay khác của phe; không còn sân bay nào thì rơi như luật cũ.</li>
     <li>v3.56.1: <b>Giảm tiếng động cơ mọi phương tiện</b>: <code>VEHICLE_BED_GAIN</code> 1.6 → 1.0, máy bay / trực thăng <code>AIR_BED_BOOST</code> 2.2 → 1.5. <b>Máy bay vận tải</b> (C-17, Il-76, Y-20, A400M, mặc định) tăng gain 0.85–0.9 → 1.35 để to ngang các máy bay khác (tiếng động cơ trầm, ít tiếng rít nên trước nghe nhỏ hơn).</li>
+    <li>v3.75.340: Công trình đổi tên thành <b>Missile Silo</b> (cửa hàng, nhãn rê chuột, tin tức); RS-24 Yars chỉ còn là tên quả tên lửa phóng ra từ silo.</li>
+    <li>v3.75.339: Ô RS-24 Yars trong cửa hàng hiện hình công trình hầm phóng (silo) thay cho hình quả tên lửa.</li>
+    <li>v3.75.338: RS-24 Yars (tên lửa) chuyển từ tab Build sang tab Defense, cạnh R-12 Dvina.</li>
+    <li>v3.75.337: RS-24 Yars hiện trong cửa hàng (tab Build) khi đủ điều kiện (Trung tâm Công nghệ cao, Radar Tower, đủ 10 kỹ sư); không đủ tiền thì ô bị khoá (bấm vào nghe "Cannot buy. Not enough money.").</li>
+    <li>v3.75.336: Trung tâm Công nghệ cao giữ tối đa 10 kỹ sư: đủ rồi thì không nhận thêm (kỹ sư được gửi tới ở lại bên ngoài), số dư (save cũ) tự đi ra ngoài thành kỹ sư dùng được. Áp dụng cho cả người chơi và AI.</li>
     <li>v3.75.335: Mỗi lính Crazy Soldier / kỹ sư Hồi giáo mang tối đa 5 quả mìn đặt đất (trước là 3), không bao giờ nạp lại; hết mìn vẫn cài bom phá nhà, công trình, xe không giới hạn. Áp dụng cho cả người chơi và AI.</li>
     <li>v3.75.334: Bấm vào ô bị khoá trong cửa hàng (công trình, lính, xe/máy bay): giọng nói tiếng Anh "Cannot buy." kèm lý do (thiếu tiền, thiếu công trình yêu cầu, thiếu kỹ sư, đạt giới hạn...). News: cột HẠT NHÂN hiện thêm số hầm phóng bên phải icon.</li>
     <li>v3.75.333: Menu tạm dừng (Esc) bỏ nút Save game, chỉ còn Continue và Quit game.</li>

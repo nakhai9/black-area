@@ -236,6 +236,9 @@ export default {
   "{name} has won a new ally (Allied Building)": "{name} có thêm đồng minh mới (Allied Building)",
   "{name} has raised a Parallel Government": "{name} dựng Chính phủ song song",
   "Engineer joined the nuclear programme: {n}/{need} for a missile silo.": "Kỹ sư đã vào chương trình hạt nhân: {n}/{need} cho một hầm phóng.",
+  "The Tech Center already has {need} engineers: this one stays outside.": "Trung tâm Công nghệ cao đã đủ {need} kỹ sư: kỹ sư này ở lại bên ngoài.",
+  "The Tech Center only needs {need} engineers: {n} walked back out.": "Trung tâm Công nghệ cao chỉ cần {need} kỹ sư: {n} người đã đi ra ngoài.",
+  "The Tech Center already has {need} engineers.": "Trung tâm Công nghệ cao đã đủ {need} kỹ sư.",
   "Tech Center repaired by its engineers: {n}/{need} left for the missile silo.": "Kỹ sư đã sửa xong Trung tâm Công nghệ cao: còn {n}/{need} kỹ sư cho hầm phóng.",
   "{name} needs {need} engineers sent into your Tech Center first ({n}/{need}).": "{name} cần {need} kỹ sư vào Trung tâm Công nghệ cao trước ({n}/{need}).",
 } satisfies Record<string, string>;

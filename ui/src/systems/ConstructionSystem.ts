@@ -164,7 +164,7 @@ const OWN_OPTIONS: readonly BuildOption[] = [
     // RS-24 Yars: the underground missile silo (3 × 3), every nation; needs a Tech Center and a Radar Tower, draws
     // SILO_POWER_DRAIN power.
     id: 'yars',
-    name: 'RS-24 Yars',
+    name: 'Missile Silo',
     requires: ['techCenter', 'radarTower'],
     cost: YARS_COST,
     fixedCost: true,

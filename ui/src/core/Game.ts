@@ -227,7 +227,6 @@ import { MissileSilo } from '../entities/MissileSilo';
 import { TechCenter } from '../entities/TechCenter';
 import { SiloButton } from '../ui/SiloButton';
 import { sitePreview, siteRailHeight } from '../render/DvinaSheets';
-import { yarsPreview } from '../render/YarsSheets';
 import { ldewLensHeight, ldewPreview } from '../render/PrototypeSheets';
 import { PowerSystem } from '../systems/PowerSystem';
 import { SAFE_ZONE_SIZE, type SafeZone, SafeZoneSystem } from '../systems/SafeZoneSystem';
@@ -891,8 +890,9 @@ export class Game {
       },
       preview: (option) => {
         // Sheet-drawn cameos (bunker, LDEW, Dvina, Yars) are null while their sheets load: the sidebar retries them.
-        const custom = option.id === 'bunker' || option.id === 'ldew' || option.id === 'dvina' || option.id === 'yars';
-        const art = option.id === 'bunker' ? bunkerPreview(human.faction) : option.id === 'ldew' ? ldewPreview(human.faction) : option.id === 'dvina' ? sitePreview('dvina', human.faction) : option.id === 'yars' ? yarsPreview(human.faction) : null;
+        // RS-24 Yars: the cameo shows the silo structure itself (its building sprite), not the missile.
+        const custom = option.id === 'bunker' || option.id === 'ldew' || option.id === 'dvina';
+        const art = option.id === 'bunker' ? bunkerPreview(human.faction) : option.id === 'ldew' ? ldewPreview(human.faction) : option.id === 'dvina' ? sitePreview('dvina', human.faction) : null;
         return { canvas: art ?? this.sprites.get(option.spriteKey(human.faction)).canvas, final: !custom || art !== null };
       },
       onTrain: (option) => this.issue({ k: 'train', tier: option.key }),
@@ -2281,6 +2281,13 @@ export class Game {
       if (!(b instanceof TechCenter) || !b.alive) continue;
       const p = this.players.find((q) => q.id === b.owner);
       if (!p) continue;
+      // More than SILO_SCIENTISTS inside (older saves): the extra engineers walk back out of the door.
+      if ((p.scientists ?? 0) > SILO_SCIENTISTS) {
+        const extra = (p.scientists ?? 0) - SILO_SCIENTISTS;
+        p.scientists = SILO_SCIENTISTS;
+        for (let i = 0; i < extra; i++) this.spawnSoldier(p, 'engineer', b, p.faction as FactionId, true);
+        if (p.id === this.humanPlayer.id) this.sidebar.notify(t('The Tech Center only needs {need} engineers: {n} walked back out.', { need: SILO_SCIENTISTS, n: extra }), 4);
+      }
       if (b.hp >= b.maxHp || (p.scientists ?? 0) <= 0) {
         b.mending = false;
         continue;
@@ -2296,7 +2303,13 @@ export class Game {
 
   /** An engineer walks into its nation's own Tech Center to work on the nuclear programme (used up there; see SILO_SCIENTISTS). */
   orderScience(u: Infantry, b: Building): boolean {
-    if (!u.isEngineer || b.owner !== u.owner || b.spec.type !== 'techCenter' || b.hp < b.maxHp || !this.walkToDoor(u, b)) return false;
+    if (!u.isEngineer || b.owner !== u.owner || b.spec.type !== 'techCenter' || b.hp < b.maxHp) return false;
+    // Fully staffed (SILO_SCIENTISTS inside): no more engineers go in.
+    if ((this.players.find((p) => p.id === u.owner)?.scientists ?? 0) >= SILO_SCIENTISTS) {
+      if (u.owner === this.humanPlayer.id) this.sidebar.notify(t('The Tech Center already has {need} engineers.', { need: SILO_SCIENTISTS }), 3);
+      return false;
+    }
+    if (!this.walkToDoor(u, b)) return false;
     u.task = { type: 'science', buildingId: b.id };
     return true;
   }
@@ -5027,6 +5040,12 @@ export class Game {
   /** Another nation's design is on sale only while its capital, or a structure of that type of it, taken by an engineer, is held. */
   private buildAvailable(player: PlayerState, option: BuildOption): boolean {
     if (demoActive) return true; // DEMO: every structure of every nation shown
+    // RS-24 Yars: in the shop once its conditions are met (Tech Center, Radar Tower, SILO_SCIENTISTS engineers inside);
+    // only the money is left to decide (cameo greyed out when short).
+    if (option.id === 'yars') {
+      const owned = new Set(this.entities.buildings().filter((b) => b.alive && b.owner === player.id).map((b) => b.spec.type));
+      return owned.has('techCenter') && owned.has('radarTower') && (player.scientists ?? 0) >= SILO_SCIENTISTS;
+    }
     if (option.nation) return holdsNation(this.entities, player, option.nation);
     if (option.nations) return option.nations.some((n) => holdsNation(this.entities, player, n));
     const offered = buildOffered(option, player.faction);
@@ -6840,8 +6859,8 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
   }
 
   /** A trained soldier walks out of the barracks' front door to a free rally cell. */
-  private spawnSoldier(player: PlayerState, tier: UnitTier, barracks: Building, faction: FactionId = player.faction as FactionId): void {
-    if (player.id === this.localId && !this.spawningDemo) this.sound.announce('Unit ready');
+  private spawnSoldier(player: PlayerState, tier: UnitTier, barracks: Building, faction: FactionId = player.faction as FactionId, quiet = false): void {
+    if (player.id === this.localId && !this.spawningDemo && !quiet) this.sound.announce('Unit ready');
     const doorX = barracks.x + Math.floor(barracks.w / 2);
     const doorY = barracks.y + barracks.d;
     const exit = this.pathfinder.nearestPassable(doorX, doorY, PARADE_MAX_CELLS);
@@ -7447,6 +7466,10 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
           u.insideId = b.id;
           u.stop();
           this.selection.selectedUnits.delete(u.id);
+        } else if (owner && b.owner === u.owner && b.spec.type === 'techCenter' && (owner.scientists ?? 0) >= SILO_SCIENTISTS) {
+          // Fully staffed: the engineer is turned away and stays outside, at the door.
+          u.stop();
+          if (u.owner === this.humanPlayer.id) this.sidebar.notify(t('The Tech Center already has {need} engineers: this one stays outside.', { need: SILO_SCIENTISTS }), 3);
         } else if (owner && b.owner === u.owner && b.spec.type === 'techCenter') {
           owner.scientists = (owner.scientists ?? 0) + 1;
           this.selection.selectedUnits.delete(u.id);

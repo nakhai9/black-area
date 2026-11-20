@@ -3,7 +3,7 @@ import type { FactionId, WorldPoint } from '../types';
 import { Building } from './Building';
 
 /**
- * Underground missile silo (3 × 3, Defense tab, shop name "RS-24 Yars"): needs a Tech Center and a Radar Tower and
+ * Underground missile silo (3 × 3, Defense tab, shop name "Missile Silo"; fires RS-24 Yars ICBMs): needs a Tech Center and a Radar Tower and
  * draws SILO_POWER_DRAIN power, far more than any other structure. It holds one RS-24 Yars ICBM at a time: each is
  * paid (SILO_MISSILE_COST) and loaded in SILO_RELOAD s, then fired only on an order at any point in range
  * (CombatSystem.silos). The launch lid swings open for the launch and closes after it. Player and AI alike.
@@ -28,7 +28,7 @@ export class MissileSilo extends Building {
   constructor(owner: number, faction: FactionId, center: WorldPoint) {
     super(owner, faction, center, {
       type: 'missileSilo',
-      name: 'RS-24 Yars',
+      name: 'Missile Silo',
       footprint: FOOTPRINT_SILO,
       maxHp: SILO_HP,
       powerOutput: 0,
