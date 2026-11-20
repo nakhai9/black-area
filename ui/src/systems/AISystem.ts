@@ -662,6 +662,9 @@ export class AISystem implements GameSystem {
       this.contestNations(p, st, capital, owned, threat);
       this.leaseOil(p, st, owned, threat);
       this.keepCeasefire(p, st, capital);
+      // Transports already on a run still deliver their troops to the planned drop point (player and AI alike).
+      this.driveConvoys(p, st, capital);
+      this.driveAirlifts(p, st);
       return;
     }
     this.contestNations(p, st, capital, owned, threat);
@@ -2711,6 +2714,8 @@ export class AISystem implements GameSystem {
     const out: Unit[] = [];
     for (const u of this.host.entities.fieldMovers()) {
       if (u.owner !== p.id || !u.alive || u.task?.type === 'lease' || u.retreating || u.fixed || (u instanceof Infantry && u.isEngineer)) continue;
+      // A loaded transport on its run keeps going to its drop point in peace time too (no turning back home).
+      if (u instanceof Vehicle && u.isCarrier && (u.cargo.length > 0 || u.ejecting)) continue;
       // Already standing at the capital: ordering it there again every think only costs a path search.
       if (!u.moving && Math.hypot(u.px - home.x, u.py - home.y) < 6 * CELL_SIZE) continue;
       if (near(u)) out.push(u);
@@ -2718,10 +2723,7 @@ export class AISystem implements GameSystem {
     for (const [id] of st.convoys) {
       const t = this.host.entities.get(id);
       if (!(t instanceof Vehicle) || !t.alive) st.convoys.delete(id);
-      else if (near(t)) {
-        if (t.cargo.length > 0) this.host.unloadTruck(t); // the riders get off and fall back on foot
-        st.convoys.delete(id);
-      }
+      // A convoy still drives on and unloads at its planned point (driveConvoys), peace or war.
     }
     if (out.length > 0) this.host.orderRetreat(out, home);
   }

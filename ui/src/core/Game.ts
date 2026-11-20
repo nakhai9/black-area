@@ -3806,7 +3806,9 @@ export class Game {
         u.combatTarget = null;
         u.engaged = false;
         u.chasing = false;
-        if (u.attackMove !== null && !u.flies) u.stop(); // an advance on the enemy halts where it is
+        // An advance on the enemy halts where it is — except a loaded transport, which still delivers its troops.
+        const run = u instanceof Vehicle && u.isCarrier && u.cargo.length > 0;
+        if (u.attackMove !== null && !u.flies && !run) u.stop();
         u.attackMove = null;
         if (u instanceof Infantry) u.charge = null;
         if (u.task?.type === 'capture') {
