@@ -6,6 +6,17 @@ import { t } from '../i18n';
  * "BREAKING NEWS" toasts in the top-left corner of the screen (e.g. a nation has been defeated).
  * Several can be on screen at once; each fades out by itself.
  */
+/** One column in the top-left corner holding both the news and the alert toasts (news first, alerts under it). */
+function toastColumn(parent: HTMLElement): HTMLElement {
+  let col = parent.querySelector<HTMLElement>(':scope > .toast-column');
+  if (!col) {
+    col = document.createElement('div');
+    col.className = 'toast-column';
+    parent.append(col);
+  }
+  return col;
+}
+
 export class NewsToast {
   private readonly stack: HTMLElement;
 
@@ -14,7 +25,7 @@ export class NewsToast {
     this.stack.className = 'news-stack';
     this.stack.setAttribute('role', 'status');
     this.stack.setAttribute('aria-live', 'assertive');
-    parent.append(this.stack);
+    toastColumn(parent).prepend(this.stack);
   }
 
   /** seconds = null keeps the toast up until the returned function is called. */
@@ -43,7 +54,7 @@ export class NewsToast {
 const MAX_ALERT_TOASTS = 4;
 
 /**
- * Alerts ("X is under attack!") as toasts in the top-right corner, styled like the news but with an alert icon in
+ * Alerts ("X is under attack!") as toasts in the top-left corner (under the news), styled like the news but with an alert icon in
  * place of the "BREAKING NEWS" tag. Clicking one looks at where it happened.
  */
 export class AlertToast {
@@ -57,7 +68,7 @@ export class AlertToast {
     this.stack.className = 'news-stack alert-stack';
     this.stack.setAttribute('role', 'status');
     this.stack.setAttribute('aria-live', 'assertive');
-    parent.append(this.stack);
+    toastColumn(parent).append(this.stack);
   }
 
   show(detail: string, at: WorldPoint, seconds = 8): void {

@@ -1,3 +1,4 @@
+import { Profiler } from './Profiler';
 import { DVINA_TRAIL_SECONDS } from '../render/SamMissile';
 import { ReserveCapital, concealedFrom, isSeat } from '../entities/ReserveCapital';
 import type { DvinaMissile } from '../systems/CombatSystem';
@@ -3374,6 +3375,9 @@ export class Game {
     }
   }
 
+  /** F9: per-step timing overlay (ms per tick, averaged over 1 s), to find what slows big battles. */
+  readonly prof = new Profiler();
+
   private simTick(dt: number): void {
     // A multiplayer match never pauses (the menu opens, the war goes on).
     if (this.ended || (this.paused && !this.lockstep)) {
@@ -3391,8 +3395,8 @@ export class Game {
         p.alt = u instanceof Vehicle ? u.altitude : 0;
       } else this.prevPos.set(u, { x: u.px, y: u.py, alt: u instanceof Vehicle ? u.altitude : 0 });
     }
-    this.updateWarCycle(dt);
-    this.updateViolators(dt);
+    this.prof.time('updateWarCycle', () => this.updateWarCycle(dt));
+    this.prof.time('updateViolators', () => this.updateViolators(dt));
     this.endCheck += dt;
     if (this.endCheck >= 1) {
       this.endCheck = 0;
@@ -3408,38 +3412,39 @@ export class Game {
       if (!u.flies && !u.inWater) u.terrainFactor *= this.climbFactor(u);
     }
     this.paths.update();
-    this.queueInCrowds();
-    this.yieldAtCrossings(dt);
+    this.prof.time('queueInCrowds', () => this.queueInCrowds());
+    this.prof.time('yieldAtCrossings', () => this.yieldAtCrossings(dt));
     this.entities.update(dt);
-    this.motionSound();
-    this.keepOutOfWater();
-    this.crushInfantry();
-    this.processBoarding();
-    this.processTruckUnloading(dt);
-    this.separateUnits();
-    this.keepOnDeck();
-    this.keepOffStructures();
-    this.updateBridgeLayers();
-    this.watchBuildingHits();
-    this.repathStuckUnits(dt);
-    this.giveWay(dt);
-    this.processTasks();
-    this.processDemolition(dt);
-    this.processMines();
-    this.processDrones();
-    this.processRepairs(dt);
-    this.processMends(dt);
-    this.processFactoryRepairs(dt);
-    this.processPortRepairs(dt);
-    this.processPatients(dt);
-    this.regenVeterans(dt);
+    this.prof.time('motionSound', () => this.motionSound());
+    this.prof.time('keepOutOfWater', () => this.keepOutOfWater());
+    this.prof.time('crushInfantry', () => this.crushInfantry());
+    this.prof.time('processBoarding', () => this.processBoarding());
+    this.prof.time('processTruckUnloading', () => this.processTruckUnloading(dt));
+    this.prof.time('separateUnits', () => this.separateUnits());
+    this.prof.time('keepOnDeck', () => this.keepOnDeck());
+    this.prof.time('keepOffStructures', () => this.keepOffStructures());
+    this.prof.time('updateBridgeLayers', () => this.updateBridgeLayers());
+    this.prof.time('watchBuildingHits', () => this.watchBuildingHits());
+    this.prof.time('repathStuckUnits', () => this.repathStuckUnits(dt));
+    this.prof.time('giveWay', () => this.giveWay(dt));
+    this.prof.time('processTasks', () => this.processTasks());
+    this.prof.time('processDemolition', () => this.processDemolition(dt));
+    this.prof.time('processMines', () => this.processMines());
+    this.prof.time('processDrones', () => this.processDrones());
+    this.prof.time('processRepairs', () => this.processRepairs(dt));
+    this.prof.time('processMends', () => this.processMends(dt));
+    this.prof.time('processFactoryRepairs', () => this.processFactoryRepairs(dt));
+    this.prof.time('processPortRepairs', () => this.processPortRepairs(dt));
+    this.prof.time('processPatients', () => this.processPatients(dt));
+    this.prof.time('regenVeterans', () => this.regenVeterans(dt));
     this.janitorTimer += dt;
     if (this.janitorTimer >= JANITOR_INTERVAL) {
       this.janitorTimer = 0;
       this.collectGarbage();
     }
-    for (const s of this.systems) s.update(dt);
-    this.enforceEmbargoes();
+    for (const s of this.systems) this.prof.time(s.constructor.name, () => s.update(dt));
+    this.prof.time('enforceEmbargoes', () => this.enforceEmbargoes());
+    this.prof.tick(this.entities.fieldMovers().length);
     this.autoSellClock += dt;
     if (this.autoSellClock >= SIDEBAR_REFRESH) {
       this.autoSellClock = 0;
@@ -4183,7 +4188,8 @@ export class Game {
       this.bigMap?.setNuclearState(count.has(this.localId), mineReady);
     }
     const units = this.entities.fieldMovers();
-    this.drawInterpolated(units, alpha, () => this.renderer.render({
+    this.prof.frame();
+    this.drawInterpolated(units, alpha, () => this.prof.drawTime(() => this.renderer.render({
       buildings,
       selectedId: this.selection.selectedId,
       localOwner: this.localId,
@@ -4214,7 +4220,7 @@ export class Game {
       focus: focus.map((f) => ({ entity: f.entity, strong: f.strong, engaged: f.engaged, airLock: f.airLock })),
       taskLocks: this.placing ? [] : this.taskLocks(),
       effects: this.effects.list,
-    }));
+    })));
     // The radar does not need 60 updates a second: 12 are plenty and save a full redraw every other frame.
     this.minimapTimer += dt;
     if (this.minimapTimer >= 1 / 12) {
