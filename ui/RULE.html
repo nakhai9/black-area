@@ -26,7 +26,7 @@
 <body>
 <main>
 <img class="logo" src="/logo.png" alt="Black Area" />
-<h1>Black Area — RULE <small>v3.75.321</small></h1>
+<h1>Black Area — RULE <small>v3.75.324</small></h1>
 <p class="lead">Tài liệu luật chơi + kiến trúc code dành cho AI/dev sửa game. Mọi con số gameplay chính xác nằm trong <code>src/constants.ts</code> và <code>src/factions/*.ts</code>. Nếu tài liệu này khác code thì <b>code đúng</b>. <b>Khi đổi luật/số trong code, phải cập nhật file này.</b></p>
 <nav><a href="#s1">Quy tắc làm việc cho AI</a><a href="#s2">Chạy dự án</a><a href="#s3">Kiến trúc thư mục</a><a href="#s4">Thế giới</a><a href="#s5">Kinh tế (dầu)</a><a href="#s6">Công trình (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Quân đội</a><a href="#s8">Chiến đấu</a><a href="#s9">Điều khiển (Game.handleKey, handleInput)</a><a href="#s10">Giới hạn &amp; hiệu năng</a><a href="#s11">Thắng / thua &amp; AI</a><a href="#s12">Công thức sửa thường gặp</a></nav>
 <h2 id="s1">0. Quy tắc làm việc cho AI</h2>
@@ -215,7 +215,7 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
   <li>High-Tech Center mở <code>TECH_TIERS</code> (<code>special</code>, <code>demolition</code>) và <code>transport</code>.</li>
   <li>Happy City: không giới hạn số lượng.</li>
   <li>Allied Building (đại sứ quán): cần có <b>Barracks + War Factory</b> và phe đã <b>cắm lá cờ đầu tiên</b> (lính Squatters cắm cờ hoặc xây công trình Flagpole; mở khoá vĩnh viễn kể cả khi cờ đó bị phá) (áp dụng cả AI), mỗi phe tối đa <code>MAX_ALLIES = 6</code> (đang có + đang xây), không cần cờ; đặt như công trình thường, cạnh cờ đã cắm hoặc công trình của phe mình (<code>BUILD_RADIUS</code>), trên bề mặt xây được. Tên: trong <code>EMBASSY_CAPITAL_CELLS = 25</code> ô quanh bất kỳ thủ đô nào (phe hoặc quốc gia tranh chấp) → "&lt;phe&gt; Embassy in &lt;thành phố&gt;"; xa hơn mọi thủ đô → "<b>Pro-&lt;phe&gt; regime</b>" (ví dụ "Pro-USA regime"). AI theo cùng luật: xây đại sứ quán cạnh cờ chưa có đại sứ quán, hoặc cạnh công trình của mình cách thủ đô &gt; 25 ô.</li>
-  <li>Tab Allies hiện: tất cả thủ đô phe mình đã chiếm (thủ đô quốc gia tranh chấp + thủ đô phe đối thủ, dạng "Tên thủ đô (Phe)") và các đại sứ quán (Allied Building, dạng "&lt;phe&gt; Embassy in &lt;thành phố thủ đô gần nhất&gt;", ví dụ "USA Embassy in Moscow", hoặc "Pro-&lt;phe&gt; regime" khi xa mọi thủ đô &gt; 25 ô), cùng cờ cắm chờ xây.</li>
+  <li>Tab Allies hiện: tất cả thủ đô phe mình đã chiếm (thủ đô quốc gia tranh chấp + thủ đô phe đối thủ, dạng "Tên thủ đô (Phe)") và các Chính phủ song song (dạng "Chính phủ song song (&lt;nước&gt;)"), cùng cờ cắm chờ xây.</li>
   <li>Engineer sửa từ trong nhà: mỗi kỹ sư <code>ENGINEER_REPAIR_SHARE 6%</code> máu tối đa/s, tới 100% thì ra.</li>
 </ul>
 <h3>Chức năng / nhiệm vụ từng công trình</h3>
@@ -706,6 +706,9 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
   <li>v3.41.5: Sửa lỗi máy bay vận tải bay vòng tròn mãi quanh điểm hạ cánh (không đáp được, không nhận lệnh di chuyển): khi điểm đến nằm trong vòng quay, máy bay bay thẳng tới. Lệnh di chuyển mới trong lúc đang bay tới điểm hạ cánh giờ được nhận (hủy hạ cánh, bay đi).</li>
   <li>v3.41.5: Máy bay không còn nhận <b>Cảng (Naval Port)</b> làm sân bay nhà (không đậu, không hạ cánh, không được sinh ra ở cảng). Loại máy bay được đậu ở cảng sẽ quy ước sau: thêm vào <code>PORT_AIRCRAFT</code> trong <code>src/systems/AircraftSystem.ts</code>. Máy bay đang lấy cảng làm nhà (bản lưu cũ) sẽ chuyển sang sân bay khác của phe; không còn sân bay nào thì rơi như luật cũ.</li>
     <li>v3.56.1: <b>Giảm tiếng động cơ mọi phương tiện</b>: <code>VEHICLE_BED_GAIN</code> 1.6 → 1.0, máy bay / trực thăng <code>AIR_BED_BOOST</code> 2.2 → 1.5. <b>Máy bay vận tải</b> (C-17, Il-76, Y-20, A400M, mặc định) tăng gain 0.85–0.9 → 1.35 để to ngang các máy bay khác (tiếng động cơ trầm, ít tiếng rít nên trước nghe nhỏ hơn).</li>
+    <li>v3.75.324: Main menu có nút icon Expand ở góc trên phải để bật / tắt toàn màn hình (giống Alt+F).</li>
+    <li>v3.75.323: Game bỏ hẳn khái niệm đại sứ quán: Allied Building trong save cũ được tải thành Thủ đô dự bị (Reserve Capital) của cùng chủ, cùng chỗ. Chính phủ song song giờ được vẽ bằng tòa nhà đại sứ quán của phe nắm giữ (nền 4×4 thay cho 4×5), tab Allies ghi "Chính phủ song song (&lt;nước&gt;)". Áp dụng cho cả người chơi và AI.</li>
+    <li>v3.75.322: Bỏ công trình Allied Building (đại sứ quán) khỏi menu xây của người chơi và AI. Đại sứ quán giờ chính là Chính phủ song song: được tính vào số đồng minh và hiện trong tab Allies với tên "Đại sứ quán &lt;phe&gt; tại &lt;thành phố&gt;".</li>
     <li>v3.75.321: Thời gian hòa bình: xe/máy bay vận tải đang chở quân (người chơi và AI) vẫn đi tiếp tới điểm đã định và thả quân, không bị dừng hay gọi về giữa đường.</li>
     <li>v3.75.320: Tên lửa Dvina bay ổn định hơn: lái mượt (giới hạn tốc độ quay, khóa thẳng khi gần mục tiêu), hướng mũi tên lửa vẽ không còn rung.</li>
     <li>v3.75.319: Trung Nam Hải: bỏ hết cây (thông ven hồ và chậu thông ở sân trước); công trình giữ nguyên.</li>

@@ -4,7 +4,6 @@ import { demoActive, demoPrice } from '../core/Demo';
 import {
   MILITARY_BASES,
   AIRFIELD_COST,
-  ALLIED_BUILDING_COST,
   TECH_CENTER_COST,
   RADAR_TOWER_COST,
   FOOTPRINT_RADAR_TOWER,
@@ -42,7 +41,6 @@ import {
 } from '../constants';
 import { Airfield } from '../entities/Airfield';
 import { Port } from '../entities/Port';
-import { AlliedBuilding } from '../entities/AlliedBuilding';
 import { ParallelGovernment } from '../entities/ParallelGovernment';
 import { FACTIONS } from '../factions';
 import { HappyCity } from '../entities/HappyCity';
@@ -271,17 +269,7 @@ const OWN_OPTIONS: readonly BuildOption[] = [
     spriteKey: (f) => `flagpole:${f}`,
     create: (owner, faction, x, y) => new Flagpole(owner, faction, center(x, y, FOOTPRINT_FLAGPOLE)),
   },
-  {
-    // Seat of an ally (embassy / Pro-<nation> regime): built like any structure, next to an own flag or building, no cap.
-    // Locked until the nation plants its first flag (Squatters or a Flagpole; see Game.ownedTypesOf).
-    id: 'alliedBuilding',
-    name: 'Allied Building',
-    requires: ['barracks', 'warFactory', 'flagpole'],
-    cost: ALLIED_BUILDING_COST,
-    footprint: FOOTPRINT_SMALL,
-    spriteKey: (f) => `alliedBuilding:${f}`,
-    create: (owner, faction, x, y) => new AlliedBuilding(owner, faction, center(x, y, FOOTPRINT_SMALL)),
-  },
+  // No Allied Building (embassy) for sale any more: a nation's embassy is its Parallel Government (parallelGov@<nation>).
 ];
 
 /** Structures that make or power a nation's army: a captured capital lets its holder build that nation's version. */

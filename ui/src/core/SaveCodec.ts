@@ -27,7 +27,7 @@ import { Pyramids } from '../entities/Pyramids';
 import { Monument } from '../entities/Monument';
 import { Bridge } from '../entities/Bridge';
 import { NationCapital, type NationId } from '../entities/NationCapital';
-import { CELL_SIZE, MONUMENTS, VEHICLE_BASE, type MonumentId } from '../constants';
+import { CELL_SIZE, FOOTPRINT_SMALL, MONUMENTS, VEHICLE_BASE, type MonumentId } from '../constants';
 import { geoToWorld } from '../map/Geo';
 import { FACTIONS } from '../factions';
 import { BUILD_OPTIONS } from '../systems/ConstructionSystem';
@@ -386,13 +386,23 @@ export class SaveCodec {
    * (it is left out of the loaded game).
    */
   createShell(saved: SavedEntity): Entity | null {
+    // No more embassies: an Allied Building in an old save loads as a Reserve Capital of the same owner, on the same spot.
+    let moved: WorldPoint | null = null;
+    if (saved.cls === 'AlliedBuilding') {
+      const d = saved.data;
+      const cx = (Number(d.x) + FOOTPRINT_SMALL.w / 2) * CELL_SIZE;
+      const cy = (Number(d.y) + FOOTPRINT_SMALL.d / 2) * CELL_SIZE;
+      for (const k of ['x', 'y', 'spec', 'hp', 'maxHp', 'spriteKeyOverride']) delete d[k];
+      moved = { x: cx, y: cy };
+      saved.cls = 'ReserveCapital';
+    }
     const Cls = ENTITY_CLASSES[saved.cls];
     if (!Cls) {
       console.warn(`Save: skipped an entity of unknown class ${saved.cls}`);
       return null;
     }
     const d = saved.data;
-    const at = { x: Number(d.px ?? (Number(d.x) + 0.5) * CELL_SIZE) || 0, y: Number(d.py ?? (Number(d.y) + 0.5) * CELL_SIZE) || 0 };
+    const at = moved ?? { x: Number(d.px ?? (Number(d.x) + 0.5) * CELL_SIZE) || 0, y: Number(d.py ?? (Number(d.y) + 0.5) * CELL_SIZE) || 0 };
     let e: Entity;
     try {
       const make =

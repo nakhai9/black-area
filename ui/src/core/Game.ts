@@ -1404,7 +1404,7 @@ export class Game {
     const cy = capital.y + Math.floor(capital.d / 2);
     // Plus another nation's Parallel Government (its own architecture), and a Naval Port on the nearest shore (demoPort).
     const host = (Object.keys(FACTIONS) as FactionId[]).find((f) => f !== me.faction) ?? 'usa';
-    const ids = ['powerPlant', 'powerPlant', 'barracks', 'warFactory', 'radarTower', 'airfield', 'techCenter', 'yars', 'fuelStation', 'happyCity', 'alliedBuilding', `parallelGov@${host}`, 'bunker', 'flagpole'];
+    const ids = ['powerPlant', 'powerPlant', 'barracks', 'warFactory', 'radarTower', 'airfield', 'techCenter', 'yars', 'fuelStation', 'happyCity', `parallelGov@${host}`, 'bunker', 'flagpole'];
     const placed: Building[] = [capital];
     for (const id of ids) {
       const option = BUILD_OPTIONS.find((o) => o.id === id);
@@ -2059,10 +2059,10 @@ export class Game {
     else if (player.id !== this.localId && type !== 'wall' && type !== 'gate') this.intel('economy', t('{name} has built a {building}', { name, building }));
   }
 
-  /** Allies the nation leads: its Allied Buildings standing, plus one under construction. */
+  /** Allies the nation leads: its embassies (Parallel Governments, and any old Allied Building) standing, plus those under construction. */
   alliesOf(player: PlayerState): number {
-    const built = this.entities.buildings().filter((b) => b.owner === player.id && b.alive && b.spec.type === 'alliedBuilding').length;
-    return built + (this.construction.slot(player, 'alliedBuilding').state !== 'idle' ? 1 : 0);
+    const built = this.entities.buildings().filter((b) => b.owner === player.id && b.alive && (b.spec.type === 'parallelGov' || b.spec.type === 'alliedBuilding')).length;
+    return built + this.construction.active(player).filter((s) => s.option?.id.startsWith('parallelGov@')).length;
   }
 
   /**
@@ -2149,7 +2149,7 @@ export class Game {
   private alliesInfo(): AllyInfo[] {
     const me = this.humanPlayer.id;
     const mine = this.entities.buildings().filter((b) => b.owner === me && b.alive);
-    const allied = mine.filter((b) => b.spec.type === 'alliedBuilding');
+    const allied = mine.filter((b) => b.spec.type === 'parallelGov' || b.spec.type === 'alliedBuilding');
     const claims = mine.filter(
       (b) => b.spec.type === 'flagpole' && isClaimable(this.map, b.x, b.y) && !allied.some((a) => Math.hypot(a.x - b.x, a.y - b.y) < 14),
     );
@@ -2164,7 +2164,8 @@ export class Game {
         id: b.id,
         built: b.spec.type !== 'flagpole',
         capital: b instanceof NationCapital ? (b.alliance() ?? b.spec.name) : rival ? `${b.spec.name} (${FACTIONS[rival].name})` : undefined,
-        embassy: b.spec.type === 'alliedBuilding' ? this.embassyName(b) : undefined,
+        // No embassy concept any more: a Parallel Government is listed under its own name and the nation it stands for.
+        embassy: b.spec.type === 'parallelGov' ? `${t(b.spec.name)} (${FACTIONS[b.origin as FactionId]?.name ?? b.origin})` : undefined,
         nation: b instanceof NationCapital ? b.nation : undefined,
         holder: b instanceof NationCapital && b.faction !== 'neutral' ? b.faction : undefined,
         place: formatGeo(worldToGeo(at)),

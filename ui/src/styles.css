@@ -430,6 +430,27 @@ kbd {
   color: #8a98a6;
   user-select: text;
 }
+.fp-fullscreen {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid #3a4652;
+  border-radius: 4px;
+  background: rgba(10, 14, 18, 0.6);
+  color: #c8d2dc;
+  cursor: pointer;
+}
+.fp-fullscreen:hover {
+  color: #fff;
+  border-color: #8a98a6;
+}
 .fp-header {
   text-align: center;
   margin-bottom: 18px;

@@ -1,5 +1,6 @@
 /** Vietnamese texts for menus, overlays, status bar, map labels and in-world tags (English text → Vietnamese). */
 export default {
+  "Full screen (Alt+F)": "Toàn màn hình (Alt+F)",
   // Faction picker
   'Build bases, raise armies, conquer the world': 'Xây căn cứ, lập quân đội, chinh phục thế giới',
   Mobility: 'Cơ động',
