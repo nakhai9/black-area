@@ -26,7 +26,7 @@
 <body>
 <main>
 <img class="logo" src="/logo.png" alt="Black Area" />
-<h1>Black Area — RULE <small>v3.75.297</small></h1>
+<h1>Black Area — RULE <small>v3.75.307</small></h1>
 <p class="lead">Tài liệu luật chơi + kiến trúc code dành cho AI/dev sửa game. Mọi con số gameplay chính xác nằm trong <code>src/constants.ts</code> và <code>src/factions/*.ts</code>. Nếu tài liệu này khác code thì <b>code đúng</b>. <b>Khi đổi luật/số trong code, phải cập nhật file này.</b></p>
 <nav><a href="#s1">Quy tắc làm việc cho AI</a><a href="#s2">Chạy dự án</a><a href="#s3">Kiến trúc thư mục</a><a href="#s4">Thế giới</a><a href="#s5">Kinh tế (dầu)</a><a href="#s6">Công trình (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Quân đội</a><a href="#s8">Chiến đấu</a><a href="#s9">Điều khiển (Game.handleKey, handleInput)</a><a href="#s10">Giới hạn &amp; hiệu năng</a><a href="#s11">Thắng / thua &amp; AI</a><a href="#s12">Công thức sửa thường gặp</a></nav>
 <h2 id="s1">0. Quy tắc làm việc cho AI</h2>
@@ -706,6 +706,16 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
   <li>v3.41.5: Sửa lỗi máy bay vận tải bay vòng tròn mãi quanh điểm hạ cánh (không đáp được, không nhận lệnh di chuyển): khi điểm đến nằm trong vòng quay, máy bay bay thẳng tới. Lệnh di chuyển mới trong lúc đang bay tới điểm hạ cánh giờ được nhận (hủy hạ cánh, bay đi).</li>
   <li>v3.41.5: Máy bay không còn nhận <b>Cảng (Naval Port)</b> làm sân bay nhà (không đậu, không hạ cánh, không được sinh ra ở cảng). Loại máy bay được đậu ở cảng sẽ quy ước sau: thêm vào <code>PORT_AIRCRAFT</code> trong <code>src/systems/AircraftSystem.ts</code>. Máy bay đang lấy cảng làm nhà (bản lưu cũ) sẽ chuyển sang sân bay khác của phe; không còn sân bay nào thì rơi như luật cũ.</li>
     <li>v3.56.1: <b>Giảm tiếng động cơ mọi phương tiện</b>: <code>VEHICLE_BED_GAIN</code> 1.6 → 1.0, máy bay / trực thăng <code>AIR_BED_BOOST</code> 2.2 → 1.5. <b>Máy bay vận tải</b> (C-17, Il-76, Y-20, A400M, mặc định) tăng gain 0.85–0.9 → 1.35 để to ngang các máy bay khác (tiếng động cơ trầm, ít tiếng rít nên trước nghe nhỏ hơn).</li>
+    <li>v3.75.307: Trailer Cốt truyện, thẻ 2 đổi thành "Liên Hợp Quốc không còn khả năng điều phối".</li>
+    <li>v3.75.306: Trailer Cốt truyện, thẻ 4 rút gọn thành "Dầu sinh ra tiền, năng lượng, sức mạnh".</li>
+    <li>v3.75.305: Trailer Cốt truyện, thẻ 4 đổi thành "Dầu sinh ra tiền và năng lượng. Tiền sinh ra sức mạnh".</li>
+    <li>v3.75.304: Trailer Cốt truyện rút còn 6 thẻ ngắn: Dầu cạn → Liên Hợp Quốc chỉ còn là cái tên → Năm cường quốc tách ra → Dầu là tiền. Tiền là quân đội → Chỉ một kẻ đứng cuối cùng → Trật tự thế giới mới hình thành (kèm quốc huy 5 phe).</li>
+    <li>v3.75.303: Viết lại trailer Cốt truyện cho ngắn gọn: 6 câu tóm tắt cốt truyện (mỗi câu ~5 giây), thẻ cuối "Trật tự thế giới mới hình thành" kèm quốc huy 5 phe.</li>
+    <li>v3.75.302: Trailer mới: mở hộp Cốt truyện là tự chạy chữ trắng trên nền đen, mỗi câu khoảng 5 giây ("Liên Hợp Quốc chỉ còn là cái tên", rồi "Dầu sinh ra năng lượng và tiền"), xong thì tắt và hiện nội dung cốt truyện. Bấm vào để bỏ qua; nút Xem trailer phát lại. Bỏ trailer toàn màn hình của v3.75.301.</li>
+    <li>v3.75.301: Hộp thoại Cốt truyện có nút <b>Xem trailer</b>: mở trailer toàn màn hình, chạy lần lượt các thẻ tiêu đề lấy từ README (tên, quốc huy, từng chương, lời tuyên bố, câu kết). Space tạm dừng, ←/→ chuyển thẻ, Esc hoặc ✕ đóng trailer (hộp Cốt truyện vẫn mở).</li>
+    <li>v3.75.300: Tiếng Anh dùng "The New World Order", tiếng Việt dùng "Trật tự thế giới mới".</li>
+    <li>v3.75.299: Tiếng Anh dùng "The New Order", tiếng Việt dùng "Trật tự mới".</li>
+    <li>v3.75.298: Đổi "The new multipolar world" thành "Trật tự mới".</li>
     <li>v3.75.297: Nhiễm xạ càng gần tâm nổ càng nặng: liều ở tâm gấp 2,5 lần, giảm đều xuống 0,25 lần ở mép vòng. Lính ở tâm chết sau ~2 giây, ở mép ~20 giây; phương tiện ở tâm ~12 giây, ở mép ~120 giây (nếu vòng còn). Cả người chơi và AI.</li>
     <li>v3.75.296: Tiếng kêu "Mommy" của lính được thét lên (kéo dài nguyên âm, giọng cao nhất, âm lượng tối đa) thay vì đọc bình thường.</li>
     <li>v3.75.295: Lính kêu "Mommy" bằng ngôn ngữ của phe mình: Mỹ "Mommy!", Nga "Мама!", Trung Quốc "妈妈!", Châu Âu (Pháp) "Maman !", Liên minh Hồi giáo "يا أمي!". Máy không có giọng đọc ngôn ngữ đó thì kêu "Mommy!" tiếng Anh.</li>

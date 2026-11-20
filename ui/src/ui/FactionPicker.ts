@@ -54,7 +54,7 @@ export class FactionPicker {
             <div class="fp-or" aria-hidden="true">${t("or")}</div>
             <button class="fp-load" type="button" title="${t("Load a game from a saved .json file")}">${t("Import saved file")}</button>
             <button class="fp-load fp-mp" type="button" title="${t("Play with friends: create a room or join one by its code")}">${t("Play with friends")}</button>
-            <button class="fp-guide" type="button" title="${t("Read the story of the new multipolar world")}">${t("Story")}</button>
+            <button class="fp-guide" type="button" title="${t("Read the story of the New World Order")}">${t("Story")}</button>
             <button class="fp-desktop" type="button" hidden title="${t("Download the desktop version")}">${t("Download Desktop")}</button>
           </div>
           <div class="fp-detail-wrap">

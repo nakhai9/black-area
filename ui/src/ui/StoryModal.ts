@@ -11,6 +11,9 @@ function storyMarkdown(lang: string): string {
   return README.slice(a + from.length, b < 0 ? undefined : b);
 }
 
+/** README image paths point into ui/public. */
+const fixSrc = (html: string): string => html.replace(/src="ui\/public\//g, `src="${import.meta.env.BASE_URL}`);
+
 const escape = (s: string): string => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
 /** Inline Markdown: **bold**, *italic*. */
@@ -28,7 +31,7 @@ function render(md: string): string {
     if (!block || block === "---") continue;
     if (block.startsWith("<")) {
       // Raw HTML from the README (emblem row, centred title, closing line); image paths point into ui/public.
-      out.push(block.replace(/src="ui\/public\//g, `src="${import.meta.env.BASE_URL}`));
+      out.push(fixSrc(block));
       continue;
     }
     const h = /^(#{2,4})\s+(.*)$/.exec(block);
@@ -72,6 +75,26 @@ const STYLE = `
   .story-close { position: sticky; top: 0; float: right; margin: -12px -20px 0 0; width: 34px; height: 34px; border-radius: 50%;
     border: 1px solid #5a646d; background: #1c242c; color: #d8dde2; font-size: 18px; line-height: 1; cursor: pointer; }
   .story-close:hover { background: #26303a; }
+  .story-play { display: flex; align-items: center; gap: 10px; margin: 0 auto 20px; padding: 10px 22px 10px 14px; border-radius: 24px;
+    border: 1px solid #e8b84a; background: rgba(232, 184, 74, 0.1); color: #e8b84a; font: inherit; font-weight: 600; letter-spacing: 1px;
+    text-transform: uppercase; cursor: pointer; }
+  .story-play::before { content: "▶"; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: #e8b84a; color: #12181e; font-size: 12px; }
+  .story-play:hover { background: rgba(232, 184, 74, 0.2); }
+  .story { min-height: 220px; }
+  .story:has(.story-intro:not(.done)) { overflow: hidden; }
+  .story-intro { position: absolute; inset: 0; z-index: 2; display: grid; place-items: center; padding: 24px; background: #0b0f13;
+    border-radius: 10px; text-align: center; cursor: pointer; transition: opacity .6s; }
+  .story-intro.done { opacity: 0; pointer-events: none; }
+  .story-intro p { margin: 0; color: #fff; font-size: clamp(20px, 3.6vw, 32px); font-weight: 600; letter-spacing: .5px; transition: opacity .5s; }
+  .story-intro .si-slide { transition: opacity .5s; }
+  .story-intro .si-slide.fade { opacity: 0; }
+  .story-intro .si-emb { display: flex; justify-content: center; flex-wrap: wrap; gap: 10px; margin-top: 22px; }
+  .story-intro .si-emb:empty { display: none; }
+  .story-intro .si-emb img { height: clamp(44px, 9vw, 76px); opacity: 0; animation: si-pop .6s ease-out forwards; }
+  @keyframes si-pop { from { opacity: 0; transform: translateY(8px) scale(.9); } to { opacity: 1; transform: none; } }
+  .story-intro p::after { content: "▌"; margin-left: 2px; animation: story-caret 1s steps(1) infinite; }
+  .story-intro small { position: absolute; right: 16px; bottom: 12px; color: #6b7782; font-size: 12px; }
+  @keyframes story-caret { 50% { opacity: 0; } }
   @media (max-width: 600px) { .story { padding: 20px 18px 28px; } .story table { font-size: 12px; } }
 `;
 
@@ -83,9 +106,10 @@ export function openStory(): void {
     st.textContent = STYLE;
     document.head.appendChild(st);
   }
+  const md = storyMarkdown(getLang());
   const bg = document.createElement("div");
   bg.className = "story-bg";
-  bg.innerHTML = `<div class="story" role="dialog" aria-modal="true"><button class="story-close" type="button" aria-label="${t("Close")}">✕</button>${render(storyMarkdown(getLang()))}</div>`;
+  bg.innerHTML = `<div class="story" role="dialog" aria-modal="true"><button class="story-close" type="button" aria-label="${t("Close")}">✕</button><div class="story-intro"><div class="si-slide"><p></p><div class="si-emb"></div></div><small>${t("Click to skip")}</small></div><button class="story-play" type="button">${t("Play trailer")}</button>${render(md)}</div>`;
   const close = (): void => {
     bg.remove();
     window.removeEventListener("keydown", onKey);
@@ -97,6 +121,65 @@ export function openStory(): void {
     if (e.target === bg) close();
   });
   bg.querySelector(".story-close")!.addEventListener("click", close);
+  const intro = bg.querySelector<HTMLElement>(".story-intro")!;
+  const box = bg.querySelector<HTMLElement>(".story")!;
+  bg.querySelector(".story-play")!.addEventListener("click", () => playIntro(intro, box));
+  intro.addEventListener("click", () => stopIntro(intro));
   window.addEventListener("keydown", onKey);
   document.body.appendChild(bg);
+  playIntro(intro, box);
+}
+
+/** Short trailer over the modal: white lines typed one by one (~5 s each), last slide shows the five factions, then the story. */
+const INTRO_LINES = [
+  "The oil runs dry",
+  "The UN can no longer hold the world together",
+  "Five powers break away",
+  "Oil means money, energy, power",
+  "Only one will stand last",
+];
+const FINAL_LINE = "A new world order is born";
+const EMBLEMS = ["usa", "russia", "china", "europe", "islamic"];
+const TYPE_MS = 40;
+const HOLD_MS = 5000;
+const FINAL_MS = 6500;
+const timers = new WeakMap<HTMLElement, number[]>();
+
+function stopIntro(intro: HTMLElement): void {
+  for (const id of timers.get(intro) ?? []) clearTimeout(id);
+  timers.set(intro, []);
+  intro.classList.add("done");
+}
+
+function playIntro(intro: HTMLElement, box: HTMLElement): void {
+  stopIntro(intro);
+  box.scrollTop = 0;
+  intro.classList.remove("done");
+  const slide = intro.querySelector<HTMLElement>(".si-slide")!;
+  const p = slide.querySelector("p")!;
+  const emb = slide.querySelector<HTMLElement>(".si-emb")!;
+  const ids: number[] = [];
+  const at = (ms: number, fn: () => void): void => void ids.push(window.setTimeout(fn, ms));
+  const lines = [...INTRO_LINES, FINAL_LINE];
+  let time = 0;
+  lines.forEach((raw, n) => {
+    const line = t(raw);
+    const last = n === lines.length - 1;
+    at(time, () => {
+      p.textContent = "";
+      emb.innerHTML = "";
+      slide.classList.remove("fade");
+    });
+    for (let i = 1; i <= line.length; i++) at(time + i * TYPE_MS, () => (p.textContent = line.slice(0, i)));
+    if (last)
+      at(time + line.length * TYPE_MS + 200, () => {
+        emb.innerHTML = EMBLEMS.map(
+          (e, k) => `<img src="${import.meta.env.BASE_URL}emblems/${e}.png" alt="" style="animation-delay:${k * 0.15}s">`,
+        ).join("");
+      });
+    time += last ? FINAL_MS : HOLD_MS;
+    at(time - 500, () => slide.classList.add("fade"));
+  });
+  at(time, () => intro.classList.add("done"));
+  timers.set(intro, ids);
 }

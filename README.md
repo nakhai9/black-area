@@ -4,7 +4,7 @@
 
 <h1 align="center">Black Area</h1>
 
-<p align="center"><sub>Phiên bản 3.75.297 · Version 3.75.222</sub></p>
+<p align="center"><sub>Phiên bản 3.75.307 · Version 3.75.222</sub></p>
 
 <p align="center"><b><a href="https://black-area.vercel.app">▶ CHƠI NGAY / PLAY NOW · black-area.vercel.app</a></b></p>
 
@@ -16,7 +16,7 @@
 
 ## 🇻🇳 Tiếng Việt
 
-<h2 align="center">Thế giới đa cực mới</h2>
+<h2 align="center">Trật tự thế giới mới</h2>
 
 <p align="center">
   <img src="ui/public/emblems/usa.png" alt="Paxamerica" height="72">
@@ -120,7 +120,7 @@ Thêm thư viện cho một phần bằng `npm install <gói> -w ui` hoặc `-w 
 
 ## 🇬🇧 English
 
-<h2 align="center">The new multipolar world</h2>
+<h2 align="center">The New World Order</h2>
 
 <p align="center">
   <img src="ui/public/emblems/usa.png" alt="Paxamerica" height="72">
