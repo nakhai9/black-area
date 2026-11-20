@@ -20,7 +20,7 @@ import type { FactionId } from '../types';
 import type { Mobility } from '../map/Pathfinder';
 import { demoActive, mayAttack } from '../core/Demo';
 import { movesRight } from '../core/IsoView';
-import { BM21_INTERCEPT_CHANCE, BM21_MIN_SALVO, BM21_SHOCK_CELLS, BM21_SHOCK_PEAK, bm21Flight, DVINA_MISSILE_SPEED, DVINA_SLOW_FACTOR, DVINA_STEER_RATE, DVINA_SNAP_DIST, DVINA_AIR_GROUND_SHARE, SILO_BLAST_CELLS, SILO_DAMAGE, SILO_LID_HOLD, SILO_LID_MOVE, SILO_RELOAD, SILO_MISS_PX, NUKE_RAD_SECONDS, NUKE_RAD_KILL_SECONDS, NUKE_RAD_KILL_SECONDS_INFANTRY, NUKE_RAD_RADIUS_SCALE, nukeRadDose, icbmFlight, DVINA_INTERCEPT_FLIGHT, DVINA_AIM_TOLERANCE, DVINA_GROUP_CELLS, DVINA_GROUP_SOLDIERS, DVINA_GROUP_VEHICLES, DVINA_RELOAD, DVINA_TURN_RATE, BOMB_FALL_SECONDS, CRUISE_ALTITUDE, HIGH_GROUND_DAMAGE, HIGH_GROUND_RANGE, LOW_GROUND_DAMAGE, MANTIS_HIT_SHARE, MANTIS_RANGE_CELLS, MANTIS_RANK_BONUS, MANTIS_EVADE_CELLS, HELI_VS_MANTIS_SHARE, JET_VS_MANTIS_SHARE, MANTIS_VS_JET_SHARE, MANTIS_VS_HELI_SHARE, MANTIS_RELOAD, MANTIS_GUN_NATIONS, PGZ_RELOAD, PGZ_HIT_FACTOR, JET_BOMB_VS_STRUCTURE, JET_BOMB_VS_VEHICLE, ACQUIRE_PERIOD, RANK_FIREPOWER, RANK_RELOAD, BOMB_GROUP_RADIUS_CELLS, BOMB_GROUP_SIZE, BOMB_TOUGH_DAMAGE, BOMB_TOUGH_STRUCTURES, BOMBS_PER_DROP, CELL_SIZE, CHASE_GIVE_UP_SECONDS, CHASE_LIMIT_CELLS, CHASE_PERIOD, FIGHT_MEMORY_SECONDS, GUARD_VISION_FACTOR, NEUTRAL_OWNER, RETALIATE_RANGE_FACTOR, WEAPONS, FIGHTER_DRONE_ALERT, FELL_SPREAD_CELLS, TREE_BOMB_RADIUS_CELLS, TREE_STICK_RADIUS_CELLS } from '../constants';
+import { BM21_INTERCEPT_CHANCE, BM21_MIN_SALVO, BM21_SHOCK_CELLS, BM21_SHOCK_PEAK, bm21Flight, DVINA_MISSILE_SPEED, DVINA_SLOW_FACTOR, DVINA_STEER_RATE, DVINA_SNAP_DIST, DVINA_AIR_GROUND_SHARE, SILO_BLAST_CELLS, SILO_DAMAGE, SILO_LID_HOLD, SILO_LID_MOVE, SILO_RELOAD, SILO_MISS_PX, NUKE_RAD_SECONDS, NUKE_RAD_KILL_SECONDS, NUKE_RAD_KILL_SECONDS_INFANTRY, NUKE_RAD_RADIUS_SCALE, nukeRadDose, icbmFlight, DVINA_INTERCEPT_FLIGHT, DVINA_AIM_TOLERANCE, DVINA_GROUP_CELLS, DVINA_GROUP_SOLDIERS, DVINA_GROUP_VEHICLES, DVINA_RELOAD, DVINA_TURN_RATE, BOMB_FALL_SECONDS, CRUISE_ALTITUDE, HIGH_GROUND_DAMAGE, HIGH_GROUND_RANGE, LOW_GROUND_DAMAGE, MANTIS_HIT_SHARE, MANTIS_RANGE_CELLS, MANTIS_RANK_BONUS, MANTIS_EVADE_CELLS, HELI_VS_MANTIS_SHARE, JET_VS_MANTIS_SHARE, MANTIS_VS_JET_SHARE, MANTIS_VS_HELI_SHARE, MANTIS_RELOAD, MANTIS_GUN_NATIONS, PGZ_RELOAD, PGZ_HIT_FACTOR, JET_BOMB_VS_STRUCTURE, JET_BOMB_VS_VEHICLE, ACQUIRE_PERIOD, RANK_FIREPOWER, RANK_RELOAD, BOMB_GROUP_RADIUS_CELLS, BOMB_GROUP_SIZE, BOMB_TOUGH_DAMAGE, BOMB_TOUGH_STRUCTURES, BOMBS_PER_DROP, CELL_SIZE, CHASE_GIVE_UP_SECONDS, CHASE_LIMIT_CELLS, CHASE_PERIOD, FIGHT_MEMORY_SECONDS, GUARD_VISION_FACTOR, TWIN_TANK_AIR_RANGE_CELLS, NEUTRAL_OWNER, RETALIATE_RANGE_FACTOR, WEAPONS, FIGHTER_DRONE_ALERT, FELL_SPREAD_CELLS, TREE_BOMB_RADIUS_CELLS, TREE_STICK_RADIUS_CELLS } from '../constants';
 import { Building } from '../entities/Building';
 import { Bunker } from '../entities/Bunker';
 import { LdewEmplacement } from '../entities/LdewEmplacement';
@@ -780,7 +780,7 @@ export class CombatSystem implements GameSystem {
     // Ground units without an attack order (explicit target or attack-move) hold their ground too: they shoot what is in
     // range but never set off after an enemy on their own.
     const holdsSpot = (s instanceof Vehicle && s.type === 'mantis') || (!s.flies && s.attackTarget === null && s.attackMove === null);
-    if (target && s.attackTarget === null && distanceTo(s.px, s.py, target) > (holdsSpot ? w.range : w.range * GUARD_VISION_FACTOR * 1.25)) target = undefined;
+    if (target && s.attackTarget === null && distanceTo(s.px, s.py, target) > (holdsSpot ? this.reachOn(s, w, target) : Math.max(w.range * GUARD_VISION_FACTOR * 1.25, this.reachOn(s, w, target)))) target = undefined;
 
     // An air-defence vehicle sweeps its range every tick: an aircraft entering it is locked at once (no search delay),
     // and it always switches to the nearest aircraft in range unless it has an explicit attack order.
@@ -852,7 +852,7 @@ export class CombatSystem implements GameSystem {
     const tx = target instanceof Unit ? target.px : target instanceof Building ? target.centerWorld().x : s.px;
     const ty = target instanceof Unit ? target.py : target instanceof Building ? target.centerWorld().y : s.py;
     s.aimHeading = Math.atan2(ty - s.py, tx - s.px);
-    if (d <= w.range * this.heightReach(s)) {
+    if (d <= this.reachOn(s, w, target) * this.heightReach(s)) {
       // A unit on its way somewhere (plain move order) shoots on the move: only its gun turns to the target (aimHeading),
       // the hull keeps steering along its route (turning it to the target every tick pinned it in place).
       // A tank (or air-defence vehicle) keeps its hull where it is: only the turret / launcher turns to the target (it fires once laid).
@@ -987,7 +987,9 @@ export class CombatSystem implements GameSystem {
     const cy = Math.floor(s.py / HASH);
     // An air-defence vehicle, or a ground unit without an attack order, never chases: it only looks inside its range.
     const holdsSpot = (s instanceof Vehicle && s.type === 'mantis') || (!s.flies && s.attackTarget === null && s.attackMove === null);
-    const sight = holdsSpot ? w.range : w.range * GUARD_VISION_FACTOR;
+    const ground = holdsSpot ? w.range : w.range * GUARD_VISION_FACTOR;
+    // Twins Shots Tank: helicopters in the air are seen out to its raised-gun reach (TWIN_TANK_AIR_RANGE_CELLS).
+    const sight = s instanceof Vehicle && s.type === 'twinTank' ? Math.max(ground, TWIN_TANK_AIR_RANGE_CELLS * CELL_SIZE) : ground;
     const reach = Math.ceil(sight / HASH);
     let best: Entity | undefined;
     let bestD = sight;
@@ -998,6 +1000,7 @@ export class CombatSystem implements GameSystem {
         for (const o of cell) {
           if (!isHostile(s, o) || !this.canHit(s, w, o)) continue;
           const d = Math.hypot(o.px - s.px, o.py - s.py);
+          if (d > Math.max(ground, this.reachOn(s, w, o))) continue;
           if (w.minRange !== undefined && d < w.minRange) continue; // too close for it (BM-21)
           if ((this.protectedFrom(s, o) && d > w.range) || this.sheltered(o)) continue;
           if (d > w.range && (s.ignoreUntil.get(o.id) ?? 0) > this.time) continue;
@@ -1354,6 +1357,12 @@ export class CombatSystem implements GameSystem {
   }
 
   /** A ground unit on a mountain ledge (high ground) reaches HIGH_GROUND_RANGE farther. */
+  /** Weapon reach of `s` on `t`: a Twins Shots Tank's raised guns reach TWIN_TANK_AIR_RANGE_CELLS at a helicopter in the air. */
+  private reachOn(s: Unit, w: WeaponSpec, t: Entity): number {
+    if (s instanceof Vehicle && s.type === 'twinTank' && t instanceof Vehicle && t.isHeli && t.altitude > 0) return Math.max(w.range, TWIN_TANK_AIR_RANGE_CELLS * CELL_SIZE);
+    return w.range;
+  }
+
   private heightReach(s: Unit): number {
     return !s.flies && this.pathfinder.highGround(s.px, s.py) ? HIGH_GROUND_RANGE : 1;
   }
