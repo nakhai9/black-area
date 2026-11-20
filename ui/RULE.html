@@ -26,7 +26,7 @@
 <body>
 <main>
 <img class="logo" src="/logo.png" alt="Black Area" />
-<h1>Black Area — RULE <small>v3.75.319</small></h1>
+<h1>Black Area — RULE <small>v3.75.320</small></h1>
 <p class="lead">Tài liệu luật chơi + kiến trúc code dành cho AI/dev sửa game. Mọi con số gameplay chính xác nằm trong <code>src/constants.ts</code> và <code>src/factions/*.ts</code>. Nếu tài liệu này khác code thì <b>code đúng</b>. <b>Khi đổi luật/số trong code, phải cập nhật file này.</b></p>
 <nav><a href="#s1">Quy tắc làm việc cho AI</a><a href="#s2">Chạy dự án</a><a href="#s3">Kiến trúc thư mục</a><a href="#s4">Thế giới</a><a href="#s5">Kinh tế (dầu)</a><a href="#s6">Công trình (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Quân đội</a><a href="#s8">Chiến đấu</a><a href="#s9">Điều khiển (Game.handleKey, handleInput)</a><a href="#s10">Giới hạn &amp; hiệu năng</a><a href="#s11">Thắng / thua &amp; AI</a><a href="#s12">Công thức sửa thường gặp</a></nav>
 <h2 id="s1">0. Quy tắc làm việc cho AI</h2>
@@ -706,6 +706,7 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
   <li>v3.41.5: Sửa lỗi máy bay vận tải bay vòng tròn mãi quanh điểm hạ cánh (không đáp được, không nhận lệnh di chuyển): khi điểm đến nằm trong vòng quay, máy bay bay thẳng tới. Lệnh di chuyển mới trong lúc đang bay tới điểm hạ cánh giờ được nhận (hủy hạ cánh, bay đi).</li>
   <li>v3.41.5: Máy bay không còn nhận <b>Cảng (Naval Port)</b> làm sân bay nhà (không đậu, không hạ cánh, không được sinh ra ở cảng). Loại máy bay được đậu ở cảng sẽ quy ước sau: thêm vào <code>PORT_AIRCRAFT</code> trong <code>src/systems/AircraftSystem.ts</code>. Máy bay đang lấy cảng làm nhà (bản lưu cũ) sẽ chuyển sang sân bay khác của phe; không còn sân bay nào thì rơi như luật cũ.</li>
     <li>v3.56.1: <b>Giảm tiếng động cơ mọi phương tiện</b>: <code>VEHICLE_BED_GAIN</code> 1.6 → 1.0, máy bay / trực thăng <code>AIR_BED_BOOST</code> 2.2 → 1.5. <b>Máy bay vận tải</b> (C-17, Il-76, Y-20, A400M, mặc định) tăng gain 0.85–0.9 → 1.35 để to ngang các máy bay khác (tiếng động cơ trầm, ít tiếng rít nên trước nghe nhỏ hơn).</li>
+    <li>v3.75.320: Tên lửa Dvina bay ổn định hơn: lái mượt (giới hạn tốc độ quay, khóa thẳng khi gần mục tiêu), hướng mũi tên lửa vẽ không còn rung.</li>
     <li>v3.75.319: Trung Nam Hải: bỏ hết cây (thông ven hồ và chậu thông ở sân trước); công trình giữ nguyên.</li>
     <li>v3.75.318: Trung Nam Hải: thông cảnh dựng như cây thật (thân thuôn hơi nghiêng, cành vươn, tán nhiều cụm lá dẹt gồ ghề hai sắc xanh) thay cho hình nón. ART_GUIDE thêm quy định cây phải dựng như cây thật.</li>
     <li>v3.75.317: Thủ đô Longoria (Trung Nam Hải) dựng lại bằng script riêng (<code>tools/blender/models/capital_china.py</code>): Tân Hoa Môn trên bệ Tu Di cẩm thạch trắng có bậc thềm, tầng dưới cột đỏ và ba cửa son đinh vàng, mái hiên dưới ngói lưu ly vàng có lan can trắng, tầng trên cột đỏ, chấn song và quốc huy, mái trùng thiềm kiểu yết sơn (hông và đầu hồi) có gân ngói đều mọi mặt, đầu hồi sơn, si vẫn, linh thú, góc vút; tường bao đỏ mũ ngói xám, hai bức tường khẩu hiệu, sư tử đá, chòi gác; phía sau tường là hồ Nam Hải với đình đảo Doanh Đài, cầu đá trắng và điện Cần Chính. Tên hiển thị giữ nguyên.</li>

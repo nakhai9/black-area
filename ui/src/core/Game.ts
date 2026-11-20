@@ -5195,8 +5195,12 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       const dy = p.y - e.y;
       const d = Math.hypot(dx, dy);
       if (d > 0.05) {
-        e.ux = dx / d;
-        e.uy = dy / d;
+        // Blend the drawn nose direction toward the motion so sub-pixel frame steps don't make it shake.
+        const bx = e.ux * 0.75 + (dx / d) * 0.25;
+        const by = e.uy * 0.75 + (dy / d) * 0.25;
+        const bl = Math.hypot(bx, by) || 1;
+        e.ux = bx / bl;
+        e.uy = by / bl;
       }
       // A puff about every 0.6 px flown, so the trail reads as one continuous plume.
       const last = e.puffs[e.puffs.length - 1];
