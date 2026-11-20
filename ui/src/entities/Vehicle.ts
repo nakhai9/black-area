@@ -87,7 +87,7 @@ export const NATION_VEHICLE_PROFILES: Readonly<Partial<Record<VehicleKind, Vehic
   kub: { name: '2K12 Kub', description: 'Tracked missile launcher: three missiles on a turning rack, at aircraft, ground units and structures. On sale while you hold Kyiv or Minsk.' },
   bm21: { name: 'BM-21 Grad', description: '122 mm rocket launcher on a Ural truck: ripples 12 rockets on a long arc at ground targets, structures and aircraft. On sale while you hold Pyongyang, Kyiv or Minsk.' },
   a29: { name: 'A-29 Super Tucano', description: 'Light attack turboprop: rockets and guns on soldiers, vehicles and structures; cannot fight aircraft. On sale while you hold Brasília.' },
-  twinTank: { name: 'Twins Shots Tank', description: 'Heavy tank with two 120 mm guns side by side on one turret: both fire together, hard-hitting but slow. The guns elevate to 50° to shoot helicopters. On sale while you hold Tokyo.' },
+  twinTank: { name: 'Twins Shots Tank', description: 'Heavy tank with two 120 mm guns side by side on one turret: both fire together, hard-hitting but slow. The guns elevate to 50° to shoot helicopters and aircraft. On sale while you hold Tokyo.' },
   bushmaster: { name: 'Bushmaster', description: 'Armoured 4x4 troop carrier: carries 6 soldiers, its roof machine gun fires at enemies in range. On sale while you hold Canberra.' },
   ldewTruck: { name: 'LDEW Laser Truck', description: 'Laser weapon on a MAN SV truck: fast, the head turns all round. On sale only while you hold London.' },
 };

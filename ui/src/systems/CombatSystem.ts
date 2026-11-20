@@ -157,11 +157,11 @@ export function canTarget(shooter: Unit, target: Entity): boolean {
   // Air-defence vehicle (Patriot / SAMP/T NG / S-400 / HQ-9 / PGZ-09): any enemy aircraft off the ground (altitude > 0), whatever it is doing —
   // cruising, hovering, lifting off, climbing, descending. Never one standing on the ground.
   if (shooter instanceof Vehicle && shooter.type === 'mantis') return target instanceof Vehicle && (target.aircraft || target.isDrone) && target.altitude > 0;
-  // Twins Shots Tank: its guns elevate at helicopters off the ground, never at fixed-wing aircraft or drones off the
-  // ground — whatever they are doing (cruising, taking off, climbing, landing). Aircraft standing on the ground are
+  // Twins Shots Tank: its guns elevate at helicopters and fixed-wing aircraft off the ground (never drones) —
+  // whatever they are doing (cruising, taking off, climbing, landing). Aircraft standing on the ground are
   // ground targets as for any tank.
   if (shooter instanceof Vehicle && shooter.type === 'twinTank' && target instanceof Vehicle && (target.aircraft || target.isDrone) && target.altitude > 0)
-    return target.isHeli && w.hitsAir;
+    return target.aircraft && !target.isDrone && w.hitsAir;
   // BM-21 Grad: its rockets also reach aircraft in flight.
   if (target instanceof Unit && target.flies) return (shooter.aircraft || (shooter instanceof Vehicle && (shooter.type === 'bm21' || shooter.type === 'kub'))) && w.hitsAir;
   // Special forces never shoot ground vehicles: they plant a bomb on them instead (Game.processDemolition).
@@ -813,7 +813,7 @@ export class CombatSystem implements GameSystem {
       }
     }
     s.combatTarget = target?.id ?? null;
-    if (s instanceof Vehicle && s.type === 'twinTank') s.gunsUp = target instanceof Vehicle && target.isHeli && target.altitude > 0;
+    if (s instanceof Vehicle && s.type === 'twinTank') s.gunsUp = target instanceof Vehicle && target.aircraft && !target.isDrone && target.altitude > 0;
 
     if (!target) {
       // BM-21: nothing left to shoot ends the salvo (the next one needs BM21_MIN_SALVO rockets again).
@@ -1359,7 +1359,7 @@ export class CombatSystem implements GameSystem {
   /** A ground unit on a mountain ledge (high ground) reaches HIGH_GROUND_RANGE farther. */
   /** Weapon reach of `s` on `t`: a Twins Shots Tank's raised guns reach TWIN_TANK_AIR_RANGE_CELLS at a helicopter in the air. */
   private reachOn(s: Unit, w: WeaponSpec, t: Entity): number {
-    if (s instanceof Vehicle && s.type === 'twinTank' && t instanceof Vehicle && t.isHeli && t.altitude > 0) return Math.max(w.range, TWIN_TANK_AIR_RANGE_CELLS * CELL_SIZE);
+    if (s instanceof Vehicle && s.type === 'twinTank' && t instanceof Vehicle && t.aircraft && !t.isDrone && t.altitude > 0) return Math.max(w.range, TWIN_TANK_AIR_RANGE_CELLS * CELL_SIZE);
     return w.range;
   }
 
