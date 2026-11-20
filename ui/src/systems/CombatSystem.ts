@@ -20,7 +20,7 @@ import type { FactionId } from '../types';
 import type { Mobility } from '../map/Pathfinder';
 import { demoActive, mayAttack } from '../core/Demo';
 import { movesRight } from '../core/IsoView';
-import { BM21_INTERCEPT_CHANCE, BM21_MIN_SALVO, BM21_SHOCK_CELLS, BM21_SHOCK_PEAK, bm21Flight, DVINA_MISSILE_SPEED, DVINA_SLOW_FACTOR, DVINA_STEER_RATE, DVINA_SNAP_DIST, DVINA_AIR_GROUND_SHARE, SILO_BLAST_CELLS, SILO_DAMAGE, SILO_LID_HOLD, SILO_LID_MOVE, SILO_RELOAD, SILO_MISS_PX, NUKE_RAD_SECONDS, NUKE_RAD_KILL_SECONDS, NUKE_RAD_KILL_SECONDS_INFANTRY, NUKE_RAD_RADIUS_SCALE, nukeRadDose, icbmFlight, DVINA_INTERCEPT_FLIGHT, DVINA_AIM_TOLERANCE, DVINA_GROUP_CELLS, DVINA_GROUP_SOLDIERS, DVINA_GROUP_VEHICLES, DVINA_RELOAD, DVINA_TURN_RATE, BOMB_FALL_SECONDS, CRUISE_ALTITUDE, HIGH_GROUND_DAMAGE, HIGH_GROUND_RANGE, LOW_GROUND_DAMAGE, MANTIS_HIT_SHARE, MANTIS_RANGE_CELLS, MANTIS_RANK_BONUS, MANTIS_EVADE_CELLS, HELI_VS_MANTIS_SHARE, JET_VS_MANTIS_SHARE, MANTIS_VS_JET_SHARE, MANTIS_VS_HELI_SHARE, MANTIS_RELOAD, MANTIS_GUN_NATIONS, PGZ_RELOAD, PGZ_HIT_FACTOR, JET_BOMB_VS_STRUCTURE, JET_BOMB_VS_VEHICLE, ACQUIRE_PERIOD, RANK_FIREPOWER, RANK_RELOAD, BOMB_GROUP_RADIUS_CELLS, BOMB_GROUP_SIZE, BOMB_TOUGH_DAMAGE, BOMB_TOUGH_STRUCTURES, BOMBS_PER_DROP, CELL_SIZE, CHASE_GIVE_UP_SECONDS, CHASE_LIMIT_CELLS, CHASE_PERIOD, FIGHT_MEMORY_SECONDS, GUARD_VISION_FACTOR, TWIN_TANK_AIR_RANGE_CELLS, NEUTRAL_OWNER, RETALIATE_RANGE_FACTOR, WEAPONS, FIGHTER_DRONE_ALERT, FELL_SPREAD_CELLS, TREE_BOMB_RADIUS_CELLS, TREE_STICK_RADIUS_CELLS } from '../constants';
+import { BM21_INTERCEPT_CHANCE, BM21_MIN_SALVO, BM21_SHOCK_CELLS, BM21_SHOCK_PEAK, bm21Flight, DVINA_MISSILE_SPEED, DVINA_SLOW_FACTOR, DVINA_STEER_RATE, DVINA_SNAP_DIST, DVINA_AIR_GROUND_SHARE, SILO_BLAST_CELLS, SILO_DAMAGE, SILO_LID_HOLD, SILO_LID_MOVE, SILO_RELOAD, SILO_SCIENTISTS, SILO_MISS_PX, NUKE_RAD_SECONDS, NUKE_RAD_KILL_SECONDS, NUKE_RAD_KILL_SECONDS_INFANTRY, NUKE_RAD_RADIUS_SCALE, nukeRadDose, icbmFlight, DVINA_INTERCEPT_FLIGHT, DVINA_AIM_TOLERANCE, DVINA_GROUP_CELLS, DVINA_GROUP_SOLDIERS, DVINA_GROUP_VEHICLES, DVINA_RELOAD, DVINA_TURN_RATE, BOMB_FALL_SECONDS, CRUISE_ALTITUDE, HIGH_GROUND_DAMAGE, HIGH_GROUND_RANGE, LOW_GROUND_DAMAGE, MANTIS_HIT_SHARE, MANTIS_RANGE_CELLS, MANTIS_RANK_BONUS, MANTIS_EVADE_CELLS, HELI_VS_MANTIS_SHARE, JET_VS_MANTIS_SHARE, MANTIS_VS_JET_SHARE, MANTIS_VS_HELI_SHARE, MANTIS_RELOAD, MANTIS_GUN_NATIONS, PGZ_RELOAD, PGZ_HIT_FACTOR, JET_BOMB_VS_STRUCTURE, JET_BOMB_VS_VEHICLE, ACQUIRE_PERIOD, RANK_FIREPOWER, RANK_RELOAD, BOMB_GROUP_RADIUS_CELLS, BOMB_GROUP_SIZE, BOMB_TOUGH_DAMAGE, BOMB_TOUGH_STRUCTURES, BOMBS_PER_DROP, CELL_SIZE, CHASE_GIVE_UP_SECONDS, CHASE_LIMIT_CELLS, CHASE_PERIOD, FIGHT_MEMORY_SECONDS, GUARD_VISION_FACTOR, TWIN_TANK_AIR_RANGE_CELLS, NEUTRAL_OWNER, RETALIATE_RANGE_FACTOR, WEAPONS, FIGHTER_DRONE_ALERT, FELL_SPREAD_CELLS, TREE_BOMB_RADIUS_CELLS, TREE_STICK_RADIUS_CELLS } from '../constants';
 import { Building } from '../entities/Building';
 import { Bunker } from '../entities/Bunker';
 import { LdewEmplacement } from '../entities/LdewEmplacement';
@@ -65,6 +65,8 @@ export interface CombatHooks {
   shielded(target: Entity): boolean;
   /** Is this nation's grid short of power (weak or blackout)? Its air-defence vehicles then lose their radar signal. */
   powerShort(owner: number): boolean;
+  /** Engineers the owner has in its Tech Center (nuclear programme): a silo runs only with SILO_SCIENTISTS of them. */
+  scientists(owner: number): number;
   /** Route planner with the shared caches (an unreachable goal is not flooded again and again). */
   findPath(start: WorldPoint, goal: GridPoint, swim: Mobility): WorldPoint[];
   /** The forest: trees take damage from clearing orders, bombs, charges and splash (TREE_* in constants). */
@@ -548,16 +550,19 @@ export class CombatSystem implements GameSystem {
       if (!(b instanceof MissileSilo) || !b.alive || b.owner === NEUTRAL_OWNER) continue;
       // DEMO: a silo is always ready (no payment, no loading, no power needed).
       if (demoActive && !b.loaded) [b.loading, b.loaded] = [false, true];
-      if (!b.loaded) {
+      // Manned and powered: SILO_SCIENTISTS engineers in the Tech Center and no power shortage, or the silo stands
+      // idle (no loading, no launch; a launch already under way finishes).
+      const manned = demoActive || (this.hooks.scientists(b.owner) >= SILO_SCIENTISTS && !this.hooks.powerShort(b.owner));
+      if (!b.loaded && manned) {
         if (!b.loading) {
           if (MissileSilo.payMissile(b)) [b.loading, b.loadClock] = [true, SILO_RELOAD];
-        } else if (!this.hooks.powerShort(b.owner) && (b.loadClock -= dt) <= 0) {
+        } else if ((b.loadClock -= dt) <= 0) {
           [b.loading, b.loaded] = [false, true];
           this.hooks.onSiloReady(b);
         }
       }
       if (b.loaded && b.strike === null && b.launchClock === null && aiOwners.has(b.owner)) b.strike = this.siloTarget(b);
-      if (b.launchClock === null && b.loaded && b.strike !== null && mayAttack(b.owner)) [b.launchClock, b.launched] = [0, false];
+      if (b.launchClock === null && manned && b.loaded && b.strike !== null && mayAttack(b.owner)) [b.launchClock, b.launched] = [0, false];
       if (b.launchClock === null) continue;
       b.launchClock += dt;
       if (!b.launched && b.launchClock >= SILO_LID_MOVE && b.strike) {

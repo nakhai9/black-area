@@ -7,6 +7,9 @@ import { Building } from './Building';
  * soldiers and build second-tier vehicles.
  */
 export class TechCenter extends Building {
+  /** Its nuclear-programme engineers are mending it (Game.scientistsMend). */
+  mending = false;
+
   constructor(owner: number, faction: FactionId, center: WorldPoint) {
     super(owner, faction, center, {
       type: 'techCenter',

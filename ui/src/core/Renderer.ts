@@ -97,6 +97,8 @@ export interface RenderScene {
   /** This machine's player: its soldiers and vehicles always fly their flag over their heads. */
   readonly localOwner?: number;
   readonly hoveredId: number | null;
+  /** Engineers this machine's player has sent into its Tech Center (shown on its own Tech Center's label). */
+  readonly localScientists?: number;
   /** Screen-space drag rectangle (box selection), if any. */
   readonly selectionRect: Rect | null;
   readonly time: number;
@@ -202,6 +204,8 @@ const RANK_BADGES = [
 ].map((d) => new Path2D(d));
 /** Rescue medal (repair vehicles, engineers), 15×15 grid (Pinhead Map Icons by Quincy Morgan, CC0 — https://creativecommons.org/publicdomain/zero/1.0/). */
 const MEDAL_BADGE = new Path2D('m3 4l4.5 3L12 4V0H3zm5.5 3.5c.14 0 .25.11.25.25V10H11c.14 0 .25.11.25.25v2c0 .14-.11.25-.25.25H8.75v2.25c0 .14-.11.25-.25.25h-2c-.14 0-.25-.11-.25-.25V12.5H4c-.14 0-.25-.11-.25-.25v-2c0-.14.11-.25.25-.25h2.25V7.75c0-.14.11-.25.25-.25z');
+/** Engineer icon (Material Symbols by Google, Apache 2.0), 24×24 grid: engineers sent into the Tech Center. */
+const ENGINEER_ICON = new Path2D('M1.05 21v-2.8q0-.825.425-1.55t1.175-1.1q1.275-.65 2.875-1.1T9.05 14t3.525.45t2.875 1.1q.75.375 1.175 1.1t.425 1.55V21zm5.175-9.175Q5.05 10.65 5.05 9H4.8q-.225 0-.362-.137T4.3 8.5t.138-.363T4.8 8h.25q0-1.125.55-2.025T7.05 4.55v.95q0 .225.138.363T7.55 6t.363-.137t.137-.363V4.15q.225-.075.475-.112T9.05 4t.525.038t.475.112V5.5q0 .225.138.363T10.55 6t.363-.137t.137-.363v-.95q.9.525 1.45 1.425T13.05 8h.25q.225 0 .363.138t.137.362t-.137.363T13.3 9h-.25q0 1.65-1.175 2.825T9.05 13t-2.825-1.175m4.238-1.412q.587-.588.587-1.413h-4q0 .825.588 1.413T9.05 11t1.413-.587M16.55 15l-.15-.75q-.15-.05-.287-.112t-.263-.188l-.7.25l-.5-.9l.55-.5v-.6l-.55-.5l.5-.9l.7.25q.1-.1.25-.175t.3-.125l.15-.75h1l.15.75q.15.05.3.125t.25.175l.7-.25l.5.9l-.55.5v.6l.55.5l-.5.9l-.7-.25q-.125.125-.262.188t-.288.112l-.15.75zm1.025-1.975q.225-.225.225-.525t-.225-.525t-.525-.225t-.525.225t-.225.525t.225.525t.525.225t.525-.225M18.85 10l-.2-1.05q-.225-.075-.413-.187T17.9 8.5l-1.05.35l-.7-1.2l.85-.75q-.05-.125-.05-.2v-.4q0-.075.05-.2l-.85-.75l.7-1.2l1.05.35q.15-.15.338-.263t.412-.187l.2-1.05h1.4l.2 1.05q.225.075.413.188t.337.262l1.05-.35l.7 1.2l-.85.75q.05.125.05.2v.4q0 .075-.05.2l.85.75l-.7 1.2l-1.05-.35q-.15.15-.337.263t-.413.187l-.2 1.05zm1.587-2.613q.363-.362.363-.887t-.363-.888t-.887-.362t-.888.363t-.362.887t.363.888t.887.362t.888-.363');
 /** DEMO test game: each aircraft type shows one star level, to preview all three in play. */
 const DEMO_AIR_RANK: Partial<Record<VehicleKind, number>> = { jet: 1, bomber: 2, transport: 3 };
 
@@ -235,6 +239,9 @@ export class Renderer {
   private readonly visibleUnits: Unit[] = [];
   private readonly visiblePeaks: Peak[] = [];
   private readonly focusedIds = new Set<number>();
+  /** This frame's local player and its Tech Center engineer count, for building labels. */
+  private labelOwner: number | undefined;
+  private labelScientists = 0;
   private dpr = 1;
   private vignette: CanvasGradient | null = null;
 
@@ -417,6 +424,8 @@ export class Renderer {
     const focused = this.focusedIds;
     focused.clear();
     for (const f of focus) focused.add(f.entity.id);
+    this.labelOwner = scene.localOwner;
+    this.labelScientists = scene.localScientists ?? 0;
     for (const b of sorted) {
       if (b === selected) this.drawSelectionOverlay(b);
       else if (focused.has(b.id)) this.drawSelectionOverlay(b);
@@ -1955,7 +1964,12 @@ export class Renderer {
         ? `${b.spec.name} · ${health} · ${t('Neutral')} · ${t('Protected')}`
         : `${b.spec.name}${b instanceof MissileSilo && b.siloNo > 0 ? ` #${b.siloNo}` : ''} · ${health}${inside}`;
     ctx.font = `600 ${12 * k}px "Courier New", Courier, monospace`;
-    const w = ctx.measureText(text).width + 12 * k;
+    // Own Tech Center: " · <engineer icon> n" — engineers sent in for the nuclear programme.
+    const sci = b.spec.type === 'techCenter' && this.labelOwner !== undefined && b.owner === this.labelOwner ? ` ${this.labelScientists}` : '';
+    const sep = sci ? ' · ' : '';
+    const icon = sci ? 14 * k : 0;
+    const textW = ctx.measureText(text + sep).width;
+    const w = textW + icon + ctx.measureText(sci).width + 12 * k;
     const h = 18 * k;
     const x = r.x + r.w / 2 - w / 2;
     const y = (bottomY ?? r.y - 6 * k) - h;
@@ -1966,8 +1980,18 @@ export class Renderer {
     ctx.fillRect(x, y + h - 2 * k, w, 2 * k);
     ctx.fillStyle = '#f2f5f8';
     ctx.textBaseline = 'middle';
+    ctx.textAlign = 'left';
+    ctx.fillText(text + sep, x + 6 * k, y + h / 2 - k);
+    if (sci) {
+      const ix = x + 6 * k + textW;
+      ctx.save();
+      ctx.translate(ix, y + h / 2 - k - icon / 2);
+      ctx.scale(icon / 24, icon / 24);
+      ctx.fill(ENGINEER_ICON);
+      ctx.restore();
+      ctx.fillText(sci, ix + icon, y + h / 2 - k);
+    }
     ctx.textAlign = 'center';
-    ctx.fillText(text, x + w / 2, y + h / 2 - k);
     ctx.globalAlpha = 1;
   }
 }

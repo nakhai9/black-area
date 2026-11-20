@@ -23,7 +23,7 @@ import {
   ENGINEER_REPAIR_SHARE,
   CAPITAL_EMBARGO_SECONDS,
   CAPITAL_DISARM_SECONDS,
-  BM21_RELOAD_COST, AIRCRAFT_MIN_POWER, DVINA_MISSILE_COST, SILO_MISSILE_COST, SILO_SCIENTISTS, NUKE_SECONDS, NUKE_RAD_SECONDS, NUKE_RAD_RADIUS_SCALE, ISO_X, ISO_Y,
+  BM21_RELOAD_COST, AIRCRAFT_MIN_POWER, DVINA_MISSILE_COST, SILO_MISSILE_COST, SILO_SCIENTISTS, TECH_SCIENTIST_REPAIR_RATE, NUKE_SECONDS, NUKE_RAD_SECONDS, NUKE_RAD_RADIUS_SCALE, ISO_X, ISO_Y,
   MILITARY_BASES,
   AI_EMBARGO_CREDITS,
   DERRICK_GRACE_GAP,
@@ -224,6 +224,7 @@ import { Bunker } from '../entities/Bunker';
 import { LdewEmplacement } from '../entities/LdewEmplacement';
 import { DvinaLauncher } from '../entities/DvinaLauncher';
 import { MissileSilo } from '../entities/MissileSilo';
+import { TechCenter } from '../entities/TechCenter';
 import { SiloButton } from '../ui/SiloButton';
 import { sitePreview, siteRailHeight } from '../render/DvinaSheets';
 import { yarsPreview } from '../render/YarsSheets';
@@ -789,6 +790,7 @@ export class Game {
       safeAt: (x, y) => this.safeZones.isSafe(x, y),
       shielded: (t) => t instanceof Building && this.isShielded(t),
       powerShort: (owner) => this.players.find((p) => p.id === owner)?.powerShort ?? false,
+      scientists: (owner) => this.players.find((p) => p.id === owner)?.scientists ?? 0,
       findPath: (start, goal, swim) => this.paths.find(start, goal, swim),
       trees: this.trees,
       onFellFire: (s, w, at) => this.onFellFire(s, w, at),
@@ -894,6 +896,7 @@ export class Game {
         return { canvas: art ?? this.sprites.get(option.spriteKey(human.faction)).canvas, final: !custom || art !== null };
       },
       onTrain: (option) => this.issue({ k: 'train', tier: option.key }),
+      onLockedClick: (reason) => this.sound.announce(`Cannot buy. ${reason}.`),
       onTrainCancel: (option) => this.issue({ k: 'trainCancel', tier: option.key }),
       trainPreview: (option) => soldierPortrait(option.faction, option.tier),
       onAlert: (at) => {
@@ -2269,6 +2272,28 @@ export class Game {
     if (this.walkToDoor(u, b)) u.task = { type: 'repair', buildingId: b.id };
   }
 
+  /**
+   * The nuclear programme's engineers mend their own damaged Tech Center (TECH_SCIENTIST_REPAIR_RATE of max health
+   * per second); each finished repair costs one of them (SILO_SCIENTISTS are needed to run a silo). Player and AI alike.
+   */
+  private scientistsMend(dt: number): void {
+    for (const b of this.entities.buildings()) {
+      if (!(b instanceof TechCenter) || !b.alive) continue;
+      const p = this.players.find((q) => q.id === b.owner);
+      if (!p) continue;
+      if (b.hp >= b.maxHp || (p.scientists ?? 0) <= 0) {
+        b.mending = false;
+        continue;
+      }
+      b.mending = true;
+      b.hp = Math.min(b.maxHp, b.hp + b.maxHp * TECH_SCIENTIST_REPAIR_RATE * dt);
+      if (b.hp < b.maxHp) continue;
+      b.mending = false;
+      p.scientists = Math.max(0, (p.scientists ?? 0) - 1);
+      if (p.id === this.humanPlayer.id) this.sidebar.notify(t('Tech Center repaired by its engineers: {n}/{need} left for the missile silo.', { n: p.scientists, need: SILO_SCIENTISTS }), 4);
+    }
+  }
+
   /** An engineer walks into its nation's own Tech Center to work on the nuclear programme (used up there; see SILO_SCIENTISTS). */
   orderScience(u: Infantry, b: Building): boolean {
     if (!u.isEngineer || b.owner !== u.owner || b.spec.type !== 'techCenter' || b.hp < b.maxHp || !this.walkToDoor(u, b)) return false;
@@ -3386,6 +3411,7 @@ export class Game {
     }
     // Game clock: advances with the simulation only, so it is the same on every machine.
     this.time += dt;
+    this.scientistsMend(dt);
     // Where every unit stood before this tick: frames between two ticks draw it part-way (see drawInterpolated).
     for (const u of this.entities.fieldMovers()) {
       const p = this.prevPos.get(u);
@@ -4194,6 +4220,7 @@ export class Game {
       selectedId: this.selection.selectedId,
       localOwner: this.localId,
       hoveredId: this.selection.hoveredId,
+      localScientists: this.players.find((p) => p.id === this.localId)?.scientists ?? 0,
       selectionRect: this.placing ? null : this.input.selectionRect,
       time: drawTime,
       ghost: this.ghost,
@@ -4299,12 +4326,12 @@ export class Game {
           trainOptions: this.training.optionsFor(this.humanPlayer),
           vehicleOptions: this.production.optionsFor(this.humanPlayer),
           buildAvailable: (option) => this.buildAvailable(this.humanPlayer, option),
-          buildAffordable: (option) => {
+          buildBlocker: (option) => {
             const p = this.humanPlayer;
-            if (p.credits < buildCost(option, p.faction)) return false;
-            if (option.id === 'yars' && (p.scientists ?? 0) < SILO_SCIENTISTS) return false;
-            if (option.id === 'alliedBuilding' && this.alliesOf(p) >= MAX_ALLIES) return false;
-            return true;
+            if (p.credits < buildCost(option, p.faction)) return 'Not enough money';
+            if (option.id === 'yars' && (p.scientists ?? 0) < SILO_SCIENTISTS) return `Needs ${SILO_SCIENTISTS} engineers in the High-Tech Center`;
+            if (option.id === 'alliedBuilding' && this.alliesOf(p) >= MAX_ALLIES) return 'Ally limit reached';
+            return null;
           },
           training: this.training.queue(this.humanPlayer),
           vehicleQueue: this.production.queue(this.humanPlayer),
@@ -5887,6 +5914,8 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       this.militarySnapshotAt = this.time;
     }
     const price = this.oilMarket.price;
+    const silos = new Map<number, number>();
+    for (const b of this.entities.buildings()) if (b instanceof MissileSilo && b.alive) silos.set(b.owner, (silos.get(b.owner) ?? 0) + 1);
     return this.players.filter((p) => !p.absent).map((p) => ({
       playerId: p.id,
       faction: p.faction as FactionId,
@@ -5896,6 +5925,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       economy:
         p.oil * price + (structures.get(p.id) ?? 0) + (units.get(p.id) ?? 0) + p.credits + (p.powerStored / POWER_PER_BARREL) * price,
       military: this.militarySnapshot?.get(p.id) ?? 0,
+      silos: silos.get(p.id) ?? 0,
       debt: Math.max(0, p.debt ?? 0),
     }));
   }
@@ -7408,7 +7438,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
           this.selection.selectedUnits.delete(u.id);
         }
       } else if (task.type === 'science') {
-        // Nuclear programme: the engineer goes into the own Tech Center for good (used up); SILO_SCIENTISTS per silo.
+        // Nuclear programme: the engineer goes into the own Tech Center for good; SILO_SCIENTISTS run the silos.
         u.task = null;
         const owner = this.players.find((p) => p.id === u.owner);
         if (b.owner === u.owner && b.hp < b.maxHp && !b.indestructible) {

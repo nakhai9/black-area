@@ -32,7 +32,7 @@ import { factionBadgeHtml } from './FactionBadge';
 import { nationFlag } from '../render/sprites/NationCapital';
 import { isBlankCanvas } from '../render/InfantryArt';
 import { isFactionNation, type NationId } from '../entities/NationCapital';
-import { type BuildOption, type QueueSlot, buildCost, footprintOf, missingRequirement } from '../systems/ConstructionSystem';
+import { BUILD_OPTIONS, type BuildOption, type QueueSlot, buildCost, footprintOf, missingRequirement } from '../systems/ConstructionSystem';
 import { MIN_SALE_STOCK } from '../systems/OilMarket';
 import type { ArmyCount, TrainKey, TrainOption, TrainingQueue } from '../systems/TrainingSystem';
 import type { VehicleKey, VehicleOption, VehicleQueue } from '../systems/VehicleSystem';
@@ -185,6 +185,8 @@ export interface RankRow {
   economy: number;
   /** Price of the living soldiers and working vehicles (snapshot, refreshed every 4 min); only the rank is shown. */
   military: number;
+  /** Standing RS-24 Yars silos (nuclear weapons when > 0). */
+  silos: number;
   /** What the nation owes the Global Monitoring Center (TB, 0 = no debt). */
   debt: number;
 }
@@ -244,7 +246,8 @@ export interface SidebarModel {
   /** Is this structure on sale now (another nation's design needs that nation's captured capital)? */
   buildAvailable: (option: BuildOption) => boolean;
   /** Can this structure be ordered right now (treasury, engineers for the Yars, embassy cap)? False greys its cameo out. */
-  buildAffordable: (option: BuildOption) => boolean;
+  /** Why this structure cannot be ordered right now (treasury, engineers for the Yars, ally cap), in English; null when it can. */
+  buildBlocker: (option: BuildOption) => string | null;
   training: TrainingQueue;
   vehicleQueue: VehicleQueue;
   /** Types of the player's living buildings (drives the tech tree). */
@@ -287,6 +290,8 @@ export interface SidebarModel {
 export interface SidebarHandlers {
   /** Left click on a build cameo. */
   onBuild: (option: BuildOption) => void;
+  /** A locked shop cameo was clicked: speak "Cannot buy" and the reason (English voice). */
+  onLockedClick: (reason: string) => void;
   /** Right click on a build cameo (cancel / refund). */
   onCancel: (option: BuildOption) => void;
   /** Sprite canvas used as the cameo picture. */
@@ -335,6 +340,8 @@ type Cameo = { el: HTMLElement; wipe: HTMLElement; state: HTMLElement; badge?: H
  */
 /** War / ceasefire clock icons (Material Design Icons "peace"; Akar Icons "sword" pair). */
 const PEACE_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2A10 10 0 0 0 2 12a10 10 0 0 0 10 10a10 10 0 0 0 10-10A10 10 0 0 0 12 2m-1 12.41v5.52a8 8 0 0 1-3.9-1.62zm2 0l3.9 3.9a8 8 0 0 1-3.9 1.62zM4 12c0-4.03 3-7.43 7-7.93v7.52L5.69 16.9A7.9 7.9 0 0 1 4 12m14.31 4.9L13 11.59V4.07c4 .5 7 3.9 7 7.93c0 1.78-.59 3.5-1.69 4.9"/></svg>';
+/** Nuclear power (IonIcons by Ben Sperry, MIT): shown yellow next to each nation that owns a missile silo. */
+const NUKE_ICON = '<svg viewBox="0 0 512 512" aria-hidden="true"><path fill="currentColor" d="M256 48C141.1 48 48 141.1 48 256s93.1 208 208 208 208-93.1 208-208S370.9 48 256 48zm-88.5 364.8l49.2-85.8c1.1-1.9.5-4.2-1.3-5.4-20.2-12.9-34-35-35.2-60.3-.1-2.1-1.8-3.8-4-3.8H76V256c0-48.1 18.7-93.3 52.7-127.3 10.8-10.8 22.7-20 35.4-27.6l50.5 87.9c1.1 1.9 3.5 2.5 5.4 1.5 10.7-5.8 22.9-9 35.9-9 12.5 0 24.4 3.1 34.8 8.5 1.9 1 4.2.3 5.3-1.5l51.1-87.7c13 7.7 25.1 17 36.1 28 34 34 52.7 79.2 52.7 127.3v1.5h-100c-2.1 0-3.9 1.7-4 3.8-1.3 25.4-15 47.5-35.2 60.3-1.8 1.2-2.4 3.5-1.3 5.4l49.2 85.8c-26.7 15.1-57 23.2-88.5 23.2-31.6-.1-61.9-8.2-88.6-23.3z"/><circle cx="256" cy="256" r="56" fill="currentColor"/></svg>';
 const WAR_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M2 19.2L3.8 21m.9-7.2l.9 3.6m0 0l3.6.9m-3.6-.9l-2.7 2.7M16.4 3.9l-9 9l.45 2.25l2.25.45l9-9L20 3z"/><path d="M22 19.2L20.2 21m-.9-7.2l-.9 3.6m0 0l2.7 2.7m-2.7-2.7l-1.8.45l-1.8.45M9.3 11L4.9 6.6L4 3l3.6.9L12 8.3m.1 5.5l1.8 1.8l2.25-.45l.45-2.25l-1.8-1.8"/></g></svg>';
 
 export class Sidebar {
@@ -394,6 +401,7 @@ export class Sidebar {
   private activeInfo: InfoId = 'finance';
   private rankEconomy!: HTMLElement;
   private rankMilitary!: HTMLElement;
+  private rankNuclear!: HTMLElement;
   private lastRanking: readonly RankRow[] = [];
   /** What the lists show now: the DOM is rebuilt only when this changes. */
   private rankKey = '';
@@ -509,6 +517,8 @@ export class Sidebar {
           <ol class="sb-rank-list" data-rank="economy"></ol>
           <h3 class="sb-rank-title">${t('MILITARY ')}</h3>
           <ol class="sb-rank-list" data-rank="military"></ol>
+          <h3 class="sb-rank-title">${t('NUCLEAR ')}</h3>
+          <ol class="sb-rank-list sb-rank-nuclear" data-rank="nuclear"></ol>
         </section>
       </div>
       <div class="sb-info" data-info="allies" hidden>
@@ -656,6 +666,7 @@ export class Sidebar {
     }
     this.rankEconomy = q('[data-rank=economy]');
     this.rankMilitary = q('[data-rank=military]');
+    this.rankNuclear = q('[data-rank=nuclear]');
     // After every lookup inside them: the Rank and Allies panels leave the sidebar for the News window.
     this.buildNewsModal(q('.sb-rank'), q('.sb-allies'), q('.sb-prices'));
     this.buildTabs(q('.sb-main-tabs'));
@@ -897,10 +908,15 @@ export class Sidebar {
       const missing = missingRequirement(option, model.owned, model.disarmed);
       // Capital lost = government gone: no structure can be bought any more, their cameos are hidden.
       const gone = model.capitalLost && !mine;
-      const locked = ((missing !== null || !model.buildAffordable(option)) && !mine) || gone;
+      const blocker = gone
+        ? 'Government lost'
+        : mine
+          ? null
+          : missing !== null
+            ? `Requires ${BUILD_OPTIONS.find((o) => o.id === missing)?.name ?? missing}`
+            : model.buildBlocker(option);
       c.el.classList.toggle('sb-placeholder', gone);
-      c.el.classList.toggle('locked', locked);
-      (c.el as HTMLButtonElement).disabled = locked;
+      setLock(c.el, blocker);
       // RA2 clock wipe: the dark sector shrinks as the build progresses.
       const remaining = mine && state !== 'ready' ? 1 - queue.progress : 0;
       setBackground(
@@ -1192,7 +1208,7 @@ export class Sidebar {
 
   /** Fills both ranking lists, best nation first. */
   private renderRanking(rows: readonly RankRow[]): void {
-    const key = rows.map((r) => `${r.playerId}:${Math.round(r.economy)}:${r.military}:${r.defeated}:${Math.round(r.debt)}`).join('|');
+    const key = rows.map((r) => `${r.playerId}:${Math.round(r.economy)}:${r.military}:${r.silos}:${r.defeated}:${Math.round(r.debt)}`).join('|');
     if (key === this.rankKey) return;
     this.rankKey = key;
     const fill = (list: HTMLElement, key: 'economy' | 'military', detail: ((r: RankRow) => string) | null): void => {
@@ -1234,6 +1250,38 @@ export class Sidebar {
     };
     fill(this.rankEconomy, 'economy', (r) => t('Economy {v} {c}', { v: Math.round(r.economy).toLocaleString('en-US'), c: CURRENCY }));
     fill(this.rankMilitary, 'military', null);
+    // Nuclear powers (a standing silo): flag, name and the yellow atom icon; nobody yet → a muted line.
+    const nuclear = rows.filter((r) => r.silos > 0 && !r.defeated);
+    if (nuclear.length === 0) {
+      const none = document.createElement('li');
+      none.className = 'sb-muted';
+      none.textContent = t('None');
+      this.rankNuclear.replaceChildren(none);
+    } else {
+      this.rankNuclear.replaceChildren(
+        ...nuclear.map((r) => {
+          const li = document.createElement('li');
+          li.classList.toggle('me', r.isHuman);
+          const flag = document.createElement('img');
+          flag.className = 'sb-rank-flag';
+          flag.alt = '';
+          flag.src = this.flagUrl(r.faction);
+          const name = document.createElement('span');
+          name.className = 'sb-rank-value';
+          name.textContent = r.name;
+          const icon = document.createElement('span');
+          icon.className = 'sb-nuke-icon';
+          icon.title = t('Owns nuclear weapons');
+          icon.innerHTML = NUKE_ICON;
+          const count = document.createElement('span');
+          count.className = 'sb-nuke-count';
+          count.textContent = String(r.silos);
+          count.title = t('Missile silos');
+          li.append(flag, name, icon, count);
+          return li;
+        }),
+      );
+    }
   }
 
   private flagUrl(faction: FactionId): string {
@@ -1411,11 +1459,18 @@ export class Sidebar {
       const atLimit = model.army.queued >= model.army.limit && count === 0;
       const noTech = TECH_TIERS.includes(option.tier) && !model.owned.has('techCenter');
       const overElite = option.tier === 'special' && model.army.special >= model.army.specialCap && count === 0;
-      const locked = !model.hasBarracks || atLimit || noTech || overElite;
+      const blocker = !model.hasBarracks
+        ? 'Requires Ministry of Defence'
+        : noTech
+          ? 'Requires High-Tech Center'
+          : atLimit
+            ? 'Training limit reached'
+            : overElite
+              ? 'Elite soldier limit reached'
+              : null;
       // Every Barracks lost: the soldiers leave the shop, their cells are hidden.
       c.el.classList.toggle('sb-placeholder', !model.hasBarracks && !training);
-      c.el.classList.toggle('locked', locked);
-      (c.el as HTMLButtonElement).disabled = locked;
+      setLock(c.el, blocker);
       if (c.badge) {
         c.badge.textContent = count > 0 ? String(count) : '';
         c.badge.hidden = count === 0;
@@ -1447,11 +1502,18 @@ export class Sidebar {
       const atLimit = model.vehicleQueued >= BUILD_LIMIT_VEHICLES && count === 0;
       const noTech = TECH_VEHICLES.includes(option.kind) && !model.owned.has('techCenter');
       const noParking = isAircraftKind(option.kind) && option.kind !== 'heli' && model.parkingFree <= 0 && count === 0;
-      const locked = !have || atLimit || noTech || noParking;
+      const blocker = !have
+        ? `Requires ${option.kind === 'carrier' ? 'Port' : option.needsAirfield ? 'Airfield' : 'War Factory'}`
+        : noTech
+          ? 'Requires High-Tech Center'
+          : atLimit
+            ? 'Production limit reached'
+            : noParking
+              ? 'No free parking at the Airfield'
+              : null;
       // No War Factory (ground) / Airfield (aircraft) left: the machine leaves the shop, its cell is hidden.
       c.el.classList.toggle('sb-placeholder', !have && !producing);
-      c.el.classList.toggle('locked', locked);
-      (c.el as HTMLButtonElement).disabled = locked;
+      setLock(c.el, blocker);
       if (c.badge) {
         c.badge.textContent = count > 0 ? String(count) : '';
         c.badge.hidden = count === 0;
@@ -1503,7 +1565,7 @@ export class Sidebar {
       }
       addInfoIcon(el, this.foreignName(option));
       this.addForeignFlag(el, option.faction);
-      el.addEventListener('click', () => this.handlers.onVehicle(option));
+      el.addEventListener('click', () => (el.dataset.lock ? this.handlers.onLockedClick(el.dataset.lock) : this.handlers.onVehicle(option)));
       el.addEventListener('contextmenu', (e) => {
         e.preventDefault();
         this.handlers.onVehicleCancel(option);
@@ -1533,7 +1595,7 @@ export class Sidebar {
       if (canvas) this.drawUntilComplete(canvas, () => this.handlers.trainPreview(option));
       addInfoIcon(el, this.foreignName(option));
       this.addForeignFlag(el, option.faction);
-      el.addEventListener('click', () => this.handlers.onTrain(option));
+      el.addEventListener('click', () => (el.dataset.lock ? this.handlers.onLockedClick(el.dataset.lock) : this.handlers.onTrain(option)));
       el.addEventListener('contextmenu', (e) => {
         e.preventDefault();
         this.handlers.onTrainCancel(option);
@@ -1605,7 +1667,7 @@ export class Sidebar {
       }
       addInfoIcon(el, option.name);
       if (option.foreign) this.addForeignFlag(el, option.foreign);
-      el.addEventListener('click', () => this.handlers.onBuild(option));
+      el.addEventListener('click', () => (el.dataset.lock ? this.handlers.onLockedClick(el.dataset.lock) : this.handlers.onBuild(option)));
       el.addEventListener('contextmenu', (e) => {
         e.preventDefault();
         this.handlers.onCancel(option);
@@ -1678,6 +1740,17 @@ function addInfoIcon(el: HTMLElement, name: string): void {
 }
 
 /** Background of structure cameos: a soft blue-grey (plain white glared). Keep in step with .sb-cameo-structure. */
+/**
+ * Locks a shop cameo with its reason (English) or unlocks it. Not `disabled`: a disabled button gets no clicks, and a
+ * click on a locked cameo must say why it cannot be bought.
+ */
+function setLock(el: HTMLElement, reason: string | null): void {
+  el.classList.toggle('locked', reason !== null);
+  el.setAttribute('aria-disabled', String(reason !== null));
+  if (reason === null) delete el.dataset.lock;
+  else el.dataset.lock = reason;
+}
+
 const STRUCTURE_CAMEO_BG = '#8e9aa6';
 
 /** Fits a sprite canvas into the cameo picture. */

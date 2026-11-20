@@ -38,10 +38,10 @@ export class FactionPicker {
     this.root.setAttribute("aria-labelledby", "fp-title");
     this.root.innerHTML = `
       <div class="fp-modal fp-menu">
-        <span class="fp-version" title="${t("Game version of this build")}">v${GAME_VERSION}</span>
         <button class="fp-fullscreen" type="button" title="${t("Full screen (Alt+F)")}" aria-label="${t("Full screen (Alt+F)")}">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
         </button>
+        <span class="fp-version" title="${t("Game version of this build")}">v${GAME_VERSION}</span>
         <div class="fp-main">
           <header class="fp-header">
             <div class="sb-logo"><img src="${import.meta.env.BASE_URL}logo.png" alt="Black Area" /></div>

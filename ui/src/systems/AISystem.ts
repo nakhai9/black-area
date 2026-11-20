@@ -1792,10 +1792,10 @@ export class AISystem implements GameSystem {
 
   /**
    * RS-24 Yars (player rule): SILO_SCIENTISTS engineers must go into the own Tech Center before the silo can be ordered.
-   * Once the Tech Center and Radar Tower stand and no silo exists, the nation trains engineers and sends them in.
+   * They stay to run the silos and are used up mending the Tech Center, so the nation keeps the count topped up.
    */
   private staffSilo(p: PlayerState, st: AIState, owned: Set<BuildingType>): void {
-    if (!owned.has('techCenter') || !owned.has('radarTower') || !owned.has('barracks') || owned.has('missileSilo')) return;
+    if (!owned.has('techCenter') || !owned.has('radarTower') || !owned.has('barracks')) return;
     const engineers = this.host.entities.fieldUnits().filter((u): u is Infantry => u instanceof Infantry && u.owner === p.id && u.alive && u.isEngineer);
     const going = engineers.filter((u) => u.task?.type === 'science').length;
     if ((p.scientists ?? 0) + going >= SILO_SCIENTISTS) return;

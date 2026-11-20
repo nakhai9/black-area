@@ -423,8 +423,8 @@ kbd {
 }
 .fp-version {
   position: absolute;
-  top: 8px;
-  left: 12px;
+  top: 14px;
+  left: 46px;
   font-size: 11px;
   letter-spacing: 1px;
   color: #8a98a6;
@@ -433,7 +433,7 @@ kbd {
 .fp-fullscreen {
   position: absolute;
   top: 6px;
-  right: 8px;
+  left: 8px;
   z-index: 2;
   display: flex;
   align-items: center;
@@ -944,7 +944,8 @@ kbd {
 .sb-tabs button.no-icon svg {
   visibility: hidden;
 }
-.sb-cameo:disabled {
+.sb-cameo:disabled,
+.sb-cameo[aria-disabled="true"] {
   cursor: not-allowed;
 }
 
@@ -1249,6 +1250,25 @@ kbd {
 .sb-rank-value {
   text-align: right;
   font-variant-numeric: tabular-nums;
+}
+/* Nuclear powers: flag, name, yellow atom icon. */
+.sb-rank-nuclear li {
+  grid-template-columns: 22px 1fr 16px auto;
+}
+.sb-nuke-count {
+  min-width: 14px;
+  text-align: right;
+  font-weight: 700;
+  color: #ffd400;
+  font-variant-numeric: tabular-nums;
+}
+.sb-nuke-icon {
+  display: flex;
+  color: #ffd400;
+}
+.sb-nuke-icon svg {
+  width: 16px;
+  height: 16px;
 }
 
 
@@ -2350,7 +2370,7 @@ button,
 /* News window, Rank column: Economy | Military side by side. */
 .news-col-body .sb-rank {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
   grid-template-rows: auto auto;
   grid-auto-flow: column;
   column-gap: 10px;

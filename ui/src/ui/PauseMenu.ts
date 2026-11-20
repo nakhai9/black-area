@@ -181,14 +181,10 @@ export class PauseMenu {
     quit.type = 'button';
     quit.textContent = t('Quit game');
     quit.addEventListener('click', () => saves.onQuit());
-    const save = document.createElement('button');
-    save.type = 'button';
-    save.textContent = t('Save game');
-    save.title = t('Download this game as a .json file, to continue it later with Import saved file.');
-    save.addEventListener('click', () => saves.onSave());
+    // Only Continue and Quit game (no Save game button).
     const actions = document.createElement('div');
     actions.className = 'pause-actions';
-    actions.append(resume, save, quit);
+    actions.append(resume, quit);
     // Same X as every other modal: closes the menu, like Continue.
     const x = document.createElement('button');
     x.type = 'button';
