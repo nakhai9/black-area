@@ -1765,10 +1765,11 @@ export class AISystem implements GameSystem {
           b.alive &&
           !b.indestructible &&
           b.crew.length === 0 &&
-          b.hp < b.maxHp * REPAIR_BELOW &&
-          this.time - b.lastAttackedAt > REPAIR_CALM,
+          // The capital / inherited seat: any lost health, at once (even under fire); the rest once calm and below REPAIR_BELOW.
+          ((isSeat(b) as boolean) ? b.hp < b.maxHp : b.hp < b.maxHp * REPAIR_BELOW && this.time - b.lastAttackedAt > REPAIR_CALM),
       )
-      .sort((a, b) => a.hp / a.maxHp - b.hp / b.maxHp);
+      // Capitals first, then the most damaged.
+      .sort((a, b) => Number(isSeat(b)) - Number(isSeat(a)) || a.hp / a.maxHp - b.hp / b.maxHp);
   }
 
   /**
@@ -1786,7 +1787,12 @@ export class AISystem implements GameSystem {
     const free = engineers.filter((u) => u.task === null && u.insideId === null && u.id !== st.nationEngineer);
     for (const b of hurt) {
       if (covered.has(b.id)) continue;
-      const u = free.shift();
+      // A capital with no free engineer takes one walking to repair an ordinary structure (capital first).
+      let u = free.shift();
+      if (!u && isSeat(b)) {
+        u = engineers.find((e) => e.task?.type === 'repair' && e.insideId === null && !isSeat(this.host.entities.get(e.task.buildingId) as Building));
+        if (u) covered.delete(u.task?.buildingId);
+      }
       if (!u) break;
       this.host.orderRepair(u, b);
       covered.add(b.id);

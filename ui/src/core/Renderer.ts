@@ -11,6 +11,7 @@ import { Bunker } from '../entities/Bunker';
 import { LdewEmplacement } from '../entities/LdewEmplacement';
 import { DvinaLauncher } from '../entities/DvinaLauncher';
 import { MissileSilo } from '../entities/MissileSilo';
+import { ReserveCapital, roman } from '../entities/ReserveCapital';
 import { setSiloLid } from '../render/sprites/MissileSilo';
 import { drawFallout, drawIcbm, drawNuke } from '../render/Icbm';
 import { drawSite } from '../render/DvinaSheets';
@@ -162,7 +163,7 @@ function bombRow(v: Vehicle): { x0: number; y: number; bar: number; gap: number;
   return { x0: P.x - w / 2, y: P.y - v.altitude - h / 2, bar, gap, h };
 }
 /** Structures whose art has no flag of its own (sprite key kinds): the renderer gives them a flag pole. */
-const FLAGLESS_ART: ReadonlySet<string> = new Set(['oil', 'airfield', 'port', 'radarTower', 'fuelStation', 'techCenter', 'powerPlant', 'happyCity']);
+const FLAGLESS_ART: ReadonlySet<string> = new Set(['oil', 'airfield', 'port', 'radarTower', 'fuelStation', 'techCenter', 'powerPlant', 'happyCity', 'reserveCapital']);
 /** Structures without a flag that get one only once taken from another nation. */
 const CAPTURE_POLE_ART: ReadonlySet<string> = new Set(['bunker', 'wall', 'gate']);
 const FLAG_POLE_HEIGHT = 30;
@@ -1962,6 +1963,8 @@ export class Renderer {
       ? `${b.spec.name} · ${health} · ${t('Global Monitoring Center managed')}`
       : b.indestructible
         ? `${b.spec.name} · ${health} · ${t('Neutral')} · ${t('Protected')}`
+        : b instanceof ReserveCapital && b.seat && b.seatNo > 0 && b.faction !== 'neutral'
+        ? `${FACTIONS[b.faction].shortName} ${roman(b.seatNo)} · ${health}${inside}` // inherited seat: first heir "Lunastron I", then II, III… (the first capital has no number)
         : `${b.spec.name}${b instanceof MissileSilo && b.siloNo > 0 ? ` #${b.siloNo}` : ''} · ${health}${inside}`;
     ctx.font = `600 ${12 * k}px "Courier New", Courier, monospace`;
     // Own Tech Center: " · <engineer icon> n" — engineers sent in for the nuclear programme.

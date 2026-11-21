@@ -12,6 +12,8 @@ import type { Entity } from './Entity';
 export class ReserveCapital extends Building {
   /** The government sits here (own capital lost, this reserve chosen). */
   seat = false;
+  /** Succession number once it inherits the seat (1 → I, 2 → II…); 0 while not a seat. */
+  seatNo = 0;
   /** Players whose units have spotted it (it stays known to them). */
   spottedBy: number[] = [];
 
@@ -40,6 +42,15 @@ export class ReserveCapital extends Building {
 }
 
 /** Is `b` a Reserve Capital still hidden from player `viewer`? */
+/** Roman numeral (1 → I, 4 → IV, 14 → XIV…). */
+export function roman(n: number): string {
+  let out = '';
+  for (const [v, s] of [[1000, 'M'], [900, 'CM'], [500, 'D'], [400, 'CD'], [100, 'C'], [90, 'XC'], [50, 'L'], [40, 'XL'], [10, 'X'], [9, 'IX'], [5, 'V'], [4, 'IV'], [1, 'I']] as const) {
+    while (n >= v) { out += s; n -= v; }
+  }
+  return out;
+}
+
 export function concealedFrom(b: Entity, viewer: number): boolean {
   return b instanceof ReserveCapital && b.hiddenFrom(viewer);
 }

@@ -61,6 +61,7 @@ import {
   PARADE_MAX_CELLS,
   PARADE_SPACING,
   VETERAN_REGEN_CALM,
+  CAPITAL_REGEN,
   REPAIR_VEHICLE_HEAL_SHARE,
   REPAIR_VEHICLE_INTERVAL,
   REPAIR_VEHICLE_RANGE_CELLS,
@@ -691,8 +692,13 @@ export class Game {
     // RS-24 Yars: every ICBM costs SILO_MISSILE_COST from the owner's treasury before it is loaded (player and AI alike).
     MissileSilo.payMissile = (b) => {
       const p = this.players.find((o) => o.id === b.owner);
-      if (!p || p.credits < SILO_MISSILE_COST) return false;
-      p.credits -= SILO_MISSILE_COST;
+      if (!p) return false;
+      // Installments: take whatever the treasury holds toward the missile; loading starts once it is paid in full.
+      const pay = Math.max(0, Math.min(p.credits, SILO_MISSILE_COST - b.missilePaid));
+      p.credits -= pay;
+      b.missilePaid += pay;
+      if (b.missilePaid < SILO_MISSILE_COST - 1e-6) return false;
+      b.missilePaid = 0;
       return true;
     };
     this.construction.lostPrerequisite = (p, option) =>
@@ -3483,6 +3489,10 @@ export class Game {
     this.prof.time('processPortRepairs', () => this.processPortRepairs(dt));
     this.prof.time('processPatients', () => this.processPatients(dt));
     this.prof.time('regenVeterans', () => this.regenVeterans(dt));
+    // Capitals heal by themselves (CAPITAL_REGEN): every nation's capital and every inherited seat, player and AI alike.
+    for (const b of this.entities.buildings()) {
+      if (b.alive && b.hp < b.maxHp && b.owner !== NEUTRAL_OWNER && isSeat(b)) b.hp = Math.min(b.maxHp, b.hp + b.maxHp * CAPITAL_REGEN * dt);
+    }
     this.janitorTimer += dt;
     if (this.janitorTimer >= JANITOR_INTERVAL) {
       this.janitorTimer = 0;
@@ -4287,7 +4297,7 @@ export class Game {
               // Loading countdown m:ss (h:mm:ss over an hour); kept while stalled for lack of power.
               const left = Math.ceil(Math.max(0, b.loadClock));
               const hms = left >= 3600 ? `${Math.floor(left / 3600)}:${String(Math.floor(left / 60) % 60).padStart(2, '0')}:${String(left % 60).padStart(2, '0')}` : `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
-              const status = busy ? t('Launching…') : ready ? t('Ready') : noPower ? `${t('Low power')} · ${hms}` : b.loading ? t('Loading {time}', { time: hms }) : t('Not paid');
+              const status = busy ? t('Launching…') : ready ? t('Ready') : noPower ? `${t('Low power')} · ${hms}` : b.loading ? t('Loading {time}', { time: hms }) : `${t('Paying')} ${Math.floor(b.missilePaid).toLocaleString('en-US')}/${SILO_MISSILE_COST.toLocaleString('en-US')} ${CURRENCY}`;
               return { id: b.id, label: `#${b.siloNo}`, status, ready, lamp } as const;
             }),
         );
@@ -6106,6 +6116,9 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       if (!seat && reserves.length > 0) {
         seat = reserves.reduce((x, r) => (r.hp > x.hp ? r : x));
         seat.seat = true;
+        // Succession number: the first capital has none; the first Reserve Capital to inherit is I, then II, III…
+        p.seats = (p.seats ?? 0) + 1;
+        seat.seatNo = p.seats;
         this.intel('politics', t('{name} has moved its government to the Reserve Capital.', { name: FACTIONS[p.faction].name }));
         if (p.id === this.localId) {
           this.sidebar.notify(t('Your capital is lost — the government has moved to the Reserve Capital.'), 6);
@@ -7902,7 +7915,8 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
   /** What the Global Monitoring Center pays for `b` (its build cost × health × RESALE_SHARE); null: cannot be sold. */
   private salePrice(b: Building): number | null {
     if (!b.alive || b.indestructible || b.spec.type === 'capital') return null;
-    const option = BUILD_OPTIONS.find((o) => o.id === b.spec.type);
+    // Sold by its shop id (the silo's is 'yars', not its type): matched by sprite when the id differs.
+    const option = BUILD_OPTIONS.find((o) => o.id === b.spec.type) ?? BUILD_OPTIONS.find((o) => b.faction !== 'neutral' && o.spriteKey(b.faction as FactionId) === b.spec.spriteKey);
     if (!option) return null;
     return Math.round((buildCost(option, b.faction as FactionId) * RESALE_SHARE * b.hp) / b.maxHp / 10) * 10;
   }

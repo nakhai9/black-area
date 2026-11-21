@@ -13,40 +13,73 @@ import type { FactionId } from '../types';
 export const ICBM_TRAIL_SECONDS = 4;
 const TRAIL_PUFFS = 26;
 
-/** Share of the flight spent climbing straight up out of the silo before the missile pitches over. */
-const CLIMB_SHARE = 0.22;
-/** Height (iso px) of that vertical climb. */
-const CLIMB_HEIGHT = 60;
-/** Last share of the flight: the warhead falls straight down onto the target from DROP_HEIGHT. */
-const DROP_SHARE = 0.18;
-const DROP_HEIGHT = 70;
-
 /**
- * Point `t` (0..1 of the flight) on the path: straight up from the silo to CLIMB_HEIGHT (speeding up), a cubic arc
- * that leaves the top vertically, peaks `loft` higher and comes down vertically over the target, then a straight
- * vertical fall of DROP_HEIGHT onto (x1, y1).
+ * Flight path: straight up out of the silo to the cruise height (`loft` iso px above the ground), a pitch-over into
+ * level flight, level along the ground track at that height, a pitch-down over the target and a straight vertical
+ * fall onto it. Built once per flight as a dense polyline, walked by distance (constant speed along the path).
  */
+interface IcbmPath {
+  pts: [number, number][];
+  cum: number[];
+  total: number;
+}
+const paths = new Map<string, IcbmPath>();
+
+function buildPath(x0: number, y0: number, x1: number, y1: number, loft: number): IcbmPath {
+  const key = `${x0.toFixed(1)},${y0.toFixed(1)},${x1.toFixed(1)},${y1.toFixed(1)},${loft.toFixed(1)}`;
+  const hit = paths.get(key);
+  if (hit) return hit;
+  const A: [number, number] = [x0, y0 - loft];
+  const D: [number, number] = [x1, y1 - loft];
+  const run = Math.hypot(D[0] - A[0], D[1] - A[1]);
+  const r = Math.max(1, Math.min(loft * 0.45, run * 0.35));
+  const dir: [number, number] = run > 0.01 ? [(D[0] - A[0]) / run, (D[1] - A[1]) / run] : [0, 0];
+  const pts: [number, number][] = [];
+  const line = (a: [number, number], b: [number, number]): void => {
+    const n = Math.max(2, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / 2));
+    for (let i = 0; i <= n; i++) pts.push([a[0] + ((b[0] - a[0]) * i) / n, a[1] + ((b[1] - a[1]) * i) / n]);
+  };
+  // Rounded corner: quadratic curve from `a` to `b` with the corner `c` as control point.
+  const corner = (a: [number, number], c: [number, number], b: [number, number]): void => {
+    for (let i = 1; i < 24; i++) {
+      const k = i / 24;
+      const u = 1 - k;
+      pts.push([u * u * a[0] + 2 * u * k * c[0] + k * k * b[0], u * u * a[1] + 2 * u * k * c[1] + k * k * b[1]]);
+    }
+  };
+  const climbEnd: [number, number] = [x0, A[1] + r];
+  const cruiseStart: [number, number] = [A[0] + dir[0] * r, A[1] + dir[1] * r];
+  const cruiseEnd: [number, number] = [D[0] - dir[0] * r, D[1] - dir[1] * r];
+  const dropStart: [number, number] = [x1, D[1] + r];
+  line([x0, y0], climbEnd);
+  corner(climbEnd, A, cruiseStart);
+  line(cruiseStart, cruiseEnd);
+  corner(cruiseEnd, D, dropStart);
+  line(dropStart, [x1, y1]);
+  const cum = [0];
+  for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1]! + Math.hypot(pts[i]![0] - pts[i - 1]![0], pts[i]![1] - pts[i - 1]![1]));
+  const path = { pts, cum, total: cum[cum.length - 1] ?? 0 };
+  if (paths.size > 32) paths.clear();
+  paths.set(key, path);
+  return path;
+}
+
+/** Point `t` (0..1 of the flight) on the path (see buildPath). */
 function along(x0: number, y0: number, x1: number, y1: number, loft: number, t: number): [number, number] {
-  if (t <= CLIMB_SHARE) {
-    const k = t / CLIMB_SHARE;
-    return [x0, y0 - CLIMB_HEIGHT * k * k];
+  const { pts, cum, total } = buildPath(x0, y0, x1, y1, loft);
+  const want = Math.max(0, Math.min(1, t)) * total;
+  let lo = 0;
+  let hi = cum.length - 1;
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >> 1;
+    if (cum[mid]! < want) lo = mid;
+    else hi = mid;
   }
-  if (t >= 1 - DROP_SHARE) {
-    const k = (t - (1 - DROP_SHARE)) / DROP_SHARE;
-    return [x1, y1 - DROP_HEIGHT * (1 - k)];
-  }
-  const k = (t - CLIMB_SHARE) / (1 - CLIMB_SHARE - DROP_SHARE);
-  const ax = x0;
-  const ay = y0 - CLIMB_HEIGHT;
-  const dx = x1;
-  const dy = y1 - DROP_HEIGHT;
-  // Control points straight above both ends: vertical exit from the climb, vertical entry into the fall.
-  const top = Math.min(ay, dy) - loft;
-  const u = 1 - k;
-  return [
-    u * u * u * ax + 3 * u * u * k * ax + 3 * u * k * k * dx + k * k * k * dx,
-    u * u * u * ay + 3 * u * u * k * top + 3 * u * k * k * top + k * k * k * dy,
-  ];
+  const seg = cum[hi]! - cum[lo]! || 1;
+  const k = (want - cum[lo]!) / seg;
+  const a = pts[lo]!;
+  const b = pts[hi]!;
+  return [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k];
 }
 
 /** The ICBM `age` s after launch, flying (x0, y0) → (x1, y1) for `flight` s; its trail lingers ICBM_TRAIL_SECONDS. */

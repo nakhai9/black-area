@@ -109,6 +109,7 @@ export default {
   STANDBY: 'CHỜ LỆNH',
   'Ready {n}/{total}': 'Sẵn sàng {n}/{total}',
   'Not paid': 'Chưa trả tiền',
+  Paying: 'Đang trả góp',
   'Deleted': 'Đã xóa',
   'Moved': 'Đã chuyển',
   'Add': 'Thêm',

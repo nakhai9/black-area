@@ -10,6 +10,8 @@ export interface DvinaMissile {
   point: WorldPoint;
   air: boolean;
   done: boolean;
+  /** Reached its cruise height after the vertical climb: from then on it flies level, then dives onto the target. */
+  climbed?: boolean;
   /** Combat time at which an enemy air-defence missile meets it (it bursts harmlessly in the air then); unset while untouched. */
   killAt?: number;
   /** Shot down in flight: no warhead damage. */
@@ -500,15 +502,23 @@ export class CombatSystem implements GameSystem {
     let turn = want0 - cur;
     while (turn > Math.PI) turn -= 2 * Math.PI;
     while (turn < -Math.PI) turn += 2 * Math.PI;
+    // Lofted flight: straight up off the rail to the cruise height first (no ground track yet), then level.
+    const cruise = Math.max(goalLift, Math.min(CRUISE_ALTITUDE, goalLift + d * 0.12));
+    if (!m.climbed) {
+      if (m.lift < cruise - 0.5) {
+        m.lift = Math.min(cruise, m.lift + step * 0.6);
+        return;
+      }
+      m.climbed = true;
+    }
     const maxTurn = d < DVINA_SNAP_DIST ? Math.PI : DVINA_STEER_RATE * dt;
     const h = cur + Math.max(-maxTurn, Math.min(maxTurn, turn));
     m.hx = Math.cos(h);
     m.hy = Math.sin(h);
     m.x += m.hx * step;
     m.y += m.hy * step;
-    // Lofted climb: well above the line to the target while far, coming down (or up) onto it at the end.
-    // Climbs to the aircraft's cruise height (CRUISE_ALTITUDE) and dives onto the target at the end.
-    const want = Math.max(goalLift, Math.min(CRUISE_ALTITUDE, goalLift + d * 0.12));
+    // Level at the cruise height while far (it never climbs again once level), diving (or rising) onto the target at the end.
+    const want = cruise < m.lift || goalLift > m.lift ? cruise : m.lift;
     m.lift += (want - m.lift) * Math.min(1, dt * 3);
   }
 

@@ -9,13 +9,15 @@ import { Building } from './Building';
  * (CombatSystem.silos). The launch lid swings open for the launch and closes after it. Player and AI alike.
  */
 export class MissileSilo extends Building {
-  /** Pays SILO_MISSILE_COST for the next missile (wired by Game: owner's treasury, player and AI alike). */
+  /** Pays toward SILO_MISSILE_COST for the next missile in installments (wired by Game); true once fully paid. */
   static payMissile: (s: MissileSilo) => boolean = () => true;
   /** A missile stands ready in the shaft. */
   loaded = false;
   /** A paid missile is being loaded: seconds left (counts only while the owner has power). */
   loading = false;
   loadClock = 0;
+  /** TB paid so far toward the next missile (installments: whatever the treasury holds, until SILO_MISSILE_COST). */
+  missilePaid = 0;
   /** Point (world px) the owner ordered the next launch at; kept until the missile goes. */
   strike: WorldPoint | null = null;
   /** Seconds into the launch sequence (lid opens, missile goes, lid holds, lid closes); null when idle. */
