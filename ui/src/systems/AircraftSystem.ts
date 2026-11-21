@@ -70,6 +70,8 @@ export interface AircraftHooks {
   computer(owner: number): boolean;
   /** Does the owner have enough power? The airfield cannot launch aircraft without it. */
   powered(owner: number): boolean;
+  /** An order to a parked aircraft was refused (no power for a take-off). */
+  refused?(v: Vehicle): void;
   /** Charges `owner` `amount` (a bomb reload); false, and nothing is charged, when it cannot pay. */
   pay(owner: number, amount: number): boolean;
   /** The aircraft is about to go down (crashing, or badly hit in the air): the pilot's distress call. */
@@ -300,6 +302,16 @@ export class AircraftSystem implements GameSystem {
     }
     const wantsOut = v.moving || v.attackTarget !== null || v.attackMove !== null;
     if (!wantsOut) return;
+    // Short of power: no take-off, so the order is not taken at all — it stays on its spot (no taxi to the runway)
+    // and the order is dropped, not kept for later. Player and AI alike.
+    if (!this.hooks.powered(v.owner)) {
+      v.stop();
+      v.attackTarget = null;
+      v.attackMove = null;
+      v.mission = null;
+      this.hooks.refused?.(v);
+      return;
+    }
     this.stashOrders(v);
     if (unarmed) return;
     if (v.isHeli) {
@@ -351,6 +363,18 @@ export class AircraftSystem implements GameSystem {
   private taxi(v: Vehicle, dt: number): void {
     const home = this.home(v);
     if (!home) return this.abort(v);
+    // Power ran short while it taxied / waited at the runway (also an old save): the order is dropped and it rolls
+    // back to its own parking spot. Player and AI alike.
+    if (!this.hooks.powered(v.owner)) {
+      v.stop();
+      v.attackTarget = null;
+      v.attackMove = null;
+      v.mission = null;
+      this.leaveQueue(v);
+      v.flight = 'taxiHome';
+      v.phaseTime = 0;
+      return;
+    }
     this.stashOrders(v);
     const g = this.geometry(home);
     // The runway can be used from either end: when the end it is heading for is jammed (another aircraft already

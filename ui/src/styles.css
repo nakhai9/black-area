@@ -1265,9 +1265,10 @@ kbd {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
-/* Nuclear powers: flag, name, yellow atom icon. */
+/* Nuclear powers: flag, silo count, yellow atom icon (red under a nuclear embargo). */
 .sb-rank-nuclear li {
-  grid-template-columns: 22px 1fr 16px auto;
+  grid-template-columns: 22px 1fr 16px;
+  gap: 6px;
 }
 .sb-nuke-count {
   min-width: 14px;
@@ -1279,6 +1280,9 @@ kbd {
 .sb-nuke-icon {
   display: flex;
   color: #ffd400;
+}
+.sb-nuke-icon.banned {
+  color: #e0301e;
 }
 .sb-nuke-icon svg {
   width: 16px;

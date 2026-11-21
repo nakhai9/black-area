@@ -766,6 +766,9 @@ export class Game {
         if (!p || p.powerShort) return false;
         return p.powerConsumed <= 0 || p.powerSupply / p.powerConsumed > AIRCRAFT_MIN_POWER;
       },
+      refused: (v) => {
+        if (v.owner === this.localId && this.selection.selectedUnits.has(v.id)) this.sidebar.notify(t('Not enough power: aircraft cannot take off.'), 2.5);
+      },
       mayday: (v) => {
         if (v.owner === this.humanPlayer.id) this.sound.mayday();
       },
@@ -5973,6 +5976,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
         p.oil * price + (structures.get(p.id) ?? 0) + (units.get(p.id) ?? 0) + p.credits + (p.powerStored / POWER_PER_BARREL) * price,
       military: this.militarySnapshot?.get(p.id) ?? 0,
       silos: silos.get(p.id) ?? 0,
+      nuclearBanned: p.nuclearBanUntil !== undefined && this.time < p.nuclearBanUntil,
       debt: Math.max(0, p.debt ?? 0),
     }));
   }

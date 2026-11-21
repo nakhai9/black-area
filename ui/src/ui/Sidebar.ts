@@ -188,6 +188,8 @@ export interface RankRow {
   military: number;
   /** Standing RS-24 Yars silos (nuclear weapons when > 0). */
   silos: number;
+  /** Under a nuclear embargo (silos emptied and idle). */
+  nuclearBanned?: boolean;
   /** What the nation owes the Global Monitoring Center (TB, 0 = no debt). */
   debt: number;
 }
@@ -1269,18 +1271,19 @@ export class Sidebar {
           flag.className = 'sb-rank-flag';
           flag.alt = '';
           flag.src = this.flagUrl(r.faction);
-          const name = document.createElement('span');
-          name.className = 'sb-rank-value';
-          name.textContent = r.name;
-          const icon = document.createElement('span');
-          icon.className = 'sb-nuke-icon';
-          icon.title = t('Owns nuclear weapons');
-          icon.innerHTML = NUKE_ICON;
+          flag.title = r.name;
+          // Silo count + atom icon (red while the nation is under a nuclear embargo).
           const count = document.createElement('span');
           count.className = 'sb-nuke-count';
           count.textContent = String(r.silos);
           count.title = t('Missile silos');
-          li.append(flag, name, icon, count);
+          const icon = document.createElement('span');
+          icon.className = 'sb-nuke-icon';
+          icon.classList.toggle('banned', !!r.nuclearBanned);
+          icon.title = r.nuclearBanned ? t('Under a nuclear embargo') : t('Owns nuclear weapons');
+          icon.innerHTML = NUKE_ICON;
+          li.title = r.name;
+          li.append(flag, count, icon);
           return li;
         }),
       );

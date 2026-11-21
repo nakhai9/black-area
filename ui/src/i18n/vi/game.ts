@@ -207,6 +207,8 @@ export default {
   '1. Embargo': '1. Cấm vận kinh tế',
   '2. Military embargo': '2. Cấm vận quân sự',
   'Nuclear embargo': 'Cấm vận hạt nhân',
+  'Not enough power: aircraft cannot take off.': 'Thiếu năng lượng: máy bay không thể cất cánh.',
+  'Under a nuclear embargo': 'Đang bị cấm vận hạt nhân',
   '3. Nuclear embargo': '3. Cấm vận hạt nhân',
   '4. Parallel government': '4. Chính phủ song song',
   '5. Capture': '5. Chiếm thành',
