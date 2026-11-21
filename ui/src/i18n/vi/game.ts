@@ -178,6 +178,7 @@ export default {
   'Not enough money for a missile': 'Không đủ tiền mua tên lửa',
   'Launching…': 'Đang phóng…',
   'RS-24 Yars: missile loaded, ready to launch.': 'RS-24 Yars: tên lửa đã nạp xong, sẵn sàng phóng.',
+  'Missile Silo #{n}: missile loaded, ready to launch.': 'Hầm tên lửa số {n}: tên lửa đã nạp xong, sẵn sàng phóng.',
   'RS-24 Yars launched.': 'Đã phóng RS-24 Yars.',
   'Rally point cleared.': 'Đã xoá điểm tập kết.',
   'No free parking spot on that airfield.': 'Sân bay đó đã hết chỗ đỗ.',

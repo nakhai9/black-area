@@ -229,7 +229,7 @@ import { TechCenter } from '../entities/TechCenter';
 import { SiloButton } from '../ui/SiloButton';
 import { sitePreview, siteRailHeight } from '../render/DvinaSheets';
 import { ldewLensHeight, ldewPreview } from '../render/PrototypeSheets';
-import { PowerSystem } from '../systems/PowerSystem';
+import { PowerSystem, powerTier, type PowerTier } from '../systems/PowerSystem';
 import { SAFE_ZONE_SIZE, type SafeZone, SafeZoneSystem } from '../systems/SafeZoneSystem';
 import { SelectionSystem } from '../systems/SelectionSystem';
 import { type TrainKey, TrainingSystem } from '../systems/TrainingSystem';
@@ -790,7 +790,10 @@ export class Game {
       onIcbmLaunch: (silo, to, flight) => this.onIcbmLaunch(silo, to, flight),
       onNuke: (at, radius) => this.onNuke(at, radius),
       onSiloReady: (silo) => {
-        if (silo.owner === this.localId) this.sidebar.notify(t('RS-24 Yars: missile loaded, ready to launch.'), 4);
+        if (silo.owner !== this.localId) return;
+        this.sidebar.notify(t('Missile Silo #{n}: missile loaded, ready to launch.', { n: silo.siloNo }), 4);
+        // Commander's voice names the silo: "Missile silo 2 ready".
+        this.sound.announce(`Missile silo ${silo.siloNo} ready`);
       },
       onDvinaIntercept: (guard, meet, lift, flight) => this.onDvinaIntercept(guard, meet, lift, flight),
       onDvinaShotDown: (at, lift) => this.onDvinaShotDown(at, lift),
@@ -1602,8 +1605,8 @@ export class Game {
 
   /** The demo army is being handed out (no "Unit ready" for each of them). */
   private spawningDemo = false;
-  /** The player's grid was short of power last frame ("Low power" is announced when it runs short). */
-  private wasLowPower = false;
+  /** Grid tier announced last ('ok' | 'medium' | 'low'). */
+  private lastPowerTier: PowerTier = 'ok';
 
   /**
    * DEMO: the ground combat units gather at one rally point DEMO_DROP_CELLS from the nearest of my structures, one unit per cell; the
@@ -4297,7 +4300,7 @@ export class Game {
               // Loading countdown m:ss (h:mm:ss over an hour); kept while stalled for lack of power.
               const left = Math.ceil(Math.max(0, b.loadClock));
               const hms = left >= 3600 ? `${Math.floor(left / 3600)}:${String(Math.floor(left / 60) % 60).padStart(2, '0')}:${String(left % 60).padStart(2, '0')}` : `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
-              const status = busy ? t('Launching…') : ready ? t('Ready') : noPower ? `${t('Low power')} · ${hms}` : b.loading ? t('Loading {time}', { time: hms }) : `${t('Paying')} ${Math.floor(b.missilePaid).toLocaleString('en-US')}/${SILO_MISSILE_COST.toLocaleString('en-US')} ${CURRENCY}`;
+              const status = busy ? t('Launching…') : ready ? t('Ready') : noPower ? `${powerTier(this.humanPlayer) === 'medium' ? t('Medium power') : t('Low power')} · ${hms}` : b.loading ? t('Loading {time}', { time: hms }) : `${t('Paying')} ${Math.floor(b.missilePaid).toLocaleString('en-US')}/${SILO_MISSILE_COST.toLocaleString('en-US')} ${CURRENCY}`;
               return { id: b.id, label: `#${b.siloNo}`, status, ready, lamp } as const;
             }),
         );
@@ -4308,9 +4311,10 @@ export class Game {
     }
     this.status.update(dt, this.mouseWorld, this.camera.zoom);
 
-    const lowPower = this.humanPlayer.powerShort;
-    if (lowPower && !this.wasLowPower) this.sound.announce('Low power');
-    this.wasLowPower = lowPower;
+    // Short grid: "Medium power" while plants still cover at least half the demand, "Low power" below that or in a blackout.
+    const tier = powerTier(this.humanPlayer);
+    if (tier !== 'ok' && tier !== this.lastPowerTier && (this.lastPowerTier === 'ok' || tier === 'low')) this.sound.announce(tier === 'low' ? 'Low power' : 'Medium power');
+    this.lastPowerTier = tier;
     for (const option of BUILD_OPTIONS) {
       const s = this.construction.slot(this.humanPlayer, option.id);
       if (s.state === (this.lastQueueState.get(option.id) ?? 'idle')) continue;
@@ -6113,6 +6117,11 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       const reserves = own ? [] : (this.entities.buildings().filter((b) => b.alive && b.owner === p.id && b instanceof ReserveCapital) as ReserveCapital[]);
       for (const r of this.entities.buildings()) if (r instanceof ReserveCapital && r.seat && (r.owner === p.id || r.faction === p.faction) && (own || !r.alive || r.owner !== p.id)) r.seat = false;
       let seat = reserves.find((r) => r.seat);
+      // A seat inherited before succession numbers existed (older save) has seatNo 0: number it now.
+      if (seat && seat.seatNo <= 0) {
+        p.seats = (p.seats ?? 0) + 1;
+        seat.seatNo = p.seats;
+      }
       if (!seat && reserves.length > 0) {
         seat = reserves.reduce((x, r) => (r.hp > x.hp ? r : x));
         seat.seat = true;

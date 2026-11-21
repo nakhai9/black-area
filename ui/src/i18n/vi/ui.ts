@@ -105,6 +105,8 @@ export default {
   'Preparing': 'Đang chuẩn bị',
   'Ready to fire': 'Sẵn sàng phóng',
   'Low power': 'Thiếu năng lượng',
+  'Medium power': 'Năng lượng trung bình',
+  'Medium power: your plants cover at least half the demand; the Global Monitoring Center sells oil for the rest (+25%), and take-offs stop (construction and production keep running while you have TB).': 'Năng lượng trung bình: nhà máy đáp ứng ít nhất một nửa nhu cầu; Trung tâm Giám sát Toàn cầu bán dầu cho phần còn thiếu (+25%), máy bay không cất cánh (xây dựng và sản xuất vẫn chạy khi còn TB).',
   ARMED: 'ĐÃ KÍCH HOẠT',
   STANDBY: 'CHỜ LỆNH',
   'Ready {n}/{total}': 'Sẵn sàng {n}/{total}',

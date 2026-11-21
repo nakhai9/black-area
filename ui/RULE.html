@@ -26,7 +26,7 @@
 <body>
 <main>
 <img class="logo" src="/logo.png" alt="Black Area" />
-<h1>Black Area — RULE <small>v3.75.354</small></h1>
+<h1>Black Area — RULE <small>v3.75.357</small></h1>
 <p class="lead">Tài liệu luật chơi + kiến trúc code dành cho AI/dev sửa game. Mọi con số gameplay chính xác nằm trong <code>src/constants.ts</code> và <code>src/factions/*.ts</code>. Nếu tài liệu này khác code thì <b>code đúng</b>. <b>Khi đổi luật/số trong code, phải cập nhật file này.</b></p>
 <nav><a href="#s1">Quy tắc làm việc cho AI</a><a href="#s2">Chạy dự án</a><a href="#s3">Kiến trúc thư mục</a><a href="#s4">Thế giới</a><a href="#s5">Kinh tế (dầu)</a><a href="#s6">Công trình (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Quân đội</a><a href="#s8">Chiến đấu</a><a href="#s9">Điều khiển (Game.handleKey, handleInput)</a><a href="#s10">Giới hạn &amp; hiệu năng</a><a href="#s11">Thắng / thua &amp; AI</a><a href="#s12">Công thức sửa thường gặp</a></nav>
 <h2 id="s1">0. Quy tắc làm việc cho AI</h2>
@@ -706,6 +706,9 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
   <li>v3.41.5: Sửa lỗi máy bay vận tải bay vòng tròn mãi quanh điểm hạ cánh (không đáp được, không nhận lệnh di chuyển): khi điểm đến nằm trong vòng quay, máy bay bay thẳng tới. Lệnh di chuyển mới trong lúc đang bay tới điểm hạ cánh giờ được nhận (hủy hạ cánh, bay đi).</li>
   <li>v3.41.5: Máy bay không còn nhận <b>Cảng (Naval Port)</b> làm sân bay nhà (không đậu, không hạ cánh, không được sinh ra ở cảng). Loại máy bay được đậu ở cảng sẽ quy ước sau: thêm vào <code>PORT_AIRCRAFT</code> trong <code>src/systems/AircraftSystem.ts</code>. Máy bay đang lấy cảng làm nhà (bản lưu cũ) sẽ chuyển sang sân bay khác của phe; không còn sân bay nào thì rơi như luật cũ.</li>
     <li>v3.56.1: <b>Giảm tiếng động cơ mọi phương tiện</b>: <code>VEHICLE_BED_GAIN</code> 1.6 → 1.0, máy bay / trực thăng <code>AIR_BED_BOOST</code> 2.2 → 1.5. <b>Máy bay vận tải</b> (C-17, Il-76, Y-20, A400M, mặc định) tăng gain 0.85–0.9 → 1.35 để to ngang các máy bay khác (tiếng động cơ trầm, ít tiếng rít nên trước nghe nhỏ hơn).</li>
+    <li>v3.75.357: Khi tên lửa đạn đạo trong hầm nạp xong, giọng chỉ huy đọc “Missile silo N ready” (N là số hầm), thông báo hiện “Hầm tên lửa số N: tên lửa đã nạp xong, sẵn sàng phóng”.</li>
+    <li>v3.75.356: Thanh năng lượng: khi thiếu điện nhưng nhà máy vẫn đáp ứng ít nhất 50% nhu cầu, game báo “Medium power” (Năng lượng trung bình) thay vì “Low power”; dưới 50% hoặc mất điện mới báo “Low power”. Áp dụng cho giọng thông báo, chú thích thanh năng lượng và trạng thái hầm tên lửa.</li>
+    <li>v3.75.355: Sửa lỗi bản save: Thủ đô dự phòng đã thừa kế ghế chính phủ từ bản cũ (trước khi có số thứ tự kế vị) vẫn hiện tên “Reserve Capital”; nay tự được đánh số và hiện đúng tên quốc gia + số La Mã (vd. “… I”).</li>
     <li>v3.75.354: Sửa lỗi bản save: khi nạp bản save, luật của công trình (bảo vệ, thông số…) luôn lấy theo phiên bản game hiện tại thay vì bản sao cũ trong save — mọi thay đổi luật áp dụng cho cả các bản save cũ. Giếng dầu trong save cũ hiện “Neutral · Protected” và không phá được nay phá được bình thường.</li>
     <li>v3.75.353: Quỹ đạo tên lửa R-12 Dvina và ICBM RS-24 Yars: phóng thẳng đứng lên tới độ cao bay, chuyển sang nằm ngang bay bằng theo quỹ đạo tới mục tiêu, rồi chúc xuống lao vào mục tiêu. Áp dụng cho cả người chơi và AI.</li>
     <li>v3.75.352: Kỹ sư (AI) ưu tiên sửa thủ đô và thủ đô kế thừa trước: thủ đô mất máu là được gửi kỹ sư ngay, kể cả khi đang bị tấn công; không có kỹ sư rảnh thì rút kỹ sư đang đi sửa công trình khác.</li>

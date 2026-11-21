@@ -1,3 +1,4 @@
+import { powerTier } from '../systems/PowerSystem';
 import { setZoomLock, settings } from '../core/Settings';
 import { CHARGE_ICON_PATH } from '../render/ChargeIcon';
 import { AlertToast } from './NewsToast';
@@ -853,7 +854,9 @@ export class Sidebar {
     this.powerBar.style.setProperty('--power-color', player.blackout ? '#e0301e' : powerColor(strength));
     this.powerBar.parentElement!.title = t('Power {line}. ', { line: powerLine }) + (player.blackout
       ? t('BLACKOUT: no power and no TB to buy oil from the Global Monitoring Center. No take-offs.')
-      : player.powerShort
+      : powerTier(player) === 'medium'
+        ? t('Medium power: your plants cover at least half the demand; the Global Monitoring Center sells oil for the rest (+25%), and take-offs stop (construction and production keep running while you have TB).')
+        : player.powerShort
         ? t('Not enough power: the Global Monitoring Center sells oil for the missing power (+25%), and take-offs stop (construction and production keep running while you have TB).')
         : t('Stored {a} / {b}. Plants burn your oil (0.001 bbl = 1 J).', { a: compactEnergy(player.powerStored), b: compactEnergy(player.powerCapacity) }));
 

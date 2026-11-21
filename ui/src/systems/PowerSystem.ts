@@ -83,3 +83,11 @@ export class PowerSystem implements GameSystem {
     p.powerStored = plants.reduce((sum, plant) => sum + plant.stored, 0);
   }
 }
+
+/** Grid tier: 'ok' (enough power), 'medium' (short, but plants still cover at least half the demand), 'low' (below half, or blackout). */
+export type PowerTier = 'ok' | 'medium' | 'low';
+export function powerTier(p: { blackout: boolean; powerShort: boolean; powerSupply: number; powerConsumed: number }): PowerTier {
+  if (p.blackout) return 'low';
+  if (!p.powerShort) return 'ok';
+  return p.powerConsumed > 0 && p.powerSupply / p.powerConsumed >= 0.5 ? 'medium' : 'low';
+}
