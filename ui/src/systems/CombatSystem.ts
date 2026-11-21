@@ -69,6 +69,8 @@ export interface CombatHooks {
   powerShort(owner: number): boolean;
   /** Engineers the owner has in its Tech Center (nuclear programme): a silo runs only with SILO_SCIENTISTS of them. */
   scientists(owner: number): number;
+  /** Nation under a nuclear embargo: its silos stay empty and idle. */
+  nuclearBanned(owner: number): boolean;
   /** Route planner with the shared caches (an unreachable goal is not flooded again and again). */
   findPath(start: WorldPoint, goal: GridPoint, swim: Mobility): WorldPoint[];
   /** The forest: trees take damage from clearing orders, bombs, charges and splash (TREE_* in constants). */
@@ -562,6 +564,11 @@ export class CombatSystem implements GameSystem {
       if (demoActive && !b.loaded) [b.loading, b.loaded] = [false, true];
       // Manned and powered: SILO_SCIENTISTS engineers in the Tech Center and no power shortage, or the silo stands
       // idle (no loading, no launch; a launch already under way finishes).
+      // Nuclear embargo: the silo is emptied and does nothing (no paying, loading or launch) until it ends.
+      if (!demoActive && this.hooks.nuclearBanned(b.owner) && b.launchClock === null) {
+        [b.loaded, b.loading, b.loadClock, b.missilePaid, b.strike] = [false, false, 0, 0, null];
+        continue;
+      }
       const manned = demoActive || (this.hooks.scientists(b.owner) >= SILO_SCIENTISTS && !this.hooks.powerShort(b.owner));
       if (!b.loaded && manned) {
         if (!b.loading) {

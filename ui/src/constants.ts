@@ -39,7 +39,7 @@ export const DEMO_FACTION: FactionId = NATION_CODES[(import.meta.env.VITE_DEMO_F
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "3.75.357";
+export const GAME_VERSION = "3.75.358";
 /** Transport aircraft (C-17, Il-76, Y-20, A400M) are drawn this many iso px long: 13, +20% (v3.75.224). */
 export const TRANSPORT_LENGTH = 13 * 1.2 * 0.9;
 
@@ -1338,6 +1338,8 @@ export const AI_EMBARGO_CREDITS = 1000;
  * units keep fighting.
  */
 export const CAPITAL_DISARM_SECONDS = 240;
+/** Nuclear embargo (an enemy engineer in its capital): every silo of the nation is emptied and stays idle this long (s). */
+export const CAPITAL_NUCLEAR_BAN_SECONDS = 600;
 /** Structures a military embargo tears down and forbids. */
 export const MILITARY_BASES: readonly BuildingType[] = ['barracks', 'warFactory', 'airfield'];
 

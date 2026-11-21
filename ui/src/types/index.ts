@@ -224,6 +224,8 @@ export interface PlayerState {
   embargoUntil?: number;
   /** Military embargo (an enemy engineer in its capital): no Barracks / War Factory / Airfield, no attacks, until this game time (s). */
   disarmedUntil?: number;
+  /** Nuclear embargo (an enemy engineer in its capital): every silo emptied, no paying, loading or launching, until this game time (s). */
+  nuclearBanUntil?: number;
   /** Nations whose capital an engineer of this one entered to set up a parallel government: one Parallel Government of each may be ordered. */
   parallelGovRights?: FactionId[];
   /** Engineers this nation has sent into its own Tech Center (used up there); SILO_SCIENTISTS are spent per silo ordered. */

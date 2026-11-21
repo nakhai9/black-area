@@ -23,6 +23,7 @@ import {
   ENGINEER_REPAIR_SHARE,
   CAPITAL_EMBARGO_SECONDS,
   CAPITAL_DISARM_SECONDS,
+  CAPITAL_NUCLEAR_BAN_SECONDS,
   BM21_RELOAD_COST, AIRCRAFT_MIN_POWER, DVINA_MISSILE_COST, SILO_MISSILE_COST, SILO_SCIENTISTS, MAX_SILOS, TECH_SCIENTIST_REPAIR_RATE, NUKE_SECONDS, NUKE_RAD_SECONDS, NUKE_RAD_RADIUS_SCALE, ISO_X, ISO_Y,
   MILITARY_BASES,
   AI_EMBARGO_CREDITS,
@@ -802,6 +803,7 @@ export class Game {
       safeAt: (x, y) => this.safeZones.isSafe(x, y),
       shielded: (t) => t instanceof Building && this.isShielded(t),
       powerShort: (owner) => this.players.find((p) => p.id === owner)?.powerShort ?? false,
+      nuclearBanned: (owner) => { const p = this.players.find((x) => x.id === owner); return !!p && p.nuclearBanUntil !== undefined && this.time < p.nuclearBanUntil; },
       scientists: (owner) => this.players.find((p) => p.id === owner)?.scientists ?? 0,
       findPath: (start, goal, swim) => this.paths.find(start, goal, swim),
       trees: this.trees,
@@ -4300,7 +4302,8 @@ export class Game {
               // Loading countdown m:ss (h:mm:ss over an hour); kept while stalled for lack of power.
               const left = Math.ceil(Math.max(0, b.loadClock));
               const hms = left >= 3600 ? `${Math.floor(left / 3600)}:${String(Math.floor(left / 60) % 60).padStart(2, '0')}:${String(left % 60).padStart(2, '0')}` : `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
-              const status = busy ? t('Launching…') : ready ? t('Ready') : noPower ? `${powerTier(this.humanPlayer) === 'medium' ? t('Medium power') : t('Low power')} · ${hms}` : b.loading ? t('Loading {time}', { time: hms }) : `${t('Paying')} ${Math.floor(b.missilePaid).toLocaleString('en-US')}/${SILO_MISSILE_COST.toLocaleString('en-US')} ${CURRENCY}`;
+              const banLeft = (this.humanPlayer.nuclearBanUntil ?? 0) - this.time;
+              const status = busy ? t('Launching…') : banLeft > 0 ? `${t('Nuclear embargo')} · ${Math.floor(banLeft / 60)}:${String(Math.floor(banLeft % 60)).padStart(2, '0')}` : ready ? t('Ready') : noPower ? `${powerTier(this.humanPlayer) === 'medium' ? t('Medium power') : t('Low power')} · ${hms}` : b.loading ? t('Loading {time}', { time: hms }) : `${t('Paying')} ${Math.floor(b.missilePaid).toLocaleString('en-US')}/${SILO_MISSILE_COST.toLocaleString('en-US')} ${CURRENCY}`;
               return { id: b.id, label: `#${b.siloNo}`, status, ready, lamp } as const;
             }),
         );
@@ -7545,6 +7548,10 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
             this.disarmCapital(u, b);
             continue;
           }
+          if (task.choice === 'nuclear') {
+            this.nuclearBanCapital(u, b);
+            continue;
+          }
           if (task.choice === 'parallel') {
             // Already holds one (or the right to one) of that nation: no second parallel government; ask again.
             if (this.hasParallelGov(u.owner, b)) {
@@ -7657,7 +7664,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     this.capitalPrompts.add(u.id);
     const holder = this.players.find((p) => p.id === b.owner);
     askCapitalChoice(
-      { capital: b.spec.name, nation: holder ? FACTIONS[holder.faction].name : '', embargoMinutes: CAPITAL_EMBARGO_SECONDS / 60, disarmMinutes: CAPITAL_DISARM_SECONDS / 60, parallel: !this.hasParallelGov(u.owner, b) },
+      { capital: b.spec.name, nation: holder ? FACTIONS[holder.faction].name : '', embargoMinutes: CAPITAL_EMBARGO_SECONDS / 60, disarmMinutes: CAPITAL_DISARM_SECONDS / 60, nuclearMinutes: CAPITAL_NUCLEAR_BAN_SECONDS / 60, parallel: !this.hasParallelGov(u.owner, b) },
       (c) => this.issue({ k: 'capitalChoice', u: u.id, c }),
       () => u.alive && u.task?.type === 'capture' && u.task.buildingId === b.id && !u.task.choice && b.alive && this.isEnemyCapital(b),
       () => this.issue({ k: 'capitalChoice', u: u.id, c: null }),
@@ -7672,6 +7679,9 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     const holder = this.players.find((p) => p.id === b.owner);
     if (!holder) return 'capture';
     if (holder.credits >= AI_EMBARGO_CREDITS && !this.underEmbargo(holder)) return 'embargo';
+    // A nation with a missile loaded or on the way (and not already banned): stop its nuclear programme first.
+    const banned = holder.nuclearBanUntil !== undefined && this.time < holder.nuclearBanUntil;
+    if (!banned && this.entities.buildings().some((x) => x instanceof MissileSilo && x.alive && x.owner === holder.id && (x.loaded || x.loading || x.missilePaid > 0))) return 'nuclear';
     if (holder.disarmedUntil === undefined) {
       let theirs = 0;
       let ours = 0;
@@ -7715,6 +7725,26 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     holder.leasedOil = 0;
     holder.embargoUntil = this.time + CAPITAL_EMBARGO_SECONDS;
     this.breaking(t('{by} has put {nation} under an economic embargo: its treasury is empty and earns nothing for {minutes} minutes.', vars), t('{by} put {nation} under an economic embargo', vars), 'economy');
+  }
+
+  /**
+   * Nuclear embargo: the engineer is used up, the capital stays with its nation; every one of its silos loses its
+   * missile and the TB paid toward the next one, and stays idle for CAPITAL_NUCLEAR_BAN_SECONDS, then starts over from scratch.
+   */
+  private nuclearBanCapital(u: Infantry, b: Building): void {
+    const holder = this.players.find((p) => p.id === b.owner);
+    const by = this.players.find((p) => p.id === u.owner);
+    this.entities.remove(u.id);
+    this.selection.selectedUnits.delete(u.id);
+    if (!holder || !by) return;
+    for (const s of this.entities.buildings()) {
+      if (!(s instanceof MissileSilo) || s.owner !== holder.id || s.launchClock !== null) continue;
+      [s.loaded, s.loading, s.loadClock, s.missilePaid, s.strike] = [false, false, 0, 0, null];
+    }
+    if (this.siloAiming !== null && holder.id === this.localId) this.siloAiming = null;
+    holder.nuclearBanUntil = this.time + CAPITAL_NUCLEAR_BAN_SECONDS;
+    const vars = { by: FACTIONS[by.faction].name, nation: FACTIONS[holder.faction].name, minutes: CAPITAL_NUCLEAR_BAN_SECONDS / 60 };
+    this.breaking(t('{by} has put {nation} under a nuclear embargo: every missile silo is emptied and idle for {minutes} minutes, then starts over.', vars), t('{by} put {nation} under a nuclear embargo', vars), 'military');
   }
 
   /** Nation `by` already has a Parallel Government of the nation holding capital `b`, standing or still to be bought. */
@@ -7787,6 +7817,11 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
         continue;
       }
       disarmed.add(p.id);
+    }
+    for (const p of this.players) {
+      if (p.nuclearBanUntil === undefined || this.time < p.nuclearBanUntil) continue;
+      delete p.nuclearBanUntil;
+      if (p.id === this.localId) this.sidebar.notify(t('The nuclear embargo is over: your missile silos may load again, starting from scratch.'), 6);
     }
     // A military embargo no longer stops anyone fighting: only production (TrainingSystem / VehicleSystem).
     setDisarmed(new Set());
