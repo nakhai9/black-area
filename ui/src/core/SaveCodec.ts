@@ -425,11 +425,15 @@ export class SaveCodec {
   fillEntity(e: Entity, saved: SavedEntity): void {
     const target = e as unknown as Record<string, unknown>;
     for (const [k, x] of Object.entries(saved.data)) {
-      if (k === 'id' || isGetterOnly(target, k)) continue;
+      // `spec` holds a structure's rules (protection, health, footprint…): always today's code, never the save's
+      // copy, so every rule change applies to old saves too.
+      if (k === 'id' || k === 'spec' || isGetterOnly(target, k)) continue;
       const value = this.decode(x);
       const cur = target[k];
       target[k] = mergeDefaults(cur, value);
     }
+    // Health saved under an older, larger maximum is capped to today's.
+    if (typeof e.hp === 'number' && typeof e.maxHp === 'number' && e.hp > e.maxHp) e.hp = e.maxHp;
   }
 
   /** Writes saved fields back onto a system / the game. Collections are refilled in place (others may hold them). */
