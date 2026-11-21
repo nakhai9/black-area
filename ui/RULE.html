@@ -26,7 +26,7 @@
 <body>
 <main>
 <img class="logo" src="/logo.png" alt="Black Area" />
-<h1>Black Area — RULE <small>v3.75.341</small></h1>
+<h1>Black Area — RULE <small>v3.75.345</small></h1>
 <p class="lead">Tài liệu luật chơi + kiến trúc code dành cho AI/dev sửa game. Mọi con số gameplay chính xác nằm trong <code>src/constants.ts</code> và <code>src/factions/*.ts</code>. Nếu tài liệu này khác code thì <b>code đúng</b>. <b>Khi đổi luật/số trong code, phải cập nhật file này.</b></p>
 <nav><a href="#s1">Quy tắc làm việc cho AI</a><a href="#s2">Chạy dự án</a><a href="#s3">Kiến trúc thư mục</a><a href="#s4">Thế giới</a><a href="#s5">Kinh tế (dầu)</a><a href="#s6">Công trình (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Quân đội</a><a href="#s8">Chiến đấu</a><a href="#s9">Điều khiển (Game.handleKey, handleInput)</a><a href="#s10">Giới hạn &amp; hiệu năng</a><a href="#s11">Thắng / thua &amp; AI</a><a href="#s12">Công thức sửa thường gặp</a></nav>
 <h2 id="s1">0. Quy tắc làm việc cho AI</h2>
@@ -706,6 +706,10 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
   <li>v3.41.5: Sửa lỗi máy bay vận tải bay vòng tròn mãi quanh điểm hạ cánh (không đáp được, không nhận lệnh di chuyển): khi điểm đến nằm trong vòng quay, máy bay bay thẳng tới. Lệnh di chuyển mới trong lúc đang bay tới điểm hạ cánh giờ được nhận (hủy hạ cánh, bay đi).</li>
   <li>v3.41.5: Máy bay không còn nhận <b>Cảng (Naval Port)</b> làm sân bay nhà (không đậu, không hạ cánh, không được sinh ra ở cảng). Loại máy bay được đậu ở cảng sẽ quy ước sau: thêm vào <code>PORT_AIRCRAFT</code> trong <code>src/systems/AircraftSystem.ts</code>. Máy bay đang lấy cảng làm nhà (bản lưu cũ) sẽ chuyển sang sân bay khác của phe; không còn sân bay nào thì rơi như luật cũ.</li>
     <li>v3.56.1: <b>Giảm tiếng động cơ mọi phương tiện</b>: <code>VEHICLE_BED_GAIN</code> 1.6 → 1.0, máy bay / trực thăng <code>AIR_BED_BOOST</code> 2.2 → 1.5. <b>Máy bay vận tải</b> (C-17, Il-76, Y-20, A400M, mặc định) tăng gain 0.85–0.9 → 1.35 để to ngang các máy bay khác (tiếng động cơ trầm, ít tiếng rít nên trước nghe nhỏ hơn).</li>
+    <li>v3.75.345: Vali hạt nhân: mỗi silo hiện đồng hồ đếm ngược thời gian nạp tên lửa (phút:giây), vẫn hiện khi thiếu năng lượng.</li>
+    <li>v3.75.344: Hiệp ước hạt nhân: mỗi quốc gia chỉ được tối đa 20 silo phóng hạt nhân (RS-24 Yars) trên toàn bản đồ; đạt giới hạn thì ô silo bị khoá và bấm vào sẽ cảnh báo đã đạt số silo theo hiệp ước hạt nhân. Áp dụng cho cả người chơi và AI.</li>
+    <li>v3.75.343: Cửa hàng: ô nào chưa đủ điều kiện mua hiện biểu tượng ổ khoá (lucide LockKeyhole) ở chính giữa.</li>
+    <li>v3.75.342: Cửa hàng: công trình đã đủ điều kiện mua thì vẫn đặt được khi chưa đủ tiền — lệnh chờ (tạm dừng) và tự trừ dần vào ngân sách khi có tiền. Áp dụng cho cả người chơi và AI.</li>
     <li>v3.75.341: AI chỉ tấn công tường và cổng khi chúng vây kín một công trình (đơn vị không tìm được lối vào); drone không nhắm tường/cổng. Không xây công trình lên ô đã có mìn (mìn của ai cũng vậy). Thời gian nạp tên lửa hạt nhân RS-24 Yars tăng từ 6 lên 13 phút. Áp dụng cho cả người chơi và AI.</li>
     <li>v3.75.340: Công trình đổi tên thành <b>Missile Silo</b> (cửa hàng, nhãn rê chuột, tin tức); RS-24 Yars chỉ còn là tên quả tên lửa phóng ra từ silo.</li>
     <li>v3.75.339: Ô RS-24 Yars trong cửa hàng hiện hình công trình hầm phóng (silo) thay cho hình quả tên lửa.</li>

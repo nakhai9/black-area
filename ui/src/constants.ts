@@ -39,7 +39,7 @@ export const DEMO_FACTION: FactionId = NATION_CODES[(import.meta.env.VITE_DEMO_F
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "3.75.341";
+export const GAME_VERSION = "3.75.345";
 /** Transport aircraft (C-17, Il-76, Y-20, A400M) are drawn this many iso px long: 13, +20% (v3.75.224). */
 export const TRANSPORT_LENGTH = 13 * 1.2 * 0.9;
 
@@ -439,6 +439,8 @@ export const YARS_COST = 8000;
 export const AIRCRAFT_MIN_POWER = 0.51;
 /** Engineers that must walk into the nation's own Tech Center (and are used up there) for each silo ordered: a nuclear site needs its brains. */
 export const SILO_SCIENTISTS = 10;
+/** Nuclear treaty: at most this many missile silos per nation on the whole map (standing + ordered; player and AI). */
+export const MAX_SILOS = 20;
 /** Share of a Tech Center's max health its nuclear-programme engineers mend per second (one engineer used per finished repair). */
 export const TECH_SCIENTIST_REPAIR_RATE = 0.02;
 export const FOOTPRINT_SILO = { w: 3, d: 3 } as const;

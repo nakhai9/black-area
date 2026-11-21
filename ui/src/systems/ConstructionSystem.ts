@@ -1,4 +1,4 @@
-import { type ContestedNationId, DVINA_COST, YARS_COST, SILO_SCIENTISTS, FOOTPRINT_SILO, DVINA_NATION, FOOTPRINT_DVINA, HIDDEN_BUILDS, LDEW_SITE_COST, LDEW_SITE_NATION } from '../constants';
+import { type ContestedNationId, DVINA_COST, YARS_COST, SILO_SCIENTISTS, MAX_SILOS, FOOTPRINT_SILO, DVINA_NATION, FOOTPRINT_DVINA, HIDDEN_BUILDS, LDEW_SITE_COST, LDEW_SITE_NATION } from '../constants';
 import { DvinaLauncher } from '../entities/DvinaLauncher';
 import { demoActive, demoPrice } from '../core/Demo';
 import {
@@ -405,6 +405,15 @@ export class ConstructionSystem implements GameSystem {
   /** Does the nation own a standing structure of this type? (wired by Game) */
   owns: (player: PlayerState, type: BuildingType) => boolean = () => false;
 
+  /** How many standing structures of this type the nation owns (wired by Game). */
+  count: (player: PlayerState, type: BuildingType) => number = () => 0;
+
+  /** Nuclear treaty: has the nation reached MAX_SILOS missile silos (standing + any unfinished/unplaced yars order)? */
+  siloCapReached(player: PlayerState): boolean {
+    const ordered = this.slot(player, 'yars').state !== 'idle' ? 1 : 0;
+    return this.count(player, 'missileSilo') + ordered >= MAX_SILOS;
+  }
+
   constructor(private readonly players: readonly PlayerState[]) {
     for (const p of players) this.slots.set(p.id, new Map());
   }
@@ -450,6 +459,8 @@ export class ConstructionSystem implements GameSystem {
     }
     // RS-24 Yars silo: needs SILO_SCIENTISTS engineers in the Tech Center (they stay there to run the silos).
     if (option.id === 'yars' && (player.scientists ?? 0) < SILO_SCIENTISTS) return false;
+    // Nuclear treaty: at most MAX_SILOS silos per nation.
+    if (option.id === 'yars' && this.siloCapReached(player)) return false;
     Object.assign(s, { option, state: 'building', progress: 0, paid: 0 });
     return true;
   }

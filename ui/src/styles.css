@@ -689,6 +689,20 @@ kbd {
   filter: grayscale(0.8) brightness(0.6);
   cursor: not-allowed;
 }
+.sb-cameo-lock {
+  display: none;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: #fff;
+  filter: drop-shadow(0 0 2px #000);
+  pointer-events: none;
+  z-index: 3;
+}
+.sb-cameo.locked .sb-cameo-lock {
+  display: block;
+}
 .sb-cameo.sb-placeholder {
   /* Lost producer / capital: the item has left the shop and its cell is not shown at all. */
   display: none;

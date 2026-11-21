@@ -23,7 +23,7 @@ import {
   ENGINEER_REPAIR_SHARE,
   CAPITAL_EMBARGO_SECONDS,
   CAPITAL_DISARM_SECONDS,
-  BM21_RELOAD_COST, AIRCRAFT_MIN_POWER, DVINA_MISSILE_COST, SILO_MISSILE_COST, SILO_SCIENTISTS, TECH_SCIENTIST_REPAIR_RATE, NUKE_SECONDS, NUKE_RAD_SECONDS, NUKE_RAD_RADIUS_SCALE, ISO_X, ISO_Y,
+  BM21_RELOAD_COST, AIRCRAFT_MIN_POWER, DVINA_MISSILE_COST, SILO_MISSILE_COST, SILO_SCIENTISTS, MAX_SILOS, TECH_SCIENTIST_REPAIR_RATE, NUKE_SECONDS, NUKE_RAD_SECONDS, NUKE_RAD_RADIUS_SCALE, ISO_X, ISO_Y,
   MILITARY_BASES,
   AI_EMBARGO_CREDITS,
   DERRICK_GRACE_GAP,
@@ -673,6 +673,7 @@ export class Game {
     this.placement.mined = (x, y) => this.mines.some((m) => m.x === x && m.y === y);
     this.construction = new ConstructionSystem(this.players);
     this.construction.owns = (p, type) => this.entities.buildings().some((b) => b.owner === p.id && b.alive && b.spec.type === type);
+    this.construction.count = (p, type) => this.entities.buildings().filter((b) => b.owner === p.id && b.alive && b.spec.type === type).length;
     // BM-21 reload: BM21_RELOAD_COST TB a time from the owner's treasury (player and AI alike); no money, no rockets.
     Vehicle.payReload = (v) => {
       const p = this.players.find((o) => o.id === v.owner);
@@ -899,7 +900,10 @@ export class Game {
         return { canvas: art ?? this.sprites.get(option.spriteKey(human.faction)).canvas, final: !custom || art !== null };
       },
       onTrain: (option) => this.issue({ k: 'train', tier: option.key }),
-      onLockedClick: (reason) => this.sound.announce(`Cannot buy. ${reason}.`),
+      onLockedClick: (reason) => {
+        this.sound.announce(`Cannot buy. ${reason}.`);
+        if (reason.startsWith('Nuclear treaty')) this.sidebar.notify(t('You have reached the silo limit of the nuclear treaty ({max} silos).', { max: MAX_SILOS }));
+      },
       onTrainCancel: (option) => this.issue({ k: 'trainCancel', tier: option.key }),
       trainPreview: (option) => soldierPortrait(option.faction, option.tier),
       onAlert: (at) => {
@@ -4280,7 +4284,10 @@ export class Game {
               // Lamp: green = ready to fire, red = loading stalled for lack of power, yellow = preparing (paying, loading, launching).
               const noPower = !ready && !busy && b.loading && this.humanPlayer.powerShort;
               const lamp = ready ? 'ready' : noPower ? 'power' : 'prep';
-              const status = busy ? t('Launching…') : ready ? t('Ready') : noPower ? t('Low power') : b.loading ? `${Math.ceil(Math.max(0, b.loadClock))} s` : t('Not paid');
+              // Loading countdown m:ss (h:mm:ss over an hour); kept while stalled for lack of power.
+              const left = Math.ceil(Math.max(0, b.loadClock));
+              const hms = left >= 3600 ? `${Math.floor(left / 3600)}:${String(Math.floor(left / 60) % 60).padStart(2, '0')}:${String(left % 60).padStart(2, '0')}` : `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
+              const status = busy ? t('Launching…') : ready ? t('Ready') : noPower ? `${t('Low power')} · ${hms}` : b.loading ? t('Loading {time}', { time: hms }) : t('Not paid');
               return { id: b.id, label: `#${b.siloNo}`, status, ready, lamp } as const;
             }),
         );
@@ -4344,7 +4351,8 @@ export class Game {
           buildAvailable: (option) => this.buildAvailable(this.humanPlayer, option),
           buildBlocker: (option) => {
             const p = this.humanPlayer;
-            if (p.credits < buildCost(option, p.faction)) return 'Not enough money';
+            // Not enough money is no blocker: the order is placed and paid as money comes in (on hold meanwhile).
+            if (option.id === 'yars' && this.construction.siloCapReached(p)) return `Nuclear treaty limit reached: ${MAX_SILOS} missile silos`;
             if (option.id === 'yars' && (p.scientists ?? 0) < SILO_SCIENTISTS) return `Needs ${SILO_SCIENTISTS} engineers in the High-Tech Center`;
             if (option.id === 'alliedBuilding' && this.alliesOf(p) >= MAX_ALLIES) return 'Ally limit reached';
             return null;

@@ -1,7 +1,7 @@
 import { setZoomLock, settings } from '../core/Settings';
 import { CHARGE_ICON_PATH } from '../render/ChargeIcon';
 import { AlertToast } from './NewsToast';
-import { type IconNode, Settings, Clock, Handshake, X, Wallet, Info, Droplet, Hammer, LogIn, LogOut, Minus, Plane, Rocket, Shield, TrendingDown, TrendingUp, Zap, createElement } from 'lucide';
+import { type IconNode, LockKeyhole, Settings,Clock, Handshake, X, Wallet, Info, Droplet, Hammer, LogIn, LogOut, Minus, Plane, Rocket, Shield, TrendingDown, TrendingUp, Zap, createElement } from 'lucide';
 
 /** Government building (Emoji One v1, CC BY-SA 4.0): in full colour, 64×64 grid scaled to the 24×24 icon box. */
 const Government: IconNode = [
@@ -1749,6 +1749,12 @@ function setLock(el: HTMLElement, reason: string | null): void {
   el.setAttribute('aria-disabled', String(reason !== null));
   if (reason === null) delete el.dataset.lock;
   else el.dataset.lock = reason;
+  // LockKeyhole icon centred on a locked cameo (added once, shown by CSS only while locked).
+  if (reason !== null && !el.querySelector(':scope > .sb-cameo-lock')) {
+    const icon = createElement(LockKeyhole, { width: 22, height: 22, 'stroke-width': 2.25, 'aria-hidden': 'true' });
+    icon.classList.add('sb-cameo-lock');
+    el.append(icon);
+  }
 }
 
 const STRUCTURE_CAMEO_BG = '#8e9aa6';

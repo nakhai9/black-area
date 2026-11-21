@@ -95,6 +95,7 @@ export default {
   'Ceasefire violation: {count} of your units are within {cells} cells of another nation\'s structures — anyone may destroy them and they cannot fire back. Pull them out!': 'Vi phạm ngừng bắn: {count} đơn vị của bạn đang ở trong phạm vi {cells} ô quanh công trình của quốc gia khác — ai cũng có thể tiêu diệt chúng và chúng không được bắn trả. Rút quân ngay!',
   '{name} complete — click its cameo, then place it.': '{name} đã hoàn thành — bấm vào biểu tượng rồi đặt xuống.',
   'Not enough {currency} — construction on hold.': 'Không đủ {currency} — tạm dừng xây dựng.',
+  'You have reached the silo limit of the nuclear treaty ({max} silos).': 'Bạn đã đạt số silo tối đa theo hiệp ước hạt nhân ({max} silo).',
   'Too few to attack — they go in squads only ({list}).': 'Quá ít để tấn công — phải đi theo nhóm ({list}).',
   'soldiers: {n}+': 'lính thường: từ {n}',
   'special forces: {n}+': 'đặc nhiệm: từ {n}',
