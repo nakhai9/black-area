@@ -1,4 +1,4 @@
-import { FACTION_ORDER, ISO_X, ISO_Y } from '../constants';
+import { FACTION_ORDER, ISO_X, ISO_Y, RANK_RELOAD } from '../constants';
 import type { Vehicle } from '../entities/Vehicle';
 import { FACTIONS } from '../factions';
 import type { FactionId, VehicleKind } from '../types';
@@ -149,8 +149,26 @@ function drawKind(ctx: CanvasRenderingContext2D, kind: VehicleKind, faction: Fac
   return true;
 }
 
+/** K9 recoil: peak shift (iso px) and how long it takes to settle. */
+const K9_RECOIL_PX = 1.2;
+const K9_RECOIL_SECONDS = 0.3;
+
 /** Draws a contested nation's machine (K9, LDEW, LDEW truck) in its owner's colours, ground point at iso (x, y); false while loading. */
 export function drawNationVehicleSheet(ctx: CanvasRenderingContext2D, v: Vehicle, x: number, y: number): boolean {
+  if (v.type === 'k9' && v.weapon) {
+    // Small recoil kick on each shot: pushed back from the gun, easing home over K9_RECOIL_SECONDS.
+    const since = v.weapon.cooldown * RANK_RELOAD[v.rank] - v.cooldown;
+    if (since >= 0 && since < K9_RECOIL_SECONDS) {
+      const k = K9_RECOIL_PX * (1 - since / K9_RECOIL_SECONDS) ** 2;
+      const c = Math.cos(v.turretHeading);
+      const s = Math.sin(v.turretHeading);
+      const dx = (c - s) * ISO_X;
+      const dy = (c + s) * ISO_Y;
+      const n = Math.hypot(dx, dy) || 1;
+      x -= (dx / n) * k;
+      y -= (dy / n) * k;
+    }
+  }
   return drawKind(ctx, v.type, v.faction as FactionId, v.heading, v.turretHeading, x, y, 1);
 }
 

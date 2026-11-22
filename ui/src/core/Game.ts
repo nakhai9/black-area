@@ -1597,7 +1597,12 @@ export class Game {
       const cells = Array.from({ length: gap }, (_, i) => ({ x: x + (i + 1) * dx, y: y + (i + 1) * dy }));
       if (!cells.every((c) => this.placement.check({ owner: placed.owner, x: c.x, y: c.y, w: 1, d: 1, radius: buildRadius('wall') }).ok)) continue;
       for (const c of cells) {
-        const fill = this.entities.add(new Wall(placed.owner, placed.faction as FactionId, { x: (c.x + 0.5) * CELL_SIZE, y: (c.y + 0.5) * CELL_SIZE }));
+        // Same design as the block placed (a foreign wall keeps its nation's look, under the builder's flag).
+        const fill = this.entities.add(new Wall(placed.owner, placed.origin as FactionId, { x: (c.x + 0.5) * CELL_SIZE, y: (c.y + 0.5) * CELL_SIZE }));
+        if (placed.originFaction) {
+          fill.originFaction = placed.originFaction;
+          fill.capture(placed.owner, placed.faction as FactionId);
+        }
         fill.placedAt = this.time;
         this.map.occupy(fill.x, fill.y, fill.w, fill.d, fill.id);
       }
