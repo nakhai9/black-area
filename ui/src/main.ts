@@ -2,6 +2,8 @@ import { prefetchRest } from './render/onDemand';
 import { loadPictureArts } from './render/sprites/PictureArt';
 import './styles.css';
 import { t } from './i18n';
+import { applySidebarSide } from './core/Settings';
+applySidebarSide();
 import { DEMO_FACTION, DEMO_MODE,EARTH_TEXTURE_URL, FACTION_ORDER } from './constants';
 import { SoundSystem } from './audio/SoundSystem';
 import { Game } from './core/Game';

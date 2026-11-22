@@ -2237,9 +2237,12 @@ export class AISystem implements GameSystem {
    */
   /** Another nation's own main capital, still held by that nation. */
   private isRivalCapital(p: PlayerState, b: Building): boolean {
-    if (b instanceof NationCapital || b.spec.type !== 'capital' || b.owner === p.id || b.owner === NEUTRAL_OWNER) return false;
+    if (b instanceof NationCapital || b.owner === p.id || b.owner === NEUTRAL_OWNER) return false;
     const holder = this.players.find((pl) => pl.id === b.owner);
-    return !!holder && !holder.defeated && b.spec.spriteKey === `capital:${holder.faction}`;
+    if (!holder || holder.defeated) return false;
+    // Its seat of government moved to a Reserve Capital: that one stands in for the capital.
+    if (b.spec.type === 'reserveCapital') return isSeat(b) && b.faction === holder.faction;
+    return b.spec.type === 'capital' && b.spec.spriteKey === `capital:${holder.faction}`;
   }
 
   private contestNations(p: PlayerState, st: AIState, capital: Building, owned: Set<BuildingType>, threat: number): void {

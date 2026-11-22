@@ -16,6 +16,7 @@ import { setSiloLid } from '../render/sprites/MissileSilo';
 import { drawFallout, drawIcbm, drawNuke } from '../render/Icbm';
 import { drawSite } from '../render/DvinaSheets';
 import { drawExplosion } from '../render/ExplosionSheet';
+import { type CraterKind, drawCrater, drawCraterHeat } from '../render/CraterSheet';
 import { emblemImage } from '../render/Emblems';
 import { demoActive } from './Demo';
 import { BUILD_RISE_SECONDS, CELL_SIZE, CRUISE_ALTITUDE, ISO_X, ISO_Y, SPRITE_SCALE } from '../constants';
@@ -92,6 +93,24 @@ export interface FocusTarget {
   readonly airLock?: boolean;
 }
 
+export interface GroundScar {
+  readonly x: number;
+  readonly y: number;
+  readonly kind: CraterKind;
+  readonly variant: number;
+  readonly radius: number;
+  readonly flip: boolean;
+  /** Game time it appears (the blast); before that it is not drawn. */
+  readonly born: number;
+  readonly seed: number;
+}
+
+/** Seconds a scar stays at full strength, then fades out over SCAR_FADE (the ground slowly recovers). */
+const SCAR_LIFE = 300;
+const SCAR_FADE = 90;
+/** Seconds a fresh scar smoulders (embers and smoke). */
+const SCAR_HEAT = 7;
+
 export interface RenderScene {
   readonly buildings: readonly Building[];
   readonly selectedId: number | null;
@@ -112,6 +131,8 @@ export interface RenderScene {
   readonly units?: readonly Unit[];
   /** Tracers, flashes, explosions and smoke. */
   readonly effects?: readonly Effect[];
+  /** Craters and scorch marks left on the ground by shells, rockets, bombs and missiles (world px). */
+  readonly craters?: readonly GroundScar[];
   readonly selectedUnits?: ReadonlySet<number>;
   readonly hoveredUnitId?: number | null;
   /** Enemies that are being attacked (or are about to be, under the cursor): drawn with red focus marks. */
@@ -317,6 +338,7 @@ export class Renderer {
     // DEMO: the whole grid of unit cells (ô đơn vị) over land and sea, to see exactly where everything stands.
     if (SHOW_GRID ?? demoActive) this.drawCellGrid(view);
     this.upright();
+    if (scene.craters) this.drawScars(scene.craters, scene.time, onScreen);
     // Passes now; the peaks join the depth-sorted pass below (a soldier behind a peak is hidden by it).
     this.terrain.drawMountains(ctx, view, camera.zoom, this.visiblePeaks);
     this.terrain.drawTrees(ctx, view, camera.zoom);
@@ -1358,6 +1380,21 @@ export class Renderer {
       ctx.fillRect(x - k, y - k, bar + 2 * k, h + 2 * k);
       ctx.fillStyle = i < v.bombs ? '#3ddc4a' : '#1d3320';
       ctx.fillRect(x, y, bar, h);
+    }
+  }
+
+  /** Craters on the ground (under trees, units and structures): they pop in at the blast, smoulder, then fade. */
+  private drawScars(list: readonly GroundScar[], time: number, onScreen: (x: number, y: number, extra?: number) => boolean): void {
+    const { ctx } = this;
+    for (const c of list) {
+      const age = time - c.born;
+      if (age < 0 || age > SCAR_LIFE + SCAR_FADE || !onScreen(c.x, c.y, c.radius)) continue;
+      const p = worldToIso(c.x, c.y);
+      // The ground is thrown up: the scar opens out to full size in a fraction of a second.
+      const grow = Math.min(1, 0.7 + age * 3);
+      const fade = age > SCAR_LIFE ? 1 - (age - SCAR_LIFE) / SCAR_FADE : 1;
+      drawCrater(ctx, p.x, p.y, c.kind, c.variant, c.radius * grow, c.flip, fade);
+      if (age < SCAR_HEAT) drawCraterHeat(ctx, p.x, p.y, c.radius, age, c.kind === 'shell' ? SCAR_HEAT * 0.5 : SCAR_HEAT, c.seed);
     }
   }
 

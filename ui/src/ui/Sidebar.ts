@@ -422,7 +422,8 @@ export class Sidebar {
   private newsButton: HTMLButtonElement | null = null;
   private readonly flagUrls = new Map<FactionId, string>();
   private readonly tabButtons = new Map<TabId, HTMLButtonElement>();
-  private readonly opener: HTMLButtonElement;
+  /** Show-sidebar button (Game moves it into the corner bar of options). */
+  readonly opener: HTMLButtonElement;
   private readonly cameos = new Map<string, Cameo>();
   private readonly unitCameos = new Map<string, Cameo>();
   private readonly vehicleCameos = new Map<string, Cameo>();
@@ -592,6 +593,11 @@ export class Sidebar {
       this.radarPanel.append(compass);
       compass.hidden = false; // hidden in index.html so it never shows loose in the page corner (before the CSS loads)
     }
+    // The minimap floats over the battlefield's top-left corner (like GTA), out of the sidebar; a rebuilt sidebar
+    // replaces the previous one.
+    document.querySelectorAll('.sb-radar.map-corner').forEach((el) => el !== this.radarPanel && el.remove());
+    this.radarPanel.classList.add('map-corner');
+    document.body.append(this.radarPanel);
     this.transportPanel = q('.sb-transport');
     this.transportName = q('.sb-transport-name');
     this.transportSoldiers = q('.sb-transport-soldiers');
@@ -868,8 +874,8 @@ export class Sidebar {
     // Blink the Build tab (and the sidebar opener) while a finished structure waits.
     const ready = this.options.filter((o) => model.buildSlot(o.id).state === 'ready' && model.placingId !== o.id);
     const awaiting = ready.length > 0;
-    this.tabButtons.get('build')?.classList.toggle('sb-attention', ready.some((o) => !DEFENSE_IDS.has(o.id)));
-    this.tabButtons.get('defense')?.classList.toggle('sb-attention', ready.some((o) => DEFENSE_IDS.has(o.id)));
+    this.tabButtons.get('build')?.classList.toggle('sb-attention', ready.some((o) => !DEFENSE_IDS.has(o.id.split('@')[0]!)));
+    this.tabButtons.get('defense')?.classList.toggle('sb-attention', ready.some((o) => DEFENSE_IDS.has(o.id.split('@')[0]!)));
     // Infantry tab: locked without a Barracks, blinks when it first becomes available.
     const infantryTab = this.tabButtons.get('infantry');
     if (infantryTab) {
@@ -1678,7 +1684,7 @@ export class Sidebar {
         e.preventDefault();
         this.handlers.onCancel(option);
       });
-      (DEFENSE_IDS.has(option.id) ? defense : container).append(el);
+      (DEFENSE_IDS.has(option.id.split('@')[0]!) ? defense : container).append(el);
       const wipe = el.querySelector<HTMLElement>('.sb-cameo-wipe');
       const state = el.querySelector<HTMLElement>('.sb-cameo-state');
       if (wipe && state) this.cameos.set(option.id, { el, wipe, state });

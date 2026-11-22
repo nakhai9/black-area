@@ -17,9 +17,12 @@ export class ReserveCapital extends Building {
   /** Players whose units have spotted it (it stays known to them). */
   spottedBy: number[] = [];
 
-  /** Engineers cannot take a Reserve Capital over (it can only be destroyed). */
+  /**
+   * A plain reserve cannot be taken over (only destroyed). Once it is the seat of government it stands in for the
+   * capital: an enemy engineer gets the capital's choices (embargoes, parallel government, take over).
+   */
   override get capturable(): boolean {
-    return false;
+    return this.seat;
   }
 
   /** Hidden from `viewer` (a player id): not the seat yet, not the owner's, not spotted by that player. */

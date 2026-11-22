@@ -128,7 +128,18 @@ export class TrainingSystem implements GameSystem {
     // Every captured Ministry of Defence brings its nation's soldiers into the shop next to the own ones (each foreign
     // design has its own key and shows that nation's flag).
     const keys = new Set(own.map((o) => o.key));
-    return [...own, ...taken.flatMap((f) => foreignOptions(f)).filter((o) => !keys.has(o.key))];
+    // An engineer is an engineer whatever its nation: a captured Ministry of Defence never adds a second one.
+    const tiers = new Set(own.map((o) => o.tier));
+    const seen = new Set<string>();
+    return [
+      ...own,
+      ...taken.flatMap((f) => foreignOptions(f)).filter((o) => {
+        if (keys.has(o.key)) return false;
+        if (o.tier === 'engineer' && (tiers.has('engineer') || seen.has('engineer'))) return false;
+        seen.add(o.tier);
+        return true;
+      }),
+    ];
   }
 
   /** First living Barracks of the player (soldiers exit there). */

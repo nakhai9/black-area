@@ -174,7 +174,7 @@ export default {
   'Launch': 'Phóng',
   'Pick the strike point (Esc: cancel)': 'Chọn điểm tấn công (Esc: huỷ)',
   'Pick the strike point on the map (Esc: cancel).': 'Chọn điểm tấn công trên bản đồ (Esc: huỷ).',
-  'Loading {time}': 'Đang nạp {time}',
+  'Preparing {time}': 'Đang chuẩn bị {time}',
   'Not enough money for a missile': 'Không đủ tiền mua tên lửa',
   'Launching…': 'Đang phóng…',
   'RS-24 Yars: missile loaded, ready to launch.': 'RS-24 Yars: tên lửa đã nạp xong, sẵn sàng phóng.',

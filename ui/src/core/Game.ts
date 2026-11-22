@@ -251,11 +251,12 @@ import { EventBus } from './EventBus';
 import { GameLoop } from './GameLoop';
 import { InputHandler } from './InputHandler';
 import { clamp } from './MathUtils';
-import { type PlacementGhost, Renderer } from './Renderer';
+import { type GroundScar, type PlacementGhost, Renderer } from './Renderer';
 import { BOMB_BLAST_TTL, hasBombSheet } from '../render/BombSheets';
 import { MISSILE_BLAST_SECONDS, MISSILE_FLIGHT_SECONDS, hasMissileSheet } from '../render/MissileSheet';
 import { SHELL_FLIGHT_SECONDS, SHELL_IMPACT_SECONDS, hasShellSheet } from '../render/ShellSheet';
 import type { Effect } from './Effects';
+import { CRATER_RADIUS, type CraterKind } from '../render/CraterSheet';
 import { SAVE_FORMAT, SAVE_VERSION, SaveCodec, type SaveFile, migrateSave } from './SaveCodec';
 import { peekNextEntityId, setNextEntityId } from '../entities/Entity';
 /** Alias of t() for scopes where a local variable is named t. */
@@ -378,6 +379,9 @@ const ENTER_CURSOR = `url("data:image/svg+xml,${encodeURIComponent(
     '<path d="M4 14v6h16v-6M12 2v11M7 8l5 5 5-5" stroke="#000" stroke-width="4"/>' +
     '<path d="M4 14v6h16v-6M12 2v11M7 8l5 5 5-5" stroke="#5cff6a" stroke-width="2"/></svg>',
 )}") 12 12, pointer`;
+/** Craters kept on the map at once (the oldest go first). */
+const MAX_SCARS = 400;
+
 /** ICBM aiming cursor: a yellow-and-black radiation trefoil, hotspot at its centre. */
 const NUKE_CURSOR = `url("data:image/svg+xml,${encodeURIComponent(
   '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">' +
@@ -953,6 +957,7 @@ export class Game {
       if (!this.paused) this.focusOwnCapital();
     });
     this.bigMap.setZoomLock(this.sidebar.zoomLockButton);
+    this.bigMap.setOpener(this.sidebar.opener);
     this.bigMap.onSiloLaunch = (id) => {
       const b = this.entities.get(id);
       if (!(b instanceof MissileSilo) || !b.alive || b.owner !== this.localId || !b.loaded || b.launchClock !== null || b.strike !== null) return;
@@ -1072,7 +1077,7 @@ export class Game {
   }
 
   /** Game fields never written back from a save (screen / input state). */
-  private static readonly UNSAVED = ['systems', 'paths', 'paused', 'ended', 'dom', 'lastCursor', 'mouseWorld', 'ghost', 'placing', 'placingRotated', 'waypoints', 'moveMarker', 'pathPeekId', 'lastBuildingClick', 'shortRepaths', 'lastRepath', 'localId', 'actorId', 'lockstep', 'desyncWarned', 'capitalPrompts', 'trees', 'miningId', 'siloAiming', 'siloButton', 'focusedDvina'];
+  private static readonly UNSAVED = ['systems', 'paths', 'paused', 'ended', 'dom', 'lastCursor', 'mouseWorld', 'ghost', 'placing', 'placingRotated', 'waypoints', 'moveMarker', 'pathPeekId', 'lastBuildingClick', 'shortRepaths', 'lastRepath', 'localId', 'actorId', 'lockstep', 'desyncWarned', 'capitalPrompts', 'trees', 'miningId', 'siloAiming', 'siloButton', 'focusedDvina', 'craters'];
 
   /**
    * Everything needed to continue this game later, as plain JSON-ready data: players, every entity, the state of
@@ -1185,6 +1190,7 @@ export class Game {
     if (typeof old.attacksOnPlayer === 'number') this.graceHits[this.localId] = old.attacksOnPlayer;
     if (old.autoSellOil === true) this.autoSellers.add(this.localId);
     this.addMissingSites(freshSites);
+    this.topUpOilFields();
     this.dropRemovedOrders();
     // Visual effects are not saved, except ticking charges, which draw their own.
     this.effects.list.length = 0;
@@ -1202,6 +1208,43 @@ export class Game {
     }
     this.sidebarTimer = SIDEBAR_REFRESH;
     this.sidebar.notify(t('Game loaded.'), 3);
+  }
+
+  /**
+   * After loading a save made with fewer home derricks than OIL_DERRICK_COUNT now gives (Europe: 2 → 3): each nation
+   * still in the game gets the missing ones next to its own field, on the first free spot beside a derrick of it.
+   */
+  private topUpOilFields(): void {
+    const { w, d } = FOOTPRINT_SMALL;
+    for (const player of this.players) {
+      if (player.defeated || player.absent) continue;
+      const f = player.faction;
+      const home = this.derricks.filter((dr) => dr.alive && !dr.antarctic && (dr.originFaction ?? dr.faction) === f);
+      if (home.length === 0) continue;
+      let missing = OIL_DERRICK_COUNT[f] - home.length;
+      const steps = [[w + 1, 0], [-(w + 1), 0], [0, d + 1], [0, -(d + 1)]] as const;
+      while (missing > 0) {
+        let spot: { x: number; y: number } | null = null;
+        for (const dr of home) {
+          for (const [dx, dy] of steps) {
+            if (this.map.isAreaBuildable(dr.x + dx, dr.y + dy, w, d, false, true)) {
+              spot = { x: dr.x + dx, y: dr.y + dy };
+              break;
+            }
+          }
+          if (spot) break;
+        }
+        if (!spot) break;
+        const derrick = new OilDerrick(player.id, f, { x: 0, y: 0 }, home.length);
+        derrick.moveTo(spot.x, spot.y);
+        this.entities.add(derrick);
+        this.trees.clearArea(spot.x, spot.y, w, d);
+        this.map.occupy(spot.x, spot.y, w, d, derrick.id);
+        this.derricks.push(derrick);
+        home.push(derrick);
+        missing--;
+      }
+    }
   }
 
   /**
@@ -4285,6 +4328,7 @@ export class Game {
       focus: focus.map((f) => ({ entity: f.entity, strong: f.strong, engaged: f.engaged, airLock: f.airLock })),
       taskLocks: this.placing ? [] : this.taskLocks(),
       effects: this.effects.list,
+      craters: this.craters,
     })));
     // The radar does not need 60 updates a second: 12 are plenty and save a full redraw every other frame.
     this.minimapTimer += dt;
@@ -4306,7 +4350,7 @@ export class Game {
               const left = Math.ceil(Math.max(0, b.loadClock));
               const hms = left >= 3600 ? `${Math.floor(left / 3600)}:${String(Math.floor(left / 60) % 60).padStart(2, '0')}:${String(left % 60).padStart(2, '0')}` : `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
               const banLeft = (this.humanPlayer.nuclearBanUntil ?? 0) - this.time;
-              const status = busy ? t('Launching…') : banLeft > 0 ? `${t('Nuclear embargo')} · ${Math.floor(banLeft / 60)}:${String(Math.floor(banLeft % 60)).padStart(2, '0')}` : ready ? t('Ready') : noPower ? `${powerTier(this.humanPlayer) === 'medium' ? t('Medium power') : t('Low power')} · ${hms}` : b.loading ? t('Loading {time}', { time: hms }) : `${t('Paying')} ${Math.floor(b.missilePaid).toLocaleString('en-US')}/${SILO_MISSILE_COST.toLocaleString('en-US')} ${CURRENCY}`;
+              const status = busy ? t('Launching…') : banLeft > 0 ? `${t('Nuclear embargo')} · ${Math.floor(banLeft / 60)}:${String(Math.floor(banLeft % 60)).padStart(2, '0')}` : ready ? t('Ready') : noPower ? `${powerTier(this.humanPlayer) === 'medium' ? t('Medium power') : t('Low power')} · ${hms}` : b.loading ? t('Preparing {time}', { time: hms }) : `${t('Paying')} ${Math.floor(b.missilePaid).toLocaleString('en-US')}/${SILO_MISSILE_COST.toLocaleString('en-US')} ${CURRENCY}`;
               return { id: b.id, label: `#${b.siloNo}`, status, ready, lamp } as const;
             }),
         );
@@ -5305,6 +5349,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     const hit = this.fx(at.x, at.y, target instanceof Unit ? this.aimHeight(target, 0.6) : 4);
     if (hasMissileSheet()) this.effects.add({ kind: 'missileBlast', x: hit.x, y: hit.y, age: 0, ttl: MISSILE_BLAST_SECONDS, air });
     else this.effects.add({ kind: 'blast', x: hit.x, y: hit.y, age: 0, ttl: 0.4, radius: 4 });
+    if (!air) this.scar(at.x, at.y, 'missile');
     this.sound.play('explosion', at);
   }
 
@@ -5336,6 +5381,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     const p = this.fx(at.x, at.y, 0);
     this.effects.add({ kind: 'fallout', x: p.x, y: p.y, rx: radius * NUKE_RAD_RADIUS_SCALE * ISO_X * Math.SQRT2, ry: radius * NUKE_RAD_RADIUS_SCALE * ISO_Y * Math.SQRT2, age: 0, ttl: NUKE_RAD_SECONDS });
     this.effects.add({ kind: 'nuke', x: p.x, y: p.y, rx: radius * ISO_X * Math.SQRT2, ry: radius * ISO_Y * Math.SQRT2, age: 0, ttl: NUKE_SECONDS });
+    this.scar(at.x, at.y, 'bomb', 0.4, radius * 0.6);
     this.sound.strategic('nuke', at);
   }
 
@@ -5447,6 +5493,22 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
 
   /** Land mines on the map (cells). Only their owner sees them (see mineField). */
   private readonly mines: { x: number; y: number; owner: number }[] = [];
+  /** Craters on the ground (visual only, not saved): newest last, at most MAX_SCARS. */
+  private readonly craters: GroundScar[] = [];
+
+  /**
+   * A shell / rocket / bomb / missile hit the ground at world (x, y): a crater appears there `delay` s later (when the
+   * round lands), on open land only (not on water or under a structure). Looks only: rules are untouched.
+   */
+  private scar(x: number, y: number, kind: CraterKind, delay = 0, radius = CRATER_RADIUS[kind]): void {
+    const c = this.map.cellAt(x, y);
+    if (!c || this.map.isWater(c.x, c.y) || this.map.occupantAt(c.x, c.y) !== null) return;
+    const born = this.time + delay;
+    // A round landing in a fresh crater of the same size or bigger only deepens it: no second scar on top.
+    if (this.craters.some((o) => o.radius >= radius && Math.hypot(o.x - x, o.y - y) < radius * 0.35 && born - o.born < 60)) return;
+    this.craters.push({ x, y, kind, variant: Math.floor(Math.random() * 4), radius: radius * (0.88 + Math.random() * 0.24), flip: Math.random() < 0.5, born, seed: Math.random() * 100 });
+    if (this.craters.length > MAX_SCARS) this.craters.splice(0, this.craters.length - MAX_SCARS);
+  }
   /** Mine mode (the Mine button): this soldier of mine is laying a mine on a cell next to him. */
   private miningId: number | null = null;
 
@@ -5550,6 +5612,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     const wy = (m.y + 0.5) * CELL_SIZE;
     const p = this.fx(wx, wy, 0);
     this.effects.add({ kind: 'demoBlast', x: p.x, y: p.y, age: 0, ttl: 0.8 });
+    this.scar(wx, wy, 'shell');
     this.sound.play('explosion', { x: wx, y: wy });
     for (const u of this.entities.fieldMovers()) {
       if (!this.mineFoe(m.owner, u)) continue;
@@ -5664,6 +5727,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       const edge = this.fx(tx + BM21_SHOCK_CELLS * CELL_SIZE, ty, tlift);
       const ring = Math.hypot(edge.x - hit.x, edge.y - hit.y);
       this.effects.add({ kind: 'gradRocket', x0: tube.x, y0: tube.y, x1: to.x, y1: to.y, age: 0, ttl: flight + Math.max(GRAD_TRAIL_SECONDS, GRAD_BLAST_SECONDS), flight, air: t instanceof Unit && t.flies, ring });
+      if (!(t instanceof Unit && t.flies) && !(t instanceof Building)) this.scar(tx + k * 1.6, ty + (((s.rockets * 3) % 5) - 2) * 1.2, 'rocket', flight);
       // Launch roar, the rocket tearing through the air, then the boom where it lands.
       this.sound.gradLaunch({ x: s.px, y: s.py });
       this.sound.rocketWhistle({ x: s.px, y: s.py }, flight, { x: tx, y: ty });
@@ -5682,6 +5746,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
           const delay = i * 0.15;
           this.effects.add({ kind: 'bombFall', x0: bay.x + ox, y0: bay.y, x1: hit.x + ox, y1: hit.y, gx: ground.x + ox, gy: ground.y, age: -delay, ttl: fall, faction });
           this.effects.add({ kind: 'bombBlast', x: hit.x + ox, y: hit.y, age: -(delay + fall), ttl: BOMB_BLAST_TTL, faction });
+          this.scar(tx + ox, ty - ox, 'bomb', delay + fall);
         }
         this.sound.play(w.kind, { x: mx, y: my });
         return;
@@ -5716,6 +5781,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       // Tank shell from the shared sheet: muzzle flash, tracer round, then sparks on armour or a blast and scorch mark.
       this.effects.add({ kind: 'shell', x0: muzzle.x, y0: muzzle.y, x1: hit.x, y1: hit.y, age: 0, ttl: SHELL_FLIGHT_SECONDS });
       this.effects.add({ kind: 'shellImpact', x: hit.x, y: hit.y, age: -SHELL_FLIGHT_SECONDS, ttl: SHELL_IMPACT_SECONDS, armour: t instanceof Vehicle });
+      if (!(t instanceof Vehicle) && !(t instanceof Building)) this.scar(tx, ty, 'shell', SHELL_FLIGHT_SECONDS);
       this.sound.play(w.kind, { x: mx, y: my });
       return;
     }
@@ -5752,6 +5818,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       const air = t instanceof Unit && t.flies;
       this.effects.add({ kind: 'missile', x0: muzzle.x, y0: muzzle.y, x1: hit.x, y1: hit.y, age: 0, ttl: MISSILE_FLIGHT_SECONDS });
       this.effects.add({ kind: 'missileBlast', x: hit.x, y: hit.y, age: -MISSILE_FLIGHT_SECONDS, ttl: MISSILE_BLAST_SECONDS, air });
+      if (!air && !(t instanceof Building)) this.scar(tx, ty, 'missile', MISSILE_FLIGHT_SECONDS);
       this.sound.play(w.kind, { x: mx, y: my });
       return;
     }
@@ -6232,6 +6299,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       else this.effects.add({ kind: 'smoke', ...this.fx(e.px, e.py, 1 + this.liftOf(e)), age: 0, ttl: 1.2, radius: 2.2 });
       if (vehicle && e.type === 'tank' && hasTankSheet(e.faction as FactionId)) {
         this.effects.add({ kind: 'tankDeath', ...this.fx(e.px, e.py), age: 0, ttl: TANK_DEATH_SECONDS, faction: e.faction as FactionId, heading: e.heading });
+        this.scar(e.px, e.py, 'rocket', 0.3);
         this.sound.play('explosion', { x: e.px, y: e.py });
       } else if (vehicle && e.isTruck && hasTruckSheet(e.faction as FactionId)) {
         this.effects.add({ kind: 'truckDeath', ...this.fx(e.px, e.py), age: 0, ttl: TRUCK_DEATH_SECONDS, faction: e.faction as FactionId, heading: e.heading });
@@ -7657,9 +7725,12 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
 
   /** A nation's own main capital, held by its nation (not a contested NationCapital, not one already taken). */
   private isEnemyCapital(b: Building): boolean {
-    if (b instanceof NationCapital || b.spec.type !== 'capital' || b.owner === NEUTRAL_OWNER) return false;
+    if (b instanceof NationCapital || b.owner === NEUTRAL_OWNER) return false;
     const holder = this.players.find((p) => p.id === b.owner);
-    return !!holder && b.spec.spriteKey === `capital:${holder.faction}`;
+    if (!holder) return false;
+    // The Reserve Capital the government moved to (its own capital lost) stands in for it.
+    if (b instanceof ReserveCapital) return b.seat && b.faction === holder.faction;
+    return b.spec.type === 'capital' && b.spec.spriteKey === `capital:${holder.faction}`;
   }
 
   /** The popup for my engineer at an enemy capital; the pick goes out as a command (lockstep-safe). */

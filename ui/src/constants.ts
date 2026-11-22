@@ -39,7 +39,7 @@ export const DEMO_FACTION: FactionId = NATION_CODES[(import.meta.env.VITE_DEMO_F
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "3.75.360";
+export const GAME_VERSION = "3.75.367";
 /** Transport aircraft (C-17, Il-76, Y-20, A400M) are drawn this many iso px long: 13, +20% (v3.75.224). */
 export const TRANSPORT_LENGTH = 13 * 1.2 * 0.9;
 
@@ -483,6 +483,11 @@ const TU160_UNIT_SPEED = 0.95;
  */
 export const NUKE_RAD_SECONDS = 60;
 export const NUKE_RAD_KILL_SECONDS = 30;
+/**
+ * Structures are not alive: radiation wears them down only slowly (dose-1 rate: full health over this many seconds;
+ * over the circle's NUKE_RAD_SECONDS that is ≈ 25% at ground zero, ≈ 2.5% at the rim). Player and AI alike.
+ */
+export const NUKE_RAD_KILL_SECONDS_STRUCTURE = 600;
 /** Soldiers (people) are irradiated faster than vehicles: full health lost over this many seconds inside. */
 export const NUKE_RAD_KILL_SECONDS_INFANTRY = 5;
 /**
@@ -1612,12 +1617,12 @@ export const OIL_SALE_BURST = 6;
 export const OIL_SALE_COOLDOWN = 3;
 /** Barrels that always stay in the nation's stock: a sale never dips below this reserve. */
 export const OIL_RESERVE = 1.0;
-/** Oil derricks per nation, built in one straight row on the safest ground: 2 each, but 3 for the Islamic world (the Middle East oil fields). */
+/** Oil derricks per nation, built in one straight row on the safest ground: 2 each, but 3 for the Islamic world (the Middle East oil fields) and Europe. */
 export const OIL_DERRICK_COUNT: Readonly<Record<FactionId, number>> = {
   usa: 2,
   russia: 2,
   china: 2,
-  europe: 2,
+  europe: 3,
   islamic: 3,
 };
 /**

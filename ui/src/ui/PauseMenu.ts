@@ -1,5 +1,5 @@
-import { type IconNode, Car, Globe, Music, ScreenShareOff, ZoomIn, X, createElement } from 'lucide';
-import { setEdgeLock, setZoomLock, settings } from '../core/Settings';
+import { type IconNode, Car, Globe, Music, PanelRight, ScreenShareOff, ZoomIn, X, createElement } from 'lucide';
+import { type SidebarSide, setEdgeLock, setSidebarSide, setZoomLock, settings } from '../core/Settings';
 import { type Lang, languageSelect, t } from '../i18n';
 import { loadFromCloud } from '../net/CloudSave';
 
@@ -155,6 +155,17 @@ export class PauseMenu {
     const zoomText = document.createElement('span');
     zoomText.textContent = t('Lock zoom');
     zoomLock.append(zoomBox, zoomText);
+    // Sidebar position: right (default) or bottom.
+    const sideSelect = document.createElement('select');
+    sideSelect.className = 'pause-select';
+    for (const [v, label] of [['right', t('Sidebar: right')], ['bottom', t('Sidebar: bottom')]] as const) {
+      const o = document.createElement('option');
+      o.value = v;
+      o.textContent = label;
+      sideSelect.append(o);
+    }
+    sideSelect.value = settings.sidebarSide;
+    sideSelect.addEventListener('change', () => setSidebarSide(sideSelect.value as SidebarSide));
     // Settings, one per line: icon, then its control.
     const row = (icon: IconNode, title: string, control: HTMLElement): HTMLDivElement => {
       const r = document.createElement('div');
@@ -169,6 +180,7 @@ export class PauseMenu {
     settingsBox.append(
       row(ScreenShareOff, t('Screen lock'), lock),
       row(ZoomIn, t('Zoom lock'), zoomLock),
+      row(PanelRight, t('Sidebar position'), sideSelect),
       row(Music, t('Music volume'), volume),
       row(Car, t('Vehicle volume'), vehicleVolume),
       row(Globe, t('Language'), languageSelect((lang) => saves.onLanguage(lang), false)),

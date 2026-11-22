@@ -1,4 +1,4 @@
-import { createElement, House, Keyboard, Map as MapIcon, Radiation, Rocket, type IconNode } from 'lucide';
+import { createElement, House, Keyboard, Map as MapIcon, Maximize, Minimize, Radiation, Rocket, type IconNode } from 'lucide';
 import { t } from '../i18n';
 import { modalCloseButton } from './ModalClose';
 
@@ -83,6 +83,25 @@ export class BigMap {
   private readonly zoomLockSlot = document.createElement('span');
   /** Slot for the sidebar's war clock (replaced when the sidebar is rebuilt). */
   private readonly warClockSlot = document.createElement('span');
+  /** Slot for the sidebar's show button (seen only while the sidebar is hidden). */
+  private readonly openerSlot = document.createElement('span');
+
+  /** Full screen on / off (F11-like); its icon follows the browser's state (Esc leaves too). */
+  private fullscreenButton(button: (icon: IconNode, label: string, onClick: () => void) => HTMLButtonElement): HTMLButtonElement {
+    const b = button(Maximize, t('Full screen'), () => {
+      if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined);
+      else void document.documentElement.requestFullscreen().catch(() => undefined);
+    });
+    const sync = (): void => {
+      const on = !!document.fullscreenElement;
+      const label = on ? t('Exit full screen') : t('Full screen');
+      b.title = label;
+      b.setAttribute('aria-label', label);
+      b.replaceChildren(createElement(on ? Minimize : Maximize, { width: 16, height: 16, 'stroke-width': 2, 'aria-hidden': 'true' }));
+    };
+    document.addEventListener('fullscreenchange', sync);
+    return b;
+  }
 
   constructor(host: HTMLElement, private readonly source: HTMLCanvasElement, guide: HTMLElement, onHome: () => void) {
     this.bar = document.createElement('div');
@@ -125,8 +144,11 @@ export class BigMap {
       button(MapIcon, t('World Map'), () => (this.map.open ? this.map.hide() : this.showMap())),
       button(Keyboard, t('Controls'), () => (this.controls.open ? this.controls.hide() : this.controls.show())),
       this.nuclearBtn,
+      this.fullscreenButton(button),
       this.zoomLockSlot,
+      this.openerSlot,
     );
+    this.openerSlot.className = 'corner-slot';
     this.zoomLockSlot.className = 'corner-slot';
     this.warClockSlot.className = 'corner-slot';
     host.append(this.bar);
@@ -148,6 +170,12 @@ export class BigMap {
   setZoomLock(btn: HTMLButtonElement): void {
     btn.classList.add('corner-btn');
     this.zoomLockSlot.replaceChildren(btn);
+  }
+
+  /** Puts the sidebar's show button at the end of the bar (it shows only while the sidebar is hidden). */
+  setOpener(btn: HTMLButtonElement): void {
+    btn.classList.add('corner-btn');
+    this.openerSlot.replaceChildren(btn);
   }
 
   /** Puts the sidebar's war clock into the bar, engraved (no badge background). */

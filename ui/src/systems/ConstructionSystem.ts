@@ -278,6 +278,10 @@ export const FOREIGN_BUILDS: ReadonlySet<string> = new Set(['powerPlant', 'barra
 /** Of FOREIGN_BUILDS, the ones whose art flies the owner's flag (render/sprites FLAG_VARIANTS). */
 const FLAG_ART: ReadonlySet<string> = new Set(['barracks', 'warFactory']);
 
+/** Walls and Nation Gates of another nation: on sale with its Parallel Government (or its captured capital). */
+const FOREIGN_BARRIERS: ReadonlySet<string> = new Set(['wall', 'gate']);
+const isForeignBuild = (base: string): boolean => FOREIGN_BUILDS.has(base) || FOREIGN_BARRIERS.has(base);
+
 /**
  * Every structure for sale: each nation's own, then another nation's version of FOREIGN_BUILDS (built to that
  * nation's design and stats, so a foreign Ministry of Defence / War Factory / Airfield makes that nation's units).
@@ -285,7 +289,7 @@ const FLAG_ART: ReadonlySet<string> = new Set(['barracks', 'warFactory']);
 export const BUILD_OPTIONS: readonly BuildOption[] = [
   ...OWN_OPTIONS,
   ...(Object.keys(FACTIONS) as FactionId[]).flatMap((nation) =>
-    OWN_OPTIONS.filter((o) => FOREIGN_BUILDS.has(o.id)).map((o): BuildOption => ({
+    OWN_OPTIONS.filter((o) => isForeignBuild(o.id)).map((o): BuildOption => ({
       ...o,
       id: `${o.id as BaseBuildId}@${nation}`,
       foreign: nation,
@@ -327,7 +331,9 @@ export function buildOffered(option: BuildOption, nation: FactionId): boolean | 
   if (HIDDEN_BUILDS.has(base)) return false;
   if (option.only && !option.only.includes(nation)) return false;
   // `powerPlant@russia` for Russia is its own Power Plant a second time: never offered (it showed as a duplicate cameo).
-  if (option.foreign === nation && FOREIGN_BUILDS.has(base)) return false;
+  if (option.foreign === nation && isForeignBuild(base)) return false;
+  // A Parallel Government is only ever bought on a right won by an engineer (one per right), never freely sold.
+  if (base === 'parallelGov') return option.foreign && option.foreign !== nation ? null : false;
   // A contested nation's design: on sale only while its capital is held (decided by the caller).
   if (option.nation || option.nations) return null;
   const design = option.foreign ?? nation;
