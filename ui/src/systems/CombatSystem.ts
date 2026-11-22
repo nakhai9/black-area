@@ -22,7 +22,7 @@ import type { FactionId } from '../types';
 import type { Mobility } from '../map/Pathfinder';
 import { demoActive, mayAttack } from '../core/Demo';
 import { movesRight } from '../core/IsoView';
-import { BM21_INTERCEPT_CHANCE, BM21_MIN_SALVO, BM21_SHOCK_CELLS, BM21_SHOCK_PEAK, bm21Flight, DVINA_MISSILE_SPEED, DVINA_SLOW_FACTOR, DVINA_STEER_RATE, DVINA_SNAP_DIST, DVINA_AIR_GROUND_SHARE, SILO_BLAST_CELLS, SILO_DAMAGE, SILO_LID_HOLD, SILO_LID_MOVE, SILO_RELOAD, SILO_SCIENTISTS, SILO_MISS_PX, NUKE_RAD_SECONDS, NUKE_RAD_KILL_SECONDS, NUKE_RAD_KILL_SECONDS_INFANTRY, NUKE_RAD_KILL_SECONDS_STRUCTURE, NUKE_RAD_RADIUS_SCALE, nukeRadDose, icbmFlight, DVINA_INTERCEPT_FLIGHT, DVINA_AIM_TOLERANCE, DVINA_GROUP_CELLS, DVINA_GROUP_SOLDIERS, DVINA_GROUP_VEHICLES, DVINA_RELOAD, DVINA_TURN_RATE, BOMB_FALL_SECONDS, CRUISE_ALTITUDE, HIGH_GROUND_DAMAGE, HIGH_GROUND_RANGE, LOW_GROUND_DAMAGE, MANTIS_HIT_SHARE, MANTIS_RANGE_CELLS, MANTIS_RANK_BONUS, MANTIS_EVADE_CELLS, HELI_VS_MANTIS_SHARE, JET_VS_MANTIS_SHARE, MANTIS_VS_JET_SHARE, MANTIS_VS_HELI_SHARE, MANTIS_RELOAD, MANTIS_GUN_NATIONS, PGZ_RELOAD, PGZ_HIT_FACTOR, JET_BOMB_VS_STRUCTURE, JET_BOMB_VS_VEHICLE, ACQUIRE_PERIOD, RANK_FIREPOWER, RANK_RELOAD, BOMB_GROUP_RADIUS_CELLS, BOMB_GROUP_SIZE, BOMB_TOUGH_DAMAGE, BOMB_TOUGH_STRUCTURES, BOMBS_PER_DROP, CELL_SIZE, CHASE_GIVE_UP_SECONDS, CHASE_LIMIT_CELLS, CHASE_PERIOD, FIGHT_MEMORY_SECONDS, GUARD_VISION_FACTOR, TWIN_TANK_AIR_RANGE_CELLS, NEUTRAL_OWNER, RETALIATE_RANGE_FACTOR, WEAPONS, FIGHTER_DRONE_ALERT, FELL_SPREAD_CELLS, TREE_BOMB_RADIUS_CELLS, TREE_STICK_RADIUS_CELLS } from '../constants';
+import { BM21_INTERCEPT_CHANCE, BM21_MIN_SALVO, BM21_SHOCK_CELLS, BM21_SHOCK_PEAK, bm21Flight, DVINA_MISSILE_SPEED, DVINA_SLOW_FACTOR, DVINA_STEER_RATE, DVINA_SNAP_DIST, DVINA_AIR_GROUND_SHARE, SILO_BLAST_CELLS, SILO_DAMAGE, SILO_LID_HOLD, SILO_LID_MOVE, SILO_RELOAD, SILO_SCIENTISTS, SILO_MISS_PX, NUKE_RAD_SECONDS, NUKE_RAD_KILL_SECONDS, NUKE_RAD_KILL_SECONDS_INFANTRY, NUKE_RAD_KILL_SECONDS_STRUCTURE, NUKE_RAD_RADIUS_SCALE, nukeRadDose, icbmFlight, DVINA_INTERCEPT_FLIGHT, DVINA_AIM_TOLERANCE, DVINA_GROUP_CELLS, DVINA_GROUP_SOLDIERS, DVINA_GROUP_VEHICLES, DVINA_RELOAD, DVINA_TURN_RATE, BOMB_FALL_SECONDS, CRUISE_ALTITUDE, HIGH_GROUND_DAMAGE, HIGH_GROUND_RANGE, LOW_GROUND_DAMAGE, MANTIS_HIT_SHARE, MANTIS_RANGE_CELLS, MANTIS_RANK_BONUS, MANTIS_EVADE_CELLS, HELI_VS_MANTIS_SHARE, JET_VS_MANTIS_SHARE, MANTIS_VS_JET_SHARE, MANTIS_VS_HELI_SHARE, MANTIS_RELOAD, MANTIS_GUN_NATIONS, PGZ_RELOAD, PGZ_HIT_FACTOR, JET_BOMB_VS_STRUCTURE, JET_BOMB_VS_VEHICLE, ACQUIRE_PERIOD, RANK_ARMOR, RANK_FIREPOWER, RANK_RELOAD, BOMB_GROUP_RADIUS_CELLS, BOMB_GROUP_SIZE, BOMB_TOUGH_DAMAGE, BOMB_TOUGH_STRUCTURES, BOMBS_PER_DROP, CELL_SIZE, CHASE_GIVE_UP_SECONDS, CHASE_LIMIT_CELLS, CHASE_PERIOD, FIGHT_MEMORY_SECONDS, GUARD_VISION_FACTOR, TWIN_TANK_AIR_RANGE_CELLS, NEUTRAL_OWNER, RETALIATE_RANGE_FACTOR, WEAPONS, FIGHTER_DRONE_ALERT, FELL_SPREAD_CELLS, TREE_BOMB_RADIUS_CELLS, TREE_STICK_RADIUS_CELLS } from '../constants';
 import { Building } from '../entities/Building';
 import { Bunker } from '../entities/Bunker';
 import { LdewEmplacement } from '../entities/LdewEmplacement';
@@ -579,7 +579,9 @@ export class CombatSystem implements GameSystem {
         }
       }
       if (b.loaded && b.strike === null && b.launchClock === null && aiOwners.has(b.owner)) b.strike = this.siloTarget(b);
-      if (b.launchClock === null && manned && b.loaded && b.strike !== null && mayAttack(b.owner)) [b.launchClock, b.launched] = [0, false];
+      // A loaded silo fires on its own order at once: no crew / power check (those only gate loading), no waiting for
+      // another silo's missile to land; every ready silo launches independently.
+      if (b.launchClock === null && b.loaded && b.strike !== null && mayAttack(b.owner) && !inTruce()) [b.launchClock, b.launched] = [0, false];
       if (b.launchClock === null) continue;
       b.launchClock += dt;
       if (!b.launched && b.launchClock >= SILO_LID_MOVE && b.strike) {
@@ -621,7 +623,8 @@ export class CombatSystem implements GameSystem {
         if (d <= z.r) dose = Math.max(dose, nukeRadDose(d / z.r));
       }
       if (dose <= 0) continue;
-      v.damage((v.maxHp / (v instanceof Vehicle ? NUKE_RAD_KILL_SECONDS : NUKE_RAD_KILL_SECONDS_INFANTRY)) * dose * dt);
+      // Every nation alike, veterans too: radiation ignores rank armour (RANK_ARMOR divided back out).
+      v.damage(((v.maxHp / (v instanceof Vehicle ? NUKE_RAD_KILL_SECONDS : NUKE_RAD_KILL_SECONDS_INFANTRY)) * dose * dt) / RANK_ARMOR[v.rank]);
     }
     // Structures are not alive: only a slow wear (NUKE_RAD_KILL_SECONDS_STRUCTURE), measured to their nearest edge.
     for (const b of this.entities.buildings()) {
@@ -651,16 +654,19 @@ export class CombatSystem implements GameSystem {
     return best;
   }
 
-  /** Nuclear burst: SILO_DAMAGE at the centre falling off to nothing at SILO_BLAST_CELLS, on everything hostile on the ground. */
+  /**
+   * Nuclear burst: SILO_DAMAGE at the centre falling off to nothing at SILO_BLAST_CELLS, on everything on the ground,
+   * whatever its nation (the launcher's own, allies, neutrals and enemies alike: a nuke spares nobody).
+   */
   private nuke(s: MissileSilo, at: WorldPoint): void {
     const radius = SILO_BLAST_CELLS * CELL_SIZE;
     this.hooks.onNuke(at, radius);
     this.fallout.push({ x: at.x, y: at.y, r: radius * NUKE_RAD_RADIUS_SCALE, left: NUKE_RAD_SECONDS });
     const blast = (d: number): number => SILO_DAMAGE * Math.max(0, 1 - d / radius);
     const hit = (o: Unit | Building, amount: number): void => {
-      if (!o.alive || !isHostile(s, o) || amount <= 0) return;
+      if (!o.alive || amount <= 0) return;
       o.damage(amount);
-      if (!s.alive) return;
+      if (!s.alive || !isHostile(s, o)) return;
       o.lastAttackerId = s.id;
       o.lastAttackedAt = this.time;
       if (o instanceof Unit) o.fightingWith.set(s.owner, this.time);

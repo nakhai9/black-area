@@ -39,7 +39,7 @@ export const DEMO_FACTION: FactionId = NATION_CODES[(import.meta.env.VITE_DEMO_F
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "3.75.376";
+export const GAME_VERSION = "3.75.386";
 /** Transport aircraft (C-17, Il-76, Y-20, A400M) are drawn this many iso px long: 13, +20% (v3.75.224). */
 export const TRANSPORT_LENGTH = 13 * 1.2 * 0.9;
 
@@ -436,7 +436,7 @@ export const DVINA_NATION = "cuba";
 /** RS-24 Yars (Defense tab): the underground missile silo (MissileSilo), every nation; needs a Tech Center and a Radar Tower. */
 export const YARS_COST = 8000;
 /** Aircraft may not take off while the nation's power bar (supply ÷ consumption) is at this share or below (player and AI). */
-export const AIRCRAFT_MIN_POWER = 0.51;
+export const AIRCRAFT_MIN_POWER = 0.3;
 /** Engineers that must walk into the nation's own Tech Center (and are used up there) for each silo ordered: a nuclear site needs its brains. */
 export const SILO_SCIENTISTS = 10;
 /** Nuclear treaty: at most this many missile silos per nation on the whole map (standing + ordered; player and AI). */
@@ -1672,6 +1672,8 @@ export const OIL_LEASE_MAX = 4;
 export const OIL_DERRICK_REGEN = 0.01;
 /** Every nation's capital (and a Reserve Capital that inherited the seat) heals by itself: this share of its max health per second (1% every 2 s). */
 export const CAPITAL_REGEN = 0.005;
+/** Capital self-healing is paid for: this many TB per 1% of max health restored (cheap); no money → no healing. */
+export const CAPITAL_REGEN_COST_PER_PCT = 10;
 /** Most derricks in one row; a bigger field (the Islamic world's) gets several rows. */
 export const OIL_ROW_MAX = 4;
 /** No derrick may stand within this many cells of another nation's derrick (oil fields never share ground). */

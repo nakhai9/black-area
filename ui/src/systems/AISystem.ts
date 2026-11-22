@@ -39,7 +39,7 @@ import type { BuildingType, GridPoint, PlayerState, UnitTier, VehicleKind, World
 import { foreignBuildAllowed } from './Foreign';
 import { BUILD_OPTIONS, type BuildOption, type ConstructionSystem, buildCost, buildOffered, footprintOf, missingRequirement } from './ConstructionSystem';
 import type { GameSystem } from './GameSystem';
-import { type PlacementSystem, buildRadius, isClaimable, isCoastal } from './PlacementSystem';
+import { type PlacementSystem, buildRadius, placeRule, isClaimable, isCoastal } from './PlacementSystem';
 import type { SafeZone, SafeZoneSystem } from './SafeZoneSystem';
 import type { TrainingSystem } from './TrainingSystem';
 import type { VehicleSystem } from './VehicleSystem';
@@ -928,7 +928,7 @@ export class AISystem implements GameSystem {
       for (const [dx, dy] of offsets) {
         const x = flag.x + dx;
         const y = flag.y + dy;
-        if (this.host.placement.check({ owner: p.id, x, y, w, d, radius: buildRadius(option.id), coastal: isCoastal(option.id) }).ok) return { x, y };
+        if (this.host.placement.check({ owner: p.id, x, y, w, d, ...placeRule(option.id), coastal: isCoastal(option.id) }).ok) return { x, y };
       }
     }
     return null;
@@ -1193,7 +1193,7 @@ export class AISystem implements GameSystem {
       const y = Math.min(...cells.map((c) => c.y));
       const w = vertical ? 1 : 4;
       const d = vertical ? 4 : 1;
-      if (this.host.placement.check({ owner: p.id, x, y, w, d, radius: buildRadius('gate') }).ok) return { x, y, rotated: vertical };
+      if (this.host.placement.check({ owner: p.id, x, y, w, d, ...placeRule('gate') }).ok) return { x, y, rotated: vertical };
     }
     return null;
   }
@@ -1228,7 +1228,7 @@ export class AISystem implements GameSystem {
       const c = ring[i];
       if (i % (AI_WALL_SEGMENT + AI_WALL_GAP) >= AI_WALL_SEGMENT && !besideGate(c)) continue;
       if (map.occupantAt(c.x, c.y) !== null || besideStructure(c)) continue;
-      if (this.host.placement.check({ owner: p.id, x: c.x, y: c.y, w: 1, d: 1, radius: buildRadius('wall') }).ok) return c;
+      if (this.host.placement.check({ owner: p.id, x: c.x, y: c.y, w: 1, d: 1, ...placeRule('wall') }).ok) return c;
     }
     return null;
   }
@@ -1556,7 +1556,7 @@ export class AISystem implements GameSystem {
       const x = capital.x + dx;
       const y = capital.y + dy;
       if (!this.host.map.isAreaBuildable(x - 1, y - 1, w + 2, d + 2, false, true)) continue;
-      const r = this.host.placement.check({ owner: p.id, x, y, w, d, radius: buildRadius(option.id), coastal: isCoastal(option.id) });
+      const r = this.host.placement.check({ owner: p.id, x, y, w, d, ...placeRule(option.id), coastal: isCoastal(option.id) });
       if (!r.ok && r.reason === 'trees') return { x, y, w, d };
     }
     return null;
@@ -1573,7 +1573,7 @@ export class AISystem implements GameSystem {
       const y = capital.y + dy;
       // The cheap grid test first (one free cell all round, so AI buildings never crowd), the full rule check after.
       if (!this.host.map.isAreaBuildable(x - 1, y - 1, w + 2, d + 2, false, true)) continue;
-      if (!this.host.placement.check({ owner: p.id, x, y, w, d, radius: buildRadius(option.id), coastal: isCoastal(option.id) }).ok) continue;
+      if (!this.host.placement.check({ owner: p.id, x, y, w, d, ...placeRule(option.id), coastal: isCoastal(option.id) }).ok) continue;
       found.push({ x, y });
       if (found.length >= SITE_PICK) break;
     }

@@ -14,8 +14,20 @@ export const SUPPORT_TYPES: ReadonlySet<string> = new Set(['bunker', 'wall', 'ga
 
 /** How far (cells) from an own structure's edge a structure of this kind may be placed. */
 export function buildRadius(type: string): number {
+  type = type.split('@')[0]!; // a foreign nation's wall / gate / … follows its base type's rule
   if (type === 'reserveCapital') return Number.POSITIVE_INFINITY; // hidden reserve: anywhere the nation can build
   return type === 'bunker' || type === 'ldew' || type === 'dvina' ? BUNKER_BUILD_RADIUS : type === 'wall' ? WALL_BUILD_RADIUS : type === 'gate' ? GATE_BUILD_RADIUS : BUILD_RADIUS;
+}
+
+/** Walls and gates: they may also stand round the Defense structures they protect (bunker, silo, Dvina). */
+export function isBarrier(type: string): boolean {
+  const base = type.split('@')[0];
+  return base === 'wall' || base === 'gate';
+}
+
+/** Placement rule of a structure type: how far from an own structure it may stand, and whether it is a wall / gate. */
+export function placeRule(type: string): { radius: number; barrier: boolean } {
+  return { radius: buildRadius(type), barrier: isBarrier(type) };
 }
 
 /** Coastal structures (the Naval Port): placed across the shoreline, see PlacementSystem.coastBlocker. */
@@ -55,6 +67,8 @@ export interface PlacementRequest {
   unclaimedOnly?: boolean;
   /** Cells it may stand from an own structure's edge (default BUILD_RADIUS). */
   radius?: number;
+  /** Wall / gate: a bunker of the builder also counts as an anchor (to wall it in). */
+  barrier?: boolean;
 }
 
 /** Cells between two rectangles along the worst axis (0 = touching or overlapping). */
@@ -72,7 +86,8 @@ export function cellGap(
  * 1. every cell must be legal terrain and free — no trees, no water (naval: water only),
  *    no ice, never on top of an existing building;
  *    no soldier or vehicle (parked aircraft included) may stand on any of its cells;
- * 2. the footprint must lie within BUILD_RADIUS cells of one of the builder's own base structures (SUPPORT_TYPES never count);
+ * 2. the footprint must lie within BUILD_RADIUS cells of one of the builder's own base structures (SUPPORT_TYPES never count,
+ *    except a bunker for a wall / gate, so bunkers, silos and Dvina sites can be walled in);
  * 3. an Allied Building stands on unclaimed land only (land claimed by a Squatters team, see isClaimable);
  * 4. at least OIL_DERRICK_CLEARANCE free cells between it and the edge of every oil derrick (anyone's);
  * 5. no structure overlaps another one (whole footprints, margin ring included);
@@ -150,7 +165,7 @@ export class PlacementSystem {
   nearOwnBase(req: PlacementRequest): boolean {
     return this.entities
       .buildings()
-      .some((b) => b.owner === req.owner && b.alive && !SUPPORT_TYPES.has(b.spec.type) && cellGap(req, b) <= (req.radius ?? BUILD_RADIUS));
+      .some((b) => b.owner === req.owner && b.alive && (!SUPPORT_TYPES.has(b.spec.type) || (req.barrier === true && b.spec.type === 'bunker')) && cellGap(req, b) <= (req.radius ?? BUILD_RADIUS));
   }
 
   /** Is any living oil derrick closer than OIL_DERRICK_CLEARANCE cells to the footprint? */

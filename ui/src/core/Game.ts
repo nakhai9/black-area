@@ -63,6 +63,7 @@ import {
   PARADE_SPACING,
   VETERAN_REGEN_CALM,
   CAPITAL_REGEN,
+  CAPITAL_REGEN_COST_PER_PCT,
   REPAIR_VEHICLE_HEAL_SHARE,
   REPAIR_VEHICLE_INTERVAL,
   REPAIR_VEHICLE_RANGE_CELLS,
@@ -208,7 +209,7 @@ const ALLY_ALERT_SECONDS = 5;
 /** The military ranking is re-counted this often (s): soldiers die and vehicles are lost in between. */
 const MILITARY_RANK_INTERVAL = 240;
 import type { GameSystem } from '../systems/GameSystem';
-import { BUILD_RADIUS, SUPPORT_TYPES, buildRadius, isCoastal, cellGap, OIL_DERRICK_CLEARANCE, type PlacementRequest, type PlacementResult, PlacementSystem, isClaimable } from '../systems/PlacementSystem';
+import { BUILD_RADIUS, SUPPORT_TYPES, placeRule, isCoastal, cellGap, OIL_DERRICK_CLEARANCE, type PlacementRequest, type PlacementResult, PlacementSystem, isClaimable } from '../systems/PlacementSystem';
 import { bunkerMuzzle, bunkerPreview } from '../render/BunkerSheet';
 import { EXPLOSION_SECONDS } from '../render/ExplosionSheet';
 
@@ -548,7 +549,6 @@ export class Game {
   private ghost: PlacementGhost | null = null;
   private readonly lastQueueState = new Map<string, QueueState>();
   private sidebar!: Sidebar;
-  private minimap!: Minimap;
   /** Bottom-left corner bar (Home, World Map, Controls, zoom). */
   private bigMap: BigMap | null = null;
   private bigMinimap!: Minimap;
@@ -763,10 +763,10 @@ export class Game {
       // Multiplayer: selections live on each machine only, so they never steer the shared game.
       selected: (v) => !this.lockstep && this.selection.selectedUnits.has(v.id),
       computer: (owner) => !this.players.find((p) => p.id === owner)?.isHuman,
-      // Take-offs: held while the grid is short, or its bar (supply ÷ consumption) is at AIRCRAFT_MIN_POWER or below.
+      // Take-offs: held only while the power bar (supply ÷ consumption) is at AIRCRAFT_MIN_POWER (30%) or below.
       powered: (owner) => {
         const p = this.players.find((o) => o.id === owner);
-        if (!p || p.powerShort) return false;
+        if (!p) return false;
         return p.powerConsumed <= 0 || p.powerSupply / p.powerConsumed > AIRCRAFT_MIN_POWER;
       },
       refused: (v) => {
@@ -945,24 +945,26 @@ export class Game {
       onVehicleCancel: (option) => this.issue({ k: 'vehicleCancel', kind: option.key }),
       vehiclePreview: (option) => vehiclePortrait(option.faction, option.kind),
     });
-    this.minimap = new Minimap(
-      this.sidebar.minimapCanvas,
-      this.terrain,
-      this.camera,
-      (p) => this.bus.emit('camera:focus', p),
-      (p) => this.minimapOrder(p),
-    );
-    this.bigMap ??= new BigMap(this.dom.canvas.parentElement ?? document.body, this.sidebar.minimapCanvas, this.sidebar.controlsGuide, () => {
+    // No corner minimap any more (lighter screen): the World Map (BigMap) does its job.
+    this.bigMap ??= new BigMap(this.dom.canvas.parentElement ?? document.body, this.sidebar.controlsGuide, () => {
       if (!this.paused) this.focusOwnCapital();
     });
     this.bigMap.setZoomLock(this.sidebar.zoomLockButton);
     this.bigMap.setOpener(this.sidebar.opener);
     this.bigMap.onSiloLaunch = (id) => {
       const b = this.entities.get(id);
-      if (!(b instanceof MissileSilo) || !b.alive || b.owner !== this.localId || !b.loaded || b.launchClock !== null || b.strike !== null) return;
+      if (!(b instanceof MissileSilo) || !b.alive || b.owner !== this.localId) return;
+      if (inTruce()) return this.sidebar.notify(t('Ceasefire: no nuclear launch until the war resumes.'), 3);
+      if (!b.loaded || b.launchClock !== null || b.strike !== null) return this.sidebar.notify(t('This silo can no longer launch.'), 2.5);
       this.selection.select(id);
       this.siloAiming = id;
       this.sidebar.notify(t('Pick the strike point on the map (Esc: cancel).'), 3);
+    };
+    this.bigMap.onSiloFocus = (id) => {
+      const b = this.entities.get(id);
+      if (!(b instanceof MissileSilo) || !b.alive || b.owner !== this.localId) return;
+      this.selection.select(id);
+      this.bus.emit('camera:focus', b.centerWorld());
     };
     this.bigMap.setWarClock(this.sidebar.warClock);
     this.bigMinimap = new Minimap(
@@ -1490,7 +1492,7 @@ export class Game {
             const y = cy + dy - Math.floor(d / 2);
             if (placed.some((o) => gapTo(x, y, o) < DEMO_SPREAD)) continue;
             if (!this.placement.check({ owner: me.id, x: x - 1, y: y - 1, w: w + 2, d: d + 2, radius: 40 }).ok) continue; // room for its wall ring
-            if (this.placement.check({ owner: me.id, x, y, w, d, radius: buildRadius(option.id), coastal: isCoastal(option.id) }).ok) spot = { x, y };
+            if (this.placement.check({ owner: me.id, x, y, w, d, ...placeRule(option.id), coastal: isCoastal(option.id) }).ok) spot = { x, y };
           }
         }
       }
@@ -1555,7 +1557,7 @@ export class Game {
       for (let x = x0; x <= x1; x++) {
         if (x !== x0 && x !== x1 && y !== y0 && y !== y1) continue;
         if (inSouth(x, y) || inEast(x, y)) continue;
-        if (!this.placement.check({ owner: me.id, x, y, w: 1, d: 1, radius: buildRadius('wall') }).ok) continue;
+        if (!this.placement.check({ owner: me.id, x, y, w: 1, d: 1, ...placeRule('wall') }).ok) continue;
         const wall = this.entities.add(new Wall(me.id, me.faction, { x: (x + 0.5) * CELL_SIZE, y: (y + 0.5) * CELL_SIZE }));
         this.map.occupy(wall.x, wall.y, wall.w, wall.d, wall.id);
         this.orientWalls(wall.x, wall.y, false); // the openings stay open
@@ -1564,7 +1566,7 @@ export class Game {
     const gate = (x: number, y: number, rotated: boolean): void => {
       const w = rotated ? FOOTPRINT_GATE.d : FOOTPRINT_GATE.w;
       const d = rotated ? FOOTPRINT_GATE.w : FOOTPRINT_GATE.d;
-      if (!this.placement.check({ owner: me.id, x, y, w, d, radius: buildRadius('gate') }).ok) return;
+      if (!this.placement.check({ owner: me.id, x, y, w, d, ...placeRule('gate') }).ok) return;
       const g = this.entities.add(new Gate(me.id, me.faction, { x: (x + w / 2) * CELL_SIZE, y: (y + d / 2) * CELL_SIZE }));
       g.rotated = rotated;
       g.moveTo(x, y);
@@ -1595,7 +1597,7 @@ export class Game {
       while (gap <= WALL_FILL_GAP && this.map.occupantAt(x + (gap + 1) * dx, y + (gap + 1) * dy) === null) gap++;
       if (gap === 0 || gap > WALL_FILL_GAP || this.wallAt(x + (gap + 1) * dx, y + (gap + 1) * dy)?.owner !== placed.owner) continue;
       const cells = Array.from({ length: gap }, (_, i) => ({ x: x + (i + 1) * dx, y: y + (i + 1) * dy }));
-      if (!cells.every((c) => this.placement.check({ owner: placed.owner, x: c.x, y: c.y, w: 1, d: 1, radius: buildRadius('wall') }).ok)) continue;
+      if (!cells.every((c) => this.placement.check({ owner: placed.owner, x: c.x, y: c.y, w: 1, d: 1, ...placeRule('wall') }).ok)) continue;
       for (const c of cells) {
         // Same design as the block placed (a foreign wall keeps its nation's look, under the builder's flag).
         const fill = this.entities.add(new Wall(placed.owner, placed.origin as FactionId, { x: (c.x + 0.5) * CELL_SIZE, y: (c.y + 0.5) * CELL_SIZE }));
@@ -2100,7 +2102,7 @@ export class Game {
     const ofp = footprintOf(option, player.faction as FactionId);
     const w = rotated ? ofp.d : ofp.w;
     const d = rotated ? ofp.w : ofp.d;
-    if (!this.placement.check({ owner: player.id, x, y, w, d, radius: buildRadius(option.id), coastal: isCoastal(option.id) }).ok) return false;
+    if (!this.placement.check({ owner: player.id, x, y, w, d, ...placeRule(option.id), coastal: isCoastal(option.id) }).ok) return false;
     if (!this.construction.takeReady(player, option.id)) return false;
     const b = this.entities.add(option.create(player.id, player.faction, x, y));
     if (rotated) {
@@ -3544,9 +3546,15 @@ export class Game {
     this.prof.time('processPortRepairs', () => this.processPortRepairs(dt));
     this.prof.time('processPatients', () => this.processPatients(dt));
     this.prof.time('regenVeterans', () => this.regenVeterans(dt));
-    // Capitals heal by themselves (CAPITAL_REGEN): every nation's capital and every inherited seat, player and AI alike.
+    // Capitals heal by themselves (CAPITAL_REGEN), paid CAPITAL_REGEN_COST_PER_PCT per 1% healed: every nation's
+    // capital and every inherited seat, player and AI alike; an owner short of money heals only what it can pay for.
     for (const b of this.entities.buildings()) {
-      if (b.alive && b.hp < b.maxHp && b.owner !== NEUTRAL_OWNER && isSeat(b)) b.hp = Math.min(b.maxHp, b.hp + b.maxHp * CAPITAL_REGEN * dt);
+      if (!b.alive || b.hp >= b.maxHp || b.owner === NEUTRAL_OWNER || !isSeat(b)) continue;
+      const p = this.players.find((o) => o.id === b.owner);
+      if (!p || p.credits <= 0) continue;
+      const pct = Math.min(CAPITAL_REGEN * dt * 100, ((b.maxHp - b.hp) / b.maxHp) * 100, p.credits / CAPITAL_REGEN_COST_PER_PCT);
+      p.credits -= pct * CAPITAL_REGEN_COST_PER_PCT;
+      b.hp = Math.min(b.maxHp, b.hp + (b.maxHp * pct) / 100);
     }
     this.janitorTimer += dt;
     if (this.janitorTimer >= JANITOR_INTERVAL) {
@@ -3754,7 +3762,7 @@ export class Game {
       }
       case 'siloStrike': {
         const b = this.entities.get(cmd.b);
-        if (b instanceof MissileSilo && b.alive && b.owner === me && b.loaded && b.launchClock === null) {
+        if (!inTruce() && b instanceof MissileSilo && b.alive && b.owner === me && b.loaded && b.launchClock === null) {
           const c = b.centerWorld();
           if (Math.hypot(cmd.x - c.x, cmd.y - c.y) <= b.range) b.strike = { x: cmd.x, y: cmd.y };
         }
@@ -4338,7 +4346,6 @@ export class Game {
     this.minimapTimer += dt;
     if (this.minimapTimer >= 1 / 12) {
       this.minimapTimer = 0;
-      this.minimap.render(buildings, units, this.humanPlayer.id, this.ownedCache.has('radarTower'), drawTime);
       if (this.bigMap?.open) this.bigMinimap.render(buildings, units, this.humanPlayer.id, this.ownedCache.has('radarTower'), drawTime);
       if (this.bigMap?.nuclearOpen) {
         this.bigMap.setSilos(
@@ -4346,7 +4353,9 @@ export class Game {
             .filter((b): b is MissileSilo => b instanceof MissileSilo && b.alive && b.owner === this.localId)
             .map((b) => {
               const busy = b.launchClock !== null || b.strike !== null;
-              const ready = b.loaded && !busy;
+              // Ceasefire: no launch (the Launch button is disabled until the war resumes).
+              const truce = inTruce();
+              const ready = b.loaded && !busy && !truce;
               // Lamp: green = ready to fire, red = loading stalled for lack of power, yellow = preparing (paying, loading, launching).
               const noPower = !ready && !busy && b.loading && this.humanPlayer.powerShort;
               const lamp = ready ? 'ready' : noPower ? 'power' : 'prep';
@@ -4354,7 +4363,7 @@ export class Game {
               const left = Math.ceil(Math.max(0, b.loadClock));
               const hms = left >= 3600 ? `${Math.floor(left / 3600)}:${String(Math.floor(left / 60) % 60).padStart(2, '0')}:${String(left % 60).padStart(2, '0')}` : `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
               const banLeft = (this.humanPlayer.nuclearBanUntil ?? 0) - this.time;
-              const status = busy ? t('Launching…') : banLeft > 0 ? `${t('Nuclear embargo')} · ${Math.floor(banLeft / 60)}:${String(Math.floor(banLeft % 60)).padStart(2, '0')}` : ready ? t('Ready') : noPower ? `${powerTier(this.humanPlayer) === 'medium' ? t('Medium power') : t('Low power')} · ${hms}` : b.loading ? t('Preparing {time}', { time: hms }) : `${t('Paying')} ${Math.floor(b.missilePaid).toLocaleString('en-US')}/${SILO_MISSILE_COST.toLocaleString('en-US')} ${CURRENCY}`;
+              const status = busy ? t('Launching…') : truce && b.loaded ? t('Ceasefire') : banLeft > 0 ? `${t('Nuclear embargo')} · ${Math.floor(banLeft / 60)}:${String(Math.floor(banLeft % 60)).padStart(2, '0')}` : ready ? t('Ready') : noPower ? `${powerTier(this.humanPlayer) === 'medium' ? t('Medium power') : t('Low power')} · ${hms}` : b.loading ? t('Preparing {time}', { time: hms }) : `${t('Paying')} ${Math.floor(b.missilePaid).toLocaleString('en-US')}/${SILO_MISSILE_COST.toLocaleString('en-US')} ${CURRENCY}`;
               return { id: b.id, label: `#${b.siloNo}`, status, ready, lamp } as const;
             }),
         );
@@ -5012,8 +5021,8 @@ export class Game {
         else if (this.waypoints) this.waypoints = null; // Esc drops the route being plotted
         else if (!this.ended) this.togglePause();
         break;
-      case 'Tab':
-        this.sidebar.toggle();
+      case 'Tab': // World Map (big map) open / close
+        this.bigMap?.toggleMap();
         break;
       case 'KeyF':
       case 'KeyU':
@@ -5214,7 +5223,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     const d = this.placingRotated ? fp.w : fp.d;
     const x = Math.floor(this.mouseWorld.x / CELL_SIZE - w / 2 + 0.5);
     const y = Math.floor(this.mouseWorld.y / CELL_SIZE - d / 2 + 0.5);
-    const result = this.placement.check({ owner: this.humanPlayer.id, x, y, w, d, radius: buildRadius(this.placing.id), coastal: isCoastal(this.placing.id) });
+    const result = this.placement.check({ owner: this.humanPlayer.id, x, y, w, d, ...placeRule(this.placing.id), coastal: isCoastal(this.placing.id) });
     this.ghost = {
       spriteKey: this.placing.spriteKey(this.humanPlayer.faction),
       faction: this.humanPlayer.faction,
@@ -5251,7 +5260,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     const fp = footprintOf(option, player.faction as FactionId);
     const w = rotated ? fp.d : fp.w;
     const d = rotated ? fp.w : fp.d;
-    if (!this.placement.check({ owner: player.id, x, y, w, d, radius: buildRadius(option.id), coastal: isCoastal(option.id) }).ok) {
+    if (!this.placement.check({ owner: player.id, x, y, w, d, ...placeRule(option.id), coastal: isCoastal(option.id) }).ok) {
       this.sidebar.notify(t('Cannot place here.'));
       return;
     }
@@ -5574,13 +5583,15 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
 
   /** Is `u` an enemy to the owner of a mine (the mine goes off under it)? No mine goes off in a ceasefire. */
   private mineFoe(owner: number, u: Unit): boolean {
+    // Anything off the ground (helicopters, planes, drones in flight) passes over a land mine.
+    if (u instanceof Vehicle && (u.aircraft || u.isDrone) && u.altitude > 0) return false;
     return !inTruce() && u.alive && u.owner !== owner && u.owner !== NEUTRAL_OWNER && !u.indestructible;
   }
 
   /**
    * Mines (every tick): soldiers with a mine order lay it once next to the spot; a mine goes off when an enemy soldier,
-   * vehicle, aircraft or helicopter enters its cell: enemy soldiers within 1 cell (3 x 3 cells) die, enemy vehicles and
-   * aircraft there lose MINE_VEHICLE_DAMAGE of their max health.
+   * vehicle (or an aircraft on the ground) enters its cell: enemy soldiers within 1 cell (3 x 3 cells) die, enemy vehicles
+   * there lose MINE_VEHICLE_DAMAGE of their max health.
    */
   private processMines(): void {
     for (const u of this.entities.fieldUnits()) {
@@ -7705,10 +7716,17 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
         this.sidebar.notify(t('Pick the strike point on the map (Esc: cancel).'), 3);
       }
     });
-    const s = this.selectedSilo();
-    if (!s || this.siloAiming !== s.id || !s.loaded) this.siloAiming = s && this.siloAiming === s.id && s.loaded ? s.id : null;
+    // Aiming lasts until a strike point is picked, Esc / right click, or the silo is gone / no longer loaded
+    // (it no longer needs the silo to stay selected: a click on the map must always get an answer).
+    if (this.siloAiming !== null && !this.aimedSilo()) this.siloAiming = null;
     // Launching is done from the nuclear briefcase panel only: the battlefield button stays hidden.
     this.siloButton.update({ kind: 'hidden' });
+  }
+
+  /** The silo being aimed, while it is still mine, alive, loaded and idle. */
+  private aimedSilo(): MissileSilo | null {
+    const s = this.siloAiming === null ? undefined : this.entities.get(this.siloAiming);
+    return s instanceof MissileSilo && s.alive && s.owner === this.localId && s.loaded && s.launchClock === null && s.strike === null ? s : null;
   }
 
   /** The point under the mouse is within the aiming silo's reach (cursor: trefoil inside, not-allowed outside). */
@@ -7721,8 +7739,12 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
 
   /** Aiming click: the strike point (anywhere on land or sea, on a structure or a unit) if in range. */
   private trySiloStrike(world: WorldPoint): void {
-    const s = this.selectedSilo();
-    if (!s || this.siloAiming !== s.id) return;
+    const s = this.aimedSilo();
+    if (!s) {
+      this.siloAiming = null;
+      this.sidebar.notify(t('This silo can no longer launch.'), 2.5);
+      return;
+    }
     const u = this.selection.pickUnit(world);
     const b = u ? null : this.selection.pick(world);
     const at = u ? { x: u.px, y: u.py } : b ? b.centerWorld() : world;

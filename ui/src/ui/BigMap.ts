@@ -12,7 +12,10 @@ export interface NuclearSiloRow {
   lamp: 'prep' | 'power' | 'ready';
 }
 
-/** How many times larger than the sidebar minimap the big map modal is. */
+/** Width (px) of the old corner minimap the big map is measured from. */
+const BASE_W = 220;
+
+/** How many times larger than the old corner minimap the big map modal is. */
 const BIG_MAP_SCALE = 3.5;
 
 /** A modal on the shared template (.end-screen + .end-card + h1 + X). */
@@ -70,6 +73,8 @@ export class BigMap {
   private nuclearState = '';
   /** Launch pressed for a silo in the nuclear briefcase panel. */
   onSiloLaunch: (id: number) => void = () => {};
+  /** A silo tile clicked (not its Launch button): jump the camera to that silo. */
+  onSiloFocus: (id: number) => void = () => {};
 
   get nuclearOpen(): boolean {
     return this.nuclear.open;
@@ -103,7 +108,7 @@ export class BigMap {
     return b;
   }
 
-  constructor(host: HTMLElement, private readonly source: HTMLCanvasElement, guide: HTMLElement, onHome: () => void) {
+  constructor(host: HTMLElement, guide: HTMLElement, onHome: () => void) {
     this.bar = document.createElement('div');
     this.bar.className = 'corner-bar';
     const button = (icon: IconNode, label: string, onClick: () => void): HTMLButtonElement => {
@@ -141,7 +146,7 @@ export class BigMap {
     this.bar.append(
       this.warClockSlot,
       button(House, t('Home (H): jump the camera to your capital.'), onHome),
-      button(MapIcon, t('World Map'), () => (this.map.open ? this.map.hide() : this.showMap())),
+      button(MapIcon, t('World Map (Tab)'), () => this.toggleMap()),
       button(Keyboard, t('Controls'), () => (this.controls.open ? this.controls.hide() : this.controls.show())),
       this.nuclearBtn,
       this.fullscreenButton(button),
@@ -164,6 +169,12 @@ export class BigMap {
       },
       true,
     );
+  }
+
+  /** World Map open / close (Tab). */
+  toggleMap(): void {
+    if (this.map.open) this.map.hide();
+    else this.showMap();
   }
 
   /** Puts the sidebar's zoom lock toggle into the bar (after the zoom buttons). */
@@ -256,9 +267,18 @@ export class BigMap {
         fire.setAttribute('aria-label', `${t('Launch')} ${s.label}`);
         fire.append(createElement(Rocket, { width: 16, height: 16, 'stroke-width': 2.2, 'aria-hidden': 'true' }));
         fire.disabled = !s.ready;
-        fire.addEventListener('click', () => {
+        // pointerdown, not click: the panel is rebuilt while a countdown ticks, which could swallow a click.
+        fire.addEventListener('pointerdown', (e) => {
+          e.stopPropagation();
+          e.preventDefault();
           this.nuclear.hide();
           this.onSiloLaunch(s.id);
+        });
+        tile.title = t('Go to silo {label}', { label: s.label });
+        tile.style.cursor = 'pointer';
+        tile.addEventListener('click', () => {
+          this.nuclear.hide();
+          this.onSiloFocus(s.id);
         });
         tile.append(name, lamps, status, fire);
         return tile;
@@ -267,7 +287,8 @@ export class BigMap {
   }
 
   private showMap(): void {
-    const r = this.source.getBoundingClientRect();
+    // Base: the size of the old corner minimap (220 px wide, 2 : 1.08).
+    const r = { width: BASE_W, height: BASE_W * (1.08 / 2) };
     // BIG_MAP_SCALE × the sidebar minimap, shrunk (same aspect) if the window is smaller.
     const fit = Math.min(1, (window.innerWidth - 120) / (r.width * BIG_MAP_SCALE), (window.innerHeight - 160) / (r.height * BIG_MAP_SCALE));
     this.canvas.style.width = `${Math.round(r.width * BIG_MAP_SCALE * fit)}px`;

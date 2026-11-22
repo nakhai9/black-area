@@ -446,7 +446,7 @@ export class Sidebar {
         <div class="sb-logo"><img src="${import.meta.env.BASE_URL}logo.png" alt="Black Area" /></div>
         <button class="sb-zoomlock" type="button" aria-label="${t('Zoom lock')}"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11a3 3 0 1 0 6 0a3 3 0 0 0-6 0m8 5l-2.5-2.5M3 7V5a2 2 0 0 1 2-2h2M3 17v2a2 2 0 0 0 2 2h2M17 3h2a2 2 0 0 1 2 2v2m-4 14h2a2 2 0 0 0 2-2v-2"/></svg></button>
         <button class="sb-settings" type="button" title="${t('Settings: screen lock, volume, language (pause menu, Esc).')}" aria-label="${t('Settings')}"></button>
-        <button class="sb-collapse" title="${t('Hide sidebar (Tab)')}" aria-label="${t('Hide sidebar')}"></button>
+        <button class="sb-collapse" title="${t('Hide sidebar')}" aria-label="${t('Hide sidebar')}"></button>
       </header>
       <section class="sb-panel sb-radar"><canvas class="sb-minimap"></canvas></section>
       <section class="sb-panel sb-resources">
@@ -545,7 +545,7 @@ export class Sidebar {
             <li>${t('Squatters (flag bearer + escort, one unit): walk it (or fly it by transport) to unclaimed land (not your rivals\' home lands, never Antarctica), select it and press <kbd>F</kbd> (or double-click it) — the flag goes up on the nearest open cell, on any land (the Squatters are gone once it stands) · then build an <b>Allied Building</b> beside it (max 3 allies)')}</li>
             <li>${t('When <b>READY</b>: click cameo, then click the map to place · <kbd>R</kbd> turn it 90° (only before it is placed) · <kbd>Esc</kbd>/<kbd>Right-click</kbd> stop placing')}</li>
             <li>${t('<kbd>WSD</kbd>/<kbd>Arrows</kbd>/screen edge — scroll · <kbd>A</kbd> auto sell · <kbd>Wheel</kbd> zoom · <kbd>Middle-drag</kbd> pan')}</li>
-            <li>${t('<kbd>Click</kbd> select · <kbd>1</kbd> your capital · <kbd>2</kbd>–<kbd>5</kbd> rival capitals · <kbd>O</kbd> oil · <kbd>H</kbd> home · <kbd>Tab</kbd> sidebar')}</li>
+            <li>${t('<kbd>Click</kbd> select · <kbd>1</kbd> your capital · <kbd>2</kbd>–<kbd>5</kbd> rival capitals · <kbd>O</kbd> oil · <kbd>H</kbd> home · <kbd>Tab</kbd> world map')}</li>
           </ul>
         </section>
       </div>
@@ -595,9 +595,9 @@ export class Sidebar {
     }
     // The minimap floats over the battlefield's top-left corner (like GTA), out of the sidebar; a rebuilt sidebar
     // replaces the previous one.
-    document.querySelectorAll('.sb-radar.map-corner').forEach((el) => el !== this.radarPanel && el.remove());
-    this.radarPanel.classList.add('map-corner');
-    document.body.append(this.radarPanel);
+    // Removed from the screen (lighter): the World Map in the corner bar replaces it.
+    document.querySelectorAll('.sb-radar.map-corner').forEach((el) => el.remove());
+    this.radarPanel.remove();
     this.transportPanel = q('.sb-transport');
     this.transportName = q('.sb-transport-name');
     this.transportSoldiers = q('.sb-transport-soldiers');
@@ -715,7 +715,7 @@ export class Sidebar {
     const opener = document.createElement('button');
     this.opener = opener;
     opener.className = 'sb-open';
-    opener.title = t('Show sidebar (Tab)');
+    opener.title = t('Show sidebar');
     opener.setAttribute('aria-label', t('Show sidebar'));
     opener.append(createElement(LogIn, { width: 16, height: 16, 'stroke-width': 2, 'aria-hidden': 'true' }));
     opener.addEventListener('click', () => this.toggle());
