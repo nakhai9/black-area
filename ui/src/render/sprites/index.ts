@@ -249,7 +249,8 @@ function withTeamColors<T>(design: FactionId, paint: FactionId, fn: () => T): T 
  */
 export function teamColoredKey(key: string, owner: string): string {
   const design = /^\w+:(\w+)/.exec(key)?.[1];
-  if (!isFactionId(design) || !isFactionId(owner) || design === owner || /^bridge:/.test(key)) return key;
+  // Bridges, and another nation's walls / Nation Gates (bought via its capital or Parallel Government), keep their own colours.
+  if (!isFactionId(design) || !isFactionId(owner) || design === owner || /^(bridge|wall|gate):/.test(key)) return key;
   return `${key}%${owner}`;
 }
 
