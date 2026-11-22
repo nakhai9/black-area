@@ -186,7 +186,8 @@ function bombRow(v: Vehicle): { x0: number; y: number; bar: number; gap: number;
 /** Structures whose art has no flag of its own (sprite key kinds): the renderer gives them a flag pole. */
 const FLAGLESS_ART: ReadonlySet<string> = new Set(['oil', 'airfield', 'port', 'radarTower', 'fuelStation', 'techCenter', 'powerPlant', 'happyCity', 'reserveCapital']);
 /** Structures without a flag that get one only once taken from another nation. */
-const CAPTURE_POLE_ART: ReadonlySet<string> = new Set(['bunker', 'wall', 'gate']);
+// Walls and Nation Gates of another nation stay exactly as designed: no pole added.
+const CAPTURE_POLE_ART: ReadonlySet<string> = new Set(['bunker']);
 const FLAG_POLE_HEIGHT = 30;
 /** How long an RA2 order line stays on screen after the order (s). */
 const ORDER_LINE_SECONDS = 1;
@@ -659,7 +660,7 @@ export class Renderer {
       ctx.restore();
     }
     // Every structure flies its owner's national flag: ones whose art has no flag get a pole at their front corner,
-    // and so does a taken bunker / wall / gate (it keeps the old owner's design, the pole shows who holds it now).
+    // and so does a taken bunker (it keeps the old owner's design, the pole shows who holds it now).
     const kind = b.spriteKey.split(':')[0] ?? '';
     const taken = CAPTURE_POLE_ART.has(kind) && b.origin !== b.faction;
     if ((FLAGLESS_ART.has(kind) || taken) && b.faction !== 'neutral') {

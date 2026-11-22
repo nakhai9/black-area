@@ -3981,10 +3981,10 @@ body.sidebar-bottom .sb-open {
   }
 }
 
-/* Minimap: floats over the battlefield's top-left corner (like GTA), whatever side the sidebar is on. */
+/* Minimap: floats over the battlefield's bottom-left corner (like GTA), clear of the toasts at the top. */
 .sb-radar.map-corner {
   position: fixed;
-  top: 10px;
+  bottom: 10px;
   left: 10px;
   z-index: 20;
   width: 220px;
