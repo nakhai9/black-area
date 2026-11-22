@@ -26,7 +26,7 @@
 <body>
 <main>
 <img class="logo" src="/logo.png" alt="Black Area" />
-<h1>Black Area — RULE <small>v3.75.388</small></h1>
+<h1>Black Area — RULE <small>v3.75.390</small></h1>
 <p class="lead">Tài liệu luật chơi + kiến trúc code dành cho AI/dev sửa game. Mọi con số gameplay chính xác nằm trong <code>src/constants.ts</code> và <code>src/factions/*.ts</code>. Nếu tài liệu này khác code thì <b>code đúng</b>. <b>Khi đổi luật/số trong code, phải cập nhật file này.</b></p>
 <nav><a href="#s1">Quy tắc làm việc cho AI</a><a href="#s2">Chạy dự án</a><a href="#s3">Kiến trúc thư mục</a><a href="#s4">Thế giới</a><a href="#s5">Kinh tế (dầu)</a><a href="#s6">Công trình (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Quân đội</a><a href="#s8">Chiến đấu</a><a href="#s9">Điều khiển (Game.handleKey, handleInput)</a><a href="#s10">Giới hạn &amp; hiệu năng</a><a href="#s11">Thắng / thua &amp; AI</a><a href="#s12">Công thức sửa thường gặp</a></nav>
 <h2 id="s1">0. Quy tắc làm việc cho AI</h2>
@@ -706,6 +706,7 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
   <li>v3.41.5: Sửa lỗi máy bay vận tải bay vòng tròn mãi quanh điểm hạ cánh (không đáp được, không nhận lệnh di chuyển): khi điểm đến nằm trong vòng quay, máy bay bay thẳng tới. Lệnh di chuyển mới trong lúc đang bay tới điểm hạ cánh giờ được nhận (hủy hạ cánh, bay đi).</li>
   <li>v3.41.5: Máy bay không còn nhận <b>Cảng (Naval Port)</b> làm sân bay nhà (không đậu, không hạ cánh, không được sinh ra ở cảng). Loại máy bay được đậu ở cảng sẽ quy ước sau: thêm vào <code>PORT_AIRCRAFT</code> trong <code>src/systems/AircraftSystem.ts</code>. Máy bay đang lấy cảng làm nhà (bản lưu cũ) sẽ chuyển sang sân bay khác của phe; không còn sân bay nào thì rơi như luật cũ.</li>
     <li>v3.56.1: <b>Giảm tiếng động cơ mọi phương tiện</b>: <code>VEHICLE_BED_GAIN</code> 1.6 → 1.0, máy bay / trực thăng <code>AIR_BED_BOOST</code> 2.2 → 1.5. <b>Máy bay vận tải</b> (C-17, Il-76, Y-20, A400M, mặc định) tăng gain 0.85–0.9 → 1.35 để to ngang các máy bay khác (tiếng động cơ trầm, ít tiếng rít nên trước nghe nhỏ hơn).</li>
+    <li>v3.75.390: Giếng dầu đã bị phá hủy không còn tự mọc lại khi load save (việc bù giếng dầu chỉ chạy một lần cho save cũ). Bảng NUCLEAR trong World News: mỗi dòng chỉ rộng vừa cờ + số silo + biểu tượng. Cả người chơi lẫn AI.</li>
     <li>v3.75.388: Bom hạt nhân không phân biệt phe: vụ nổ gây sát thương cho mọi lính, xe, công trình trên mặt đất trong bán kính (cả của phe phóng, đồng minh, trung lập) và vùng bức xạ làm mất máu như nhau với mọi phe (lính lâu năm cũng không được giảm sát thương bức xạ). Cả người chơi lẫn AI.</li>
     <li>v3.75.385: Phóng hạt nhân: bấm nút Phóng luôn vào chế độ chọn điểm (không còn bị mất lệnh khi bảng vali cập nhật, không phụ thuộc silo còn đang được chọn); chọn điểm ngoài tầm thì báo "quá xa" và vẫn giữ chế độ ngắm để chọn lại; silo không còn phóng được thì có thông báo. Mỗi silo đã sẵn sàng phóng độc lập, ngay khi có lệnh: không phải chờ tên lửa của silo khác nổ xong, không cần kiểm tra lại nhà khoa học / điện lúc phóng (chỉ cần khi nạp). Cả người chơi lẫn AI.</li>
     <li>v3.75.384: Phím <kbd>Tab</kbd> mở/đóng World Map (bản đồ lớn) thay cho ẩn/hiện sidebar (sidebar vẫn ẩn/hiện bằng nút).</li>

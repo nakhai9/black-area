@@ -467,6 +467,8 @@ export class Game {
   private readonly trees: TreeLayer;
   /** Trees felled in play, as indices into the forest (saved; replayed on load, see importSave). */
   private felledTrees: number[] = [];
+  /** Saved marker: the home oil fields were already topped up to OIL_DERRICK_COUNT (so destroyed derricks stay gone on load). */
+  private oilFieldsFull = true;
   private readonly sprites = new SpriteCache(BUILDING_ART);
   private readonly input: InputHandler;
   private readonly renderer: Renderer;
@@ -1197,7 +1199,9 @@ export class Game {
     if (typeof old.attacksOnPlayer === 'number') this.graceHits[this.localId] = old.attacksOnPlayer;
     if (old.autoSellOil === true) this.autoSellers.add(this.localId);
     this.addMissingSites(freshSites);
-    this.topUpOilFields();
+    // Only a save written before the marker existed is topped up (once); otherwise destroyed derricks would respawn on every load.
+    if (!('oilFieldsFull' in save.game) || !this.oilFieldsFull) this.topUpOilFields();
+    this.oilFieldsFull = true;
     this.dropRemovedOrders();
     // Visual effects are not saved, except ticking charges, which draw their own.
     this.effects.list.length = 0;
