@@ -287,6 +287,7 @@ export type GameCommand = (
   | { k: 'siteTarget'; b: number; tg: number }
   | { k: 'siteAim'; b: number; h: number }
   | { k: 'siloStrike'; b: number; x: number; y: number }
+  | { k: 'siloHalt'; b: number; on: boolean }
   /** DEMO only: Ctrl+click on one of my own structures / units: the selection fires on it (force fire). */
   | { k: 'forceAttack'; t: number }
   /** Clearing order: the armed selection fires on wooded cell (x, y) and the wooded cells round it (TREE_* in constants). */
@@ -959,6 +960,11 @@ export class Game {
       this.selection.select(id);
       this.siloAiming = id;
       this.sidebar.notify(t('Pick the strike point on the map (Esc: cancel).'), 3);
+    };
+    this.bigMap.onSiloPause = (id) => {
+      const b = this.entities.get(id);
+      if (!(b instanceof MissileSilo) || !b.alive || b.owner !== this.localId || b.loaded) return;
+      this.issue({ k: 'siloHalt', b: id, on: !b.halted });
     };
     this.bigMap.onSiloFocus = (id) => {
       const b = this.entities.get(id);
@@ -3768,6 +3774,11 @@ export class Game {
         }
         break;
       }
+      case 'siloHalt': {
+        const b = this.entities.get(cmd.b);
+        if (b instanceof MissileSilo && b.alive && b.owner === me) b.halted = cmd.on;
+        break;
+      }
       case 'siteAim': {
         const b = this.entities.get(cmd.b);
         if (b instanceof DvinaLauncher && b.alive && b.owner === me) {
@@ -4363,8 +4374,9 @@ export class Game {
               const left = Math.ceil(Math.max(0, b.loadClock));
               const hms = left >= 3600 ? `${Math.floor(left / 3600)}:${String(Math.floor(left / 60) % 60).padStart(2, '0')}:${String(left % 60).padStart(2, '0')}` : `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
               const banLeft = (this.humanPlayer.nuclearBanUntil ?? 0) - this.time;
-              const status = busy ? t('Launching…') : truce && b.loaded ? t('Ceasefire') : banLeft > 0 ? `${t('Nuclear embargo')} · ${Math.floor(banLeft / 60)}:${String(Math.floor(banLeft % 60)).padStart(2, '0')}` : ready ? t('Ready') : noPower ? `${powerTier(this.humanPlayer) === 'medium' ? t('Medium power') : t('Low power')} · ${hms}` : b.loading ? t('Preparing {time}', { time: hms }) : `${t('Paying')} ${Math.floor(b.missilePaid).toLocaleString('en-US')}/${SILO_MISSILE_COST.toLocaleString('en-US')} ${CURRENCY}`;
-              return { id: b.id, label: `#${b.siloNo}`, status, ready, lamp } as const;
+              const halted = b.halted && !b.loaded;
+              const status = halted ? `${t('Paused')} · ${b.loading ? hms : `${Math.floor(b.missilePaid).toLocaleString('en-US')}/${SILO_MISSILE_COST.toLocaleString('en-US')} ${CURRENCY}`}` : busy ? t('Launching…') : truce && b.loaded ? t('Ceasefire') : banLeft > 0 ? `${t('Nuclear embargo')} · ${Math.floor(banLeft / 60)}:${String(Math.floor(banLeft % 60)).padStart(2, '0')}` : ready ? t('Ready') : noPower ? `${powerTier(this.humanPlayer) === 'medium' ? t('Medium power') : t('Low power')} · ${hms}` : b.loading ? t('Preparing {time}', { time: hms }) : `${t('Paying')} ${Math.floor(b.missilePaid).toLocaleString('en-US')}/${SILO_MISSILE_COST.toLocaleString('en-US')} ${CURRENCY}`;
+              return { id: b.id, label: `#${b.siloNo}`, status, ready, lamp, halted, canHalt: !b.loaded } as const;
             }),
         );
         // [Unverified] US "Nuclear Football", Russia "Cheget"; no widely known name for the others: generic.
@@ -5786,7 +5798,8 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       this.effects.add({ kind: 'flash', x: muzzle.x, y: muzzle.y, age: 0, ttl: 0.07, size: size === 'tank' ? 3.6 : 1.8 });
       this.addBullet(muzzle, hit, size);
       // Aircraft guns: a machine-gun rattle from up on the aircraft.
-      this.sound.play(s instanceof Vehicle && s.flies ? 'airgun' : w.kind, { x: s.px, y: s.py });
+      if (s instanceof Vehicle && s.type === 'k9') this.sound.howitzer({ x: s.px, y: s.py });
+      else this.sound.play(s instanceof Vehicle && s.flies ? 'airgun' : w.kind, { x: s.px, y: s.py });
       const last = this.lastShot.get(s.id) ?? -99;
       this.lastShot.set(s.id, this.time);
       if (this.time - last > 8 && s.faction !== 'neutral' && !(s instanceof Vehicle)) this.sound.battleCry(s.faction, { x: s.px, y: s.py });

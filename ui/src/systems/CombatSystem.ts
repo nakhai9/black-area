@@ -570,7 +570,8 @@ export class CombatSystem implements GameSystem {
         continue;
       }
       const manned = demoActive || (this.hooks.scientists(b.owner) >= SILO_SCIENTISTS && !this.hooks.powerShort(b.owner));
-      if (!b.loaded && manned) {
+      // Halted by its owner: no paying and the loading countdown stands still until resumed.
+      if (!b.loaded && manned && !b.halted) {
         if (!b.loading) {
           if (MissileSilo.payMissile(b)) [b.loading, b.loadClock] = [true, SILO_RELOAD];
         } else if ((b.loadClock -= dt) <= 0) {

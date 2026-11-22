@@ -4012,3 +4012,13 @@ body.pregame .sb-radar.map-corner {
 body.sidebar-hidden .corner-bar .sb-open {
   display: grid;
 }
+/* Silo pause / resume: amber cap, same bezel as the launch button. */
+.end-card button.nuclear-launch.nuclear-pause:not(:disabled) {
+  background:
+    radial-gradient(circle at 38% 32%, #ffd36a 0, #c98a12 45%, #6a4508 68%, transparent 70%),
+    conic-gradient(from 30deg, #d9dde2, #7d848c, #eef1f4, #6b7178, #c9ced4, #80878f, #d9dde2);
+  animation: none;
+}
+.end-card button.nuclear-launch.nuclear-pause:not(:disabled):hover {
+  box-shadow: 0 0 10px 2px rgba(255, 190, 60, 0.7), inset 0 0 0 1px rgba(255, 255, 255, 0.35);
+}

@@ -528,6 +528,31 @@ export class SoundSystem {
   }
 
   /**
+   * Self-propelled howitzer (K9) firing: a sharp, clear muzzle crack, a huge chest-deep boom, the barrel's metallic
+   * ring, then a long echo rolling off the terrain. Louder and heavier than a tank cannon, heard from further away.
+   */
+  howitzer(at: WorldPoint): void {
+    const ctx = this.ctx;
+    if (!ctx || !this.master || !this.noise || this.muted || ctx.state !== 'running') return;
+    const l = this.listener();
+    const vol = Math.max(0, 1 - Math.hypot(at.x - l.centre.x, at.y - l.centre.y) / (l.range * 2.2));
+    if (vol < 0.04) return;
+    const now = ctx.currentTime;
+    if (now - (this.lastPlayed.get('howitzer') ?? -1) < 0.2) return;
+    this.lastPlayed.set('howitzer', now);
+    this.sfxUntil = now + SFX_DUCK_HOLD * 2;
+    this.music?.setDuck(SFX_DUCK);
+    const v = Math.min(1.4, Math.max(vol, 0.35) * 1.3);
+    this.noiseBurst(now, 0.05, 0.95 * v, 'highpass', 4200, 2000); // supersonic crack: clear, sharp attack
+    this.noiseBurst(now, 0.22, 0.85 * v, 'bandpass', 900, 260, 0.8); // muzzle blast body
+    this.lowThump(now, 0.9, 1.2 * v, 70, 24); // the huge low boom
+    this.lowThump(now + 0.004, 0.45, 0.6 * v, 140, 55); // punch in the chest
+    this.noiseBurst(now + 0.01, 0.35, 0.18 * v, 'bandpass', 2600, 2300, 6); // metallic ring of the barrel
+    this.noiseBurst(now + 0.03, 1.6, 0.5 * v, 'lowpass', 700, 70); // rolling rumble
+    this.noiseBurst(now + 0.38, 1.4, 0.22 * v, 'lowpass', 500, 80); // echo off the terrain
+  }
+
+  /**
    * BM-21 rocket in flight: wind tearing past the airframe — a rushing, fluttering hiss that rises as the rocket
    * climbs and falls in pitch as it dives, with a thin whistle over it; heard from the launcher and (louder) near the
    * target as it comes in. Lasts its whole `flight` s; a salvo overlaps a few (one per 0.25 s at most).

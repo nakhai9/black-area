@@ -1,4 +1,4 @@
-import { createElement, House, Keyboard, Map as MapIcon, Maximize, Minimize, Radiation, Rocket, type IconNode } from 'lucide';
+import { createElement, Pause, Play, House, Keyboard, Map as MapIcon, Maximize, Minimize, Radiation, Rocket, type IconNode } from 'lucide';
 import { t } from '../i18n';
 import { modalCloseButton } from './ModalClose';
 
@@ -10,6 +10,10 @@ export interface NuclearSiloRow {
   ready: boolean;
   /** Which of the three lamps is lit: yellow preparing, red short of power, green ready to fire. */
   lamp: 'prep' | 'power' | 'ready';
+  /** Preparation halted by the player (no paying, no loading). */
+  halted: boolean;
+  /** Still preparing (not loaded): the pause / resume button is usable. */
+  canHalt: boolean;
 }
 
 /** Width (px) of the old corner minimap the big map is measured from. */
@@ -75,6 +79,8 @@ export class BigMap {
   onSiloLaunch: (id: number) => void = () => {};
   /** A silo tile clicked (not its Launch button): jump the camera to that silo. */
   onSiloFocus: (id: number) => void = () => {};
+  /** Pause / resume a silo's preparation. */
+  onSiloPause: (id: number) => void = () => {};
 
   get nuclearOpen(): boolean {
     return this.nuclear.open;
@@ -215,7 +221,7 @@ export class BigMap {
    * the silo has no button on the battlefield). Rebuilt only when a row changes.
    */
   setSilos(silos: readonly NuclearSiloRow[]): void {
-    const key = silos.map((s) => `${s.id}:${s.label}:${s.status}:${s.ready}:${s.lamp}`).join('|');
+    const key = silos.map((s) => `${s.id}:${s.label}:${s.status}:${s.ready}:${s.lamp}:${s.halted}:${s.canHalt}`).join('|');
     if (key === this.nuclearKey && this.nuclearList.childElementCount > 0) return;
     this.nuclearKey = key;
     const ready = silos.filter((s) => s.ready).length;
@@ -280,7 +286,22 @@ export class BigMap {
           this.nuclear.hide();
           this.onSiloFocus(s.id);
         });
-        tile.append(name, lamps, status, fire);
+        // Pause / resume preparation: paused, no more money goes into this silo and its loading stops.
+        const hold = document.createElement('button');
+        hold.type = 'button';
+        hold.className = 'nuclear-launch nuclear-pause';
+        const holdLabel = s.halted ? t('Resume') : t('Pause');
+        hold.title = holdLabel;
+        hold.setAttribute('aria-label', `${holdLabel} ${s.label}`);
+        hold.append(createElement(s.halted ? Play : Pause, { width: 16, height: 16, 'stroke-width': 2.2, 'aria-hidden': 'true' }));
+        hold.disabled = !s.canHalt;
+        hold.addEventListener('pointerdown', (e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          this.onSiloPause(s.id);
+        });
+        hold.addEventListener('click', (e) => e.stopPropagation());
+        tile.append(name, lamps, status, hold, fire);
         return tile;
       }),
     );

@@ -18,6 +18,8 @@ export class MissileSilo extends Building {
   loadClock = 0;
   /** TB paid so far toward the next missile (installments: whatever the treasury holds, until SILO_MISSILE_COST). */
   missilePaid = 0;
+  /** Preparation halted by the owner: no more money goes in and the loading countdown stops until resumed. */
+  halted = false;
   /** Point (world px) the owner ordered the next launch at; kept until the missile goes. */
   strike: WorldPoint | null = null;
   /** Seconds into the launch sequence (lid opens, missile goes, lid holds, lid closes); null when idle. */
