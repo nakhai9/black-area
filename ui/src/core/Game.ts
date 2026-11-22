@@ -6334,6 +6334,15 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       const a = (k / extra) * Math.PI * 2 + 0.6;
       this.explode(f.x + f.w * (0.5 + 0.3 * Math.cos(a)), f.y + f.h * (0.5 + 0.3 * Math.sin(a)), 0, Math.sqrt(cells) * CELL_SIZE * 0.55, 0.15 + k * 0.18);
     }
+    // The ruin leaves a crater (sized to the plot) where it stood, and scorched pits where the secondary blasts went off.
+    if (e.spec.type !== 'bridge') {
+      const kind: CraterKind = cells >= 16 ? 'bomb' : cells >= 4 ? 'missile' : 'rocket';
+      this.scar(f.x + f.w / 2, f.y + f.h / 2, kind, 0.1, Math.max(CRATER_RADIUS[kind], Math.sqrt(cells) * CELL_SIZE * 0.85));
+      for (let k = 0; k < extra; k++) {
+        const a = (k / extra) * Math.PI * 2 + 0.6;
+        this.scar(f.x + f.w * (0.5 + 0.38 * Math.cos(a)), f.y + f.h * (0.5 + 0.38 * Math.sin(a)), 'rocket', 0.15 + k * 0.18);
+      }
+    }
     this.sound.play('explosion', e.centerWorld());
     if (e.owner === this.humanPlayer.id) this.sidebar.notify(t('Your {name} was destroyed!', { name: e.spec.name }), 5);
   }

@@ -27,8 +27,8 @@ ROOT = os.path.dirname(os.path.dirname(HERE))
 CACHE = os.path.join(HERE, "_cache", "craters")
 SHEET = os.path.join(ROOT, "ui", "public", "sprites", "craters.webp")
 
-CELL_W = 256
-CELL_H = 160
+CELL_W = 512
+CELL_H = 320
 SS = 2
 ORTHO = 2.2  # BU across the picture
 VARIANTS = 4
@@ -158,7 +158,7 @@ def ground_material():
     grain = nt.nodes.new("ShaderNodeTexNoise")
     nt.links.new(coords.outputs["Object"], grain.inputs["Vector"])
     grain.inputs["Scale"].default_value = 70.0
-    grain.inputs["Detail"].default_value = 8.0
+    grain.inputs["Detail"].default_value = 12.0
     ramp = nt.nodes.new("ShaderNodeMapRange")
     ramp.inputs["To Min"].default_value = 0.78
     ramp.inputs["To Max"].default_value = 1.15
@@ -266,7 +266,7 @@ def build(kind, seed):
 
     # Ground disc.
     bm = bmesh.new()
-    bmesh.ops.create_grid(bm, x_segments=280, y_segments=280, size=1.0)
+    bmesh.ops.create_grid(bm, x_segments=420, y_segments=420, size=1.0)
     bmesh.ops.delete(bm, geom=[v for v in bm.verts if v.co.length > 1.0], context="VERTS")
     for v in bm.verts:
         v.co.z = height(v.co.x, v.co.y)

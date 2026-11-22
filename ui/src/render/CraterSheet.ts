@@ -6,8 +6,8 @@ import { spriteUrl } from './spriteUrl';
  * CELL_W × CELL_H px, rendered from the game's 30° view. The impact point is the cell centre; the scar's outer edge
  * (its ejecta fading into the ground) spans DIAMETER_PX across.
  */
-const CELL_W = 256;
-const CELL_H = 160;
+const CELL_W = 512;
+const CELL_H = 320;
 const VARIANTS = 4;
 const DIAMETER_PX = (CELL_W * 2) / 2.2;
 
@@ -40,6 +40,7 @@ export function drawCrater(ctx: CanvasRenderingContext2D, x: number, y: number, 
   const h = CELL_H * k;
   const prev = ctx.globalAlpha;
   ctx.globalAlpha = prev * alpha;
+  ctx.imageSmoothingQuality = 'high';
   const sx = (((variant % VARIANTS) + VARIANTS) % VARIANTS) * CELL_W;
   const sy = ROW[kind] * CELL_H;
   if (flip) {
