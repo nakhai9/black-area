@@ -457,12 +457,9 @@ export class ConstructionSystem implements GameSystem {
     // Military embargo: at most one Barracks / War Factory / Airfield each (Game.disarmCapital keeps one by the capital).
     const mil = option.id.split('@')[0] as BuildingType;
     if (player.disarmedUntil !== undefined && MILITARY_BASES.includes(mil) && this.owns(player, mil)) return false;
-    // A Parallel Government uses up the right to it (given back if the order is cancelled).
+    // A Parallel Government needs the right to it; the right is kept, so it may be bought any number of times.
     const gov = parallelGovNation(option.id);
-    if (gov) {
-      if (!player.parallelGovRights?.includes(gov)) return false;
-      player.parallelGovRights = player.parallelGovRights.filter((n) => n !== gov);
-    }
+    if (gov && !player.parallelGovRights?.includes(gov)) return false;
     // RS-24 Yars silo: needs SILO_SCIENTISTS engineers in the Tech Center (they stay there to run the silos).
     if (option.id === 'yars' && (player.scientists ?? 0) < SILO_SCIENTISTS) return false;
     // Nuclear treaty: at most MAX_SILOS silos per nation.
@@ -475,8 +472,6 @@ export class ConstructionSystem implements GameSystem {
   cancel(player: PlayerState, id: BuildOption['id']): void {
     const s = this.slot(player, id);
     player.credits += s.paid;
-    const gov = parallelGovNation(id);
-    if (gov && s.state !== 'idle' && !player.parallelGovRights?.includes(gov)) player.parallelGovRights = [...(player.parallelGovRights ?? []), gov];
     Object.assign(s, idleSlot());
   }
 
