@@ -44,8 +44,13 @@ export function takenNations(entities: EntityManager, player: PlayerState, type:
  * never its structures. The Parallel Government itself: once per engineer that set one up in that nation's capital.
  */
 export function foreignBuildAllowed(entities: EntityManager, player: PlayerState, id: string, nation: FactionId): boolean {
-  if (id.startsWith('parallelGov@')) return player.parallelGovRights?.includes(nation) === true;
-  if (entities.buildings().some((b) => b.owner === player.id && b.alive && b.spec.type === 'parallelGov' && b.origin === nation)) return true;
+  const standingGov = entities.buildings().some((b) => b.owner === player.id && b.alive && b.spec.type === 'parallelGov' && b.origin === nation);
+  if (id.startsWith('parallelGov@')) {
+    // The right is never spent; a standing Parallel Government (bought when ordering still spent it) restores it.
+    if (standingGov && !player.parallelGovRights?.includes(nation)) player.parallelGovRights = [...(player.parallelGovRights ?? []), nation];
+    return player.parallelGovRights?.includes(nation) === true;
+  }
+  if (standingGov) return true;
   return takenNations(entities, player, 'capital').includes(nation);
 }
 

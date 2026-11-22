@@ -332,7 +332,7 @@ export function buildOffered(option: BuildOption, nation: FactionId): boolean | 
   if (option.only && !option.only.includes(nation)) return false;
   // `powerPlant@russia` for Russia is its own Power Plant a second time: never offered (it showed as a duplicate cameo).
   if (option.foreign === nation && isForeignBuild(base)) return false;
-  // A Parallel Government is only ever bought on a right won by an engineer (one per right), never freely sold.
+  // A Parallel Government is only ever bought on a right won by an engineer (the right is kept: any number of them), never freely sold.
   if (base === 'parallelGov') return option.foreign && option.foreign !== nation ? null : false;
   // A contested nation's design: on sale only while its capital is held (decided by the caller).
   if (option.nation || option.nations) return null;
