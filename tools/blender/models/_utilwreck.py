@@ -323,7 +323,9 @@ def wreck(damage, footprint, side=(1.0, 0.35), seed=7, stub=7.0, frag=18.0, flat
         chips = []
         for ob, lo, hi in parts:
             if hi.z > floor + (top - floor) * 0.35 and rng.random() < 0.5:
-                chips.append((rng.uniform(lo.x, hi.x), rng.uniform(lo.y, hi.y), hi.z, rng.uniform(0.08, 0.16)))
+                # Tall thin shells (cooling towers) only get small rim chips at d1, so they never read as torn (d2).
+                rr = (0.04, 0.07) if hi.z - lo.z > zp(60) else (0.08, 0.16)
+                chips.append((rng.uniform(lo.x, hi.x), rng.uniform(lo.y, hi.y), hi.z, rng.uniform(*rr)))
 
         def field(x, y):
             best = None
