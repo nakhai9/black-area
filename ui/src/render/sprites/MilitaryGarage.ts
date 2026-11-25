@@ -8,13 +8,13 @@ import { FOOTPRINT_MILITARY_GARAGE } from '../../constants';
  * -d1..-d3 damage pictures): Russia one steel vault, one door; China two steel vaults, two doors; USA a steel box,
  * one door; Islamic world a three-bay gabled shed, three doors; Europe a concrete vault, one door.
  * originX / originY as printed by kit.render: originX = d × 32 + 6 = 134 for every design; originY = height × 1.35 + 6.
- * TODO(art): fill in each design's originY once its render prints it.
+ * Script: tools/blender/models/garage.py (kit.render footprint (6, 4) = w along u, d along v).
  */
 const ORIGINS: Record<FactionId, readonly [number, number]> = {
-  russia: [134, 60],
-  china: [134, 60],
-  usa: [134, 60],
-  islamic: [134, 60],
+  russia: [134, 62.7],
+  china: [134, 54.6],
+  usa: [134, 57.3],
+  islamic: [134, 54.6],
   europe: [134, 60],
 };
 

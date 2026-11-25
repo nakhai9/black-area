@@ -977,9 +977,13 @@ export class AircraftSystem implements GameSystem {
     // In the air a target inside its turning circle can never be reached nose-first (it would circle it for ever,
     // e.g. a transport over its drop-off point): it then heads straight for it.
     const turnRadius = speed / 4;
+    // It never strafes sideways: a helicopter hovers and turns on the spot to face it; a fixed-wing aircraft eases off
+    // (a tighter circle at lower speed) and keeps flying along its nose until it lines up.
     if (v.altitude > 0 && d < turnRadius * 2.2 * Math.sin(Math.min(Math.abs(diff), Math.PI / 2))) {
-      this.place(v, v.px + (dx / d) * step, v.py + (dy / d) * step);
-      v.walkPhase += step;
+      if (v.type === 'heli') return false;
+      const slow = step * 0.4;
+      this.place(v, v.px + Math.cos(v.heading) * slow, v.py + Math.sin(v.heading) * slow);
+      v.walkPhase += slow;
       return false;
     }
     this.place(v, v.px + Math.cos(v.heading) * step, v.py + Math.sin(v.heading) * step);
@@ -987,7 +991,7 @@ export class AircraftSystem implements GameSystem {
     return false;
   }
 
-  /** Slides towards `target` at `speed` px/s without turning the nose; true once there. */
+  /** Eases towards `target` at `speed` px/s along its nose (turning to face it first, never a sideways slide); true once there. */
   private drift(v: Vehicle, target: WorldPoint, speed: number, dt: number): boolean {
     const dx = target.x - v.px;
     const dy = target.y - v.py;
@@ -996,8 +1000,13 @@ export class AircraftSystem implements GameSystem {
       this.place(v, target.x, target.y);
       return true;
     }
+    let diff = Math.atan2(dy, dx) - v.heading;
+    while (diff > Math.PI) diff -= Math.PI * 2;
+    while (diff < -Math.PI) diff += Math.PI * 2;
+    v.heading += Math.max(-3 * dt, Math.min(3 * dt, diff));
+    if (Math.abs(diff) > 0.4) return false;
     const step = Math.min(d, speed * dt);
-    this.place(v, v.px + (dx / d) * step, v.py + (dy / d) * step);
+    this.place(v, v.px + Math.cos(v.heading) * step, v.py + Math.sin(v.heading) * step);
     return false;
   }
 

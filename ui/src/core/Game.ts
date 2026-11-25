@@ -2527,8 +2527,7 @@ export class Game {
       if (!goal) return;
       if (grouped) {
         // A ground machine stops and waits for its whole new route (then pivots and drives nose first): no sliding.
-        if (u.moving && !u.groundDriver) u.pathTicket++;
-        else u.stop();
+        u.stop();
         u.routePending = true;
         (u.mobility === 'dozer' ? dozers : u.mobility === 'vehicle' ? drivers : u.swims ? swimmers : walkers).push({ unit: u, goal: { x: (goal.x + 0.5) * CELL_SIZE, y: (goal.y + 0.5) * CELL_SIZE }, cell: goal, ticket: u.pathTicket });
         return;
@@ -4175,7 +4174,7 @@ export class Game {
       const pushX = posX + negX;
       const pushY = posY + negY;
       if (pushX !== 0 || pushY !== 0) {
-        if (u.groundDriver) this.shove(u, pushX, pushY);
+        if (u.facesToMove) this.shove(u, pushX, pushY);
         else if (!this.nudge(u, pushX, pushY)) {
           this.nudge(u, pushX, 0);
           this.nudge(u, 0, pushY);
@@ -4282,7 +4281,7 @@ export class Game {
    * its hull (nose or tail) moves it, so it rolls a little forward or back instead of sliding across the ground.
    */
   private shove(u: Unit, dx: number, dy: number): boolean {
-    if (!u.groundDriver) return this.nudge(u, dx, dy);
+    if (!u.facesToMove) return this.nudge(u, dx, dy);
     const hx = Math.cos(u.heading);
     const hy = Math.sin(u.heading);
     const along = dx * hx + dy * hy;
@@ -8612,8 +8611,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       // until then (no stop-and-go on every new click); only routes from older orders are cancelled.
       // A unit that was fighting stops at once instead of running on towards the enemy while it waits.
       // A ground machine stops and waits for its whole new route, then pivots onto it and drives nose first (never a slide).
-      if (u.moving && !fighting && !u.groundDriver) u.pathTicket++;
-      else u.stop();
+      u.stop();
       // Waiting for its route: nothing else (pulling over, an automatic bomb run) may take the unit over meanwhile.
       u.routePending = true;
       (u.mobility === 'dozer' ? dozers : u.mobility === 'vehicle' ? drivers : u.swims ? swimmers : walkers).push({ unit: u, goal, cell, ticket: u.pathTicket, facing });

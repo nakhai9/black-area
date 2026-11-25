@@ -319,6 +319,11 @@ export abstract class Unit extends Entity {
     return this.drivesForward && this.turnsToMove && !this.naval && !this.flies;
   }
 
+  /** Every unit (soldier, machine, ship, aircraft) moves along its facing only: pushes keep to its body axis. */
+  get facesToMove(): boolean {
+    return !this.fixed;
+  }
+
   /** Replaces the current orders with a new path (world px waypoints). */
   follow(path: readonly WorldPoint[], keepFacing = false): void {
     this.pathTicket++;
@@ -417,7 +422,13 @@ export abstract class Unit extends Entity {
         this.py = next.y;
         budget -= dist;
         this.path.shift();
-      } else if ((this.drivesForward ? !reverse : dist > 2) && (this.naval || !this.insideTurn(dist, Math.atan2(dy, dx)))) {
+      } else if (!this.drivesForward && Math.abs(this.turnLeft(Math.atan2(dy, dx))) > 0.35) {
+        // A soldier turns to face the next leg first (quickly), then walks the way he faces: never a sidestep.
+        budget = 0;
+      } else if (!reverse && this.insideTurn(dist, Math.atan2(dy, dx)) && !this.naval) {
+        // Inside its turning circle: it slows to turn on the spot rather than gliding sideways at the point.
+        budget = 0;
+      } else if (!reverse) {
         // (Soldiers too walk the way they face, curving onto a new direction as they turn: never a sidestep.)
         // Along the nose, never sideways: the hull (or airframe) carries the machine, so it follows its heading
         // and curves onto the route as it turns instead of gliding straight at the point.
@@ -442,7 +453,7 @@ export abstract class Unit extends Entity {
       // A ground machine never slides: it may only go straight at its next point when that is (nearly) along its nose;
       // otherwise it stops, pivots and asks for a new route.
       const nose = next && d > 0.05 ? Math.abs(this.turnLeft(Math.atan2(next.y - fromY, next.x - fromX))) : Math.PI;
-      if (this.groundDriver && !(nose < 0.25 && !Unit.blocks(this, fromX, fromY, sx, sy))) {
+      if (!(nose < 0.25 && !Unit.blocks(this, fromX, fromY, sx, sy))) {
         this.px = fromX;
         this.py = fromY;
         budget = total;
