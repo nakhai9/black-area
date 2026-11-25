@@ -800,7 +800,7 @@ export class AISystem implements GameSystem {
     }
     // One Military Garage once the War Factory stands, built in peace (player rule: same shop, same requirement): its
     // savings of surplus units (see manageGarages).
-    if (!next && threat === 0 && owned.has('warFactory') && !owned.has('militaryGarage') && !busy('militaryGarage')) {
+    if (!next && threat === 0 && owned.has('warFactory') && owned.has('barracks') && !owned.has('militaryGarage') && !busy('militaryGarage')) {
       const garage = BUILD_OPTIONS.find((o) => o.id === 'militaryGarage');
       if (garage && buildOffered(garage, p.faction) && missingRequirement(garage, owned, p.disarmedUntil !== undefined) === null) next = garage;
     }

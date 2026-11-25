@@ -237,7 +237,7 @@ const OWN_OPTIONS: readonly BuildOption[] = [
     // Shelters up to 16 vehicles (helicopters and transport aircraft too) and 30 soldiers; double-click / Unload lets them out.
     id: 'militaryGarage',
     name: 'Military Garage',
-    requires: 'warFactory',
+    requires: ['barracks', 'warFactory'],
     cost: MILITARY_GARAGE_COST,
     footprint: FOOTPRINT_MILITARY_GARAGE,
     spriteKey: (f) => `militaryGarage:${f}`,
