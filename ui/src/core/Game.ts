@@ -8563,8 +8563,6 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     };
     let groundIndex = 0;
     units.forEach((u, k) => {
-      // Running after an enemy (a chase, an attack order or an advance): that route leads into the fight, not away.
-      const fighting = u.chasing || u.attackTarget !== null || u.attackMove !== null;
       u.parade = null; // leaves the parade ground
       u.fellTarget = null;
       u.task = null;

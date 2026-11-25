@@ -2,7 +2,7 @@ import type { IsoPainter } from '../IsoPainter';
 import type { BuildingArt } from './BuildingArt';
 import { spriteUrl } from '../spriteUrl';
 import type { FactionId } from '../../types';
-import { recolorPixels } from './index';
+import { recolorPixels } from './Recolor';
 
 /**
  * Structures rendered in Blender / from 3D models (tools/blender/building_render.py, tools/monument_model_sheet.py)
