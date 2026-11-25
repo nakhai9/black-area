@@ -110,6 +110,7 @@ import {
   STARTING_OIL,
   WORLD_BANK_LOCATION,
   PYRAMIDS_LOCATION,
+  MESA_LOCATION,
   CONTESTED_NATIONS,
   capitalFootprint,
   FOOTPRINT_GMC,
@@ -159,6 +160,7 @@ import { Vehicle } from '../entities/Vehicle';
 import { OilDerrick } from '../entities/OilDerrick';
 import { WorldBank } from '../entities/WorldBank';
 import { Pyramids } from '../entities/Pyramids';
+import { Mesa } from '../entities/Mesa';
 import { Monument } from '../entities/Monument';
 import { FACTIONS } from '../factions';
 import { computeBiomes } from '../map/Biomes';
@@ -640,6 +642,8 @@ export class Game {
     this.landmarks.push(this.entities.add(new WorldBank(geoToWorld(WORLD_BANK_LOCATION))));
     // Scenery: the Pyramids of Giza (neutral, indestructible; not a hotkey landmark).
     this.entities.add(new Pyramids(geoToWorld(PYRAMIDS_LOCATION)));
+    // Scenery: a red sandstone mesa in Monument Valley (neutral terrain, indestructible).
+    this.entities.add(new Mesa(geoToWorld(MESA_LOCATION)));
     // Contested independent nations: their capitals start neutral and go to whoever's engineer takes them.
     for (const id of Object.keys(CONTESTED_NATIONS) as ContestedNationId[]) {
       this.landmarks.push(this.entities.add(new NationCapital(id, geoToWorld(CONTESTED_NATIONS[id].site))));
@@ -2097,6 +2101,12 @@ export class Game {
   private occupyBuilding(b: Building): void {
     if (b instanceof Bridge) {
       this.markBridge(b, true);
+      return;
+    }
+    if (b instanceof Mesa) {
+      if (!this.map.flatZones.some((z) => z.x === b.x && z.y === b.y)) this.map.flatZones.push({ x: b.x, y: b.y, w: b.w, d: b.d });
+      this.map.onOccupy?.(b.x - 2, b.y - 2, b.w + 4, b.d + 4); // re-works the ground lift there (now flat)
+      for (const c of b.blockedCells()) this.map.occupy(c.x, c.y, 1, 1, b.id);
       return;
     }
     this.map.occupy(b.x, b.y, b.w, b.d, b.id);

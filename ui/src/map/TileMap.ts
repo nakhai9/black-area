@@ -231,6 +231,9 @@ export class TileMap {
     return null;
   }
 
+  /** Plots whose own art carries the ground (a mesa): the rolling hills (GroundLift) stay flat under them. */
+  readonly flatZones: { x: number; y: number; w: number; d: number }[] = [];
+
   /** Called after occupy() with the area it changed (the raised ground levels under buildings, see GroundLift). */
   onOccupy: ((x: number, y: number, w: number, d: number) => void) | null = null;
 

@@ -1,3 +1,4 @@
+import { MesaArt } from './Mesa';
 import { createAirfieldArt } from './Airfield';
 import { createAlliedBuildingArt } from './AlliedBuilding';
 import { createPortArt } from './Port';
@@ -40,6 +41,7 @@ export const BUILDING_ART: Readonly<Record<string, BuildingArt>> = {
   'capital:islamic': createGrandMosqueArt(),
   'bank:world': WorldBankArt,
   'monument:giza': PyramidsArt,
+  'terrain:mesa': MesaArt,
   ...MONUMENT_ARTS,
   // Capitals of the contested independent nations (neutral until an engineer takes one).
   'nation:northKorea': createNationCapitalArt('northKorea'),

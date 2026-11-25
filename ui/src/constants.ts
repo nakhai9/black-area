@@ -39,7 +39,7 @@ export const DEMO_FACTION: FactionId = NATION_CODES[(import.meta.env.VITE_DEMO_F
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "3.75.411";
+export const GAME_VERSION = "3.75.415";
 /** Transport aircraft (C-17, Il-76, Y-20, A400M) are drawn this many iso px long: 13, +20% (v3.75.224). */
 export const TRANSPORT_LENGTH = 13 * 1.2 * 0.9;
 
@@ -207,6 +207,8 @@ export const SQUAD_MIN_TANKS = 1;
 export const BRIDGE_REACH_CELLS = 4;
 /** Pyramids of Giza (neutral monument). */
 export const FOOTPRINT_PYRAMIDS = { w: 6, d: 6 } as const;
+/** Red sandstone mesa (neutral terrain scenery, tools/blender/mesa_render.py). */
+export const FOOTPRINT_MESA = { w: 12, d: 12 } as const;
 /** Symbol landmarks (Monument): the Statue of Liberty on Liberty Island. */
 export type MonumentId = "liberty" | "eiffel";
 export const MONUMENTS: Readonly<
@@ -1436,6 +1438,8 @@ export const CAPITAL_LOCATIONS: Readonly<Record<FactionId, NamedSite>> = {
 export const WORLD_BANK_LOCATION: GeoPoint = { lon: 8.54, lat: 47.93 };
 /** Pyramids of Giza, a little west of the real site (29.98°N 31.13°E) so the plot clears the Nile drawn on the map. */
 export const PYRAMIDS_LOCATION: GeoPoint = { lon: 30.45, lat: 29.95 };
+/** Red sandstone mesa in Monument Valley (Arizona / Utah, 36.98°N 110.10°W). */
+export const MESA_LOCATION: GeoPoint = { lon: -110.1, lat: 36.98 };
 
 /**
  * Contested nations: independent states that belong to no faction. Their capitals stand on the map from the start,

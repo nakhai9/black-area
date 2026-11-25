@@ -50,6 +50,7 @@ export class GroundLift {
     const { map } = this;
     const W = map.width;
     if (vx < 1 || vy < 1 || vx >= W || vy >= map.height) return 0;
+    for (const z of map.flatZones) if (vx >= z.x - 1 && vy >= z.y - 1 && vx <= z.x + z.w + 1 && vy <= z.y + z.d + 1) return 0;
     let h = 0;
     for (let y = vy - 1; y <= vy; y++) {
       for (let x = vx - 1; x <= vx; x++) {

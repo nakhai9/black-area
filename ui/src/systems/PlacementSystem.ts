@@ -1,3 +1,5 @@
+import { Mesa } from '../entities/Mesa';
+import { mesaPlotLevel } from '../map/MesaField';
 import type { EntityManager } from '../entities/EntityManager';
 import { BUNKER_BUILD_RADIUS, CELL_SIZE, GATE_BUILD_RADIUS, GRID_HEIGHT, PORT_MIN_LAND, PORT_PIER, PORT_QUAY, WALL_BUILD_RADIUS } from '../constants';
 import type { PlacementBlocker, TileMap } from '../map/TileMap';
@@ -153,7 +155,16 @@ export class PlacementSystem {
   private overlapsBuilding(req: PlacementRequest): boolean {
     return this.entities
       .buildings()
-      .some((b) => b.alive && req.x < b.x + b.w && b.x < req.x + req.w && req.y < b.y + b.d && b.y < req.y + req.d);
+      .some(
+        (b) =>
+          b.alive &&
+          req.x < b.x + b.w &&
+          b.x < req.x + req.w &&
+          req.y < b.y + b.d &&
+          b.y < req.y + req.d &&
+          // A mesa's plateau (or its flat ground) is a building site like any level ground; its slopes are not.
+          !(b instanceof Mesa && mesaPlotLevel(req.x - b.x, req.y - b.y, req.w, req.d)),
+      );
   }
 
   /** True when some living base structure of `owner` (not a SUPPORT_TYPES one) is within BUILD_RADIUS cells. */

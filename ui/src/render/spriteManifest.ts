@@ -178,6 +178,7 @@ export const SPRITE_FOLDERS: Readonly<Record<string, string>> = {
   'building-happycity-usa-d1': 'usa/happycity',
   'building-happycity-usa-d2': 'usa/happycity',
   'building-happycity-usa-d3': 'usa/happycity',
+  'building-mesa-usa-west': 'usa',
   'building-nation-australia': 'capitals/australia/nation',
   'building-nation-australia-d1': 'capitals/australia/nation',
   'building-nation-australia-d2': 'capitals/australia/nation',

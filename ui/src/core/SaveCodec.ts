@@ -24,6 +24,7 @@ import { Vehicle } from '../entities/Vehicle';
 import { WarFactory } from '../entities/WarFactory';
 import { WorldBank } from '../entities/WorldBank';
 import { Pyramids } from '../entities/Pyramids';
+import { Mesa } from '../entities/Mesa';
 import { Monument } from '../entities/Monument';
 import { Bridge } from '../entities/Bridge';
 import { NationCapital, type NationId } from '../entities/NationCapital';
@@ -48,6 +49,7 @@ const ENTITY_CLASSES: Readonly<Record<string, abstract new (...args: never[]) =>
   Capital,
   WorldBank,
   Pyramids,
+  Mesa,
   Monument,
   Bridge,
   NationCapital,
@@ -84,6 +86,7 @@ const TEMPLATES: Readonly<Record<string, (d: Record<string, unknown>, at: WorldP
   Capital: (d, at) => new Capital(FACTIONS[d.faction as FactionId], d.owner as number, at),
   WorldBank: (_d, at) => new WorldBank(at),
   Pyramids: (_d, at) => new Pyramids(at),
+  Mesa: (_d, at) => new Mesa(at),
   Monument: (d, at) => {
     if (!(String(d.monument) in MONUMENTS)) throw new Error(`monument '${String(d.monument)}' was removed`);
     return new Monument(d.monument as MonumentId, at);

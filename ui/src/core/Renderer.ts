@@ -1,3 +1,4 @@
+import { Mesa } from '../entities/Mesa';
 import { dissipate } from '../render/Smoke';
 import { drawHomingMissile } from '../render/SamMissile';
 import { drawChargeIcon } from '../render/ChargeIcon';
@@ -353,7 +354,9 @@ export class Renderer {
     this.terrain.drawTrees(ctx, view, camera.zoom);
     // Bridges lie on the ground (or over the water): under every unit, ring and structure, out of the depth pass.
     this.frameBridges.length = 0;
+    this.frameMesas.length = 0;
     this.frameBuildingList = scene.buildings;
+    for (const b of scene.buildings) if (b instanceof Mesa) this.frameMesas.push(b);
     for (const b of scene.buildings) {
       if (b.spec.type !== 'bridge') continue;
       this.frameBridges.push(b as Bridge);
@@ -527,7 +530,8 @@ export class Renderer {
       const R = u.radius * 2.5 + 4; // generous screen box: hull, turret, barrel
       // Parked on its airfield: the airfield's slot depth.
       const depth = u instanceof Vehicle && u.drawDepth !== null && u.fixed ? u.drawDepth : cx + cy;
-      nodes.push({ d: u, depth, x0: cx - r, y0: cy - r, x1: cx + r, y1: cy + r, sx0: p.x - R, sx1: p.x + R, sy0: p.y - R - 24, sy1: p.y + R, after: [], need: 0 });
+      const up = this.mesaLift(u.px, u.py);
+      nodes.push({ d: u, depth, x0: cx - r, y0: cy - r, x1: cx + r, y1: cy + r, sx0: p.x - R, sx1: p.x + R, sy0: p.y - R - 24 - up, sy1: p.y + R, after: [], need: 0 });
     }
     const n = nodes.length;
     const EPS = 1e-6;
@@ -546,7 +550,16 @@ export class Renderer {
           const mixed = a.d.kind === 'building' !== (b.d.kind === 'building');
           const type = mixed ? ((a.d.kind === 'building' ? a.d : b.d) as Building).spec.type : null;
           let aFirst: boolean;
-          if (!aBehind && (type === 'airfield' || type === 'port' || type === 'gate')) aFirst = (a.d.kind === 'building') !== (type === 'gate');
+          const mesa = a.d instanceof Mesa ? a.d : b.d instanceof Mesa ? b.d : null;
+          if (mesa && !(a.d instanceof Mesa && b.d instanceof Mesa)) {
+            // A unit / structure up on the mesa (ramp, plateau) or on its near side is drawn over it; behind its
+            // cliffs, under it.
+            const un = a.d === mesa ? b : a;
+            const ucx = (un.x0 + un.x1) / 2;
+            const ucy = (un.y0 + un.y1) / 2;
+            const over = mesa.liftAt(ucx, ucy) > 1 || ucx + ucy >= mesa.x + mesa.y + mesa.w;
+            aFirst = (a.d === mesa) === over;
+          } else if (!aBehind && (type === 'airfield' || type === 'port' || type === 'gate')) aFirst = (a.d.kind === 'building') !== (type === 'gate');
           else aFirst = a.depth <= b.depth;
           if (aFirst) {
             a.after.push(j);
@@ -620,6 +633,7 @@ export class Renderer {
     const s = this.sprite(b);
     const cw = b.centerWorld();
     const c = worldToIso(cw.x, cw.y);
+    c.y -= this.structureLift(b); // a structure built on a mesa's plateau stands up on it
     const k = this.scaleOf(b);
     const { ctx } = this;
 
@@ -701,7 +715,9 @@ export class Renderer {
    */
   private drawUnit(u: Unit): void {
     // Ground units on a bridge drive / walk on its deck, not at water level beside its girders.
-    const deck = u.flies || u.naval ? 0 : this.deckLift(u.px, u.py);
+    // On a mesa everything stands on (or flies above) its ground: soldiers, vehicles, helicopters and aircraft alike —
+    // landing on the plateau, taking off from it and flying over it keep the same height, so nothing pops.
+    const deck = u.naval ? 0 : (u.flies ? 0 : this.deckLift(u.px, u.py)) + this.mesaLift(u.px, u.py);
     if (deck > 0) {
       this.ctx.save();
       this.ctx.translate(0, -deck);
@@ -713,6 +729,25 @@ export class Renderer {
       return;
     }
     this.drawUnitOnGround(u);
+  }
+
+  /** Mesas on the map this frame (mesaLift looks units up in them). */
+  private readonly frameMesas: Mesa[] = [];
+
+  /** Height (iso px) of a mesa's ground under world point (x, y): its ramp and plateau carry units up; 0 elsewhere. */
+  private mesaLift(x: number, y: number): number {
+    if (this.frameMesas.length === 0) return 0;
+    const cx = x / CELL_SIZE;
+    const cy = y / CELL_SIZE;
+    for (const m of this.frameMesas) if (cx >= m.x && cy >= m.y && cx < m.x + m.w && cy < m.y + m.d) return m.liftAt(cx, cy);
+    return 0;
+  }
+
+  /** Lift (iso px) of a structure standing on a mesa (0 for the mesa itself and everything off one). */
+  private structureLift(b: Building): number {
+    if (b instanceof Mesa) return 0;
+    const c = b.centerWorld();
+    return this.mesaLift(c.x, c.y);
   }
 
   /** Bridges drawn this frame (deckLift looks units up in them). */
@@ -745,7 +780,7 @@ export class Renderer {
     const c = Math.cos(u.heading) * len;
     const s = Math.sin(u.heading) * len;
     // Up or down a bridge ramp it tilts with the ramp (deck height under nose minus tail, true to scale).
-    const rise = (liftAt(u.px + c, u.py + s) - liftAt(u.px - c, u.py - s)) * SLOPE_TILT + (this.deckLift(u.px + c, u.py + s) - this.deckLift(u.px - c, u.py - s));
+    const rise = (liftAt(u.px + c, u.py + s) - liftAt(u.px - c, u.py - s)) * SLOPE_TILT + (this.deckLift(u.px + c, u.py + s) - this.deckLift(u.px - c, u.py - s)) + (this.mesaLift(u.px + c, u.py + s) - this.mesaLift(u.px - c, u.py - s));
     // Nose minus tail on the flat iso screen.
     const vx = 2 * (c - s) * ISO_X;
     const vy = 2 * (c + s) * ISO_Y;
@@ -1140,14 +1175,14 @@ export class Renderer {
   /** Middle of a unit's picture in iso px (the hull / the aircraft at its altitude): where order lines start and end. */
   private unitCentre(u: Unit): { x: number; y: number } {
     const P = worldToIso(u.px, u.py);
-    const lift = u.flies && 'altitude' in u ? Number((u as { altitude: number }).altitude) : 0;
+    const lift = (u.flies && 'altitude' in u ? Number((u as { altitude: number }).altitude) : 0) + (u.naval ? 0 : this.mesaLift(u.px, u.py));
     return { x: P.x, y: P.y - lift - u.bodyHeight * 0.5 };
   }
 
   /** Picture box of a unit in iso px (upright transform): centre x, half width, top and bottom. */
   private unitBox(u: Unit): { x: number; half: number; top: number; bottom: number } {
     const P = worldToIso(u.px, u.py);
-    const lift = u.flies && 'altitude' in u ? Number((u as { altitude: number }).altitude) : 0;
+    const lift = (u.flies && 'altitude' in u ? Number((u as { altitude: number }).altitude) : 0) + (u.naval ? 0 : this.mesaLift(u.px, u.py));
     return { x: P.x, half: Math.max(2.2, u.radius * 1.5), top: P.y - lift - Math.max(u.bodyHeight, 2) - 1.6, bottom: P.y - lift + 1.2 };
   }
 
@@ -1227,7 +1262,7 @@ export class Renderer {
     const { ctx } = this;
     const k = 1 / this.camera.zoom;
     const P = worldToIso(u.px, u.py);
-    const lift = u.flies && 'altitude' in u ? Number((u as { altitude: number }).altitude) : 0;
+    const lift = (u.flies && 'altitude' in u ? Number((u as { altitude: number }).altitude) : 0) + (u.naval ? 0 : this.mesaLift(u.px, u.py));
     const top = P.y - lift - Math.max(u.bodyHeight, 2) - 1.6 - (u.rank > 0 ? 3.6 : 0);
     const text = 'name' in u ? String((u as { name: string }).name) : t('Enemy');
     const img = u.banner !== 'neutral' ? emblemImage(u.banner as FactionId) : null;
@@ -1332,7 +1367,7 @@ export class Renderer {
     const P = worldToIso(u.px, u.py);
     const w = Math.max(2.4, u.radius * 1.6);
     // An airborne unit is drawn `altitude` px above its ground point: the plate rides along, never under it.
-    const lift = (u as { altitude?: number }).altitude ?? 0;
+    const lift = ((u as { altitude?: number }).altitude ?? 0) + (u.naval ? 0 : this.mesaLift(u.px, u.py));
     const base = P.y - lift - u.bodyHeight - 1.2;
     const fuel = showsFuel(u);
     const flagH = fuel ? FUEL_ROW + 0.4 : 1;
@@ -1905,6 +1940,7 @@ export class Renderer {
     const s = this.sprite(b);
     const cw = b.centerWorld();
     const c = worldToIso(cw.x, cw.y);
+    c.y -= this.structureLift(b);
     const k = this.scaleOf(b);
     return { x: c.x + (s.bounds.x - s.centerX) * k, y: c.y + (s.bounds.y - s.centerY) * k, w: s.bounds.w * k, h: s.bounds.h * k };
   }
@@ -1955,7 +1991,7 @@ export class Renderer {
       outline = [worldToIso(f.x, f.y), worldToIso(f.x + f.w, f.y), worldToIso(f.x + f.w, f.y + f.h), worldToIso(f.x, f.y + f.h)];
     } else {
       const P = worldToIso(e.px, e.py);
-      const lift = e.flies && 'altitude' in e ? Number((e as { altitude: number }).altitude) : 0;
+      const lift = (e.flies && 'altitude' in e ? Number((e as { altitude: number }).altitude) : 0) + (e.naval ? 0 : this.mesaLift(e.px, e.py));
       const half = Math.max(3, e.radius * 2);
       const top = P.y - lift - Math.max(e.bodyHeight, 2) - 1.6;
       const bottom = P.y - lift + 1.6;
