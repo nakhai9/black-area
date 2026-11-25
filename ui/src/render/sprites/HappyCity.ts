@@ -1,7 +1,7 @@
 import type { FactionId } from '../../types';
 import { drawFlagOnPole } from '../Flags';
 import type { BuildingArt } from './BuildingArt';
-import { type PictureSpec, pictureArt } from './PictureArt';
+import { type PictureSpec, pictureArt, preloadPicture } from './PictureArt';
 
 /**
  * Happy City (8×8 tiles), one per nation, each laid out the way that part of the world builds its cities:
@@ -65,6 +65,8 @@ export function createHappyCityArt(faction: FactionId, flagOf: FactionId = facti
   const fallen = stage >= 3 || (stage === 2 && fu > CUT_U[faction] - 0.3);
   const [fz, pole] = fallen ? [RUIN_FLAG_Z, RUIN_POLE] : [plan.flag[2], plan.flag[3]];
   const spec = PICTURE(faction);
+  // Damage pictures are built lazily (art.damaged): register them now so loadPictureArts downloads them before play.
+  if (stage === 0) for (const n of [1, 2, 3]) preloadPicture(`${spec.file}-d${n}`);
   const art = pictureArt(stage ? { ...spec, file: `${spec.file}-d${stage}` } : spec, {
     recolorWhole: true,
     overlay(p) {

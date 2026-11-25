@@ -2,7 +2,7 @@ import { activeDesign } from '../../constants';
 import type { FactionId } from '../../types';
 
 import type { BuildingArt } from './BuildingArt';
-import { type PictureSpec, pictureArt } from './PictureArt';
+import { type PictureSpec, pictureArt, preloadPicture } from './PictureArt';
 
 /** The airfield covers 12×8 tiles (the footprint in constants.ts must match). */
 export const AIRFIELD_SIZE = { w: 12, d: 8 } as const;
@@ -63,6 +63,8 @@ const PICTURE = (faction: FactionId): PictureSpec => {
 export function createAirfieldArt(faction: FactionId, stage = 0): BuildingArt {
   // Damage stages share the design's picture (same recolour): building-airfield-<design nation>-d<n> (_wreck.py wreck_flat).
   const spec = PICTURE(faction);
+  // Damage pictures are built lazily (art.damaged): register them now so loadPictureArts downloads them before play.
+  if (stage === 0) for (const n of [1, 2, 3]) preloadPicture(`${spec.file}-d${n}`);
   const art = pictureArt(stage ? { ...spec, file: `${spec.file}-d${stage}` } : spec, {
     drawAnimated(p, time) {
       // Blinking runway lights along both edges.

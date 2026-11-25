@@ -2525,6 +2525,10 @@ export class Game {
         return;
       }
       if (!goal) return;
+      const goalPt = { x: (goal.x + 0.5) * CELL_SIZE, y: (goal.y + 0.5) * CELL_SIZE };
+      // Already rolling to (nearly) the same spot: keep going on the route it has. Re-ordering it (the AI repeats its
+      // orders every few ticks) would stop it and wait for a new route each time: stop-and-go every few px.
+      if (u.moving && u.destination && Math.hypot(u.destination.x - goalPt.x, u.destination.y - goalPt.y) < CELL_SIZE * 3) return;
       if (grouped) {
         // A ground machine stops and waits for its whole new route (then pivots and drives nose first): no sliding.
         u.stop();
@@ -7783,6 +7787,13 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
           }
         } else if (u.owner === this.humanPlayer.id) this.sidebar.notify(t('That derrick is already leased.'), 3);
       } else {
+        // No longer capturable since the order (a Reserve Capital whose nation still holds / got back its own capital
+        // is an ordinary structure again): the engineer leaves it alone. Player and AI alike.
+        if (!b.capturable) {
+          u.task = null;
+          u.stop();
+          continue;
+        }
         // An enemy nation's own capital: its owner picks embargo / take over first (the engineer waits).
         if (this.isEnemyCapital(b)) {
           if (!task.choice) {
@@ -7916,13 +7927,19 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     this.siloAiming = null;
   }
 
+  /** Does the nation still hold its own (first) capital? */
+  private holdsOwnCapital(p: { id: number; faction: string }): boolean {
+    return this.entities.buildings().some((x) => x.alive && x.owner === p.id && x.spec.type === 'capital' && x.spec.spriteKey === `capital:${p.faction}`);
+  }
+
   /** A nation's own main capital, held by its nation (not a contested NationCapital, not one already taken). */
   private isEnemyCapital(b: Building): boolean {
     if (b instanceof NationCapital || b.owner === NEUTRAL_OWNER) return false;
     const holder = this.players.find((p) => p.id === b.owner);
     if (!holder) return false;
     // The Reserve Capital the government moved to (its own capital lost) stands in for it.
-    if (b instanceof ReserveCapital) return b.seat && b.faction === holder.faction;
+    // Only while that nation's own capital is gone: with it standing a reserve has none of the capital's rights.
+    if (b instanceof ReserveCapital) return b.seat && b.faction === holder.faction && !this.holdsOwnCapital(holder);
     return b.spec.type === 'capital' && b.spec.spriteKey === `capital:${holder.faction}`;
   }
 
@@ -8608,6 +8625,8 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       // Its route comes from the group's shared flow field a few frames later. A unit already walking keeps going
       // until then (no stop-and-go on every new click); only routes from older orders are cancelled.
       // A unit that was fighting stops at once instead of running on towards the enemy while it waits.
+      // Already on its way to (nearly) this very spot: it keeps its route instead of stopping to wait for a new one.
+      if (u.moving && !u.retreating && u.destination && Math.hypot(u.destination.x - goal.x, u.destination.y - goal.y) < CELL_SIZE) return;
       // A ground machine stops and waits for its whole new route, then pivots onto it and drives nose first (never a slide).
       u.stop();
       // Waiting for its route: nothing else (pulling over, an automatic bomb run) may take the unit over meanwhile.

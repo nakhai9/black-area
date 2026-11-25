@@ -32,6 +32,8 @@ function image(file: string): HTMLImageElement {
     i = new Image();
     i.dataset.src = spriteUrl(`${file}.webp`);
     images.set(file, i);
+    // Registered after the start-up download began: fetch it now instead of never.
+    if (loading) i.src = i.dataset.src;
   }
   return i;
 }

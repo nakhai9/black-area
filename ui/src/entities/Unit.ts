@@ -329,6 +329,16 @@ export abstract class Unit extends Entity {
     this.pathTicket++;
     this.routePending = false;
     this.path = [...path];
+    // A new route starts at the centre of the cell it stands in: a moving vehicle already past that point would stop
+    // and pivot back to it (a jerk on every re-route). Points close behind its nose count as passed.
+    if (this.groundDriver) {
+      while (this.path.length > 1) {
+        const p = this.path[0]!;
+        const d = Math.hypot(p.x - this.px, p.y - this.py);
+        if (d > CELL_SIZE * 1.2 || (d > 1.5 && Math.abs(this.turnLeft(Math.atan2(p.y - this.py, p.x - this.px))) < PIVOT_ANGLE)) break;
+        this.path.shift();
+      }
+    }
     this.givingWay = false;
     if (!keepFacing) this.faceOnArrival = null;
     this.destination = path.length > 0 ? (path[path.length - 1] ?? null) : null;
