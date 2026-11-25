@@ -59,7 +59,17 @@ export class EffectsLayer {
   private static readonly MAX = 600;
 
   add(e: Effect): void {
-    if (this.list.length < EffectsLayer.MAX) this.list.push(e);
+    if (this.list.length >= EffectsLayer.MAX) return;
+    // A soldier killed inside a fallout zone lies there until the radiation is gone (the bodies scattered in the glow).
+    if (e.kind === 'soldierDeath') {
+      for (const z of this.list) {
+        if (z.kind !== 'fallout') continue;
+        const dx = (e.x - z.x) / z.rx;
+        const dy = (e.y - z.y) / z.ry;
+        if (dx * dx + dy * dy <= 1) e.ttl = Math.max(e.ttl, z.ttl - z.age);
+      }
+    }
+    this.list.push(e);
   }
 
   update(dt: number): void {

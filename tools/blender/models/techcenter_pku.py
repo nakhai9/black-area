@@ -4,6 +4,7 @@ a dark timber top storey under a huge grey-tiled hip roof with flared, upturned 
 under a curved canopy and broad steps on the front (+u) side."""
 import bmesh
 
+from models._damage import ruined_render
 from kit import _obj, box, cylinder, mat, render, rod, windows, zp, TEAM
 from models._chinese_roof import curved_roof
 
@@ -56,7 +57,7 @@ U0, U1 = 0.1, 3.55
 FRONT = U1
 
 
-def pku():
+def pku(damage=0):
     cream = mat(CREAM, 0.75, grain=0.1, scale=20)
     cream_d = mat(CREAM_D, 0.8, grain=0.12, scale=20)
     tile = mat(TILE, 0.6, grain=0.15, scale=70)
@@ -125,7 +126,7 @@ def pku():
     for v in (1.2, 3.8):
         box(3.68, v - 0.12, 0.24, 0.24, 1, 2, cream_d)
         cylinder(3.8, v, 0.09, 3, 3, bronze, 16)
-    render("techcenter-china-pku", (4, 5), 68)
+    ruined_render("techcenter-china-pku", (4, 5), 68, damage, seed=24, cut_u=2.0)
 
 
-MODELS = {"techcenter-china-pku": pku}
+MODELS = {"techcenter-china-pku": pku, **{f"techcenter-china-pku-d{d}": (lambda d=d: pku(d)) for d in (1, 2, 3)}}

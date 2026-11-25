@@ -20,6 +20,7 @@ import math
 import bmesh
 
 from kit import _obj, box, cylinder, lathe, mat, render, rod, windows, zp, TEAM
+from models._ruin import apply as ruin
 
 W, D = 5, 5
 
@@ -214,7 +215,7 @@ def lion(M, cu, cv):
 # ---------------------------------------------------------------- the model
 
 
-def capital_china():
+def capital_china(damage=0):
     M = mats()
     box(0, 0, W, D, 0, 1, M["paving"])  # plot paving (sunk flush by kit.render)
 
@@ -275,7 +276,17 @@ def capital_china():
     cylinder(2.5, 4.52, 0.22, 1, 1.5, M["marble"], 24)
     balustrade_ring(M, 2.25, 4.27, 0.5, 0.5, 1, 1.8)
 
-    render("capital-china", (W, D), 60)
+    ruin(damage, dict(
+        ground=1, top=48, seed=23, split=2.6,
+        blocks=[("box", 0.95, 1.85, 4.05, 3.45, 47), ("box", 0.25, 0.08, 4.75, 0.5, 17), ("box", 2.05, 0.82, 2.95, 1.32, 17),
+                ("box", 0.1, 1.85, 1.2, 2.03, 13), ("box", 3.8, 1.85, 4.9, 2.03, 13), ("box", 0.0, 3.45, 0.62, 3.83, 14),
+                ("box", 4.38, 3.45, 5.0, 3.83, 14)],
+        frags=[(1.2, 3.25, 0.3, 24), (4.5, 0.3, 0.2, 12), (3.9, 2.1, 0.22, 16), (0.3, 3.65, 0.18, 9)],
+        mount=None, mount2=None,
+        debris=[M["red"], M["red"], M["tile"], M["tile_d"], M["marble"], M["grey"]], glass=[M["glass"]], slab=M["marble_d"]), W, D)
+    render("capital-china" + (f"-d{damage}" if damage else ""), (W, D), 60)
 
 
 MODELS = {"capital-china": capital_china}
+for _d in (1, 2, 3):
+    MODELS[f"capital-china-d{_d}"] = (lambda d=_d: capital_china(d))

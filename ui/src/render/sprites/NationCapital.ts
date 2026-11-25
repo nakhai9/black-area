@@ -175,6 +175,23 @@ const FLAG_PAINTERS: Record<ContestedNationId, (ctx: CanvasRenderingContext2D, w
     ctx.fill();
     ctx.fillRect(w / 2 - 1, h * 0.6, 2, h * 0.25);
   },
+  turkey(ctx, w, h) {
+    // Red field, a white crescent opening to the fly and a white five-pointed star.
+    ctx.fillStyle = '#e30a17';
+    ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(w * 0.36, h / 2, h * 0.25, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#e30a17';
+    ctx.beginPath();
+    ctx.arc(w * 0.4, h / 2, h * 0.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    starPath(ctx, w * 0.53, h / 2, h * 0.125);
+    ctx.fill();
+  },
   cuba(ctx, w, h) {
     // Five blue and white stripes, a red triangle at the hoist with a white star.
     for (let i = 0; i < 5; i++) {
@@ -224,6 +241,7 @@ const HEIGHTS: Record<ContestedNationId, number> = {
   unitedKingdom: 66,
   canada: 128,
   cuba: 96,
+  turkey: 60,
 };
 
 /** Rendered in Blender (tools/blender/<nation>_capital_render.py) in 4 × 2.4 art units. */
@@ -239,19 +257,26 @@ const PICTURE = (nation: ContestedNationId): PictureSpec => ({
 /**
  * Capital of a contested nation: its seat of government filling a 5 × 3 plot (FOOTPRINT_NATION_CAPITAL) — Palace of
  * Independence (Belarus), Kumsusan palace (North Korea), Blue House (South Korea), Kantei (Japan), The Lodge
- * (Australia), Palácio do Planalto (Brazil), 10 Downing Street (UK), Parliament Hill (Canada), El Capitolio (Cuba) —
+ * (Australia), Palácio do Planalto (Brazil), 10 Downing Street (UK), Parliament Hill (Canada), El Capitolio (Cuba),
+ * the Presidential Complex (Turkey) —
  * with two flagpoles on the front edge: the nation's own flag and the flag of whoever holds it (the neutral globe
  * while nobody does).
  */
 export function createNationCapitalArt(nation: ContestedNationId, holder: Allegiance = 'neutral'): BuildingArt {
-  return {
-    ...pictureArt(PICTURE(nation), {
-      drawAnimated(p, time) {
-        drawTextureFlagOnPole(p, nationFlag(nation), 0.15, 2.25, 37, time, 0.3);
-        drawFlagOnPole(p, holder, 3.85, 2.25, 37, time, 1.4);
-      },
-    }),
-    // Authored in 4 × 2.4 units and drawn 1.25× to fill the 5 × 3 plot.
+  const spec = PICTURE(nation);
+  const base = pictureArt(spec, {
+    // Damage stages d1..d3 (≤80 / ≤50 / ≤20 % HP), rendered by the same script (tools/blender/nation_damage.py).
+    damageFiles: [1, 2, 3].map((n) => `${spec.file}-d${n}`),
+    drawAnimated(p, time) {
+      drawTextureFlagOnPole(p, nationFlag(nation), 0.15, 2.25, 37, time, 0.3);
+      drawFlagOnPole(p, holder, 3.85, 2.25, 37, time, 1.4);
+    },
+  });
+  // Authored in 4 × 2.4 units and drawn 1.25× to fill the 5 × 3 plot (the damaged pictures too).
+  const scaled = (art: BuildingArt): BuildingArt => ({
+    ...art,
     scale: 5 / 4,
-  };
+    damaged: art.damaged ? (stage) => scaled(art.damaged!(stage)) : undefined,
+  });
+  return scaled(base);
 }

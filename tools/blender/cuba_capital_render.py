@@ -124,6 +124,47 @@ def smooth_round_parts():
 HEIGHT = 96
 
 
+def roof_detail(u, v, w, d, z, h, kind, ridge, seam, cap, n_front, n_side, eave=None):
+    """No plain roof faces (ART_GUIDE 5): standing seams on the two visible slopes (+v and +u eaves), raised ridge
+    and hip rolls, and a trimmed eave set just under the roof edge (never coplanar with it)."""
+    u1, v1, cu, cv = u + w, v + d, u + w / 2, v + d / 2
+    if kind == "pyramid":
+        hu, hv = w / 2, d / 2
+    elif ridge == "u":
+        hv = d / 2
+        hu = d / 2 if kind == "hip" else None
+    else:
+        hu = w / 2
+        hv = w / 2 if kind == "hip" else None
+    lift, r = 0.0035, 0.0032
+    if hv is not None and n_front:
+        for i in range(n_front):
+            x = u + (i + 0.5) * w / n_front
+            t = hv if (kind == "gable" and ridge == "u") else min(hv, x - u, u1 - x)
+            rod((x, v1 + 0.002, zp(z) + lift), (x, v1 - t, zp(z + h * t / hv) + lift), r, seam, 4)
+    if hu is not None and n_side:
+        for i in range(n_side):
+            y = v + (i + 0.5) * d / n_side
+            t = hu if (kind == "gable" and ridge == "v") else min(hu, y - v, v1 - y)
+            rod((u1 + 0.002, y, zp(z) + lift), (u1 - t, y, zp(z + h * t / hu) + lift), r, seam, 4)
+    top = zp(z + h) + lift
+    if kind == "pyramid":
+        ends = [(cu, cv)] * 2
+    elif ridge == "u":
+        ends = [(u + (hu or 0), cv), (u1 - (hu or 0), cv)]
+    else:
+        ends = [(cu, v + (hv or 0)), (cu, v1 - (hv or 0))]
+    if ends[0] != ends[1]:
+        rod((ends[0][0], ends[0][1], top), (ends[1][0], ends[1][1], top), r * 2.2, cap, 6)
+    if kind != "gable":
+        near = lambda pu, pv: min(ends, key=lambda e: (e[0] - pu) ** 2 + (e[1] - pv) ** 2)
+        for pu, pv in ((u1, v1), (u, v1), (u1, v)):
+            e = near(pu, pv)
+            rod((pu, pv, zp(z) + lift), (e[0], e[1], top), r * 1.8, cap, 6)
+    if eave is not None:
+        box(u - 0.01, v - 0.01, w + 0.02, d + 0.02, z - 0.55, 0.5, eave)
+
+
 def build():
     stone = mat("#e6dec9", 0.8, grain=0.1, scale=26)       # Capellanía limestone
     light = mat("#f1ebdb", 0.7, grain=0.05)
@@ -169,6 +210,27 @@ def build():
     box(U0 - 0.02, V0 - 0.02, U1 - U0 + 0.04, V1 - V0 + 0.06, 28.4, 1.4, light)
     box(U0 - 0.05, V0 - 0.05, U1 - U0 + 0.1, V1 - V0 + 0.1, 29.8, 0.8, light)
     box(U0 + 0.02, V0 + 0.02, U1 - U0 - 0.04, V1 - V0 - 0.02, 30.6, 0.05, mat("#a49f94", 0.9, grain=0.1, scale=40))
+    # Faction identity line: a Cuban-blue band along the frieze; dentils under the cornice.
+    team = mat("#1f3fa8", 0.6, grain=0.02)
+    put("left", U0 - 0.02, U1 + 0.02, V1 + 0.04, 28.45, 0.95, 0.007, team)
+    put("right", V0 - 0.02, V1 + 0.04, U1 + 0.02, 28.45, 0.95, 0.007, team)
+    for i in range(90):
+        c = U0 + (i + 0.5) * (U1 - U0) / 90
+        put("left", c - 0.008, c + 0.008, V1 + 0.04, 29.45, 0.35, 0.009, light)
+    for i in range(32):
+        c = V0 + (i + 0.5) * (V1 - V0) / 32
+        put("right", c - 0.008, c + 0.008, U1 + 0.02, 29.45, 0.35, 0.009, light)
+    # Flat roof: membrane joints, roof vents and plant boxes.
+    jm = mat("#8f8a80", 0.9, grain=0.05)
+    for i in range(1, 18):
+        box(U0 + i * (U1 - U0) / 18, V0 + 0.02, 0.006, V1 - V0 - 0.02, 30.65, 0.04, jm)
+    for i in range(1, 6):
+        box(U0 + 0.02, V0 + i * (V1 - V0) / 6, U1 - U0 - 0.04, 0.006, 30.65, 0.04, jm)
+    plant = mat("#8c877c", 0.7, metal=0.3, grain=0.05)
+    for u, v in ((0.55, 0.6), (0.95, 1.2), (3.05, 1.2), (3.45, 0.6)):
+        box(u - 0.07, v - 0.05, 0.14, 0.1, 30.65, 2.0, plant)
+        box(u - 0.075, v - 0.055, 0.15, 0.11, 32.65, 0.3, jm)
+        cylinder(u + 0.1, v, 0.02, 30.65, 2.6, plant, 10)
     balustrade("left", U0, U1, V1 + 0.04, 30.6, stone, h=2.4)
     balustrade("right", V0, V1 + 0.04, U1 + 0.04, 30.6, stone, h=2.4)
 
@@ -179,13 +241,19 @@ def build():
     box(P0, V1 - 0.005, P1 - P0, 0.004, 11.8, 16, shade)
     for i in range(3):
         c = P0 + (i + 1) * (P1 - P0) / 4
+        put("left", c - 0.075, c + 0.075, V1 - 0.004, 11.8, 9.2, 0.004, light)  # door frame and lintel
         put("left", c - 0.06, c + 0.06, V1 - 0.004, 11.8, 8, 0.006, bronze)  # the bronze doors
+        put("left", c - 0.003, c + 0.003, V1 - 0.004, 11.8, 8, 0.008, shade)
     for vv in (PV - 0.2, PV - 0.03):
         for i in range(6):
             column(P0 + 0.06 + i * (P1 - P0 - 0.12) / 5, vv, 11.8, 17.4, 0.035, light, stone, 24)
     box(P0 - 0.06, V1 - 0.01, P1 - P0 + 0.12, PV - V1 + 0.06, 29.2, 2.0, light)
     box(P0 - 0.09, V1 - 0.01, P1 - P0 + 0.18, PV - V1 + 0.09, 31.2, 0.8, light)
     roof(P0 - 0.06, V1 - 0.01, P1 - P0 + 0.12, PV - V1 + 0.06, 32.0, 7, stone, kind="gable", ridge="v", overhang=0.02)
+    roof_detail(P0 - 0.08, V1 - 0.03, P1 - P0 + 0.16, PV - V1 + 0.1, 32.0, 7, "gable", "v", mat("#c9c0aa", 0.8, grain=0.05), light, 0, 14, light)
+    for i in range(14):  # dentils under the pediment cornice
+        c = P0 - 0.04 + (i + 0.5) * (P1 - P0 + 0.08) / 14
+        put("left", c - 0.01, c + 0.01, PV + 0.05, 30.7, 0.45, 0.01, light)
     # The monumental flight of steps between the two statue pedestals.
     steps(P0 + 0.05, P1 - 0.05, 2.38, 11.8, 14, 0.026, mat("#d9d1bd", 0.75, grain=0.1, scale=30))
     for u in (P0 - 0.07, P1 + 0.01):
@@ -236,7 +304,11 @@ def build():
     poles()
 
 
-kit.reset()
-build()
-smooth_round_parts()
-render("nation-cuba", (4, D), HEIGHT)
+import nation_damage  # noqa: E402
+
+for stage in nation_damage.stages():  # -- 0 1 2 3 (default: all): intact, then the damage stages d1..d3
+    kit.reset()
+    build()
+    smooth_round_parts()
+    nation_damage.apply(stage)
+    render("nation-cuba" + nation_damage.suffix(stage), (4, D), HEIGHT)

@@ -179,57 +179,6 @@ def ac_unit(u, v, z):
 # ---------------------------------------------------------------- USA
 
 
-def usa():
-    team = TEAM["usa"]
-    wall = mat("#a3abb3", 0.55, metal=0.4, grain=0.12, scale=45)
-    dark = mat("#6f7880", 0.8)
-    U, V, W, D = 0.05, 0.05, 4.9, 3.9
-    plinth("#6f7880")
-    box(U, V, W, D, 2, 20, wall)
-    box(U - 0.01, V - 0.01, W + 0.02, D + 0.02, 2, 2.4, dark)
-    # Steel pilasters on both visible faces.
-    for i in range(9):
-        box(U + i * W / 8 - 0.03, V + D, 0.06, 0.03, 2, 20, mat("#80888f", 0.5, metal=0.5))
-        box(U + W, V + i * D / 8 - 0.03, 0.03, 0.06, 2, 20, mat("#80888f", 0.5, metal=0.5))
-    side_windows_right(U, V, W, D, 4, 14, 8, 1)
-    box(U - 0.01, V - 0.01, W + 0.02, D + 0.02, 18, 2, mat(team, 0.45, metal=0.3, grain=0.03))
-    roller_doors(U, V + D, W, 2, 13, 3, m_steel("#5a6066"), hazard=True)
-    # Roof: parapet, sawtooth north-lights, star disc.
-    cornice(U, V, W, D, 20, mat("#8b939a", 0.6, metal=0.3, grain=0.06), ((0.0, 1.0), (0.025, 0.8), (0.04, 0.7)))
-    box(U + 0.08, V + 0.08, W - 0.16, D - 0.16, 21, 1.6, mat("#55595c", 0.9, grain=0.12, scale=6))
-    for k in range(3):
-        v0 = 0.45 + k * 1.05
-        box(0.6, v0 + 0.68, 3.8, 0.02, 22.5, 7, m_glass())
-        for j in range(9):
-            box(0.6 + j * 3.8 / 8 - 0.015, v0 + 0.7, 0.03, 0.015, 22.5, 7, m_steel("#4a5056"))
-    # Proper sloped roof sheets.
-    for k in range(3):
-        v0 = 0.45 + k * 1.05
-        _slope(0.6, 4.4, v0, v0 + 0.7, 22.5, 22.5 + 7, mat("#7d858c", 0.55, metal=0.5, grain=0.05))
-    ac_unit(0.3, 0.2, 22.5)
-    for u, v in ((0.35, 1.5), (0.35, 2.6), (4.55, 1.5), (4.55, 2.6), (1.5, 0.2), (3.6, 0.2)):
-        roof_vent(u, v, 22.5)
-    for u in (0.55, 4.45):
-        downpipe(u, V + D + 0.03, 2, 22)
-    for v in (0.6, 3.5):
-        downpipe(U + W + 0.03, v, 2, 22)
-    for k in range(3):
-        box(U + W + 0.02, 1.05 + k * 0.9, 0.04, 0.5, 15.5, 1.6, mat("#e2e4e6", 0.5, grain=0))
-    ac_unit(1.9, 3.5, 22.5)
-    ac_unit(3.2, 3.5, 22.5)
-    # Gantry cranes at both ends.
-    for u in (0.25, 4.6):
-        box(u, 0.3, 0.15, 0.15, 22, 12, m_steel())
-        box(u, 3.4, 0.15, 0.15, 22, 12, m_steel())
-        box(u, 0.3, 0.15, 3.25, 34, 1.5, mat(team, 0.5, grain=0.03))
-    for cu, cv in ((0.95, 0.25), (4.05, 0.25)):
-        cylinder(cu, cv, 0.11, 22, 18, m_steel("#9aa0a6"))
-        cylinder(cu, cv, 0.12, 30, 1.6, mat(team, 0.5, grain=0))
-        cylinder(cu, cv, 0.12, 40, 1.5, mat("#3a3a3a", 0.8, grain=0))
-    tower_crane(2.6, 0.25, 22, 34, 1.8, -1)
-    render("warfactory-usa", (5, 4), 90)
-
-
 def _slope(u0, u1, v0, v1, z0, z1, material):
     """Sheet rising from (v0, z0) to (v1, z1), spanning u0..u1, closed below."""
     import bmesh
@@ -252,61 +201,6 @@ def _slope(u0, u1, v0, v1, z0, z1, material):
 
 
 # ---------------------------------------------------------------- Russia
-
-
-def russia():
-    team = TEAM["russia"]
-    brick = mat("#8a4a36", 0.9, grain=0.2, scale=60)
-    pier = mat("#6e3a2a", 0.9, grain=0.15, scale=60)
-    conc = mat("#9a9a8a", 0.9, grain=0.15, scale=20)
-    tar = mat("#4e4640", 0.95, grain=0.1, scale=8)
-    plinth("#6a645a")
-    # Chimney (back corner) with team bands.
-    lathe(4.4, 0.6, 2, [(0.27, 0), (0.22, 68)], mat("#e4e0d8", 0.8), cap_top=True)
-    for i in range(5):
-        lathe(4.4, 0.6, 6 + i * 14, [(0.272 - i * 0.01, 0), (0.262 - i * 0.01, 6)], mat(team, 0.6, grain=0.05))
-    cylinder(4.4, 0.6, 0.24, 70, 1.5, mat("#2a2a2a", 0.9, grain=0))
-    # Brick hall.
-    box(0.1, 0.1, 4.8, 3.3, 2, 22, brick)
-    for i in range(11):
-        box(0.1 + i * 4.8 / 10 - 0.04, 3.4, 0.08, 0.03, 2, 22, pier)
-    for i in range(8):
-        box(4.9, 0.1 + i * 3.3 / 7 - 0.04, 0.03, 0.08, 2, 22, pier)
-    side_windows_right(0.1, 0.1, 4.8, 3.3, 6, 16, 7, 1)
-    cornice(0.1, 0.1, 4.8, 3.3, 22, mat("#7a3e2c", 0.9, grain=0.2, scale=60), ((0.015, 0.7), (0.035, 0.7), (0.05, 0.9)))
-    deck("russia", 0.2, 0.2, 4.6, 3.1, 24.2, team=team,
-         avoid=[(0.45, 1.25, 4.1, 1.0), (1.85, 2.85, 1.3, 1.15), (0.2, 0.2, 0.6, 0.6), (4.05, 0.2, 0.7, 0.7)])
-    # Clerestory.
-    box(0.5, 1.3, 4.0, 0.9, 24, 8, brick)
-    framed_windows("left", 0.5, 1.3, 4.0, 0.9, 22, 12, 12, 1, glass=m_lit(), frame="#5a5a52", fill=0.6, sill=False)
-    framed_windows("right", 0.5, 1.3, 4.0, 0.9, 22, 12, 3, 1, glass=m_lit(), frame="#5a5a52", fill=0.6, sill=False)
-    cornice(0.5, 1.3, 4.0, 0.9, 31.4, mat("#7a3e2c", 0.9, grain=0.2, scale=60), ((0.02, 0.6),))
-    roof(0.5, 1.3, 4.0, 0.9, 32, 3, mat("#5a524a", 0.7, metal=0.3), kind="gable", ridge="u", overhang=0.06)
-    for u in (0.12, 4.88):
-        downpipe(u, 3.43, 2, 22)
-    for v in (1.2, 2.6):
-        downpipe(4.93, v, 2, 22)
-    # Steam pipe along the side wall to the chimney.
-    rod((4.97, 3.2, zp(10)), (4.97, 0.9, zp(10)), 0.03, m_steel("#8a8d90"), 10)
-    # Concrete front block with the bay doors.
-    box(0.1, 3.4, 4.8, 0.55, 2, 18, conc)
-    cornice(0.1, 3.4, 4.8, 0.55, 20, mat("#7a7a6c", 0.9, grain=0.12), ((0.015, 0.6), (0.035, 0.8)))
-    box(0.1, 3.4, 4.8, 0.56, 16, 2.6, mat(team, 0.6, grain=0.05))
-    roller_doors(0.1, 3.95, 4.8, 2, 12.5, 3, mat("#6c6c60", 0.9), width=0.55)
-    # Administration tower with star.
-    box(1.9, 2.9, 1.2, 1.05, 2, 40, conc)
-    side_windows_left(1.9, 2.9, 1.2, 1.05, 14, 22, 3, 3)
-    side_windows_right(1.9, 2.9, 1.2, 1.05, 4, 32, 3, 4)
-    cornice(1.9, 2.9, 1.2, 1.05, 42, mat("#82827a", 0.9, grain=0.12), ((0.02, 0.8), (0.045, 1.2)))
-    box(2.0, 3.0, 0.3, 0.25, 44, 3, mat("#8a8a7e", 0.9))
-    roof_vent(2.8, 3.1, 44)
-    box(2.3, 3.95, 0.4, 0.06, 11, 0.8, mat("#82827a", 0.9))
-    for k in range(4):
-        box(2.2 + k * 0.01, 3.95 + k * 0.05, 0.6, 0.05, 2 - k * 0.5, 0.5, conc)
-    box(2.3, 3.95, 0.4, 0.04, 2, 9, mat(DOOR, 0.6))
-    star(2.5, 3.98, 33, 6.4, team)
-    tower_crane(0.45, 0.45, 2, 56, 1.9, 1)
-    render("warfactory-russia", (5, 4), 92)
 
 
 def star(cu, v, cz, r, color):
@@ -621,9 +515,15 @@ def islamic():
 
 
 MODELS = {
-    "warfactory-usa": usa,
-    "warfactory-russia": russia,
     "warfactory-china": china,
     "warfactory-europe": europe,
     "warfactory-islamic": islamic,
 }
+
+from models._wreck import with_damage  # noqa: E402
+
+with_damage(MODELS, __name__, flags={
+    "warfactory-china": [(0.45, 3.55), (4.55, 3.55)],
+    "warfactory-europe": [(2.5, 3.55)],
+    "warfactory-islamic": [(2.5, 3.6)],
+})

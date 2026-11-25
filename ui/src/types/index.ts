@@ -181,7 +181,7 @@ export interface FactionConfig {
 // ---------------------------------------------------------------- Players & buildings
 
 export interface PlayerState {
-  /** The nation has planted its first flag (Squatters or a Flagpole structure): Allied Buildings are unlocked for good. */
+  /** The nation has planted its first flag (Squatters or a Flagpole structure): kept for good. */
   flagPlanted?: boolean;
   id: number;
   name: string;
@@ -250,11 +250,11 @@ export type BuildingType =
   | 'port'
   | 'radarTower'
   | 'fuelStation'
+  | 'militaryGarage'
   | 'reserveCapital'
   | 'techCenter'
   | 'happyCity'
   | 'flagpole'
-  | 'alliedBuilding'
   | 'parallelGov'
   | 'oilDerrick'
   | 'bunker'
@@ -265,8 +265,12 @@ export type BuildingType =
 /** Who may be stationed inside a building, and how many. */
 export interface GarrisonSpec {
   capacity: number;
-  /** 'wounded' = anyone below full health. */
-  accepts: 'wounded';
+  /** 'wounded' = soldiers below full health; 'any' = any soldier or vehicle (a garage: see soldiers / vehicles). */
+  accepts: 'wounded' | 'any';
+  /** 'any': soldier places (counted apart from vehicles). */
+  soldiers?: number;
+  /** 'any': vehicle places (ground vehicles, helicopters and transport aircraft). */
+  vehicles?: number;
   /** HP restored per second to everyone inside. */
   healPerSecond?: number;
 }
@@ -291,6 +295,11 @@ export interface BuildingSpec {
   naval?: boolean;
   /** Can hold people inside. */
   garrison?: GarrisonSpec;
+  /**
+   * Damage art: HP ratios (high to low) at or below which the art switches to its next damaged picture
+   * (sprite key `…~stage`, see Building.damageStage). Derived from HP, so mending restores it; nothing is saved.
+   */
+  damageStages?: readonly number[];
 }
 
 /** A faction's home region on the world map (lon/lat polygon). */

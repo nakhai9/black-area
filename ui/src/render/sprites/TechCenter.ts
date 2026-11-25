@@ -22,6 +22,9 @@ const BEACON: Record<FactionId, [number, number, number]> = {
   islamic: [2.0, 1.85, 198],
 };
 
+/** Damage stages (≤80 %, ≤50 %, ≤20 % HP): same script, camera and origin (building-<file>-d1..d3). */
+const damageFiles = (spec: PictureSpec): string[] => [1, 2, 3].map((n) => `${spec.file}-d${n}`);
+
 /** USA's Apple Park ring (5 × 5, tools/blender/models/techcenter_applepark.py): no shaft lights, no mast. */
 const APPLE_PARK: PictureSpec = { file: 'building-techcenter-usa-applepark', originX: 166, originY: 70.8, scale: 3, footprint: { w: 5, d: 5 }, zScale: 1.35 };
 
@@ -47,9 +50,14 @@ const PICTURE = (faction: FactionId): PictureSpec => ({
  *  - Islamic: slender clustered tower (Burj style) on an arched podium, green domes, needle spire.
  */
 export function createTechCenterArt(faction: FactionId): BuildingArt {
-  if (faction === 'usa' && activeDesign('techCenter', 'usa') === 'applePark') return pictureArt(APPLE_PARK);
-  if (faction === 'china' && activeDesign('techCenter', 'china') === 'pekingUniversity') return pictureArt(PEKING_UNIVERSITY);
-  return pictureArt(PICTURE(faction), {
+  if (faction === 'usa' && activeDesign('techCenter', 'usa') === 'applePark') return pictureArt(APPLE_PARK, { damageFiles: damageFiles(APPLE_PARK) });
+  if (faction === 'china' && activeDesign('techCenter', 'china') === 'pekingUniversity') return pictureArt(PEKING_UNIVERSITY, { damageFiles: damageFiles(PEKING_UNIVERSITY) });
+  const spec = PICTURE(faction);
+  // Hidden designs (USA Art Deco, China pagoda) have no damage pictures and stay intact.
+  const files = faction === 'usa' || faction === 'china' ? [] : damageFiles(spec);
+  // The damaged pictures carry no facade lights or mast beacon (the shaft and mast are broken).
+  const damagedArt = files.length ? pictureArt(spec, { damageFiles: files }).damaged : undefined;
+  const art = pictureArt(spec, {
     drawAnimated(p, time) {
       // Lit windows flickering on the main shaft.
       const b = SHAFT[faction];
@@ -72,4 +80,5 @@ export function createTechCenterArt(faction: FactionId): BuildingArt {
       }
     },
   });
+  return damagedArt ? { ...art, damaged: damagedArt } : art;
 }

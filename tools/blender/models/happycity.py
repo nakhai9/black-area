@@ -2,6 +2,7 @@
 import math
 import random
 
+from models._damage import ruined_render
 from kit import box, cylinder, dome, lathe, mat, render, rod, roof, windows, zp, TEAM
 
 N = 8
@@ -63,7 +64,7 @@ def star(cu, cv, z, r, material):
 # ---------------------------------------------------------------- USA
 
 
-def usa(team):
+def usa(team, damage=0):
     rnd = random.Random(7)
     base()
     LOT, ST = 2, 0.16
@@ -121,7 +122,7 @@ def usa(team):
         for s in range(16):
             box(k * LOT - 0.012, s * 0.5 + 0.1, 0.024, 0.3, G, 0.2, lane)
             box(s * 0.5 + 0.1, k * LOT - 0.012, 0.3, 0.024, G, 0.2, lane)
-    render("happycity-usa", (N, N), 210)
+    ruined_render("happycity-usa", (N, N), 210, damage, flag=(2.99, 2.99, 194), seed=21, cut_u=4.0)
 
 
 # ---------------------------------------------------------------- Russia
@@ -137,7 +138,7 @@ def slab_block(u, v, w, d, color):
     flat_roof(u, v, w, d, G + h, color, int(u * 11 + v * 5))
 
 
-def russia(team):
+def russia(team, damage=0):
     base()
     floor(0, 4.1, N, 4.9, "#55585e", 0)
     dash = mat("#e2e2da", 0.7, grain=0)
@@ -184,7 +185,7 @@ def russia(team):
     for uu in (2.6, 5.4):
         for vv in (5.2, 6.4, 7.6):
             tree(uu, vv, 0.16, "#4b7d3a")
-    render("happycity-russia", (N, N), 175)
+    ruined_render("happycity-russia", (N, N), 175, damage, flag=(4.0, 2.0, 145), seed=22, cut_u=4.6)
 
 
 # ---------------------------------------------------------------- China
@@ -197,7 +198,7 @@ def curved_roof(u, v, w, d, z, h, color):
     roof(u + 0.05, v + 0.05, w - 0.1, d - 0.1, z + h * 0.3, h * 0.7, m, "hip", ridge, 0.0)
 
 
-def china(team):
+def china(team, damage=0):
     base()
     GREY, TILE, RED = "#8d9096", "#4f5964", "#a8322a"
     floor(0, 0, N, N, "#9e9a90", 0)
@@ -250,13 +251,13 @@ def china(team):
         box(u, 7.45, 0.12, 0.12, G, 18, red)
     box(3.3, 7.42, 1.4, 0.18, G + 18, 3, mat("#d4a23a", 0.5, grain=0.05))
     curved_roof(3.25, 7.38, 1.5, 0.26, G + 21, 6, "#2f6b5a")
-    render("happycity-china", (N, N), 205)
+    ruined_render("happycity-china", (N, N), 205, damage, flag=(6.2, 1.8, 205), seed=23, cut_u=4.0)
 
 
 # ---------------------------------------------------------------- Europe
 
 
-def europe(team):
+def europe(team, damage=0):
     rnd = random.Random(11)
     base()
     STONE = ["#d8cdb3", "#cfc3a6", "#e0d6bf", "#c9bc9c"]
@@ -316,13 +317,13 @@ def europe(team):
         rod((u, v, zp(G)), (u, v, zp(G + 6)), 0.01, mat("#dddddd", 0.5))
         roof(u - 0.2, v - 0.2, 0.4, 0.4, G + 5, 3, mat(col, 0.7, grain=0), "pyramid", overhang=0)
         cylinder(u + 0.15, v + 0.1, 0.08, G, 2.5, mat("#6a5a48", 0.8), 10)
-    render("happycity-europe", (N, N), 105)
+    ruined_render("happycity-europe", (N, N), 105, damage, flag=(6.15, 2.9, 98), seed=24, cut_u=4.0)
 
 
 # ---------------------------------------------------------------- Islamic world
 
 
-def islamic(team):
+def islamic(team, damage=0):
     rnd = random.Random(5)
     base()
     floor(0, 0, N, N, "#a99474", 0, grain=0.2)
@@ -373,13 +374,18 @@ def islamic(team):
             cylinder(1.0, 1.8, r + 0.006, G + 6 + z + k * 6, 0.5, mat("#c8d2da", 0.4, metal=0.6, grain=0), 10)
     rod((1.0, 1.8, zp(G + 182)), (1.0, 1.8, zp(G + 194)), 0.02, mat("#dfe6ea", 0.3, metal=0.8))
     box(1.25, 0.32, 0.5, 0.02, G, 4, mat(team, 0.5, grain=0))
-    render("happycity-islamic", (N, N), 200)
+    ruined_render("happycity-islamic", (N, N), 200, damage, flag=(1.0, 1.8, 196), seed=25, cut_u=4.0)
 
 
 MODELS = {
     "happycity-usa": lambda: usa(TEAM["usa"]),
+    **{f"happycity-usa-d{d}": (lambda d=d: usa(TEAM["usa"], d)) for d in (1, 2, 3)},
     "happycity-russia": lambda: russia(TEAM["russia"]),
+    **{f"happycity-russia-d{d}": (lambda d=d: russia(TEAM["russia"], d)) for d in (1, 2, 3)},
     "happycity-china": lambda: china(TEAM["china"]),
+    **{f"happycity-china-d{d}": (lambda d=d: china(TEAM["china"], d)) for d in (1, 2, 3)},
     "happycity-europe": lambda: europe(TEAM["europe"]),
+    **{f"happycity-europe-d{d}": (lambda d=d: europe(TEAM["europe"], d)) for d in (1, 2, 3)},
     "happycity-islamic": lambda: islamic(TEAM["islamic"]),
+    **{f"happycity-islamic-d{d}": (lambda d=d: islamic(TEAM["islamic"], d)) for d in (1, 2, 3)},
 }

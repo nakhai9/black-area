@@ -23,5 +23,7 @@ const PICTURE = (faction: FactionId): PictureSpec => {
 };
 
 export function createReserveCapitalArt(faction: FactionId): BuildingArt {
-  return pictureArt(PICTURE(faction));
+  const spec = PICTURE(faction);
+  // Damage pictures (d1 ≤80 %, d2 ≤50 %, d3 ≤20 % HP), same script, camera and origin.
+  return pictureArt(spec, { damageFiles: [1, 2, 3].map((n) => `${spec.file}-d${n}`) });
 }

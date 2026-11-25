@@ -8,6 +8,8 @@ import { type PictureSpec, pictureArt } from './PictureArt';
 /** Plot coordinates (5 × 5) = the old 4-unit art × 1.25. */
 const S = 1.25;
 const SLOGAN = '#f4efe2';
+/** Last damage stage whose slogan walls still stand (they fall at stage 2). */
+const SLOGAN_LAST_STAGE = 1;
 /** The tall flag pole stands in front of the gate on its centre line (u, v, pole height). */
 const FLAG_POLE: readonly [number, number, number] = [2.0 * S, 3.62 * S, 80];
 /** Red lanterns hanging under the lower eave either side of the doors. */
@@ -42,10 +44,16 @@ function slogan(p: IsoPainter, u: number, w: number, text: string): void {
  */
 /** The landmark with `flag` flying over it (its own nation's, until it is captured). */
 export function createBeijingZhongnanhaiArt(flag: Allegiance = 'china'): BuildingArt {
-  return pictureArt(PICTURE, {
+  const stages = [1, 2, 3].map((n) => art(flag, `${PICTURE.file}-d${n}`, n));
+  return { ...art(flag, PICTURE.file, 0), damaged: (s) => stages[Math.min(3, Math.max(1, s)) - 1]! };
+}
+
+/** One stage's art: the slogans only while their walls stand (to stage 1); the forecourt pole survives every stage. */
+function art(flag: Allegiance, file: string, stage: number): BuildingArt {
+  return pictureArt({ ...PICTURE, file }, {
     overlay(p) {
-      slogan(p, 0.0, 0.5, '伟大的中国共产党万岁');
-      slogan(p, 3.5, 0.5, '毛泽东思想万岁');
+      if (stage <= SLOGAN_LAST_STAGE) slogan(p, 0.0, 0.5, '伟大的中国共产党万岁');
+      if (stage <= SLOGAN_LAST_STAGE) slogan(p, 3.5, 0.5, '毛泽东思想万岁');
       drawNationalPole(p, flag, FLAG_POLE[0], FLAG_POLE[1], 2.5, FLAG_POLE[2]);
     },
     drawAnimated(p, time) {

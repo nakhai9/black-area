@@ -128,7 +128,13 @@ export class BigMap {
       return b;
     };
 
-    this.nuclearBtn = button(Radiation, t('Nuclear briefcase control panel'), () => (this.nuclear.open ? this.nuclear.hide() : this.nuclear.show()));
+    this.nuclearBtn = button(Radiation, t('Nuclear briefcase control panel'), () => {
+      if (this.nuclear.open) return this.nuclear.hide();
+      // Opened afresh: the silo list is rebuilt from the silos standing now (a sold / lost silo never lingers).
+      this.nuclearKey = '';
+      this.nuclearList.replaceChildren();
+      this.nuclear.show();
+    });
     this.nuclearBtn.classList.add('nuclear-btn');
     this.setNuclearState(false, false);
 

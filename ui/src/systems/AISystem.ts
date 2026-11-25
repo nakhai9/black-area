@@ -11,7 +11,7 @@ const AI_MISSILE_SITES: readonly { id: 'dvina'; nations: readonly string[]; max:
   { id: 'dvina', nations: [DVINA_NATION], max: 2 },
 ];
 import { bridgeAnchor } from '../entities/Bridge';
-import { AI_AIR_DEFENCE, FOOTPRINT_BRIDGE, AI_AIR_DEFENCE_PER_CITIES, AI_AIR_DEFENCE_PER_ENEMY_AIR, AI_AIR_DEFENCE_MAX, AI_AIR_DEFENCE_RING, AI_BUNKERS, AI_WALL_ALERT_SECONDS, AI_WALL_ENEMY_UNITS, AI_WALL_GAP, AI_WALL_WATCH_CELLS, AI_WALL_RING, AI_WALL_SEGMENT, BUNKER_RANGE, CELL_SIZE, INFANTRY_BASE, INFANTRY_MARCH_CELLS, EMBASSY_CAPITAL_CELLS, MAX_ALLIES, NATION_GARRISON, NATION_GARRISON_CELLS, NEUTRAL_OWNER, OIL_DERRICK_OUTPUT, OIL_LEASE_CARTEL_SHARE, OIL_LEASE_SECONDS, TECH_VEHICLES, TRUCE_ZONE_CELLS, TRUCK_MIN_RIDERS, TRUCK_SOLDIERS, NATION_PRESENCE_FEE, presenceFee, FOOTPRINT_PORT, AI_FLEET, AI_FELLERS } from '../constants';
+import { AI_AIR_DEFENCE, FOOTPRINT_BRIDGE, AI_AIR_DEFENCE_PER_CITIES, AI_AIR_DEFENCE_PER_ENEMY_AIR, AI_AIR_DEFENCE_MAX, AI_AIR_DEFENCE_RING, AI_BUNKERS, AI_WALL_ALERT_SECONDS, AI_WALL_ENEMY_UNITS, AI_WALL_GAP, AI_WALL_WATCH_CELLS, AI_WALL_RING, AI_WALL_SEGMENT, BUNKER_RANGE, CELL_SIZE, INFANTRY_BASE, INFANTRY_MARCH_CELLS, NATION_GARRISON, NATION_GARRISON_CELLS, NEUTRAL_OWNER, OIL_DERRICK_OUTPUT, OIL_LEASE_CARTEL_SHARE, OIL_LEASE_SECONDS, TECH_VEHICLES, TRUCE_ZONE_CELLS, TRUCK_MIN_RIDERS, TRUCK_SOLDIERS, NATION_PRESENCE_FEE, presenceFee, FOOTPRINT_PORT, AI_FLEET, AI_FELLERS } from '../constants';
 import { FACTIONS } from '../factions';
 import { StructureIndex } from './StructureIndex';
 import { OilDerrick } from '../entities/OilDerrick';
@@ -78,6 +78,10 @@ export interface AIHost {
   unloadTruck(t: Vehicle): void;
   /** Any carrier (truck, or a transport / helicopter standing on the ground) lets everyone out. */
   unloadCarrier(t: Vehicle): void;
+  /** Sends units into a Military Garage (transport boarding rules); returns how many were sent. */
+  orderGarage(b: Building, units: readonly Unit[], quiet?: boolean): number;
+  /** A Military Garage lets everyone out in front of it. */
+  unloadGarage(b: Building): void;
   /** Soldiers/vehicles walk to `target`, fighting everything on the way. */
   orderAttackMove(units: readonly Unit[], target: WorldPoint): void;
   /** Focus on an enemy structure or unit: soldiers and vehicles only attack buildings when told to. */
@@ -92,8 +96,6 @@ export interface AIHost {
   isShielded(b: Building): boolean;
   /** A Squatters team plants its flag where it stands (null = planted, else why not). */
   plantFlag(u: Infantry): string | null;
-  /** Allies the nation leads (Allied Buildings standing + one under construction). */
-  alliesOf(player: PlayerState): number;
   /** Sends an engineer to take over a contested nation's capital (false if it cannot get there). */
   orderCapture(u: Infantry, b: Building): boolean;
   /** Sends one of `layers` (bridge layers) to lay a bridge at (x, y) (false when the site is not at the water's edge). */
@@ -123,7 +125,7 @@ const MINE_RAID_MAX = 8;
 const MINE_ORDERS = 2;
 /** Ceasefire: the AI keeps its units this many cells further out than the zone itself (a safety margin). */
 const TRUCE_SAFETY_CELLS = 2;
-/** Production buildings the AI raises next to each Allied Building, and how near (cells) counts as "next to". */
+/** Production buildings the AI raises next to each claim flag on new land, and how near (cells) counts as "next to". */
 const FORWARD_TYPES = ['barracks', 'warFactory'] as const;
 const FORWARD_RANGE = 14;
 /**
@@ -235,9 +237,10 @@ const OVERSEAS_MIN_FORCE = 10;
 /** Soldiers sent to fill one transport (its capacity for soldiers only). */
 const TRANSPORT_LOAD = 12;
 /**
- * Claiming new land for allies: from this game time on, with a calm home front and this much cash, the nation
- * flies a Squatters team to unclaimed land and raises an Allied Building there (at most MAX_ALLIES).
+ * Claiming new land: from this game time on, with a calm home front and this much cash, the nation flies a Squatters
+ * team to unclaimed land and plants its flag there (at most AI_MAX_CLAIMS flags), then builds a forward base beside it.
  */
+const AI_MAX_CLAIMS = 6;
 const CLAIM_FROM = 120;
 const CLAIM_MIN_CREDITS = 1800;
 /** Squatters are still sent out with up to this many enemy units near the capital (a skirmish does not stop expansion). */
@@ -249,27 +252,10 @@ const CLAIM_ENEMY_GAP = 18;
 const CLAIM_SPACING = 30;
 /** Cells between sampled candidate sites when looking for land to claim. */
 const CLAIM_SAMPLE = 5;
-/** An Allied Building goes up within this many cells of the nation's claim flag. */
-const ALLIED_SEARCH = 9;
 /** Seconds before an AI repeats a claim-site search that found nothing (see claimSiteSearch). */
 const CLAIM_RETRY_SECONDS = 20;
 /** Claim-site candidates checked per think (see pickClaimSite). */
 const CLAIM_SCAN_SLICE = 400;
-/** Offsets round an embassy flag for a w × d Allied Building, nearest first (ties in the old scan order). */
-const ALLIED_OFFSETS = new Map<string, readonly [number, number][]>();
-function alliedOffsets(w: number, d: number): readonly [number, number][] {
-  const key = `${w}x${d}`;
-  let list = ALLIED_OFFSETS.get(key);
-  if (!list) {
-    const all: [number, number, number, number][] = [];
-    let k = 0;
-    for (let dy = -ALLIED_SEARCH; dy <= ALLIED_SEARCH; dy++) for (let dx = -ALLIED_SEARCH; dx <= ALLIED_SEARCH; dx++) all.push([dx, dy, Math.hypot(dx + w / 2, dy + d / 2), k++]);
-    all.sort((a, b) => a[2] - b[2] || a[3] - b[3]);
-    list = all.map(([dx, dy]) => [dx, dy] as [number, number]);
-    ALLIED_OFFSETS.set(key, list);
-  }
-  return list;
-}
 /** Rival structures that make a claim next to them a threat to that rival's economy. */
 const ECONOMY_TYPES: ReadonlySet<BuildingType> = new Set(['oilDerrick', 'happyCity', 'powerPlant']);
 /**
@@ -450,6 +436,8 @@ interface AIState {
   nextSell: number;
   nextWave: number;
   waveSize: number;
+  /** Next time (game s) it may send surplus units into its Military Garage. */
+  nextGarage?: number;
   /** Blitz staging point (anywhere on the map, toward the target) where squads still too small gather; null: none yet. */
   stage: WorldPoint | null;
   rng: () => number;
@@ -463,8 +451,6 @@ interface AIState {
   claimMissAt?: number;
   /** A claim-site search in progress (resumed each think). */
   claimJob?: Generator<void, GridPoint | null, void>;
-  /** Game time an Allied Building site search last came up empty. */
-  alliedMissAt?: number;
   /** Last time no coastal spot for a Naval Port was found (the search is retried after CLAIM_RETRY_SECONDS). */
   portMissAt?: number;
   /** Truck id → where it carries its soldiers (they would have to rest on the march on foot). */
@@ -679,12 +665,12 @@ export class AISystem implements GameSystem {
     if (st.overseas) this.loadTransports(p, st, capital);
     this.leaseOil(p, st, owned, threat);
     this.captureOil(p, st, threat);
-    this.captureAllies(p, st, owned, threat);
     this.driveConvoys(p, st, capital);
     this.driveAirlifts(p, st);
     this.layBridges(p, st, capital, owned);
     this.layMines(p, st, capital);
     this.evacuate(p, capital);
+    this.manageGarages(p, st, capital, threat);
     this.army(p, st, capital);
   }
 
@@ -766,7 +752,7 @@ export class AISystem implements GameSystem {
       }
       const forward = option.id === 'reserveCapital' ? this.safestAnchor(p, capital) : this.forwardAnchor(p, option.id);
       const site =
-        option.id === 'alliedBuilding' ? this.alliedSiteSearch(p, st, option, capital) : option.id === 'wall' ? this.findWallSite(p, capital) : this.findSite(p, st, forward ?? capital, option);
+        option.id === 'wall' ? this.findWallSite(p, capital) : this.findSite(p, st, forward ?? capital, option);
       if (site) this.host.placeReady(p, option.id, site.x, site.y);
       else if (!this.clearWoodsFor(p, capital, option)) this.host.construction.cancel(p, option.id); // nowhere to put it: refund and try the next plan step
     }
@@ -812,14 +798,15 @@ export class AISystem implements GameSystem {
       const reserve = BUILD_OPTIONS.find((o) => o.id === 'reserveCapital');
       if (reserve && buildOffered(reserve, p.faction) && missingRequirement(reserve, owned, p.disarmedUntil !== undefined) === null) next = reserve;
     }
+    // One Military Garage once the War Factory stands, built in peace (player rule: same shop, same requirement): its
+    // savings of surplus units (see manageGarages).
+    if (!next && threat === 0 && owned.has('warFactory') && !owned.has('militaryGarage') && !busy('militaryGarage')) {
+      const garage = BUILD_OPTIONS.find((o) => o.id === 'militaryGarage');
+      if (garage && buildOffered(garage, p.faction) && missingRequirement(garage, owned, p.disarmedUntil !== undefined) === null) next = garage;
+    }
     // A coastal base: one Naval Port on the shore, where its carriers are launched and repaired (player rule too).
     if (!next && threat === 0 && owned.has('warFactory') && !owned.has('port') && !busy('port') && this.portSiteSearch(p, st)) {
       next = BUILD_OPTIONS.find((o) => o.id === 'port');
-    }
-    // A claim flag stands on new land without its ally yet: raise the Allied Building next to it.
-    if (!next && threat === 0 && this.embassyAnchors(p, capital).length > 0 && this.host.alliesOf(p) < MAX_ALLIES) {
-      const allied = BUILD_OPTIONS.find((o) => o.id === 'alliedBuilding');
-      if (allied && missingRequirement(allied, owned, p.disarmedUntil !== undefined) === null) next = allied;
     }
     // Designs taken from another nation (its capital, or one of its structures, captured): build one of each.
     if (!next && threat === 0) {
@@ -832,7 +819,7 @@ export class AISystem implements GameSystem {
           !this.host.entities.buildings().some((b) => b.owner === p.id && b.alive && b.spec.type === o.id.split('@')[0] && b.origin === o.foreign),
       );
     }
-    // Forward base: a Barracks and a War Factory next to each Allied Building, so troops come out on the new land.
+    // Forward base: a Barracks and a War Factory next to each claim flag on new land, so troops come out there.
     if (!next && threat === 0) {
       for (const id of FORWARD_TYPES) {
         if (!owned.has(id) || !this.forwardAnchor(p, id)) continue;
@@ -868,17 +855,13 @@ export class AISystem implements GameSystem {
     return total < SPLIT_FROM || eco < total * ECONOMY_SHARE;
   }
 
-  // ------------------------------------------------------------------ allies (new land)
+  // ------------------------------------------------------------------ new land (claim flags)
 
-  /** An own Allied Building with no `type` (Barracks / War Factory) of the nation standing near it yet. */
+  /** An own claim flag on new land with no `type` (Barracks / War Factory) of the nation standing near it yet. */
   private forwardAnchor(p: PlayerState, type: BuildOption['id']): Building | null {
     if (!(FORWARD_TYPES as readonly string[]).includes(type)) return null;
     const mine = this.host.entities.buildings().filter((b) => b.owner === p.id && b.alive);
-    return (
-      mine.find(
-        (a) => a.spec.type === 'alliedBuilding' && !mine.some((b) => b.spec.type === type && Math.hypot(b.x - a.x, b.y - a.y) <= FORWARD_RANGE),
-      ) ?? null
-    );
+    return this.claimFlags(p).find((a) => !mine.some((b) => b.spec.type === type && Math.hypot(b.x - a.x, b.y - a.y) <= FORWARD_RANGE)) ?? null;
   }
 
   /** The nation's flags planted on unclaimed land. */
@@ -888,61 +871,15 @@ export class AISystem implements GameSystem {
       .filter((b) => b.owner === p.id && b.alive && b.spec.type === 'flagpole' && isClaimable(this.host.map, b.x, b.y));
   }
 
-  /** Claim flags with no Allied Building of the nation beside them yet. */
-  private openClaims(p: PlayerState): Building[] {
-    const allied = this.host.entities.buildings().filter((b) => b.owner === p.id && b.alive && b.spec.type === 'alliedBuilding');
-    return this.claimFlags(p).filter((f) => !allied.some((a) => Math.hypot(a.x - f.x, a.y - f.y) < ALLIED_SEARCH + 4));
-  }
-
   /**
-   * Where the nation may raise an embassy, same rule as the player: beside an open claim flag, or beside any own structure
-   * out beyond EMBASSY_CAPITAL_CELLS of its capital (a Pro-<nation> regime there) that has no embassy near it yet.
-   */
-  private embassyAnchors(p: PlayerState, capital: Building): Building[] {
-    const mine = this.host.entities.buildings().filter((b) => b.owner === p.id && b.alive);
-    const allied = mine.filter((b) => b.spec.type === 'alliedBuilding');
-    const far = mine.filter(
-      (b) =>
-        !['alliedBuilding', 'flagpole', 'wall', 'gate'].includes(b.spec.type) &&
-        Math.hypot(b.x - capital.x, b.y - capital.y) > EMBASSY_CAPITAL_CELLS &&
-        !allied.some((a) => Math.hypot(a.x - b.x, a.y - b.y) < ALLIED_SEARCH + 4),
-    );
-    return [...this.openClaims(p), ...far];
-  }
-
-  /** Legal spot for the Allied Building beside one of the nation's embassy anchors (closest to it). */
-  /** findAlliedSite, not repeated for CLAIM_RETRY_SECONDS after it found no spot (it checks hundreds of spots). */
-  private alliedSiteSearch(p: PlayerState, st: AIState, option: BuildOption, capital: Building): GridPoint | null {
-    if (st.alliedMissAt !== undefined && this.time - st.alliedMissAt < CLAIM_RETRY_SECONDS) return null;
-    const site = this.findAlliedSite(p, option, capital);
-    st.alliedMissAt = site ? undefined : this.time;
-    return site;
-  }
-
-  private findAlliedSite(p: PlayerState, option: BuildOption, capital: Building): GridPoint | null {
-    const { w, d } = footprintOf(option, p.faction as Parameters<typeof footprintOf>[1]);
-    // Spots in order of distance from the flag (the same order the old full scan settled on): the first that passes
-    // the placement rules is the nearest, so the costly rule check runs only until then, not over the whole square.
-    const offsets = alliedOffsets(w, d);
-    for (const flag of this.embassyAnchors(p, capital)) {
-      for (const [dx, dy] of offsets) {
-        const x = flag.x + dx;
-        const y = flag.y + dy;
-        if (this.host.placement.check({ owner: p.id, x, y, w, d, ...placeRule(option.id), coastal: isCoastal(option.id) }).ok) return { x, y };
-      }
-    }
-    return null;
-  }
-
-  /**
-   * Claiming land for a new ally, step by step (one Squatters team at a time):
+   * Claiming new land, step by step (one Squatters team at a time):
    *  1. pick the site: unclaimed land close to a rival's money-makers (derricks, cities, power plants) so the
    *     new ally threatens that rival's economy, yet CLAIM_ENEMY_GAP cells clear of its structures, CLAIM_SPACING
    *     from every other claim, and not too far to fly;
    *  2. train a Squatters team (and a transport if the nation has none);
    *  3. the team boards a parked transport, which flies it to the site, lands and lets it out;
    *  4. the team plants the flag (walking onto the claimable land first if the transport set down beside it).
-   * The Allied Building itself is queued by build() once the flag stands.
+   * The forward base beside the flag is queued by build() once the flag stands.
    */
   private claimLand(p: PlayerState, st: AIState, capital: Building, owned: Set<BuildingType>, threat: number): void {
     const teams = this.host.entities
@@ -993,7 +930,7 @@ export class AISystem implements GameSystem {
       if (!st.claimSite) continue;
       this.host.orderAttackMove([t], this.safeDrop(p, { x: (st.claimSite.x + 0.5) * CELL_SIZE, y: (st.claimSite.y + 0.5) * CELL_SIZE }));
     }
-    const wanted = this.host.alliesOf(p) + this.openClaims(p).length < MAX_ALLIES;
+    const wanted = this.claimFlags(p).length < AI_MAX_CLAIMS;
     if (!wanted || teams.length > 0 || aboard.length > 0 || threat > CLAIM_MAX_THREAT || this.time < CLAIM_FROM) return;
     if (!owned.has('barracks') || p.credits < CLAIM_MIN_CREDITS || p.debt > 0) return;
     if (this.host.training.queue(p).items.includes('squatters')) return;
@@ -1049,7 +986,7 @@ export class AISystem implements GameSystem {
     const buildings = this.host.entities.buildings().filter((b) => b.alive);
     const enemy = buildings.filter((b) => b.owner !== p.id && b.owner !== NEUTRAL_OWNER && !isRuin(b.owner));
     const economy = enemy.filter((b) => ECONOMY_TYPES.has(b.spec.type));
-    const claims = buildings.filter((b) => (b.spec.type === 'flagpole' || b.spec.type === 'alliedBuilding') && isClaimable(map, b.x, b.y));
+    const claims = buildings.filter((b) => b.spec.type === 'flagpole' && isClaimable(map, b.x, b.y));
     const home = { x: capital.x + capital.w / 2, y: capital.y + capital.d / 2 };
     const pf = this.host.pathfinder;
     const door = pf.nearestPassable(capital.x + Math.floor(capital.w / 2), capital.y + capital.d, 8);
@@ -1078,7 +1015,7 @@ export class AISystem implements GameSystem {
       if (!Number.isFinite(nearEconomy)) nearEconomy = nearEnemy;
       // The score below never drops under this: a site that cannot beat the best one so far skips the dear checks.
       if (nearEnemy + 0.5 * nearEconomy + 0.1 * Math.hypot(x - home.x, y - home.y) - CLAIM_SPREAD * CLAIM_SPREAD_CAP >= bestScore) continue;
-      // Room for the flag and the Allied Building beside it, all on unclaimed land.
+      // Room for the flag and a forward base beside it, all on unclaimed land.
       if (!map.isAreaBuildable(x - 1, y - 1, 7, 7)) continue;
       // As close to a rival as the rules allow (its structures and above all its economy are threatened), the trip
       // only a small tie-breaker; a little randomness so every AI plays differently.
@@ -1447,11 +1384,11 @@ export class AISystem implements GameSystem {
   private findSite(p: PlayerState, st: AIState, capital: Building, option: BuildOption): GridPoint | null {
     const home = this.findSiteNear(p, st, capital, option);
     if (home) return home;
-    // No room left round home: build beside the nation's allies instead — its Allied Buildings (embassies) and the
-    // nation capitals it holds, nearest the capital first (the same placement rule as the player's).
+    // No room left round home: build beside the nation's claim flags on new land and the nation capitals it holds,
+    // nearest the capital first (the same placement rule as the player's).
     const anchors = this.host.entities
       .buildings()
-      .filter((b) => b.owner === p.id && b.alive && b !== capital && (b.spec.type === 'alliedBuilding' || b.spec.type === 'nationCapital'))
+      .filter((b) => b.owner === p.id && b.alive && b !== capital && (b.spec.type === 'nationCapital' || (b.spec.type === 'flagpole' && isClaimable(this.host.map, b.x, b.y))))
       .sort((a, b) => Math.hypot(a.x - capital.x, a.y - capital.y) - Math.hypot(b.x - capital.x, b.y - capital.y));
     for (const a of anchors) {
       const spot = this.findSiteNear(p, st, a, option);
@@ -1527,7 +1464,7 @@ export class AISystem implements GameSystem {
    * order per nation per AI_FELL_PERIOD seconds. Returns true while the clearing is on (the slot is kept).
    */
   private clearWoodsFor(p: PlayerState, capital: Building, option: BuildOption): boolean {
-    if (option.id === 'wall' || option.id === 'gate' || option.id === 'alliedBuilding' || option.id === 'port') return false;
+    if (option.id === 'wall' || option.id === 'gate' || option.id === 'port') return false;
     const last = this.fellAt.get(p.id);
     if (last !== undefined && this.time - last < AI_FELL_PERIOD) return true; // the fellers are still at work
     const site = this.woodedSiteNear(p, capital, option);
@@ -1924,6 +1861,38 @@ export class AISystem implements GameSystem {
     }
   }
 
+  /**
+   * Military Garage as savings (player rule, AI side): idle surplus units at home — beyond what its attack wave needs
+   * (1.5 × waveSize stay out) — go into the garage, up to its places, while the base is quiet. Everyone comes back out
+   * when the base or a garage is attacked, a garage is down to half health (≤ 50 %: half the occupants would be lost),
+   * or the field army is short of a full attack wave — so the savings always flow back into the fight.
+   */
+  private manageGarages(p: PlayerState, st: AIState, capital: Building, threat: number): void {
+    const garages = this.host.entities.buildings().filter((b) => b.owner === p.id && b.alive && b.spec.type === 'militaryGarage');
+    if (garages.length === 0) return;
+    const home = capital.centerWorld();
+    const army = this.host.entities.fieldMovers().filter(
+      (u) => u.owner === p.id && u.alive && u.weapon !== null && !u.naval && !(u instanceof Infantry && (u.isEngineer || u.isSquatters)) && !(u instanceof Vehicle && u.aircraft && !u.isHeli),
+    );
+    const underAttack = threat > 0 || this.host.entities.buildings().some((b) => b.owner === p.id && b.alive && this.time - b.lastAttackedAt < AI_WALL_ALERT_SECONDS);
+    const short = army.length < st.waveSize;
+    for (const g of garages) {
+      if (g.garrison.length === 0) continue;
+      if (underAttack || short || g.hp <= g.maxHp * 0.5) this.host.unloadGarage(g);
+    }
+    if (underAttack || this.time < (st.nextGarage ?? 0)) return;
+    st.nextGarage = this.time + 20;
+    const keep = Math.ceil(st.waveSize * 1.5);
+    let surplus = army.length - keep;
+    if (surplus <= 0) return;
+    const idle = army.filter((u) => !u.moving && u.attackTarget === null && u.garageTarget === null && u.boardTarget === null && u.task === null && !st.guard.has(u.id) && Math.hypot(u.px - home.x, u.py - home.y) < DEFENCE_RADIUS);
+    for (const g of garages) {
+      if (surplus <= 0 || g.hp <= g.maxHp * 0.5) break;
+      const sent = this.host.orderGarage(g, idle.slice(0, surplus), true);
+      surplus -= sent;
+    }
+  }
+
   private army(p: PlayerState, st: AIState, capital: Building): void {
     const all = this.host.entities.fieldMovers();
     let army = all.filter(
@@ -1933,6 +1902,7 @@ export class AISystem implements GameSystem {
         u.alive &&
         u.task?.type !== 'enter' &&
         u.boardTarget === null &&
+        u.garageTarget === null && // heading into its Military Garage (manageGarages)
         u.fellTarget === null && // busy clearing the woods for a structure (clearWoodsFor)
 
         !(u instanceof Infantry && (u.isEngineer || u.isSquatters)) &&
@@ -2167,39 +2137,6 @@ export class AISystem implements GameSystem {
       .filter((b): b is OilDerrick => b instanceof OilDerrick && b.alive && b.owner !== p.id && b.owner !== NEUTRAL_OWNER && !b.spec.uncapturable && !this.host.isShielded(b))
       .map((b) => ({ b, d: Math.hypot(b.centerWorld().x - eng.px, b.centerWorld().y - eng.py) }))
       .filter(({ b, d }) => d < OIL_CAPTURE_CELLS * CELL_SIZE && pf.sameLandmass(ex, ey, b.x, b.y + b.d))
-      .sort((a, b) => a.d - b.d);
-    if (targets[0] && this.ferryEngineer(p, st, eng, targets[0].b)) return;
-    for (const { b } of targets) if (this.host.orderCapture(eng, b)) return;
-  }
-
-  /**
-   * Allied Buildings left neutral by a fallen nation are up for grabs: one free engineer at a time walks to the
-   * nearest it can reach and takes it over (a new ally, spreading the nation across the world). No engineer free:
-   * one is trained.
-   */
-  private captureAllies(p: PlayerState, st: AIState, owned: Set<BuildingType>, threat: number): void {
-    if (threat > 0) return;
-    const free = this.host.entities
-      .buildings()
-      .filter((b) => b.alive && b.owner === NEUTRAL_OWNER && b.spec.type === 'alliedBuilding' && !this.host.isShielded(b));
-    if (free.length === 0) return;
-    const units = this.host.entities.fieldUnits();
-    const going = (id: number): boolean => {
-      const e = this.host.entities.get(id);
-      return !!e && 'spec' in e && (e as Building).spec.type === 'alliedBuilding';
-    };
-    if (units.some((u) => u.owner === p.id && u.task?.type === 'capture' && going(u.task.buildingId))) return;
-    const eng = units.find((u) => u.owner === p.id && u.alive && u.isEngineer && u.task === null && u.insideId === null && !u.moving && u.boardTarget === null);
-    if (!eng) {
-      if (owned.has('barracks') && p.credits > 800 && !this.host.training.queue(p).items.includes('engineer')) this.host.training.enqueue(p, 'engineer');
-      return;
-    }
-    const pf = this.host.pathfinder;
-    const ex = Math.floor(eng.px / CELL_SIZE);
-    const ey = Math.floor(eng.py / CELL_SIZE);
-    const targets = free
-      .filter((b) => pf.sameLandmass(ex, ey, b.x, b.y + b.d))
-      .map((b) => ({ b, d: Math.hypot(b.centerWorld().x - eng.px, b.centerWorld().y - eng.py) }))
       .sort((a, b) => a.d - b.d);
     if (targets[0] && this.ferryEngineer(p, st, eng, targets[0].b)) return;
     for (const { b } of targets) if (this.host.orderCapture(eng, b)) return;

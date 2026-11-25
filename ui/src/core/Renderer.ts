@@ -5,7 +5,7 @@ import { BRIDGE_DECK_PX, bridgeDeckAt } from '../render/sprites/Bridge';
 import { BRIDGE_JOIN_HIGH, BRIDGE_JOIN_LOW, type Bridge } from '../entities/Bridge';
 import { teamColoredKey } from '../render/sprites';
 import { isViolator } from '../systems/CombatSystem';
-import { t, t as tr } from '../i18n';
+import { t } from '../i18n';
 import { drawBunkerGhost, drawBunkerSheet } from '../render/BunkerSheet';
 import { Bunker } from '../entities/Bunker';
 import { LdewEmplacement } from '../entities/LdewEmplacement';
@@ -13,11 +13,13 @@ import { DvinaLauncher } from '../entities/DvinaLauncher';
 import { MissileSilo } from '../entities/MissileSilo';
 import { ReserveCapital, roman } from '../entities/ReserveCapital';
 import { setSiloLid } from '../render/sprites/MissileSilo';
-import { drawFallout, drawIcbm, drawNuke } from '../render/Icbm';
+import { drawIcbm, drawNuke } from '../render/Icbm';
+import { type FalloutZone, RADIATION_FILTER, drawRadiationGround, drawRadiationMist, radiationAt, radiationGlow } from '../render/Radiation';
 import { drawSite } from '../render/DvinaSheets';
 import { drawExplosion } from '../render/ExplosionSheet';
 import { type CraterKind, drawCrater, drawCraterHeat } from '../render/CraterSheet';
 import { emblemImage } from '../render/Emblems';
+import { drawOccupancyTag, occupancyOf } from '../render/OccupancyTag';
 import { demoActive } from './Demo';
 import { BUILD_RISE_SECONDS, CELL_SIZE, CRUISE_ALTITUDE, ISO_X, ISO_Y, SPRITE_SCALE } from '../constants';
 import { blitUnit, unitSprite } from '../render/UnitSprites';
@@ -309,6 +311,8 @@ export class Renderer {
 
   /** Game time of the frame being drawn. */
   private frameTime = 0;
+  /** Fallout zones of this frame (iso px): the green light on structures, vehicles and soldiers inside them. */
+  private readonly frameFallout: FalloutZone[] = [];
 
   render(scene: RenderScene): void {
     this.frameTime = scene.time;
@@ -340,6 +344,10 @@ export class Renderer {
     if (SHOW_GRID ?? demoActive) this.drawCellGrid(view);
     this.upright();
     if (scene.craters) this.drawScars(scene.craters, scene.time, onScreen);
+    // Nuclear fallout zones: the green stain / spreading front / halo lie on the ground, under everything standing.
+    this.frameFallout.length = 0;
+    for (const e of scene.effects ?? []) if (e.kind === 'fallout') this.frameFallout.push(e);
+    for (const z of this.frameFallout) drawRadiationGround(ctx, z);
     // Passes now; the peaks join the depth-sorted pass below (a soldier behind a peak is hidden by it).
     this.terrain.drawMountains(ctx, view, camera.zoom, this.visiblePeaks);
     this.terrain.drawTrees(ctx, view, camera.zoom);
@@ -639,6 +647,15 @@ export class Renderer {
         ctx.filter = 'none';
         ctx.globalAlpha = 1;
       }
+      // Inside a fallout zone: an eerie green wash over the intact structure (the ground's glow on its walls).
+      const rad = this.frameFallout.length ? radiationAt(this.frameFallout, c.x, c.y) : 0;
+      if (rad > 0) {
+        ctx.globalAlpha = 0.42 * rad;
+        ctx.filter = RADIATION_FILTER;
+        ctx.drawImage(spriteRaster(s, k * this.camera.zoom * this.dpr), -s.centerX * k, -s.centerY * k, s.width * k, s.height * k);
+        ctx.filter = 'none';
+        ctx.globalAlpha = 1;
+      }
       ctx.restore();
     }
     if (rise < 1) {
@@ -759,7 +776,13 @@ export class Renderer {
   }
 
   private drawUnitBody(u: Unit): void {
-    this.drawUnitBodyRaw(u);
+    let rad = 0;
+    if (this.frameFallout.length && !u.flies) {
+      const P = worldToIso(u.px, u.py);
+      rad = radiationAt(this.frameFallout, P.x, P.y);
+    }
+    if (rad > 0) this.drawRadiatedBody(u, rad);
+    else this.drawUnitBodyRaw(u);
     // A bomb just planted on a vehicle: one quick bright flash (BLINK_SECONDS), as on a structure.
     const blink = u.blinkAt === null ? 1 : (this.frameTime - u.blinkAt) / BLINK_SECONDS;
     if (blink >= 0 && blink < 1) {
@@ -770,6 +793,37 @@ export class Renderer {
       this.drawUnitBodyRaw(u);
       ctx.restore();
     }
+  }
+
+  /**
+   * A ground unit inside a fallout zone (`rad` = the green light there, 0..1): the ground's glow pools under it (a
+   * vehicle's belly catches it), a green wash over its picture; a soldier also sways dizzily and glows fluorescent.
+   */
+  private drawRadiatedBody(u: Unit, rad: number): void {
+    const { ctx } = this;
+    const P = worldToIso(u.px, u.py);
+    const soldier = u instanceof Infantry;
+    const glow = radiationGlow();
+    const gw = Math.max(6, u.radius * (soldier ? 1.6 : 1.3));
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = (soldier ? 0.55 : 0.4) * rad;
+    ctx.drawImage(glow, P.x - gw, P.y - gw * 0.5, gw * 2, gw);
+    ctx.restore();
+    ctx.save();
+    if (soldier) {
+      // Dizzy: an unsteady sway on the spot.
+      const t = this.frameTime * 6 + u.id * 1.7;
+      ctx.translate(P.x, P.y);
+      ctx.rotate(Math.sin(t) * 0.12 * rad);
+      ctx.translate(-P.x + Math.sin(t * 0.7) * 0.5 * rad, -P.y);
+    }
+    this.drawUnitBodyRaw(u);
+    ctx.globalAlpha = (soldier ? 0.6 : 0.38) * rad * (soldier ? 0.75 + 0.25 * Math.sin(this.frameTime * 5 + u.id) : 1);
+    ctx.filter = RADIATION_FILTER;
+    if (soldier) ctx.globalCompositeOperation = 'lighter';
+    this.drawUnitBodyRaw(u);
+    ctx.restore();
   }
 
   /**
@@ -1246,36 +1300,15 @@ export class Renderer {
     ctx.restore();
   }
 
-  /** Sign on a loaded transport: what is aboard, and a red FULL once nothing more fits. */
+  /**
+   * Sign on a carrier: what is aboard as `[Truck] n | [UserGroup] n | [UserRoundCog] n` on a yellow plate, a red
+   * "Full" once nothing more fits (see drawOccupancyTag).
+   */
   private drawCargoBadge(t: Vehicle): void {
-    const { ctx } = this;
     const k = 1 / this.camera.zoom;
-    // RA2 style: seats taken / seats there are (e.g. 3/12), plus what it is doing.
-    const vehicles = t.vehiclesAboard;
-    const parts = [`${t.soldiersAboard}/${t.soldierCapacity} ${tr('inf')}`];
-    if (vehicles > 0 && !t.isGroundCarrier) parts.push(`${vehicles}/${t.vehicleCapacity} ${tr('veh')}`);
-    const state = t.carrierState;
-    const prefix = t.full ? `${tr('FULL')} · ` : state === 'loading' ? `${tr('LOADING')} · ` : state === 'unloading' ? `${tr('UNLOADING')} · ` : '';
-    // Full: only the red "FULL" label.
-    const text = t.full ? tr('FULL') : `${prefix}${parts.join(' + ')}`;
-    ctx.save();
-    ctx.font = `700 ${10 * k}px "Courier New", Courier, monospace`;
-    const w = ctx.measureText(text).width + 8 * k;
     // Bottom-right cell of the shared plate (right of the medal, under the fuel bar), left-aligned.
     const box = this.plate(t);
-    const h = box.infoH;
-    const x = box.infoX;
-    const y = box.infoY;
-    ctx.fillStyle = t.full ? '#d62d20' : '#e0a21b';
-    ctx.fillRect(x, y, w, h);
-    ctx.strokeStyle = 'rgba(0,0,0,0.7)';
-    ctx.lineWidth = k;
-    ctx.strokeRect(x, y, w, h);
-    ctx.fillStyle = '#fff';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(text, x + w / 2, y + h / 2 + 0.3 * k);
-    ctx.restore();
+    drawOccupancyTag(this.ctx, box.infoX, box.infoY, box.infoH, k, occupancyOf(t.cargo), t.full);
   }
 
   /** Health bar over a unit; every selected / focused soldier or vehicle also shows its nation's emblem, small, left of it. */
@@ -1477,6 +1510,16 @@ export class Renderer {
         }
       } else if (e.kind === 'soldierDeath') {
         drawSoldierDeath(ctx, e.look, e.x, e.y, e.heading, e.age, e.ttl);
+        // Killed in the fallout: the body glows fluorescent green as it falls, then keeps a faint glow lying there.
+        const rad = this.frameFallout.length ? radiationAt(this.frameFallout, e.x, e.y) : 0;
+        if (rad > 0) {
+          ctx.save();
+          ctx.globalCompositeOperation = 'lighter';
+          ctx.globalAlpha = rad * (e.age < 1.2 ? 0.7 : 0.3);
+          ctx.filter = RADIATION_FILTER;
+          drawSoldierDeath(ctx, e.look, e.x, e.y, e.heading, e.age, e.ttl);
+          ctx.restore();
+        }
       } else if (e.kind === 'charge') {
         // On a vehicle nothing is drawn (it flashed once when the bomb went on); on a structure, its icon above the roof.
         if (e.buildingId === undefined && !e.hidden) drawCharge(ctx, e.x, e.y, e.ttl - e.age);
@@ -1505,7 +1548,8 @@ export class Renderer {
       } else if (e.kind === 'icbm') {
         drawIcbm(ctx, e.x0, e.y0, e.x1, e.y1, e.age, e.flight, e.faction);
       } else if (e.kind === 'fallout') {
-        drawFallout(ctx, e.x, e.y, e.rx, e.ry, e.age, e.ttl);
+        // The ground stain is drawn under everything (see the ground pass); here only the toxic mist over the zone.
+        drawRadiationMist(ctx, e);
       } else if (e.kind === 'nuke') {
         drawNuke(ctx, e.x, e.y, e.rx, e.ry, e.age, e.ttl);
       } else if (e.kind === 'gradRocket') {
@@ -1984,7 +2028,7 @@ export class Renderer {
     const { ctx } = this;
     const k = 1 / this.camera.zoom;
     const r = this.spriteRect(b);
-    const inside = b.garrison.length > 0 ? ` · ${t('{n} inside', { n: b.garrison.length })}` : '';
+    const inside = '';
     const managed = 'bankManaged' in b && (b as { bankManaged: boolean }).bankManaged;
     const health = `${Math.max(0, Math.ceil((b.hp / b.maxHp) * 100))}%`;
     const alliance = b instanceof NationCapital ? b.alliance() : null;
@@ -2031,6 +2075,11 @@ export class Renderer {
       ctx.fill(ENGINEER_ICON);
       ctx.restore();
       ctx.fillText(sci, ix + icon, y + h / 2 - k);
+    }
+    // Units inside (garrison / Military Garage): the occupancy tag just above the label.
+    if (b.garrison.length > 0) {
+      const th = 14 * k;
+      drawOccupancyTag(ctx, x, y - th - 2 * k, th, k, occupancyOf(b.garrison), b.garrisonFull);
     }
     ctx.textAlign = 'center';
     ctx.globalAlpha = 1;

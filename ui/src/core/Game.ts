@@ -131,8 +131,6 @@ import {
   ZOOM_STEP,
   isAircraftKind,
   POWER_PER_BARREL,
-  EMBASSY_CAPITAL_CELLS,
-  MAX_ALLIES,
   GAME_VERSION,
   MOUNTAIN_PASS,
   TRUCE_GRACE_SECONDS,
@@ -147,7 +145,8 @@ import {
   RESERVE_CAPITAL_SPOT_CELLS,
 } from '../constants';
 import { worldToIso } from './IsoView';
-import { Building } from '../entities/Building';
+import { Building, isVehicleUnit } from '../entities/Building';
+import { MilitaryGarage } from '../entities/MilitaryGarage';
 import { PLACEMENT_MARGIN } from '../map/TileMap';
 import { Capital } from '../entities/Capital';
 import { NationCapital, nationInfo } from '../entities/NationCapital';
@@ -331,7 +330,6 @@ const BLOCK_REASONS: Readonly<Record<string, string>> = {
   needsWater: 'Must be built on water',
   needsCoast: 'A port stands on the shore: its basin and mouth on open water, its quay on land',
   tooFar: 'Too far from your base (max {max} cells)',
-  claimed: 'Allied Buildings stand only on unclaimed land claimed with a Squatters team',
   nearOil: 'Too close to an oil derrick (keep {keep} free cells around it)',
   mined: 'A land mine lies there',
   antarctica: 'Nothing can be built on Antarctica',
@@ -1472,7 +1470,7 @@ export class Game {
   }
 
   /**
-   * DEMO: the player starts with one of every production / support / defense structure (Allied Building included) already
+   * DEMO: the player starts with one of every production / support / defense structure already
    * standing around the capital, each one (the capital too) wrapped in a ring of its nation's wall.
    */
   private buildDemoBase(): void {
@@ -2135,18 +2133,11 @@ export class Game {
       port: ['military', t('{name} has built a Naval Port', { name })],
       techCenter: ['military', t('{name} has built a High-Tech Center', { name })],
       happyCity: ['society', t('{name} has opened a new Happy City', { name })],
-      alliedBuilding: ['politics', t('{name} has won a new ally (Allied Building)', { name })],
       parallelGov: ['politics', t('{name} has raised a Parallel Government', { name })],
     };
     const r = report[type];
     if (r) this.intel(r[0], r[1]);
     else if (player.id !== this.localId && type !== 'wall' && type !== 'gate') this.intel('economy', t('{name} has built a {building}', { name, building }));
-  }
-
-  /** Allies the nation leads: its embassies (Parallel Governments, and any old Allied Building) standing, plus those under construction. */
-  alliesOf(player: PlayerState): number {
-    const built = this.entities.buildings().filter((b) => b.owner === player.id && b.alive && (b.spec.type === 'parallelGov' || b.spec.type === 'alliedBuilding')).length;
-    return built + this.construction.active(player).filter((s) => s.option?.id.startsWith('parallelGov@')).length;
   }
 
   /**
@@ -2188,7 +2179,7 @@ export class Game {
       if (r === null) planted++;
       else why = r;
     }
-    this.sidebar.notify(planted > 0 ? t('Flag planted — the Squatters have done their duty. This land is claimed: raise an Allied Building beside it.') : t('Cannot plant the flag: {why}.', { why }), 4);
+    this.sidebar.notify(planted > 0 ? t('Flag planted — the Squatters have done their duty. This land is claimed: build beside the flag.') : t('Cannot plant the flag: {why}.', { why }), 4);
     if (planted > 0) {
       this.bus.emit('selection:changed', { entityId: null });
       this.sidebarTimer = SIDEBAR_REFRESH;
@@ -2229,15 +2220,13 @@ export class Game {
     return null;
   }
 
-  /** The player's Allied Buildings, then its claim flags on new land that have no Allied Building yet (Allies tab). */
+  /** The player's Parallel Governments, held capitals, then its claim flags on new land (Allies tab). */
   private alliesInfo(): AllyInfo[] {
     const me = this.humanPlayer.id;
     const mine = this.entities.buildings().filter((b) => b.owner === me && b.alive);
-    const allied = mine.filter((b) => b.spec.type === 'parallelGov' || b.spec.type === 'alliedBuilding');
-    const claims = mine.filter(
-      (b) => b.spec.type === 'flagpole' && isClaimable(this.map, b.x, b.y) && !allied.some((a) => Math.hypot(a.x - b.x, a.y - b.y) < 14),
-    );
-    // A captured contested-nation capital stays an ally of its holder (shown here, outside the MAX_ALLIES cap).
+    const allied = mine.filter((b) => b.spec.type === 'parallelGov');
+    const claims = mine.filter((b) => b.spec.type === 'flagpole' && isClaimable(this.map, b.x, b.y));
+    // A captured contested-nation capital is listed too.
     const capitals = mine.filter((b) => b instanceof NationCapital);
     // Rival nations' capitals the player has taken (its own capital is not listed).
     const taken = mine.filter((b) => b.spec.type === 'capital' && b.spec.spriteKey !== `capital:${this.humanPlayer.faction}`);
@@ -2248,7 +2237,7 @@ export class Game {
         id: b.id,
         built: b.spec.type !== 'flagpole',
         capital: b instanceof NationCapital ? (b.alliance() ?? b.spec.name) : rival ? `${b.spec.name} (${FACTIONS[rival].name})` : undefined,
-        // No embassy concept any more: a Parallel Government is listed under its own name and the nation it stands for.
+        // A Parallel Government is listed under its own name and the nation it stands for.
         embassy: b.spec.type === 'parallelGov' ? `${t(b.spec.name)} (${FACTIONS[b.origin as FactionId]?.name ?? b.origin})` : undefined,
         nation: b instanceof NationCapital ? b.nation : undefined,
         holder: b instanceof NationCapital && b.faction !== 'neutral' ? b.faction : undefined,
@@ -2261,47 +2250,10 @@ export class Game {
     });
   }
 
-  /**
-   * What an Allied Building is called: "<nation> Embassy in <city>" within EMBASSY_CAPITAL_CELLS of a capital (a nation's or a
-   * contested nation's), otherwise — out on its own land — a "Pro-<nation> regime".
-   */
-  embassyName(b: Building): string {
-    const nation = FACTIONS[b.faction as FactionId].shortName;
-    const at = b.centerWorld();
-    const nearCapital = this.entities.buildings().some((c) => {
-      if (!c.alive || (c.spec.type !== 'capital' && !(c instanceof NationCapital))) return false;
-      const p = c.centerWorld();
-      return Math.hypot(p.x - at.x, p.y - at.y) <= EMBASSY_CAPITAL_CELLS * CELL_SIZE;
-    });
-    return nearCapital ? t('{nation} Embassy in {city}', { nation, city: this.nearestCapitalCity(at) }) : t('Pro-{nation} regime', { nation });
-  }
-
-  /** City of the capital (a nation's or a contested nation's) nearest to `at`: where an embassy is said to stand. */
-  private nearestCapitalCity(at: WorldPoint): string {
-    let best = '';
-    let bestD = Infinity;
-    for (const b of this.landmarks) {
-      const city =
-        b instanceof NationCapital
-          ? b.city
-          : b.spec.type === 'capital'
-            ? FACTIONS[b.spec.spriteKey.replace(/^capital:/, '') as FactionId].capital.city
-            : null;
-      if (!city) continue;
-      const c = b.centerWorld();
-      const d = Math.hypot(c.x - at.x, c.y - at.y);
-      if (d < bestD) {
-        best = city;
-        bestD = d;
-      }
-    }
-    return best;
-  }
-
   ownedTypesOf(player: PlayerState): Set<BuildingType> {
     const set = new Set<BuildingType>();
     for (const b of this.entities.buildings()) if (b.owner === player.id && b.alive) set.add(b.spec.type);
-    // The first flag planted (Squatters or a Flagpole) unlocks Allied Buildings for good, even if that flag falls later.
+    // The first flag planted (Squatters or a Flagpole) counts for good, even if that flag falls later.
     if (set.has('flagpole')) player.flagPlanted = true;
     else if (player.flagPlanted) set.add('flagpole');
     return set;
@@ -2574,7 +2526,8 @@ export class Game {
       }
       if (!goal) return;
       if (grouped) {
-        if (u.moving) u.pathTicket++;
+        // A ground machine stops and waits for its whole new route (then pivots and drives nose first): no sliding.
+        if (u.moving && !u.groundDriver) u.pathTicket++;
         else u.stop();
         u.routePending = true;
         (u.mobility === 'dozer' ? dozers : u.mobility === 'vehicle' ? drivers : u.swims ? swimmers : walkers).push({ unit: u, goal: { x: (goal.x + 0.5) * CELL_SIZE, y: (goal.y + 0.5) * CELL_SIZE }, cell: goal, ticket: u.pathTicket });
@@ -2804,7 +2757,20 @@ export class Game {
    * U key / Unload button (RA2 Deploy): every selected transport with passengers lets them out one by one — on the
    * spot when it stands on the ground, otherwise it first sets down on the nearest solid ground below it.
    */
+  /** The selected structure when it is one of my Military Garages, or null. */
+  private selectedGarage(): MilitaryGarage | null {
+    const id = this.selection.selectedId;
+    const b = id === null ? undefined : this.entities.get(id);
+    return b instanceof MilitaryGarage && b.alive && b.owner === this.humanPlayer.id ? b : null;
+  }
+
   private unloadSelectedTransport(): void {
+    const garage = this.selectedGarage();
+    if (garage) {
+      if (garage.garrison.length === 0) this.sidebar.notify(tr('The {name} is empty.', { name: garage.spec.name }));
+      else this.ejectUnits(garage, [...garage.garrison]);
+      return;
+    }
     const transports = this.selection.selectedUnitList().filter((u): u is Vehicle => u instanceof Vehicle && u.isCarrier);
     const loaded = transports.filter((t) => t.cargo.length > 0);
     if (loaded.length === 0) {
@@ -2874,6 +2840,21 @@ export class Game {
   }
 
   private transportInfo(): TransportInfo | null {
+    const garage = this.selectedGarage();
+    if (garage) {
+      const { soldiers, vehicles } = garage.garrisonCounts();
+      const incoming = this.entities.fieldMovers().filter((u) => u.garageTarget === garage.id).length;
+      return {
+        name: garage.spec.name,
+        soldiers,
+        soldierCapacity: garage.spec.garrison?.soldiers ?? 0,
+        vehicles,
+        vehicleCapacity: garage.spec.garrison?.vehicles ?? 0,
+        incoming,
+        state: incoming > 0 ? 'loading' : soldiers + vehicles > 0 ? 'carrying' : 'idle',
+        canUnload: soldiers + vehicles > 0,
+      };
+    }
     const t = this.selectedTransport();
     if (!t) return null;
     return {
@@ -2973,6 +2954,141 @@ export class Game {
       if (sent > 0) this.moveMarker = { x: spot.x, y: spot.y, at: this.time };
     }
     return true;
+  }
+
+  /**
+   * Military Garage, entering (the transport boarding rules): the selected units that fit head for the garage door —
+   * soldiers and vehicles on foot / wheels, helicopters and transport aircraft through the air — and go inside one by
+   * one as they reach it. Places already promised to units on their way count. Returns how many were sent.
+   */
+  orderGarage(b: Building, units: readonly Unit[], quiet = false): number {
+    if (!(b instanceof MilitaryGarage) || !b.alive) return 0;
+    const promised = { soldiers: 0, vehicles: 0 };
+    for (const o of this.entities.fieldMovers()) {
+      if (o.garageTarget !== b.id || units.includes(o)) continue;
+      if (isVehicleUnit(o)) promised.vehicles++;
+      else promised.soldiers++;
+    }
+    let sent = 0;
+    let left = 0;
+    for (const u of units) {
+      if (!u.alive || u.owner !== b.owner || u.insideId !== null) continue;
+      if (u instanceof Infantry && (u.charge !== null || u.isSquatters)) continue;
+      if (!b.canEnter(u, promised)) {
+        left++;
+        continue;
+      }
+      if (!this.sendToGarage(u, b)) {
+        left++;
+        continue;
+      }
+      if (isVehicleUnit(u)) promised.vehicles++;
+      else promised.soldiers++;
+      sent++;
+    }
+    if (!quiet && b.owner === this.humanPlayer.id) {
+      if (sent === 0) this.sidebar.notify(b.garrisonFull ? tr('The {name} is full.', { name: b.spec.name }) : tr('The {name} cannot take them (no room, or they cannot reach it).', { name: b.spec.name }));
+      else if (left > 0) this.sidebar.notify(tr('{sent} heading for the {name}; {left} cannot fit or reach it.', { sent, name: b.spec.name, left }));
+      if (sent > 0) this.moveMarker = { ...this.doorPoint(b), at: this.time };
+    }
+    return sent;
+  }
+
+  /** A Military Garage lets everyone out in front of it (AI: its savings go back to the fight). */
+  unloadGarage(b: Building): void {
+    if (b.garrison.length > 0) this.ejectUnits(b, [...b.garrison]);
+  }
+
+  /** Sends one unit to the garage door, dropping whatever it was doing. False: it cannot get there. */
+  private sendToGarage(u: Unit, b: Building): boolean {
+    u.task = null;
+    u.attackTarget = null;
+    u.attackMove = null;
+    u.boardTarget = null;
+    u.parade = null;
+    u.fellTarget = null;
+    if (u instanceof Vehicle) {
+      u.repairTargetId = null;
+      u.seekRepairId = null;
+      u.depotId = null;
+      u.mendArea = null;
+      u.heliHome = null;
+    }
+    if (u instanceof Vehicle && u.aircraft) {
+      // Helicopters and transport aircraft fly over and set down at the door.
+      this.orderMove(this.doorPoint(b), [u], false);
+      u.garageTarget = b.id;
+      return true;
+    }
+    const door = this.doorPoint(b);
+    const goal = this.map.cellAt(door.x, door.y);
+    const cell = goal && this.pathfinder.passable(goal.x, goal.y, u.mobility) ? goal : this.pathfinder.nearestPassable(goal?.x ?? b.x, goal?.y ?? b.y + b.d, 10, undefined, u.mobility);
+    if (!cell) return false;
+    if (!this.pathfinder.sameLandmass(Math.floor(u.px / CELL_SIZE), Math.floor(u.py / CELL_SIZE), cell.x, cell.y)) return false;
+    if (!this.walkToDoor(u, b)) return false;
+    u.garageTarget = b.id;
+    return true;
+  }
+
+  /**
+   * Military Garages every tick: units heading in go inside as they reach the door; a garage brought down to half
+   * health (≤ 50 %) loses half of its vehicles and half of its soldiers (once per round of damage — mended above half,
+   * it can lose them again); anyone inside who is no longer its owner's (a captured garage) is put out.
+   * Player and AI alike.
+   */
+  private processGarages(): void {
+    for (const u of this.entities.fieldMovers()) {
+      if (u.garageTarget === null) continue;
+      const b = this.entities.get(u.garageTarget);
+      if (!(b instanceof MilitaryGarage) || !b.alive || b.owner !== u.owner) {
+        u.garageTarget = null;
+        continue;
+      }
+      const air = u instanceof Vehicle && u.aircraft;
+      const reach = distanceTo(u.px, u.py, b);
+      if (reach > CELL_SIZE * (air ? 3 : isVehicleUnit(u) ? 2 : 1.3)) {
+        // Could not get close enough (stopped short): give up. An aircraft still flying keeps on.
+        if (!u.moving && !(air && (u as Vehicle).flies)) u.garageTarget = null;
+        continue;
+      }
+      u.garageTarget = null;
+      if (!b.canEnter(u)) {
+        if (u.owner === this.humanPlayer.id) this.sidebar.notify(tr('The {name} is full.', { name: b.spec.name }));
+        continue;
+      }
+      b.garrison.push(u);
+      u.insideId = b.id;
+      u.stop();
+      if (u instanceof Vehicle && u.aircraft) {
+        u.flight = 'landed';
+        u.altitude = 0;
+      }
+      this.selection.selectedUnits.delete(u.id);
+      this.hatch(u.px, u.py);
+    }
+    for (const b of this.entities.buildings()) {
+      if (!(b instanceof MilitaryGarage) || !b.alive) continue;
+      const strangers = b.garrison.filter((u) => u.owner !== b.owner);
+      if (strangers.length > 0) this.ejectUnits(b, strangers);
+      const half = b.hp <= b.maxHp * 0.5;
+      if (!half) {
+        b.lossTaken = false;
+        continue;
+      }
+      if (b.lossTaken) continue;
+      b.lossTaken = true;
+      const vehicles = b.garrison.filter(isVehicleUnit);
+      const soldiers = b.garrison.filter((u) => !isVehicleUnit(u));
+      const lost = [...vehicles.slice(0, Math.ceil(vehicles.length / 2)), ...soldiers.slice(0, Math.ceil(soldiers.length / 2))];
+      if (lost.length === 0) continue;
+      for (const u of lost) {
+        b.garrison.splice(b.garrison.indexOf(u), 1);
+        this.selection.selectedUnits.delete(u.id);
+        if (u instanceof Vehicle) for (const c of u.cargo.splice(0)) this.entities.remove(c.id);
+        this.entities.remove(u.id);
+      }
+      if (b.owner === this.humanPlayer.id) this.sidebar.alert(tr('{name} hit hard: {count} lost inside.', { name: b.spec.name, count: lost.length }), b.centerWorld());
+    }
   }
 
   /**
@@ -3538,6 +3654,7 @@ export class Game {
     this.prof.time('keepOutOfWater', () => this.keepOutOfWater());
     this.prof.time('crushInfantry', () => this.crushInfantry());
     this.prof.time('processBoarding', () => this.processBoarding());
+    this.prof.time('processGarages', () => this.processGarages());
     this.prof.time('processTruckUnloading', () => this.processTruckUnloading(dt));
     this.prof.time('separateUnits', () => this.separateUnits());
     this.prof.time('keepOnDeck', () => this.keepOnDeck());
@@ -4058,7 +4175,8 @@ export class Game {
       const pushX = posX + negX;
       const pushY = posY + negY;
       if (pushX !== 0 || pushY !== 0) {
-        if (!this.nudge(u, pushX, pushY)) {
+        if (u.groundDriver) this.shove(u, pushX, pushY);
+        else if (!this.nudge(u, pushX, pushY)) {
           this.nudge(u, pushX, 0);
           this.nudge(u, 0, pushY);
         }
@@ -4123,8 +4241,8 @@ export class Game {
             const wa = a.fixed ? 0 : b.fixed ? 1 : a.moving && a.restLeft <= 0 ? 0.7 : 0.3; // a resting soldier holds its ground
             const push = (gap - d) / d;
             // If one side is blocked (water, building), the other takes the whole push so they still come apart.
-            if (!this.nudge(a, -vx * push * wa, -vy * push * wa)) this.nudge(b, vx * push * wa, vy * push * wa);
-            if (!this.nudge(b, vx * push * (1 - wa), vy * push * (1 - wa))) this.nudge(a, -vx * push * (1 - wa), -vy * push * (1 - wa));
+            if (!this.shove(a, -vx * push * wa, -vy * push * wa)) this.shove(b, vx * push * wa, vy * push * wa);
+            if (!this.shove(b, vx * push * (1 - wa), vy * push * (1 - wa))) this.shove(a, -vx * push * (1 - wa), -vy * push * (1 - wa));
           }
         }
       }
@@ -4157,6 +4275,19 @@ export class Game {
         u.px = Math.max(mid - lane, Math.min(mid + lane, u.px));
       }
     }
+  }
+
+  /**
+   * A crowd / structure push. A ground machine (groundDriver) is never shoved sideways: only the part of the push along
+   * its hull (nose or tail) moves it, so it rolls a little forward or back instead of sliding across the ground.
+   */
+  private shove(u: Unit, dx: number, dy: number): boolean {
+    if (!u.groundDriver) return this.nudge(u, dx, dy);
+    const hx = Math.cos(u.heading);
+    const hy = Math.sin(u.heading);
+    const along = dx * hx + dy * hy;
+    if (Math.abs(along) < 1e-4) return false;
+    return this.nudge(u, hx * along, hy * along);
   }
 
   private nudge(u: Unit, dx: number, dy: number): boolean {
@@ -4293,7 +4424,11 @@ export class Game {
     const aiming = focus.some((f) => f.hover);
     // RA2 Enter cursor: the selected units can climb into the transport under the mouse.
     const hoverUnit = this.selection.hoveredUnitId === null ? undefined : this.entities.get(this.selection.hoveredUnitId);
-    const entering = !this.placing && hoverUnit instanceof Vehicle && this.canBoardSelected(hoverUnit);
+    const hoverBuilding = this.selection.hoveredId === null ? undefined : this.entities.get(this.selection.hoveredId);
+    const entering =
+      !this.placing &&
+      ((hoverUnit instanceof Vehicle && this.canBoardSelected(hoverUnit)) ||
+        (hoverBuilding instanceof MilitaryGarage && hoverBuilding.owner === this.humanPlayer.id && this.selection.selectedUnitList().some((u) => hoverBuilding.canEnter(u))));
     this.updateSiloButton();
     this.dropDvinaOrderOnDeselect();
     const cursor = this.siloAiming !== null ? (this.siloInRange(this.mouseWorld) ? NUKE_CURSOR : 'not-allowed') : this.placing || aiming ? 'crosshair' : entering ? ENTER_CURSOR : hovering ? 'pointer' : 'default';
@@ -4379,7 +4514,11 @@ export class Game {
               const hms = left >= 3600 ? `${Math.floor(left / 3600)}:${String(Math.floor(left / 60) % 60).padStart(2, '0')}:${String(left % 60).padStart(2, '0')}` : `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
               const banLeft = (this.humanPlayer.nuclearBanUntil ?? 0) - this.time;
               const halted = b.halted && !b.loaded;
-              const status = halted ? `${t('Paused')} · ${b.loading ? hms : `${Math.floor(b.missilePaid).toLocaleString('en-US')}/${SILO_MISSILE_COST.toLocaleString('en-US')} ${CURRENCY}`}` : busy ? t('Launching…') : truce && b.loaded ? t('Ceasefire') : banLeft > 0 ? `${t('Nuclear embargo')} · ${Math.floor(banLeft / 60)}:${String(Math.floor(banLeft % 60)).padStart(2, '0')}` : ready ? t('Ready') : noPower ? `${powerTier(this.humanPlayer) === 'medium' ? t('Medium power') : t('Low power')} · ${hms}` : b.loading ? t('Preparing {time}', { time: hms }) : `${t('Paying')} ${Math.floor(b.missilePaid).toLocaleString('en-US')}/${SILO_MISSILE_COST.toLocaleString('en-US')} ${CURRENCY}`;
+              // Paying shows the share of the missile price paid so far (0–100 %).
+              const paidPct = `${Math.floor((b.missilePaid / SILO_MISSILE_COST) * 100)}%`;
+              // Not manned (fewer than SILO_SCIENTISTS engineers in the Tech Center): nothing moves until they are there.
+              const crewShort = !b.loaded && !busy && (this.humanPlayer.scientists ?? 0) < SILO_SCIENTISTS;
+              const status = halted ? `${t('Paused')} · ${b.loading ? hms : paidPct}` : busy ? t('Launching…') : truce && b.loaded ? t('Ceasefire') : banLeft > 0 ? `${t('Nuclear embargo')} · ${Math.floor(banLeft / 60)}:${String(Math.floor(banLeft % 60)).padStart(2, '0')}` : ready ? t('Ready') : crewShort ? t('Needs {n} scientists', { n: SILO_SCIENTISTS }) : noPower || (!b.loading && this.humanPlayer.powerShort) ? `${powerTier(this.humanPlayer) === 'medium' ? t('Medium power') : t('Low power')} · ${b.loading ? hms : paidPct}` : b.loading ? t('Preparing {time}', { time: hms }) : `${t('Paying')} ${paidPct}`;
               return { id: b.id, label: `#${b.siloNo}`, status, ready, lamp, halted, canHalt: !b.loaded } as const;
             }),
         );
@@ -4447,7 +4586,6 @@ export class Game {
             // Not enough money is no blocker: the order is placed and paid as money comes in (on hold meanwhile).
             if (option.id === 'yars' && this.construction.siloCapReached(p)) return `Nuclear treaty limit reached: ${MAX_SILOS} missile silos`;
             if (option.id === 'yars' && (p.scientists ?? 0) < SILO_SCIENTISTS) return `Needs ${SILO_SCIENTISTS} engineers in the High-Tech Center`;
-            if (option.id === 'alliedBuilding' && this.alliesOf(p) >= MAX_ALLIES) return 'Ally limit reached';
             return null;
           },
           training: this.training.queue(this.humanPlayer),
@@ -5162,10 +5300,6 @@ export class Game {
     const slot = this.construction.slot(player, option.id);
     if (slot.state === 'idle') {
       if (!this.buildAvailable(player, option)) return;
-      if (option.id === 'alliedBuilding' && this.alliesOf(player) >= MAX_ALLIES) {
-        this.sidebar.notify(t('A nation has at most {max} embassies.', { max: MAX_ALLIES }));
-        return;
-      }
       if (option.comingSoon) {
         this.sidebar.notify(t('{name}: coming soon.', { name: option.name }));
         return;
@@ -6118,8 +6252,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
   }
 
   /**
-   * A nation is beaten: every structure it holds disappears, except its Allied Buildings (they turn neutral, free to
-   * capture) and its oil derricks — a leased one goes back to the
+   * A nation is beaten: every structure it holds disappears, except its oil derricks — a leased one goes back to the
    * nation that leased it out, all others to the Global Monitoring Center, which pumps them for the world market
    * (OilMarket: the extra supply and a shock to the market mood move the price).
    */
@@ -6138,11 +6271,6 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       // A contested nation's capital it held (Japan, Korea…) never vanishes: it goes back to neutral, free to take again.
       if (b.owner === p.id && b instanceof NationCapital) {
         b.free();
-        continue;
-      }
-      // Its allies (Allied Buildings) do not vanish: they turn neutral, for any other nation to take over.
-      if (b.owner === p.id && b.spec.type === 'alliedBuilding') {
-        b.release();
         continue;
       }
       // Its walls and gates stay as they are (standing, same owner): the ruins of the nation keep their ramparts.
@@ -6478,7 +6606,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       const start = { x: f.x + f.w + CELL_SIZE * 1.5, y: f.y + f.h / 2 };
       const others = this.entities.fieldMovers().filter((m) => m.alive && !m.flies);
       let spot: WorldPoint | null = null;
-      for (let k = 0; k < 200 && !spot; k++) {
+      for (let k = 0; k < 600 && !spot; k++) {
         const off = spiralOffset(k, CELL_SIZE * 1.2);
         const at = this.landingSpot(start.x + off.x, start.y + off.y, probe);
         if (!at || this.entities.buildings().some((b) => b.alive && distanceTo(at.x, at.y, b) < probe.radius + 2)) continue;
@@ -6494,6 +6622,8 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
         if (player.id === this.localId) this.sidebar.notify(t('{name} has landed beside the War Factory.', { name: heli.name }));
         return heli;
       }
+      // Helicopters never take an airfield parking spot (canBaseAt): with no open ground at all, none is delivered.
+      return null;
     }
     // One aircraft per parking spot: use the producing airfield, or another one of the nation with room.
     let airfield = producer;
@@ -7095,7 +7225,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
   }
 
   /** Walks `u` right up to `b`'s door (the soldier ends up touching the building). */
-  private walkToDoor(u: Infantry, b: Building): boolean {
+  private walkToDoor(u: Unit, b: Building): boolean {
     const door = this.doorPoint(b);
     let cell = this.map.cellAt(door.x, door.y);
     if (!cell || !this.pathfinder.passable(cell.x, cell.y, u.mobility)) {
@@ -7177,6 +7307,18 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
         this.sidebar.notify(t('No free parking spot on that airfield.'), 3);
         return true;
       }
+    }
+    // Military Garage of mine: the selected units go in (engineers mend it first while it is damaged).
+    if (b.owner === me.id && b instanceof MilitaryGarage) {
+      const selected = this.selection.selectedUnitList();
+      const mending = b.hp < b.maxHp ? selected.filter((u): u is Infantry => u instanceof Infantry && u.isEngineer) : [];
+      for (const u of mending) {
+        if (!this.walkToDoor(u, b)) continue;
+        u.task = { type: 'repair', buildingId: b.id };
+        ordered++;
+      }
+      ordered += this.orderGarage(b, selected.filter((u) => !mending.includes(u as Infantry)));
+      return ordered > 0 || selected.length > 0;
     }
     // Damaged vehicles selected + click on an own War Factory: they drive in to be repaired.
     if (b.owner === me.id && b.spec.type === 'warFactory' && this.orderFactoryRepair(b, this.selection.selectedUnitList())) return true;
@@ -8045,27 +8187,43 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     }
   }
 
-  /** Brings the given people stationed in `b` out onto the ground in front of it. */
-  private ejectUnits(b: Building, out: Infantry[], why: 'out' | 'healed' = 'out'): void {
+  /** Brings the given units stationed in `b` out onto the ground in front of it. */
+  private ejectUnits(b: Building, out: Unit[], why: 'out' | 'healed' = 'out'): void {
     for (const u of out) {
       const i = b.garrison.indexOf(u);
       if (i >= 0) b.garrison.splice(i, 1);
     }
     this.placeOutside(b, out);
     if (out.length > 0 && why === 'healed' && b.owner === this.humanPlayer.id) this.sidebar.notify(t('{count} healed and left the {name}.', { count: out.length, name: b.spec.name }));
-    else if (out.length > 0) this.sidebar.notify(t('{count} came out of: {name}.', { count: out.length, name: b.spec.name }));
+    else if (out.length > 0 && b.owner === this.humanPlayer.id) this.sidebar.notify(t('{count} came out of: {name}.', { count: out.length, name: b.spec.name }));
   }
 
-  /** Puts people who leave `b` on free cells in front of its door. */
-  private placeOutside(b: Building, out: readonly Infantry[]): void {
+  /**
+   * Puts units who leave `b` on free cells around its door (soldiers on foot cells, vehicles on drivable ground; a
+   * helicopter or transport aircraft rolls out onto the ground and stands there landed until ordered up).
+   */
+  private placeOutside(b: Building, out: readonly Unit[]): void {
+    const taken = new Set<number>();
     out.forEach((u, k) => {
-      const off = spiralOffset(k, UNIT_SPACING * 1.15);
-      const base = { x: (b.x + b.w / 2) * CELL_SIZE + off.x, y: (b.y + b.d + 1.2) * CELL_SIZE + off.y };
-      const cell = this.pathfinder.nearestPassable(Math.floor(base.x / CELL_SIZE), Math.floor(base.y / CELL_SIZE), 8, undefined, u.mobility);
+      const vehicle = isVehicleUnit(u);
+      const off = spiralOffset(k, UNIT_SPACING * (vehicle ? 2.2 : 1.15));
+      const base = { x: (b.x + b.w / 2) * CELL_SIZE + off.x, y: (b.y + b.d + (vehicle ? 1.8 : 1.2)) * CELL_SIZE + off.y };
+      const mobility = u instanceof Vehicle && u.aircraft ? 'vehicle' : u.mobility;
+      const cell =
+        this.pathfinder.nearestPassable(Math.floor(base.x / CELL_SIZE), Math.floor(base.y / CELL_SIZE), 12, vehicle ? taken : undefined, mobility) ??
+        this.pathfinder.nearestPassable(Math.floor(base.x / CELL_SIZE), Math.floor(base.y / CELL_SIZE), 12, undefined, mobility);
+      if (cell && vehicle) taken.add(this.map.index(cell.x, cell.y));
       u.px = cell ? (cell.x + 0.5) * CELL_SIZE : base.x;
       u.py = cell ? (cell.y + 0.5) * CELL_SIZE : base.y;
+      u.x = u.px / CELL_SIZE;
+      u.y = u.py / CELL_SIZE;
       u.insideId = null;
+      u.garageTarget = null;
       u.stop();
+      if (u instanceof Vehicle && u.aircraft) {
+        u.flight = 'landed'; // out of the garage: on the ground until ordered up
+        u.altitude = 0;
+      }
     });
   }
 
@@ -8453,7 +8611,8 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       // Its route comes from the group's shared flow field a few frames later. A unit already walking keeps going
       // until then (no stop-and-go on every new click); only routes from older orders are cancelled.
       // A unit that was fighting stops at once instead of running on towards the enemy while it waits.
-      if (u.moving && !fighting) u.pathTicket++;
+      // A ground machine stops and waits for its whole new route, then pivots onto it and drives nose first (never a slide).
+      if (u.moving && !fighting && !u.groundDriver) u.pathTicket++;
       else u.stop();
       // Waiting for its route: nothing else (pulling over, an automatic bomb run) may take the unit over meanwhile.
       u.routePending = true;

@@ -9,6 +9,7 @@ import math
 import bmesh
 
 from kit import _obj, box, cylinder, dome, lathe, mat, render, rod, roof, zp, prism
+from models._ruin import apply as ruin
 
 S = 1.25
 
@@ -131,318 +132,10 @@ def tree(cu, cv, r, z, h, leaf):
     DOME(cu + r * 0.3, cv - r * 0.2, r * 0.7, z + h * 0.45, h * 0.6, leaf, segs=16)
 
 
-# ================================================================ White House
-
-
-def white_house():
-    white = mat("#ebe8de", 0.75, grain=0.06, scale=30)
-    white2 = mat("#dcd8cc", 0.8, grain=0.06, scale=30)
-    stone = mat("#a29e92", 0.9, grain=0.12, scale=10)
-    roofm = mat("#6c7076", 0.6, metal=0.3, grain=0.05)
-    glass = mat("#26303c", 0.1, grain=0, glass=True)
-    frame = mat("#f6f3ea", 0.6, grain=0)
-    dark = mat("#3b3a36", 0.8, grain=0)
-    col = mat("#f8f5ee", 0.6, grain=0.04)
-    D = 2.4
-    B(0, 0, 4, D, 0, 3, stone)
-    # West and East Wings: low flat-roofed, colonnaded fronts.
-    for wu in (0.05, 3.25):
-        B(wu, 0.1, 0.7, 2.2, 3, 12, white)
-        grid("left", wu, 0.1, 0.7, 2.2, 3, 12, 3, 2, glass, frame, fill=0.45)
-        grid("right", wu, 0.1, 0.7, 2.2, 3, 12, 9, 2, glass, frame, fill=0.45)
-        B(wu - 0.03, 0.07, 0.76, 2.26, 15, 1.2, white2)
-        B(wu, 0.1, 0.7, 2.2, 16.2, 0.4, roofm)
-        ring_balustrade(wu + 0.02, 0.12, 0.66, 2.16, 16.2, 2.0, white, 0.09)
-    # Executive Residence.
-    u, v, w, d = 0.75, 0.1, 2.5, 1.75
-    B(u, v, w, d, 3, 10, white2)
-    grid("left", u, v, w, d, 3, 10, 12, 1, glass, frame, fill=0.42, sill=white)
-    grid("right", u, v, w, d, 3, 10, 8, 1, glass, frame, fill=0.42, sill=white)
-    B(u - 0.02, v - 0.02, w + 0.04, d + 0.04, 13, 1, white2)
-    B(u, v, w, d, 14, 14, white)
-    grid("left", u, v, w, d, 14, 14, 12, 1, glass, frame, fill=0.5, sill=white, pediment=white)
-    grid("right", u, v, w, d, 14, 14, 8, 1, glass, frame, fill=0.5, sill=white, pediment=white)
-    # Pilasters between bays.
-    for i in range(13):
-        s = 0.08 + (w - 0.16) * i / 12
-        B(u + s - 0.02, v + d, 0.04, 0.02, 3, 25, white)
-    for i in range(9):
-        s = 0.08 + (d - 0.16) * i / 8
-        B(u + w, v + s - 0.02, 0.02, 0.04, 3, 25, white)
-    B(u - 0.05, v - 0.05, w + 0.1, d + 0.1, 28, 2.2, white)
-    B(u - 0.03, v - 0.03, w + 0.06, d + 0.06, 27.2, 0.8, white2)
-    B(u, v, w, d, 30.2, 0.5, roofm)
-    ring_balustrade(u - 0.02, v - 0.02, w + 0.04, d + 0.04, 30.2, 2.6, white, 0.07)
-    ROOF(u + 0.18, v + 0.18, w - 0.36, d - 0.36, 30.7, 4, roofm, over=0)
-    for cu in (u + 0.25, u + w - 0.25):
-        for cv in (v + 0.4, v + d - 0.4):
-            B(cu - 0.06, cv - 0.06, 0.12, 0.12, 30.7, 8, white2)
-            B(cu - 0.07, cv - 0.07, 0.14, 0.14, 38.2, 0.8, white)
-    # North Portico.
-    pu, pw, pv = 1.55, 0.9, v + d
-    B(pu - 0.05, pv, pw + 0.1, 0.55, 3, 2, white2)
-    for k in range(3):
-        B(pu + 0.1, pv + 0.5 + k * 0.03, pw - 0.2, 0.03, 3 - k * 0.7, 0.7, stone)
-    facepoly("left", u, v, w, d, [(0.95, 3), (1.25, 3), (1.25, 12), (0.95, 12)], dark, 0.01)
-    facepoly("left", u, v, w, d, [(0.98, 12.5), (1.22, 12.5), (1.1, 15)], white, 0.02)
-    for k in range(4):
-        cu = pu + 0.1 + k * 0.233
-        CYL(cu, pv + 0.42, 0.06, 5, 1.2, white)
-        LATHE(cu, pv + 0.42, 6.2, [(0.05, 0), (0.042, 21)], col, 20, cap_top=True)
-        B(cu - 0.06, pv + 0.36, 0.12, 0.12, 27.2, 0.9, white)
-    B(pu, pv, pw, 0.52, 28, 2.2, white)
-    ROOF(pu, pv - 0.05, pw, 0.57, 30.2, 7, roofm, kind="gable", ridge="u", over=0.03)
-    facepoly("left", pu - 0.03, pv - 0.05, pw + 0.06, 0.57, [(0, 30.2), (pw + 0.06, 30.2), ((pw + 0.06) / 2, 37.2)], white, 0.04)
-    facepoly("left", pu - 0.03, pv - 0.04, pw + 0.06, 0.57, [(0.1, 31), (pw - 0.04, 31), ((pw + 0.06) / 2, 35.8)], white2, 0.04)
-    # Lantern over the door.
-    CYL(1.99, pv + 0.22, 0.035, 18, 3, mat("#e8dfb8", 0.3, grain=0, emit="#ffe9a8"))
-    render("capital-usa", (5, 3), 40 * S)
-
-
-# ================================================================ Kremlin
-
-K_WALL = 16
-K_TOWER = 0.46
-
-
-def k_mats():
-    return dict(
-        brick=mat("#8e3424", 0.9, grain=0.18, scale=40),
-        cap=mat("#a2402e", 0.9, grain=0.15, scale=40),
-        cream=mat("#e6d6a2", 0.8, grain=0.07, scale=30),
-        green=mat("#4f8e60", 0.55, metal=0.2, grain=0.06),
-        spire=mat("#2f6a48", 0.5, metal=0.2, grain=0.05),
-        gold=mat("#d9a63a", 0.25, metal=1.0, grain=0.04),
-        white=mat("#ece6d6", 0.8, grain=0.06, scale=30),
-        stone=mat("#f0ebdf", 0.8, grain=0.05),
-        glass=mat("#2c3a4e", 0.1, grain=0, glass=True),
-        dark=mat("#2a0f0b", 0.9, grain=0),
-        star=mat("#c41a14", 0.3, grain=0, emit="#ff2a1a"),
-    )
-
-
-def k_wall(M, u, v, w, d):
-    B(u, v, w, d, 0, K_WALL, M["brick"])
-    B(u - 0.01, v - 0.01, w + 0.02, d + 0.02, 0, 2, M["cap"])
-    along_u = w >= d
-    L = w if along_u else d
-    n = max(1, int(L / 0.17))
-    for i in range(n):
-        t = (i + 0.5) * (L / n) - 0.05
-        if along_u:
-            B(u + t, v, 0.1, d, K_WALL, 2.5, M["cap"])
-            B(u + t, v, 0.035, d, K_WALL + 2.5, 2, M["cap"])
-            B(u + t + 0.065, v, 0.035, d, K_WALL + 2.5, 2, M["cap"])
-        else:
-            B(u, v + t, w, 0.1, K_WALL, 2.5, M["cap"])
-            B(u, v + t, w, 0.035, K_WALL + 2.5, 2, M["cap"])
-            B(u, v + t + 0.065, w, 0.035, K_WALL + 2.5, 2, M["cap"])
-
-
-def k_star(M, cu, cv, z, s):
-    ROD((cu, cv, z - 4), (cu, cv, z), 0.008, M["gold"])
-    # A small 3D star seen from both sides: two crossed star plates.
-    for face in ("left", "right"):
-        pts = []
-        for k in range(10):
-            a = math.pi / 2 + k * math.pi / 5
-            r = (s if k % 2 == 0 else s * 0.42) * 0.025
-            pts.append((r * math.cos(a), z + s * 0.9 + (r / 0.025) * math.sin(a)))
-        if face == "left":
-            facepoly("left", cu, cv - 0.006, 0, 0, pts, M["star"], 0.012)
-        else:
-            facepoly("right", cu - 0.006, cv, 0, 0, pts, M["star"], 0.012)
-
-
-def k_tower(M, u, v, star=None):
-    s = K_TOWER
-    cu, cv = u + s / 2, v + s / 2
-    B(u, v, s, s, 0, 22, M["brick"])
-    for face in ("left", "right"):
-        facepoly(face, u, v, s, s, arch_pts(0.17, 0.29, 4, 6, False), M["dark"], 0.01)
-        facepoly(face, u, v, s, s, arch_pts(0.19, 0.27, 13, 5, False), M["dark"], 0.01)
-    B(u - 0.03, v - 0.03, s + 0.06, s + 0.06, 22, 3, M["cap"])
-    B(u + 0.08, v + 0.08, s - 0.16, s - 0.16, 25, 6, M["brick"])
-    B(u + 0.06, v + 0.06, s - 0.12, s - 0.12, 30.5, 0.8, M["stone"])
-    ROOF(u + 0.06, v + 0.06, s - 0.12, s - 0.12, 31, 16, M["spire"], kind="pyramid", over=0.01)
-    if star:
-        k_star(M, cu, cv, 47, star)
-
-
-def k_onion(M, u, v, z, r):
-    CYL(u, v, r * 0.75, z, r * 22, M["white"], 16)
-    DOME(u, v, r, z + r * 22, r * 70, M["gold"], onion=True, segs=24)
-    ROD((u, v, z + r * 22 + r * 70 - 1), (u, v, z + r * 22 + r * 70 + 4), 0.006, M["gold"])
-
-
-def k_cathedral(M, u, v):
-    w = 0.62
-    B(u, v, w, w, 0, 15, M["white"])
-    for face in ("left", "right"):
-        for k in range(3):
-            s = 0.1 + k * 0.18
-            facepoly(face, u, v, w, w, arch_pts(s + 0.04, s + 0.1, 3, 6, False), M["dark"], 0.01)
-            facepoly(face, u, v, w, w, arch_pts(s, s + 0.14, 10, 5.5, False, 10), M["stone"], 0.012)
-    B(u - 0.02, v - 0.02, w + 0.04, w + 0.04, 15, 1, M["stone"])
-    B(u + 0.02, v + 0.02, w - 0.04, w - 0.04, 16, 0.6, M["gold"])
-    for du, dv in ((0.15, 0.15), (w - 0.15, 0.15), (0.15, w - 0.15), (w - 0.15, w - 0.15)):
-        k_onion(M, u + du, v + dv, 16, 0.1)
-    k_onion(M, u + w / 2, v + w / 2, 16, 0.15)
-
-
-def k_ivan(M, u, v):
-    for r, z, h in ((0.3, 0, 24), (0.25, 24, 14), (0.2, 38, 11)):
-        CYL(u, v, r, z, h, M["white"], 8)
-        CYL(u, v, r + 0.03, z + h - 1.2, 1.2, M["stone"], 8)
-        for k in range(8):
-            a = 2 * math.pi * (k + 0.5) / 8
-            ROD((u + math.cos(a) * r * 0.93, v + math.sin(a) * r * 0.93, z + h * 0.45), (u + math.cos(a) * r * 0.93, v + math.sin(a) * r * 0.93, z + h * 0.8), 0.03, M["dark"], 4)
-    CYL(u, v, 0.15, 49, 9, M["gold"], 24)
-    DOME(u, v, 0.2, 58, 15, M["gold"], onion=True)
-    ROD((u, v, 72), (u, v, 79), 0.007, M["gold"])
-
-
-def k_big_tower(M, cu, cv):
-    CYL(cu, cv, 0.36, 0, 30, M["brick"], 32)
-    for k in range(10):
-        a = 2 * math.pi * k / 10
-        B(cu + math.cos(a) * 0.37 - 0.04, cv + math.sin(a) * 0.37 - 0.04, 0.08, 0.08, 30, 5, M["cap"])
-    CYL(cu, cv, 0.39, 28, 2, M["cap"], 32)
-    CYL(cu, cv, 0.28, 33, 9, M["brick"], 24)
-    CYL(cu, cv, 0.3, 42, 1.5, M["stone"], 24)
-    CYL(cu, cv, 0.2, 43.5, 6, M["brick"], 16)
-    LATHE(cu, cv, 49.5, [(0.22, 0), (0.0005, 30)], M["spire"], 8, cap_bottom=True)
-    k_star(M, cu, cv, 80, 4.6)
-
-
-def kp_mats():
-    return dict(
-        brick=mat("#a5402e", 0.9, grain=0.16, scale=40),
-        cap=mat("#b24a36", 0.9, grain=0.14, scale=40),
-        yellow=mat("#e9bd3e", 0.8, grain=0.06, scale=30),
-        white=mat("#f3efe6", 0.75, grain=0.05, scale=30),
-        green=mat("#4d9a74", 0.5, metal=0.15, grain=0.05),
-        gold=mat("#dcae3e", 0.22, metal=1.0, grain=0.03),
-        glass=mat("#3a4656", 0.12, grain=0, glass=True),
-        grass=mat("#5d8a3e", 0.95, grain=0.25, scale=14),
-        path=mat("#c9c3b6", 0.95, grain=0.1),
-        dark=mat("#1c1e22", 0.9, grain=0),
-    )
-
-
-def kp_facade(M, face, u, v, w, d, z, h, bays, rows):
-    """Yellow wall panels framed by white pilasters, white cornices between floors, arched white-framed windows."""
-    L = face_len(face, w, d)
-    bw = L / bays
-    for k in range(bays + 1):  # pilasters
-        s = min(max(k * bw - 0.025, 0), L - 0.05)
-        facepoly(face, u, v, w, d, [(s, z), (s + 0.05, z), (s + 0.05, z + h), (s, z + h)], M["white"], 0.012)
-    for r in range(rows + 1):  # cornice bands
-        t = z + h * r / rows
-        facepoly(face, u, v, w, d, [(0, t - 0.5), (L, t - 0.5), (L, t + 0.6), (0, t + 0.6)], M["white"], 0.02)
-    for r in range(rows):
-        fh = h / rows
-        t0 = z + fh * (r + 0.22)
-        th = fh * 0.58
-        for k in range(bays):
-            s0 = k * bw + bw * 0.34
-            s1 = k * bw + bw * 0.66
-            # white surround (arched), then the dark arched pane, then a little white hood on top
-            facepoly(face, u, v, w, d, arch_pts(s0 - 0.012, s1 + 0.012, t0 - 0.4, th + 0.9, False), M["white"], 0.016)
-            facepoly(face, u, v, w, d, arch_pts(s0, s1, t0, th, False), M["glass"], 0.02)
-            facepoly(face, u, v, w, d, [(s0 - 0.04, t0 + th + 1.0), (s1 + 0.04, t0 + th + 1.0), ((s0 + s1) / 2, t0 + th + 2.6)], M["white"], 0.024)
-
-
-def kp_block(M, u, v, w, d, h, bays_u, bays_v, rows, roof_h):
-    B(u, v, w, d, 0, h, M["yellow"])
-    B(u - 0.015, v - 0.015, w + 0.03, d + 0.03, 0, 2.2, M["white"])  # plinth
-    if bays_u:
-        kp_facade(M, "left", u, v, w, d, 2.2, h - 3.2, bays_u, rows)
-    if bays_v:
-        kp_facade(M, "right", u, v, w, d, 2.2, h - 3.2, bays_v, rows)
-    B(u - 0.03, v - 0.03, w + 0.06, d + 0.06, h, 1.6, M["white"])  # crowning cornice
-    if roof_h:
-        kp_roof(M, u, v, w, d, h + 1.6, roof_h)
-
-
-def kp_roof(M, u, v, w, d, z, h):
-    """Low green mansard roof as in the photo: a short steep slope all round, a flat top, white-framed dormers along
-    the front slope and a white balustrade along the roof ridge edge."""
-    e = 0.16  # how far the slope reaches in from the eaves
-    ROOF(u - 0.03, v - 0.03, w + 0.06, d + 0.06, z, h, M["green"], kind="hip", over=0.0)
-    B(u + e, v + e, w - 2 * e, d - 2 * e, z, h * 0.98, M["green"])  # flat top over the hip's ridge
-    n = max(1, int(w / 0.32))
-    for k in range(n):
-        cu = u + (k + 0.5) * w / n
-        B(cu - 0.035, v + d - e * 0.75, 0.07, 0.06, z + h * 0.15, h * 0.6, M["white"])
-        facepoly("left", cu - 0.025, v + d - e * 0.75 - 0.06, 0.05, 0.06, arch_pts(0.0, 0.05, z + h * 0.22, h * 0.42, False, 6), M["glass"], 0.012)
-
-
-def kremlin():
-    """The Grand Kremlin Palace as seen from the Moskva, filling its 5 x 4 plot (author 4 x 3.2): one long symmetrical
-    yellow-and-white palace with arched windows in white surrounds and a green roof, a pavilion at each end, the
-    raised centre with a row of white kokoshnik arches, a green dome with a clock and a gilded lantern; trees and a low
-    row of trees along the front lawn."""
-    M = kp_mats()
-    B(0.02, 0.02, 3.96, 3.16, 0, 0.4, M["grass"])
-    # Main body, then a pavilion at each end and the raised centre, each stepped forward a little.
-    u0, u1, v0, v1 = 0.1, 3.9, 0.15, 2.15
-    kp_block(M, u0, v0, u1 - u0, v1 - v0, 27, 17, 9, 3, 0)
-    for pu in (u0 - 0.04, u1 - 0.55):  # end pavilions stand a little proud of the body on both faces
-        kp_block(M, pu, v0 - 0.04, 0.59, v1 - v0 + 0.12, 27, 2, 9, 3, 0)
-    # One continuous low roof over the whole palace (the raised centre has its own, higher).
-    kp_roof(M, u0 - 0.04, v0 - 0.04, u1 - u0 + 0.08, v1 - v0 + 0.12, 28.6, 3.2)
-    cw = 0.9
-    cu0 = (u0 + u1) / 2 - cw / 2
-    dv = v1 + 0.1 - v0
-    B(cu0, v0, cw, dv, 0, 40, M["yellow"])
-    B(cu0 - 0.015, v0 - 0.015, cw + 0.03, dv + 0.03, 0, 2.2, M["white"])
-    kp_facade(M, "left", cu0, v0, cw, dv, 2.2, 30.8, 4, 3)
-    B(cu0 - 0.03, v0 - 0.03, cw + 0.06, dv + 0.06, 40, 1.5, M["white"])
-    for k in range(5):
-        s0 = 0.03 + k * (cw - 0.06) / 5
-        s1 = s0 + (cw - 0.06) / 5 - 0.015
-        facepoly("left", cu0, v0, cw, dv, arch_pts(s0, s1, 33.5, 7, False, 10), M["white"], 0.03)
-        facepoly("left", cu0, v0, cw, dv, [((s0 + s1) / 2 + 0.035 * math.cos(a * math.pi / 4), 37 + 1.6 * math.sin(a * math.pi / 4)) for a in range(8)], M["gold"], 0.04)
-    kp_roof(M, cu0, v0, cw, dv, 41.5, 3.2)
-    dc_u, dc_v = cu0 + cw / 2, v0 + dv / 2
-    B(dc_u - 0.36, dc_v - 0.36, 0.72, 0.72, 41.5, 3.5, M["white"])
-    ring_balustrade(dc_u - 0.36, dc_v - 0.36, 0.72, 0.72, 45, 2, M["white"], step=0.06)
-    DOME(dc_u, dc_v, 0.34, 45, 12, M["green"], segs=36)
-    facepoly("left", dc_u - 0.1, dc_v + 0.25, 0.2, 0.0, [(0.1 + 0.07 * math.cos(a * math.pi / 8), 49 + 2.3 * math.sin(a * math.pi / 8)) for a in range(16)], M["gold"], 0.03)
-    CYL(dc_u, dc_v, 0.11, 56.5, 4.5, M["gold"], 16)
-    DOME(dc_u, dc_v, 0.12, 61, 6, M["gold"], segs=16)
-    CYL(dc_u, dc_v, 0.035, 66.5, 3, M["gold"], 8)
-    # Low red crenellated Kremlin wall along the front edge, with a gate tower facing the palace's centre.
-    W = {"brick": M["brick"], "cap": M["cap"]}
-    global K_WALL
-    tall, K_WALL = K_WALL, 9  # lower than the palace's ground floor
-    gu0, gw = 1.7, 0.6  # gate tower span along the wall
-    k_wall(W, 0.04, 2.94, gu0 - 0.04, 0.2)
-    k_wall(W, gu0 + gw, 2.94, 3.96 - gu0 - gw, 0.2)
-    K_WALL = tall
-    gv, gd = 2.88, 0.32
-    B(gu0, gv, gw, gd, 0, 17, M["brick"])  # gate tower
-    facepoly("left", gu0, gv, gw, gd, arch_pts(0.17, 0.43, 0, 11, False, 10), M["dark"], 0.02)  # the gateway
-    facepoly("left", gu0, gv, gw, gd, arch_pts(0.13, 0.47, 0, 12.5, False, 10), M["white"], 0.012)  # white surround
-    facepoly("left", gu0, gv, gw, gd, arch_pts(0.25, 0.35, 13, 2.6, False, 6), M["dark"], 0.02)  # loophole
-    B(gu0 - 0.03, gv - 0.03, gw + 0.06, gd + 0.06, 17, 1.5, M["cap"])
-    for k in range(5):  # merlons round the top
-        B(gu0 + 0.02 + k * (gw - 0.1) / 4, gv + gd - 0.05, 0.06, 0.06, 18.5, 2.2, M["cap"])
-        B(gu0 + 0.02 + k * (gw - 0.1) / 4, gv, 0.06, 0.06, 18.5, 2.2, M["cap"])
-    B(gu0 + 0.1, gv + 0.06, gw - 0.2, gd - 0.12, 18.5, 4.5, M["brick"])
-    B(gu0 + 0.08, gv + 0.04, gw - 0.16, gd - 0.08, 23, 0.8, M["white"])
-    ROOF(gu0 + 0.08, gv + 0.04, gw - 0.16, gd - 0.08, 23.8, 12, M["green"], kind="pyramid", over=0.01)
-    ROD((gu0 + gw / 2, gv + gd / 2, 35.5), (gu0 + gw / 2, gv + gd / 2, 39), 0.008, M["gold"])
-    DOME(gu0 + gw / 2, gv + gd / 2, 0.04, 38.5, 2, M["gold"], segs=12)
-    render("capital-russia", (5, 4), 92 * S)
-    print(f"[kremlin] flag at u={dc_u * S:.3f} v={dc_v * S:.3f}")
-
-
 # ================================================================ EU headquarters
 
 
-def eu():
+def eu(damage=0):
     glass = mat("#3e5a74", 0.08, metal=0.3, grain=0.03, glass=True)
     glass2 = mat("#5a7c96", 0.08, metal=0.3, grain=0.03, glass=True)
     frame = mat("#c4c6c2", 0.4, metal=0.6, grain=0.03)
@@ -507,7 +200,14 @@ def eu():
         a = 2 * math.pi * i / 12 - math.pi / 2
         DOME(2.0 + math.cos(a) * 0.5, 2.65 + math.sin(a) * 0.5, 0.035, hz + 22.5, 2, gold, segs=8)
     ROD((2.0, 2.65, hz + 25), (2.0, 2.65, hz + 31), 0.008, steel)
-    render("capital-europe", (5, 5), 94 * S)
+    ruin(damage, dict(
+        ground=3.75, top=118, seed=31, split=2.85,
+        blocks=[("box", 0.025, 0.025, 4.975, 0.775, 30.75), ("box", 0.025, 0.775, 1.15, 4.975, 30.75), ("box", 1.15, 0.775, 3.85, 4.975, 15),
+                ("box", 3.85, 0.775, 4.975, 4.975, 30.75), ("cyl", 2.5, 1.5625, 0.8, 116), ("cyl", 2.5, 3.3125, 1.07, 47.5)],
+        frags=[(0.45, 4.6, 0.3, 26), (4.6, 0.45, 0.28, 24), (2.05, 1.25, 0.35, 46), (1.0, 3.6, 0.25, 14)],
+        mount=(2.5, 1.5625, RUIN_POLE_Z["europe"], core), mount2=None, glassy=True,
+        debris=[frame, core, core, glass, steel], glass=[glass, glass2], slab=core), 5, 5)
+    render("capital-europe" + (f"-d{damage}" if damage else ""), (5, 5), 94 * S)
 
 
 # ================================================================ Grand Mosque
@@ -568,7 +268,7 @@ def m_minaret(M, u, v, z):
     ROD((u, v, z + 52), (u, v, z + 56), 0.006, M["gold"])
 
 
-def grand_mosque():
+def grand_mosque(damage=0):
     M = m_mats()
     Z = 3
     B(0, 0, 4, 4, 0, Z, M["stone"])
@@ -613,13 +313,22 @@ def grand_mosque():
     m_box(M, 2.85, 2.3, 1.13, 1.68, Z, 20)
     m_arcade(M, "left", 2.85, 2.3, 1.13, 1.68, Z, 20, 3, 2)
     m_arcade(M, "right", 2.85, 2.3, 1.13, 1.68, Z, 20, 4, 2)
-    render("capital-islamic", (5, 5), 115 * S)
+    ruin(damage, dict(
+        ground=3.75, top=146, seed=41, split=2.9, drop=[(2.5, 1.375, 1.2)],
+        blocks=[("box", 0.025, 0.025, 0.9, 2.875, 31.75), ("box", 0.9, 0.025, 4.1, 2.56, 44), ("cyl", 2.5, 1.375, 1.14, 116),
+                ("box", 4.1, 0.025, 4.975, 2.875, 31.75), ("box", 0.025, 2.875, 1.44, 4.975, 31.75), ("box", 1.44, 2.44, 3.56, 3.19, 73.75),
+                ("box", 1.44, 3.19, 3.56, 4.975, 27.5), ("box", 3.56, 2.875, 4.975, 4.975, 31.75),
+                ("cyl", 1.625, 2.81, 0.17, 144), ("cyl", 3.375, 2.81, 0.17, 144)],
+        frags=[(1.625, 2.81, 0.16, 42), (1.6, 3.15, 0.25, 32), (4.7, 0.3, 0.25, 22), (0.25, 4.75, 0.25, 20)],
+        mount=(2.5, 1.375, RUIN_POLE_Z["islamic"], M["stone"]), mount2=None,
+        debris=[M["sand"], M["sand"], M["stone"], M["tile"], M["tile_d"], M["cream"]], glass=[], slab=M["stone"]), 5, 5)
+    render("capital-islamic" + (f"-d{damage}" if damage else ""), (5, 5), 115 * S)
 
 
 # ================================================================ Global Monitoring Center
 
 
-def worldbank():
+def worldbank(damage=0):
     plaza = mat("#a29d92", 0.95, grain=0.15, scale=8)
     marble = mat("#ecebe6", 0.6, grain=0.05, scale=30)
     roofm = mat("#9aa0a3", 0.8, grain=0.08)
@@ -665,13 +374,24 @@ def worldbank():
     B(u - 0.01, v - 0.01, w + 0.02, d + 0.02, z + h, 0.8, marble)
     # Entrance canopy.
     B(1.55, 3.86, 0.9, 0.14, 8, 1.2, mat("#f4f2ec", 0.5, grain=0))
-    render("worldbank", (5, 5), 110 * S)
+    ruin(damage, dict(
+        ground=3.75, top=138, seed=51, split=2.9,
+        blocks=[("box", 0.025, 0.025, 4.975, 4.975, 11.25), ("box", 0.125, 0.125, 4.875, 2.125, 27.6), ("box", 0.125, 2.875, 4.875, 4.875, 27.6),
+                ("box", 1.25, 2.125, 3.75, 2.875, 136)],
+        frags=[(1.55, 2.55, 0.3, 56), (4.6, 4.6, 0.25, 22), (0.4, 4.6, 0.22, 18), (4.6, 0.4, 0.22, 16)],
+        mount=(2.5, 2.5, RUIN_POLE_Z["worldbank"], marble), mount2=None, glassy=True,
+        debris=[marble, marble, roofm, plaza, glass], glass=[], slab=marble), 5, 5)
+    render("worldbank" + (f"-d{damage}" if damage else ""), (5, 5), 110 * S)
 
+
+# Art px: top of the masonry block each flag pole stands on at damage stage 3 (the TS arts' RUIN_POLE_Z).
+RUIN_POLE_Z = {"europe": 14.0, "islamic": 14.0, "worldbank": 16.0}
 
 MODELS = {
-    "capital-usa": white_house,
-    "capital-russia": kremlin,
     "capital-europe": eu,
     "capital-islamic": grand_mosque,
     "worldbank": worldbank,
 }
+for _k, _f in list(MODELS.items()):
+    for _d in (1, 2, 3):
+        MODELS[f"{_k}-d{_d}"] = (lambda f=_f, d=_d: f(d))

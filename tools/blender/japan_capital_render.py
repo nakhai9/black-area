@@ -23,6 +23,7 @@ import bmesh
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import kit  # noqa: E402
+import capital_damage  # noqa: E402
 from kit import _obj, box, cylinder, dome, lathe, mat, prism, render, rod, roof, zp  # noqa: E402,F401  (infrastructure only)
 
 D = 2.4
@@ -186,10 +187,77 @@ def build():
         box(u0, 1.85, 0.14, 0.22, 3, 19.6, rough)
     steps(eu0 + 0.1, eu1 - 0.1, 2.4, 7.6, 4, 0.04, mat("#9f9b92", 0.75, grain=0.1, scale=30))
 
+    # ART_GUIDE detail pass.
+    TEAM_LINE = mat("#bc2a3a", 0.55, grain=0)  # faction identity line (recoloured to the holder in game)
+    joint = mat("#6f6b65", 0.9, grain=0.05)
+    # Granite base: ashlar coursing (bed joints and staggered head joints) on the visible faces.
+    for face, lo, hi, plane in (("left", 0.3, 3.7, 2.25), ("right", 0.1, 2.25, 3.7)):
+        for k, zz in enumerate((4.3, 5.6)):
+            put(face, lo, hi, plane, zz, 0.12, 0.003, joint)
+        for k in range(3):
+            n = int((hi - lo) / 0.16)
+            for i in range(n):
+                a = lo + (i + (0.5 if k % 2 else 0.0)) * (hi - lo) / n
+                if lo < a < hi:
+                    put(face, a - 0.003, a + 0.003, plane, 3 + k * 1.3, 1.25, 0.003, joint)
+    # Team line along the roof-plate fascia (front and side) and on the canopy edge.
+    put("left", 0.36, 3.64, 2.04, 38.62, 0.46, 0.008, TEAM_LINE)
+    put("right", 0.12, 2.04, 3.64, 38.62, 0.46, 0.008, TEAM_LINE)
+    put("left", 0.28, 3.72, 2.27, 7.08, 0.44, 0.006, TEAM_LINE)
+    put("right", 0.08, 2.27, 3.72, 7.08, 0.44, 0.006, TEAM_LINE)
+    put("left", eu0 - 0.1, eu1 + 0.1, 2.22, 22.8, 0.6, 0.008, TEAM_LINE)
+    # Main roof deck: membrane seams, a coping kerb round the edge, plant boxes and vents.
+    seam = mat("#767875", 0.9, grain=0.05)
+    for i in range(1, 16):
+        box(0.42 + i * 3.16 / 16, 0.18, 0.006, 1.8, 39.15, 0.03, seam)
+    for j in range(1, 8):
+        box(0.42, 0.18 + j * 1.8 / 8, 3.16, 0.006, 39.15, 0.03, seam)
+    cop = mat("#f1f2ee", 0.45, grain=0.02)
+    box(0.38, 0.14, 3.24, 0.03, 39.1, 0.6, cop)
+    box(0.38, 1.99, 3.24, 0.03, 39.1, 0.6, cop)
+    box(0.38, 0.17, 0.03, 1.82, 39.1, 0.56, cop)
+    box(3.59, 0.17, 0.03, 1.82, 39.1, 0.56, cop)
+    plant = mat("#b7bab8", 0.5, metal=0.4, grain=0.03)
+    grille = mat("#55595c", 0.6, metal=0.5, grain=0)
+    for u0, v0 in ((0.5, 0.25), (3.1, 0.25), (0.5, 1.6), (3.12, 1.62)):
+        box(u0, v0, 0.3, 0.22, 39.15, 2.2, plant)
+        box(u0 + 0.03, v0 + 0.22, 0.24, 0.004, 39.5, 1.5, grille)
+        box(u0 + 0.3, v0 + 0.03, 0.004, 0.16, 39.5, 1.5, grille)
+        cylinder(u0 + 0.15, v0 + 0.11, 0.06, 41.35, 0.3, grille, 16)
+    for u, v in ((1.5, 1.8), (2.6, 1.8), (3.3, 1.0)):
+        cylinder(u, v, 0.025, 39.15, 1.6, plant, 12)
+        cylinder(u, v, 0.04, 40.75, 0.4, plant, 12)
+    # Roof-storey deck round the helipad: paving joints and coping.
+    for i in range(1, 9):
+        box(0.95 + i * 2.1 / 9, 0.4, 0.006, 1.2, 47.0, 0.03, seam)
+    box(0.95, 1.57, 2.1, 0.03, 47.0, 0.5, cop)
+    box(3.02, 0.4, 0.03, 1.2, 47.0, 0.5, cop)
+    # Entrance: a steel door frame, canopy downlights and two bollard lamps by the steps.
+    dark = mat("#2a2c2d", 0.3, metal=0.5, grain=0)
+    put("left", eu0 + 0.38, eu0 + 0.62, 2.042, 7.6, 7.0, 0.006, mat("#9aa0a3", 0.35, metal=0.8, grain=0))
+    put("left", eu0 + 0.4, eu0 + 0.6, 2.048, 7.6, 6.5, 0.004, dark)
+    lamp = mat("#eeeeea", 0.3, grain=0)
+    for i in range(5):
+        cylinder(eu0 + 0.1 + i * 0.2, 2.1, 0.015, 22.45, 0.15, lamp, 8)
+    for u in (eu0 + 0.02, eu1 - 0.02):
+        cylinder(u, 2.38, 0.018, 3, 2.4, dark, 10)
+        cylinder(u, 2.38, 0.024, 5.4, 0.4, lamp, 10)
+
     poles()
+    return locals()
 
 
-kit.reset()
-build()
-smooth_round_parts()
-render("nation-japan", (4, D), HEIGHT)
+def damage_cfg(L):
+    """Damage stages (capital_damage.py): the east half of the glass block and roof storey goes at stage 2."""
+    return dict(
+        rects=[(0.55, 0.3, 3.45, 1.85, 7.6, 39.6), (1.0, 0.45, 3.0, 1.55, 39.1, 47.4)],
+        base=7.6, walls=[L["slab"], L["gran"], L["slab"], L["roofm"], L["rough"]], roof=L["roofm"], team=L["TEAM_LINE"],
+        glass=None, curtain=True, split=2.0, floors=[15.1, 22.6, 30.1], team_z=12, seed=81,
+    )
+
+
+for _d in capital_damage.stages():
+    kit.reset()
+    capital_damage.apply(_d, damage_cfg(build()))
+    smooth_round_parts()
+    render("nation-japan" + (f"-d{_d}" if _d else ""), (4, D), HEIGHT)

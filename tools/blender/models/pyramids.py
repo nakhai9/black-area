@@ -4,6 +4,7 @@ import random
 
 import kit
 from kit import box, lathe, mat, prism, render, roof, zp
+from models._damage import ruined_render
 
 # [u, v, side, height, kind]: 0 plain, 1 Khafre's casing cap, 2 Khufu's flat summit (as in Pyramids.ts).
 PYRAMIDS = [
@@ -68,7 +69,7 @@ def sphinx(u, v):
         box(u + 0.94, v + 0.07, 0.005, 0.36, 7.6 + k * 1.4, 0.4, mat("#8f7040", 0.95, grain=0.2))
 
 
-def pyramids():
+def pyramids(damage=0):
     kit.ZS = 1.0
     try:
         rnd = random.Random(7)
@@ -77,9 +78,9 @@ def pyramids():
         for u, v, w, h, kind in PYRAMIDS:
             stepped(u, v, w, h, kind, rnd)
         sphinx(4.1, 4.5)
-        render("pyramids", (6, 6), 84)
+        ruined_render("pyramids", (6, 6), 84, damage, seed=41, cut_u=3.0)
     finally:
         kit.ZS = 1.35
 
 
-MODELS = {"pyramids": pyramids}
+MODELS = {"pyramids": pyramids, **{f"pyramids-d{d}": (lambda d=d: pyramids(d)) for d in (1, 2, 3)}}

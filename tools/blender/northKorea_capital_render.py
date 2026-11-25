@@ -23,6 +23,7 @@ import bmesh
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import kit  # noqa: E402
+import capital_damage  # noqa: E402
 from kit import _obj, box, cylinder, dome, lathe, mat, prism, render, rod, roof, zp  # noqa: E402,F401  (infrastructure only)
 
 D = 2.4
@@ -189,10 +190,66 @@ def build():
     # Very wide flight of steps to the plaza.
     steps(0.9, 3.1, 2.38, 8.7, 9, 0.04, mat("#c2bbad", 0.75, grain=0.1, scale=30))
 
+    # ART_GUIDE detail pass.
+    TEAM_LINE = mat("#a8322b", 0.7, grain=0.04)  # faction identity line, same red as the attic panel (recoloured in game)
+    joint = mat("#c6beb0", 0.85, grain=0.05)
+    # Ashlar coursing on the corner pavilions, the side front and the terrace.
+    for u0 in (U0 - 0.05, U1 - 0.5):
+        for k in range(1, 10):
+            put("left", u0 + 0.02, u0 + 0.53, V1 + 0.11, 8.7 + k * 2.1, 0.14, 0.004, joint)
+    for k in range(1, 3):
+        put("left", 0.2, 3.8, 1.98, 3 + k * 1.6, 0.12, 0.003, mat("#8e877a", 0.85, grain=0.05))
+        put("right", 0.12, 1.98, 3.8, 3 + k * 1.6, 0.12, 0.003, mat("#8e877a", 0.85, grain=0.05))
+    # Dentil course under the main cornice (front, between the pavilions) and under the side cornice.
+    for face, lo, hi, plane, zz in (("left", U0 + 0.52, C0 - 0.02, V1, 28.05), ("left", C1 + 0.02, U1 - 0.52, V1, 28.05),
+                                    ("right", V0 - 0.03, V1 + 0.11, U1 + 0.05, 29.05)):
+        n = int((hi - lo) / 0.035)
+        for i in range(n):
+            c = lo + (i + 0.5) * (hi - lo) / n
+            put(face, c - 0.009, c + 0.009, plane, zz, 0.6, 0.05 if face == "left" else 0.035, light)
+    # Team line round the parapet.
+    put("left", U0 - 0.03, U1 + 0.03, V1 + 0.04, 31.5, 0.6, 0.006, TEAM_LINE)
+    put("right", V0 - 0.02, V1 + 0.04, U1 + 0.03, 31.5, 0.6, 0.006, TEAM_LINE)
+    put("left", C0 - 0.04, C1 + 0.04, CV1 + 0.02, 31.5, 0.6, 0.006, TEAM_LINE)
+    # Flat roofs: membrane seams, plant boxes and vents.
+    seam = mat("#666867", 0.9, grain=0.05)
+    for i in range(1, 22):
+        box(U0 + 0.03 + i * (U1 - U0 - 0.06) / 22, V0 + 0.03, 0.006, V1 - V0, 33.65, 0.03, seam)
+    for j in range(1, 6):
+        box(U0 + 0.03, V0 + 0.03 + j * (V1 - V0) / 6, U1 - U0 - 0.06, 0.006, 33.65, 0.03, seam)
+    plant = mat("#9c9e9c", 0.6, metal=0.3, grain=0.04)
+    for u0 in (0.6, 3.05):
+        box(u0, 0.55, 0.32, 0.5, 33.65, 1.8, plant)
+        for i in range(4):
+            box(u0 + 0.04 + i * 0.07, 1.05, 0.03, 0.004, 34.0, 1.2, seam)
+    for u, v in ((0.9, 1.4), (1.15, 0.5), (2.85, 0.5), (3.1, 1.4)):
+        cylinder(u, v, 0.03, 33.65, 1.3, plant, 12)
+        cylinder(u, v, 0.045, 34.95, 0.35, plant, 12)
+    for i in range(1, 6):
+        box(C0 + 0.22 + i * (C1 - C0 - 0.44) / 6, V0 + 0.47, 0.006, CV1 - V0 - 0.76, 45.75, 0.03, seam)
+    # Entrance: stone door surrounds with a lintel, a bronze threshold.
+    for i in range(3):
+        c = C0 + (i + 1) * (C1 - C0) / 4
+        put("left", c - 0.11, c - 0.09, CV1 - 0.285, 8.7, 11, 0.014, light)
+        put("left", c + 0.09, c + 0.11, CV1 - 0.285, 8.7, 11, 0.014, light)
+        put("left", c - 0.12, c + 0.12, CV1 - 0.285, 19.7, 1.0, 0.02, light)
+
     poles()
+    return locals()
 
 
-kit.reset()
-build()
-smooth_round_parts()
-render("nation-northKorea", (4, D), HEIGHT)
+def damage_cfg(L):
+    """Damage stages (capital_damage.py): the east half goes at stage 2, rubble field at stage 3."""
+    return dict(
+        rects=[(0.3, 0.27, 3.7, 1.83, 8.7, 34.1), (1.35, 0.5, 2.65, 2.02, 33.8, 45.7)],
+        base=8.7, walls=[L["stone"], L["light"], L["dark"], L["stone"]], roof=L["roofing"], team=L["TEAM_LINE"],
+        glass=L["glass"], split=2.0, floors=[14.5, 22.0, 28.7], team_z=14, columns=[], seed=91,
+    )
+
+
+for _d in capital_damage.stages():
+    kit.reset()
+    capital_damage.apply(_d, damage_cfg(build()))
+    smooth_round_parts()
+    render("nation-northKorea" + (f"-d{_d}" if _d else ""), (4, D), HEIGHT)
+

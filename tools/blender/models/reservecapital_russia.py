@@ -8,7 +8,8 @@ Layout as in the photos, front on +u:
 - a lower tower on each side (along v), ribbed the same way, crenellated with corner pinnacles;
 - a low base block joining them with the entrance portal in the middle;
 - two separate forward blocks at the front corners round the forecourt, with giant pilasters, a cornice and an attic.
-Flat tops carry crenellations, pinnacles, parapets and paving joints (no bare roof face).
+Flat tops carry crenellations, pinnacles, parapets, paving joints both ways and roof vents (no bare roof face).
+Windows sit back behind jambs, a lintel and a sill; the portal has door leaves, fanlights and lamps.
 Team colour (TEAM["russia"]): bands under the cornices of the shaft, the side towers and the forward blocks.
 
 Plot: u 0..3 (front +u), v 0..4. Own geometry only (kit primitives and materials).
@@ -16,6 +17,7 @@ Plot: u 0..3 (front +u), v 0..4. Own geometry only (kit primitives and materials
 import math
 
 from kit import box, cylinder, lathe, mat, render, rod, roof, zp, TEAM
+from models._damage import ruined_render
 
 W, D = 3, 4
 
@@ -30,16 +32,22 @@ def ribbed(u0, v0, w, d, z, h, stone, rib, bay, n_v, n_u, frame=None):
         c = v0 + (k + 0.5) * d / n_v
         for f in range(floors):
             zz = z + 0.9 + f * 3.2
-            box(u0 + w, c - d / n_v * 0.22, 0.008, d / n_v * 0.44, zz, 1.9, bay)
-            box(u0 + w, c - d / n_v * 0.27, 0.014, d / n_v * 0.54, zz - 0.3, 0.3, trim)
+            box(u0 + w, c - d / n_v * 0.22, 0.006, d / n_v * 0.44, zz, 1.9, bay)
+            box(u0 + w, c - d / n_v * 0.27, 0.016, d / n_v * 0.54, zz - 0.3, 0.3, trim)  # sill
+            box(u0 + w, c - d / n_v * 0.25, 0.012, d / n_v * 0.5, zz + 1.9, 0.25, trim)  # lintel
+            for e in (-0.25, 0.22):  # jambs proud of the glass: the pane reads set back
+                box(u0 + w, c + d / n_v * e, 0.012, d / n_v * 0.03, zz, 1.9, trim)
     for k in range(n_v + 1):
         box(u0 + w, v0 + k * d / n_v - 0.012, 0.022, 0.024, z, h, rib)
     for k in range(n_u):  # +v face windows
         c = u0 + (k + 0.5) * w / n_u
         for f in range(floors):
             zz = z + 0.9 + f * 3.2
-            box(c - w / n_u * 0.22, v0 + d, w / n_u * 0.44, 0.008, zz, 1.9, bay)
-            box(c - w / n_u * 0.27, v0 + d, w / n_u * 0.54, 0.014, zz - 0.3, 0.3, trim)
+            box(c - w / n_u * 0.22, v0 + d, w / n_u * 0.44, 0.006, zz, 1.9, bay)
+            box(c - w / n_u * 0.27, v0 + d, w / n_u * 0.54, 0.016, zz - 0.3, 0.3, trim)  # sill
+            box(c - w / n_u * 0.25, v0 + d, w / n_u * 0.5, 0.012, zz + 1.9, 0.25, trim)  # lintel
+            for e in (-0.25, 0.22):
+                box(c + w / n_u * e, v0 + d, w / n_u * 0.03, 0.012, zz, 1.9, trim)
     for k in range(n_u + 1):
         box(u0 + k * w / n_u - 0.012, v0 + d, 0.024, 0.022, z, h, rib)
     white = mat("#ece3cf", 0.7, grain=0.04)
@@ -74,7 +82,22 @@ def crown(u0, v0, w, d, z, stone, stone_d, team, pinnacle=True, pylon=0.0, merlo
             box(cu - s / 2 - 0.01, cv - s / 2 - 0.01, s + 0.02, s + 0.02, zt, 0.6, stone_d)
             lathe(cu, cv, zt + 0.6, [(s * 0.45, 0), (0.0, 5 if pylon else 3.5)], stone_d, segs=4)
             cylinder(cu, cv, 0.006, zt + (5.6 if pylon else 4.1), 1.2, mat("#d4af4f", 0.3, metal=0.9, grain=0), 6)
+    for k in range(1, max(2, round(w / 0.2))):  # roof joints the other way too
+        box(u0 + w * k / max(2, round(w / 0.2)) - 0.008, v0 + 0.03, 0.016, d - 0.06, z + 2.0, 0.2, joint)
     return z + 3.4
+
+
+def roof_vents(u0, v0, w, d, z, n):
+    """Ventilation boxes with louvres and mushroom vents on a flat roof."""
+    body = mat("#a8a196", 0.7, metal=0.2, grain=0.05)
+    dark = mat("#45474a", 0.5, metal=0.5, grain=0)
+    for k in range(n):
+        cu = u0 + w * (k + 0.5) / n
+        box(cu - 0.08, v0 + d * 0.3, 0.16, 0.12, z, 2.2, body)
+        for j in range(3):
+            box(cu - 0.06 + j * 0.045, v0 + d * 0.3 + 0.12, 0.025, 0.004, z + 0.4, 1.4, dark)
+        cylinder(cu, v0 + d * 0.72, 0.025, z, 1.6, body, 10)
+        lathe(cu, v0 + d * 0.72, z + 1.6, [(0.045, 0), (0.0, 0.8)], dark, 10, cap_bottom=True)
 
 
 def emblem(face, at, c, z, gold, team):
@@ -87,7 +110,7 @@ def emblem(face, at, c, z, gold, team):
         box(c - 0.06, at + 0.006, 0.12, 0.012, z + 1.0, 4.0, team)
 
 
-def reserve_capital_russia():
+def reserve_capital_russia(damage=0):
     team = mat(TEAM["russia"], 0.5, grain=0)
     stone = mat("#cdb48a", 0.75, grain=0.1, scale=24)  # ochre facing stone
     stone_d = mat("#b39a72", 0.8, grain=0.1, scale=24)
@@ -104,7 +127,11 @@ def reserve_capital_russia():
 
     # Low base block joining the towers, entrance portal in the middle.
     ribbed(0.3, 0.45, 1.7, 3.1, 2.2, 16, stone, rib, bay, 16, 9, frame)
-    crown(0.3, 0.45, 1.7, 3.1, 18.2, stone, stone_d, team, pinnacle=False, merlons=False)
+    bz = crown(0.3, 0.45, 1.7, 3.1, 18.2, stone, stone_d, team, pinnacle=False, merlons=False)
+    for (pu, pv, pw, pd) in ((0.3, 0.45, 1.7, 0.03), (0.3, 3.52, 1.7, 0.03), (0.3, 0.45, 0.03, 3.1), (1.97, 0.45, 0.03, 3.1)):
+        box(pu, pv, pw, pd, 20.2, 1.4, stone)  # parapet coping round the base roof
+    roof_vents(0.35, 0.5, 0.35, 0.3, bz - 1.2, 1)
+    roof_vents(0.35, 2.3, 0.35, 0.25, bz - 1.2, 1)
     box(2.0, 1.72, 0.18, 0.56, 1, 9, stone_d)  # portal frame
     box(2.18, 1.8, 0.01, 0.4, 1, 7, bay)
     for k in range(4):
@@ -112,6 +139,12 @@ def reserve_capital_russia():
     box(2.0, 1.7, 0.2, 0.6, 9.6, 1.2, stone)
     for k in range(3):
         box(2.2 + k * 0.08, 1.75 + k * 0.03, 0.08, 0.5 - k * 0.06, 1, 1.0 - k * 0.3, stone_d)
+    for k in range(3):  # door leaves with glazed fanlights between the columns
+        cv_ = 1.82 + k * 0.13
+        box(2.182, cv_, 0.006, 0.1, 1, 5, mat("#3a2e26", 0.6, grain=0.05))
+        box(2.182, cv_ + 0.01, 0.008, 0.08, 6.2, 0.7, glass)
+    for cv_ in (1.74, 2.26):  # portal lamps
+        box(2.19, cv_ - 0.015, 0.02, 0.03, 7.4, 0.9, mat("#e8d690", 0.4, grain=0, emit="#ffd890"))
 
     # Side towers (lower), each side of the shaft along v: a lower stage and an inset upper stage, each crowned.
     for v0 in (0.85, 2.55):
@@ -172,8 +205,10 @@ def reserve_capital_russia():
         box(2.751, v0 + 0.25, 0.012, 0.35, 25, 2, gold)  # relief panel
         for k in range(1, 4):
             box(2.1, v0 + 0.1 + k * 0.65 / 4 - 0.008, 0.65, 0.016, 27.6, 0.2, stone_d)
+        box(2.08, v0 + 0.08, 0.69, 0.69, 26.4, 0.7, stone_d)  # attic cornice
+        roof_vents(2.15, v0 + 0.15, 0.55, 0.5, 27.6, 1)
 
-    render("reservecapital-russia", (W, D), 140)
+    ruined_render("reservecapital-russia", (W, D), 140, damage, seed=11, cut_u=1.5)
 
 
-MODELS = {"reservecapital-russia": reserve_capital_russia}
+MODELS = {"reservecapital-russia": reserve_capital_russia, **{f"reservecapital-russia-d{d}": (lambda d=d: reserve_capital_russia(d)) for d in (1, 2, 3)}}

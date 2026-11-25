@@ -1,6 +1,5 @@
 import { Airfield } from '../entities/Airfield';
 import { Port } from '../entities/Port';
-import { AlliedBuilding } from '../entities/AlliedBuilding';
 import { ParallelGovernment } from '../entities/ParallelGovernment';
 import { Barracks } from '../entities/Barracks';
 import { Capital } from '../entities/Capital';
@@ -19,6 +18,7 @@ import { PowerPlant } from '../entities/PowerPlant';
 import { TechCenter } from '../entities/TechCenter';
 import { RadarTower } from '../entities/RadarTower';
 import { FuelStation } from '../entities/FuelStation';
+import { MilitaryGarage } from '../entities/MilitaryGarage';
 import { ReserveCapital } from '../entities/ReserveCapital';
 import { Vehicle } from '../entities/Vehicle';
 import { WarFactory } from '../entities/WarFactory';
@@ -58,12 +58,12 @@ const ENTITY_CLASSES: Readonly<Record<string, abstract new (...args: never[]) =>
   TechCenter,
   RadarTower,
   FuelStation,
+  MilitaryGarage,
   ReserveCapital,
   OilDerrick,
   HappyCity,
   PowerPlant,
   Flagpole,
-  AlliedBuilding,
   ParallelGovernment,
   Bunker,
   LdewEmplacement,

@@ -21,6 +21,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import kit  # noqa: E402
+import capital_damage  # noqa: E402
 from kit import box, cylinder, dome, mat, render, rod, roof, zp  # noqa: E402  (infrastructure only)
 
 D = 2.4
@@ -60,6 +61,26 @@ def opening(face, a0, a1, plane, z, h, glass, frame, sill=None):
     put((a0 + a1) / 2 - bar / 3, (a0 + a1) / 2 + bar / 3, z, h, t * 0.7, frame)
     if sill is not None:
         put(a0 - bar * 2, a1 + bar * 2, z - f - 0.8, 0.8, t * 2.2, sill)
+        put(a0 - bar * 2.5, a1 + bar * 2.5, z + h + f + 0.1, 0.7, t * 2.0, sill)  # lintel / hood moulding
+
+
+def seams(x0, x1, y0, y1, z, h, axis, n, material):
+    """Standing seams down both slopes of a gable roof (ridge along v at the u middle), plus the raised ridge."""
+    cu = (x0 + x1) / 2
+    for k in range(n + 1):
+        v = y0 + 0.01 + k * (y1 - y0 - 0.02) / n
+        rod((x0 + 0.004, v, zp(z) + 0.004), (cu, v, zp(z + h) + 0.004), 0.0035, material, 4)
+        rod((x1 - 0.004, v, zp(z) + 0.004), (cu, v, zp(z + h) + 0.004), 0.0035, material, 4)
+    rod((cu, y0, zp(z + h) + 0.004), (cu, y1, zp(z + h) + 0.004), 0.008, material, 6)
+
+
+def dentils(face, lo, hi, plane, z, material, n):
+    for i in range(n):
+        c = lo + (i + 0.5) * (hi - lo) / n
+        if face == "left":
+            box(c - 0.008, plane, 0.016, 0.03, z, 0.6, material)
+        else:
+            box(plane, c - 0.008, 0.03, 0.016, z, 0.6, material)
 
 
 def bays(face, lo, hi, plane, z0, z1, n, glass, frame, sill, pil):
@@ -133,6 +154,25 @@ def build():
     box(U0 + 0.02, V0 + 0.02, U1 - U0 - 0.04, V1 - V0 - 0.04, 30.1, 2.2, wall())
     box(U0, V0, U1 - U0, V1 - V0, 32.3, 0.5, light())
     box(U0 + 0.1, V0 + 0.1, U1 - U0 - 0.2, V1 - V0 - 0.2, 32.8, 0.2, mat("#8d8e8c", 0.6, metal=0.3, grain=0.02))
+    # Dentils under the cornice on both visible faces.
+    dm = mat("#d6d3cb", 0.75, grain=0.04)
+    dentils("left", U0, U1, V1 - 0.01, 28.6, dm, 72)
+    dentils("right", V0, V1, U1 - 0.01, 28.6, dm, 30)
+    # Team line: a band on the attic frieze (saturated, recoloured to the holder in game).
+    team = mat("#2f5fb8", 0.5, grain=0.03)
+    box(U0 + 0.012, V0 + 0.012, U1 - U0 - 0.024, V1 - V0 - 0.024, 30.5, 1.3, team)
+    # Flat roof: membrane joints, roof hatches and vent boxes.
+    jm = mat("#6f706e", 0.7, metal=0.2, grain=0.02)
+    for i in range(1, 14):
+        box(U0 + 0.1 + i * (U1 - U0 - 0.2) / 14 - 0.004, V0 + 0.1, 0.008, V1 - V0 - 0.2, 32.95, 0.12, jm)
+    for i in range(1, 6):
+        box(U0 + 0.1, V0 + 0.1 + i * (V1 - V0 - 0.2) / 6 - 0.004, U1 - U0 - 0.2, 0.008, 32.95, 0.12, jm)
+    plant = mat("#9a9b98", 0.6, metal=0.4, grain=0.03)
+    for u, v in ((0.6, 0.6), (0.6, 1.4), (3.3, 0.6), (3.3, 1.4)):
+        box(u - 0.09, v - 0.07, 0.18, 0.14, 33.0, 1.6, plant)
+        box(u - 0.1, v - 0.08, 0.2, 0.16, 34.6, 0.3, jm)
+    for u in (1.0, 1.25, 2.75, 3.0):
+        cylinder(u, 0.5, 0.025, 33.0, 2.0, plant, 10)
 
     # Portico: six Corinthian columns, deep entablature, sculpted pediment, the doors behind.
     P0, P1, PV = 1.36, 2.64, 2.06
@@ -146,8 +186,19 @@ def build():
     box(P0 - 0.06, V1, P1 - P0 + 0.12, PV - V1 + 0.08, 27.8, 1.4, light())
     box(P0 - 0.09, V1, P1 - P0 + 0.18, PV - V1 + 0.11, 29.2, 0.9, mat("#bdb9b0", 0.8, grain=0.06))
     roof(P0 - 0.09, V1, P1 - P0 + 0.18, PV - V1 + 0.11, 30.1, 6, mat("#c9c6be", 0.8, grain=0.05), kind="gable", ridge="v", overhang=0.0)
+    seams(P0 - 0.09, P1 + 0.09, V1, PV + 0.11, 30.1, 6, "v", 10, mat("#b2afa8", 0.6, metal=0.3, grain=0.02))
     # Tympanum relief: a darker sculpted group inside the pediment.
     box(P0 + 0.25, PV + 0.1, P1 - P0 - 0.5, 0.006, 30.3, 2.4, mat("#a6a29a", 0.85, grain=0.08))
+    # Door surrounds: a raised architrave and a cornice cap over each of the three doors.
+    for i in range(3):
+        c = P0 + (i + 0.5) * (P1 - P0) / 3
+        box(c - 0.11, V1 + 0.006, 0.22, 0.02, 21.0, 0.9, light())
+    # Bronze lamps flanking the steps.
+    lamp = mat("#3d3a33", 0.4, metal=0.7, grain=0)
+    for u in (P0 - 0.05, P1 + 0.05):
+        cylinder(u, PV + 0.2, 0.02, 3, 6.0, lamp, 10)
+        cylinder(u, PV + 0.2, 0.035, 9.0, 1.6, mat("#f2e6b0", 0.3, emit="#f2e6b0"), 12)
+        cylinder(u, PV + 0.2, 0.04, 10.6, 0.4, lamp, 12)
     # Broad flight of granite steps.
     for k in range(7):
         box(P0 - 0.02, PV + 0.07 + k * 0.03, P1 - P0 + 0.04, 0.034, 3, 7.8 - k * 1.1, mat(GRANITE, 0.9, grain=0.12))
@@ -180,6 +231,7 @@ def build():
     rod((CU, CV, zp(68.8)), (CU, CV, zp(73)), 0.007, mat("#d8d8d8", 0.3, metal=0.9, grain=0), 6)
 
     poles()
+    return locals()
 
 
 def smooth_round_parts():
@@ -193,7 +245,19 @@ def smooth_round_parts():
     bpy.ops.object.shade_smooth_by_angle(angle=math.radians(38))
 
 
-kit.reset()
-build()
-smooth_round_parts()
-render("nation-ukraine", (4, D), HEIGHT)
+def damage_cfg(L):
+    """Damage stages (capital_damage.py): the east half goes at stage 2, rubble field at stage 3."""
+    return dict(
+        rects=[(0.3, 0.32, 3.7, 1.72, 10.0, 32.8), (1.54, 0.56, 2.46, 1.48, 32.8, 64.0)],
+        base=10.0, walls=[wall(), light(), L["pil"], L["sill"]], roof=L["jm"], team=L["team"],
+        glass=L["glass"], split=2.0, floors=[19.2, 27.8], team_z=8,
+        columns=[(L["P0"] + (i + 0.5) * (L["P1"] - L["P0"]) / 6, L["PV"], 0.032) for i in range(6)], seed=93,
+    )
+
+
+for _d in capital_damage.stages():
+    kit.reset()
+    capital_damage.apply(_d, damage_cfg(build()))
+    smooth_round_parts()
+    render("nation-ukraine" + (f"-d{_d}" if _d else ""), (4, D), HEIGHT)
+

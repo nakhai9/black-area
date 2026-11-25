@@ -8,14 +8,13 @@ export const BUILD_RADIUS = 3;
 /**
  * Support structures (the Defense tab): they never widen the build area. A new structure is measured only from the
  * nation's base structures (RA2 build radius), so walls, gates and bunkers cannot be chained outward. The claim flag
- * stays an anchor: the Allied Building is raised next to it on newly claimed land.
+ * stays an anchor: the nation may build next to it on newly claimed land.
  */
 export const SUPPORT_TYPES: ReadonlySet<string> = new Set(['bunker', 'wall', 'gate']);
 
 /** How far (cells) from an own structure's edge a structure of this kind may be placed. */
 export function buildRadius(type: string): number {
   type = type.split('@')[0]!; // a foreign nation's wall / gate / … follows its base type's rule
-  if (type === 'reserveCapital') return Number.POSITIVE_INFINITY; // hidden reserve: anywhere the nation can build
   return type === 'bunker' || type === 'ldew' || type === 'dvina' ? BUNKER_BUILD_RADIUS : type === 'wall' ? WALL_BUILD_RADIUS : type === 'gate' ? GATE_BUILD_RADIUS : BUILD_RADIUS;
 }
 
@@ -35,7 +34,7 @@ export function isCoastal(type: string): boolean {
   return type === 'port';
 }
 
-export type PlacementResult = { ok: true } | { ok: false; reason: PlacementBlocker | 'units' | 'tooFar' | 'claimed' | 'nearOil' | 'antarctica' | 'mined' };
+export type PlacementResult = { ok: true } | { ok: false; reason: PlacementBlocker | 'units' | 'tooFar' | 'nearOil' | 'antarctica' | 'mined' };
 
 /** Free cells every new structure (any nation) must leave between itself and the edge of any oil derrick. */
 export const OIL_DERRICK_CLEARANCE = 4;
@@ -44,7 +43,7 @@ export const OIL_DERRICK_CLEARANCE = 4;
 export const ANTARCTIC_ROW = Math.floor(((90 + 60) / 180) * GRID_HEIGHT);
 
 /**
- * Land nobody owns yet, where a Squatters team may plant its flag and an Allied Building may stand: dry land outside
+ * Land nobody owns yet, where a Squatters team may plant its flag: dry land outside
  * every nation's home territory, never water, ice or Antarctica.
  */
 export function isClaimable(map: TileMap, x: number, y: number): boolean {
@@ -63,8 +62,6 @@ export interface PlacementRequest {
   naval?: boolean;
   /** Naval Port: quay on the shore, basin and mouth on water (see coastBlocker). */
   coastal?: boolean;
-  /** Allied Building: every cell must be unclaimed land (see isClaimable). */
-  unclaimedOnly?: boolean;
   /** Cells it may stand from an own structure's edge (default BUILD_RADIUS). */
   radius?: number;
   /** Wall / gate: a bunker of the builder also counts as an anchor (to wall it in). */
@@ -88,7 +85,6 @@ export function cellGap(
  *    no soldier or vehicle (parked aircraft included) may stand on any of its cells;
  * 2. the footprint must lie within BUILD_RADIUS cells of one of the builder's own base structures (SUPPORT_TYPES never count,
  *    except a bunker for a wall / gate, so bunkers, silos and Dvina sites can be walled in);
- * 3. an Allied Building stands on unclaimed land only (land claimed by a Squatters team, see isClaimable);
  * 4. at least OIL_DERRICK_CLEARANCE free cells between it and the edge of every oil derrick (anyone's);
  * 5. no structure overlaps another one (whole footprints, margin ring included);
  * 7. never on a cell with a land mine (anyone's), see `mined`;
@@ -109,7 +105,6 @@ export class PlacementSystem {
     // No structure may overlap another one, not even in the margin ring round the art.
     if (this.overlapsBuilding(req)) return { ok: false, reason: 'occupied' };
     if (req.y + req.d > ANTARCTIC_ROW) return { ok: false, reason: 'antarctica' };
-    if (req.unclaimedOnly && !this.allClaimable(req)) return { ok: false, reason: 'claimed' };
     if (this.nearDerrick(req)) return { ok: false, reason: 'nearOil' };
     for (let y = req.y; y < req.y + req.d; y++) for (let x = req.x; x < req.x + req.w; x++) if (this.mined(x, y)) return { ok: false, reason: 'mined' };
     if (this.unitsInside(req)) return { ok: false, reason: 'units' };
@@ -171,11 +166,6 @@ export class PlacementSystem {
   /** Is any living oil derrick closer than OIL_DERRICK_CLEARANCE cells to the footprint? */
   private nearDerrick(req: PlacementRequest): boolean {
     return this.entities.buildings().some((b) => b.alive && b.spec.type === 'oilDerrick' && cellGap(req, b) < OIL_DERRICK_CLEARANCE);
-  }
-
-  private allClaimable(req: PlacementRequest): boolean {
-    for (let y = req.y; y < req.y + req.d; y++) for (let x = req.x; x < req.x + req.w; x++) if (!isClaimable(this.map, x, y)) return false;
-    return true;
   }
 
   /** Does any living soldier or ground vehicle (anyone's) stand on one of the footprint's cells? */

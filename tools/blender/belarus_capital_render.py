@@ -121,7 +121,55 @@ def smooth_round_parts():
     bpy.context.view_layer.objects.active = meshes[0]
     bpy.ops.object.shade_smooth_by_angle(angle=math.radians(38))
 
+
+def lintels(face, lo, hi, plane, z, h, n, material, fill=0.5):
+    """A stone lintel over every window of a row (matches row(): frame top at z + h + 0.7)."""
+    step = (hi - lo) / n
+    for i in range(n):
+        c = lo + (i + 0.5) * step
+        w = step * fill / 2 + 0.02
+        put(face, c - w, c + w, plane, z + h + 0.7, 0.8, 0.026, material)
+
+
+def course(face, lo, hi, plane, zs, material, h=0.16, depth=0.006):
+    """Stone coursing / string courses: thin proud bands across a visible face."""
+    for z in zs:
+        put(face, lo, hi, plane, z, h, depth, material)
+
+
+def dentils(face, lo, hi, plane, z, h, material, step=0.05, w=0.018, depth=0.02):
+    n = int((hi - lo) / step)
+    for i in range(n):
+        c = lo + (i + 0.5) * (hi - lo) / n
+        put(face, c - w / 2, c + w / 2, plane, z, h, depth, material)
+
+
+def roof_joints(u0, u1, v0, v1, z, material, su=0.22, sv=0.22, w=0.007):
+    """Membrane / paving joints on a flat roof whose top is at z (raised a hair, never coplanar)."""
+    n = max(1, int((u1 - u0) / su))
+    for i in range(1, n):
+        box(u0 + i * (u1 - u0) / n - w / 2, v0, w, v1 - v0, z, 0.08, material)
+    n = max(1, int((v1 - v0) / sv))
+    for i in range(1, n):
+        box(u0, v0 + i * (v1 - v0) / n - w / 2, u1 - u0, w, z, 0.08, material)
+
+
+def plant(u, v, z, su, sv, h, body, lid):
+    """Rooftop plant box / vent: a casing with louvre bands and a lid."""
+    box(u, v, su, sv, z, h, body)
+    for k in range(1, 3):
+        box(u - 0.003, v - 0.003, su + 0.006, sv + 0.006, z + h * k / 3 - 0.15, 0.15, lid)
+    box(u - 0.006, v - 0.006, su + 0.012, sv + 0.012, z + h, 0.3, lid)
+
+
+def lamp(u, v, z, h, pole, light):
+    rod((u, v, zp(z)), (u, v, zp(z + h)), 0.006, pole, 8)
+    cylinder(u, v, 0.016, z + h, 1.0, light, 12)
+    cylinder(u, v, 0.02, z + h + 1.0, 0.3, pole, 12)
+
+
 HEIGHT = 60
+TEAM_LINE = "#c8313e"  # Belarusian red: saturated, so the game recolours it to the holder (recolorPixels)
 
 SAND = "#ddd2bb"
 SAND_LIGHT = "#ebe3d1"
@@ -136,6 +184,11 @@ def build():
     frame = mat("#cfc4ab", 0.6, metal=0.2, grain=0.03)
     sill = mat("#c7bb9f", 0.8, grain=0.05)
 
+    gjoint = mat("#4e4c48", 0.7, grain=0.05)
+    rjoint = mat("#6f6f6b", 0.9, grain=0)
+    team = mat(TEAM_LINE, 0.55, grain=0)
+    bronze = mat("#5e4a30", 0.4, metal=0.6, grain=0.03)
+
     plaza("#b5aea0", "#9f998c")
     U0, U1, V0, V1 = 0.3, 3.7, 0.25, 1.7
     # Granite base storey with a moulded top course.
@@ -143,12 +196,17 @@ def build():
     box(U0 - 0.05, V0 - 0.05, U1 - U0 + 0.1, V1 - V0 + 0.1, 9, 0.7, mat("#7c7a75", 0.55, grain=0.08))
     for face, lo, hi, plane, n in (("left", U0, U1, V1 + 0.04, 26), ("right", V0, V1, U1 + 0.04, 11)):
         row(face, lo + 0.04, hi - 0.04, plane, 4.6, 3.0, n, glass, mat("#55534f", 0.5, grain=0), None, fill=0.45, mullion=False)
+        course(face, lo, hi, plane, (4.0, 8.4), gjoint, h=0.12, depth=0.004)  # rusticated granite joints
     # Main block: two giant storeys of limestone with full-height pilasters and tall windows.
     box(U0, V0, U1 - U0, V1 - V0, 9.7, 21, stone)
     for face, lo, hi, plane, n in (("left", U0, U1, V1, 20), ("right", V0, V1, U1, 8)):
         pilasters(face, lo, hi, plane, 9.7, 21, n, light, w=0.05, depth=0.03)
         row(face, lo, hi, plane, 12.0, 6.6, n, glass, frame, sill, fill=0.42, transom=True)
         row(face, lo, hi, plane, 21.4, 6.6, n, glass, frame, sill, fill=0.42, transom=True)
+        lintels(face, lo, hi, plane, 12.0, 6.6, n, light, fill=0.42)
+        lintels(face, lo, hi, plane, 21.4, 6.6, n, light, fill=0.42)
+        course(face, lo, hi, plane, (20.2,), light, h=0.35, depth=0.012)  # string course between the storeys
+        dentils(face, lo, hi, plane, 30.1, 0.6, light)
     # Corner pavilions stepped forward, plain walls with a single tall window between paired pilasters.
     for u0 in (U0 - 0.06, U1 - 0.5):
         box(u0, V0 - 0.02, 0.56, V1 - V0 + 0.12, 9.7, 21, stone)
@@ -162,6 +220,12 @@ def build():
     box(U0 - 0.06, V0 - 0.04, U1 - U0 + 0.12, V1 - V0 + 0.2, 35.7, 0.5, light)
     roofing = mat("#8a8a86", 0.9, grain=0.1, scale=40)
     box(U0 + 0.03, V0 + 0.03, U1 - U0 - 0.06, V1 - V0 + 0.08, 36.2, 0.05, roofing)
+    roof_joints(U0 + 0.03, U1 - 0.03, V0 + 0.03, V1 + 0.11, 36.25, rjoint, 0.25, 0.3)
+    # Team line round the attic (recoloured to the holder in game).
+    put("left", U0 - 0.04, U1 + 0.04, V1 + 0.14, 34.0, 0.6, 0.006, team)
+    put("right", V0 - 0.02, V1 + 0.14, U1 + 0.04, 34.0, 0.6, 0.006, team)
+    for pu, pv in ((0.6, 0.45), (3.05, 0.45), (3.05, 1.5), (0.6, 1.5)):
+        plant(pu, pv, 36.25, 0.16, 0.12, 2.2, mat("#9a9893", 0.6, metal=0.4, grain=0.03), mat("#6f6e6a", 0.6, metal=0.4, grain=0))
 
     # Raised central block behind the portico: clerestory band, cornice.
     C0, C1, CV0, CV1 = 1.25, 2.75, 0.55, 1.45
@@ -172,6 +236,9 @@ def build():
     box(C0 - 0.05, CV0 - 0.05, C1 - C0 + 0.1, CV1 - CV0 + 0.1, 46.6, 1.0, light)
     box(C0 + 0.02, CV0 + 0.02, C1 - C0 - 0.04, CV1 - CV0 - 0.04, 47.6, 1.4, stone)
     box(C0 + 0.05, CV0 + 0.05, C1 - C0 - 0.1, CV1 - CV0 - 0.1, 49.0, 0.05, roofing)
+    roof_joints(C0 + 0.05, C1 - 0.05, CV0 + 0.05, CV1 - 0.05, 49.05, rjoint, 0.2, 0.22)
+    put("left", C0 - 0.05, C1 + 0.05, CV1 + 0.05, 46.85, 0.5, 0.006, team)
+    put("right", CV0 - 0.05, CV1 + 0.05, C1 + 0.05, 46.85, 0.5, 0.006, team)
 
     # Giant portico: eight round columns over a raised granite floor, entablature with the emblem, deep shade behind.
     P0, P1, PV = 1.3, 2.7, 2.0
@@ -182,12 +249,18 @@ def build():
         c = P0 + (i + 1) * (P1 - P0) / 4
         put("left", c - 0.08, c + 0.08, V1 + 0.01, 9.7, 9.5, 0.006, door)
         put("left", c - 0.1, c + 0.1, V1 + 0.01, 19.2, 0.7, 0.012, light)
+        put("left", c - 0.1, c - 0.08, V1 + 0.01, 9.7, 9.5, 0.012, light)  # door surrounds
+        put("left", c + 0.08, c + 0.1, V1 + 0.01, 9.7, 9.5, 0.012, light)
+        put("left", c - 0.004, c + 0.004, V1 + 0.01, 9.7, 9.5, 0.01, bronze)
+        lamp(c - 0.13, V1 + 0.05, 9.7, 5.5, bronze, mat("#f4ecd2", 0.3, grain=0))
     for i in range(8):
         column(P0 + (i + 0.5) * (P1 - P0) / 8, PV - 0.03, 9.7, 21, 0.038, light, stone, 24)
     box(P0 - 0.08, V1, P1 - P0 + 0.16, PV - V1 + 0.04, 30.7, 2.6, light)
     box(P0 - 0.1, V1, P1 - P0 + 0.2, PV - V1 + 0.07, 33.3, 0.9, mat(SAND_LIGHT, 0.7, grain=0.04))
     box(P0 - 0.06, V1, P1 - P0 + 0.12, PV - V1 + 0.04, 34.2, 3.4, stone)
     box(P0, V1, P1 - P0, PV - V1 - 0.02, 37.6, 0.05, roofing)
+    roof_joints(P0, P1, V1, PV - 0.02, 37.65, rjoint, 0.2, 0.15)
+    put("left", P0 - 0.1, P1 + 0.1, PV + 0.07, 33.45, 0.5, 0.006, team)
     # State emblem: a gilded disc on a red-green field, framed by wreaths, on the attic.
     box(1.88, PV + 0.04, 0.24, 0.006, 34.6, 2.8, mat("#b9a36a", 0.4, metal=0.6, grain=0.04))
     box(1.94, PV + 0.045, 0.12, 0.006, 35.0, 2.0, mat("#2f6b45", 0.6, grain=0.02))
@@ -200,7 +273,11 @@ def build():
     poles()
 
 
-kit.reset()
-build()
-smooth_round_parts()
-render("nation-belarus", (4, D), HEIGHT)
+import nation_damage  # noqa: E402
+
+for stage in nation_damage.stages():  # -- 0 1 2 3 (default: all): intact, then the damage stages d1..d3
+    kit.reset()
+    build()
+    smooth_round_parts()
+    nation_damage.apply(stage)
+    render("nation-belarus" + nation_damage.suffix(stage), (4, D), HEIGHT)

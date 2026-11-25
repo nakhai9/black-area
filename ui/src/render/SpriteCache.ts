@@ -153,12 +153,23 @@ export class SpriteCache {
     return roof;
   }
 
-  private build(key: string, mirrored: boolean): Sprite {
+  /** Art of a sprite key: registered, a flag / team-colour variant, or a damage stage (`…~n`) of one of those. */
+  private resolve(key: string): BuildingArt | undefined {
     let art = this.registry.get(key);
-    if (!art) {
+    if (art) return art;
+    const dm = /^(.*)~(\d+)(%\w+)?$/.exec(key);
+    if (dm) {
+      const base = this.resolve(dm[1]! + (dm[3] ?? ''));
+      art = base ? (base.damaged?.(Number(dm[2])) ?? base) : undefined;
+    } else {
       art = flagVariantArt(key) ?? teamColoredArt(key) ?? (teamColorOwner(key) ? this.registry.get(baseKeyOf(key)) : undefined);
-      if (art) this.registry.set(key, art);
     }
+    if (art) this.registry.set(key, art);
+    return art;
+  }
+
+  private build(key: string, mirrored: boolean): Sprite {
+    const art = this.resolve(key);
     if (!art) throw new Error(`No building art registered for '${key}'`);
     // An art piece may be drawn larger than it was authored (see BuildingArt.scale): everything the sprite is
     // measured from — footprint and height — grows with it, and the painter draws into a scaled context.

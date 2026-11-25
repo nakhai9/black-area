@@ -164,9 +164,16 @@ def lancet(face, a0, a1, plane, z, h, glass, trim):
     """Pointed-arch window: a trim surround standing proud, the dark glass set back inside it, a centre mullion."""
     b = (a1 - a0) * 0.18
     plate(face, lancet_outline(a0 - b, a1 + b, z - 0.6, h + 1.0), plane, 0.008, trim)
-    plate(face, lancet_outline(a0, a1, z, h), plane, 0.012, glass)
+    plate(face, lancet_outline(a0, a1, z, h), plane, 0.011, glass)
+    # Raised frame moulding round the opening, standing proud of the glass so it reads set back.
+    pts = lancet_outline(a0, a1, z, h, 6)
+    off = plane + 0.017
+    P = [((x, off, zp(zz)) if face == "left" else (off, x, zp(zz))) for x, zz in pts]
+    for i in range(len(P)):
+        rod(P[i], P[(i + 1) % len(P)], 0.0045, trim, 4)
     put(face, (a0 + a1) / 2 - 0.003, (a0 + a1) / 2 + 0.003, plane, z, h * 0.8, 0.016, trim)
-    put(face, a0 - b, a1 + b, plane, z - 1.2, 0.6, 0.02, trim)
+    put(face, a0, a1, plane, z + h * 0.45, 0.35, 0.015, trim)  # transom bar
+    put(face, a0 - b * 1.4, a1 + b * 1.4, plane, z - 1.3, 0.7, 0.026, trim)  # sill
 
 
 def lancets(face, lo, hi, plane, z, h, n, glass, trim, fill=0.45):
@@ -198,6 +205,55 @@ def crenel(face, lo, hi, plane, z, material, n):
         put(face, lo + i * st, lo + i * st + st * 0.55, plane - 0.03, z + 1.2, 1.2, 0.03, material)
 
 
+def roof_detail(u, v, w, d, z, h, kind, ridge, seam, cap, n_front, n_side, eave=None):
+    """No plain roof faces (ART_GUIDE 5): standing seams on the two visible slopes (+v and +u eaves), raised ridge
+    and hip rolls, and a trimmed eave set just under the roof edge (never coplanar with it)."""
+    u1, v1, cu, cv = u + w, v + d, u + w / 2, v + d / 2
+    if kind == "pyramid":
+        hu, hv = w / 2, d / 2
+    elif ridge == "u":
+        hv = d / 2
+        hu = d / 2 if kind == "hip" else None
+    else:
+        hu = w / 2
+        hv = w / 2 if kind == "hip" else None
+    lift, r = 0.0035, 0.0032
+    if hv is not None and n_front:
+        for i in range(n_front):
+            x = u + (i + 0.5) * w / n_front
+            t = hv if (kind == "gable" and ridge == "u") else min(hv, x - u, u1 - x)
+            rod((x, v1 + 0.002, zp(z) + lift), (x, v1 - t, zp(z + h * t / hv) + lift), r, seam, 4)
+    if hu is not None and n_side:
+        for i in range(n_side):
+            y = v + (i + 0.5) * d / n_side
+            t = hu if (kind == "gable" and ridge == "v") else min(hu, y - v, v1 - y)
+            rod((u1 + 0.002, y, zp(z) + lift), (u1 - t, y, zp(z + h * t / hu) + lift), r, seam, 4)
+    top = zp(z + h) + lift
+    if kind == "pyramid":
+        ends = [(cu, cv)] * 2
+    elif ridge == "u":
+        ends = [(u + (hu or 0), cv), (u1 - (hu or 0), cv)]
+    else:
+        ends = [(cu, v + (hv or 0)), (cu, v1 - (hv or 0))]
+    if ends[0] != ends[1]:
+        rod((ends[0][0], ends[0][1], top), (ends[1][0], ends[1][1], top), r * 2.2, cap, 6)
+    if kind != "gable":
+        near = lambda pu, pv: min(ends, key=lambda e: (e[0] - pu) ** 2 + (e[1] - pv) ** 2)
+        for pu, pv in ((u1, v1), (u, v1), (u1, v)):
+            e = near(pu, pv)
+            rod((pu, pv, zp(z) + lift), (e[0], e[1], top), r * 1.8, cap, 6)
+    if eave is not None:
+        box(u - 0.01, v - 0.01, w + 0.02, d + 0.02, z - 0.55, 0.5, eave)
+
+
+def coursing(face, lo, hi, plane, z0, z1, material, step=1.7):
+    """Ashlar bed joints: thin darker lines on the wall face, behind every trim and buttress."""
+    zz = z0 + step
+    while zz < z1:
+        put(face, lo, hi, plane, zz, 0.22, 0.003, material)
+        zz += step
+
+
 def build():
     sand = mat("#cdbf98", 0.85, grain=0.18, scale=30)       # Nepean sandstone
     trim = mat("#e4dcc4", 0.75, grain=0.06)                 # Ohio sandstone trim
@@ -205,6 +261,9 @@ def build():
     copper_dk = mat("#4e7f6a", 0.55, metal=0.3, grain=0.1)
     glass = mat("#2f363e", 0.1, metal=0.15, grain=0, glass=True)
     grass = mat("#6b8f45", 0.95, grain=0.25, scale=50)
+    joint = mat("#a99a74", 0.9, grain=0.05)
+    seam = mat("#82b79c", 0.5, metal=0.3, grain=0.05)
+    team = mat("#d52b1e", 0.6, grain=0.02)  # faction identity line: Canada red band
 
     plaza("#b2ab9b", "#9c9586")
     box(0.05, 1.9, 1.75, 0.45, 3, 0.4, grass)
@@ -217,6 +276,15 @@ def build():
         box(2.0 + math.cos(a) * 0.39 - 0.025, 0.42 + math.sin(a) * 0.39 - 0.025, 0.05, 0.05, 3, 19, sand)
         pinnacle(2.0 + math.cos(a) * 0.39, 0.42 + math.sin(a) * 0.39, 22, 6, trim, copper_dk)
     lathe(2.0, 0.42, 25, [(0.37, 0), (0.29, 8), (0.13, 17), (0.08, 19)], copper, 32, cap_bottom=True)
+    prof = [(0.375, 0), (0.295, 8), (0.135, 17), (0.085, 19)]
+    for i in range(16):  # standing-seam ribs on the conical roof
+        a = i / 16 * 2 * math.pi
+        if math.cos(a) + math.sin(a) < -0.4:
+            continue
+        pts = [(2.0 + math.cos(a) * rr, 0.42 + math.sin(a) * rr, zp(25 + zz)) for rr, zz in prof]
+        for k in range(3):
+            rod(pts[k], pts[k + 1], 0.004, seam, 4)
+    cylinder(2.0, 0.42, 0.385, 24.2, 0.7, trim, 32)  # eave ring under the roof
     cylinder(2.0, 0.42, 0.08, 44, 6, trim, 16)
     lathe(2.0, 0.42, 50, [(0.09, 0), (0.05, 5), (0.005, 11)], copper_dk, 16, cap_bottom=True)
 
@@ -225,7 +293,9 @@ def build():
     box(U0, V0, U1 - U0, V1 - V0, 3, 27, sand)
     box(U0 - 0.02, V0 - 0.02, U1 - U0 + 0.04, V1 - V0 + 0.04, 3, 3.5, trim)
     for face, lo, hi, plane, n in (("left", U0, 1.75, V1, 6), ("left", 2.25, U1, V1, 6), ("right", V0, V1, U1, 5)):
+        coursing(face, lo, hi, plane, 6.5, 26.5, joint)
         buttresses(face, lo, hi, plane, 3, 27, n, sand)
+        put(face, lo, hi, plane, 25.6, 1.0, 0.032, team)
         lancets(face, lo, hi, plane, 7.5, 5.0, n, glass, trim)
         lancets(face, lo, hi, plane, 15.0, 5.0, n, glass, trim)
         lancets(face, lo, hi, plane, 22.0, 3.6, n, glass, trim)
@@ -234,6 +304,7 @@ def build():
         crenel(face, lo, hi, plane + 0.03, 28.2, trim, n * 3)
     box(U0 - 0.03, V0 - 0.03, U1 - U0 + 0.06, V1 - V0 + 0.06, 27.0, 1.2, trim)
     roof(U0 + 0.04, V0 + 0.04, U1 - U0 - 0.08, V1 - V0 - 0.08, 28.2, 20, copper, kind="hip", ridge="u", overhang=0.0)
+    roof_detail(U0 + 0.04, V0 + 0.04, U1 - U0 - 0.08, V1 - V0 - 0.08, 28.2, 20, "hip", "u", seam, copper_dk, 44, 14)
     for i in range(10):  # dormers in the front slope
         c = U0 + 0.2 + i * (U1 - U0 - 0.4) / 9
         if abs(c - 2.0) < 0.3:
@@ -251,12 +322,15 @@ def build():
         P0, P1 = 0.95, 1.55
         box(u0, P0, 0.5, P1 - P0 + 0.36, 3, 32, sand)
         for face, lo, hi, plane, n in (("left", u0, u0 + 0.5, P1 + 0.36, 2), ("right", P0, P1 + 0.36, u0 + 0.5, 3)):
+            coursing(face, lo, hi, plane, 6.5, 31.5, joint)
             buttresses(face, lo, hi, plane, 3, 32, n, sand)
+            put(face, lo, hi, plane, 30.4, 1.0, 0.032, team)
             lancets(face, lo, hi, plane, 7.5, 5.0, n, glass, trim)
             lancets(face, lo, hi, plane, 15.0, 5.0, n, glass, trim)
             lancets(face, lo, hi, plane, 22.0, 6.5, n, glass, trim)
         box(u0 - 0.03, P0 - 0.03, 0.56, P1 - P0 + 0.42, 32, 1.4, trim)
         roof(u0, P0, 0.5, P1 - P0 + 0.36, 33.4, 26, copper, kind="hip", ridge="v", overhang=0.0)
+        roof_detail(u0, P0, 0.5, P1 - P0 + 0.36, 33.4, 26, "hip", "v", seam, copper_dk, 9, 16)
         for pu, pv in ((u0, P0), (u0 + 0.5, P0), (u0, P1 + 0.36), (u0 + 0.5, P1 + 0.36)):
             pinnacle(pu, pv, 33.4, 9, trim, copper_dk)
 
@@ -268,13 +342,21 @@ def build():
         box(pu - 0.035, pv - 0.035, 0.07, 0.07, 3, 80, sand)
     plate("left", lancet_outline(1.88, 2.12, 3, 15), TV1, 0.01, trim)
     plate("left", lancet_outline(1.92, 2.08, 3, 13), TV1, 0.014, mat("#2a2622", 0.9, grain=0))
+    bronze = mat("#5b4a33", 0.45, metal=0.7, grain=0.05)
+    plate("left", lancet_outline(1.945, 2.055, 4.5, 8.5), TV1, 0.018, bronze)  # the bronze doors in the arch
+    put("left", 1.997, 2.003, TV1, 4.5, 7.0, 0.021, mat("#2a2622", 0.9, grain=0))
+    for c in (1.9, 2.1):  # the lamps either side of the arch
+        put("left", c - 0.006, c + 0.006, TV1, 9.0, 2.4, 0.03, bronze)
+        put("left", c - 0.012, c + 0.012, TV1 + 0.018, 9.6, 1.6, 0.024, mat("#f2dfa0", 0.4, grain=0, emit="#f2dfa0"))
     for face, lo, hi, plane in (("left", T0, T1, TV1), ("right", TV0, TV1, T1)):
         if face == "right":
             lancets(face, lo, hi, plane, 8, 10, 2, glass, trim, fill=0.5)
         lancets(face, lo, hi, plane, 24, 22, 2, glass, trim, fill=0.5)
         lancets(face, lo, hi, plane, 52, 18, 2, glass, trim, fill=0.5)
+        coursing(face, lo, hi, plane, 18, 83, joint, step=2.2)
         for zz in (21, 48, 73):
             put(face, lo, hi, plane, zz, 1.0, 0.02, trim)
+        put(face, lo, hi, plane, 81.0, 1.6, 0.038, team)
     # Clock stage.
     box(T0 - 0.04, TV0 - 0.04, T1 - T0 + 0.08, TV1 - TV0 + 0.08, 84, 12, trim)
     face_m = mat("#f4efe0", 0.5, grain=0.02)
@@ -293,6 +375,7 @@ def build():
     crenel("right", TV0 - 0.05, TV1 + 0.05, T1 + 0.05, 97.2, trim, 6)
     # Spire: steep copper pyramid with small lucarnes, a slim finial and the flagstaff.
     roof(T0 + 0.01, TV0 + 0.01, T1 - T0 - 0.02, TV1 - TV0 - 0.02, 97.2, 22, copper, kind="pyramid", overhang=0.0)
+    roof_detail(T0 + 0.01, TV0 + 0.01, T1 - T0 - 0.02, TV1 - TV0 - 0.02, 97.2, 22, "pyramid", "u", seam, copper_dk, 7, 7)
     for face, mid, plane in (("left", 2.0, TV1 - 0.08), ("right", (TV0 + TV1) / 2, T1 - 0.08)):
         put(face, mid - 0.03, mid + 0.03, plane, 101, 4.5, 0.05, copper_dk)
     rod((2.0, (TV0 + TV1) / 2, zp(118)), (2.0, (TV0 + TV1) / 2, zp(126)), 0.007, mat("#d8d8d8", 0.3, metal=0.9, grain=0))
@@ -302,7 +385,11 @@ def build():
     poles()
 
 
-kit.reset()
-build()
-smooth_round_parts()
-render("nation-canada", (4, D), HEIGHT)
+import nation_damage  # noqa: E402
+
+for stage in nation_damage.stages():  # -- 0 1 2 3 (default: all): intact, then the damage stages d1..d3
+    kit.reset()
+    build()
+    smooth_round_parts()
+    nation_damage.apply(stage)
+    render("nation-canada" + nation_damage.suffix(stage), (4, D), HEIGHT)

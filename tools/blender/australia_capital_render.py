@@ -120,7 +120,55 @@ def smooth_round_parts():
     bpy.context.view_layer.objects.active = meshes[0]
     bpy.ops.object.shade_smooth_by_angle(angle=math.radians(38))
 
+
+def lintels(face, lo, hi, plane, z, h, n, material, fill=0.5):
+    """A stone lintel over every window of a row (matches row(): frame top at z + h + 0.7)."""
+    step = (hi - lo) / n
+    for i in range(n):
+        c = lo + (i + 0.5) * step
+        w = step * fill / 2 + 0.02
+        put(face, c - w, c + w, plane, z + h + 0.7, 0.8, 0.026, material)
+
+
+def course(face, lo, hi, plane, zs, material, h=0.16, depth=0.006):
+    """Stone coursing / string courses: thin proud bands across a visible face."""
+    for z in zs:
+        put(face, lo, hi, plane, z, h, depth, material)
+
+
+def dentils(face, lo, hi, plane, z, h, material, step=0.05, w=0.018, depth=0.02):
+    n = int((hi - lo) / step)
+    for i in range(n):
+        c = lo + (i + 0.5) * (hi - lo) / n
+        put(face, c - w / 2, c + w / 2, plane, z, h, depth, material)
+
+
+def roof_joints(u0, u1, v0, v1, z, material, su=0.22, sv=0.22, w=0.007):
+    """Membrane / paving joints on a flat roof whose top is at z (raised a hair, never coplanar)."""
+    n = max(1, int((u1 - u0) / su))
+    for i in range(1, n):
+        box(u0 + i * (u1 - u0) / n - w / 2, v0, w, v1 - v0, z, 0.08, material)
+    n = max(1, int((v1 - v0) / sv))
+    for i in range(1, n):
+        box(u0, v0 + i * (v1 - v0) / n - w / 2, u1 - u0, w, z, 0.08, material)
+
+
+def plant(u, v, z, su, sv, h, body, lid):
+    """Rooftop plant box / vent: a casing with louvre bands and a lid."""
+    box(u, v, su, sv, z, h, body)
+    for k in range(1, 3):
+        box(u - 0.003, v - 0.003, su + 0.006, sv + 0.006, z + h * k / 3 - 0.15, 0.15, lid)
+    box(u - 0.006, v - 0.006, su + 0.012, sv + 0.012, z + h, 0.3, lid)
+
+
+def lamp(u, v, z, h, pole, light):
+    rod((u, v, zp(z)), (u, v, zp(z + h)), 0.006, pole, 8)
+    cylinder(u, v, 0.016, z + h, 1.0, light, 12)
+    cylinder(u, v, 0.02, z + h + 1.0, 0.3, pole, 12)
+
+
 HEIGHT = 70
+TEAM_LINE = "#1f4fc0"  # Australian blue: a saturated hue, so the game recolours it to the holder (recolorPixels)
 
 
 def curved_wall(cu, v0, v1, bow, z, h, t, material, n=24):
@@ -147,14 +195,30 @@ def build():
     grass = mat("#6b8a46", 0.95, grain=0.25, scale=50)
     steel = mat("#cfd3d6", 0.25, metal=0.95, grain=0)
 
+    sill = mat("#e2d9c8", 0.7, grain=0.05)
+    joint = mat("#b2a48e", 0.85, grain=0.06)
+    team = mat(TEAM_LINE, 0.55, grain=0)
+    paving = mat("#c9c1b2", 0.85, grain=0.08, scale=30)
+    pjoint = mat("#9e968a", 0.9, grain=0)
+    bronze = mat("#6e5536", 0.4, metal=0.6, grain=0.03)
+
     plaza("#c2b8a6", "#aba294")
     # Low granite halls under the lawns.
     U0, U1, V0, V1 = 0.25, 3.75, 0.3, 1.75
     box(U0, V0, U1 - U0, V1 - V0, 3, 13, gran)
     frame = mat("#8b8f92", 0.4, metal=0.5, grain=0)
     for face, lo, hi, plane, n in (("left", U0, 1.2, V1, 7), ("left", 2.8, U1, V1, 7), ("right", V0, V1, U1, 10)):
-        row(face, lo + 0.03, hi - 0.03, plane, 5.5, 6.0, n, glass, frame, None, fill=0.6, mullion=False)
+        row(face, lo + 0.03, hi - 0.03, plane, 5.5, 6.0, n, glass, frame, sill, fill=0.6, mullion=False, transom=True)
+        lintels(face, lo + 0.03, hi - 0.03, plane, 5.5, 6.0, n, sill, fill=0.6)
+        course(face, lo, hi, plane, (3.9, 13.6, 14.8), joint)
+        dentils(face, lo, hi, plane, 15.4, 0.6, sill)
+    for u in (1.2, 2.8):  # granite piers closing the window runs either side of the verandah
+        put("left", u - 0.04, u + 0.04, V1, 3, 13, 0.03, sill)
     box(U0 - 0.03, V0 - 0.03, U1 - U0 + 0.06, V1 - V0 + 0.06, 16, 0.8, mat("#ddd5c6", 0.7, grain=0.05))
+    # Team line along the parapet coping (recoloured to the holder in game).
+    put("right", V0 - 0.03, V1 + 0.03, U1 + 0.03, 16.15, 0.5, 0.006, team)
+    for lo, hi in ((U0 - 0.03, 1.15), (2.85, U1 + 0.03)):
+        put("left", lo, hi, V1 + 0.03, 16.15, 0.5, 0.006, team)
     # Lawns over the roof, sloping down to the ground at both ends, as on Capital Hill.
     box(U0 + 0.02, V0 + 0.02, U1 - U0 - 0.04, V1 - V0 - 0.04, 16.8, 0.5, grass)
     for u_lo, u_hi, up in ((0.0, U0 + 0.4, True), (U1 - 0.4, 4.0, False)):
@@ -171,6 +235,20 @@ def build():
             bm.faces.new((ring[0][i], ring[0][j], ring[1][j], ring[1][i]))
         bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
         _obj("lawn_ramp", bm, grass)
+
+    # Roof: paved walk along the ridge of the lawns, the paved court round the flagmast, glazed skylights.
+    box(U0 + 0.3, 0.94, U1 - U0 - 0.6, 0.12, 17.3, 0.12, paving)
+    box(1.5, 0.5, 1.0, 1.0, 17.3, 0.14, paving)
+    roof_joints(1.5, 2.5, 0.5, 1.5, 17.44, pjoint, 0.2, 0.2)
+    for k in range(1, 12):
+        box(U0 + 0.3 + k * (U1 - U0 - 0.6) / 12, 0.94, 0.006, 0.12, 17.42, 0.06, pjoint)
+    skyf = mat("#9aa0a4", 0.4, metal=0.6, grain=0)
+    for su in (0.75, 3.05):
+        for sv in (0.5, 1.3):
+            box(su - 0.01, sv - 0.01, 0.22, 0.2, 17.3, 0.5, skyf)
+            box(su, sv, 0.2, 0.18, 17.8, 0.6, glass)
+            for k in range(1, 4):
+                box(su + k * 0.05 - 0.004, sv, 0.008, 0.18, 17.8, 0.7, skyf)
 
     # The two great curved walls, bowing outward, rising above the lawns.
     curved_wall(1.25, 0.2, 1.85, -0.35, 3, 21, 0.07, gran)
@@ -193,6 +271,21 @@ def build():
     box(C0 - 0.02, V1, C1 - C0 + 0.04, GV - V1 - 0.02, 24.9, 1.2, marble)
     box(C0 + 0.02, V1 + 0.02, C1 - C0 - 0.04, GV - V1 - 0.06, 26.1, 0.05, mat("#bdb8ae", 0.85, grain=0.08))
     box(1.93, GV - 0.035, 0.14, 0.006, 18.9, 3.6, mat("#b89a52", 0.4, metal=0.7, grain=0.03))  # coat of arms
+    # Team line on the verandah fascia and the raised centre's cornice; joints on the centre's paved roof.
+    put("left", G0 - 0.04, C0 - 0.02, GV + 0.01, 17.3, 0.55, 0.006, team)
+    put("left", C1 + 0.02, G1 + 0.04, GV + 0.01, 17.3, 0.55, 0.006, team)
+    put("left", C0 - 0.02, C1 + 0.02, GV - 0.02, 25.2, 0.5, 0.006, team)
+    roof_joints(C0 + 0.02, C1 - 0.02, V1 + 0.02, GV - 0.04, 26.15, pjoint, 0.1, 0.1)
+    # Main entrance: bronze-framed glass doors behind the verandah columns, a low granite step, lamps.
+    for c in (1.82, 2.0, 2.18):
+        put("left", c - 0.06, c + 0.06, GV - 0.1, 4.2, 7.0, 0.012, bronze)
+        put("left", c - 0.045, c + 0.045, GV - 0.1, 4.2, 6.2, 0.016, glass)
+        put("left", c - 0.003, c + 0.003, GV - 0.1, 4.2, 6.2, 0.02, bronze)
+    box(1.65, GV + 0.01, 0.7, 0.035, 3, 0.5, sill)
+    lamp_pole = mat("#3c3f42", 0.5, metal=0.6, grain=0)
+    lamp_glass = mat("#f4ecd2", 0.3, grain=0)
+    for u in (1.28, 2.72):
+        lamp(u, 2.06, 3, 7, lamp_pole, lamp_glass)
 
     # Forecourt pool.
     pool = mat("#3d5f72", 0.05, grain=0, glass=True)
@@ -209,7 +302,11 @@ def build():
     poles()
 
 
-kit.reset()
-build()
-smooth_round_parts()
-render("nation-australia", (4, D), HEIGHT)
+import nation_damage  # noqa: E402
+
+for stage in nation_damage.stages():  # -- 0 1 2 3 (default: all): intact, then the damage stages d1..d3
+    kit.reset()
+    build()
+    smooth_round_parts()
+    nation_damage.apply(stage)
+    render("nation-australia" + nation_damage.suffix(stage), (4, D), HEIGHT)

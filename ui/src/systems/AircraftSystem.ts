@@ -29,7 +29,8 @@ export const PORT_AIRCRAFT: ReadonlySet<VehicleKind> = new Set<VehicleKind>(['je
 /** Structures some aircraft can land, park and be repaired at: the Airfield, and the Naval Port when PORT_AIRCRAFT allows. */
 export const isAirBase = (b: Building): boolean => b.spec.type === 'airfield' || (b.spec.type === 'port' && PORT_AIRCRAFT.size > 0);
 /** Can an aircraft of `kind` take `b` as its base (land, park, be rearmed there)? */
-export const canBaseAt = (b: Building, kind: VehicleKind): boolean => b.spec.type === 'airfield' || (b.spec.type === 'port' && PORT_AIRCRAFT.has(kind));
+/** Helicopters never park on an Airfield (or a Port apron): they set down on open ground. Player and AI alike. */
+export const canBaseAt = (b: Building, kind: VehicleKind): boolean => kind !== 'heli' && (b.spec.type === 'airfield' || (b.spec.type === 'port' && PORT_AIRCRAFT.has(kind)));
 /** Parking spots of an air base: PARKING_SLOTS on an Airfield, PORT_AIR_SLOTS on a Naval Port. */
 export const parkingSlots = (b: Building): number => (b.spec.type === 'port' ? PORT_AIR_SLOTS : PARKING_SLOTS);
 /** Spots per apron row; within a row the next spot lies ahead (towards the runway end). */

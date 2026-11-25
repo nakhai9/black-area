@@ -39,3 +39,9 @@ def oil_tank(key):
 
 
 MODELS = {f"oil-{k}": (lambda k=k: oil_tank(k)) for k in OIL_COLORS}
+
+from models._utilwreck import variant  # noqa: E402
+
+for _k in OIL_COLORS:
+    for _d in (1, 2, 3):
+        MODELS[f"oil-{_k}-d{_d}"] = (lambda k=_k, d=_d: variant(globals(), lambda: oil_tank(k), d, side=(1.0, 0.6), stub=6, frag=16))

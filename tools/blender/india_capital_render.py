@@ -114,6 +114,14 @@ def poles():
         cylinder(u, v, 0.02, 37, 0.8, mat("#d4b24a", 0.3, metal=0.9, grain=0), 12)
 
 
+def put(face, a0, a1, plane, z, h, depth, material):
+    """Slab on a visible face: "left" = the +v face (a runs along u), "right" = the +u face (a runs along v)."""
+    if face == "left":
+        box(a0, plane, a1 - a0, depth, z, h, material)
+    else:
+        box(plane, a0, depth, a1 - a0, z, h, material)
+
+
 def build():
     glass = mat(GLASS, 0.1, metal=0.1, grain=0, glass=True)
     frame_r = mat("#c06e55", 0.7, grain=0.05)
@@ -147,6 +155,16 @@ def build():
     # Chhajja: the deep red sunshade cornice round the whole roof line, on a thin bracket course.
     box(U0 - 0.06, V0 - 0.04, U1 - U0 + 0.12, V1 - V0 + 0.22, 27.4, 0.6, mat(CREAM_LIGHT, 0.8))
     box(U0 - 0.12, V0 - 0.08, U1 - U0 + 0.24, V1 - V0 + 0.32, 28.0, 0.9, mat(RED, 0.8, grain=0.08))
+    # Faction identity line: a saffron band along the chhajja fascia; stone brackets carry the chhajja.
+    team = mat("#f08a1c", 0.6, grain=0.02)
+    put("left", U0 - 0.12, U1 + 0.12, V1 + 0.24, 28.2, 0.5, 0.005, team)
+    put("right", V0 - 0.08, V1 + 0.24, U1 + 0.12, 28.2, 0.5, 0.005, team)
+    for i in range(60):
+        c = U0 + (i + 0.5) * (U1 - U0) / 60
+        put("left", c - 0.008, c + 0.008, V1 + 0.18, 27.45, 0.5, 0.05, mat(CREAM_LIGHT, 0.8))
+    for i in range(24):
+        c = V0 + (i + 0.5) * (V1 - V0 + 0.14) / 24
+        put("right", c - 0.008, c + 0.008, U1 + 0.06, 27.45, 0.5, 0.05, mat(CREAM_LIGHT, 0.8))
     # Roof terrace with a low pierced (jali) parapet: posts and a coping.
     box(U0, V0, U1 - U0, V1 - V0 + 0.14, 28.0, 0.5, mat("#b9a98a", 0.9, grain=0.08))
     coping = mat(CREAM, 0.8, grain=0.06)
@@ -155,6 +173,15 @@ def build():
     for i in range(20):
         box(U1 - 0.02, V0 + 0.02 + i * (V1 - V0 + 0.08) / 19, 0.02, 0.018, 28.9, 1.6, coping)
     box(U0, V1 + 0.11, U1 - U0, 0.04, 30.5, 0.5, coping)
+    # Terrace paving joints and roof vents.
+    jm = mat("#9c8d70", 0.9, grain=0.05)
+    for i in range(1, 20):
+        box(U0 + i * (U1 - U0) / 20, V0 + 0.02, 0.006, V1 - V0 + 0.08, 28.9, 0.04, jm)
+    for i in range(1, 7):
+        box(U0 + 0.02, V0 + i * (V1 - V0 + 0.1) / 7, U1 - U0 - 0.04, 0.006, 28.9, 0.04, jm)
+    for u, v in ((0.95, 0.6), (3.05, 0.6), (0.95, 1.35), (3.05, 1.35)):
+        box(u - 0.06, v - 0.04, 0.12, 0.08, 28.9, 1.6, mat(CREAM, 0.8, grain=0.06))
+        box(u - 0.065, v - 0.045, 0.13, 0.09, 30.5, 0.3, jm)
     box(U1 - 0.04, V0, 0.04, V1 - V0 + 0.15, 30.5, 0.5, coping)
 
     # Central portico: 12 columns on a raised floor, entablature and cornice, under the dome.
@@ -165,6 +192,11 @@ def build():
     box(P0 - 0.05, V1, P1 - P0 + 0.1, PV - V1 + 0.06, 27.2, 1.4, cream())
     box(P0 - 0.09, V1, P1 - P0 + 0.18, PV - V1 + 0.1, 28.6, 0.8, mat(RED, 0.8, grain=0.08))
     box(P0, V1 + 0.01, P1 - P0, 0.004, 10.0, 16.5, mat("#3b2d26", 0.9, grain=0.02))  # shaded wall behind the columns
+    for i in range(3):  # the three doors: cream frame and lintel, dark wood leaves
+        c = P0 + (i + 1) * (P1 - P0) / 4
+        put("left", c - 0.08, c + 0.08, V1 + 0.014, 9.6, 9.0, 0.006, mat(CREAM_LIGHT, 0.75))
+        put("left", c - 0.06, c + 0.06, V1 + 0.014, 9.6, 7.8, 0.009, mat("#4a3426", 0.6, grain=0.04))
+        put("left", c - 0.003, c + 0.003, V1 + 0.014, 9.6, 7.8, 0.011, mat("#2a1d15", 0.8))
     # Grand flight of steps down to the forecourt.
     for k in range(6):
         box(P0 + 0.05, PV + 0.04 + k * 0.035, P1 - P0 - 0.1, 0.04, 3, 5.8 - k * 0.95, mat(RED_DARK, 0.85, grain=0.1))
@@ -178,6 +210,17 @@ def build():
     cylinder(CU, CV, 0.6, 37.0, 1.0, mat(CREAM_LIGHT, 0.8), 64)
     cylinder(CU, CV, 0.56, 38.0, 1.6, mat(RED, 0.8, grain=0.08), 64)
     dome(CU, CV, 0.52, 39.6, 24, mat(COPPER, 0.5, metal=0.35, grain=0.08, scale=30), 64, 16)
+    rib = mat("#5a4839", 0.5, metal=0.35, grain=0.04)
+    for i in range(24):  # copper seam ribs
+        a = i / 24 * 2 * math.pi
+        prev = None
+        for k in range(9):
+            t = k / 8 * 0.93
+            r = 0.525 * math.cos(t * math.pi / 2)
+            pt = (CU + math.cos(a) * r, CV + math.sin(a) * r, zp(39.6 + 24 * math.sin(t * math.pi / 2)))
+            if prev:
+                rod(prev, pt, 0.006, rib, 5)
+            prev = pt
     cylinder(CU, CV, 0.06, 63.4, 2.2, mat(CREAM_LIGHT, 0.7), 16)
     rod((CU, CV, zp(65.6)), (CU, CV, zp(71.5)), 0.009, mat("#c9a94e", 0.3, metal=0.9, grain=0), 8)
 
@@ -199,7 +242,11 @@ def smooth_round_parts():
     bpy.ops.object.shade_smooth_by_angle(angle=math.radians(38))
 
 
-kit.reset()
-build()
-smooth_round_parts()
-render("nation-india", (4, D), HEIGHT)
+import nation_damage  # noqa: E402
+
+for stage in nation_damage.stages():  # -- 0 1 2 3 (default: all): intact, then the damage stages d1..d3
+    kit.reset()
+    build()
+    smooth_round_parts()
+    nation_damage.apply(stage)
+    render("nation-india" + nation_damage.suffix(stage), (4, D), HEIGHT)

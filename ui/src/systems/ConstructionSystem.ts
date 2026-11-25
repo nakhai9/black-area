@@ -9,6 +9,8 @@ import {
   FOOTPRINT_RADAR_TOWER,
   FUEL_STATION_COST,
   FOOTPRINT_FUEL_STATION,
+  FOOTPRINT_MILITARY_GARAGE,
+  MILITARY_GARAGE_COST,
   FOOTPRINT_RESERVE_CAPITAL,
   RESERVE_CAPITAL_COST,
   RESERVE_CAPITAL_NATIONS,
@@ -51,6 +53,7 @@ import { PowerPlant } from '../entities/PowerPlant';
 import { TechCenter } from '../entities/TechCenter';
 import { RadarTower } from '../entities/RadarTower';
 import { FuelStation } from '../entities/FuelStation';
+import { MilitaryGarage } from '../entities/MilitaryGarage';
 import { ReserveCapital } from '../entities/ReserveCapital';
 import { WarFactory } from '../entities/WarFactory';
 import { Barracks } from '../entities/Barracks';
@@ -63,7 +66,7 @@ import type { GameSystem } from './GameSystem';
 import { isDeleted, sellerOf } from '../core/GameAssets';
 
 /** A structure that can be produced from the sidebar's Build tab. */
-type BaseBuildId = 'powerPlant' | 'barracks' | 'warFactory' | 'airfield' | 'port' | 'radarTower' | 'fuelStation' | 'reserveCapital' | 'techCenter' | 'happyCity' | 'flagpole' | 'alliedBuilding' | 'parallelGov' | 'bunker' | 'wall' | 'gate' | 'ldew' | 'dvina' | 'yars';
+type BaseBuildId = 'powerPlant' | 'barracks' | 'warFactory' | 'airfield' | 'port' | 'radarTower' | 'fuelStation' | 'militaryGarage' | 'reserveCapital' | 'techCenter' | 'happyCity' | 'flagpole' | 'parallelGov' | 'bunker' | 'wall' | 'gate' | 'ldew' | 'dvina' | 'yars';
 
 export interface BuildOption {
   /** `base@faction` for another nation's design (on sale while that nation's capital is held). */
@@ -231,6 +234,16 @@ const OWN_OPTIONS: readonly BuildOption[] = [
     create: (owner, faction, x, y) => new FuelStation(owner, faction, center(x, y, FOOTPRINT_FUEL_STATION)),
   },
   {
+    // Shelters up to 16 vehicles (helicopters and transport aircraft too) and 30 soldiers; double-click / Unload lets them out.
+    id: 'militaryGarage',
+    name: 'Military Garage',
+    requires: 'warFactory',
+    cost: MILITARY_GARAGE_COST,
+    footprint: FOOTPRINT_MILITARY_GARAGE,
+    spriteKey: (f) => `militaryGarage:${f}`,
+    create: (owner, faction, x, y) => new MilitaryGarage(owner, faction, center(x, y, FOOTPRINT_MILITARY_GARAGE)),
+  },
+  {
     // Wartime seat of government (Longoria, Nordursia; any number): takes over when the capital falls.
     id: 'reserveCapital',
     name: 'Reserve Capital',
@@ -269,7 +282,6 @@ const OWN_OPTIONS: readonly BuildOption[] = [
     spriteKey: (f) => `flagpole:${f}`,
     create: (owner, faction, x, y) => new Flagpole(owner, faction, center(x, y, FOOTPRINT_FLAGPOLE)),
   },
-  // No Allied Building (embassy) for sale any more: a nation's embassy is its Parallel Government (parallelGov@<nation>).
 ];
 
 /** Structures that make or power a nation's army: a captured capital lets its holder build that nation's version. */

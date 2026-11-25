@@ -49,17 +49,30 @@ const PICTURE = (faction: FactionId): PictureSpec => ({
   zScale: 1.35,
 });
 
+/** Stage 3 (≤20 % HP): the city is a rubble field and the flag flies from a pole on a masonry block 8 px high
+ * (tools/blender/models/_damage.py RUIN_POLE_Z). */
+const RUIN_FLAG_Z = 8;
+const RUIN_POLE = 16;
+/** Where stage 2 cuts the city in half (happycity.py cut_u): everything at larger u collapses. */
+const CUT_U: Record<FactionId, number> = { usa: 4.0, russia: 4.6, china: 4.0, europe: 4.0, islamic: 4.0 };
+
 /** `flagOf`: the nation whose flag flies (its owner after a capture; the city stays `faction`'s). */
-export function createHappyCityArt(faction: FactionId, flagOf: FactionId = faction): BuildingArt {
+export function createHappyCityArt(faction: FactionId, flagOf: FactionId = faction, stage = 0): BuildingArt {
   const plan = PLANS[faction];
-  const [fu, fv, fz, pole] = plan.flag;
-  const art = pictureArt(PICTURE(faction), {
+  const [fu, fv] = plan.flag;
+  // d1/d2 keep the flag spot (the column under it stands at d2); d3 moves it down onto the ruin block.
+  // Stage 2 cuts away the half beyond CUT_U (_damage.py cut_u): a flag spot there falls with it onto a ruin block.
+  const fallen = stage >= 3 || (stage === 2 && fu > CUT_U[faction] - 0.3);
+  const [fz, pole] = fallen ? [RUIN_FLAG_Z, RUIN_POLE] : [plan.flag[2], plan.flag[3]];
+  const spec = PICTURE(faction);
+  const art = pictureArt(stage ? { ...spec, file: `${spec.file}-d${stage}` } : spec, {
     recolorWhole: true,
     overlay(p) {
       if (pole > 0) p.pole(fu, fv, fz, pole, '#e8e8e8');
     },
     drawAnimated(p, time) {
       drawFlagOnPole(p, flagOf, fu, fv, fz + pole, time, 0);
+      if (stage >= 2) return; // the landmark's lights are out once it is half gone
       // A few windows of the landmark light up and go dark again.
       const [lu, lv, lw, ld, lz, lh] = plan.lit;
       for (let i = 0; i < 6; i++) {
@@ -69,6 +82,12 @@ export function createHappyCityArt(faction: FactionId, flagOf: FactionId = facti
       }
     },
   });
-  // Tall enough for the flag above the picture.
-  return { ...art, height: Math.max(art.height, Math.ceil(fz + pole + 20)) };
+  // Tall enough for the flag above the picture (kept for every stage so the cache size never changes).
+  // Stage arts made up front so their pictures load with the intact one.
+  const stages = stage ? [] : [1, 2, 3].map((n) => createHappyCityArt(faction, flagOf, n));
+  return {
+    ...art,
+    damaged: stage ? undefined : (n) => stages[Math.min(3, Math.max(1, n)) - 1]!,
+    height: Math.max(art.height, Math.ceil(plan.flag[2] + plan.flag[3] + 20)),
+  };
 }

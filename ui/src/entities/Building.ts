@@ -1,6 +1,10 @@
-import { CELL_SIZE } from '../constants';
-import type { Allegiance, BuildingSpec, FactionId, WorldPoint } from '../types';
+import { CELL_SIZE, DEFAULT_DAMAGE_STAGES } from '../constants';
+import type { Allegiance, BuildingSpec, BuildingType, FactionId, WorldPoint } from '../types';
+
+/** Structures with damage art of their own (wall / bridge levels, bunker sheet) or none (a flag pole): no `~stage` key. */
+const OWN_DAMAGE_ART: ReadonlySet<BuildingType> = new Set(['wall', 'bridge', 'bunker', 'flagpole']);
 import type { Infantry } from './Infantry';
+import type { Unit } from './Unit';
 import { Entity } from './Entity';
 
 /**
@@ -13,8 +17,8 @@ export class Building extends Entity {
   placedAt: number | null = null;
   /** Game time a Crazy Soldier's charge was planted on it: it flashes once (see Renderer.drawBuilding). */
   blinkAt: number | null = null;
-  /** People stationed inside. */
-  readonly garrison: Infantry[] = [];
+  /** Units stationed inside: soldiers, and vehicles too in a Military Garage. */
+  readonly garrison: Unit[] = [];
   /** Engineers inside repairing it (they walk out at 100%, and die with it if it is destroyed meanwhile). */
   readonly crew: Infantry[] = [];
   private spriteKeyOverride: string | null = null;
@@ -90,20 +94,48 @@ export class Building extends Entity {
     this.faction = faction;
     // A taken structure keeps its design: only the flag changes. Ones whose art flies a flag of its own are redrawn
     // with the new owner's (`kind:design@flag`); the rest keep their art and fly the owner's flag on a pole (Renderer).
-    const f = /^(capital|alliedBuilding|parallelGov|nation|barracks|warFactory|flagpole|happyCity):(\w+)$/.exec(this.spec.spriteKey);
+    const f = /^(capital|parallelGov|nation|barracks|warFactory|flagpole|happyCity):(\w+)$/.exec(this.spec.spriteKey);
     if (f) this.spriteKeyOverride = f[2] === faction ? null : `${f[1]}:${f[2]}@${faction}`;
   }
 
-  /** Sprite registry key (follows the owner for team-coloured structures). */
-  get spriteKey(): string {
-    return this.spriteKeyOverride ?? this.spec.spriteKey;
+  /** Damage art stage from HP left (spec.damageStages): 0 intact, n = the n-th mark reached. */
+  get damageStage(): number {
+    const stages = this.spec.damageStages ?? (OWN_DAMAGE_ART.has(this.spec.type) ? undefined : DEFAULT_DAMAGE_STAGES);
+    if (!stages || !this.alive) return 0;
+    const r = this.hpRatio;
+    return stages.filter((s) => r <= s).length;
   }
 
-  /** May this person be stationed here? Owner, capacity and the building's rule must all allow it. */
-  canEnter(u: Infantry): boolean {
+  /** Sprite registry key (follows the owner for team-coloured structures; `~stage` once damaged, see damageStage). */
+  get spriteKey(): string {
+    const key = this.spriteKeyOverride ?? this.spec.spriteKey;
+    const stage = this.damageStage;
+    return stage ? `${key}~${stage}` : key;
+  }
+
+  /** May this unit be stationed here? Owner, capacity and the building's rule must all allow it. */
+  canEnter(u: Unit, promised = { soldiers: 0, vehicles: 0 }): boolean {
     const g = this.spec.garrison;
-    if (!g || !this.alive || u.owner !== this.owner || this.garrison.length >= g.capacity) return false;
-    return u.hp < u.maxHp;
+    if (!g || !this.alive || u.owner !== this.owner || this.garrison.includes(u)) return false;
+    if (g.accepts === 'wounded') return !isVehicleUnit(u) && this.garrison.length < g.capacity && u.hp < u.maxHp;
+    if (!garageAccepts(u)) return false;
+    const { soldiers, vehicles } = this.garrisonCounts();
+    return isVehicleUnit(u) ? vehicles + promised.vehicles < (g.vehicles ?? 0) : soldiers + promised.soldiers < (g.soldiers ?? 0);
+  }
+
+  /** Soldiers and vehicles stationed inside. */
+  garrisonCounts(): { soldiers: number; vehicles: number } {
+    const vehicles = this.garrison.filter(isVehicleUnit).length;
+    return { soldiers: this.garrison.length - vehicles, vehicles };
+  }
+
+  /** Every place taken (soldiers and vehicles): nobody more fits. */
+  get garrisonFull(): boolean {
+    const g = this.spec.garrison;
+    if (!g) return false;
+    if (g.accepts === 'wounded') return this.garrison.length >= g.capacity;
+    const { soldiers, vehicles } = this.garrisonCounts();
+    return soldiers >= (g.soldiers ?? 0) && vehicles >= (g.vehicles ?? 0);
   }
 
   get naval(): boolean {
@@ -157,4 +189,20 @@ export class Building extends Entity {
   footprintWorld(): { x: number; y: number; w: number; h: number } {
     return { x: this.x * CELL_SIZE, y: this.y * CELL_SIZE, w: this.w * CELL_SIZE, h: this.d * CELL_SIZE };
   }
+}
+
+/** A vehicle (it can carry cargo), as opposed to a soldier. */
+export function isVehicleUnit(u: Unit): boolean {
+  return 'cargo' in u;
+}
+
+/**
+ * What a Military Garage takes: any soldier; any vehicle on land (helicopters and transport aircraft too), never a
+ * ship nor a fixed-wing combat aircraft (they belong on an airfield).
+ */
+function garageAccepts(u: Unit): boolean {
+  if (!isVehicleUnit(u)) return true;
+  const v = u as Unit & { isHeli: boolean; isTransport: boolean; isAircraftCarrier: boolean };
+  if (u.naval || v.isAircraftCarrier) return false;
+  return !u.aircraft || v.isHeli || v.isTransport;
 }

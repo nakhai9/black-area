@@ -4,6 +4,7 @@ import math
 import bmesh
 
 from kit import _obj, box, mat, render, rod, zp
+from models._damage import ruined_render
 
 GLASS = "#3b4a5a"
 FIN = "#c9ccd0"
@@ -51,7 +52,7 @@ def finger(v, d, u0, u1, h_low, h_high):
             rod((u0 + (u1 - u0) * ta, vv + 0.01, zp(prof(ta))), (u0 + (u1 - u0) * tb, vv + 0.01, zp(prof(tb))), 0.012, trim, 4)
 
 
-def barracks_europe():
+def barracks_europe(damage=0):
     # Paving with lawn strips between the wings.
     box(0.02, 0.02, 4.96, 2.96, 0, 0.6, mat(PAVE, 0.95, grain=0.1, scale=10))
     for k in range(5):
@@ -73,7 +74,7 @@ def barracks_europe():
     # Entrance on the front of the spine: dark portal under a team-colour canopy.
     box(2.35, 2.9, 0.3, 0.06, 0.6, 8, mat(END, 0.3, metal=0.4, grain=0))
     box(2.25, 2.9, 0.5, 0.2, 8.6, 0.8, mat(TEAM, 0.5, grain=0))
-    render("barracks-europe", (5, 3), 36)
+    ruined_render("barracks-europe", (5, 3), 36, damage, flag=(2.72, 2.64, 22), seed=4)
 
 
-MODELS = {"barracks-europe": barracks_europe}
+MODELS = {"barracks-europe": barracks_europe, **{f"barracks-europe-d{d}": (lambda d=d: barracks_europe(d)) for d in (1, 2, 3)}}

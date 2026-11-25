@@ -203,3 +203,9 @@ def fuelstation(faction):
 
 
 MODELS = {f"fuelstation-{f}": (lambda f=f: fuelstation(f)) for f in TEAM}
+
+from models._utilwreck import variant  # noqa: E402
+
+for _f in TEAM:
+    for _d in (1, 2, 3):
+        MODELS[f"fuelstation-{_f}-d{_d}"] = (lambda f=_f, d=_d: variant(globals(), lambda: fuelstation(f), d, side=(1.0, 0.3), stub=3, frag=10, flat=True, keep_low=2.2, rubble=0.4))

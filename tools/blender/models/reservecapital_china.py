@@ -12,6 +12,7 @@ import math
 import bmesh
 
 from kit import _obj, box, cylinder, mat, prism, render, rod, windows, zp, TEAM
+from models._damage import ruined_render
 
 W, D = 3, 4
 BASE_H = 14  # bastion height (art px)
@@ -150,7 +151,7 @@ def grille(u0, v_face, w, z, h, slats, frame, slat):
 # ---------------------------------------------------------------- the model
 
 
-def reserve_capital_china():
+def reserve_capital_china(damage=0):
     team = mat(TEAM["china"], 0.45, metal=0.3, grain=0)
     concrete = mat("#8d8f88", 0.9, grain=0.16, scale=16)
     concrete_d = mat("#73756f", 0.9, grain=0.14, scale=16)
@@ -219,7 +220,7 @@ def reserve_capital_china():
     box(su0 - 0.07, sv0 - 0.07, sw + 0.14, sd + 0.14, sz + 6.8, 1.2, eave)
     hall_roof(su0 - 0.07, sv0 - 0.07, sw + 0.14, sd + 0.14, sz + 8.0, 11, 0.24, 3.0, tile, tile_d, eave_d, gold)
 
-    render("reservecapital-china", (W, D), 72)
+    ruined_render("reservecapital-china", (W, D), 72, damage, seed=13, cut_u=1.5)
 
 
-MODELS = {"reservecapital-china": reserve_capital_china}
+MODELS = {"reservecapital-china": reserve_capital_china, **{f"reservecapital-china-d{d}": (lambda d=d: reserve_capital_china(d)) for d in (1, 2, 3)}}

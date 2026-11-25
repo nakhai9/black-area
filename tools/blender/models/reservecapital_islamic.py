@@ -13,6 +13,7 @@ import math
 import bmesh
 
 from kit import _obj, box, cylinder, lathe, mat, render, rod, windows, zp, TEAM
+from models._damage import ruined_render
 
 W, D = 3, 4
 ZS = 32 / 0.866 / 1.35 * 0.7071  # tiles across → art px up, so arcs read round
@@ -61,7 +62,7 @@ def ribbed_dome(cu, cv, r, z, h, shell, rib, ribs, finial=None):
         lathe(cu, cv, z + h, [(0.02, 0), (0.035, 1.0), (0.02, 2.0), (0.025, 2.6), (0.004, 5.0)], finial, segs=12)
 
 
-def reserve_capital_islamic():
+def reserve_capital_islamic(damage=0):
     team = mat(TEAM["islamic"], 0.45, grain=0)
     sand = mat("#d9c4a0", 0.8, grain=0.1, scale=22)
     sand_d = mat("#bfa47c", 0.85, grain=0.12, scale=22)
@@ -150,7 +151,7 @@ def reserve_capital_islamic():
             lathe(tu, tv, z - 1.0, [(0.15, 0), (0.15, 0.8)], tile, segs=12)
         ribbed_dome(tu, tv, 0.12, H + 18, 5, dome_m, rib, 8, gold)
 
-    render("reservecapital-islamic", (W, D), 76)
+    ruined_render("reservecapital-islamic", (W, D), 76, damage, seed=15, cut_u=1.5)
 
 
-MODELS = {"reservecapital-islamic": reserve_capital_islamic}
+MODELS = {"reservecapital-islamic": reserve_capital_islamic, **{f"reservecapital-islamic-d{d}": (lambda d=d: reserve_capital_islamic(d)) for d in (1, 2, 3)}}

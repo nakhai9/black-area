@@ -121,3 +121,7 @@ def airfield(faction):
 
 # Russia, China and the Islamic nations use the runway-down-the-middle layout: models/airfield_russia.py.
 MODELS = {f"airfield-{f}": (lambda f=f: airfield(f)) for f in TEAM if f not in ("russia", "china", "islamic")}
+
+from models._wreck import with_damage  # noqa: E402
+
+with_damage(MODELS, __name__, flat=True)

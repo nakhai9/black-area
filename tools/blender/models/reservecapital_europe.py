@@ -15,6 +15,7 @@ import math
 import bmesh
 
 from kit import _obj, box, cylinder, lathe, mat, render, rod, roof, windows, zp, TEAM
+from models._damage import ruined_render
 
 W, D = 3, 4
 ZS = 32 / 0.866 / 1.35 * 0.7071
@@ -108,7 +109,7 @@ def wing(u0, v0, w, d, z, h, stone, stone_d, glass, frame, cols_u, cols_v):
     box(u0 - 0.02, v0 - 0.02, w + 0.04, d + 0.04, z + h, 1.0, stone_d)
 
 
-def reserve_capital_europe():
+def reserve_capital_europe(damage=0):
     team = mat(TEAM["europe"], 0.5, grain=0)
     stone = mat("#e3ddcd", 0.75, grain=0.07, scale=24)  # Portland stone
     stone_d = mat("#cbc3b0", 0.8, grain=0.09, scale=24)
@@ -211,7 +212,7 @@ def reserve_capital_europe():
     box(0.75, 1.95, 1.25, 0.1, 1, 0.3, stone_d)
     box(1.33, 0.7, 0.1, 2.6, 1, 0.3, stone_d)
 
-    render("reservecapital-europe", (W, D), 42)
+    ruined_render("reservecapital-europe", (W, D), 42, damage, seed=14, cut_u=1.5)
 
 
-MODELS = {"reservecapital-europe": reserve_capital_europe}
+MODELS = {"reservecapital-europe": reserve_capital_europe, **{f"reservecapital-europe-d{d}": (lambda d=d: reserve_capital_europe(d)) for d in (1, 2, 3)}}

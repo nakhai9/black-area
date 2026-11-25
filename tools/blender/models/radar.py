@@ -379,3 +379,9 @@ def radar(faction):
 
 
 MODELS = {f"radar-{n}": (lambda n=n: radar(n)) for n in TEAM}
+
+from models._utilwreck import variant  # noqa: E402
+
+for _f in TEAM:
+    for _d in (1, 2, 3):
+        MODELS[f"radar-{_f}-d{_d}"] = (lambda f=_f, d=_d: variant(globals(), lambda: radar(f), d, side=(1.0, 0.6), stub=6, frag=20))

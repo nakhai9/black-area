@@ -4,6 +4,7 @@ shared by parallelgov.py and flagpole.py."""
 import math
 
 from models._rooftop import deck
+from models import _damage
 from kit import box, cylinder, dome, lathe, mat, prism, render, rod, roof, windows, zp, TEAM
 
 
@@ -165,31 +166,6 @@ def usa(team):
     rod((2.0, 1.6, zp(z0 + 46)), (2.0, 1.6, zp(z0 + 54)), 0.012, mat("#d8d8d8", 0.4, metal=0.8, grain=0))
 
 
-def russia(team):
-    STONE = mat("#86604e", 0.85, grain=0.1)
-    LIGHT = mat("#c2ae94", 0.8, grain=0.08)
-    z0 = 8
-    box(0.4, 0.4, 3.2, 2.6, z0 - 6, 18, STONE)
-    facade(0.4, 0.4, 3.2, 2.6, z0 - 6, 18, 14, 11, 3, LIGHT)
-    cornice(0.4, 0.4, 3.2, 2.6, z0 + 12, 1.5, LIGHT)
-    deck("russia", 0.45, 0.45, 3.1, 2.5, z0 + 13.5, avoid=[(1.08, 0.98, 1.84, 1.64)], team=team)
-    parapet(0.4, 0.4, 3.2, 2.6, z0 + 13.5, 2, LIGHT)
-    door("left", 0.4, 0.4, 3.2, 2.6, z0 - 6, 0.44, 0.56, 9, frame=LIGHT)
-    # Stepped tower.
-    box(1.1, 1.0, 1.8, 1.6, 20, 30, LIGHT)
-    facade(1.1, 1.0, 1.8, 1.6, 20, 30, 7, 6, 6, mat("#e0d4bc", 0.8))
-    for zz in (30, 40):
-        box(1.08, 0.98, 1.84, 1.64, zz, 0.6, STONE)
-    cornice(1.1, 1.0, 1.8, 1.6, 50, 1.2, STONE)
-    box(1.4, 1.3, 1.2, 1.0, 51, 13, STONE)
-    facade(1.4, 1.3, 1.2, 1.0, 51, 13, 4, 3, 2, LIGHT)
-    box(1.38, 1.28, 1.24, 1.04, 62, 2, mat(team, 0.55, grain=0.05))
-    roof(1.45, 1.35, 1.1, 0.9, 64, 18, STONE, kind="pyramid", overhang=0.0)
-    gold = mat(GOLD, 0.35, metal=0.9, grain=0)
-    rod((2.0, 1.8, zp(82)), (2.0, 1.8, zp(100)), 0.02, gold)
-    star(2.0, 1.8, 104, 0.12, 0.02, mat(team, 0.4, emit=team))
-
-
 def china(team):
     STONE = mat("#ddd5c2", 0.8, grain=0.08)
     COL = mat("#efe9da", 0.7, grain=0.05)
@@ -280,13 +256,22 @@ def islamic(team):
     minaret(3.0, 3.05, z, 52, 0.11, SAND, TEAM_T, GOLDM)
 
 
-STYLES = {"usa": usa, "russia": russia, "china": china, "europe": europe, "islamic": islamic}
+STYLES = {"usa": usa, "china": china, "europe": europe, "islamic": islamic}  # Russia: allied_russia.py
 
 
-def allied(f):
+def ruin_and_render(name, height, damage, seed):
+    """Damage stage + render; both TS flag poles (front, z = 2 + wing 6 = RUIN_POLE_Z px) keep a masonry block under them."""
+    _damage.apply(damage, (4, 4), flag=(3.55, 3.7, 8), seed=seed, cut_u=2.0)
+    if damage >= 2:
+        for u, v in ((0.45, 3.7), (3.55, 3.7)):
+            box(u - 0.07, v - 0.07, 0.14, 0.14, 0, _damage.RUIN_POLE_Z, mat("#8a857c", 0.95, grain=0.35, scale=50))
+    render(name + (f"-d{damage}" if damage else ""), (4, 4), height)
+
+
+def allied(f, damage=0):
     plot(f)
     STYLES[f](TEAM[f])
-    render(f"allied-{f}", (4, 4), HEIGHT[f] + 8)
+    ruin_and_render(f"allied-{f}", HEIGHT[f] + 8, damage, 30 + list(STYLES).index(f))
 
 
-MODELS = {f"allied-{f}": (lambda f=f: allied(f)) for f in TEAM}
+MODELS = {f"allied-{f}" + (f"-d{d}" if d else ""): (lambda f=f, d=d: allied(f, d)) for f in STYLES for d in (0, 1, 2, 3)}

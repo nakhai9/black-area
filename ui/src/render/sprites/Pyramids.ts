@@ -7,4 +7,6 @@ import { pictureArt } from './PictureArt';
  * Khafre still capped with white casing, Menkaure and its three queens' pyramids, and the Sphinx in front — stepped
  * limestone courses with missing blocks, each sitting in a drift of sand. A flat piece: height scale 1.
  */
-export const PyramidsArt: BuildingArt = pictureArt({ file: 'building-pyramids', originX: 198, originY: 90, scale: 3, footprint: { w: 6, d: 6 }, zScale: 1 });
+export const PyramidsArt: BuildingArt = pictureArt({ file: 'building-pyramids', originX: 198, originY: 90, scale: 3, footprint: { w: 6, d: 6 }, zScale: 1 }, {
+  damageFiles: [1, 2, 3].map((n) => `building-pyramids-d${n}`),
+});

@@ -39,12 +39,9 @@ export const DEMO_FACTION: FactionId = NATION_CODES[(import.meta.env.VITE_DEMO_F
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "3.75.390";
+export const GAME_VERSION = "3.75.409";
 /** Transport aircraft (C-17, Il-76, Y-20, A400M) are drawn this many iso px long: 13, +20% (v3.75.224). */
 export const TRANSPORT_LENGTH = 13 * 1.2 * 0.9;
-
-/** An Allied Building within this many cells of any capital is an embassy; farther out it is a "Pro-<nation> regime". */
-export const EMBASSY_CAPITAL_CELLS = 25;
 
 /** War / ceasefire cycle: WAR_SECONDS of war between the nations, then PEACE_SECONDS of peace to build up, over and over. */
 export const WAR_SECONDS = 10 * 60;
@@ -151,14 +148,14 @@ export const BUILDING_DESIGNS: Readonly<Record<string, Readonly<Record<string, R
   capital: { usa: { whiteHouse: true }, russia: { kremlin: true }, china: { zhongnanhai: true }, europe: { berlaymont: true }, islamic: { grandMosque: true } },
   barracks: { usa: { westPoint: true, pentagon: false }, russia: { frunzenskaya: true }, china: { bayi: true }, europe: { nato: true }, islamic: { fort: true } },
   warFactory: { usa: { standard: true }, russia: { standard: true }, china: { standard: true }, europe: { standard: true }, islamic: { standard: true } },
-  airfield: { usa: { standard: true }, russia: { standard: true }, china: { standard: true }, europe: { standard: true }, islamic: { standard: true } },
+  airfield: { usa: { standard: true }, russia: { middleRunway: true }, china: { middleRunway: true }, europe: { standard: true }, islamic: { middleRunwaySand: true } },
   port: { usa: { standard: true }, russia: { standard: true }, china: { standard: true }, europe: { standard: true }, islamic: { standard: true } },
   techCenter: { usa: { applePark: true, artDeco: false }, russia: { standard: true }, china: { pekingUniversity: true, pagoda: false }, europe: { standard: true }, islamic: { standard: true } },
-  powerPlant: { usa: { twinTowers: true }, russia: { coolingTower: true }, china: { coolingTower: true }, europe: { twinTowers: true }, islamic: { coolingTower: true } },
+  powerPlant: { usa: { twinTowers: true }, russia: { coolingTower: true }, china: { coolingTower: true }, europe: { twinTowers: true }, islamic: { coolingTowerSand: true } },
   radarTower: { usa: { standard: true }, russia: { standard: true }, china: { standard: true }, europe: { standard: true }, islamic: { standard: true } },
   fuelStation: { usa: { standard: true }, russia: { standard: true }, china: { standard: true }, europe: { standard: true }, islamic: { standard: true } },
+  militaryGarage: { usa: { standard: true }, russia: { standard: true }, china: { standard: true }, europe: { standard: true }, islamic: { standard: true } },
   happyCity: { usa: { standard: true }, russia: { standard: true }, china: { standard: true }, europe: { standard: true }, islamic: { standard: true } },
-  alliedBuilding: { usa: { standard: true }, russia: { standard: true }, china: { standard: true }, europe: { standard: true }, islamic: { standard: true } },
   parallelGov: { usa: { standard: true }, russia: { standard: true }, china: { standard: true }, europe: { standard: true }, islamic: { standard: true } },
   flagpole: { usa: { standard: true }, russia: { standard: true }, china: { standard: true }, europe: { standard: true }, islamic: { standard: true } },
   bunker: { usa: { standard: true }, russia: { standard: true }, china: { standard: true }, europe: { standard: true }, islamic: { standard: true } },
@@ -252,6 +249,13 @@ export const FOOTPRINT_NATION_CAPITAL = { w: 5, d: 3 } as const;
 /** Plot of a faction's capital. */
 /** Russia's capital, the Grand Kremlin Palace: a long palace on a 5 × 4 plot. */
 export const FOOTPRINT_KREMLIN = { w: 5, d: 4 } as const;
+/**
+ * Capitals drawn in damage stages: HP ratios (high to low) at or below which the next damaged picture shows
+ * (BuildingSpec.damageStages). USA: ≤80 %, ≤50 %, ≤20 % HP. Player and AI alike.
+ */
+/** Damage art marks for every structure (ART_GUIDE "Damage states"): ≤80 % light damage, ≤50 % half the building destroyed, ≤20 % collapsed. Art without damage pictures keeps its intact look. */
+export const DEFAULT_DAMAGE_STAGES: readonly number[] = [0.8, 0.5, 0.2];
+export const CAPITAL_DAMAGE_STAGES: Readonly<Partial<Record<string, readonly number[]>>> = { usa: [0.8, 0.5, 0.2] };
 export function capitalFootprint(faction: FactionId): {
   readonly w: number;
   readonly d: number;
@@ -352,12 +356,6 @@ export const BUILD_STEP_FRACTION = 0.2;
 export const BARRACKS_COST = 800;
 /** A national flagpole: one cell, decoration that also counts as one of the nation's structures. */
 export const FLAGPOLE_COST = 100;
-/**
- * Allied Building: the seat of an allied nation, raised on land the nation has claimed with a Squatters team. A nation
- * leads at most MAX_ALLIES allies (built or under construction).
- */
-export const ALLIED_BUILDING_COST = 6000;
-export const MAX_ALLIES = 6;
 /**
  * Parallel Government (4 × 5): earned by an engineer in an enemy capital, drawn in that nation's architecture. While it
  * stands its holder may build that nation's structures; once it is lost, so is that.
@@ -552,6 +550,17 @@ export const FOOTPRINT_GATE = { w: 4, d: 1 } as const;
 export const FUEL_STATION_COST = 2500;
 export const FUEL_STATION_HP = 1800;
 export const FOOTPRINT_FUEL_STATION = { w: 10, d: 8 } as const;
+/**
+ * Military Garage (every nation, its own design, 4 × 6 laid with its long side along the front: 6 along u, 4 deep): shelters up to GARAGE_VEHICLES vehicles of any kind (transport
+ * aircraft and helicopters too) and GARAGE_SOLDIERS soldiers, counted apart. Units go in by the transport boarding
+ * rules; double-click / Unload lets everyone out. Brought down to half health (≤ 50 %) it loses half of each; destroyed,
+ * whoever is left is pushed out alive. Player and AI alike.
+ */
+export const MILITARY_GARAGE_COST = 1500;
+export const MILITARY_GARAGE_HP = 2200;
+export const FOOTPRINT_MILITARY_GARAGE = { w: 6, d: 4 } as const;
+export const GARAGE_VEHICLES = 16;
+export const GARAGE_SOLDIERS = 30;
 /**
  * Reserve Capital (every nation, its own design, 3 × 4): the wartime seat of government. Any number, needs a High-Tech
  * Center. An ordinary structure while the capital stands; when it falls the government picks one reserve and moves
@@ -978,8 +987,8 @@ export const VEHICLE_BASE = {
   ldewTruck: { cost: 1700, trainSeconds: 16, maxHp: 260, speed: 2.0, radius: 4.4 },
   ifv: { cost: 900, trainSeconds: 11, maxHp: 300, speed: 1.8, radius: 4.0 },
   jet: { cost: 1600, trainSeconds: 16, maxHp: 220, speed: 9, radius: 3.2 },
-  /** Attack helicopter: slow (well under the fighter and the transport), built at the Airfield like it. */
-  heli: { cost: 1300, trainSeconds: 14, maxHp: 200, speed: 3, radius: 3.4 },
+  /** Attack helicopter: slow (well under the fighter and the transport), built at the Airfield like it. Speed 3 × 1.2 (helicopters 20 % faster). */
+  heli: { cost: 1300, trainSeconds: 14, maxHp: 200, speed: 3.6, radius: 3.4 },
   /** Self-propelled air-defence vehicle (Patriot for the USA, SAMP/T NG for Europe, S-400 for Russia, HQ-9 for China, PGZ-09 for the Islamic nations): dear, slow, tank-like health; shoots aircraft only (see MANTIS_FIREPOWER). */
   mantis: { cost: 3000, trainSeconds: 18, maxHp: 460, speed: 1.1, radius: 4.4 },
   /** Unarmed cargo aircraft: slower than the fighter. */
@@ -1432,7 +1441,7 @@ export const PYRAMIDS_LOCATION: GeoPoint = { lon: 30.45, lat: 29.95 };
  * Contested nations: independent states that belong to no faction. Their capitals stand on the map from the start,
  * owned by nobody; they can never be damaged or destroyed, only taken by an engineer (of any nation, from anyone).
  * The nation holding one is paid NATION_PRESENCE_FEE TB every NATION_PRESENCE_PERIOD seconds (military presence fee)
- * and may build its own structures next to it (like an Allied Building). An AI holder keeps a garrison there.
+ * and may build its own structures next to it. An AI holder keeps a garrison there.
  */
 export type ContestedNationId =
   | "northKorea"
@@ -1445,7 +1454,8 @@ export type ContestedNationId =
   | "cuba"
   | "belarus"
   | "india"
-  | "ukraine";
+  | "ukraine"
+  | "turkey";
 export interface ContestedNation {
   name: string;
   /** Name of the capital building shown in game. */
@@ -1515,6 +1525,12 @@ export const CONTESTED_NATIONS: Readonly<
     capital: "Verkhovna Rada",
     site: { lon: 30.52, lat: 50.45, name: "Kyiv" },
   },
+  // Turkey: between Europe, Russia and the Islamic world (Anatolia lies outside every faction's territory).
+  turkey: {
+    name: "Turkey",
+    capital: "Ankara Külliye",
+    site: { lon: 32.85, lat: 39.93, name: "Ankara" },
+  },
 };
 /** Presence fee of an occupied capital with no entry in NATION_PRESENCE_FEES (an unplayed faction's capital). */
 export const NATION_PRESENCE_FEE = 600;
@@ -1538,6 +1554,8 @@ export const NATION_PRESENCE_FEES: Readonly<Record<ContestedNationId, number>> =
     belarus: 260,
     india: 838,
     ukraine: 320,
+    // Turkey: GDP ~1 100 bn USD [Unverified] → 600 × √(1 100 ÷ 2 000) ≈ 445.
+    turkey: 445,
   };
 export function presenceFee(nation: string): number {
   return (
@@ -1708,12 +1726,12 @@ export const BUILDING_VALUE: Readonly<Partial<Record<BuildingType, number>>> = {
   port: PORT_COST,
   radarTower: RADAR_TOWER_COST,
   fuelStation: FUEL_STATION_COST,
+  militaryGarage: MILITARY_GARAGE_COST,
   reserveCapital: RESERVE_CAPITAL_COST,
   techCenter: TECH_CENTER_COST,
   happyCity: HAPPY_CITY_COST,
   powerPlant: POWER_PLANT_COST,
   flagpole: FLAGPOLE_COST,
-  alliedBuilding: ALLIED_BUILDING_COST,
   capital: 4000,
   nationCapital: 5000,
   oilDerrick: 1500,

@@ -27,13 +27,18 @@ export function createMissileSiloArt(faction: FactionId): BuildingArt {
   const lid = ROUND.includes(faction) ? 'building-silo-lid-round' : 'building-silo-lid';
   const frames = Array.from({ length: FRAMES }, (_, k) => spec(`${lid}${String(k).padStart(2, '0')}`));
   for (const f of frames) preloadPicture(f.file);
+  const base = `building-silo-${faction}`;
+  const files = [1, 2, 3].map((n) => `${base}-d${n}`);
+  const ruin = pictureArt(spec(base), { recolorWhole: true, damageFiles: files });
   const art = pictureArt(spec(`building-silo-${faction}`), {
     recolorWhole: true,
+    damageFiles: files,
     drawAnimated(p) {
       const k = Math.round(Math.min(1, Math.max(0, lidNow)) * (FRAMES - 1));
       drawPicture(p, frames[k]!);
       lidNow = 0;
     },
   });
-  return { ...art, fitHeight: true };
+  // Damage stages (≤80 %, ≤50 %, ≤20 % HP), same script/camera/origin; from stage 2 the lid is gone.
+  return { ...art, fitHeight: true, damaged: (s) => ({ ...(s >= 2 ? ruin : art).damaged!(s), fitHeight: true }) };
 }

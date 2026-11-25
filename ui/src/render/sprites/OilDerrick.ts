@@ -18,8 +18,15 @@ const PICTURE = (key: string): PictureSpec => ({ file: `building-oil-${key}`, or
  * Oil derrick (4 × 4 plot), drawn as one round fuel storage tank: a tall welded steel shell with a team-colour band,
  * a low conical roof with a vent and handrail, inside a concrete bund wall (no stair, pipe or valve). A small lamp on the roof shows whether the field is pumping (green) or resting (red).
  */
+/** Damage stages (≤80 %, ≤50 %, ≤20 % HP): same script (oil.py oil-<colour>-d1..d3), camera and origin. */
+const damageFiles = (file: string): string[] => [1, 2, 3].map((n) => `${file}-d${n}`);
+
 export function createOilDerrickArt(team: FactionColors): BuildingArt {
-  return pictureArt(PICTURE(PICTURE_BY_COLOR[team.primary.toLowerCase()] ?? 'neutral'), {
+  const spec = PICTURE(PICTURE_BY_COLOR[team.primary.toLowerCase()] ?? 'neutral');
+  const files = damageFiles(spec.file);
+  const ruin = pictureArt(spec, { damageFiles: files });
+  const art = pictureArt(spec, {
+    damageFiles: files,
     drawAnimated(p, _time, active) {
       const [lx, ly] = p.project(2, 2, 54);
       p.ctx.fillStyle = active ? '#5cff6a' : '#ff4a3a';
@@ -28,4 +35,6 @@ export function createOilDerrickArt(team: FactionColors): BuildingArt {
       p.ctx.fill();
     },
   });
+  // From stage 2 the roof (and its lamp) is gone.
+  return { ...art, damaged: (s) => (s >= 2 ? ruin : art).damaged!(s) };
 }

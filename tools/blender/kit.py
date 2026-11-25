@@ -320,6 +320,10 @@ def sink_ground_plate(footprint):
 def render(name, footprint, height):
     """Frames footprint (w, d) and height (art px), renders, writes the PNG and prints its origin (for the PictureSpec)."""
     w, d = footprint
+    if name.endswith("-d1"):
+        import d1_boost  # shared ≤80 % HP damage boost (infrastructure, see d1_boost.py)
+
+        d1_boost.boost(footprint, height)
     sink_ground_plate(footprint)
     m = 6
     x0, x1 = -d * 32 - m, w * 32 + m

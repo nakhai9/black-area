@@ -25,6 +25,8 @@ export interface BuildingArt {
   readonly fitHeight?: boolean;
   /** No real roof to repaint (towers, stacks): a taken structure takes the new owner's colours all over, not just on its roofs. */
   readonly recolorWhole?: boolean;
+  /** The same structure at damage stage `stage` (1 = first mark reached, see BuildingSpec.damageStages). */
+  damaged?(stage: number): BuildingArt;
   drawStatic(p: IsoPainter): void;
   drawAnimated?(p: IsoPainter, time: number, active: boolean): void;
 }

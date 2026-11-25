@@ -5,6 +5,7 @@ import math
 import bmesh
 
 import kit
+from models._damage import ruined_render
 from kit import box, cylinder, dome, lathe, mat, render, rod, roof, zp, TEAM
 
 MAX_H = 90
@@ -340,14 +341,14 @@ def wall_stubs(faction):
                 vt.co.y = min(max(vt.co.y, lo), hi) + u0
 
 
-def gate(faction):
+def gate(faction, damage=0):
     kit.ZS = 1.0
     try:
         wall_stubs(faction)
         STYLES[faction]()
-        render(f"gate-{faction}", (4, 1), MAX_H)
+        ruined_render(f"gate-{faction}", (4, 1), MAX_H, damage, seed=31, cut_u=2.0)
     finally:
         kit.ZS = 1.35
 
 
-MODELS = {f"gate-{f}": (lambda f=f: gate(f)) for f in TEAM}
+MODELS = {f"gate-{f}" + (f"-d{d}" if d else ""): (lambda f=f, d=d: gate(f, d)) for f in TEAM for d in (0, 1, 2, 3)}

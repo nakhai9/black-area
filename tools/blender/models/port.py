@@ -236,3 +236,9 @@ def port(faction):
 
 
 MODELS = {f"port-{f}": (lambda f=f: port(f)) for f in TEAM}
+
+from models._utilwreck import variant  # noqa: E402
+
+for _f in TEAM:
+    for _d in (1, 2, 3):
+        MODELS[f"port-{_f}-d{_d}"] = (lambda f=_f, d=_d: variant(globals(), lambda: port(f), d, side=(1.0, -0.3), stub=4, frag=12, flat=True, keep_low=3.4, rubble=0.5))

@@ -20,5 +20,6 @@ const ORIGIN_X = 262;
 const ORIGIN_Y = 56;
 
 export function createFuelStationArt(faction: FactionId): BuildingArt {
-  return pictureArt(PICTURE(faction));
+  const spec = PICTURE(faction);
+  return pictureArt(spec, { damageFiles: [1, 2, 3].map((n) => `${spec.file}-d${n}`) });
 }

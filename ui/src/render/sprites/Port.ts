@@ -20,7 +20,9 @@ const PICTURE = (faction: FactionId): PictureSpec => ({ file: `building-port-${f
  * transparent, so the sea shows through and ships moor in it.
  */
 export function createPortArt(faction: FactionId): BuildingArt {
-  return pictureArt(PICTURE(faction), {
+  const spec = PICTURE(faction);
+  return pictureArt(spec, {
+    damageFiles: [1, 2, 3].map((n) => `${spec.file}-d${n}`),
     drawAnimated(p, time) {
       // Runway lights along both edges of the strip.
       const lit = Math.sin(time * 4) > 0;

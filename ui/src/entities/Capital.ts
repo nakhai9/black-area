@@ -1,4 +1,4 @@
-import { capitalFootprint } from '../constants';
+import { CAPITAL_DAMAGE_STAGES, capitalFootprint } from '../constants';
 import type { FactionConfig, WorldPoint } from '../types';
 import { Building } from './Building';
 
@@ -20,6 +20,7 @@ export class Capital extends Building {
       powerDrain: 1,
       incomePerSecond: 0,
       spriteKey: `capital:${faction.id}`,
+      damageStages: CAPITAL_DAMAGE_STAGES[faction.id],
     });
     this.city = faction.capital.city;
     this.description = faction.capital.description;

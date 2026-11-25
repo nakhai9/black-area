@@ -18,6 +18,7 @@ import { createOilDerrickArt } from './OilDerrick';
 import { createPowerPlantArt } from './PowerPlant';
 import { createRadarTowerArt } from './RadarTower';
 import { createFuelStationArt } from './FuelStation';
+import { createMilitaryGarageArt } from './MilitaryGarage';
 import { createReserveCapitalArt } from './ReserveCapital';
 import { createMissileSiloArt } from './MissileSilo';
 import { createGrandMosqueArt } from './GrandMosque';
@@ -52,6 +53,7 @@ export const BUILDING_ART: Readonly<Record<string, BuildingArt>> = {
   'nation:belarus': createNationCapitalArt('belarus'),
   'nation:india': createNationCapitalArt('india'),
   'nation:ukraine': createNationCapitalArt('ukraine'),
+  'nation:turkey': createNationCapitalArt('turkey'),
   // Oil derricks in each nation's team colour.
   'oil:usa': createOilDerrickArt(FACTIONS.usa.colors),
   'oil:russia': createOilDerrickArt(FACTIONS.russia.colors),
@@ -109,6 +111,11 @@ export const BUILDING_ART: Readonly<Record<string, BuildingArt>> = {
   'fuelStation:china': createFuelStationArt('china'),
   'fuelStation:europe': createFuelStationArt('europe'),
   'fuelStation:islamic': createFuelStationArt('islamic'),
+  'militaryGarage:usa': createMilitaryGarageArt('usa'),
+  'militaryGarage:russia': createMilitaryGarageArt('russia'),
+  'militaryGarage:china': createMilitaryGarageArt('china'),
+  'militaryGarage:europe': createMilitaryGarageArt('europe'),
+  'militaryGarage:islamic': createMilitaryGarageArt('islamic'),
   ...Object.fromEntries((['usa', 'russia', 'china', 'europe', 'islamic'] as const).map((f) => [`reserveCapital:${f}`, createReserveCapitalArt(f)] as const)),
   // Happy City in each nation's own architecture.
   'happyCity:usa': createHappyCityArt('usa'),
@@ -122,12 +129,6 @@ export const BUILDING_ART: Readonly<Record<string, BuildingArt>> = {
   'flagpole:china': createFlagpoleArt('china'),
   'flagpole:europe': createFlagpoleArt('europe'),
   'flagpole:islamic': createFlagpoleArt('islamic'),
-  // Allied Building in the architecture of the nation the ally follows.
-  'alliedBuilding:usa': createAlliedBuildingArt('usa'),
-  'alliedBuilding:russia': createAlliedBuildingArt('russia'),
-  'alliedBuilding:china': createAlliedBuildingArt('china'),
-  'alliedBuilding:europe': createAlliedBuildingArt('europe'),
-  'alliedBuilding:islamic': createAlliedBuildingArt('islamic'),
   // Parallel Government: the host nation's building (the nation it is set up in), flying both nations' flags.
   ...Object.fromEntries((['usa', 'russia', 'china', 'europe', 'islamic'] as const).map((f) => [`parallelGov:${f}`, createAlliedBuildingArt(f, f, f)] as const)),
   // Bunkers: drawn from render/BunkerSheet (west: USA, Europe; east: Russia, China, Islamic).
@@ -168,7 +169,6 @@ const FLAG_VARIANTS: Readonly<Record<string, (design: FactionId, flag: FactionId
           : design === 'islamic'
             ? createGrandMosqueArt
             : createBrusselsEUHeadquartersArt)(flag),
-  alliedBuilding: (design, flag) => createAlliedBuildingArt(design, flag),
   // Parallel Government held by `flag` in `design`'s name: `design`'s building, the holder's flag and the host's flag.
   parallelGov: (design, flag) => createAlliedBuildingArt(design, flag, design),
   nation: (design, flag) => createNationCapitalArt(design as unknown as ContestedNationId, flag),
@@ -202,7 +202,6 @@ function rebuildArt(key: string): BuildingArt | undefined {
   const f = m[2];
   switch (m[1]) {
     case 'capital':
-    case 'alliedBuilding':
     case 'parallelGov':
     case 'barracks':
     case 'warFactory':
@@ -221,6 +220,8 @@ function rebuildArt(key: string): BuildingArt | undefined {
       return createRadarTowerArt(f);
     case 'fuelStation':
       return createFuelStationArt(f);
+    case 'militaryGarage':
+      return createMilitaryGarageArt(f);
     case 'reserveCapital':
       return createReserveCapitalArt(f);
     case 'missileSilo':

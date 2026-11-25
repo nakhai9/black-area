@@ -23,6 +23,7 @@ import bmesh
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import kit  # noqa: E402
+import capital_damage  # noqa: E402
 from kit import _obj, box, cylinder, dome, lathe, mat, prism, render, rod, roof, zp  # noqa: E402,F401  (infrastructure only)
 
 D = 2.4
@@ -134,6 +135,25 @@ def sash(face, a0, a1, plane, z, h, glass, white, sill):
         put(face, a0, a1, plane, zz - 0.15, 0.3, 0.009, white)
 
 
+def slate_courses(u0, v0, u1, v1, z, h, n, course, lead):
+    """Slate courses on every face of a hip roof (ridge along u), lead-capped hips and ridge, sitting just proud."""
+    cu, cv = (u0 + u1) / 2, (v0 + v1) / 2
+    inset = min(u1 - u0, v1 - v0) / 2
+    e = 0.003
+    for k in range(1, n):
+        t = k / n
+        zz = zp(z + h * t) + e
+        a0, a1 = u0 + inset * t, u1 - inset * t
+        b0, b1 = v0 + inset * t, v1 - inset * t
+        for p, q in (((a0, b1), (a1, b1)), ((a0, b0), (a1, b0)), ((a0, b0), (a0, b1)), ((a1, b0), (a1, b1))):
+            rod((p[0], p[1], zz), (q[0], q[1], zz), 0.0025, course, 4)
+    top = zp(z + h) + e
+    r0, r1 = (u0 + inset, cv, top), (u1 - inset, cv, top)
+    rod(r0, r1, 0.008, lead, 6)
+    for c, r in (((u0, v0), r0), ((u0, v1), r0), ((u1, v0), r1), ((u1, v1), r1)):
+        rod((c[0], c[1], zp(z) + e), r, 0.006, lead, 6)
+
+
 def build():
     brick = mat("#2c2a27", 0.9, grain=0.22, scale=70)
     white = mat("#f1efe9", 0.6, grain=0.02)
@@ -158,6 +178,28 @@ def build():
                 sash(face, a0, a1, plane, 5.5, 6.8, glass, white, stone)
             sash(face, a0, a1, plane, 15.0, 7.4, glass, white, stone)
             sash(face, a0, a1, plane, 24.6, 4.4, glass, white, stone)
+    # Flemish-bond coursing: fine lighter mortar lines on both visible faces.
+    mortar = mat("#4a4741", 0.95, grain=0.05)
+    for k in range(1, 18):
+        z = 3 + k * 1.6
+        box(U0 - 0.003, V1, U1 - U0 + 0.006, 0.003, z, 0.12, mortar)
+        box(U1, V0 - 0.003, 0.003, V1 - V0 + 0.006, z, 0.12, mortar)
+    # Gauged-brick flat-arch lintels over the windows.
+    gauged = mat("#4b3f37", 0.85, grain=0.1)
+    for face, lo, hi, plane, n in (("left", U0, U1, V1, 12), ("right", V0, V1, U1, 5)):
+        st = (hi - lo) / n
+        for i in range(n):
+            c = lo + (i + 0.5) * st
+            for z, h in ((5.5, 6.8), (15.0, 7.4), (24.6, 4.4)):
+                if z == 5.5 and face == "left" and i in doors:
+                    continue
+                put(face, c - st * 0.24 - 0.02, c + st * 0.24 + 0.02, plane, z + h + 0.7, 1.0, 0.008, gauged)
+    # Team line: a painted band along the parapet (saturated, recoloured to the holder in game).
+    team = mat("#b8302a", 0.5, grain=0.03)
+    box(U0 - 0.012, V1 - 0.004, U1 - U0 + 0.024, 0.016, 32.2, 1.3, team)
+    box(U1 - 0.004, V0 - 0.012, 0.016, V1 - V0 + 0.024, 32.2, 1.3, team)
+    box(U0 - 0.012, V0 - 0.012, U1 - U0 + 0.024, 0.016, 32.2, 1.3, team)
+    box(U0 - 0.012, V0 - 0.012, 0.016, V1 - V0 + 0.024, 32.2, 1.3, team)
     # Brick string course, the white cornice band and the parapet with its coping.
     box(U0 - 0.01, V0 - 0.01, U1 - U0 + 0.02, V1 - V0 + 0.02, 13.4, 0.5, mat("#3a3733", 0.9, grain=0.1))
     box(U0 - 0.04, V0 - 0.04, U1 - U0 + 0.08, V1 - V0 + 0.08, 30.0, 1.2, white)
@@ -168,11 +210,13 @@ def build():
     box(U1 - 0.05, V0 - 0.01, 0.06, V1 - V0 + 0.02, 33.9, 0.5, stone)
     # Slate roof behind the parapet, dormers in the front slope.
     roof(U0 + 0.04, V0 + 0.04, U1 - U0 - 0.08, V1 - V0 - 0.08, 31.7, 13, slate, kind="hip", ridge="u", overhang=0.0)
+    slate_courses(U0 + 0.04, V0 + 0.04, U1 - 0.04, V1 - 0.04, 31.7, 13, 9, mat("#3a3f44", 0.6, grain=0.05), mat("#7d8287", 0.45, metal=0.5, grain=0.02))
     for i in range(0, 12, 2):
         c = U0 + (i + 1) * step
         box(c - 0.07, V1 - 0.4, 0.14, 0.16, 33.0, 5.4, slate)
         opening("left", c - 0.045, c + 0.045, V1 - 0.24, 33.8, 3.4, glass, white, None)
         roof(c - 0.07, V1 - 0.4, 0.14, 0.16, 38.4, 2.2, slate, kind="gable", ridge="v", overhang=0.01)
+        rod((c, V1 - 0.41, zp(40.6) + 0.003), (c, V1 - 0.23, zp(40.6) + 0.003), 0.004, mat("#7d8287", 0.45, metal=0.5, grain=0.02), 4)
     # Chimney stacks on the party walls with clay pots.
     pot = mat("#9e5a3f", 0.8, grain=0.1)
     for u in (0.3, 1.12, 2.0, 2.88, 3.5):
@@ -204,9 +248,21 @@ def build():
         put("left", a0, a1, V1 + 0.195, 8.4, 0.5, 0.01, iron)
 
     poles()
+    return locals()
 
 
-kit.reset()
-build()
-smooth_round_parts()
-render("nation-unitedKingdom", (4, D), HEIGHT)
+def damage_cfg(L):
+    """Damage stages (capital_damage.py): the east half goes at stage 2, rubble field at stage 3."""
+    return dict(
+        rects=[(0.25, 0.3, 3.75, 1.85, 3.0, 33.9), (0.29, 0.34, 3.71, 1.81, 31.7, 44.7)],
+        base=3.0, walls=[L["brick"], L["white"], L["brick"], L["stone"]], roof=L["slate"], team=L["team"],
+        glass=L["glass"], split=2.0, floors=[13.4, 22.8, 30.0], team_z=12, seed=94,
+    )
+
+
+for _d in capital_damage.stages():
+    kit.reset()
+    capital_damage.apply(_d, damage_cfg(build()))
+    smooth_round_parts()
+    render("nation-unitedKingdom" + (f"-d{_d}" if _d else ""), (4, D), HEIGHT)
+

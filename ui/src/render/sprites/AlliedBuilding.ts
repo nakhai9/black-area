@@ -44,10 +44,12 @@ export function mirrored(p: IsoPainter, u: number, v: number, z: number, draw: (
   p.ctx.restore();
 }
 
-/** Allied Building (4×4 tiles) in the leading nation's architecture, with the owner's national flag (`flag`) and its ally flag (black, the nation's emblem) side by side at the front, facing each other. */
+/** Embassy-style seat (4×4 tiles) in the given nation's architecture, used by the Parallel Government: the owner's national flag (`flag`) and its second flag side by side at the front, facing each other. */
 /** `second`: a national flag for the right pole instead of the black ally flag (Parallel Government: the host nation's flag). */
 export function createAlliedBuildingArt(faction: FactionId, flag: FactionId = faction, second?: FactionId): BuildingArt {
   return pictureArt(PICTURE[faction], {
+    // Damage stages (≤80 %, ≤50 %, ≤20 % HP), same script/camera/origin; the flag poles keep a masonry block under them (z = 2 + WING_H).
+    damageFiles: [1, 2, 3].map((n) => `${PICTURE[faction].file}-d${n}`),
     overlay(p) {
       FLAGS.forEach(([u, v], i) => drawNationalPole(p, i === 1 && second ? second : flag, u, v, 2 + WING_H, 30));
     },

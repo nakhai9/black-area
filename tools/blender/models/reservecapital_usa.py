@@ -15,6 +15,7 @@ import math
 import bmesh
 
 from kit import _obj, box, cylinder, lathe, mat, render, rod, roof, windows, zp, TEAM
+from models._damage import ruined_render
 
 W, D = 3, 4
 
@@ -115,7 +116,7 @@ def range_block(u0, v0, w, d, z, h, marble, marble_d, glass, frame, cols_v, cols
     box(u0 - 0.025, v0 - 0.025, w + 0.05, d + 0.05, z + h, 1.1, marble_d)
 
 
-def reserve_capital_usa():
+def reserve_capital_usa(damage=0):
     team = mat(TEAM["usa"], 0.5, grain=0)
     marble = mat("#f1eee6", 0.6, grain=0.05, scale=24)
     marble_d = mat("#d9d4c8", 0.7, grain=0.07, scale=24)
@@ -201,7 +202,7 @@ def reserve_capital_usa():
     lathe(du, dv, zl + 4.8, [(0.13, 0), (0.1, 1), (0.04, 2.6), (0.0, 3)], iron, segs=24)
     lathe(du, dv, zl + 7.6, [(0.02, 0), (0.025, 2.2), (0.012, 3.4), (0.0, 4)], bronze, segs=10)  # statue
 
-    render("reservecapital-usa", (W, D), 72)
+    ruined_render("reservecapital-usa", (W, D), 72, damage, seed=12, cut_u=1.5)
 
 
-MODELS = {"reservecapital-usa": reserve_capital_usa}
+MODELS = {"reservecapital-usa": reserve_capital_usa, **{f"reservecapital-usa-d{d}": (lambda d=d: reserve_capital_usa(d)) for d in (1, 2, 3)}}

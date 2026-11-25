@@ -4,6 +4,7 @@ import math
 import bmesh
 
 from models._rooftop import deck
+from models._damage import ruined_render
 from kit import _obj, box, cylinder, dome, lathe, mat, prism, render, roof, rod, zp, TEAM
 
 
@@ -140,54 +141,6 @@ def usa(f):
     render("techcenter-usa-artdeco", (4, 4), 210)
 
 
-def russia(f):
-    team = TEAM[f]
-    stone, glass = "#d2c4a0", "#3a4048"
-    podium(stone, glass, team, 14)
-    deck("russia", 0.15, 0.15, 3.7, 3.7, 17.4, team=team,
-         avoid=[(0.26, 0.26, 1.08, 1.08), (2.66, 0.26, 1.08, 1.08), (0.26, 2.66, 1.08, 1.08), (2.66, 2.66, 1.08, 1.08), (1.0, 0.9, 2.0, 1.9)])
-    g = glassm(glass)
-    fr = mat("#7a6a50", 0.7, grain=0)
-    st = mat(stone, 0.85, grain=0.12, scale=14)
-    st2 = mat("#ddd0ae", 0.85, grain=0.12, scale=14)
-    red = mat("#a8322a", 0.7, grain=0.08)
-    gold = mat("#c8a850", 0.3, metal=0.9, grain=0.03)
-    for u, v in [(0.3, 0.3), (2.7, 0.3), (0.3, 2.7), (2.7, 2.7)]:
-        stone_block(u, v, 1.0, 1.0, 16, 30, st, g, fr, 5, cols=5, cornice=red)
-        roof(u + 0.15, v + 0.15, 0.7, 0.7, 46, 12, gold, kind="pyramid", overhang=0)
-    stone_block(1.05, 0.95, 1.9, 1.8, 16, 18, st, g, fr, 3, cornice=red)
-    stone_block(1.3, 1.2, 1.4, 1.3, 34, 56, st2, g, fr, 9, cornice=red)
-    tb = mat(team, 0.5, grain=0.03)
-    box(1.3, 2.5, 1.4, 0.03, 86, 2.5, tb)
-    box(2.7, 1.2, 0.03, 1.3, 86, 2.5, tb)
-    for u, v in [(1.3, 1.2), (2.7, 1.2), (1.3, 2.5), (2.7, 2.5)]:
-        lathe(u, v, 90, [(0.06, 0), (0.0, 8)], gold, 8)
-    stone_block(1.5, 1.4, 1.0, 0.9, 90, 26, st2, g, fr, 4, cornice=red)
-    stone_block(1.7, 1.6, 0.6, 0.5, 116, 14, st2, g, fr, 2)
-    lathe(2.0, 1.85, 130, [(0.3, 0), (0.22, 12), (0.12, 30), (0.04, 46), (0.015, 52)], gold, 8)
-    lathe(2.0, 1.85, 182, [(0.02, 0), (0.02, 8)], gold, 8)
-    # Red star standing in the u-z plane (faces the +v side), centred at z = 196.
-    cz = zp(196)
-    pts = []
-    for k in range(10):
-        a = math.pi / 2 + k * math.pi / 5
-        r = 0.2 if k % 2 == 0 else 0.08
-        pts.append((r * math.cos(a), r * math.sin(a)))
-    bm = bmesh.new()
-    front = [bm.verts.new((2.0 + x, 1.87, cz + y)) for x, y in pts]
-    back = [bm.verts.new((2.0 + x, 1.83, cz + y)) for x, y in pts]
-    centre_f = bm.verts.new((2.0, 1.87, cz))
-    centre_b = bm.verts.new((2.0, 1.83, cz))
-    for i in range(10):
-        j = (i + 1) % 10
-        bm.faces.new((centre_f, front[i], front[j]))
-        bm.faces.new((centre_b, back[j], back[i]))
-        bm.faces.new((front[i], back[i], back[j], front[j]))
-    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
-    _obj("star", bm, mat("#e0201a", 0.3, grain=0, emit="#c01010"))
-    render(f"techcenter-{f}", (4, 4), 210)
-
-
 def china(f):
     team = TEAM[f]
     stone, glass = "#9a948a", "#24485a"
@@ -210,7 +163,7 @@ def china(f):
     render("techcenter-china-pagoda", (4, 4), 210)
 
 
-def europe(f):
+def europe(f, damage=0):
     team = TEAM[f]
     C = (4.3, 4.3)
     RIN, ROUT = 2.35, 2.95
@@ -264,10 +217,10 @@ def europe(f):
         u, v = at(RIN - 0.75, a)
         rod((u, v, zp(2)), (u, v, zp(26)), 0.01, pole)
         box(u, v, 0.18, 0.01, 22.5, 3.5, mat(col, 0.6, grain=0))
-    render(f"techcenter-{f}", (4, 4), 170)
+    ruined_render(f"techcenter-{f}", (4, 4), 170, damage, seed=21, cut_u=2.0)
 
 
-def islamic(f):
+def islamic(f, damage=0):
     team = TEAM[f]
     stone, glass = "#c2a77c", "#3a5a5a"
     podium(stone, glass, team, 18, arched=True)
@@ -288,8 +241,9 @@ def islamic(f):
         cylinder(u, v, 0.27, 20, 1.5, mat(stone, 0.8, grain=0.1))
         dome(u, v, 0.25, 21.5, 8, green)
         lathe(u, v, 29.5, [(0.012, 0), (0.0, 4)], gold, 6)
-    render(f"techcenter-{f}", (4, 4), 210)
+    ruined_render(f"techcenter-{f}", (4, 4), 210, damage, seed=22, cut_u=2.0)
 
 
-_BUILD = {"usa": usa, "russia": russia, "china": china, "europe": europe, "islamic": islamic}
-MODELS = {({"usa": "techcenter-usa-artdeco", "china": "techcenter-china-pagoda"}.get(f, f"techcenter-{f}")): (lambda f=f: _BUILD[f](f)) for f in TEAM}
+_BUILD = {"usa": usa, "china": china, "europe": europe, "islamic": islamic}
+MODELS = {({"usa": "techcenter-usa-artdeco", "china": "techcenter-china-pagoda"}.get(f, f"techcenter-{f}")): (lambda f=f: _BUILD[f](f)) for f in TEAM if f != "russia"}  # Russia: techcenter_russia.py
+MODELS.update({f"techcenter-{f}-d{d}": (lambda f=f, d=d: _BUILD[f](f, d)) for f in ("europe", "islamic") for d in (1, 2, 3)})

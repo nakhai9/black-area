@@ -54,7 +54,10 @@ const ALT_FLAGS: Record<string, FlagSpot> = {
 export function createBarracksArt(faction: FactionId, flagOf: FactionId = faction): BuildingArt {
   const alt = `${faction}:${activeDesign('barracks', faction)}`;
   const f = ALT_FLAGS[alt] ?? FLAGS[faction];
-  return pictureArt(ALT_PICTURES[alt] ?? PICTURES[faction], {
+  const spec = ALT_PICTURES[alt];
+  return pictureArt(spec ?? PICTURES[faction], {
+    // Damage pictures (d1 ≤80 %, d2 ≤50 %, d3 ≤20 % HP) exist for the active designs only.
+    damageFiles: spec ? undefined : [1, 2, 3].map((n) => `${PICTURES[faction].file}-d${n}`),
     overlay: (p) => drawNationalPole(p, faction, f.u, f.v, f.z, f.h),
     drawAnimated: (p, time) => drawFlagOnPole(p, flagOf, f.u, f.v, f.z + f.h, time, 0.6),
   });

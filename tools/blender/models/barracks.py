@@ -1,10 +1,11 @@
-"""Ministry of Defence (barracks) of usa (the Pentagon, 4 x 4), russia, china and islamic (5 x 3). Europe's is rendered elsewhere."""
+"""Ministry of Defence (barracks) of usa (the Pentagon, 4 x 4), china and islamic (5 x 3). Europe's and Russia's are rendered elsewhere."""
 import math
 
 import bmesh
 
 from models._chinese_roof import curved_roof
 from kit import _obj, cylinder, dome, lathe, mat, render, rod, roof, zp, TEAM
+from models._damage import ruined_render
 
 
 # ---------------------------------------------------------------- batched geometry (one mesh per material)
@@ -206,90 +207,15 @@ def pentagon():
     render("barracks-usa-pentagon", (4, 4), 40)
 
 
-# ---------------------------------------------------------------- Russia: Frunzenskaya Ministry of Defence
+# ---------------------------------------------------------------- shared plot of the 5 x 3 designs (Russia: barracks_russia.py)
 
 W, D, MU = 5, 3, 2.5
-
-
-def stalinist():
-    B = Batch()
-    team = mat(TEAM["russia"], 0.5, grain=0)
-    stone = mat("#dcd2bb", 0.85, grain=0.1, scale=25)
-    base = mat("#a59a80", 0.9, grain=0.12, scale=20)
-    trim = mat("#ece5d2", 0.7, grain=0.05)
-    roofm = mat("#7e786c", 0.8, grain=0.15, scale=14)
-    glass = mat("#2a2f33", 0.2, grain=0, glass=True)
-    frame = mat("#efe9d8", 0.6, grain=0)
-    domem = mat("#5d8a94", 0.35, metal=0.6, grain=0.05)
-    gold = mat("#d9b23e", 0.3, metal=0.9, grain=0)
-    dark = mat("#26282a", 0.7, grain=0)
-    pave = mat("#8f846c", 0.95, grain=0.15, scale=10)
-    B.box(0, 0, W, D, 0, 2, pave)
-
-    def tiered(u, v, w, d, z, h, cols_u, cols_v, rows):
-        B.box(u, v, w, d, z, h, stone)
-        rect_windows(B, u, v, w, d, z + 1, h - 2, cols_u, cols_v, rows, glass, frame, fill=0.55, wfill=0.45)
-        B.box(u - 0.03, v - 0.03, w + 0.06, d + 0.06, z + h, 1.2, trim)
-
-    # Two tall stepped towers at the back, each crowned with a spire and a star.
-    for u in (0.7, W - 0.7 - 0.75):
-        B.box(u, 0.1, 0.75, 0.75, 2, 2.5, base)
-        tiered(u, 0.1, 0.75, 0.75, 4.5, 31.5, 5, 5, 9)
-        tiered(u + 0.1, 0.2, 0.55, 0.55, 37.2, 7, 4, 4, 2)
-        tiered(u + 0.2, 0.3, 0.35, 0.35, 45.4, 4, 2, 2, 1)
-        roof(u + 0.2, 0.3, 0.35, 0.35, 50.6, 6, roofm, kind="pyramid", overhang=0.03)
-        lathe(u + 0.375, 0.475, 56, [(0.03, 0), (0.005, 9)], gold, segs=12, cap_bottom=True)
-        for k in range(4):  # corner pinnacles on the first tier
-            pu = u + (0.04 if k % 2 == 0 else 0.67)
-            pv = 0.14 + (0 if k < 2 else 0.63)
-            B.box(pu, pv, 0.04, 0.04, 37.2, 3, trim)
-    # Teal domes on drums between the towers and the centre.
-    for u in (1.85, W - 1.85):
-        cylinder(u, 0.95, 0.3, 20, 4, stone, 32)
-        cylinder(u, 0.95, 0.33, 24, 0.8, trim, 32)
-        dome(u, 0.95, 0.31, 24.8, 9, domem)
-        lathe(u, 0.95, 33.5, [(0.02, 0), (0.004, 4)], gold, segs=8, cap_bottom=True)
-
-    C0, CW = 1.75, W - 3.5
-    # Long low wings either side, an arched gateway beside the centre.
-    for u, w, gate_u in ((0.08, C0 - 0.08, C0 - 0.4), (W - C0, C0 - 0.08, W - C0 + 0.4)):
-        B.box(u, 1.0, w, 1.95, 2, 2.4, base)
-        B.box(u, 1.0, w, 1.95, 4.4, 15.6, stone)
-        rect_windows(B, u, 1.0, w, 1.95, 5, 14.5, 9, 10, 4, glass, frame, fill=0.55, wfill=0.42)
-        B.box(u - 0.02, 0.98, w + 0.04, 1.99, 20, 1.4, trim)
-        roof(u, 1.0, w, 1.95, 21.4, 3, roofm, kind="hip", ridge="u", overhang=0.02)
-        B.box(gate_u - 0.12, 2.94, 0.24, 0.03, 2, 10, trim)
-        B.box(gate_u - 0.08, 2.95, 0.16, 0.03, 2, 8, dark)
-        rod((gate_u - 0.08, 2.965, zp(10)), (gate_u + 0.08, 2.965, zp(10)), 0.015, dark, 8)
-    # Central block: rusticated base, giant pilasters, team band, attic with the crest, crowning pavilion.
-    B.box(C0, 0.6, CW, 2.35, 2, 3, base)
-    B.box(C0, 0.6, CW, 2.35, 5, 25, stone)
-    rect_windows(B, C0, 0.6, CW, 2.35, 6, 22, 7, 11, 6, glass, frame, fill=0.6, wfill=0.4)
-    for k in range(8):
-        u = C0 + 0.02 + k * (CW - 0.06) / 7
-        B.box(u, 2.95, 0.04, 0.035, 5, 25, trim)
-    B.box(C0 - 0.01, 2.95, CW + 0.02, 0.03, 27, 1.2, team)
-    B.box(C0 + 0.6, 2.95, CW - 1.2, 0.04, 2, 7, dark)
-    for k in range(3):
-        B.box(C0 + 0.5 + k * 0.03, 2.95 + k * 0.08 + 0.04, CW - 1.0 - k * 0.06, 0.08, 2 - k * 0.6, 0.6, trim)
-    B.box(C0 - 0.03, 0.57, CW + 0.06, 2.41, 30, 1.6, trim)
-    for k in range(12):  # balustrade posts
-        B.box(C0 + 0.02 + k * (CW - 0.06) / 11, 2.93, 0.03, 0.03, 31.6, 1.8, trim)
-    B.box(C0 - 0.03, 2.93, CW + 0.06, 0.05, 33.2, 0.5, trim)
-    B.box(C0 + 0.2, 0.8, CW - 0.4, 1.95, 31.6, 6, stone)
-    rect_windows(B, C0 + 0.2, 0.8, CW - 0.4, 1.95, 32.5, 4.5, 6, 8, 1, glass, frame, sides="frb", fill=0.6, wfill=0.4)
-    disc(MU, 2.75, 34.6, 0.13, 0.02, gold)
-    disc(MU, 2.76, 34.6, 0.06, 0.02, mat("#b8231c", 0.5, grain=0))
-    B.box(C0 + 0.18, 0.78, CW - 0.36, 1.99, 37.6, 0.8, trim)
-    B.box(C0 + 0.4, 1.1, CW - 0.8, 1.3, 38.4, 2.2, mat("#3c3a36", 0.8, grain=0.1))
-    B.flush()
-    render("barracks-russia", (W, D), 66)
 
 
 # ---------------------------------------------------------------- China: August 1st Building
 
 
-def bayi():
+def bayi(damage=0):
     B = Batch()
     team = mat(TEAM["china"], 0.5, grain=0)
     stone = mat("#ece5d4", 0.85, grain=0.08, scale=25)
@@ -349,13 +275,13 @@ def bayi():
         B.box(E0 - 0.15 + i * 0.04, 2.8 + i * 0.06, EW + 0.3 - i * 0.08, 0.2 - i * 0.06, 1.2 - 0.0, 0.9 - i * 0.3, trim)
     B.box(0.05, 2.92, W - 0.1, 0.05, 1.2, 0.3, team)
     B.flush()
-    render("barracks-china", (W, D), 62)
+    ruined_render("barracks-china", (W, D), 62, damage, flag=(2.5, 2.95, 1.2), seed=3)
 
 
 # ---------------------------------------------------------------- Islamic: mud-brick fortress
 
 
-def islamic_fort():
+def islamic_fort(damage=0):
     B = Batch()
     team = mat(TEAM["islamic"], 0.5, grain=0)
     brick = mat("#b59670", 0.95, grain=0.18, scale=22)
@@ -418,12 +344,12 @@ def islamic_fort():
         cylinder(u + 0.04, gv + 0.2, 0.06, Z, 33, keep, 16)
         dome(u + 0.04, gv + 0.2, 0.07, Z + 33, 4, gdome, segs=16)
     B.flush()
-    render("barracks-islamic", (W, D), 54)
+    ruined_render("barracks-islamic", (W, D), 54, damage, flag=(2.5, 2.8, 34.5), seed=5)
 
 
 MODELS = {
     "barracks-usa-pentagon": pentagon,
-    "barracks-russia": stalinist,
     "barracks-china": bayi,
     "barracks-islamic": islamic_fort,
+    **{f"barracks-{k}-d{d}": (lambda f=f, d=d: f(d)) for k, f in (("china", bayi), ("islamic", islamic_fort)) for d in (1, 2, 3)},
 }

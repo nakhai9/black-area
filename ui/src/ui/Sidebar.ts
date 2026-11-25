@@ -26,7 +26,7 @@ const Soldier: IconNode = [
 const Tank: IconNode = [
   ['path', { fill: 'currentColor', stroke: 'none', d: 'M20 12H4v-1h2l1-5h5l1 5h7zm-6.78-5l.4 2H22V7zM22 16a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3a3 3 0 0 1 3-3h14a3 3 0 0 1 3 3M6 16a1 1 0 0 0-1-1a1 1 0 0 0-1 1a1 1 0 0 0 1 1a1 1 0 0 0 1-1m7 0a1 1 0 0 0-1-1a1 1 0 0 0-1 1a1 1 0 0 0 1 1a1 1 0 0 0 1-1m7 0a1 1 0 0 0-1-1a1 1 0 0 0-1 1a1 1 0 0 0 1 1a1 1 0 0 0 1-1' }],
 ];
-import { BUILD_LIMIT_VEHICLES, CURRENCY, MAX_ALLIES, OIL_GRID_MARKUP, OIL_POLICIES, POWER_PER_BARREL, TECH_TIERS, TECH_VEHICLES, isAircraftKind, PEACE_SECONDS, WAR_SECONDS } from '../constants';
+import { BUILD_LIMIT_VEHICLES, CURRENCY, OIL_GRID_MARKUP, OIL_POLICIES, POWER_PER_BARREL, TECH_TIERS, TECH_VEHICLES, isAircraftKind, PEACE_SECONDS, WAR_SECONDS } from '../constants';
 import { FACTIONS } from '../factions';
 import { getFlagTexture } from '../render/Flags';
 import { factionBadgeHtml } from './FactionBadge';
@@ -109,14 +109,14 @@ const OIL_TAB_ICON = '<svg xmlns="http://www.w3.org/2000/svg" width="18" height=
 
 type InfoId = 'finance' | 'oil' | 'capitals';
 
-/** One of the player's allies (Allied Building) or a claim flag still waiting for its ally, for the Allies tab. */
+/** One of the player's Parallel Governments, held capitals or claim flags on new land, for the Allies tab. */
 export interface AllyInfo {
   id: number;
-  /** Allied Building standing (false: only the claim flag so far). */
+  /** A structure standing (false: a claim flag on new land). */
   built: boolean;
-  /** Captured contested-nation capital (its name): counts as an ally, outside the MAX_ALLIES cap. */
+  /** Captured contested-nation capital (its name): listed with the others. */
   capital?: string;
-  /** Allied Building: its display name (the nation's embassy in that land). */
+  /** Parallel Government: its display name (and the nation it stands for). */
   embassy?: string;
   /** Captured capital: the nation taken and the faction holding it (emblem 🤝 flag in the row). */
   nation?: NationId;
@@ -248,7 +248,7 @@ export interface SidebarModel {
   vehicleOptions: readonly VehicleOption[];
   /** Is this structure on sale now (another nation's design needs that nation's captured capital)? */
   buildAvailable: (option: BuildOption) => boolean;
-  /** Can this structure be ordered right now (treasury, engineers for the Yars, embassy cap)? False greys its cameo out. */
+  /** Can this structure be ordered right now (treasury, engineers for the Yars)? False greys its cameo out. */
   /** Why this structure cannot be ordered right now (treasury, engineers for the Yars, ally cap), in English; null when it can. */
   buildBlocker: (option: BuildOption) => string | null;
   training: TrainingQueue;
@@ -542,7 +542,7 @@ export class Sidebar {
             <li>${t('Elite (type II) soldiers: at most 2 for every 3 regulars · orders: up to 15 soldiers and 10 vehicles waiting at once — a new one the moment one is done, whatever your army size · special forces swim · tanks run soldiers over · only aircraft shoot aircraft')}</li>
             <li>${t('Transport: select soldiers/vehicles, <kbd>Left-click</kbd> your transport to board (one in the air lands first) · select the transport, <kbd>Left-click</kbd> ground — it flies there, lands and unloads · <kbd>U</kbd>/<b>Unload</b> — let them out here, one by one')}</li>
             <li>${t('Aircraft: <kbd>T</kbd>/<b>Turbo</b> — the selected aircraft in the air fly 2× faster for 15 s, then the turbo recharges (40 s)')}</li>
-            <li>${t('Squatters (flag bearer + escort, one unit): walk it (or fly it by transport) to unclaimed land (not your rivals\' home lands, never Antarctica), select it and press <kbd>F</kbd> (or double-click it) — the flag goes up on the nearest open cell, on any land (the Squatters are gone once it stands) · then build an <b>Allied Building</b> beside it (max 3 allies)')}</li>
+            <li>${t('Squatters (flag bearer + escort, one unit): walk it (or fly it by transport) to unclaimed land (not your rivals\' home lands, never Antarctica), select it and press <kbd>F</kbd> (or double-click it) — the flag goes up on the nearest open cell, on any land (the Squatters are gone once it stands) · your structures may then be built beside it')}</li>
             <li>${t('When <b>READY</b>: click cameo, then click the map to place · <kbd>R</kbd> turn it 90° (only before it is placed) · <kbd>Esc</kbd>/<kbd>Right-click</kbd> stop placing')}</li>
             <li>${t('<kbd>WSD</kbd>/<kbd>Arrows</kbd>/screen edge — scroll · <kbd>A</kbd> auto sell · <kbd>Wheel</kbd> zoom · <kbd>Middle-drag</kbd> pan')}</li>
             <li>${t('<kbd>Click</kbd> select · <kbd>1</kbd> your capital · <kbd>2</kbd>–<kbd>5</kbd> rival capitals · <kbd>O</kbd> oil · <kbd>H</kbd> home · <kbd>Tab</kbd> world map')}</li>
@@ -1306,15 +1306,15 @@ export class Sidebar {
   }
 
   /**
-   * Allies column of the News window: one row per Allied Building (health, under attack) and per claim flag still
-   * waiting for its building.
+   * Allies column of the News window: one row per Parallel Government or held capital (health, under attack) and
+   * per claim flag on new land.
    */
   private renderAllies(allies: readonly AllyInfo[]): void {
     const built = allies.filter((a) => a.built && !a.capital).length;
     const key = allies.map((a) => `${a.id}:${a.built}:${Math.ceil((a.hp / a.maxHp) * 20)}:${a.underAttack}`).join('|');
     if (key === this.allyKey) return;
     this.allyKey = key;
-    this.allyCount.textContent = `${built} / ${MAX_ALLIES}`;
+    this.allyCount.textContent = String(built);
     let n = 0;
     this.allyList.replaceChildren(
       ...allies.map((a) => {
@@ -1345,7 +1345,7 @@ export class Sidebar {
           name.append(img(`${import.meta.env.BASE_URL}emblems/${a.holder}.png`), shake, img(isFactionNation(a.nation) ? getFlagTexture(a.nation).toDataURL() : nationFlag(a.nation).toDataURL()));
           if (hit) name.append(hit);
         } else {
-          name.textContent = a.built ? `${a.capital ?? (a.embassy ?? t('Ally {n}', { n }))}${hit}` : t('Claimed land · no ally yet');
+          name.textContent = a.built ? `${a.capital ?? (a.embassy ?? t('Ally {n}', { n }))}${hit}` : t('Claimed land');
         }
         const place = document.createElement('div');
         place.className = 'sb-muted sb-ally-place';
@@ -1661,11 +1661,7 @@ export class Sidebar {
       const el = document.createElement('button');
       el.type = 'button';
       el.className = 'sb-cameo sb-cameo-structure';
-      // The Allied Building is the nation's embassy in that land.
-      el.title =
-        option.id === 'alliedBuilding'
-          ? t('{nation} Embassy', { nation: FACTIONS[this.faction].shortName })
-          : `${option.foreign ? this.foreignName({ name: option.name, faction: option.foreign }) : option.name} — ${buildCost(option, this.faction)} ${CURRENCY}. ${t('Click to build, right-click to cancel.')}`;
+      el.title = `${option.foreign ? this.foreignName({ name: option.name, faction: option.foreign }) : option.name} — ${buildCost(option, this.faction)} ${CURRENCY}. ${t('Click to build, right-click to cancel.')}`;
       el.innerHTML = `
         <canvas width="128" height="96"></canvas>
         <span class="sb-cameo-wipe"></span>

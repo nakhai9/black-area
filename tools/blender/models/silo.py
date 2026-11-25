@@ -305,3 +305,9 @@ def silo_lid_round():
 MODELS = {f"silo-{n}": (lambda n=n: silo(n)) for n in TEAM}
 MODELS["silo-lid"] = silo_lid
 MODELS["silo-lid-round"] = silo_lid_round
+
+from models._utilwreck import variant  # noqa: E402
+
+for _f in TEAM:
+    for _d in (1, 2, 3):
+        MODELS[f"silo-{_f}-d{_d}"] = (lambda f=_f, d=_d: variant(globals(), lambda: silo(f), d, side=(1.0, 0.5), stub=3, frag=8, flat=True, keep_low=1.5))

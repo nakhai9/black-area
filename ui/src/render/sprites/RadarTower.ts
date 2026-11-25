@@ -27,13 +27,18 @@ export function createRadarTowerArt(faction: FactionId): BuildingArt {
   const st = STYLES[faction];
   const frames = Array.from({ length: FRAMES }, (_, k) => spec(`building-radar-${faction}-ant${String(k).padStart(2, '0')}`, st.pivot));
   for (const f of frames) preloadPicture(f.file);
+  const base = `building-radar-${faction}`;
+  const files = [1, 2, 3].map((n) => `${base}-d${n}`);
+  const ruin = pictureArt(spec(base, st.pivot), { recolorWhole: true, damageFiles: files });
   const art = pictureArt(spec(`building-radar-${faction}`, st.pivot), {
     recolorWhole: true,
+    damageFiles: files,
     drawAnimated(p, time) {
       const turns = st.phase / (Math.PI * 2) + time * st.rpm;
       const k = Math.round((((turns % 1) + 1) % 1) * FRAMES) % FRAMES;
       drawPicture(p, frames[k]!);
     },
   });
-  return { ...art, fitHeight: true };
+  // Damage stages (≤80 %, ≤50 %, ≤20 % HP), same script/camera/origin; from stage 2 the antenna is gone.
+  return { ...art, fitHeight: true, damaged: (s) => ({ ...(s >= 2 ? ruin : art).damaged!(s), fitHeight: true }) };
 }

@@ -1,3 +1,4 @@
+import { activeDesign } from '../../constants';
 import type { FactionId } from '../../types';
 
 import type { BuildingArt } from './BuildingArt';
@@ -28,22 +29,30 @@ export const AIRFIELD_SLOTS: readonly (readonly [number, number])[] = [
  * Russia's own layout (tools/blender/models/airfield_russia.py): the runway runs down the middle along v, as long as
  * the airfield is wide (u ∈ [5.2, 6.8], centre u = 6), with stands either side: two columns west, one east.
  */
-/** Nations whose airfield uses Russia's runway-down-the-middle design (Nordursia, Longoria, Lunastron). */
-const MIDDLE_RUNWAY: ReadonlySet<string> = new Set(['russia', 'china', 'islamic']);
+/** Design codes (BUILDING_DESIGNS.airfield) with Russia's runway-down-the-middle layout. */
+const MIDDLE_RUNWAY: ReadonlySet<string> = new Set(['middleRunway', 'middleRunwaySand']);
 export const RUSSIA_RUNWAY = { u0: 5.2, u1: 6.8, cu: 6 } as const;
 const RU_ROWS = [1.4, 4.0, 6.6];
 export const RUSSIA_SLOTS: readonly (readonly [number, number])[] = RU_ROWS.flatMap((v) => [[1.4, v], [3.6, v], [8.4, v]] as const);
 
 /** Runway centre line ends (tile u, v; take-off rolls start → end) and parking spots of a nation's airfield design. */
 export function airfieldLayout(faction: string): { start: readonly [number, number]; end: readonly [number, number]; slots: readonly (readonly [number, number])[] } {
-  if (MIDDLE_RUNWAY.has(faction)) return { start: [RUSSIA_RUNWAY.cu, 0.5], end: [RUSSIA_RUNWAY.cu, D - 0.5], slots: RUSSIA_SLOTS };
+  if (MIDDLE_RUNWAY.has(activeDesign('airfield', faction))) return { start: [RUSSIA_RUNWAY.cu, 0.5], end: [RUSSIA_RUNWAY.cu, D - 0.5], slots: RUSSIA_SLOTS };
   return { start: [0.5, RUNWAY_D / 2], end: [W - 0.5, RUNWAY_D / 2], slots: AIRFIELD_SLOTS };
 }
 const LIGHTS_U: number[] = [];
 for (let u = 0.15; u < W; u += 1.1) LIGHTS_U.push(u);
 
-/** Rendered in Blender (tools/blender/building_render.py airfield-<nation>, a flat piece: heights not scaled). */
-const PICTURE = (faction: FactionId): PictureSpec => ({ file: `building-airfield-${faction}`, originX: 262, originY: 66, scale: 3, footprint: { w: W, d: D }, zScale: 1 });
+/**
+ * Rendered in Blender (tools/blender/building_render.py airfield-<nation>, a flat piece: heights not scaled).
+ * One picture per design code (BUILDING_DESIGNS.airfield): nations sharing a code share the picture, drawn with its
+ * team line recoloured to their own. Value = the nation whose render holds that design.
+ */
+const DESIGN_PICTURE: Readonly<Record<string, FactionId>> = { middleRunway: 'russia', middleRunwaySand: 'islamic' };
+const PICTURE = (faction: FactionId): PictureSpec => {
+  const from = DESIGN_PICTURE[activeDesign('airfield', faction)] ?? faction;
+  return { file: `building-airfield-${from}`, originX: 262, originY: 66, scale: 3, footprint: { w: W, d: D }, zScale: 1, ...(from !== faction ? { recolor: { from, to: faction } } : {}) };
+};
 
 /**
  * Airfield (12×8 tiles, mirror-symmetric about its centre line): a long runway along the
@@ -51,8 +60,10 @@ const PICTURE = (faction: FactionId): PictureSpec => ({ file: `building-airfield
  * in three rows (the fighters are real units). The only structure on it is the control tower, in the
  * front corner opposite the runway. Aircraft that return here are repaired.
  */
-export function createAirfieldArt(faction: FactionId): BuildingArt {
-  return pictureArt(PICTURE(faction), {
+export function createAirfieldArt(faction: FactionId, stage = 0): BuildingArt {
+  // Damage stages share the design's picture (same recolour): building-airfield-<design nation>-d<n> (_wreck.py wreck_flat).
+  const spec = PICTURE(faction);
+  const art = pictureArt(stage ? { ...spec, file: `${spec.file}-d${stage}` } : spec, {
     drawAnimated(p, time) {
       // Blinking runway lights along both edges.
       const on = Math.sin(time * 4) > 0;
@@ -68,8 +79,8 @@ export function createAirfieldArt(faction: FactionId): BuildingArt {
       } else {
         for (const u of LIGHTS_U) for (const v of [0.03, RUNWAY_D - 0.03]) lamp(u, v);
       }
-      // Tower beacon.
-      if (Math.sin(time * 2.4) > 0.3) {
+      // Tower beacon (gone once the tower is blown open).
+      if (stage < 2 && Math.sin(time * 2.4) > 0.3) {
         const [x, y] = MIDDLE_RUNWAY.has(faction) ? p.project(11.2, 7.1, 45) : p.project(W - 0.6, D - 0.6, 45);
         p.ctx.fillStyle = '#ff3b30';
         p.ctx.beginPath();
@@ -78,4 +89,6 @@ export function createAirfieldArt(faction: FactionId): BuildingArt {
       }
     },
   });
+  if (stage === 0) art.damaged = (n) => createAirfieldArt(faction, Math.min(3, Math.max(1, n)));
+  return art;
 }

@@ -1,6 +1,8 @@
 import type { IsoPainter } from '../IsoPainter';
 import type { BuildingArt } from './BuildingArt';
 import { spriteUrl } from '../spriteUrl';
+import type { FactionId } from '../../types';
+import { recolorPixels } from './index';
 
 /**
  * Structures rendered in Blender / from 3D models (tools/blender/building_render.py, tools/monument_model_sheet.py)
@@ -17,6 +19,8 @@ export interface PictureSpec {
   readonly footprint: { readonly w: number; readonly d: number };
   /** Height scale the sprite cache applies to this kind of structure (1.35 for main structures, 1 for flat pieces). */
   readonly zScale: number;
+  /** One picture shared by several nations: drawn with its team line (`from`'s colours) in `to`'s colours. */
+  readonly recolor?: { readonly from: FactionId; readonly to: FactionId };
 }
 
 const images = new Map<string, HTMLImageElement>();
@@ -52,18 +56,50 @@ export function loadPictureArts(): Promise<void> {
   return loading;
 }
 
+const recolored = new Map<string, HTMLCanvasElement>();
+
+/** The picture with its team line recoloured (made once per file and nation, after the download). */
+function recoloredImage(img: HTMLImageElement, file: string, from: FactionId, to: FactionId): HTMLCanvasElement {
+  const key = `${file}%${from}>${to}`;
+  let c = recolored.get(key);
+  if (!c) {
+    c = document.createElement('canvas');
+    c.width = img.naturalWidth;
+    c.height = img.naturalHeight;
+    const ctx = c.getContext('2d')!;
+    ctx.drawImage(img, 0, 0);
+    const data = ctx.getImageData(0, 0, c.width, c.height);
+    recolorPixels(data.data, to, from);
+    ctx.putImageData(data, 0, 0);
+    recolored.set(key, c);
+  }
+  return c;
+}
+
 /** Draws the picture with its art-space origin at the painter's origin. */
 export function drawPicture(p: IsoPainter, spec: PictureSpec): void {
   const img = image(spec.file);
   if (!img.complete || img.naturalWidth === 0) return;
+  const src = spec.recolor && spec.recolor.from !== spec.recolor.to ? recoloredImage(img, spec.file, spec.recolor.from, spec.recolor.to) : img;
   const [ox, oy] = p.project(0, 0, 0);
-  p.ctx.drawImage(img, ox - spec.originX, oy - spec.originY, img.naturalWidth / spec.scale, img.naturalHeight / spec.scale);
+  p.ctx.drawImage(src, ox - spec.originX, oy - spec.originY, img.naturalWidth / spec.scale, img.naturalHeight / spec.scale);
 }
 
 /** A structure that is just its picture (plus optional extra layers drawn on top, e.g. a flag). */
-export function pictureArt(spec: PictureSpec, extra: Partial<Pick<BuildingArt, 'drawAnimated' | 'noRim' | 'noShadow' | 'recolorWhole'>> & { overlay?: (p: IsoPainter) => void } = {}): BuildingArt {
+type PictureExtra = Partial<Pick<BuildingArt, 'drawAnimated' | 'noRim' | 'noShadow' | 'recolorWhole'>> & {
+  overlay?: (p: IsoPainter) => void;
+  /** Pictures of the damage stages (stage 1 first), rendered from the same script with the same origin. */
+  damageFiles?: readonly string[];
+};
+
+export function pictureArt(spec: PictureSpec, extra: PictureExtra = {}): BuildingArt {
   image(spec.file);
+  const { damageFiles, ...rest } = extra;
+  for (const f of damageFiles ?? []) image(f);
   return {
+    damaged: damageFiles?.length
+      ? (stage) => pictureArt({ ...spec, file: damageFiles[Math.min(damageFiles.length, Math.max(1, stage)) - 1]! }, rest)
+      : undefined,
     footprint: spec.footprint,
     // Tall enough for the whole picture above the origin (the cache multiplies this by its height scale).
     height: Math.ceil(spec.originY / spec.zScale) + 4,

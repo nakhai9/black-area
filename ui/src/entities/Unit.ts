@@ -128,6 +128,8 @@ export abstract class Unit extends Entity {
   killValue = 0;
   /** Soldier / vehicle (transport boarding): entity id of the transport it is walking to, or null. */
   boardTarget: number | null = null;
+  /** Soldier / vehicle / helicopter / transport aircraft heading into a Military Garage: its entity id, or null. */
+  garageTarget: number | null = null;
 
   /** Veteran ranks: 0 none, then 1–3 chevrons at 3× / 6× / 9× its own price in kills. */
   get rank(): 0 | 1 | 2 | 3 {
@@ -309,6 +311,14 @@ export abstract class Unit extends Entity {
   /** Set by the game: would moving a ground unit from (x0, y0) to (x1, y1) (world px) enter a blocked cell? */
   static blocks: ((u: Unit, x0: number, y0: number, x1: number, y1: number) => boolean) | null = null;
 
+  /**
+   * A ground machine that turns and drives along its nose (tanks, trucks…; not soldiers, ships or aircraft): it never
+   * slides sideways — it waits for its whole route, pivots to the first leg and drives nose first (RA2).
+   */
+  get groundDriver(): boolean {
+    return this.drivesForward && this.turnsToMove && !this.naval && !this.flies;
+  }
+
   /** Replaces the current orders with a new path (world px waypoints). */
   follow(path: readonly WorldPoint[], keepFacing = false): void {
     this.pathTicket++;
@@ -429,7 +439,15 @@ export abstract class Unit extends Entity {
       const step = Math.min(total, d);
       const sx = next && d > 0.05 ? fromX + ((next.x - fromX) / d) * step : fromX;
       const sy = next && d > 0.05 ? fromY + ((next.y - fromY) / d) * step : fromY;
-      if (next && d > 0.05 && !Unit.blocks(this, fromX, fromY, sx, sy)) {
+      // A ground machine never slides: it may only go straight at its next point when that is (nearly) along its nose;
+      // otherwise it stops, pivots and asks for a new route.
+      const nose = next && d > 0.05 ? Math.abs(this.turnLeft(Math.atan2(next.y - fromY, next.x - fromX))) : Math.PI;
+      if (this.groundDriver && !(nose < 0.25 && !Unit.blocks(this, fromX, fromY, sx, sy))) {
+        this.px = fromX;
+        this.py = fromY;
+        budget = total;
+        this.needsRepath = true;
+      } else if (next && d > 0.05 && !Unit.blocks(this, fromX, fromY, sx, sy)) {
         this.px = sx;
         this.py = sy;
         budget = total - step;

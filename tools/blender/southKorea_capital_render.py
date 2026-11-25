@@ -24,6 +24,7 @@ import bmesh
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import kit  # noqa: E402
+import capital_damage  # noqa: E402
 from kit import _obj, box, cylinder, dome, lathe, mat, prism, render, rod, roof, zp  # noqa: E402,F401  (infrastructure only)
 
 D = 2.4
@@ -167,6 +168,30 @@ def tiled_roof(u0, v0, u1, v1, z, h, material, lift=2.5, gable=0.55, ribs=26, th
     return ob
 
 
+def hips(u0, v0, u1, v1, z, h, lift, gable, rise=0.45):
+    """Raised dark hip ridges following tiled_roof's surface from every corner up to where the gable starts."""
+    m = mat(RIDGE, 0.5, grain=0.05)
+    hd = (v1 - v0) / 2
+
+    def height(p):
+        t = min(p / hd, 1.0)
+        c = max(0.0, 1 - 2 * p / (hd * 0.9))
+        return z + h * t ** 1.6 + lift * c * c + rise
+
+    n = 14
+    for su, sv in ((1, 1), (-1, 1), (1, -1), (-1, -1)):
+        cu = u0 if su > 0 else u1
+        cv = v0 if sv > 0 else v1
+        pts = []
+        for k in range(n + 1):
+            p = gable * hd * k / n + 0.01
+            pts.append((cu + su * p, cv + sv * p, zp(height(p))))
+        for a, b in zip(pts, pts[1:]):
+            rod(a, b, 0.018, m, 8)
+        # Tile cap at the corner tip.
+        cylinder(pts[0][0], pts[0][1], 0.028, height(0.01) - 0.4, 0.8, m, 10)
+
+
 def ridge(u0, u1, v, z, h):
     """Heavy dark ridge beam with raised end ornaments."""
     m = mat(RIDGE, 0.5, grain=0.05)
@@ -223,6 +248,7 @@ def build():
         hall(u0, 0.65, u1, 1.6, 6.6, 10, stone, wall, wood, glass, band, 4, 4)
         tiled_roof(u0 - 0.17, 0.48, u1 + 0.17, 1.77, 18.6, 9, tile, lift=1.6, gable=0.6, thick=0.7)
         ridge(u0 + 0.1, u1 - 0.1, 1.125, 27.4, 1.6)
+        hips(u0 - 0.17, 0.48, u1 + 0.17, 1.77, 18.6, 9, 1.6, 0.6)
 
     # Main hall: two storeys, pillars, lattice windows, a balcony rail between the floors.
     hall(1.1, 0.6, 2.9, 1.65, 9.1, 17, stone, wall, wood, glass, band, 7, 4)
@@ -232,15 +258,55 @@ def build():
     box(1.06, 0.56, 1.88, 1.16, 17.0, 0.5, stone)
     tiled_roof(0.8, 0.32, 3.2, 1.93, 28.1, 17, tile, lift=3.2, gable=0.52, thick=0.9)
     ridge(1.22, 2.78, 1.125, 44.6, 2.2)
+    hips(0.8, 0.32, 3.2, 1.93, 28.1, 17, 3.2, 0.52, rise=0.6)
 
     # Wide stair up both terrace tiers in the middle of the front.
     steps(1.55, 2.45, 2.42, 6.6, 5, 0.05, mat("#d0cabd", 0.75, grain=0.1, scale=30))
     steps(1.65, 2.35, 2.12, 9.1, 3, 0.07, mat("#d0cabd", 0.75, grain=0.1, scale=30), ground=6.6)
 
+    # ART_GUIDE detail pass.
+    TEAM_LINE = mat("#2f5fb0", 0.5, grain=0.03)  # faction identity line, blue like the tiles (recoloured in game)
+    put("left", 0.18, 3.82, 2.17, 6.05, 0.5, 0.006, TEAM_LINE)
+    put("right", 0.13, 2.17, 3.82, 6.05, 0.5, 0.006, TEAM_LINE)
+    put("left", 0.88, 3.12, 1.92, 8.62, 0.42, 0.006, TEAM_LINE)
+    put("right", 0.33, 1.92, 3.12, 8.62, 0.42, 0.006, TEAM_LINE)
+    # Granite terrace: dressed-stone coursing on both tiers.
+    joint = mat("#a49e91", 0.85, grain=0.05)
+    for face, lo, hi, plane, z0, hh in (("left", 0.2, 3.8, 2.15, 3, 3), ("right", 0.15, 2.15, 3.8, 3, 3),
+                                         ("left", 0.9, 3.1, 1.9, 6.6, 2.0), ("right", 0.35, 1.9, 3.1, 6.6, 2.0)):
+        put(face, lo, hi, plane, z0 + hh / 2 - 0.06, 0.12, 0.003, joint)
+        for r in range(2):
+            n = int((hi - lo) / 0.2)
+            for i in range(n):
+                a = lo + (i + 0.5 * r + 0.25) * (hi - lo) / n
+                put(face, a - 0.003, a + 0.003, plane, z0 + r * hh / 2, hh / 2, 0.003, joint)
+    # Entrance: a wooden door frame with a lintel in the middle bay of the main hall, stone plinths under the pillars.
+    step = (2.9 - 1.1) / 7
+    c = 1.1 + 3.5 * step
+    put("left", c - step * 0.34, c + step * 0.34, 1.65, 9.1, 1.0, 0.03, stone)
+    put("left", c - step * 0.33, c - step * 0.3, 1.65, 10.3, 13.8, 0.02, wood)
+    put("left", c + step * 0.3, c + step * 0.33, 1.65, 10.3, 13.8, 0.02, wood)
+    put("left", c - step * 0.33, c + step * 0.33, 1.65, 23.6, 0.8, 0.022, wood)
+    for i in range(8):
+        cc = 1.1 + i * step
+        put("left", cc - 0.04, cc + 0.04, 1.65, 9.1, 0.8, 0.065, gran)
+
     poles()
+    return locals()
 
 
-kit.reset()
-build()
-smooth_round_parts()
-render("nation-southKorea", (4, D), HEIGHT)
+def damage_cfg(L):
+    """Damage stages (capital_damage.py): the east half goes at stage 2, rubble field at stage 3."""
+    return dict(
+        rects=[(1.1, 0.6, 2.9, 1.65, 9.1, 40.0), (0.35, 0.65, 1.15, 1.6, 6.6, 27.0), (2.85, 0.65, 3.65, 1.6, 6.6, 27.0)],
+        base=9.1, walls=[L["wall"], L["stone"], L["wood"], L["gran"]], roof=L["tile"], team=L["TEAM_LINE"],
+        glass=L["glass"], split=2.0, floors=[17.4, 28.1], team_z=4, seed=92,
+    )
+
+
+for _d in capital_damage.stages():
+    kit.reset()
+    capital_damage.apply(_d, damage_cfg(build()))
+    smooth_round_parts()
+    render("nation-southKorea" + (f"-d{_d}" if _d else ""), (4, D), HEIGHT)
+

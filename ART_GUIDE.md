@@ -19,6 +19,8 @@
 | **Khối và bo đúng chỗ / Hard where hard, round where round** | Chỗ ngoài đời là khối cứng (giáp xe tăng, tường, khung thép, cạnh mái) thì để **góc vuông, cạnh sắc**. Chỗ ngoài đời là bo tròn (thân máy bay, mũi, nắp động cơ, mái vòm, mép bánh, thân người) thì **bo góc hoặc làm mịn** (bevel, subdivision, `shade_smooth_by_angle` khoảng 35–40°). Không bo tất cả, cũng không vuông tất cả. | What is hard in reality (tank armour, walls, steel frames, roof edges) keeps **square corners and sharp edges**. What is rounded in reality (fuselages, noses, cowlings, domes, tyres, bodies) gets **bevels or smoothing** (bevel, subdivision, `shade_smooth_by_angle` about 35–40°). Neither everything rounded nor everything boxy. |
 | **Giữ tên hiển thị / Keep display names** | Đổi hình hay đổi code bên trong cũng không đổi tên hiện trên màn hình. | New art or internals never change the on-screen name. |
 | **Cả người chơi và AI / Player and AI alike** | Asset và luật đi kèm dùng chung cho người chơi và AI. | Assets and their rules apply to the player and the AI alike. |
+| **Mã thiết kế / Design code** | Mỗi thiết kế có **một mã thiết kế riêng** (`BUILDING_DESIGNS` trong `ui/src/constants.ts`); game chọn ảnh và bố cục theo mã, không theo tên phe. Các phe dùng thiết kế **cùng kiểu dáng, chỉ khác line màu phe** thì dùng **chung một mã** và **chỉ render một ảnh**; game tự đổi line sang màu phe sở hữu (`PictureSpec.recolor`). Khác hình khối hoặc vật liệu (ví dụ nền cát, bê tông màu cát) là **mã khác**, render ảnh riêng. Ví dụ: sân bay `middleRunway` (Nga, Trung Quốc) / `middleRunwaySand` (Hồi giáo); nhà máy điện `coolingTower` (Nga, Trung Quốc) / `coolingTowerSand` (Hồi giáo). | Every design has **its own design code** (`BUILDING_DESIGNS` in `ui/src/constants.ts`); the game picks the picture and layout by code, not by nation. Nations whose design has **the same shape and differs only in the team line** share **one code** and **one render**; the game recolours the line to the owner (`PictureSpec.recolor`). A different shape or material (e.g. sand ground, sand-tone concrete) is **a different code** with its own render. Examples: airfield `middleRunway` (Russia, China) / `middleRunwaySand` (Islamic); power plant `coolingTower` (Russia, China) / `coolingTowerSand` (Islamic). |
+| **Trạng thái hư hại / Damage states** | Mỗi công trình có **4 ảnh theo máu còn lại**: nguyên vẹn (trên 80%), **≤ 80%** (cháy xém, kính vỡ, gờ và lan can sứt mẻ, vài mảnh vụn), **≤ 50%** (**hư hại một nửa toà nhà**: khoảng một nửa khối nhà — ví dụ một cánh và nửa khối chính — bị phá toang hoặc sập, mất mái phần đó, mép vỡ lởm chởm lộ sàn và dầm, đổ nát; nửa còn lại vẫn đứng, hư hại nhẹ hơn), **≤ 20%** (**sụp đổ hoàn toàn**: toà nhà thành đống đổ nát phủ kín nền, chỉ còn chân tường, chân cột và vài mảnh góc gãy thấp, dầm cháy đen, nền cháy xém). Cả 4 dựng từ **cùng một script** (tham số `damage` 0–3), **cùng kiến trúc, cùng gốc ảnh** (ảnh không nhảy khi đổi trạng thái); tên file `building-<tên>-d1/-d2/-d3`. Hư hại phải **như thật** (mép vỡ lởm chởm, lộ cốt thép / dầm / sàn, muội khói), không kiểu hoạt hình. Phần còn lại vẫn giữ **line màu phe**; vị trí cột cờ giữ trên phần còn đứng hoặc trên nền. Trạng thái tính từ máu (sửa lên lại thì ảnh trở lại), không lưu vào save. Công trình chung mã thiết kế thì chung bộ 4 ảnh. | Every structure has **4 pictures by HP left**: intact (above 80 %), **≤ 80 %** (scorch marks, broken panes, chipped cornice and balustrade, a few chunks of rubble), **≤ 50 %** (**half the building destroyed**: about half the massing — e.g. one wing and half the main block — blown open or collapsed, its roof gone, jagged breaks showing floors and beams, rubble; the other half still standing with lighter damage), **≤ 20 %** (**completely collapsed**: the building is a rubble field over its plot, only wall stubs, column bases and a few low broken corner fragments left, charred beams, scorched ground). All 4 come from **the same script** (a `damage` 0–3 parameter), **same architecture, same origin** (the sprite never jumps between states); files `building-<name>-d1/-d2/-d3`. Damage looks **real** (jagged breaks, exposed rebar / beams / floors, soot), never cartoonish. The remaining parts keep the **team line**; the flag pole stays on what still stands or on the ground. The state follows HP (mending restores it) and is never saved. Structures sharing a design code share the 4 pictures. |
 
 ---
 
@@ -166,6 +168,9 @@
 - **Không trùng kiểu dáng / No shared shapes**
   - 🇻🇳 Mỗi công trình (kể cả cùng loại nhưng khác phe) phải có **kiểu dáng, hình khối và bóng dáng riêng**. Không dùng lại cùng một khối nền, cùng bố cục hay cùng hình dạng rồi chỉ đổi màu / đổi chi tiết nhỏ. Hai công trình đặt cạnh nhau phải phân biệt được ngay bằng hình dáng.
   - 🇬🇧 Every structure (including the same kind for different nations) has its **own form, massing and silhouette**. Never reuse one base block, layout or shape and only change colours or small details. Two structures side by side must be told apart by shape alone.
+- **Mã thiết kế / Design codes**
+  - 🇻🇳 Mỗi thiết kế có **mã thiết kế riêng** (`BUILDING_DESIGNS` trong `ui/src/constants.ts`). Hai phe dùng thiết kế **cùng kiểu dáng, chỉ khác line màu phe** thì dùng **chung một mã** và chung **một ảnh render**; game tự đổi line sang màu phe sở hữu (`PictureSpec.recolor`). Chỉ render ảnh riêng khi hình khối hoặc vật liệu khác nhau (ví dụ nền cát) — khi đó là mã thiết kế khác.
+  - 🇬🇧 Every design has **its own design code** (`BUILDING_DESIGNS` in `ui/src/constants.ts`). Nations whose design has **the same shape and differs only in the team line** share **one code** and **one render**; the game recolours the line to the owner (`PictureSpec.recolor`). Render a separate picture only when shape or materials differ (e.g. sand ground) — that is a different design code.
 - **Chi tiết kiến trúc / Architectural detail**
   - 🇻🇳 Gờ phào, trụ áp tường, lan can, bậc thềm, chân đế.
   - 🇬🇧 Cornices, pilasters, balustrades, steps, plinths.
@@ -265,6 +270,8 @@
 - [ ] Màu thật, cờ và phù hiệu theo thiết kế trong game / Real colours; game flag and marking designs
 - [ ] Có line nhận dạng màu phe (`TEAM`) trên công trình, lính, phương tiện / Faction identity line (`TEAM`) on structures, soldiers, vehicles
 - [ ] Tên hiển thị không đổi, áp dụng cho cả người chơi và AI / Display names unchanged; player and AI alike
+- [ ] Có mã thiết kế; cùng kiểu dáng chỉ khác line thì chung mã, chung một ảnh (không render ảnh trùng) / Has a design code; same shape differing only in the team line shares the code and one render (no duplicate renders)
+- [ ] Công trình có đủ 4 trạng thái hư hại (nguyên vẹn, ≤ 80%, ≤ 50%, ≤ 20%) từ cùng script, cùng gốc ảnh / Structure has all 4 damage states (intact, ≤ 80 %, ≤ 50 %, ≤ 20 %) from the same script, same origin
 - [ ] Đã đổi sang WebP, không còn PNG trong `ui/public/sprites/` / Converted to WebP, no PNG left in `ui/public/sprites/`
 - [ ] `tsc` không lỗi, đã tăng phiên bản, đã cập nhật RULE và README / `tsc` passes, version bumped, RULE and README updated
 
@@ -312,11 +319,13 @@ gold face, forehead and snout, black back of head and neck with a few gold fur f
 black nose and small black eye, calm powerful expression, mouth closed.
 ```
 
-**`islamic.png` — Lunastron Union: trăng lưỡi liềm + sao 8 cánh / crescent and eight-pointed star**
+**`islamic.png` — Lunastron Union: bò cạp nhìn từ trên xuống / scorpion, top view**
 ```
-Large crescent moon opening to the upper RIGHT, both horn tips pointed and clean,
-crescent made of triangular gold facets, plus one eight-pointed star placed in the upper right
-inside the opening of the crescent, star made of light/dark gold split facets.
+Scorpion seen from directly above, body vertical with the head at the top, two big pincers spread out
+to the upper left and upper right with fat claws opening upward, four thin jointed legs on each side,
+segmented abdomen, tail curling down and around the RIGHT side and arching over the top so the
+venom bulb sits above the head with the stinger hooking down toward the centre,
+faceted gold armour plates with black seams, a few black plates (forearms, every other abdomen and tail segment).
 ```
 
 **`china.png` — Longoria: rồng phương Đông, quay PHẢI / Chinese dragon, facing right**
@@ -328,4 +337,4 @@ with black facet seams and small black eye.
 
 Mẹo / Tips: Midjourney thêm `--ar 1:1 --style raw --s 50` và `--sref <ảnh logo đầu tiên>` cho các logo sau;
 ChatGPT / Ideogram làm cả 5 trong cùng một cuộc hội thoại ("same style as the previous emblem").
-Giữ đúng hướng quay: đại bàng, rồng quay phải; gấu, sư tử quay trái; trăng mở về phía trên bên phải.
+Giữ đúng hướng quay: đại bàng, rồng quay phải; gấu, sư tử quay trái; bò cạp nhìn từ trên xuống, đầu ở trên, đuôi vòng bên phải, nọc ở giữa phía trên.
