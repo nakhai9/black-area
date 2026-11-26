@@ -312,6 +312,16 @@ export abstract class Unit extends Entity {
   static blocks: ((u: Unit, x0: number, y0: number, x1: number, y1: number) => boolean) | null = null;
 
   /**
+   * Set by the game (CellReservations): may ground vehicle `u` roll into cell (cx, cy)? One vehicle per cell (RA2):
+   * a cell another vehicle stands in or has reserved is waited for, never driven into.
+   */
+  static claim: ((u: Unit, cx: number, cy: number) => boolean) | null = null;
+  /** Seconds it has been waiting for the next cell (held by another vehicle); 0 when rolling. */
+  cellWait = 0;
+  /** The cell (map index, x + y × width) it is waiting for, or -1. */
+  waitCell = -1;
+
+  /**
    * A ground machine that turns and drives along its nose (tanks, trucks…; not soldiers, ships or aircraft): it never
    * slides sideways — it waits for its whole route, pivots to the first leg and drives nose first (RA2).
    */
@@ -449,6 +459,24 @@ export abstract class Unit extends Entity {
         this.px += (dx / dist) * budget;
         this.py += (dy / dist) * budget;
         budget = 0;
+      }
+    }
+    // Một xe một ô (RA2): sang ô mới phải đặt chỗ trước; ô có xe khác thì đứng chờ tại chỗ (không trượt, không chen).
+    if (Unit.claim && this.groundDriver && !this.givingWay) {
+      const ax = Math.floor(fromX / CELL_SIZE);
+      const ay = Math.floor(fromY / CELL_SIZE);
+      const bx = Math.floor(this.px / CELL_SIZE);
+      const by = Math.floor(this.py / CELL_SIZE);
+      if ((ax !== bx || ay !== by) && !Unit.claim(this, bx, by)) {
+        this.px = fromX;
+        this.py = fromY;
+        budget = total;
+        this.cellWait += dt;
+        this.waitCell = bx + by * 1e6; // packed (x, y); the game unpacks it (no map width here)
+        this.speedRatio = Math.min(this.speedRatio, 0.3);
+      } else {
+        this.cellWait = 0;
+        this.waitCell = -1;
       }
     }
     // Ground units never step into a blocked cell (a wall, a gate pillar, a structure raised across an old route):

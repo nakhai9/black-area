@@ -148,6 +148,8 @@ export interface RenderScene {
   readonly pathPeekId?: number | null;
   /** Waypoint mode: the route being plotted (first point = the selection, then the clicked points). */
   readonly waypointPlan?: readonly { x: number; y: number }[] | null;
+  /** F8 debug di chuyển: ô đang có xe đứng (held) / chỉ đặt chỗ (reserved), theo toạ độ ô. */
+  readonly movementDebug?: readonly { x: number; y: number; reserved: boolean }[] | null;
   /** Selected producer's rally point: a line with an arrow from the building to a flag at the point. */
   readonly rallyLine?: { from: { x: number; y: number }; to: { x: number; y: number } } | null;
   /** Selected Squatters teams standing still: a "F: plant flag" hint above their heads. */
@@ -396,6 +398,7 @@ export class Renderer {
     if (hovered && !selUnits.has(hovered.id)) this.drawUnitRing(hovered, 'rgba(255,255,255,0.6)');
     if (scene.moveMarker) this.drawMoveMarker(scene.moveMarker, scene.time);
     if (scene.waypointPlan) this.drawWaypointPlan(scene.waypointPlan);
+    if (scene.movementDebug) this.drawMovementDebug(scene.movementDebug, units);
     if (scene.rallyLine) this.drawRallyLine(scene.rallyLine.from, scene.rallyLine.to);
     const focus = scene.focus ?? [];
 
@@ -1674,6 +1677,43 @@ export class Renderer {
   }
 
   /** RA2 waypoint route: a light-blue dashed line through the points, with a small square on each. */
+  /**
+   * F8: debug di chuyển (mặt đất, toạ độ world): lưới ô quanh các đơn vị, ô có xe đứng (cam) / đã đặt chỗ (vàng),
+   * đường đi còn lại của từng đơn vị (xanh), đích (chấm trắng) và hướng mặt (vạch đỏ).
+   */
+  private drawMovementDebug(cells: readonly { x: number; y: number; reserved: boolean }[], units: readonly Unit[]): void {
+    const { ctx } = this;
+    const k = 1 / this.camera.zoom;
+    ctx.save();
+    ctx.lineWidth = 0.6 * k;
+    for (const c of cells) {
+      ctx.fillStyle = c.reserved ? 'rgba(255,220,60,0.28)' : 'rgba(255,140,40,0.22)';
+      ctx.strokeStyle = c.reserved ? 'rgba(255,220,60,0.9)' : 'rgba(255,140,40,0.9)';
+      ctx.fillRect(c.x * CELL_SIZE, c.y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+      ctx.strokeRect(c.x * CELL_SIZE, c.y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+    }
+    for (const u of units) {
+      if (u.flies) continue;
+      const pts = u.waypoints();
+      if (pts.length > 0) {
+        ctx.strokeStyle = 'rgba(80,200,255,0.85)';
+        ctx.beginPath();
+        ctx.moveTo(u.px, u.py);
+        for (const p of pts) ctx.lineTo(p.x, p.y);
+        ctx.stroke();
+        const end = pts[pts.length - 1]!;
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(end.x - 0.6, end.y - 0.6, 1.2, 1.2);
+      }
+      ctx.strokeStyle = '#ff4040';
+      ctx.beginPath();
+      ctx.moveTo(u.px, u.py);
+      ctx.lineTo(u.px + Math.cos(u.heading) * (u.radius + 2), u.py + Math.sin(u.heading) * (u.radius + 2));
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   private drawWaypointPlan(points: readonly { x: number; y: number }[]): void {
     if (points.length < 2) return;
     const { ctx } = this;

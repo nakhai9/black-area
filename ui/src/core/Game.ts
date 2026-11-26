@@ -1,4 +1,6 @@
 import { Profiler } from './Profiler';
+import { CellReservations } from '../movement/CellReservations';
+import { CELL_RESOLVE_PERIOD, CELL_RESOLVE_PER_PASS, CELL_WAIT_RESOLVE, SUBCELLS, SUBCELL_PERIOD, SUBCELL_SNAP, SUBCELL_SPILL_RADIUS } from '../movement/MovementConfig';
 import { DVINA_TRAIL_SECONDS } from '../render/SamMissile';
 import { ReserveCapital, concealedFrom, isSeat } from '../entities/ReserveCapital';
 import type { DvinaMissile } from '../systems/CombatSystem';
@@ -71,6 +73,7 @@ import {
   REPAIR_VEHICLE_REPATH,
   REPAIR_GROUP_CELLS,
   FACTORY_REPAIR_SHARE,
+  GARAGE_HEAL_SHARE,
   FOOTPRINT_PORT,
   PORT_SLOTS,
   PORT_REPAIR_SHARE,
@@ -407,7 +410,7 @@ const PRODUCERS: ReadonlySet<string> = new Set(['barracks', 'warFactory', 'airfi
 /** A structure under attack raises a fresh alert toast at most this often (s). */
 const BUILDING_ALERT_SECONDS = 10;
 /** Structures that take a rally point (right-click with the building selected). */
-const RALLY_TYPES: ReadonlySet<string> = new Set(['barracks', 'warFactory', 'airfield']);
+const RALLY_TYPES: ReadonlySet<string> = new Set(['barracks', 'warFactory', 'airfield', 'militaryGarage']);
 /** Above this many units on the field, separateUnits runs 2 relaxation passes a tick instead of 6. */
 const SEPARATE_CROWD = 120;
 /** Shared empty bucket for the spatial-hash look-ups (no new array per miss). */
@@ -493,6 +496,14 @@ export class Game {
   /** Green safe zones of the Global Monitoring Center for units evacuated by air. */
   readonly safeZones: SafeZoneSystem;
   private repathTimer = 0;
+  /** Ô đang có xe đứng / đã đặt chỗ (một xe một ô), dựng lại mỗi tick. */
+  private cells!: CellReservations;
+  private cellResolveTimer = 0;
+  private subcellTimer = 0;
+  /** Xe đã né sang bên để gỡ tắc: đích cũ để đi tiếp khi né xong. */
+  private readonly resumeAfterSidestep = new WeakMap<Unit, WorldPoint>();
+  /** F8: vẽ lưới ô, đường đi, ô giữ chỗ, hướng mặt (debug di chuyển). */
+  debugMovement = false;
   private yieldTimer = 0;
   /** Spatial hash of separateUnits, reused every pass (with a pool of emptied bucket arrays). */
   private readonly sepGrid = new Map<number, Unit[]>();
@@ -717,6 +728,9 @@ export class Game {
       !this.buildAvailable(p, option);
     this.pathfinder = new Pathfinder(this.map);
     this.paths = new PathService(this.map, this.pathfinder);
+    // Một xe một ô (RA2): xe mặt đất đặt chỗ ô kế tiếp trước khi lăn vào (Unit.update), người chơi lẫn AI.
+    this.cells = new CellReservations(this.map.width);
+    Unit.claim = (u, cx, cy) => this.cells.claim(u, cx, cy);
     // Structure cells (walls, gate pillars, buildings) block everyone; open water blocks ground units that cannot swim
     // (a vehicle swinging wide on a bank turn stops at the water's edge instead of driving in and being snapped back).
     Unit.blocks = (_u, x0, y0, x1, y1) => {
@@ -3050,6 +3064,14 @@ export class Game {
    * it can lose them again); anyone inside who is no longer its owner's (a captured garage) is put out.
    * Player and AI alike.
    */
+  /** Everyone stationed in a Military Garage (soldiers, vehicles, helicopters, aircraft) heals GARAGE_HEAL_SHARE/s. */
+  private healInGarages(dt: number): void {
+    for (const b of this.entities.buildings()) {
+      if (!(b instanceof MilitaryGarage) || !b.alive) continue;
+      for (const u of b.garrison) if (u.alive && u.hp < u.maxHp) u.hp = Math.min(u.maxHp, u.hp + u.maxHp * GARAGE_HEAL_SHARE * dt);
+    }
+  }
+
   private processGarages(): void {
     for (const u of this.entities.fieldMovers()) {
       if (u.garageTarget === null) continue;
@@ -3663,12 +3685,14 @@ export class Game {
     this.paths.update();
     this.prof.time('queueInCrowds', () => this.queueInCrowds());
     this.prof.time('yieldAtCrossings', () => this.yieldAtCrossings(dt));
+    this.cells.rebuild(this.entities.fieldMovers().filter((m) => m.alive && m.groundDriver), this.time);
     this.entities.update(dt);
     this.prof.time('motionSound', () => this.motionSound());
     this.prof.time('keepOutOfWater', () => this.keepOutOfWater());
     this.prof.time('crushInfantry', () => this.crushInfantry());
     this.prof.time('processBoarding', () => this.processBoarding());
     this.prof.time('processGarages', () => this.processGarages());
+    this.prof.time('healInGarages', () => this.healInGarages(dt));
     this.prof.time('processTruckUnloading', () => this.processTruckUnloading(dt));
     this.prof.time('separateUnits', () => this.separateUnits());
     this.prof.time('keepOnDeck', () => this.keepOnDeck());
@@ -3677,6 +3701,8 @@ export class Game {
     this.prof.time('watchBuildingHits', () => this.watchBuildingHits());
     this.prof.time('repathStuckUnits', () => this.repathStuckUnits(dt));
     this.prof.time('giveWay', () => this.giveWay(dt));
+    this.prof.time('resolveCellWaits', () => this.resolveCellWaits(dt));
+    this.prof.time('settleInfantry', () => this.settleInfantry(dt));
     this.prof.time('processTasks', () => this.processTasks());
     this.prof.time('processDemolition', () => this.processDemolition(dt));
     this.prof.time('processMines', () => this.processMines());
@@ -4494,6 +4520,7 @@ export class Game {
       moveMarker: this.moveMarker,
       pathPeekId: this.pathPeekId,
       waypointPlan: this.waypointPlan(),
+      movementDebug: this.debugMovement ? [...this.cells.cells()].map(([i, , reserved]) => ({ x: i % this.map.width, y: Math.floor(i / this.map.width), reserved })) : null,
       rallyLine: this.rallyLine(),
       flagHints: this.flagHints(),
       awacsMarks: this.awacsMarks(),
@@ -5188,6 +5215,10 @@ export class Game {
         else if (this.bridging) this.stopBridging();
         else if (this.waypoints) this.waypoints = null; // Esc drops the route being plotted
         else if (!this.ended) this.togglePause();
+        break;
+      case 'F8': // debug di chuyển: ô giữ chỗ, đường đi, hướng mặt (chỉ máy này, không ảnh hưởng trận)
+        this.debugMovement = !this.debugMovement;
+        this.sidebar.notify(this.debugMovement ? 'Debug di chuyển: BẬT (F8)' : 'Debug di chuyển: TẮT (F8)', 1.5);
         break;
       case 'Tab': // World Map (big map) open / close
         this.bigMap?.toggleMap();
@@ -6913,6 +6944,140 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     }
   }
 
+  /**
+   * Gỡ tắc khi xe chờ ô kế tiếp quá CELL_WAIT_RESOLVE giây (RA2):
+   *  - xe chắn đường đang đứng yên, cùng phe, rảnh việc → dạt sang chỗ trống bên cạnh;
+   *  - hai xe đâm đầu nhau (mỗi xe chờ ô của xe kia) → xe id lớn hơn né sang bên rồi đi tiếp tới đích cũ;
+   *  - chờ quá 3 lần ngưỡng → tìm đường khác (repathStuckUnits, có giới hạn).
+   */
+  private resolveCellWaits(dt: number): void {
+    // Xe đã né xong: đi tiếp tới đích cũ.
+    for (const u of this.entities.fieldMovers()) {
+      if (u.moving || !u.alive) continue;
+      const back = this.resumeAfterSidestep.get(u);
+      if (!back) continue;
+      this.resumeAfterSidestep.delete(u);
+      const cell = this.map.cellAt(back.x, back.y);
+      if (!cell) continue;
+      const path = this.paths.find({ x: u.px, y: u.py }, cell, u.mobility);
+      if (path.length > 0) {
+        path[path.length - 1] = { x: back.x, y: back.y };
+        u.follow(path, true);
+      }
+    }
+    this.cellResolveTimer -= dt;
+    if (this.cellResolveTimer > 0) return;
+    this.cellResolveTimer = CELL_RESOLVE_PERIOD;
+    let budget = CELL_RESOLVE_PER_PASS;
+    const W = this.map.width;
+    const unpack = (c: number): number => Math.floor(c / 1e6) * W + (c % 1e6);
+    for (const u of this.entities.fieldMovers()) {
+      if (budget <= 0) return;
+      if (u.cellWait < CELL_WAIT_RESOLVE || u.waitCell < 0) continue;
+      const id = this.cells.holder(unpack(u.waitCell));
+      const o = id === null ? undefined : this.entities.get(id);
+      if (!(o instanceof Unit) || !o.alive || o === u) continue;
+      const busy = o.attackTarget !== null || o.task !== null || o.routePending || o.fixed;
+      const headOn = o.moving && o.cellWait > 0 && o.waitCell >= 0 && unpack(o.waitCell) === this.cells.index(u.px, u.py);
+      if (!o.moving && o.owner === u.owner && !busy) {
+        if (this.sidestep(o, u, false)) budget--;
+      } else if (headOn) {
+        const loser = o.id > u.id ? o : u;
+        if (this.sidestep(loser, loser === o ? u : o, true)) budget--;
+      } else if (u.cellWait > CELL_WAIT_RESOLVE * 3) {
+        u.needsRepath = true;
+        u.cellWait = 0;
+      }
+    }
+  }
+
+  /** Xe `o` dạt sang một chỗ trống bên cạnh, tránh khỏi đường của `from`; `resume` = rồi đi tiếp tới đích cũ. */
+  private sidestep(o: Unit, from: Unit, resume: boolean): boolean {
+    const dx = o.px - from.px;
+    const dy = o.py - from.py;
+    const len = Math.hypot(dx, dy) || 1;
+    const fx = dx / len;
+    const fy = dy / len;
+    const shift = CELL_SIZE * 1.2;
+    for (const s of [1, -1]) {
+      for (const p of [
+        { x: o.px - fy * shift * s, y: o.py + fx * shift * s },
+        { x: o.px - fy * shift * s + fx * shift * 0.7, y: o.py + fx * shift * s + fy * shift * 0.7 },
+      ]) {
+        const spot = this.freeStandSpot(p, o, [], []);
+        if (!spot || !this.cells.freeFor(this.cells.index(spot.x, spot.y), o.id)) continue;
+        const dest = o.destination;
+        const facing = o.faceOnArrival ?? o.heading;
+        o.follow([spot]);
+        o.givingWay = true;
+        o.faceOnArrival = facing;
+        if (resume && dest) this.resumeAfterSidestep.set(o, dest);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Lính đứng theo ô con (RA2): mỗi ô có 5 chỗ đứng (tâm + 4 góc). Lính đứng yên được xếp vào chỗ trống gần nhất
+   * trong ô của mình; ô đã đủ 5 thì sang ô bên cạnh còn chỗ. Không còn lính chồng lên nhau hay xô đẩy qua lại.
+   */
+  private settleInfantry(dt: number): void {
+    this.subcellTimer -= dt;
+    if (this.subcellTimer > 0) return;
+    this.subcellTimer = SUBCELL_PERIOD;
+    const W = this.map.width;
+    const byCell = new Map<number, Infantry[]>();
+    for (const u of this.entities.fieldMovers()) {
+      if (!(u instanceof Infantry) || !u.alive || u.moving || u.routePending || u.task !== null || u.parade !== null || u.flies || u.inWater || u.fixed) continue;
+      const i = this.cells.index(u.px, u.py);
+      const list = byCell.get(i);
+      if (list) list.push(u);
+      else byCell.set(i, [u]);
+    }
+    const spilled = new Map<number, number>(); // ô bên cạnh → số chỗ đã chia thêm
+    const slotOf = (i: number, k: number): WorldPoint => ({ x: ((i % W) + 0.5) * CELL_SIZE + SUBCELLS[k]![0], y: (Math.floor(i / W) + 0.5) * CELL_SIZE + SUBCELLS[k]![1] });
+    for (const [i, list] of byCell) {
+      const free = SUBCELLS.map((_, k) => k);
+      // Lính gần chỗ đứng nhất chọn trước (tham lam theo khoảng cách); thừa thì sang ô bên cạnh.
+      const near = (u: Infantry): number => Math.min(...free.map((k) => Math.hypot(slotOf(i, k).x - u.px, slotOf(i, k).y - u.py)));
+      const order = [...list].sort((a, b) => near(a) - near(b));
+      for (const u of order) {
+        let target: WorldPoint | null = null;
+        if (free.length > 0) {
+          let bk = 0;
+          let bd = Infinity;
+          for (let n = 0; n < free.length; n++) {
+            const p = slotOf(i, free[n]!);
+            const d = Math.hypot(p.x - u.px, p.y - u.py);
+            if (d < bd) {
+              bd = d;
+              bk = n;
+            }
+          }
+          target = slotOf(i, free[bk]!);
+          free.splice(bk, 1);
+        } else {
+          const cx = i % W;
+          const cy = Math.floor(i / W);
+          for (let r = 1; r <= SUBCELL_SPILL_RADIUS && !target; r++) {
+            for (let y = cy - r; y <= cy + r && !target; y++) {
+              for (let x = cx - r; x <= cx + r && !target; x++) {
+                if (Math.max(Math.abs(x - cx), Math.abs(y - cy)) !== r || !this.pathfinder.passable(x, y, u.mobility)) continue;
+                const j = y * W + x;
+                const used = (byCell.get(j)?.length ?? 0) + (spilled.get(j) ?? 0);
+                if (used >= SUBCELLS.length) continue;
+                spilled.set(j, (spilled.get(j) ?? 0) + 1);
+                target = slotOf(j, used);
+              }
+            }
+          }
+        }
+        if (target && Math.hypot(target.x - u.px, target.y - u.py) > SUBCELL_SNAP) u.follow([target], true);
+      }
+    }
+  }
+
   /** Units whose last re-route fell short of its goal (see repathStuckUnits). */
   private readonly shortRepaths = new WeakMap<Unit, { key: number; count: number }>();
   /** Game time of each unit's last re-route: a unit stuck behind something re-plans at most every REPATH_COOLDOWN s. */
@@ -8221,6 +8386,8 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       if (i >= 0) b.garrison.splice(i, 1);
     }
     this.placeOutside(b, out);
+    // A Military Garage with a rally point sends whoever comes out on to it (like Barracks / War Factory).
+    if (b instanceof MilitaryGarage && b.rally) for (const u of out) this.toRally(u, b);
     if (out.length > 0 && why === 'healed' && b.owner === this.humanPlayer.id) this.sidebar.notify(t('{count} healed and left the {name}.', { count: out.length, name: b.spec.name }));
     else if (out.length > 0 && b.owner === this.humanPlayer.id) this.sidebar.notify(t('{count} came out of: {name}.', { count: out.length, name: b.spec.name }));
   }

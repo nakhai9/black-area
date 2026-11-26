@@ -39,7 +39,7 @@ export const DEMO_FACTION: FactionId = NATION_CODES[(import.meta.env.VITE_DEMO_F
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "3.75.418";
+export const GAME_VERSION = "3.75.419";
 /** Transport aircraft (C-17, Il-76, Y-20, A400M) are drawn this many iso px long: 13, +20% (v3.75.224). */
 export const TRANSPORT_LENGTH = 13 * 1.2 * 0.9;
 
@@ -1290,6 +1290,8 @@ export const REPAIR_GROUP_CELLS = 6;
  * repaired inside at FACTORY_REPAIR_SHARE of its max HP per second, and drives out again when whole.
  */
 export const FACTORY_REPAIR_SHARE = 0.08;
+/** Military Garage: everyone inside (soldiers, vehicles, helicopters, aircraft) heals this share of max HP per second. */
+export const GARAGE_HEAL_SHARE = 0.05;
 /** How close (cells) to the factory door a vehicle must come to drive in. */
 export const FACTORY_REPAIR_REACH_CELLS = 1.5;
 
