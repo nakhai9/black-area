@@ -28,6 +28,7 @@ def main():
     names = [n for n in MODELS if not args or args == ["all"] or any(n == a or n.startswith(a) for a in args)]
     for name in names:
         kit.reset()
+        kit.SCALE = 3  # a model may raise it for its own render (e.g. reservecapital-russia)
         MODELS[name]()
 
 

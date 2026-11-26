@@ -313,7 +313,7 @@ def main():
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     import teamline  # noqa: E402
 
-    teamline.band(tur, "islamic")
+    teamline.band(tur, "neutral")  # neutral grey line + -team mask: the game tints it with the owner's colour
 
     if PREVIEW_FILE:
         turntable.rotation_euler = (0, 0, model_yaw(int(os.environ.get("KARRAR_DIR", "4"))))
@@ -324,11 +324,16 @@ def main():
 
     turret_names = {o.name for o in [tur] + list(tur.children_recursive)}
     meshes = [o for o in sc.objects if o.type == "MESH" and o is not floor]
-    acc = {p: np.zeros((CELL_PX, CELL_PX * HEADINGS, 4), np.float32) for p in ("hull", "turret")}
+    acc = {p: np.zeros((CELL_PX, CELL_PX * HEADINGS, 4), np.float32) for p in ("hull", "turret", "turret-team")}
     n = CELL_PX * OVERSAMPLE
-    for k in range(HEADINGS):
-        turntable.rotation_euler = (0, 0, model_yaw(k))
-        for part in ("hull", "turret"):
+    for k in range(HEADINGS * 2):
+        if k == HEADINGS:
+            # Second sweep: the faction mask of the turret (only the stripe, lit white; the rest cut out).
+            teamline.mask_mode(meshes)
+        turntable.rotation_euler = (0, 0, model_yaw(k % HEADINGS))
+        for part in (("hull", "turret") if k < HEADINGS else ("turret-team",)):
+            key = part
+            part = "turret" if part == "turret-team" else part
             for o in meshes:
                 o.visible_camera = (o.name in turret_names) == (part == "turret")
             floor.hide_render = part == "turret"
@@ -341,9 +346,10 @@ def main():
             buf = buf.reshape(CELL_PX, OVERSAMPLE, CELL_PX, OVERSAMPLE, 4)
             a = buf[..., 3].mean((1, 3))
             rgb = (buf[..., :3] * buf[..., 3:4]).mean((1, 3)) / np.maximum(a, 1e-6)[..., None]
-            acc[part][:, k * CELL_PX : (k + 1) * CELL_PX, :3] = rgb
-            acc[part][:, k * CELL_PX : (k + 1) * CELL_PX, 3] = a
-        print(f"[{SHEET}] direction {k + 1}/{HEADINGS}")
+            c = k % HEADINGS
+            acc[key][:, c * CELL_PX : (c + 1) * CELL_PX, :3] = rgb
+            acc[key][:, c * CELL_PX : (c + 1) * CELL_PX, 3] = a
+        print(f"[{SHEET}] direction {k + 1}/{HEADINGS * 2}")
     for part, arr in acc.items():
         img = bpy.data.images.new(f"tank-{SHEET}-{part}", CELL_PX * HEADINGS, CELL_PX, alpha=True)
         img.pixels.foreach_set(np.clip(arr, 0, 1).ravel())

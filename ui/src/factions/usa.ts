@@ -14,7 +14,7 @@ export const USA: FactionConfig = {
   stats: { unitSpeed: 1.25, armor: 0.9, firepower: 1.0, range: 1.05, buildSpeed: 1.1, cost: 1.3, trainDelay: 2 },
   capital: {
     name: 'The White House',
-    city: 'Washington, D.C.',
+    city: 'Philadelphia',
     description: t('Seat of Allied command. Losing it collapses the U.S. war effort.'),
     maxHp: 15000,
     powerOutput: 0,

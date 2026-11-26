@@ -426,8 +426,30 @@ def shadow_material():
 
 
 
-def run(model, out_name, length, build):
-    """Builds the aircraft (`build()` makes its parts), renders the 32 x 9 sheet into ui/public/sprites/<out_name>.png."""
+def mask_materials(team_name='team'):
+    """Faction-mask pass (ART_GUIDE: owner colours): parts painted with the `team_name` material turn lit white, every
+    other part is holdout (cut out of the sheet). The game tints the mask with the owner's colour."""
+    white = bpy.data.materials.new('mask_white')
+    white.use_nodes = True
+    b = white.node_tree.nodes['Principled BSDF']
+    b.inputs['Base Color'].default_value = (1, 1, 1, 1)
+    b.inputs['Roughness'].default_value = 0.6
+    hold = bpy.data.materials.new('mask_holdout')
+    hold.use_nodes = True
+    nt = hold.node_tree
+    nt.nodes.clear()
+    o = nt.nodes.new('ShaderNodeOutputMaterial')
+    nt.links.new(nt.nodes.new('ShaderNodeHoldout').outputs[0], o.inputs['Surface'])
+    for ob, _ in PARTS:
+        mats = [s.material for s in ob.material_slots]
+        ob.data.materials.clear()
+        for m in mats or [None]:
+            ob.data.materials.append(white if m is not None and m.name.split('.')[0] == team_name else hold)
+
+
+def run(model, out_name, length, build, team_mask=False):
+    """Builds the aircraft (`build()` makes its parts), renders the 32 x 9 sheet into ui/public/sprites/<out_name>.png.
+    `team_mask`: the faction line is neutral grey and a <out_name>-team.png mask sheet (same layout) is rendered too."""
     scale = CELL * 0.74 / length  # sheet px per metre: side-on the aircraft spans 0.74 of a cell (AircraftSheets.ts)
     out = os.path.join(SPRITES, f'{model}-preview.png' if PREVIEW else f'{out_name}.png')
     sc = stage(scale)
@@ -459,6 +481,32 @@ def run(model, out_name, length, build):
             cell[..., :3] *= tint
             sheet[r * CELL:(r + 1) * CELL, ci * CELL:(ci + 1) * CELL] = cell
             print(f'[{model}] row {r + 1}/{len(rows)} facing {k + 1}/{DIRS}', flush=True)
+    if team_mask and not PREVIEW:
+        # Mask sheet, same rows and facings (no shadow row): only the faction line, lit white.
+        saved = {ob.name: [s.material for s in ob.material_slots] for ob, _ in PARTS}
+        mask_materials()
+        msheet = np.zeros_like(sheet)
+        for r, (groups, pitch, roll, tint) in enumerate(rows):
+            show(groups)
+            pose(plane, pitch, roll)
+            for ci, k in enumerate(dirs):
+                rig.rotation_euler = heading(k)
+                cell = grab(sc, tmp)[::-1]
+                cell[..., :3] *= tint
+                msheet[r * CELL:(r + 1) * CELL, ci * CELL:(ci + 1) * CELL] = cell
+                print(f'[{model}] mask row {r + 1}/{len(rows)} facing {k + 1}/{DIRS}', flush=True)
+        H, W = msheet.shape[:2]
+        mimg = bpy.data.images.new('mask', W, H, alpha=True)
+        mimg.pixels.foreach_set(np.clip(msheet[::-1], 0, 1).astype(np.float32).ravel())
+        mimg.filepath_raw = os.path.join(SPRITES, f'{out_name}-team.png')
+        mimg.file_format = 'PNG'
+        mimg.save()
+        print(f'[{model}] wrote {out_name}-team.png', flush=True)
+        for ob, _ in PARTS:
+            ob.data.materials.clear()
+            for m in saved[ob.name]:
+                ob.data.materials.append(m)
+        pose(plane, 0, 0)
     if not PREVIEW:
         # Shadow row: the level aircraft flattened onto the ground, flat black (the game sets its opacity).
         show(('always',))

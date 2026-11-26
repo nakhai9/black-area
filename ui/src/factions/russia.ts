@@ -23,7 +23,7 @@ export const RUSSIA: FactionConfig = {
   },
   capital: {
     name: "The Kremlin",
-    city: "Moscow",
+    city: "Saint Petersburg",
     description:
       t("Fortress of the Russian high command behind crenellated red walls."),
     maxHp: 16500,

@@ -306,7 +306,7 @@ def main():
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     import teamline  # noqa: E402
 
-    teamline.band(tur, "europe")
+    teamline.band(tur, "neutral")  # neutral grey line + -team mask: the game tints it with the owner's colour
 
     if PREVIEW:
         stand.rotation_euler = (0, 0, yaw_for(int(os.environ.get("LEO_DIR", "4"))))
@@ -317,10 +317,15 @@ def main():
 
     on_turret = {o.name for o in [tur] + list(tur.children_recursive)}
     parts = [o for o in sc.objects if o.type == "MESH" and o is not ground]
-    out = {p: np.zeros((OUT, OUT * DIRS, 4), np.float32) for p in ("hull", "turret")}
-    for k in range(DIRS):
-        stand.rotation_euler = (0, 0, yaw_for(k))
-        for part in ("hull", "turret"):
+    out = {p: np.zeros((OUT, OUT * DIRS, 4), np.float32) for p in ("hull", "turret", "turret-team")}
+    for k in range(DIRS * 2):
+        if k == DIRS:
+            # Second sweep: the faction mask of the turret (only the stripe, lit white; the rest cut out).
+            teamline.mask_mode(parts)
+        stand.rotation_euler = (0, 0, yaw_for(k % DIRS))
+        for part in (("hull", "turret") if k < DIRS else ("turret-team",)):
+            key = part
+            part = "turret" if part == "turret-team" else part
             for o in parts:
                 o.visible_camera = (o.name in on_turret) == (part == "turret")
             ground.hide_render = part == "turret"
@@ -333,9 +338,10 @@ def main():
             px = px.reshape(OUT, SSAA, OUT, SSAA, 4)
             alpha = px[..., 3].mean((1, 3))
             rgb = (px[..., :3] * px[..., 3:4]).mean((1, 3)) / np.maximum(alpha, 1e-6)[..., None]
-            out[part][:, k * OUT : (k + 1) * OUT, :3] = rgb
-            out[part][:, k * OUT : (k + 1) * OUT, 3] = alpha
-        print(f"[{NAME}] direction {k + 1}/{DIRS}")
+            c = k % DIRS
+            out[key][:, c * OUT : (c + 1) * OUT, :3] = rgb
+            out[key][:, c * OUT : (c + 1) * OUT, 3] = alpha
+        print(f"[{NAME}] direction {k + 1}/{DIRS * 2}")
     for part, arr in out.items():
         img = bpy.data.images.new(f"tank-{NAME}-{part}", OUT * DIRS, OUT, alpha=True)
         img.pixels.foreach_set(np.clip(arr, 0, 1).ravel())

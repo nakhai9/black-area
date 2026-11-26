@@ -360,7 +360,14 @@ export class Sidebar {
   private readonly price: HTMLElement;
   private readonly sellButton: HTMLButtonElement;
   private readonly debt: HTMLElement;
-  private readonly loanButton: HTMLButtonElement;
+  /** "Get a loan": moved into the command dock at the bottom of the screen (BigMap.setDock). */
+  readonly loanButton: HTMLButtonElement;
+  /** The production cameos (build / defense / infantry / vehicles / aircraft panels): shown in the dock's modal. */
+  readonly productionSection: HTMLElement;
+  /** A production tab was opened from the dock: the dock shows its modal (set by the game). */
+  onOpenProduction: ((tab: TabId) => void) | null = null;
+  /** The production modal is open (its tab shows as active). */
+  private productionShown = false;
   private readonly autoSellButton: HTMLButtonElement;
   private readonly cartelPanel: HTMLElement;
   private readonly policyText: HTMLElement;
@@ -422,6 +429,24 @@ export class Sidebar {
   private newsButton: HTMLButtonElement | null = null;
   private readonly flagUrls = new Map<FactionId, string>();
   private readonly tabButtons = new Map<TabId, HTMLButtonElement>();
+
+  /** Production tab buttons in order (build, defense, infantry, vehicles, aircraft): they live in the command dock. */
+  productionTabs(): HTMLButtonElement[] {
+    return BUILD_TABS.map((t) => this.tabButtons.get(t.id)!).filter(Boolean);
+  }
+
+  /** The dock's production modal opened / closed. */
+  setProductionShown(on: boolean): void {
+    this.productionShown = on;
+    this.markTabs();
+  }
+
+  /** Allies button of the dock: the sidebar shows the occupied capitals (who holds whose capital). */
+  openAllies(): void {
+    if (document.body.classList.contains('sidebar-hidden')) this.toggle();
+    this.switchView('command');
+    this.switchInfo('capitals');
+  }
   /** Show-sidebar button (Game moves it into the corner bar of options). */
   readonly opener: HTMLButtonElement;
   private readonly cameos = new Map<string, Cameo>();
@@ -586,6 +611,7 @@ export class Sidebar {
     this.powerBar = q('.sb-power-bar');
     this.powerBlocks = [...this.powerBar.children] as HTMLElement[];
     this.message = q('.sb-msg');
+    this.productionSection = q('.sb-build');
     this.radarPanel = q('.sb-radar');
     // The compass sits in the minimap's bottom-left corner (the minimap is drawn north-up).
     const compass = document.getElementById('compass');
@@ -711,6 +737,8 @@ export class Sidebar {
     const settingsButton = q('.sb-settings');
     settingsButton.append(createElement(Settings, { width: 16, height: 16, 'stroke-width': 2, 'aria-hidden': 'true' }));
     settingsButton.addEventListener('click', () => this.handlers.onSettings());
+    settingsButton.remove(); // in the command dock now (BigMap.setDock)
+    root.querySelector('.sb-logo')?.remove(); // the dock shows the logo with the nation's flag
 
     const opener = document.createElement('button');
     this.opener = opener;
@@ -1399,14 +1427,17 @@ export class Sidebar {
   private switchTab(id: TabId, open = false): void {
     this.activeTab = id;
     for (const [tab, panel] of this.panels) panel.hidden = tab !== id;
-    if (open) this.switchView('production');
-    else this.markTabs();
+    if (open) {
+      this.productionShown = true;
+      this.onOpenProduction?.(id);
+    }
+    this.markTabs();
   }
 
   /** A production tab shows as active only while the production page is open. */
   private markTabs(): void {
     for (const [tab, btn] of this.tabButtons) {
-      const on = this.activeView === 'production' && tab === this.activeTab;
+      const on = this.productionShown && tab === this.activeTab;
       btn.classList.toggle('active', on);
       btn.setAttribute('aria-pressed', String(on));
     }
@@ -1650,8 +1681,8 @@ export class Sidebar {
       btn.addEventListener('click', () => {
         if (!btn.disabled) this.switchTab(tab.id, true);
       });
-      // One row with Command: the production tabs follow it.
-      nav.append(btn);
+      // They live in the command dock at the bottom of the screen (BigMap.setDock), not in the sidebar.
+      void nav;
       this.tabButtons.set(tab.id, btn);
     }
   }

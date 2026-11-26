@@ -84,7 +84,7 @@ body {
 }
 /* Loading screen: game logo above the bar, the % inside the bar, the status text under it. */
 .ld-logo {
-  width: min(220px, 60vw);
+  width: min(130px, 40vw);
   height: auto;
   margin-bottom: 6px;
 }
@@ -4041,4 +4041,171 @@ body.sidebar-hidden .corner-bar .sb-open {
 }
 .end-card button.nuclear-launch.nuclear-pause:not(:disabled):hover {
   box-shadow: 0 0 10px 2px rgba(255, 190, 60, 0.7), inset 0 0 0 1px rgba(255, 255, 255, 0.35);
+}
+
+/* Command dock: bottom of the battlefield (BigMap.setDock). Left: logo + flag over the peace / war clock; then one row
+   of buttons (home, map, build, defense, infantry, vehicles, aircraft, loan, nuclear, settings, allies). */
+.cmd-dock {
+  position: absolute;
+  left: calc((100% - var(--sidebar-w)) / 2);
+  bottom: 8px;
+  transform: translateX(-50%);
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  max-width: calc(100% - var(--sidebar-w) - 16px);
+  background: rgba(8, 12, 16, 0.88);
+  border: 1px solid var(--panel-edge);
+  border-radius: 6px;
+}
+body.sidebar-hidden .cmd-dock {
+  left: 50%;
+  max-width: calc(100% - 16px);
+}
+body.pregame .cmd-dock {
+  display: none;
+}
+.cmd-brand {
+  display: grid;
+  justify-items: center;
+  gap: 3px;
+  padding-right: 10px;
+  border-right: 1px solid var(--panel-edge);
+}
+.cmd-brand-top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.cmd-logo {
+  width: 40px;
+  height: auto;
+}
+.cmd-flag {
+  width: 30px;
+  height: auto;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}
+.cmd-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.cmd-slot {
+  display: contents;
+}
+.cmd-btn {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  min-width: 0;
+  padding: 0;
+  color: var(--btn-color);
+  background: var(--btn-bg);
+  border: var(--btn-border);
+  border-radius: var(--btn-radius);
+  cursor: pointer;
+}
+.cmd-btn:hover:not(:disabled) {
+  background: var(--btn-bg-hover);
+  border-color: var(--btn-border-hover);
+}
+.cmd-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.cmd-btn.active {
+  color: #2a1e00;
+  background: linear-gradient(#ffd84a, #e0a800);
+  border-color: #ffe08a;
+}
+.cmd-dock .cmd-loan {
+  height: 34px;
+}
+/* War clock under the logo: engraved (red at war, green in the ceasefire). */
+.cmd-clock .sb-war-clock {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  font-size: 13px;
+  color: #e5483f;
+}
+.cmd-clock .sb-war-clock.peace {
+  background: none;
+  color: #4caf50;
+}
+.cmd-clock .sb-war-icon,
+.cmd-clock .sb-war-icon svg {
+  width: 14px;
+  height: 14px;
+}
+/* Production modal: the cameo panels moved in from the sidebar. */
+.production-card .production-panel {
+  max-height: 70vh;
+  overflow: auto;
+}
+/* Shop: cameos in a grid of 4 columns (n rows). */
+.production-card .sb-cameos:not([hidden]) {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+/* Get a loan: an icon button in line with the other dock buttons (its name in the tooltip). */
+.cmd-dock .sb-loan.cmd-loan {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  min-width: 0;
+  padding: 0;
+  margin: 0;
+}
+.cmd-dock .sb-loan.cmd-loan .sb-loan-text {
+  display: none;
+}
+/* Shop group in the dock: a caption over its buttons, so it reads as the shop at a glance. */
+.cmd-shop {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  padding: 2px 6px 3px;
+  border: 1px solid #e0a800;
+  border-radius: 5px;
+  background: rgba(224, 168, 0, 0.08);
+}
+.cmd-shop-caption {
+  font-size: 10px;
+  line-height: 1;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: #ffd84a;
+}
+.cmd-shop-buttons {
+  display: flex;
+  gap: 4px;
+}
+/* Shop modal sits in an .end-card: its generic button padding / background must not shrink the cameo picture,
+   which fills the whole card edge to edge. */
+.end-card button.sb-cameo {
+  padding: 0;
+  margin: 0;
+  background: #8e9aa6;
+  border: 1px solid #3a4652;
+  border-radius: 3px;
+  text-transform: none;
+}
+.end-card button.sb-cameo:hover {
+  background: #8e9aa6;
+  border-color: var(--accent);
+}
+.end-card button.sb-cameo canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
 }

@@ -3,6 +3,10 @@ import type { Vehicle } from '../entities/Vehicle';
 import type { FactionId } from '../types';
 import { drawCraftBlast } from './CraftSheets';
 import { spriteUrl } from './spriteUrl';
+import { lazyImage } from './onDemand';
+import { tintedCell } from './TeamTint';
+import { FACTIONS as NATIONS } from '../factions';
+import type { Allegiance } from '../types';
 
 /**
  * Main battle tank sheets rendered from 3D models (tools/tank_model_sheet.py), one hull and one turret sheet per nation: 32 columns of 64 px —
@@ -27,6 +31,31 @@ const FACTIONS: FactionId[] = ['usa', 'europe', 'russia', 'islamic', 'china'];
 const MODEL: Record<FactionId, string> = { usa: 'm1a2', europe: 'leopard2a8', russia: 't90m', islamic: 'karrar', china: 'type99' };
 const SHEETS = Object.fromEntries(FACTIONS.map((f) => [f, sheet(`tank-${MODEL[f]}-hull.webp`)])) as Record<FactionId, HTMLImageElement>;
 const TURRETS = Object.fromEntries(FACTIONS.map((f) => [f, sheet(`tank-${MODEL[f]}-turret.webp`)])) as Record<FactionId, HTMLImageElement>;
+/**
+ * Designs rendered the ART_GUIDE way (one render, faction line in neutral grey + a turret `-team` mask): the mask is
+ * tinted with the OWNER's colour (Unit.banner) when drawn, so a tank bought in a captured War Factory wears its new
+ * owner's colour. Designs not listed here still have their nation's colour baked in (being converted one by one).
+ */
+const MASKED: ReadonlySet<string> = new Set(['m1a2', 't90m', 'type99', 'leopard2a8', 'karrar']);
+const MASKS: Partial<Record<FactionId, HTMLImageElement>> = {};
+function turretMask(faction: FactionId): HTMLImageElement | null {
+  const model = MODEL[faction];
+  if (!MASKED.has(model)) return null;
+  const img = (MASKS[faction] ??= lazyImage(spriteUrl(`tank-${model}-turret-team.webp`)));
+  return img.complete && img.naturalWidth > 0 ? img : null;
+}
+
+/** The owner's colour over the turret mask (no-op for a design without a mask, or before it loads). */
+function blitTeam(ctx: CanvasRenderingContext2D, faction: FactionId, owner: Allegiance, dir: number, x: number, y: number, size: number): void {
+  const mask = turretMask(faction);
+  if (!mask) return;
+  const hex = owner === 'neutral' ? '#c8c8c8' : NATIONS[owner].colors.primary;
+  const prevSmooth = ctx.imageSmoothingEnabled;
+  ctx.imageSmoothingEnabled = true;
+  ctx.drawImage(tintedCell(mask, `tank-${MODEL[faction]}-turret`, dir, DIRS, hex), x - size / 2, y - size / 2, size, size);
+  ctx.imageSmoothingEnabled = prevSmooth;
+}
+
 /** Tank explosion shared by every nation (tools/tank_fx_sheet.py): 16 frames of BLAST_CELL px in one row. */
 const TANK_BLAST = sheet('tank-blast.webp');
 const BLAST_CELL = 64;
@@ -113,7 +142,10 @@ export function drawTankSheet(ctx: CanvasRenderingContext2D, v: Vehicle, x: numb
   if (!img) return false;
   const turret = readyTurret(v.faction as FactionId);
   blit(ctx, img, direction(v.heading), 0, x, y, CELL * SCALE);
-  if (turret) blit(ctx, turret, direction(v.turretHeading), 0, x, y, CELL * SCALE);
+  if (turret) {
+    blit(ctx, turret, direction(v.turretHeading), 0, x, y, CELL * SCALE);
+    blitTeam(ctx, v.faction as FactionId, v.banner, direction(v.turretHeading), x, y, CELL * SCALE);
+  }
   return true;
 }
 
@@ -125,7 +157,10 @@ export function drawTankPortrait(ctx: CanvasRenderingContext2D, faction: Faction
   ctx.save();
   blit(ctx, img, direction(heading), 0, w / 2, h / 2, size);
   const turret = readyTurret(faction);
-  if (turret) blit(ctx, turret, direction(heading), 0, w / 2, h / 2, size);
+  if (turret) {
+    blit(ctx, turret, direction(heading), 0, w / 2, h / 2, size);
+    blitTeam(ctx, faction, faction, direction(heading), w / 2, h / 2, size);
+  }
   ctx.restore();
   return true;
 }

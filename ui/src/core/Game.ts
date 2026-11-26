@@ -992,6 +992,20 @@ export class Game {
       this.bus.emit('camera:focus', b.centerWorld());
     };
     this.bigMap.setWarClock(this.sidebar.warClock);
+    // Command dock (bottom): logo + flag, war clock, home / map / production / loan / nuclear / settings / allies.
+    const tabs = this.sidebar.productionTabs();
+    this.bigMap.setDock({
+      faction: this.humanPlayer.faction as FactionId,
+      productionTabs: tabs,
+      production: this.sidebar.productionSection,
+      loan: this.sidebar.loanButton,
+      onSettings: () => {
+        if (!this.paused && !this.ended) this.togglePause();
+      },
+      onAllies: () => this.sidebar.openAllies(),
+    });
+    this.sidebar.onOpenProduction = (tab) => this.bigMap?.openProduction(tabs.find((b) => b.dataset.tab === tab)?.title ?? '');
+    this.bigMap.onProductionClosed = () => this.sidebar.setProductionShown(false);
     this.bigMinimap = new Minimap(
       this.bigMap.canvas,
       this.terrain,
@@ -1005,13 +1019,13 @@ export class Game {
     }
   }
 
-  /** DEMO_ALL_FACTIONS: a bar of every nation at the top of the screen; click one (or Alt+1..5) to command it. */
+  /** DEMO_ALL_FACTIONS: a bar of every nation in the top-left corner (with the coordinates / zoom readout); click one (or Alt+1..5) to command it. */
   private mountFactionBar(): void {
     let bar = document.getElementById('demo-factions');
     if (!bar) {
       bar = document.createElement('div');
       bar.id = 'demo-factions';
-      bar.style.cssText = 'position:fixed;bottom:6px;left:6px;z-index:50;display:flex;gap:4px;font:600 12px "Courier New", Courier, monospace';
+      bar.style.cssText = 'position:fixed;top:6px;left:6px;z-index:50;display:flex;gap:4px;font:600 12px "Courier New", Courier, monospace';
       document.body.appendChild(bar);
       window.addEventListener('keydown', (e) => {
         if (!e.altKey) return;
@@ -1500,7 +1514,7 @@ export class Game {
     const cy = capital.y + Math.floor(capital.d / 2);
     // Plus another nation's Parallel Government (its own architecture), and a Naval Port on the nearest shore (demoPort).
     const host = (Object.keys(FACTIONS) as FactionId[]).find((f) => f !== me.faction) ?? 'usa';
-    const ids = ['powerPlant', 'powerPlant', 'barracks', 'warFactory', 'radarTower', 'airfield', 'techCenter', 'yars', 'fuelStation', 'happyCity', `parallelGov@${host}`, 'bunker', 'flagpole'];
+    const ids = ['powerPlant', 'powerPlant', 'barracks', 'warFactory', 'radarTower', 'airfield', 'techCenter', 'yars', 'fuelStation', 'happyCity', 'reserveCapital', `parallelGov@${host}`, 'bunker', 'flagpole'];
     const placed: Building[] = [capital];
     for (const id of ids) {
       const option = BUILD_OPTIONS.find((o) => o.id === id);
@@ -4481,8 +4495,9 @@ export class Game {
     this.syncDvinaMissiles();
     this.effects.update(dt);
     this.smokeFromDamagedBuildings(dt);
-    // A Reserve Capital not yet the seat and not spotted is invisible to me (map, radar, big map).
-    const buildings = this.entities.buildings().filter((b) => !concealedFrom(b, this.humanPlayer.id));
+    // A Reserve Capital not yet the seat and not spotted is invisible to me (map, radar, big map) — except in the
+    // demo, which shows every nation's Reserve Capitals.
+    const buildings = this.entities.buildings().filter((b) => demoActive || !concealedFrom(b, this.humanPlayer.id));
     // Silo numbers per owner (#1, #2… in build order), shared by the briefcase rows and the hover label.
     {
       const count = new Map<number, number>();

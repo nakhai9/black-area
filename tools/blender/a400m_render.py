@@ -42,7 +42,7 @@ def materials():
         radome=mat('radome', BLACK, 0.42),
         black=mat('black', '#16181b', 0.6),
         frame=mat('frame', '#3b4046', 0.45, metal=0.5, ao=0.2),
-        glass=mat('glass', '#1c2e2c', 0.06, glass=True, ao=0),
+        glass=mat('glass', '#2a4058', 0.06, glass=True, ao=0),  # blue-black with a sky sheen: reads as glass at sprite size
         wiper=mat('wiper', '#0e0f11', 0.5, metal=0.3, ao=0),
         intake=mat('intake', '#101214', 0.9, ao=0.6),
         spinner=mat('spinner', BLACK, 0.35, metal=0.2),
@@ -56,7 +56,7 @@ def materials():
         yellow=mat('yellow', '#e2b81c', 0.55, ao=0),
         eblue=mat('eblue', '#003399', 0.55, ao=0),
         eyellow=mat('eyellow', '#ffcc00', 0.55, ao=0),
-        team=mat('team', TEAM['europe'], 0.5, ao=0),
+        team=mat('team', '#c8c8c8', 0.5, ao=0),
         navred=mat('navred', '#ff2a2a', 0.4, emit=6.0, ao=0),
         navgreen=mat('navgreen', '#29ff5a', 0.4, emit=6.0, ao=0),
         beacon_off=mat('beacon_off', '#6a1414', 0.3, ao=0),
@@ -109,64 +109,107 @@ def fuselage(M):
         lathe(f'beacon_{nm}_on', [(0, 0.001), (0.0, 0.22), (0.18, 0.18), (0.26, 0.001)], (-1.0, 0, z), 'v', M['beacon_on'], 'beacon_on', 16)
 
 
-def nose_u(y, z):
-    """Most-forward u where the skin reaches half width |y| at height z (the windscreen sits on the nose slope)."""
-    u = 17.0
-    for uu in np.linspace(17.0, 22.4, 220):
-        if B.half_width(uu, z) >= abs(y) + 0.02:
-            u = uu
-    return u
+# ---- glazing and lines laid out along the skin outline (arc length round the nose at each height): every pane hugs the
+# skin, both sides mirror exactly and the front panes meet on the centre line with no gap or overlap.
+
+_OUTLINE = {}
 
 
-def front_pane(name, y0, y1, z0, z1, off, material, ny=4, nz=3):
-    """A curved pane across the nose front: grid of skin points pushed `off` forward / outward."""
+def outline(z):
+    """Plan outline of the skin at height z from the centre line at the nose aft to u = 10: (arc length, u, |v|).
+    Only where the fuselage ring really reaches height z (the nose falls away near the tip)."""
+    key = round(z, 3)
+    if key in _OUTLINE:
+        return _OUTLINE[key]
+    us, ys = [], []
+    for u in np.concatenate((np.linspace(22.54, 18.5, 700), np.linspace(18.49, 10.0, 120))):
+        dz, hw, hh = B.station(u)
+        sz = (z - ZC - dz) / hh if hh > 0 else 2.0
+        if abs(sz) >= 0.999:
+            continue
+        us.append(u)
+        ys.append(hw * (1 - abs(sz) ** N_SE) ** (1 / N_SE))
+    us = np.array([us[0]] + us)
+    ys = np.array([0.0] + ys)
+    lam = np.concatenate(([0.0], np.cumsum(np.hypot(np.diff(us), np.diff(ys)))))
+    _OUTLINE[key] = (lam, us, ys)
+    return _OUTLINE[key]
+
+
+def lam_at(u, z):
+    """Arc length (m from the centre line) where the outline at height z reaches station u."""
+    lam, us, _ = outline(z)
+    return float(np.interp(-u, -us, lam))
+
+
+def _skin(l, z, side):
+    lam, us, ys = outline(z)
+    return np.array((float(np.interp(l, lam, us)), side * float(np.interp(l, lam, ys)), z))
+
+
+def skin_point(l, z, side, off):
+    """Skin point `l` m round from the centre line at height z on `side`, `off` m out along the true surface normal."""
+    p = _skin(l, z, side)
+    n = np.cross(_skin(l + 0.03, z, side) - _skin(max(0.0, l - 0.03), z, side), _skin(l, z + 0.03, side) - _skin(l, z - 0.03, side))
+    n = n / (float(np.linalg.norm(n)) or 1.0)
+    dz, _, _ = B.station(float(p[0]))
+    if float(np.dot(n, p - np.array((p[0], 0.0, ZC + dz)))) < 0:
+        n = -n
+    q = p + n * off
+    return (float(q[0]), float(q[1]), float(q[2]))
+
+
+def skin_patch(name, l0, l1, z0, z1, side, material, off, nl=6, nz=3, top=None):
+    """Pane / band on the skin between arc lengths l0..l1 and heights z0..z1 (top(l) overrides z1 along it)."""
     verts, faces = [], []
-    for i in range(ny + 1):
+    for i in range(nl + 1):
+        l = l0 + (l1 - l0) * i / nl
+        zt = top(l) if top else z1
         for j in range(nz + 1):
-            y = y0 + (y1 - y0) * i / ny
-            z = z0 + (z1 - z0) * j / nz
-            u = nose_u(y, z)
-            dz, hw, hh = B.station(u)
-            # Outward: mostly forward on the slope, a little up and to the side.
-            n = np.array((1.0, 0.35 * y / max(hw, 0.1), 0.45 * (z - ZC - dz) / max(hh, 0.1)))
-            n /= np.linalg.norm(n)
-            verts.append(tuple(np.array((u, y, z)) + n * off))
-    for i in range(ny):
+            verts.append(skin_point(l, z0 + (zt - z0) * j / nz, side, off))
+    for i in range(nl):
         for j in range(nz):
             a = i * (nz + 1) + j
-            faces.append((a, a + 1, a + nz + 2, a + nz + 1))
+            q = (a, a + nz + 1, a + nz + 2, a + 1)
+            faces.append(q if side < 0 else q[::-1])
     return obj(name, verts, faces, material, smooth=0)
 
 
+# A400M windscreen: six big panes in a wrap-round row (centre, corner, side a side) in thick bolted frames; arc lengths
+# per pane, 0.16 m frame bars between them. The top edge falls slightly towards the rear.
+SCREEN_Z0 = ZC + 1.3
+PANES = ((0.08, 1.22), (1.38, 2.55), (2.71, 3.75))
+
+
+def screen_top(l):
+    return ZC + 2.28 - 0.12 * min(1.0, l / 3.75)
+
+
 def cockpit(M):
-    """Six-pane wrap-round windscreen: thick bolted frames under real panes, two wipers, crew door, small windows."""
-    z0, z1 = ZC + 1.3, ZC + 2.25
-    # Front pair: frame first (larger, just proud), then the glass inset in it, then the wipers along the lower edge.
-    front_pane('frame_front', -1.3, 1.3, z0 - 0.12, z1 + 0.1, 0.03, M['frame'], ny=8)
-    for k, (a, b) in enumerate(((-1.18, -0.07), (0.07, 1.18))):
-        front_pane(f'windscreen{k}', a, b, z0, z1, 0.07, M['glass'])
-        za = z0 + 0.08
-        p0 = np.array((nose_u(a + 0.12, za) + 0.1, a + 0.12, za))
-        p1 = np.array((nose_u(b - 0.12, za) + 0.1, b - 0.12, za + 0.05))
-        rod(f'wiper{k}', tuple(p0), tuple(p1), 0.045, M['wiper'], segs=6)
-        hub = p0 if abs(a) < abs(b) else p1
-        rod(f'wiper_arm{k}', tuple(hub + np.array((0.05, 0, -0.14))), tuple(hub), 0.06, M['wiper'], segs=6)
+    """Six-pane wrap-round windscreen in thick frames, two wipers, TEAM cheat line, crew door, small windows."""
     for s in (1, -1):
-        # Corner and side panes along the cockpit flanks, each in its own frame (frames overlap into one bar).
-        panes = [(20.85, 20.15), (20.05, 19.35)]
-        for i, (a, b) in enumerate(panes):
-            B.patch(f'frame{s}{i}', a + 0.12, b - 0.12, z0 - 0.12, z1 + 0.1, s, M['frame'], off=0.03, nu=3, nz=3)
-            B.patch(f'pane{s}{i}', a, b, z0, z1, s, M['glass'], off=0.065, nu=3, nz=3)
+        skin_patch(f'screen_frame{s}', 0.0, PANES[-1][1] + 0.14, SCREEN_Z0 - 0.15, 0, s, M['frame'], 0.035, nl=24, nz=3,
+                   top=lambda l: screen_top(l) + 0.14)
+        for i, (a, b) in enumerate(PANES):
+            skin_patch(f'pane{s}{i}', a, b, SCREEN_Z0, 0, s, M['glass'], 0.065, nl=8, nz=3, top=screen_top)
+        # Wiper on each centre pane, parked along its lower edge, its arm hub at the outer corner.
+        za = SCREEN_Z0 + 0.09
+        p0 = np.array(skin_point(0.2, za, s, 0.1))
+        p1 = np.array(skin_point(1.1, za + 0.04, s, 0.1))
+        rod(f'wiper{s}', tuple(p0), tuple(p1), 0.045, M['wiper'], segs=6)
+        rod(f'wiper_arm{s}', tuple(np.array(skin_point(1.1, za - 0.16, s, 0.08))), tuple(p1), 0.06, M['wiper'], segs=6)
+        # TEAM identity line (ART_GUIDE): a cheat line under the windscreen, from the nose round to behind the cockpit.
+        skin_patch(f'team_line{s}', 0.0, lam_at(14.0, ZC + 1.05), ZC + 0.98, ZC + 1.16, s, M['team'], 0.04, nl=48, nz=1)
         # Crew door with its window, the cabin portholes, the yellow propeller-plane warning line.
         B.patch(f'door{s}', 16.4, 15.4, ZC - 2.25, ZC + 0.2, s, M['letter'], off=0.028, nu=2, nz=3)
         B.patch(f'doorwin{s}', 16.1, 15.7, ZC - 0.5, ZC - 0.05, s, M['glass'], off=0.04, nu=1, nz=1)
         for i, du in enumerate((12.0, 6.5, -4.5)):
             B.patch(f'port{s}{i}', du + 0.22, du - 0.22, ZC + 0.4, ZC + 0.85, s, M['glass'], off=0.03, nu=1, nz=1)
         B.patch(f'propline{s}', 10.9, 10.72, ZC - 2.6, ZC + 2.6, s, M['yellow'], off=0.03, nu=1, nz=8)
-        # Air-force name as dark blocks along the forward fuselage.
+        # Air-force name as dark blocks along the forward fuselage (above the cheat line).
         u = 15.0
         for _ in range(9):
-            B.patch(f'letter{s}{u:.2f}', u, u - 0.34, ZC + 0.95, ZC + 1.45, s, M['letter'], off=0.03, nu=1, nz=1)
+            B.patch(f'letter{s}{u:.2f}', u, u - 0.34, ZC + 1.3, ZC + 1.75, s, M['letter'], off=0.03, nu=1, nz=1)
             u -= 0.46
 
 
@@ -369,4 +412,32 @@ airkit.ROWS = [
     (tuple(airkit.ROWS[2][0]) + ('propB',),) + airkit.ROWS[2][1:],
 ] + [(_A(r[0]),) + r[1:] for r in airkit.ROWS[3:]]
 
-run('a400m', 'a400m-europe', LENGTH, build)
+def closeup(path):
+    """Close look at the cockpit (A400M_CLOSEUP=<file.png>): checks the windscreen, nothing written to the sheet."""
+    import bpy
+    from mathutils import Vector
+    import airkit
+
+    sc = airkit.stage(1.0)
+    build()
+    sc.render.resolution_x, sc.render.resolution_y = 1200, 800
+    sc.cycles.samples = 64
+    sc.cycles.use_denoising = True
+    for name, loc in (('front', (36.0, 13.0, 14.0)), ('side', (19.5, 21.0, 12.0))):
+        cam = bpy.data.cameras.new(name)
+        cam.type = 'ORTHO'
+        cam.ortho_scale = 10
+        co = bpy.data.objects.new(name, cam)
+        sc.collection.objects.link(co)
+        co.location = loc
+        target = Vector((20.0, 0, ZC + 1.2))
+        co.rotation_euler = (target - Vector(loc)).to_track_quat('-Z', 'Y').to_euler()
+        sc.camera = co
+        sc.render.filepath = path.replace('.png', f'-{name}.png')
+        bpy.ops.render.render(write_still=True)
+
+
+if os.environ.get('A400M_CLOSEUP'):
+    closeup(os.environ['A400M_CLOSEUP'])
+else:
+    run('a400m', 'a400m-europe', LENGTH, build, team_mask=True)

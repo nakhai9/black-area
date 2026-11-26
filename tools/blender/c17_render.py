@@ -50,7 +50,7 @@ def materials():
         red=mat('red', '#a50b2e', 0.55, ao=0),
         white=mat('white', '#e8eaec', 0.55, ao=0),
         amc=mat('amc', '#2b6e48', 0.55, ao=0),
-        team=mat('team', TEAM['usa'], 0.5),
+        team=mat('team', '#c8c8c8', 0.5),  # neutral grey: the -team mask sheet carries the owner's colour (ART_GUIDE)
         navred=mat('navred', '#ff2a2a', 0.4, emit=6.0, ao=0),
         navgreen=mat('navgreen', '#29ff5a', 0.4, emit=6.0, ao=0),
         beacon_off=mat('beacon_off', '#6a1414', 0.3, ao=0),
@@ -435,4 +435,4 @@ def closeup(path):
 if os.environ.get('C17_CLOSEUP'):
     closeup(os.environ['C17_CLOSEUP'])
 else:
-    run('c17', 'c17-usa', LENGTH, build)
+    run('c17', 'c17-usa', LENGTH, build, team_mask=True)

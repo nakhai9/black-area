@@ -4,7 +4,7 @@
 
 <h1 align="center">Black Area</h1>
 
-<p align="center"><sub>Phiên bản 3.75.423 · Version 3.75.222</sub></p>
+<p align="center"><sub>Phiên bản 3.75.437 · Version 3.75.222</sub></p>
 
 <p align="center"><b><a href="https://black-area.vercel.app">▶ CHƠI NGAY / PLAY NOW · black-area.vercel.app</a></b></p>
 
@@ -86,6 +86,18 @@ Anh, Canada, Cuba, Nhật Bản, Úc, Brazil, Ấn Độ, Ukraine, Belarus và h
 #### Nam Cực
 
 Năm giếng dầu vô chủ vẫn bơm dưới lớp băng. Không ai được dựng dù chỉ một mái nhà ở đó. Giếng thuộc về phe của kỹ sư cuối cùng chạm tay vào nó, và giữ được giếng dầu cuối cùng của Trái Đất là tuyên bố với cả thế giới quốc gia nào mới đứng đầu.
+
+#### Thủ đô mới
+
+Tên mới thì cần một trái tim mới. Không cường quốc nào giữ nguyên chỗ đặt chính phủ của mình.
+
+- **Paxamerica** rời Washington, quay về **Philadelphia**, nơi bản Tuyên ngôn Độc lập được ký và là thủ đô đầu tiên của họ. Họ muốn thế giới nhớ rằng mọi thứ đã bắt đầu từ đây, và sẽ bắt đầu lại từ đây.
+- **Nordursia** rời Moskva, trở về **Saint Petersburg**, kinh đô của các Sa hoàng. Cung điện Mùa Đông lại sáng đèn, như thể hai thế kỷ chưa từng trôi qua.
+- **Longoria** rời Bắc Kinh, xuôi về phương Nam, đặt chính phủ ở **Nam Kinh**, cố đô của nhiều triều đại. Một kinh đô cũ cho một cái tên mới.
+- **Conquistalia** không quay về đâu cả. Họ bỏ Brussels, nơi chỉ quen với giấy tờ và hội nghị, và chọn một vùng đất mới cho trung tâm quyền lực: **Paris**, thành phố từng khai sáng cả châu lục.
+- **Lunastron** là phe duy nhất không dời đi. **Riyadh** vẫn ở nguyên chỗ cũ, trên những mỏ dầu mà cả thế giới đang thèm khát. Họ không cần chạy trốn, vì chính họ là người nắm van dầu.
+
+Thủ đô mới, cờ mới, nhưng luật cũ vẫn vậy: mất thủ đô là mất tiếng nói.
 
 #### Người đứng cuối cùng
 
@@ -190,6 +202,18 @@ Britain, Canada, Cuba, Japan, Australia, Brazil, India, Ukraine, Belarus and bot
 #### Antarctica
 
 Five ownerless oil wells still pump under the ice. No one may raise even a single roof there. A well belongs to the side of the last engineer who touched it, and holding the last oil on Earth tells the whole world who stands on top.
+
+#### New capitals
+
+A new name needs a new heart. No power kept its seat of government where it was.
+
+- **Paxamerica** left Washington and went back to **Philadelphia**, where the Declaration of Independence was signed and their first capital stood. They want the world to remember that everything started here, and will start here again.
+- **Nordursia** left Moscow and returned to **Saint Petersburg**, the city of the Tsars. The Winter Palace is lit again, as if two centuries had never passed.
+- **Longoria** left Beijing and moved south to **Nanjing**, the old capital of many dynasties. An old capital for a new name.
+- **Conquistalia** went back nowhere. They left Brussels, a city used only to paperwork and summits, and chose new ground for their seat of power: **Paris**, the city that once enlightened a whole continent.
+- **Lunastron** is the only side that did not move. **Riyadh** stays where it always was, on top of the oil the whole world craves. They need not run, for they are the ones holding the valve.
+
+New capitals, new flags, but the old rule still holds: lose your capital and you lose your voice.
 
 #### The last one standing
 

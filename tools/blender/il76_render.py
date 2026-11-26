@@ -50,7 +50,7 @@ def materials():
         fblue=mat('fblue', '#0a3a9a', 0.55, ao=0),
         fwhite=mat('fwhite', '#ffffff', 0.55, ao=0),
         fred=mat('fred', '#c92216', 0.55, ao=0),
-        team=mat('team', TEAM['russia'], 0.5),
+        team=mat('team', '#c8c8c8', 0.5),
         navred=mat('navred', '#ff2a2a', 0.4, emit=6.0, ao=0),
         navgreen=mat('navgreen', '#29ff5a', 0.4, emit=6.0, ao=0),
         beacon_off=mat('beacon_off', '#6a1414', 0.3, ao=0),
@@ -405,4 +405,4 @@ def closeup(path):
 if os.environ.get('IL76_CLOSEUP'):
     closeup(os.environ['IL76_CLOSEUP'])
 else:
-    run('il76', 'il76-russia', LENGTH, build)
+    run('il76', 'il76-russia', LENGTH, build, team_mask=True)

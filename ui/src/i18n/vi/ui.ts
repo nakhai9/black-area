@@ -177,6 +177,8 @@ export default {
   'Pumps oil for the nation to sell to the Global Monitoring Center. Pumps {mine} s, then rests {rest} s while the field recovers.': 'Bơm dầu cho quốc gia bán cho Global Monitoring Center. Bơm {mine} giây, rồi nghỉ {rest} giây để mỏ hồi phục.',
   '{name}: a symbol only. Cannot be attacked, destroyed or occupied.': '{name}: chỉ là biểu tượng. Không thể bị tấn công, phá hủy hay chiếm đóng.',
   'A red sandstone mesa of the American West. Terrain: cannot be destroyed or occupied.': 'Núi mặt bàn sa thạch đỏ miền Tây nước Mỹ. Địa hình: không thể phá hủy hay chiếm đóng.',
+  Shop: 'Cửa hàng',
+  'Shop: build structures and defenses, train soldiers, vehicles and aircraft': 'Cửa hàng: xây công trình và phòng thủ, mua lính, xe và máy bay',
   'The Pyramids of Giza: an ancient wonder. Cannot be destroyed or occupied.': 'Kim tự tháp Giza: kỳ quan cổ đại. Không thể phá hủy hay chiếm đóng.',
   'Neutral global finance hub shared by all nations. Cannot be destroyed or occupied.': 'Trung tâm tài chính toàn cầu trung lập, dùng chung cho mọi quốc gia. Không thể phá hủy hay chiếm đóng.',
   // Multiplayer lobby

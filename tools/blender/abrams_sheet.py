@@ -45,7 +45,7 @@ def main():
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     import teamline  # noqa: E402
 
-    teamline.band(tur, "usa")
+    teamline.band(tur, "neutral")  # neutral grey line + -team mask: the game tints it with the owner's colour
     tank.location = (-ab.TURRET_PIVOT[0], 0, 0)  # turret ring over the rig origin
     # game light: from the upper left, towards the viewer (tank_model_sheet.py LIGHT); world -Y is towards the viewer
     L = Vector((-0.45, -0.35, 0.82)).normalized()
@@ -70,11 +70,16 @@ def main():
     hull_objs = [o for o in sc.objects if o.type == "MESH" and o.name not in turret_set and o.name != "ShadowCatcher"]
     ground = bpy.data.objects["ShadowCatcher"]
 
-    sheets = {p: np.zeros((OUT, OUT * DIRS, 4), np.float32) for p in ("hull", "turret")}
-    for k in range(DIRS):
-        h = k / DIRS * 2 * math.pi
+    sheets = {p: np.zeros((OUT, OUT * DIRS, 4), np.float32) for p in ("hull", "turret", "turret-team")}
+    for k in range(DIRS * 2):
+        if k == DIRS:
+            # Second sweep: the faction mask of the turret (only the stripe, lit white; the rest cut out).
+            teamline.mask_mode(turret_objs + hull_objs)
+        h = (k % DIRS) / DIRS * 2 * math.pi
         rig.rotation_euler = (0, 0, math.atan2(math.cos(h) / SIN_E, math.sin(h)))
-        for part in ("hull", "turret"):
+        for part in (("hull", "turret") if k < DIRS else ("turret-team",)):
+            key = part
+            part = "turret" if part == "turret-team" else part
             for o in turret_objs:
                 o.visible_camera = part == "turret"
             for o in hull_objs:
@@ -89,9 +94,10 @@ def main():
             px = px.reshape(OUT, SS, OUT, SS, 4)
             a = px[..., 3].mean((1, 3))
             rgb = (px[..., :3] * px[..., 3:4]).mean((1, 3)) / np.maximum(a, 1e-6)[..., None]
-            sheets[part][:, k * OUT : (k + 1) * OUT, :3] = rgb
-            sheets[part][:, k * OUT : (k + 1) * OUT, 3] = a
-        print(f"[abrams_sheet] direction {k + 1}/{DIRS}")
+            c = k % DIRS
+            sheets[key][:, c * OUT : (c + 1) * OUT, :3] = rgb
+            sheets[key][:, c * OUT : (c + 1) * OUT, 3] = a
+        print(f"[abrams_sheet] direction {k + 1}/{DIRS * 2}")
     for part, arr in sheets.items():
         im = bpy.data.images.new(f"tank-m1a2-{part}", OUT * DIRS, OUT, alpha=True)
         im.pixels.foreach_set(np.clip(arr, 0, 1).ravel())

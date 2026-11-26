@@ -1,4 +1,6 @@
-import { createElement, Pause, Play, House, Keyboard, Map as MapIcon, Maximize, Minimize, Radiation, Rocket, type IconNode } from 'lucide';
+import { createElement, Handshake, Pause, Play, House, Keyboard, Map as MapIcon, Maximize, Minimize, Radiation, Rocket, Settings as SettingsIcon, type IconNode } from 'lucide';
+import { factionBadgeHtml } from './FactionBadge';
+import type { FactionId } from '../types';
 import { t } from '../i18n';
 import { modalCloseButton } from './ModalClose';
 
@@ -92,8 +94,23 @@ export class BigMap {
 
   /** Slot for the sidebar's zoom lock button (replaced when the sidebar is rebuilt). */
   private readonly zoomLockSlot = document.createElement('span');
-  /** Slot for the sidebar's war clock (replaced when the sidebar is rebuilt). */
+  /** Slot for the sidebar's war clock (replaced when the sidebar is rebuilt): in the dock, under the logo. */
   private readonly warClockSlot = document.createElement('span');
+  /**
+   * Command dock at the bottom of the battlefield: (1) the game logo with the nation's flag, (2) the peace / war clock
+   * under it, then one row of buttons: home, world map, build, defense, infantry, vehicles, aircraft, loan, nuclear
+   * briefcase, settings, allies. Production buttons open the production modal (the sidebar's cameo panels).
+   */
+  private readonly dock = document.createElement('div');
+  /** The nation's emblem with its flag, exactly as on the sidebar's faction card (factionBadgeHtml). */
+  private readonly dockBadge = document.createElement('div');
+  private readonly dockProduction = document.createElement('span');
+  private readonly dockLoan = document.createElement('span');
+  private readonly dockTail = document.createElement('span');
+  /** The production modal (build / defense / infantry / vehicles / aircraft cameos, moved in from the sidebar). */
+  private readonly production: CornerModal;
+  /** The production modal closed (the sidebar unmarks its tab). */
+  onProductionClosed: (() => void) | null = null;
   /** Slot for the sidebar's show button (seen only while the sidebar is hidden). */
   private readonly openerSlot = document.createElement('span');
 
@@ -155,29 +172,63 @@ export class BigMap {
     this.nuclear.card.append(this.nuclearHead, this.nuclearList);
     this.setSilos([]);
 
+    this.production = new CornerModal(t('Production'), 'production');
+    const hideProduction = this.production.hide.bind(this.production);
+    this.production.hide = () => {
+      hideProduction();
+      this.onProductionClosed?.();
+    };
+
+    // Top corner keeps only the screen tools: controls guide, full screen, zoom lock, show-sidebar.
     this.bar.append(
-      this.warClockSlot,
-      button(House, t('Home (H): jump the camera to your capital.'), onHome),
-      button(MapIcon, t('World Map (Tab)'), () => this.toggleMap()),
       button(Keyboard, t('Controls'), () => (this.controls.open ? this.controls.hide() : this.controls.show())),
-      this.nuclearBtn,
       this.fullscreenButton(button),
       this.zoomLockSlot,
       this.openerSlot,
     );
+
+    // Command dock (bottom of the battlefield).
+    this.dock.className = 'cmd-dock';
+    const brand = document.createElement('div');
+    brand.className = 'cmd-brand';
+    this.dockBadge.className = 'cmd-brand-top';
+    const top = this.dockBadge;
+    this.warClockSlot.className = 'cmd-clock';
+    brand.append(top, this.warClockSlot);
+    const row = document.createElement('div');
+    row.className = 'cmd-row';
+    this.nuclearBtn.classList.add('cmd-btn');
+    this.dockProduction.className = 'cmd-shop';
+    this.dockLoan.className = 'cmd-slot';
+    this.dockTail.className = 'cmd-slot';
+    const dockButton = (icon: IconNode, label: string, onClick: () => void): HTMLButtonElement => {
+      const b = button(icon, label, onClick);
+      b.className = 'cmd-btn';
+      return b;
+    };
+    row.append(
+      dockButton(House, t('Home (H): jump the camera to your capital.'), onHome),
+      dockButton(MapIcon, t('World Map (Tab)'), () => this.toggleMap()),
+      this.dockProduction,
+      this.dockLoan,
+      this.nuclearBtn,
+      this.dockTail,
+    );
+    this.dock.append(brand, row);
+    host.append(this.dock);
     this.openerSlot.className = 'corner-slot';
     this.zoomLockSlot.className = 'corner-slot';
-    this.warClockSlot.className = 'corner-slot';
     host.append(this.bar);
 
     window.addEventListener(
       'keydown',
       (e) => {
-        if (e.key !== 'Escape' || !(this.map.open || this.controls.open || this.nuclear.open)) return;
+        if (e.key !== 'Escape' || !(this.map.open || this.controls.open || this.nuclear.open || this.production.open)) return;
         e.stopImmediatePropagation();
         this.map.hide();
         this.controls.hide();
         this.nuclear.hide();
+        if (this.production.open) this.production.hide();
       },
       true,
     );
@@ -201,7 +252,46 @@ export class BigMap {
     this.openerSlot.replaceChildren(btn);
   }
 
-  /** Puts the sidebar's war clock into the bar, engraved (no badge background). */
+  /**
+   * Fills the dock from a (new) sidebar: the nation's flag beside the logo, the production tab buttons (their clicks
+   * open `openProduction`), the loan button, and the settings / allies buttons. Replaces whatever a previous sidebar put.
+   */
+  setDock(o: { faction: FactionId; productionTabs: readonly HTMLElement[]; production: HTMLElement; loan: HTMLElement; onSettings: () => void; onAllies: () => void }): void {
+    this.dockBadge.innerHTML = factionBadgeHtml(o.faction, 'sm');
+    for (const b of o.productionTabs) b.classList.add('cmd-btn');
+    const caption = document.createElement('span');
+    caption.className = 'cmd-shop-caption';
+    caption.textContent = t('Shop');
+    const buttons = document.createElement('span');
+    buttons.className = 'cmd-shop-buttons';
+    buttons.append(...o.productionTabs);
+    this.dockProduction.replaceChildren(caption, buttons);
+    this.dockProduction.title = t('Shop: build structures and defenses, train soldiers, vehicles and aircraft');
+    o.loan.classList.add('cmd-loan');
+    this.dockLoan.replaceChildren(o.loan);
+    const tail = (icon: IconNode, label: string, onClick: () => void): HTMLButtonElement => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'cmd-btn';
+      b.title = label;
+      b.setAttribute('aria-label', label);
+      b.append(createElement(icon, { width: 18, height: 18, 'stroke-width': 2, 'aria-hidden': 'true' }));
+      b.addEventListener('click', onClick);
+      return b;
+    };
+    this.dockTail.replaceChildren(tail(SettingsIcon, t('Settings'), o.onSettings), tail(Handshake, t('Allies'), o.onAllies));
+    this.production.card.querySelectorAll('.sb-build').forEach((el) => el.remove());
+    o.production.classList.add('production-panel');
+    this.production.card.append(o.production);
+  }
+
+  /** Shows the production modal (a production tab was clicked in the dock). */
+  openProduction(title: string): void {
+    this.production.heading.textContent = title ? `${t('Shop')} · ${title}` : t('Shop');
+    this.production.show();
+  }
+
+  /** Puts the sidebar's war clock into the dock, under the logo. */
   setWarClock(el: HTMLElement): void {
     this.warClockSlot.replaceChildren(el);
   }

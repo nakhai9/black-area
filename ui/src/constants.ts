@@ -39,7 +39,7 @@ export const DEMO_FACTION: FactionId = NATION_CODES[(import.meta.env.VITE_DEMO_F
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "3.75.423";
+export const GAME_VERSION = "3.75.437";
 /** Transport aircraft (C-17, Il-76, Y-20, A400M) are drawn this many iso px long: 13, +20% (v3.75.224). */
 export const TRANSPORT_LENGTH = 13 * 1.2 * 0.9;
 
@@ -1430,9 +1430,14 @@ export const CARRIER_FLEET = 0;
 /** Fighters a carrier can carry on its deck. */
 export const CARRIER_JETS = 4;
 export const CAPITAL_LOCATIONS: Readonly<Record<FactionId, NamedSite>> = {
-  usa: { lon: -77.04, lat: 38.9, name: "Washington, D.C." },
-  russia: { lon: 37.62, lat: 55.75, name: "Moscow" },
-  china: { lon: 116.4, lat: 39.9, name: "Beijing" },
+  // Philadelphia (39.95°N 75.17°W), set a little west of the Delaware River so the plot stands on dry land.
+  usa: { lon: -75.3, lat: 39.97, name: "Philadelphia" },
+  // Saint Petersburg (59.94°N 30.31°E) lies on the Gulf of Finland and the Neva: the plot is set ~0.3° south-east,
+  // on dry land clear of the gulf and Lake Ladoga on the map texture, so the Kremlin's 5 × 4 plot stands on land.
+  russia: { lon: 30.6, lat: 59.65, name: "Saint Petersburg" },
+  // Nanjing (32.06°N 118.79°E) sits on the Yangtze drawn on the map (Rivers.ts): the plot is set ~0.7° south-east of it
+  // so the 5 × 5 capital stands clear of the river.
+  china: { lon: 119.0, lat: 31.35, name: "Nanjing" },
   europe: { lon: 2.35, lat: 48.86, name: "Paris" },
   islamic: { lon: 46.68, lat: 24.71, name: "Riyadh" },
 };

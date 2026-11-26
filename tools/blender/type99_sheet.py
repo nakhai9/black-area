@@ -318,7 +318,7 @@ def main():
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     import teamline  # noqa: E402
 
-    teamline.band(tur, "china")
+    teamline.band(tur, "neutral")  # neutral grey line + -team mask: the game tints it with the owner's colour
     camera(sc)
 
     if PREVIEW:
@@ -330,10 +330,15 @@ def main():
 
     turret_objs = {o.name for o in [tur] + list(tur.children_recursive)}
     meshes = [o for o in sc.objects if o.type == "MESH" and o is not floor]
-    sheets = {p: np.zeros((OUT, OUT * DIRS, 4), np.float32) for p in ("hull", "turret")}
-    for k in range(DIRS):
-        rig.rotation_euler = (0, 0, heading_to_yaw(k))
-        for part in ("hull", "turret"):
+    sheets = {p: np.zeros((OUT, OUT * DIRS, 4), np.float32) for p in ("hull", "turret", "turret-team")}
+    for k in range(DIRS * 2):
+        if k == DIRS:
+            # Second sweep: the faction mask of the turret (only the stripe, lit white; the rest cut out).
+            teamline.mask_mode(meshes)
+        rig.rotation_euler = (0, 0, heading_to_yaw(k % DIRS))
+        for part in (("hull", "turret") if k < DIRS else ("turret-team",)):
+            key = part
+            part = "turret" if part == "turret-team" else part
             for o in meshes:
                 o.visible_camera = (o.name in turret_objs) == (part == "turret")
             floor.hide_render = part == "turret"
@@ -346,9 +351,10 @@ def main():
             px = px.reshape(OUT, SS, OUT, SS, 4)
             a = px[..., 3].mean((1, 3))
             rgb = (px[..., :3] * px[..., 3:4]).mean((1, 3)) / np.maximum(a, 1e-6)[..., None]
-            sheets[part][:, k * OUT : (k + 1) * OUT, :3] = rgb
-            sheets[part][:, k * OUT : (k + 1) * OUT, 3] = a
-        print(f"[type99] direction {k + 1}/{DIRS}")
+            c = k % DIRS
+            sheets[key][:, c * OUT : (c + 1) * OUT, :3] = rgb
+            sheets[key][:, c * OUT : (c + 1) * OUT, 3] = a
+        print(f"[type99] direction {k + 1}/{DIRS * 2}")
     for part, arr in sheets.items():
         im = bpy.data.images.new(f"tank-type99-{part}", OUT * DIRS, OUT, alpha=True)
         im.pixels.foreach_set(np.clip(arr, 0, 1).ravel())

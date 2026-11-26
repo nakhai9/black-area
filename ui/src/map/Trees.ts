@@ -3,6 +3,7 @@ import { tileRng, ValueNoise } from '../core/Random';
 import type { GridPoint } from '../types';
 import type { BiomeFields } from './Biomes';
 import type { TileMap } from './TileMap';
+import { worldToGeo } from './Geo';
 
 /** Weight of the terrain type 'forest' (climate-made woodland in WorldGenerator) towards a cell being wooded. */
 const FOREST_TYPE_WEIGHT = 0.3;
@@ -14,6 +15,22 @@ const CLUMP_WEIGHT = 0.9;
 const CLUMP_CELLS = 11;
 /** A cell is wooded when its weight reaches this. */
 const WOOD_THRESHOLD = 0.5;
+/**
+ * North America's east coast (Atlantic seaboard, Florida to Nova Scotia): fewer woods there (open ground for bases).
+ * Inside the box the wood weight drops by EAST_COAST_THIN, fading out over EAST_COAST_FADE degrees at its edges.
+ */
+const EAST_COAST = { west: -84, east: -60, south: 25, north: 47 } as const;
+const EAST_COAST_THIN = 0.3;
+const EAST_COAST_FADE = 3;
+
+/** 0..1: how far inside the east-coast box world cell (cx, cy) lies (1 = fully inside, faded at the edges). */
+function eastCoastShare(cx: number, cy: number): number {
+  if (cy < 0) return 0;
+  const { lon, lat } = worldToGeo({ x: (cx + 0.5) * CELL_SIZE, y: (cy + 0.5) * CELL_SIZE });
+  const k = (d: number): number => Math.max(0, Math.min(1, d / EAST_COAST_FADE));
+  return Math.min(k(lon - EAST_COAST.west), k(EAST_COAST.east - lon), k(lat - EAST_COAST.south), k(EAST_COAST.north - lat));
+}
+
 /** No trees above this elevation (metres): bare alpine ground. */
 const TREE_LINE_M = 1800;
 /** Fir tree sprite varieties (the first columns of sprites/trees.webp). */
@@ -96,7 +113,7 @@ export class TreeLayer {
         if (t !== 'grass' && t !== 'forest') continue;
         if ((map.mountain[i] ?? 0) !== 0 || map.heightAt(cx, cy) > TREE_LINE_M) continue;
         const climate = biomes.forest[i] ?? 0;
-        const base = (t === 'forest' ? FOREST_TYPE_WEIGHT : 0) + climate * CLIMATE_WEIGHT;
+        const base = (t === 'forest' ? FOREST_TYPE_WEIGHT : 0) + climate * CLIMATE_WEIGHT - (lat > EAST_COAST.south - 1 && lat < EAST_COAST.north + 1 && cy < map.height / 2 ? EAST_COAST_THIN * eastCoastShare(cx, cy) : 0);
         if (base + CLUMP_WEIGHT / 2 < WOOD_THRESHOLD) continue; // never wooded: skip the noise
         const w = base + (noise.fbm(cx / CLUMP_CELLS, cy / CLUMP_CELLS, 3) - 0.5) * CLUMP_WEIGHT;
         if (w < WOOD_THRESHOLD) continue;

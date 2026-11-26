@@ -1,3 +1,6 @@
+import { tintedCell } from './TeamTint';
+import { FACTIONS as NATIONS } from '../factions';
+import type { Allegiance } from '../types';
 import { ISO_X, ISO_Y, TRANSPORT_LENGTH } from '../constants';
 import type { Vehicle } from '../entities/Vehicle';
 import type { FactionId, VehicleKind } from '../types';
@@ -34,6 +37,31 @@ const sheet = (file: string, cell: number, length: number): AircraftSheet => ({
 const BOMBER_LENGTH = 15.2;
 /** AWACS are drawn no longer than a fighter (iso px, the fighters' length). */
 const AWACS_LENGTH = 9.5;
+
+/**
+ * Sheets rendered the ART_GUIDE way (faction line in neutral grey + a `-team` mask sheet in the same layout): the mask
+ * is tinted with the OWNER's colour (Unit.banner) over the body. Others still have their nation's colour baked in.
+ */
+const MASKED: ReadonlySet<string> = new Set(['c17-usa.webp']);
+const MASKS = new Map<string, HTMLImageElement>();
+function maskOf(sh: AircraftSheet): HTMLImageElement | null {
+  const file = sh.url.slice(sh.url.lastIndexOf('/') + 1);
+  if (!MASKED.has(file)) return null;
+  let img = MASKS.get(file);
+  if (!img) {
+    img = lazyImage(spriteUrl(file.replace('.webp', '-team.webp')));
+    MASKS.set(file, img);
+  }
+  return img.complete && img.naturalWidth > 0 ? img : null;
+}
+
+/** The owner's colour over the sheet's mask cell (nothing for a sheet without a mask, or before it loads). */
+function drawTeam(ctx: CanvasRenderingContext2D, sh: AircraftSheet, owner: Allegiance, col: number, row: number, dx: number, dy: number, size: number): void {
+  const mask = maskOf(sh);
+  if (!mask) return;
+  const hex = owner === 'neutral' ? '#c8c8c8' : NATIONS[owner].colors.primary;
+  ctx.drawImage(tintedCell(mask, sh.url, col, Math.round(mask.naturalWidth / sh.cell), hex, row), dx, dy, size, size);
+}
 
 const SHEETS: Partial<Record<`${FactionId}:${VehicleKind}`, AircraftSheet>> = {
   'usa:jet': sheet('jet-usa.webp', 96, 9.5),
@@ -174,6 +202,7 @@ export function drawAircraftSheet(ctx: CanvasRenderingContext2D, v: Vehicle, x: 
 
   // Body: its centre sits about 1.5 px over the wheels.
   ctx.drawImage(img, col * sh.cell, row * sh.cell, sh.cell, sh.cell, x - half, y - v.altitude - 1.5 - half, size, size);
+  drawTeam(ctx, sh, v.banner, col, row, x - half, y - v.altitude - 1.5 - half, size);
   ctx.imageSmoothingEnabled = prevSmooth;
   return true;
 }
@@ -193,6 +222,7 @@ export function drawAircraftPortrait(ctx: CanvasRenderingContext2D, faction: Fac
   ctx.save();
   ctx.imageSmoothingEnabled = true;
   ctx.drawImage(img, col * sh.cell, ROW.flyA * sh.cell, sh.cell, sh.cell, (w - size) / 2, (h - size) / 2, size, size);
+  drawTeam(ctx, sh, faction, col, ROW.flyA, (w - size) / 2, (h - size) / 2, size);
   ctx.restore();
   return true;
 }

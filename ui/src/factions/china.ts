@@ -25,7 +25,7 @@ export const CHINA: FactionConfig = {
   },
   capital: {
     name: "Zhongnanhai",
-    city: "Beijing",
+    city: "Nanjing",
     description:
       t("Leadership compound of the People’s Republic, behind the Xinhuamen gate."),
     maxHp: 18000,

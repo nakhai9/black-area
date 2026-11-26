@@ -9,9 +9,9 @@ import { FOOTPRINT_RESERVE_CAPITAL } from '../../constants';
  * tower; Longoria: a double-eaved hall; Conquistalia: a palace quadrangle with a pedimented front; Lunastron: an arcaded palace
  * with a ribbed dome). A captured one keeps its builder's design.
  */
-const RENDERS: Record<FactionId, { originX: number; originY: number }> = {
+const RENDERS: Record<FactionId, { originX: number; originY: number; scale?: number }> = {
   usa: { originX: 134, originY: 103.2 },
-  russia: { originX: 134, originY: 195 },
+  russia: { originX: 134, originY: 52.57, scale: 5 }, // Winter Palace (models/reservecapital_russia.py)
   china: { originX: 134, originY: 103.2 },
   europe: { originX: 134, originY: 62.7 },
   islamic: { originX: 134, originY: 108.6 },
@@ -19,7 +19,7 @@ const RENDERS: Record<FactionId, { originX: number; originY: number }> = {
 const PICTURE = (faction: FactionId): PictureSpec => {
   const design = faction;
   const o = RENDERS[design];
-  return { file: `building-reservecapital-${design}`, originX: o.originX, originY: o.originY, scale: 3, footprint: FOOTPRINT_RESERVE_CAPITAL, zScale: 1 };
+  return { file: `building-reservecapital-${design}`, originX: o.originX, originY: o.originY, scale: o.scale ?? 3, footprint: FOOTPRINT_RESERVE_CAPITAL, zScale: 1 };
 };
 
 export function createReserveCapitalArt(faction: FactionId): BuildingArt {

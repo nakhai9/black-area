@@ -13,7 +13,11 @@ painted, not hatches, sights or antennas. Their materials are copied first, so t
 import bpy
 from mathutils import Vector
 
-TEAM = {"usa": "#2f6fe0", "russia": "#d22b2b", "china": "#e8b10a", "europe": "#6532d6", "islamic": "#1f9d4a"}
+TEAM = {"usa": "#2f6fe0", "russia": "#d22b2b", "china": "#e8b10a", "europe": "#6532d6", "islamic": "#1f9d4a",
+        "neutral": "#c8c8c8"}  # neutral: the game tints the -team mask with the owner's colour (ART_GUIDE)
+
+# (copy material, mask-pass material) of every painted material, filled by band(); used by mask_mode().
+_PAINTED = {}
 
 
 def _srgb(hexstr):
@@ -85,6 +89,25 @@ def _paint(mat, z0, z1, colour):
         rough.inputs[2].default_value = r.default_value
     rough.inputs[3].default_value = 0.6
     L.new(rough.outputs[0], r)
+    # Mask-pass twin: the stripe lit white (real shading), everything else holdout (transparent in the sheet).
+    k = m.copy()
+    kt = k.node_tree
+    kb = next(n for n in kt.nodes if n.type == "BSDF_PRINCIPLED")
+    for inp in ("Base Color", "Roughness"):
+        for lk in list(kb.inputs[inp].links):
+            kt.links.remove(lk)
+    kb.inputs["Base Color"].default_value = (1, 1, 1, 1)
+    kb.inputs["Roughness"].default_value = 0.6
+    kb.inputs["Metallic"].default_value = 0.0
+    kmask = next(n for n in kt.nodes if n.type == "MATH" and n.operation == "MULTIPLY" and n.outputs[0].links and any(l.to_node.type == "MIX" and l.to_node.data_type == "RGBA" for l in n.outputs[0].links))
+    out = next(n for n in kt.nodes if n.type == "OUTPUT_MATERIAL")
+    hold = kt.nodes.new("ShaderNodeHoldout")
+    mixs = kt.nodes.new("ShaderNodeMixShader")
+    kt.links.new(kmask.outputs[0], mixs.inputs[0])
+    kt.links.new(hold.outputs[0], mixs.inputs[1])
+    kt.links.new(kb.outputs[0], mixs.inputs[2])
+    kt.links.new(mixs.outputs[0], out.inputs["Surface"])
+    _PAINTED[m.name] = k
     return m
 
 
@@ -115,3 +138,22 @@ def band(turret, faction, lo=0.32, hi=0.68):
             slot.link = "OBJECT"
             slot.material = done[key]
     print(f"[teamline] {faction}: {len(body)} turret pieces, stripe z {z0:.2f}..{z1:.2f}")
+
+
+def mask_mode(meshes):
+    """Switches the scene to the faction-mask pass: painted turret pieces show only their stripe (lit white), every
+    other mesh is holdout (cut out, no shadow). Render the turret sheet again after this for the -team mask."""
+    hold = bpy.data.materials.get("teamline_holdout")
+    if hold is None:
+        hold = bpy.data.materials.new("teamline_holdout")
+        hold.use_nodes = True
+        nt = hold.node_tree
+        nt.nodes.clear()
+        out = nt.nodes.new("ShaderNodeOutputMaterial")
+        nt.links.new(nt.nodes.new("ShaderNodeHoldout").outputs[0], out.inputs["Surface"])
+    for o in meshes:
+        for slot in o.material_slots:
+            m = slot.material
+            twin = _PAINTED.get(m.name) if m else None
+            slot.link = "OBJECT"
+            slot.material = twin if twin else hold

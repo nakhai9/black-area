@@ -1,3 +1,4 @@
+import { MissileSilo } from '../entities/MissileSilo';
 import { LdewEmplacement } from '../entities/LdewEmplacement';
 import { concealedFrom, isSeat } from '../entities/ReserveCapital';
 import { DvinaLauncher } from '../entities/DvinaLauncher';
@@ -2831,9 +2832,25 @@ export class AISystem implements GameSystem {
   }
 
   /** How eagerly this government attacks `b` (lower = sooner); Infinity: not a target yet (or ever). */
+  /**
+   * How much harm an enemy missile silo can do us: a loaded missile counts most, one being loaded / paid for next, an
+   * idle silo least; times how many silos its nation owns (a bigger arsenal is the bigger threat), more when it stands
+   * nearer our capital. 0 for a silo under a nuclear embargo that is empty and idle.
+   */
+  private siloDanger(p: PlayerState, s: MissileSilo, all: readonly Building[]): number {
+    const stage = s.loaded ? 3 : s.loading || s.missilePaid > 0 ? 2 : 1;
+    const arsenal = all.filter((b) => b instanceof MissileSilo && b.owner === s.owner).length;
+    const home = this.host.entities.buildings().find((b) => b.owner === p.id && b.alive && isSeat(b));
+    const c = s.centerWorld();
+    const d = home ? Math.hypot(c.x - home.centerWorld().x, c.y - home.centerWorld().y) / CELL_SIZE : 1000;
+    return (stage * (1 + arsenal * 0.5)) / (1 + d / 400);
+  }
+
   private targetWeight(p: PlayerState, b: Building, othersLeft: boolean): number {
     const st = this.state.get(p.id);
     const type = b.spec.type;
+    // Enemy missile silos come before anything else within reach (a loaded one the most).
+    if (b instanceof MissileSilo) return b.loaded ? 0.05 : 0.12;
     if (type === 'capital') return othersLeft ? Infinity : 1;
     const eco = ECONOMIC_TARGETS[type];
     const mil = MILITARY_TARGETS[type];
@@ -3199,6 +3216,19 @@ export class AISystem implements GameSystem {
     // Offensives go to the chosen rival only (at most MAX_ATTACKERS governments besiege one nation); any enemy once
     // the rival has nothing left to hit.
     const all = this.enemyStructures(p);
+    // Nuclear threat first: the enemy missile silo that can hurt us most (see siloDanger) is the objective, whoever
+    // owns it and however far it is — before any rival or economic target.
+    let worstSilo: Building | null = null;
+    let worstDanger = 0;
+    for (const b of all) {
+      if (!(b instanceof MissileSilo)) continue;
+      const danger = this.siloDanger(p, b, all);
+      if (danger > worstDanger) {
+        worstDanger = danger;
+        worstSilo = b;
+      }
+    }
+    if (worstSilo) return worstSilo;
     const rival = this.state.get(p.id)?.rival ?? null;
     const ofRival = rival === null ? [] : all.filter((b) => b.owner === rival);
     const targets = ofRival.length > 0 ? ofRival : all;
