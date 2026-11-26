@@ -38,7 +38,7 @@ def materials():
         alu=mat('alu', ALU, 0.42, metal=0.35, panels=True),
         cone=mat('cone', '#8f969d', 0.5),
         black=mat('black', '#15171a', 0.6),
-        glass=mat('glass', '#1a2633', 0.07, glass=True, ao=0),
+        glass=mat('glass', '#2a4058', 0.06, glass=True, ao=0),  # blue-black with a sky sheen: reads as glass at sprite size
         intake=mat('intake', '#121416', 0.9, ao=0.6),
         metal=mat('metal', '#8f8d88', 0.36, metal=0.85, ao=0.3),
         hot=mat('hot', '#5b5248', 0.5, metal=0.7),
@@ -117,41 +117,116 @@ def fuselage(M):
         lathe(f'beacon_{nm}_on', [(0, 0.001), (0.0, 0.22), (0.18, 0.18), (0.26, 0.001)], (-1.0, 0, z), 'v', M['beacon_on'], 'beacon_on', 16)
 
 
+# ---- glazing and lines laid out along the skin outline (arc length round the nose at each height): every pane hugs the
+# skin, both sides mirror exactly and the front panes meet on the centre line with no gap or overlap.
+
+_OUTLINE = {}
+
+
+def outline(z):
+    """Plan outline of the skin at height z from the centre line at the nose aft to the tail: (arc length, u, |v|).
+    Only where the fuselage ring really reaches height z (the nose falls away near the tip)."""
+    key = round(z, 3)
+    if key in _OUTLINE:
+        return _OUTLINE[key]
+    us, ys = [], []
+    for u in np.concatenate((np.linspace(23.29, 19.0, 700), np.linspace(18.99, -23.0, 260))):
+        dz, hw, hh = B.station(u)
+        sz = (z - ZC - dz) / hh if hh > 0 else 2.0
+        if abs(sz) >= 0.999:
+            continue
+        us.append(u)
+        ys.append(hw * (1 - abs(sz) ** 2.2) ** (1 / 2.2))
+    us = np.array([us[0]] + us)
+    ys = np.array([0.0] + ys)
+    lam = np.concatenate(([0.0], np.cumsum(np.hypot(np.diff(us), np.diff(ys)))))
+    _OUTLINE[key] = (lam, us, ys)
+    return _OUTLINE[key]
+
+
+def lam_at(u, z):
+    """Arc length (m from the centre line) where the outline at height z reaches station u."""
+    lam, us, _ = outline(z)
+    return float(np.interp(-u, -us, lam))
+
+
+def _skin(l, z, side):
+    lam, us, ys = outline(z)
+    return np.array((float(np.interp(l, lam, us)), side * float(np.interp(l, lam, ys)), z))
+
+
+def skin_point(l, z, side, off):
+    """Skin point `l` m round from the centre line at height z on `side`, `off` m out along the true surface normal."""
+    p = _skin(l, z, side)
+    n = np.cross(_skin(l + 0.03, z, side) - _skin(max(0.0, l - 0.03), z, side), _skin(l, z + 0.03, side) - _skin(l, z - 0.03, side))
+    n = n / (float(np.linalg.norm(n)) or 1.0)
+    dz, _, _ = B.station(float(p[0]))
+    if float(np.dot(n, p - np.array((p[0], 0.0, ZC + dz)))) < 0:
+        n = -n
+    q = p + n * off
+    return (float(q[0]), float(q[1]), float(q[2]))
+
+
+def skin_patch(name, l0, l1, z0, z1, side, material, off, nl=6, nz=3, top=None, low=None):
+    """Pane / band on the skin between arc lengths l0..l1 and heights z0..z1 (top(l) / low(l) override them)."""
+    verts, faces = [], []
+    for i in range(nl + 1):
+        l = l0 + (l1 - l0) * i / nl
+        zb = low(l) if low else z0
+        zt = top(l) if top else z1
+        for j in range(nz + 1):
+            verts.append(skin_point(l, zb + (zt - zb) * j / nz, side, off))
+    for i in range(nl):
+        for j in range(nz):
+            a = i * (nz + 1) + j
+            q = (a, a + nz + 1, a + nz + 2, a + 1)
+            faces.append(q if side < 0 else q[::-1])
+    return obj(name, verts, faces, material, smooth=0)
+
+
+# Pilots' windscreen (Il-76MD): centre and corner panes a side in front, two side panes, two small eyebrow windows
+# above; arc lengths per pane, 0.12 m mullions. The top edge falls slightly towards the rear.
+SCREEN_Z0 = ZC + 1.25
+PANES = ((0.06, 0.95), (1.07, 1.9), (2.02, 2.75), (2.87, 3.5))
+EYEBROWS = ((1.2, 1.8), (1.95, 2.5))
+
+
+def screen_top(l):
+    return ZC + 2.08 - 0.12 * min(1.0, l / 3.5)
+
+
 def cockpit(M):
+    """Windscreen in a black anti-glare frame, the navigator's glazed nose, crew door and cabin windows."""
     for s in (1, -1):
-        # Black anti-glare frame round the windscreen, then the panes proud of it.
-        B.patch(f'frame{s}', 21.1, 18.6, ZC + 0.85, ZC + 2.25, s, M['black'], off=0.025, nu=5, nz=3)
-        for i, (a, b) in enumerate(((20.85, 20.25), (20.15, 19.55), (19.45, 18.9))):
-            B.patch(f'pane{s}{i}', a, b, ZC + 1.25, ZC + 2.0, s, M['glass'], off=0.05, nu=2, nz=2)
-        # Navigator's glazed nose: a lattice of small panes under the radar cone.
-        for i in range(4):
-            for j in range(3):
-                u0 = 22.15 - i * 0.48
-                z0 = ZC - 1.55 + j * 0.42
-                B.patch(f'nav{s}{i}{j}', u0, u0 - 0.38, z0, z0 + 0.32, s, M['glass'], off=0.04, nu=1, nz=1)
-        B.patch(f'navframe{s}', 22.25, 20.2, ZC - 1.65, ZC - 0.25, s, M['black'], off=0.02, nu=4, nz=3)
-        # Crew door, cabin windows and the round emergency hatch.
+        skin_patch(f'frame{s}', 0.0, PANES[-1][1] + 0.12, SCREEN_Z0 - 0.14, 0, s, M['black'], 0.03, nl=24, nz=3,
+                   top=lambda l: screen_top(l) + 0.14)
+        for i, (a, b) in enumerate(PANES):
+            skin_patch(f'pane{s}{i}', a, b, SCREEN_Z0, 0, s, M['glass'], 0.06, nl=8, nz=3, top=screen_top)
+        for i, (a, b) in enumerate(EYEBROWS):
+            skin_patch(f'eyebrow_frame{s}{i}', a - 0.06, b + 0.06, ZC + 2.22, ZC + 2.56, s, M['black'], 0.03, nl=6, nz=1)
+            skin_patch(f'eyebrow{s}{i}', a, b, ZC + 2.28, ZC + 2.5, s, M['glass'], 0.06, nl=6, nz=1)
+        # Navigator's glazed nose aft of the radar cone: a lattice of panes (3 rows x 5) in a black frame.
+        rows = ((ZC - 1.55, ZC - 1.17), (ZC - 1.07, ZC - 0.69), (ZC - 0.59, ZC - 0.25))
+        start = max(lam_at(22.1, z) for z, _ in rows)
+        skin_patch(f'navframe{s}', start - 0.08, start + 2.55, ZC - 1.63, ZC - 0.17, s, M['black'], 0.03, nl=16, nz=4)
+        for j, (z0, z1) in enumerate(rows):
+            for i in range(5):
+                a = start + i * 0.5
+                skin_patch(f'nav{s}{i}{j}', a, a + 0.4, z0, z1, s, M['glass'], 0.055, nl=3, nz=2)
+        # Crew door, cabin windows.
         B.patch(f'door{s}', 16.3, 15.3, ZC - 1.9, ZC + 0.3, s, M['letter'], off=0.03, nu=2, nz=3)
         for i, du in enumerate((13.6, 12.6, 4.5)):
             B.patch(f'port{s}{i}', du + 0.2, du - 0.2, ZC + 0.95, ZC + 1.3, s, M['glass'], off=0.035, nu=1, nz=1)
-    # Front windscreen pair.
-    for k, (y0, y1) in enumerate(((-1.1, -0.05), (0.05, 1.1))):
-        pts = []
-        for y in (y0, y1):
-            for z in (ZC + 1.25, ZC + 1.95):
-                u = 19.0
-                for uu in np.linspace(19.0, 23.0, 120):
-                    if B.half_width(uu, z) >= abs(y) + 0.04:
-                        u = uu
-                pts.append((u + 0.06, y, z))
-        obj(f'windscreen{k}', [pts[0], pts[2], pts[3], pts[1]], [(0, 1, 2, 3)], M['glass'], smooth=0)
 
 
 def cheatline(M):
-    """Navy band along the windows with thin pinstripes above and below, nose to tail (both sides)."""
+    """Navy band along the windows, nose to tail, edged by thin pinstripes in TEAM red (the faction identity line,
+    ART_GUIDE: the exact TEAM colour, recoloured on capture), both sides."""
     for s in (1, -1):
-        for z0, z1, nm in ((0.42, 0.8, 'band'), (0.92, 0.99, 'pin_hi'), (0.22, 0.29, 'pin_lo')):
-            B.patch(f'{nm}{s}', 21.9, -21.0, ZC + z0, ZC + z1, s, M['navy'], off=0.022, nu=60, nz=1)
+        for z0, z1, nm, m in ((0.42, 0.8, 'band', M['navy']), (0.92, 1.01, 'pin_hi', M['team']), (0.21, 0.3, 'pin_lo', M['team'])):
+            l0 = lam_at(21.9, ZC + z0)
+            l1 = lam_at(-21.0, ZC + z0)
+            skin_patch(f'{nm}{s}', l0, l1, ZC + z0, ZC + z1, s, m, 0.022, nl=120, nz=1)
         # "ИЛ-76МД" above the band, forward: dark blocks.
         u = 14.2
         for _ in range(7):
@@ -302,4 +377,32 @@ def build():
     ramp(M)
 
 
-run('il76', 'il76-russia', LENGTH, build)
+def closeup(path):
+    """Close look at the cockpit (IL76_CLOSEUP=<file.png>): checks the windscreen, nothing written to the sheet."""
+    import bpy
+    from mathutils import Vector
+    import airkit
+
+    sc = airkit.stage(1.0)
+    build()
+    sc.render.resolution_x, sc.render.resolution_y = 1200, 800
+    sc.cycles.samples = 64
+    sc.cycles.use_denoising = True
+    for name, loc in (('front', (37.0, 13.0, 13.0)), ('side', (20.0, 20.0, 11.0))):
+        cam = bpy.data.cameras.new(name)
+        cam.type = 'ORTHO'
+        cam.ortho_scale = 10
+        co = bpy.data.objects.new(name, cam)
+        sc.collection.objects.link(co)
+        co.location = loc
+        target = Vector((20.5, 0, ZC + 0.5))
+        co.rotation_euler = (target - Vector(loc)).to_track_quat('-Z', 'Y').to_euler()
+        sc.camera = co
+        sc.render.filepath = path.replace('.png', f'-{name}.png')
+        bpy.ops.render.render(write_still=True)
+
+
+if os.environ.get('IL76_CLOSEUP'):
+    closeup(os.environ['IL76_CLOSEUP'])
+else:
+    run('il76', 'il76-russia', LENGTH, build)

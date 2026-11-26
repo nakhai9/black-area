@@ -33,7 +33,7 @@ export const ISLAMIC: FactionConfig = {
   },
   infantry: {
     regular: {
-      name: "Basij",
+      name: "Scorpio",
       description: t("Islamic volunteer riflemen, numerous and determined."),
       look: {
         uniform: "#6b6a4a",
@@ -46,7 +46,7 @@ export const ISLAMIC: FactionConfig = {
       },
     },
     special: {
-      name: "Quds Force",
+      name: "Aculeus",
       description: t("Elite Islamic special operators."),
       look: {
         uniform: "#4f5a3a",

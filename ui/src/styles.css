@@ -82,9 +82,19 @@ body {
     transform: rotate(360deg);
   }
 }
+/* Loading screen: game logo above the bar, the % inside the bar, the status text under it. */
+.ld-logo {
+  width: min(220px, 60vw);
+  height: auto;
+  margin-bottom: 6px;
+}
+#loading.error .ld-logo {
+  display: none;
+}
 .ld-bar {
+  position: relative;
   width: 100%;
-  height: 8px;
+  height: 18px;
   border: 1px solid var(--accent);
   border-radius: 4px;
   overflow: hidden;
@@ -97,8 +107,15 @@ body {
   /* No width transition: the terrain bake blocks the main thread, which would freeze the bar mid-animation behind the % label. */
 }
 #loading-pct {
-  font-size: 13px;
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  line-height: 1;
   letter-spacing: 1px;
+  color: #fff;
+  text-shadow: 0 0 2px #000, 0 0 3px #000;
 }
 #loading.error {
   color: #ff8a7a;

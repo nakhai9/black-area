@@ -33,7 +33,7 @@ export const CHINA: FactionConfig = {
   },
   infantry: {
     regular: {
-      name: "PLA",
+      name: "Draco",
       description: t("Disciplined Chinese line infantry, cheap and numerous."),
       look: {
         uniform: "#5b6a3a",
@@ -46,7 +46,7 @@ export const CHINA: FactionConfig = {
       },
     },
     special: {
-      name: "Tiger",
+      name: "Wyvern",
       description: t("Elite marine commandos trained for amphibious assault."),
       look: {
         uniform: "#5b6a3a",

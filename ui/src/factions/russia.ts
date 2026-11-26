@@ -31,7 +31,7 @@ export const RUSSIA: FactionConfig = {
   },
   infantry: {
     regular: {
-      name: "Red Army",
+      name: "Ursus",
       description: t("Massed Russian conscript riflemen, tough in the cold."),
       look: {
         uniform: "#5f6b34",
@@ -43,7 +43,7 @@ export const RUSSIA: FactionConfig = {
       },
     },
     special: {
-      name: "Spetsnaz",
+      name: "Atrox",
       description: t("Special-purpose commandos for sabotage and raids."),
       look: {
         uniform: "#2b3a32",
