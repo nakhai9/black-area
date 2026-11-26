@@ -30,6 +30,7 @@ import {
   DERRICK_GRACE_GAP,
   MERCY_BONUS,
   RESALE_SHARE,
+  VEHICLE_BASE,
   CAMERA_EDGE_SCROLL,
   CAMERA_PAN_SPEED,
   BOMB_FALL_SECONDS,
@@ -8270,6 +8271,8 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
   /** What the Global Monitoring Center pays for `b` (its build cost × health × RESALE_SHARE); null: cannot be sold. */
   private salePrice(b: Building): number | null {
     if (!b.alive || b.indestructible || b.spec.type === 'capital') return null;
+    // A bridge is sold back for half what its bridge layer cost (by its health, like any structure).
+    if (b instanceof Bridge) return Math.round((VEHICLE_BASE.bridgeLayer.cost * RESALE_SHARE * b.hp) / b.maxHp / 10) * 10;
     // Sold by its shop id (the silo's is 'yars', not its type): matched by sprite when the id differs.
     const option = BUILD_OPTIONS.find((o) => o.id === b.spec.type) ?? BUILD_OPTIONS.find((o) => b.faction !== 'neutral' && o.spriteKey(b.faction as FactionId) === b.spec.spriteKey);
     if (!option) return null;
@@ -8288,6 +8291,15 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     }
     const p = this.players.find((pl) => pl.id === b.owner);
     if (!p) return;
+    // Never pulled out from under anyone: a bridge with ground units on its deck is not sold.
+    if (b instanceof Bridge) {
+      const f = b.footprintWorld();
+      const on = this.entities.fieldMovers().some((u) => u.alive && !u.flies && !u.naval && u.px >= f.x && u.px < f.x + f.w && u.py >= f.y && u.py < f.y + f.h);
+      if (on) {
+        if (b.owner === this.localId) this.sidebar.notify(t('Units are on the bridge: it cannot be sold now.'), 3);
+        return;
+      }
+    }
     p.credits += price;
     this.removeBuilding(b);
     this.sidebar.notify(t('{name} sold to the Global Monitoring Center: +{price} {currency}.', { name: b.spec.name, price, currency: CURRENCY }), 3);

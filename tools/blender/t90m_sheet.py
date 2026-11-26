@@ -29,7 +29,7 @@ HEIGHT_SCALE = 1.6  # RA2-style chunky look: hull and turret drawn taller than t
 GUN_SCALE = 0.7  # barrel shortened in the sheets so it stays inside the 64 px cell at every heading
 HULL_LEN = 3.46 + 3.48  # m, nose to rear plate
 SPRITES = os.path.join(ROOT, "ui", "public", "sprites")
-TMP = os.path.join(HERE, "_sheet_tmp.png")
+TMP = os.path.join(HERE, "_t90m_tmp.png")  # own file: sheets of several tanks render in parallel
 
 
 def main():
@@ -42,6 +42,11 @@ def main():
     sc.collection.objects.link(rig)
     tank.parent = rig
     rig.scale = (1, 1, HEIGHT_SCALE)
+    # Faction identity line (ART_GUIDE §6): a TEAM-colour stripe round the turret sides.
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import teamline  # noqa: E402
+
+    teamline.band(tur, "russia")
     tank.location = (-ab.TURRET_AT[0], 0, 0)  # turret ring over the rig origin
     # game light: from the upper left, towards the viewer (tank_model_sheet.py LIGHT); world -Y is towards the viewer
     L = Vector((-0.45, -0.35, 0.82)).normalized()

@@ -4,6 +4,7 @@ import type { FactionId, Rect } from '../types';
 import { createCanvas } from './Canvas';
 import { IsoPainter, roofMaskContext } from './IsoPainter';
 import { applyRa2Finish } from './Ra2Finish';
+import { lateLoadedPictures } from './sprites/PictureArt';
 import { baseKeyOf, flagVariantArt, recolorPixels, teamColorOwner, teamColoredArt, type BuildingArt } from './sprites';
 
 /** Sprites are rasterised at 2× for crisp results when zoomed in / on HiDPI. */
@@ -85,6 +86,7 @@ export function spriteRaster(s: Sprite, screenPerPx: number): HTMLCanvasElement 
  */
 export class SpriteCache {
   private readonly sprites = new Map<string, Sprite>();
+  private seenLateLoads = 0;
   private readonly registry: Map<string, BuildingArt>;
 
   constructor(arts: Readonly<Record<string, BuildingArt>>) {
@@ -97,6 +99,10 @@ export class SpriteCache {
   }
 
   get(key: string, mirrored = false): Sprite {
+    if (this.seenLateLoads !== lateLoadedPictures()) {
+      this.seenLateLoads = lateLoadedPictures();
+      this.sprites.clear(); // a late picture arrived: sprites drawn without it are drawn again
+    }
     const id = `${key}|${mirrored ? 'm' : 'n'}`;
     let s = this.sprites.get(id);
     if (!s) {

@@ -30,8 +30,9 @@ export const PROTOTYPES: Prototype[] = [
     name: 'K9 Thunder',
     lines: ['Pháo tự hành 155 mm L/52', 'Kích thước thật: 7,44 × 3,40 × 2,73 m (dài 12 m tính cả nòng)', 'Màu xanh rêu, dải màu phe trên tháp pháo'],
     files: { base: 'tank-k9thunder-hull', top: 'tank-k9thunder-turret', baseTeam: 'tank-k9thunder-hull-team', topTeam: 'tank-k9thunder-turret-team' },
-    grid: 96,
-    pivot: [48, 54],
+    // Taller cell, ground point lower: room for the barrel laid up at 65° (k9thunder_sheet.py GUN_ELEV).
+    grid: 128,
+    pivot: [64, 82],
   },
   {
     id: 'kub',

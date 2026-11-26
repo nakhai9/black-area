@@ -1,7 +1,7 @@
 import type { FactionId } from '../../types';
 import { drawFlagOnPole, drawNationalPole } from '../Flags';
 import type { BuildingArt } from './BuildingArt';
-import { type PictureSpec, pictureArt } from './PictureArt';
+import { type PictureSpec, pictureArt, preloadPicture } from './PictureArt';
 import { FACTORY_DESIGNS } from './WarFactoryNations';
 
 /** Where the art origin lies in each nation's picture (from building-warfactory-<nation>.json). */
@@ -37,6 +37,8 @@ export function createWarFactoryArt(faction: FactionId, flagOf: FactionId = fact
   const flags = design.flags.map(([u, v, z]) => [u, v, stage >= 3 || (stage === 2 && u > RUIN_SPLIT_U) ? RUIN_POLE_Z : z] as const);
   const lights = stage >= 2 ? design.lights.filter(([u, , z]) => stage < 3 && u <= RUIN_SPLIT_U && z < 60) : design.lights;
   const spec = PICTURE(faction);
+  // Damage pictures are built lazily (art.damaged): register them now so loadPictureArts downloads them before play.
+  if (stage === 0) for (const n of [1, 2, 3]) preloadPicture(`${spec.file}-d${n}`);
   const art = pictureArt(stage ? { ...spec, file: `${spec.file}-d${stage}` } : spec, {
     overlay(p) {
       for (const [u, v, z] of flags) drawNationalPole(p, faction, u, v, z, 22);

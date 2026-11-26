@@ -193,6 +193,7 @@ export default {
   '{count} healed and left the {name}.': '{count} quân đã hồi phục và rời {name}.',
   '{count} came out of: {name}.': '{count} quân đã ra khỏi: {name}.',
   'The {name} cannot be sold.': '{name} không thể bán.',
+  'Units are on the bridge: it cannot be sold now.': 'Đang có quân trên cầu: chưa bán được cầu.',
   '{name} sold to the Global Monitoring Center: +{price} {currency}.': 'Đã bán {name} cho Global Monitoring Center: +{price} {currency}.',
   'Mercy bonus: you let a retreating enemy group go — Global Monitoring Center pays +{bonus} {currency}.': 'Thưởng nhân đạo: bạn đã tha cho một nhóm địch đang rút lui — Global Monitoring Center trả +{bonus} {currency}.',
   'No selected vehicle needs repair.': 'Không xe nào đang chọn cần sửa.',

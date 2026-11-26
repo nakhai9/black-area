@@ -44,13 +44,14 @@ SPP = int(os.environ.get("K9_SAMPLES", "32"))
 PREVIEW = os.environ.get("K9_PREVIEW")
 TEAM_HEX = os.environ.get("K9_TEAM", "#c8c8c8")  # neutral grey: the mask carries the faction colour
 
-GRID, DIRS = 96, 32  # layout grid px per cell (1x1 tile = 64 grid px), facings
-OUT, SSAA = 384, 2  # stored px per cell (4x grid), supersampling
-PIVOT = (48, 54)
+GRID, DIRS = 128, 32  # layout grid px per cell (1x1 tile = 64 grid px), facings
+OUT, SSAA = min(GRID * 4, 16383 // DIRS), 2  # WebP rows stop at 16383 px wide  # stored px per cell (4x grid), supersampling
+PIVOT = (64, 82)  # high in a taller cell: the barrel laid up at GUN_ELEV stays inside at every facing
 ELEV = math.radians(30)
 M_TO_GRID = 42 / 7.77  # grid px per metre, shared ground scale of the game tanks
 TALL = 1.0  # real height (raise to 1.6 for the chunky RA2 look)
 TURRET_RING = (-1.0, 0.0, 1.62)
+GUN_ELEV = math.radians(65)  # barrel laid up at 65 deg (indirect-fire howitzer), not level with the hull
 
 MOSS = "#4b5631"  # xanh rêu
 MOSS_DARK = "#3c4527"
@@ -342,6 +343,7 @@ def grab(sc):
 def main():
     sc, ground = studio(512 if PREVIEW else OUT * SSAA)
     k9, tur, gun = model()
+    gun.rotation_euler = (0, -GUN_ELEV, 0)  # Blender: -Y pitch lifts the +X muzzle
     stand = pivot("Stand", (0, 0, 0), None)
     k9.parent = stand
     k9.location = (-TURRET_RING[0], 0, 0)

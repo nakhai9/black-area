@@ -14,9 +14,8 @@ export const ICBM_TRAIL_SECONDS = 4;
 const TRAIL_PUFFS = 26;
 
 /**
- * Flight path: straight up out of the silo to the cruise height (`loft` iso px above the ground), a pitch-over into
- * level flight, level along the ground track at that height, a pitch-down over the target and a straight vertical
- * fall onto it. Built once per flight as a dense polyline, walked by distance (constant speed along the path).
+ * Flight path: one ballistic arc from the silo to the target, `loft` iso px high at its apex (a parabola on screen),
+ * the missile always pointing along it. Built once per flight as a dense polyline, walked by distance.
  */
 interface IcbmPath {
   pts: [number, number][];
@@ -29,33 +28,14 @@ function buildPath(x0: number, y0: number, x1: number, y1: number, loft: number)
   const key = `${x0.toFixed(1)},${y0.toFixed(1)},${x1.toFixed(1)},${y1.toFixed(1)},${loft.toFixed(1)}`;
   const hit = paths.get(key);
   if (hit) return hit;
-  const A: [number, number] = [x0, y0 - loft];
-  const D: [number, number] = [x1, y1 - loft];
-  const run = Math.hypot(D[0] - A[0], D[1] - A[1]);
-  const r = Math.max(1, Math.min(loft * 0.45, run * 0.35));
-  const dir: [number, number] = run > 0.01 ? [(D[0] - A[0]) / run, (D[1] - A[1]) / run] : [0, 0];
+  // One smooth ballistic arc (a parabola on screen): the nose follows the curve the whole way — climbing out of the
+  // silo, pitching over at the apex and diving onto the target — never pointing up while flying sideways.
   const pts: [number, number][] = [];
-  const line = (a: [number, number], b: [number, number]): void => {
-    const n = Math.max(2, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / 2));
-    for (let i = 0; i <= n; i++) pts.push([a[0] + ((b[0] - a[0]) * i) / n, a[1] + ((b[1] - a[1]) * i) / n]);
-  };
-  // Rounded corner: quadratic curve from `a` to `b` with the corner `c` as control point.
-  const corner = (a: [number, number], c: [number, number], b: [number, number]): void => {
-    for (let i = 1; i < 24; i++) {
-      const k = i / 24;
-      const u = 1 - k;
-      pts.push([u * u * a[0] + 2 * u * k * c[0] + k * k * b[0], u * u * a[1] + 2 * u * k * c[1] + k * k * b[1]]);
-    }
-  };
-  const climbEnd: [number, number] = [x0, A[1] + r];
-  const cruiseStart: [number, number] = [A[0] + dir[0] * r, A[1] + dir[1] * r];
-  const cruiseEnd: [number, number] = [D[0] - dir[0] * r, D[1] - dir[1] * r];
-  const dropStart: [number, number] = [x1, D[1] + r];
-  line([x0, y0], climbEnd);
-  corner(climbEnd, A, cruiseStart);
-  line(cruiseStart, cruiseEnd);
-  corner(cruiseEnd, D, dropStart);
-  line(dropStart, [x1, y1]);
+  const n = Math.max(48, Math.ceil(Math.hypot(x1 - x0, y1 - y0) / 2));
+  for (let i = 0; i <= n; i++) {
+    const k = i / n;
+    pts.push([x0 + (x1 - x0) * k, y0 + (y1 - y0) * k - 4 * loft * k * (1 - k)]);
+  }
   const cum = [0];
   for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1]! + Math.hypot(pts[i]![0] - pts[i - 1]![0], pts[i]![1] - pts[i - 1]![1]));
   const path = { pts, cum, total: cum[cum.length - 1] ?? 0 };

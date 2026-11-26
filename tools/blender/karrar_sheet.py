@@ -17,6 +17,7 @@ Axes: +X front, +Y left, +Z up, metres.
 """
 import math
 import os
+import sys
 
 import bmesh
 import bpy
@@ -308,6 +309,11 @@ def main():
     root.parent = turntable
     root.location = (-RING[0], 0, 0)
     turntable.scale = (1, 1, STRETCH_Z)
+    # Faction identity line (ART_GUIDE §6): a TEAM-colour stripe round the turret sides.
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import teamline  # noqa: E402
+
+    teamline.band(tur, "islamic")
 
     if PREVIEW_FILE:
         turntable.rotation_euler = (0, 0, model_yaw(int(os.environ.get("KARRAR_DIR", "4"))))

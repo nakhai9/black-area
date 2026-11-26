@@ -16,6 +16,7 @@ Axes: +X front, +Y left, +Z up, metres.
 """
 import math
 import os
+import sys
 
 import bmesh
 import bpy
@@ -301,6 +302,11 @@ def main():
     tank.parent = stand
     tank.location = (-TURRET_RING[0], 0, 0)
     stand.scale = (1, 1, TALL)
+    # Faction identity line (ART_GUIDE §6): a TEAM-colour stripe round the turret sides.
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import teamline  # noqa: E402
+
+    teamline.band(tur, "europe")
 
     if PREVIEW:
         stand.rotation_euler = (0, 0, yaw_for(int(os.environ.get("LEO_DIR", "4"))))

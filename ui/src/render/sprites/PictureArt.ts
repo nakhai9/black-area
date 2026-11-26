@@ -25,6 +25,12 @@ export interface PictureSpec {
 
 const images = new Map<string, HTMLImageElement>();
 let loading: Promise<void> | null = null;
+let lateLoads = 0;
+
+/** Count of pictures that arrived after the start-up download (the sprite cache redraws when it changes). */
+export function lateLoadedPictures(): number {
+  return lateLoads;
+}
 
 function image(file: string): HTMLImageElement {
   let i = images.get(file);
@@ -32,8 +38,14 @@ function image(file: string): HTMLImageElement {
     i = new Image();
     i.dataset.src = spriteUrl(`${file}.webp`);
     images.set(file, i);
-    // Registered after the start-up download began: fetch it now instead of never.
-    if (loading) i.src = i.dataset.src;
+    // Registered after the start-up download began: fetch it now instead of never, and once it is in, have the sprite
+    // cache redraw (a sprite drawn before the picture arrived would stay empty — a structure vanishing on the map).
+    if (loading) {
+      i.onload = () => {
+        lateLoads++;
+      };
+      i.src = i.dataset.src;
+    }
   }
   return i;
 }
