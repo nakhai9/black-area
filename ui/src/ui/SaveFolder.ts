@@ -11,13 +11,6 @@ const STORE = 'handles';
 const KEY = 'saveDir';
 /** localStorage flag: a save folder has been chosen in this browser (lets the menu show Continue without an async check). */
 const FLAG = 'black-area.saveFolder';
-export const hasSaveFolder = (): boolean => {
-  try {
-    return saveFolderSupported() && localStorage.getItem(FLAG) === '1';
-  } catch {
-    return false;
-  }
-};
 
 type Perm = 'granted' | 'denied' | 'prompt';
 interface DirHandle {

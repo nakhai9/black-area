@@ -206,6 +206,8 @@ export class Vehicle extends Unit {
   returningHome = false;
   /** Bombers and fighters: bombs left aboard (refilled on the airfield's apron, paid per bomb). */
   bombs = 0;
+  /** Bombs in its last drop (BOMBS_PER_DROP, or fewer when that many were not left): what the drop effect shows. */
+  lastDrop = 0;
   /** Bomber only: time towards loading the next bomb on the apron. */
   rearmClock = 0;
   /** Transport only: soldiers and vehicles aboard (hidden from the map while inside). */

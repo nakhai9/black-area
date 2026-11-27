@@ -1,4 +1,7 @@
 /** R-12 Dvina missile in flight (world px; `lift` = height above the ground in iso px; heading hx, hy). */
+/** Seconds between two full target searches of a bunker / missile launcher that found nothing (no scan every tick). */
+const SCAN_PERIOD = 0.5;
+
 export interface DvinaMissile {
   launcher: DvinaLauncher;
   targetId: number;
@@ -207,6 +210,8 @@ const CHASE_ROUTES_PER_TICK = 3;
 
 export class CombatSystem implements GameSystem {
   private time = 0;
+  /** Next game time a bunker / launcher may search all structures (or all units, Dvina) again after finding nothing. */
+  private readonly nextScan = new WeakMap<Entity, number>();
   private readonly chaseAt = new Map<number, number>();
   /** Unit id → game time of its next attack-move resume try. */
   private readonly resumeAt = new Map<number, number>();
@@ -355,7 +360,9 @@ export class CombatSystem implements GameSystem {
       // With no unit in reach: an enemy bunker inside its range (any bunker, player and AI alike); the missile
       // launcher (R-12 Dvina) take any enemy structure. Nearest first, edge to edge.
       let site: Building | undefined;
-      if (!best && !forced) {
+      // (A search that found nothing waits SCAN_PERIOD s before the next one: no full structure scan every tick.)
+      if (!best && !forced && (this.nextScan.get(b) ?? 0) <= this.time) {
+        this.nextScan.set(b, this.time + SCAN_PERIOD);
         for (const o of this.entities.buildings()) {
           if (o === b || !isHostile(b, o) || !(b.hitsStructures || o instanceof Bunker)) continue;
           const g = o.footprintWorld();
@@ -435,7 +442,8 @@ export class CombatSystem implements GameSystem {
     }
     // On its own it fires only at aircraft / helicopters in the air (player and AI); ground units and structures need an
     // order. The AI gives itself that order too (a massed group in range). One missile per order or pick.
-    if (!target && b.loaded && !this.hooks.safeAt(c.x, c.y)) {
+    if (!target && b.loaded && (this.nextScan.get(b) ?? 0) <= this.time && !this.hooks.safeAt(c.x, c.y)) {
+      this.nextScan.set(b, this.time + SCAN_PERIOD);
       let bestD = Infinity;
       for (const o of this.entities.fieldMovers()) {
         if (!fair(o) || (!ai && !o.flies)) continue;
@@ -1102,7 +1110,8 @@ export class CombatSystem implements GameSystem {
    * smaller than BOMB_GROUP_SIZE is wiped out, a bigger one loses a third (nearest the impact first).
    */
   private dropBombs(s: Vehicle, t: Entity, impact: WorldPoint): void {
-    s.bombs = Math.max(0, s.bombs - BOMBS_PER_DROP); // the last bomb is dropped alone
+    s.lastDrop = Math.min(BOMBS_PER_DROP, s.bombs);
+    s.bombs -= s.lastDrop; // the last bomb is dropped alone
     // Nothing is hit until the bombs reach the ground and explode.
     this.falling.push({ at: this.time + BOMB_FALL_SECONDS, kind: 'stick', shooter: s, target: t, impact });
   }
@@ -1354,7 +1363,8 @@ export class CombatSystem implements GameSystem {
     s.cooldown = w.cooldown * RANK_RELOAD[s.rank];
     const impact = { x: tx, y: ty };
     if (s instanceof Vehicle && s.type === 'bomber') {
-      s.bombs = Math.max(0, s.bombs - BOMBS_PER_DROP);
+      s.lastDrop = Math.min(BOMBS_PER_DROP, s.bombs);
+      s.bombs -= s.lastDrop;
       this.falling.push({ at: this.time + BOMB_FALL_SECONDS, kind: 'treeStick', shooter: s, target: null, impact });
       this.hooks.onFellFire(s, w, impact);
       return;

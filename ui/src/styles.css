@@ -4144,13 +4144,8 @@ body.pregame .cmd-dock {
   width: 14px;
   height: 14px;
 }
-/* Production modal: the cameo panels moved in from the sidebar. */
-.production-card .production-panel {
-  max-height: 70vh;
-  overflow: auto;
-}
-/* Shop: cameos in a grid of 4 columns (n rows). */
-.production-card .sb-cameos:not([hidden]) {
+/* Shop drawer: cameos in a grid of 4 columns (n rows). */
+.shop-drawer .sb-cameos:not([hidden]) {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 6px;
@@ -4167,27 +4162,6 @@ body.pregame .cmd-dock {
 }
 .cmd-dock .sb-loan.cmd-loan .sb-loan-text {
   display: none;
-}
-/* Shop group in the dock: a caption over its buttons, so it reads as the shop at a glance. */
-.cmd-shop {
-  display: grid;
-  justify-items: center;
-  gap: 2px;
-  padding: 2px 6px 3px;
-  border: 1px solid #e0a800;
-  border-radius: 5px;
-  background: rgba(224, 168, 0, 0.08);
-}
-.cmd-shop-caption {
-  font-size: 10px;
-  line-height: 1;
-  letter-spacing: 1.5px;
-  text-transform: uppercase;
-  color: #ffd84a;
-}
-.cmd-shop-buttons {
-  display: flex;
-  gap: 4px;
 }
 /* Shop modal sits in an .end-card: its generic button padding / background must not shrink the cameo picture,
    which fills the whole card edge to edge. */

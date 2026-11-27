@@ -99,7 +99,7 @@ export class BigMap {
   /**
    * Command dock at the bottom of the battlefield: (1) the game logo with the nation's flag, (2) the peace / war clock
    * under it, then one row of buttons: home, world map, build, defense, infantry, vehicles, aircraft, loan, nuclear
-   * briefcase, settings, allies. Production buttons open the production modal (the sidebar's cameo panels).
+   * briefcase, settings, allies. The cart button opens the sidebar's shop drawer.
    */
   private readonly dock = document.createElement('div');
   /** The nation's emblem with its flag, exactly as on the sidebar's faction card (factionBadgeHtml). */
@@ -109,10 +109,6 @@ export class BigMap {
   private readonly dockCredits = document.createElement('div');
   private readonly dockLoan = document.createElement('span');
   private readonly dockTail = document.createElement('span');
-  /** The production modal (build / defense / infantry / vehicles / aircraft cameos, moved in from the sidebar). */
-  private readonly production: CornerModal;
-  /** The production modal closed (the sidebar unmarks its tab). */
-  onProductionClosed: (() => void) | null = null;
   /** Slot for the sidebar's show button (seen only while the sidebar is hidden). */
   private readonly openerSlot = document.createElement('span');
 
@@ -174,13 +170,6 @@ export class BigMap {
     this.nuclear.card.append(this.nuclearHead, this.nuclearList);
     this.setSilos([]);
 
-    this.production = new CornerModal(t('Production'), 'production');
-    const hideProduction = this.production.hide.bind(this.production);
-    this.production.hide = () => {
-      hideProduction();
-      this.onProductionClosed?.();
-    };
-
     // Top corner keeps only the screen tools: controls guide, full screen, zoom lock, show-sidebar.
     this.bar.append(
       button(Keyboard, t('Controls'), () => (this.controls.open ? this.controls.hide() : this.controls.show())),
@@ -229,12 +218,11 @@ export class BigMap {
     window.addEventListener(
       'keydown',
       (e) => {
-        if (e.key !== 'Escape' || !(this.map.open || this.controls.open || this.nuclear.open || this.production.open)) return;
+        if (e.key !== 'Escape' || !(this.map.open || this.controls.open || this.nuclear.open)) return;
         e.stopImmediatePropagation();
         this.map.hide();
         this.controls.hide();
         this.nuclear.hide();
-        if (this.production.open) this.production.hide();
       },
       true,
     );
@@ -259,8 +247,8 @@ export class BigMap {
   }
 
   /**
-   * Fills the dock from a (new) sidebar: the nation's flag beside the logo, the production tab buttons (their clicks
-   * open `openProduction`), the loan button, and the settings / allies buttons. Replaces whatever a previous sidebar put.
+   * Fills the dock from a (new) sidebar: the nation's flag beside the logo, the money and power bar, the shop cart,
+   * the loan button, the oil / capitals / news buttons, and the settings / allies buttons. Replaces whatever a previous sidebar put.
    */
   setDock(o: { faction: FactionId; onShop: () => void; credits: HTMLElement; extras: readonly HTMLElement[]; loan: HTMLElement; onSettings: () => void; onAllies: () => void }): void {
     this.dockBadge.innerHTML = factionBadgeHtml(o.faction, 'sm');
@@ -289,12 +277,6 @@ export class BigMap {
       return b;
     };
     this.dockTail.replaceChildren(...o.extras, tail(SettingsIcon, t('Settings'), o.onSettings), tail(Handshake, t('Allies'), o.onAllies));
-  }
-
-  /** Shows the production modal (a production tab was clicked in the dock). */
-  openProduction(title: string): void {
-    this.production.heading.textContent = title ? `${t('Shop')} · ${title}` : t('Shop');
-    this.production.show();
   }
 
   /** Puts the sidebar's war clock into the dock, under the logo. */

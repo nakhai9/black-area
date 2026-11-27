@@ -20,22 +20,6 @@ const img = (file: string): HTMLImageElement => {
   return onDemand(i, i.dataset.src);
 };
 const SHEETS: Partial<Record<FactionId, HTMLImageElement>> = { usa: img('ship-cvn80.webp'), europe: img('ship-r08.webp'), china: img('ship-type004.webp') };
-let loaded: Promise<void> | null = null;
-
-/** Starts (once) and returns the carrier sheet downloads. */
-export function loadCarrierSprites(): Promise<void> {
-  loaded ??= Promise.all(
-    Object.values(SHEETS).map(
-      (i) =>
-        new Promise<void>((resolve, reject) => {
-          i.onload = () => resolve();
-          i.onerror = () => reject(new Error(`Could not load carrier sprites '${i.dataset.src}'.`));
-          i.src = i.dataset.src ?? '';
-        }),
-    ),
-  ).then(() => undefined);
-  return loaded;
-}
 
 const ok = (i: HTMLImageElement | undefined): i is HTMLImageElement => !!i && i.complete && i.naturalWidth > 0;
 

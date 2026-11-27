@@ -367,10 +367,6 @@ export class Sidebar {
   private readonly debt: HTMLElement;
   /** "Get a loan": moved into the command dock at the bottom of the screen (BigMap.setDock). */
   readonly loanButton: HTMLButtonElement;
-  /** The production cameos (build / defense / infantry / vehicles / aircraft panels): shown in the dock's modal. */
-  readonly productionSection: HTMLElement;
-  /** A production tab was opened from the dock: the dock shows its modal (set by the game). */
-  onOpenProduction: ((tab: TabId) => void) | null = null;
   private readonly autoSellButton: HTMLButtonElement;
   private readonly cartelPanel: HTMLElement;
   private readonly policyText: HTMLElement;
@@ -450,10 +446,6 @@ export class Sidebar {
     this.markTabs();
   }
 
-  /** Production tab buttons in order (build, defense, infantry, vehicles, aircraft): they live in the command dock. */
-  productionTabs(): HTMLButtonElement[] {
-    return BUILD_TABS.map((t) => this.tabButtons.get(t.id)!).filter(Boolean);
-  }
 
 
   /** Allies button of the dock: the sidebar shows the occupied capitals (who holds whose capital). */
@@ -635,7 +627,6 @@ export class Sidebar {
     this.powerBar = q('.sb-power-bar');
     this.powerBlocks = [...this.powerBar.children] as HTMLElement[];
     this.message = q('.sb-msg');
-    this.productionSection = q('.sb-build');
     this.radarPanel = q('.sb-radar');
     // The compass sits in the minimap's bottom-left corner (the minimap is drawn north-up).
     const compass = document.getElementById('compass');

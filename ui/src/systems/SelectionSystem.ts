@@ -56,10 +56,11 @@ export class SelectionSystem {
       return b instanceof Building && b.alive ? b : null;
     }
     const m = worldToIso(world.x, world.y);
-    const list = this.entities.byDepth();
+    // Structures only, sorted once (not every unit copied and sorted on every mouse frame).
+    const list = this.entities.buildingsByDepth();
     for (let i = list.length - 1; i >= 0; i--) {
-      const e = list[i];
-      if (!(e instanceof Building) || !e.alive) continue;
+      const e = list[i]!;
+      if (!e.alive) continue;
       // Both points in iso space: the sprite is drawn upright around the footprint centre.
       const cw = e.centerWorld();
       const c = worldToIso(cw.x, cw.y);

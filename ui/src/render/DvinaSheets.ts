@@ -112,11 +112,6 @@ export function sitePreview(id: SiteId, faction: FactionId): HTMLCanvasElement |
   return drawSite(c.getContext('2d')!, id, { faction, aimHeading: Math.PI * 0.75, loaded: true }, 64, 70, 128 / (12 * PX_PER_M * GAME_SCALE[id])) ? c : null;
 }
 
-// R-12 Dvina shorthands.
-export const drawDvina = (ctx: CanvasRenderingContext2D, b: { faction: string; aimHeading: number; loaded: boolean }, x: number, y: number): boolean => drawSite(ctx, 'dvina', b, x, y);
-export const dvinaRailHeight = (): number => siteRailHeight('dvina');
-export const dvinaPreview = (faction: FactionId): HTMLCanvasElement | null => sitePreview('dvina', faction);
-
 /** Per facing: centre of the missile's pixels in its sheet cell (cell px), found once from the sheet's alpha. */
 const MISSILE_CENTRE = new Map<number, { x: number; y: number } | null>();
 function missileCentre(img: HTMLImageElement, dir: number): { x: number; y: number } | null {

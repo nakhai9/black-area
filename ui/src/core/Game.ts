@@ -2720,9 +2720,24 @@ export class Game {
   private crushInfantry(): void {
     const walkers = this.entities.fieldUnits();
     if (walkers.length === 0) return;
+    // Soldiers bucketed by cell once per tick: each tank checks the 3 × 3 cells round it, not every soldier on the map.
+    let grid: Map<number, Infantry[]> | null = null;
     for (const v of this.entities.vehicles()) {
       if (!v.alive || !v.visible || v.aircraft || !v.moving || (v.type !== 'tank' && v.type !== 'ifv') || v.owner === NEUTRAL_OWNER) continue;
-      for (const u of walkers) {
+      if (!grid) {
+        grid = new Map();
+        for (const u of walkers) {
+          const k = Math.floor(u.px / CELL_SIZE) * 100003 + Math.floor(u.py / CELL_SIZE);
+          const l = grid.get(k);
+          if (l) l.push(u);
+          else grid.set(k, [u]);
+        }
+      }
+      const vx = Math.floor(v.px / CELL_SIZE);
+      const vy = Math.floor(v.py / CELL_SIZE);
+      const near: Infantry[] = [];
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) for (const u of grid.get((vx + dx) * 100003 + vy + dy) ?? []) near.push(u);
+      for (const u of near) {
         if (!u.alive || u.owner === v.owner || u.owner === NEUTRAL_OWNER) continue;
         // Squared distances: no square root per tank × soldier pair.
         const dx = u.px - v.px;
@@ -6039,8 +6054,10 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
         const bay = this.fx(s.px, s.py, this.aimHeight(s, 0.5));
         const ground = this.fx(s.px, s.py, 0);
         const fall = BOMB_FALL_SECONDS;
-        for (let i = 0; i < BOMBS_PER_DROP; i++) {
-          const ox = (i - (BOMBS_PER_DROP - 1) / 2) * 3;
+        // As many bombs fall as were really dropped: the last one alone when only one was left aboard.
+        const n = s.lastDrop > 0 ? s.lastDrop : BOMBS_PER_DROP;
+        for (let i = 0; i < n; i++) {
+          const ox = (i - (n - 1) / 2) * 3;
           const delay = i * 0.15;
           this.effects.add({ kind: 'bombFall', x0: bay.x + ox, y0: bay.y, x1: hit.x + ox, y1: hit.y, gx: ground.x + ox, gy: ground.y, age: -delay, ttl: fall, faction });
           this.effects.add({ kind: 'bombBlast', x: hit.x + ox, y: hit.y, age: -(delay + fall), ttl: BOMB_BLAST_TTL, faction });

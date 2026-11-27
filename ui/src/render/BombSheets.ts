@@ -30,23 +30,6 @@ const SHEETS: Partial<Record<FactionId, BombSheet>> = {
   china: sheet('bomb-tu160.webp'), // H-6K: the Tu-160's bombs (same Soviet-style iron bombs)
 };
 
-let loaded: Promise<void> | null = null;
-
-/** Starts (once) and returns the bomb sheet downloads. */
-export function loadBombSprites(): Promise<void> {
-  loaded ??= Promise.all(
-    Object.values(SHEETS).map(
-      (s) =>
-        new Promise<void>((resolve, reject) => {
-          s.image.onload = () => resolve();
-          s.image.onerror = () => reject(new Error(`Could not load bomb sprites '${s.url}'.`));
-          s.image.src = s.url;
-        }),
-    ),
-  ).then(() => undefined);
-  return loaded;
-}
-
 /** True when `faction`'s bomb sheet is loaded (the game then adds bombFall effects instead of a tracer). */
 export function hasBombSheet(faction: string): boolean {
   return ready(faction as FactionId) !== null;

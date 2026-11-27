@@ -256,27 +256,3 @@ export function drawNuke(ctx: CanvasRenderingContext2D, x: number, y: number, rx
   }
   ctx.restore();
 }
-
-/**
- * Fallout circle `age` s into its `ttl`: a translucent green disc over the blast ellipse rx × ry with a thin,
- * slowly pulsing rim; fades in over 1 s and out over the last 8 s.
- */
-export function drawFallout(ctx: CanvasRenderingContext2D, x: number, y: number, rx: number, ry: number, age: number, ttl: number): void {
-  const a = clamp01(age / 1) * clamp01((ttl - age) / 8);
-  if (a <= 0) return;
-  const pulse = 0.75 + 0.25 * Math.sin(age * 2.4);
-  ctx.save();
-  // Flat light-green fill and a 1 screen-px rim (line width undone from the camera zoom).
-  // The fill blinks (about once a second) and fades steadily from full to nothing over the circle's life.
-  const life = clamp01(1 - age / ttl);
-  const blink = 0.55 + 0.45 * Math.cos(age * Math.PI * 2);
-  ctx.fillStyle = `rgba(150,255,140,${0.26 * clamp01(age / 1) * life * blink})`;
-  ctx.beginPath();
-  ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2);
-  ctx.fill();
-  const m = ctx.getTransform();
-  ctx.strokeStyle = `rgba(120,255,110,${0.9 * a * pulse})`;
-  ctx.lineWidth = 1 / (Math.hypot(m.a, m.b) || 1);
-  ctx.stroke();
-  ctx.restore();
-}

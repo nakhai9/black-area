@@ -64,6 +64,11 @@ export class EntityManager {
     return this.cached('f', () => this.units().filter((u) => u.visible));
   }
 
+  /** Structures back to front (cached until an entity is added / removed: a structure never moves). */
+  buildingsByDepth(): readonly Building[] {
+    return this.cached('bd', () => [...this.buildings()].sort((a, b) => a.depth - b.depth));
+  }
+
   /** Back-to-front order for the painter's algorithm. */
   byDepth(): Entity[] {
     return [...this.byId.values()].sort((a, b) => a.depth - b.depth);
