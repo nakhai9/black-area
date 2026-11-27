@@ -185,6 +185,31 @@ export class TreeLayer {
     this.clearArea(cx - radius, cy - radius, radius * 2 + 1, radius * 2 + 1);
   }
 
+  /**
+   * Thins the woods within `radius` cells (Euclidean) of cell (cx, cy): only about `keep` (0..1) of the trees stay,
+   * picked by a fixed hash of each tree's index (same result every game). Part of the world, not logged.
+   */
+  thinAround(cx: number, cy: number, radius: number, keep: number): void {
+    for (let y = cy - radius; y <= cy + radius; y++) {
+      for (let x = cx - radius; x <= cx + radius; x++) {
+        if (!this.map.inBounds(x, y) || (x - cx) ** 2 + (y - cy) ** 2 > radius * radius) continue;
+        const cell = this.map.index(x, y);
+        let left = 0;
+        for (let i = this.cellStart[cell] ?? 0; i < (this.cellStart[cell + 1] ?? 0); i++) {
+          if ((this.hp[i] ?? 0) <= 0) continue;
+          const h = (Math.imul(i ^ 0x9e3779b9, 0x85ebca6b) >>> 0) / 4294967296;
+          if (h < keep) left++;
+          else {
+            this.rs[i] = 0;
+            this.hp[i] = 0;
+          }
+        }
+        this.map.trees[cell] = Math.min(this.map.trees[cell] ?? 0, left);
+      }
+    }
+    this.version++;
+  }
+
   get count(): number {
     return this.xs.length;
   }

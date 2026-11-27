@@ -20,7 +20,7 @@ const RUIN_POLE_H = 26;
 const PICTURE: PictureSpec = { file: 'building-worldbank', originX: 166, originY: 191.625, scale: 3, footprint: { w: 5, d: 5 }, zScale: 1.35 };
 
 /**
- * Global Monitoring Center (Zürich, neutral), inspired by the United Nations Headquarters: the Secretariat slab
+ * Global Monitoring Center (Bern, neutral), inspired by the United Nations Headquarters: the Secretariat slab
  * (blue-green glass curtain wall, marble ends, grille crown with "GMC") rising from a marble podium filling the plot,
  * low glazed office wings either side, a central entrance canopy, and one flag flying in the middle of the roof.
  */

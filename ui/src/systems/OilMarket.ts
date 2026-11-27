@@ -52,7 +52,7 @@ const PRICE_HISTORY = 30;
 export const MIN_SALE_STOCK = 0.5;
 
 /**
- * The Global Monitoring Center (Zürich): a neutral, purely financial institution. It runs the oil market and emergency
+ * The Global Monitoring Center (Bern): a neutral, purely financial institution. It runs the oil market and emergency
  * credit automatically and never takes sides.
  *
  * Price — see the OIL_* constants: it falls when nations sell a lot of oil, rises when the Center has to sell oil

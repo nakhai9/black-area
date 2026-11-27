@@ -235,6 +235,8 @@ const RANK_BADGES = [
 /** Rescue medal (repair vehicles, engineers), 15×15 grid (Pinhead Map Icons by Quincy Morgan, CC0 — https://creativecommons.org/publicdomain/zero/1.0/). */
 const MEDAL_BADGE = new Path2D('m3 4l4.5 3L12 4V0H3zm5.5 3.5c.14 0 .25.11.25.25V10H11c.14 0 .25.11.25.25v2c0 .14-.11.25-.25.25H8.75v2.25c0 .14-.11.25-.25.25h-2c-.14 0-.25-.11-.25-.25V12.5H4c-.14 0-.25-.11-.25-.25v-2c0-.14.11-.25.25-.25h2.25V7.75c0-.14.11-.25.25-.25z');
 /** Engineer icon (Material Symbols by Google, Apache 2.0), 24×24 grid: engineers sent into the Tech Center. */
+/** "Protected" shield (Material Design Icons, Pictogrammers — Apache 2.0), 24×24. */
+const PROTECTED_ICON = new Path2D('M12 12h7c-.53 4.11-3.28 7.78-7 8.92zH5V6.3l7-3.11M12 1L3 5v6c0 5.55 3.84 10.73 9 12c5.16-1.27 9-6.45 9-12V5z');
 const ENGINEER_ICON = new Path2D('M1.05 21v-2.8q0-.825.425-1.55t1.175-1.1q1.275-.65 2.875-1.1T9.05 14t3.525.45t2.875 1.1q.75.375 1.175 1.1t.425 1.55V21zm5.175-9.175Q5.05 10.65 5.05 9H4.8q-.225 0-.362-.137T4.3 8.5t.138-.363T4.8 8h.25q0-1.125.55-2.025T7.05 4.55v.95q0 .225.138.363T7.55 6t.363-.137t.137-.363V4.15q.225-.075.475-.112T9.05 4t.525.038t.475.112V5.5q0 .225.138.363T10.55 6t.363-.137t.137-.363v-.95q.9.525 1.45 1.425T13.05 8h.25q.225 0 .363.138t.137.362t-.137.363T13.3 9h-.25q0 1.65-1.175 2.825T9.05 13t-2.825-1.175m4.238-1.412q.587-.588.587-1.413h-4q0 .825.588 1.413T9.05 11t1.413-.587M16.55 15l-.15-.75q-.15-.05-.287-.112t-.263-.188l-.7.25l-.5-.9l.55-.5v-.6l-.55-.5l.5-.9l.7.25q.1-.1.25-.175t.3-.125l.15-.75h1l.15.75q.15.05.3.125t.25.175l.7-.25l.5.9l-.55.5v.6l.55.5l-.5.9l-.7-.25q-.125.125-.262.188t-.288.112l-.15.75zm1.025-1.975q.225-.225.225-.525t-.225-.525t-.525-.225t-.525.225t-.225.525t.225.525t.525.225t.525-.225M18.85 10l-.2-1.05q-.225-.075-.413-.187T17.9 8.5l-1.05.35l-.7-1.2l.85-.75q-.05-.125-.05-.2v-.4q0-.075.05-.2l-.85-.75l.7-1.2l1.05.35q.15-.15.338-.263t.412-.187l.2-1.05h1.4l.2 1.05q.225.075.413.188t.337.262l1.05-.35l.7 1.2l-.85.75q.05.125.05.2v.4q0 .075-.05.2l.85.75l-.7 1.2l-1.05-.35q-.15.15-.337.263t-.413.187l-.2 1.05zm1.587-2.613q.363-.362.363-.887t-.363-.888t-.887-.362t-.888.363t-.362.887t.363.888t.887.362t.888-.363');
 /** DEMO test game: each aircraft type shows one star level, to preview all three in play. */
 const DEMO_AIR_RANK: Partial<Record<VehicleKind, number>> = { jet: 1, bomber: 2, transport: 3 };
@@ -2123,7 +2125,6 @@ export class Renderer {
     const r = this.spriteRect(b);
     const inside = '';
     const managed = 'bankManaged' in b && (b as { bankManaged: boolean }).bankManaged;
-    const health = `${Math.max(0, Math.ceil((b.hp / b.maxHp) * 100))}%`;
     const alliance = b instanceof NationCapital ? b.alliance() : null;
     // A nation's capital taken by another nation (player or AI): "<capital> held by <nation>"
     const heldBy =
@@ -2131,21 +2132,23 @@ export class Renderer {
         ? t('{capital} held by {faction}', { capital: b.spec.name, faction: FACTIONS[b.faction].name })
         : null;
     const text = alliance
-      ? `${alliance} · ${health}${inside}`
+      ? `${alliance}${inside}`
       : heldBy
-      ? `${heldBy} · ${health}${inside}`
+      ? `${heldBy}${inside}`
       : managed
-      ? `${b.spec.name} · ${health} · ${t('Global Monitoring Center managed')}`
+      ? `${b.spec.name} · ${t('Global Monitoring Center managed')}`
       : b.indestructible
-        ? `${b.spec.name} · ${health} · ${t('Neutral')} · ${t('Protected')}`
+        ? b.spec.name
         : b instanceof ReserveCapital && b.seat && b.seatNo > 0 && b.faction !== 'neutral'
-        ? `${FACTIONS[b.faction].shortName} ${roman(b.seatNo)} · ${health}${inside}` // inherited seat: first heir "Lunastron I", then II, III… (the first capital has no number)
-        : `${b.spec.name}${b instanceof MissileSilo && b.siloNo > 0 ? ` #${b.siloNo}` : ''} · ${health}${inside}`;
+        ? `${FACTIONS[b.faction].shortName} ${roman(b.seatNo)}${inside}` // inherited seat: first heir "Lunastron I", then II, III… (the first capital has no number)
+        : `${b.spec.name}${b instanceof MissileSilo && b.siloNo > 0 ? ` #${b.siloNo}` : ''}${inside}`;
     ctx.font = `600 ${12 * k}px "Courier New", Courier, monospace`;
     // Own Tech Center: " · <engineer icon> n" — engineers sent in for the nuclear programme.
     const sci = b.spec.type === 'techCenter' && this.labelOwner !== undefined && b.owner === this.labelOwner ? ` ${this.labelScientists}` : '';
-    const sep = sci ? ' · ' : '';
-    const icon = sci ? 14 * k : 0;
+    // Protected (indestructible, not GMC-managed): " · <shield icon>" instead of the word.
+    const shield = !alliance && !heldBy && !managed && b.indestructible;
+    const sep = sci || shield ? ' · ' : '';
+    const icon = sci || shield ? 14 * k : 0;
     const textW = ctx.measureText(text + sep).width;
     const w = textW + icon + ctx.measureText(sci).width + 12 * k;
     const h = 18 * k;
@@ -2160,14 +2163,14 @@ export class Renderer {
     ctx.textBaseline = 'middle';
     ctx.textAlign = 'left';
     ctx.fillText(text + sep, x + 6 * k, y + h / 2 - k);
-    if (sci) {
+    if (sci || shield) {
       const ix = x + 6 * k + textW;
       ctx.save();
       ctx.translate(ix, y + h / 2 - k - icon / 2);
       ctx.scale(icon / 24, icon / 24);
-      ctx.fill(ENGINEER_ICON);
+      ctx.fill(shield ? PROTECTED_ICON : ENGINEER_ICON);
       ctx.restore();
-      ctx.fillText(sci, ix + icon, y + h / 2 - k);
+      if (sci) ctx.fillText(sci, ix + icon, y + h / 2 - k);
     }
     // Units inside (garrison / Military Garage): the occupancy tag just above the label.
     if (b.garrison.length > 0) {

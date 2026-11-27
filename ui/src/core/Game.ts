@@ -124,7 +124,6 @@ import {
   BRIDGE_DEPLOY_CELLS,
   BRIDGE_REACH_CELLS,
   STATUE_OF_LIBERTY_LOCATION,
-  EIFFEL_TOWER_LOCATION,
   AWACS_RADIUS_CELLS,
   SQUAD_MIN_REGULAR,
   SQUAD_MIN_SPECIAL,
@@ -382,6 +381,12 @@ const DEMO_DROP_CELLS = 10;
 const DOOR_CLEAR_CELLS = 2.5;
 /** Preset structures (capitals, cities…) clear the mountain this many cells around their footprint. */
 const PRESET_VALLEY_CELLS = 3;
+/** Global Monitoring Center surroundings (see Game.openMonitoringCenterGround). */
+const GMC_TREE_RADIUS = 14;
+const GMC_TREE_KEEP = 0.35;
+const GMC_FRONT_CELLS = 24;
+const GMC_FRONT_HALF_WIDTH = 12;
+const GMC_TRAIL_WIDTH = 2;
 /** Seconds between two riders getting off a truck. */
 const TRUCK_EJECT_STEP = 0.35;
 /** F / double-click: the flag goes up on the nearest open cell within this many cells of the Squatters. */
@@ -684,11 +689,10 @@ export class Game {
     this.placeOnGrid(this.entities.buildings(), trees);
     // The Statue of Liberty in New York harbour (on the nearest dry ground if the island is not on the map).
     this.placeOnGrid([this.entities.add(new Monument('liberty', geoToWorld(STATUE_OF_LIBERTY_LOCATION)))], trees);
-    // The Eiffel Tower in Paris (France).
-    this.placeOnGrid([this.entities.add(new Monument('eiffel', geoToWorld(EIFFEL_TOWER_LOCATION)))], trees);
     this.placeOilRows(trees);
     this.placeAntarcticOil(trees);
     this.clearStartingGround(trees);
+    this.openMonitoringCenterGround(trees);
     trees.felledLog = this.felledTrees;
     trees.onFell = (x, y) => {
       const p = this.fx(x, y, 0);
@@ -8191,6 +8195,29 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       } else {
         const m = PRESET_CLEARING_CELLS;
         trees.clearArea(b.x - m, b.y - m, b.w + m * 2, b.d + m * 2);
+      }
+    }
+  }
+
+  /**
+   * Around the Global Monitoring Center (Bern): the woods are thinned (GMC_TREE_KEEP of the trees stay within
+   * GMC_TREE_RADIUS cells), and the mountain in front of it (south, toward the viewer) is made thin: within
+   * GMC_FRONT_CELLS south and GMC_FRONT_HALF_WIDTH cells either side of its centre only the crest stays, the ledges
+   * become open ground; a GMC_TRAIL_WIDTH-cell trail (mountain pass) runs straight south from its door across the crest.
+   */
+  private openMonitoringCenterGround(trees: TreeLayer): void {
+    const b = this.entities.buildings().find((e) => e instanceof WorldBank);
+    if (!b) return;
+    const cx = b.x + Math.floor(b.w / 2);
+    trees.thinAround(cx, b.y + Math.floor(b.d / 2), GMC_TREE_RADIUS, GMC_TREE_KEEP);
+    const m = this.map;
+    for (let y = b.y + b.d; y < b.y + b.d + GMC_FRONT_CELLS; y++) {
+      for (let x = cx - GMC_FRONT_HALF_WIDTH; x <= cx + GMC_FRONT_HALF_WIDTH; x++) {
+        if (!m.inBounds(x, y) || !m.isMountain(x, y)) continue;
+        const i = m.index(x, y);
+        const onTrail = Math.abs(x - cx) < GMC_TRAIL_WIDTH / 2 + 0.5;
+        if (onTrail) m.mountain[i] = MOUNTAIN_PASS;
+        else if (!m.isRockWall(x, y)) m.clearMountain(x, y, 1, 1);
       }
     }
   }
