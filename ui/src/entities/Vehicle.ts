@@ -86,7 +86,7 @@ export const NATION_VEHICLE_PROFILES: Readonly<Partial<Record<VehicleKind, Vehic
   ldew: { name: 'LDEW Laser', description: 'Ground laser weapon (counter-UAS): slow to move, the head turns all round. On sale only while you hold London.' },
   kub: { name: '2K12 Kub', description: 'Tracked missile launcher: three missiles on a turning rack, at aircraft, ground units and structures. On sale while you hold Kyiv or Minsk.' },
   bm21: { name: 'BM-21 Grad', description: '122 mm rocket launcher on a Ural truck: ripples 12 rockets on a long arc at ground targets, structures and aircraft. On sale while you hold Pyongyang, Kyiv or Minsk.' },
-  a29: { name: 'A-29 Super Tucano', description: 'Light attack turboprop: rockets and guns on soldiers, vehicles and structures; cannot fight aircraft. On sale while you hold Brasília.' },
+  a29: { name: 'A-29 Super Tucano', description: 'Light attack turboprop: rockets and guns on soldiers, vehicles and structures, and on aircraft no faster than itself. On sale while you hold Brasília.' },
   twinTank: { name: 'Twins Shots Tank', description: 'Heavy tank with two 120 mm guns side by side on one turret: both fire together, hard-hitting but slow. The guns elevate to 50° to shoot helicopters and aircraft. On sale while you hold Tokyo.' },
   bushmaster: { name: 'Bushmaster', description: 'Armoured 4x4 troop carrier: carries 6 soldiers, its roof machine gun fires at enemies in range. On sale while you hold Canberra.' },
   ldewTruck: { name: 'LDEW Laser Truck', description: 'Laser weapon on a MAN SV truck: fast, the head turns all round. On sale only while you hold London.' },
@@ -283,10 +283,10 @@ export class Vehicle extends Unit {
       this.weapon = { ...spec, damage: spec.damage * strength * power, range: type === 'mantis' ? MANTIS_RANGE_CELLS * CELL_SIZE : spec.range * f.stats.range };
       if (type === 'k9') this.weapon = { ...this.weapon, damage: this.weapon.damage * K9_DAMAGE, range: this.weapon.range * K9_RANGE, cooldown: spec.cooldown * K9_COOLDOWN };
       if (type === 'kub') this.weapon = { ...this.weapon, damage: this.weapon.damage * KUB_DAMAGE, range: this.weapon.range * KUB_RANGE, cooldown: spec.cooldown * KUB_COOLDOWN, hitsAir: true };
-      // A-29: ground attack only (its missiles never reach aircraft).
+      // A-29: also fires on aircraft no faster than itself (CombatSystem.canTarget).
       // Twins Shots Tank: its two guns also elevate at helicopters (CombatSystem.canTarget allows helicopters only).
       if (type === 'twinTank') this.weapon = { ...this.weapon, damage: this.weapon.damage * TWIN_TANK_DAMAGE, hitsAir: true };
-      if (type === 'a29') this.weapon = { ...this.weapon, hitsAir: false };
+      if (type === 'a29') this.weapon = { ...this.weapon, hitsAir: true };
       if (type === 'ldew' || type === 'ldewTruck') this.weapon = { ...this.weapon, damage: this.weapon.damage * LDEW_DAMAGE, range: this.weapon.range * LDEW_RANGE };
       // VT 1-2: a coaxial machine gun next to its two cannons — rapid fire, like a rifle squad, for soldiers close by.
       if (type === 'vt12') {

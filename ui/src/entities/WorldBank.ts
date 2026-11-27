@@ -8,7 +8,7 @@ import { Building } from './Building';
  * By rule it can never be destroyed, damaged, captured or occupied.
  */
 export class WorldBank extends Building {
-  readonly city = 'Bern';
+  readonly city = 'Goumois';
   readonly description = t('Neutral global finance hub shared by all nations. Cannot be destroyed or occupied.');
 
   constructor(center: WorldPoint) {

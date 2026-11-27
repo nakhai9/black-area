@@ -237,6 +237,8 @@ const MEDAL_BADGE = new Path2D('m3 4l4.5 3L12 4V0H3zm5.5 3.5c.14 0 .25.11.25.25V
 /** Engineer icon (Material Symbols by Google, Apache 2.0), 24×24 grid: engineers sent into the Tech Center. */
 /** "Protected" shield (Material Design Icons, Pictogrammers — Apache 2.0), 24×24. */
 const PROTECTED_ICON = new Path2D('M12 12h7c-.53 4.11-3.28 7.78-7 8.92zH5V6.3l7-3.11M12 1L3 5v6c0 5.55 3.84 10.73 9 12c5.16-1.27 9-6.45 9-12V5z');
+/** Ceasefire violation mark (Tabler Icons, Paweł Kuna — MIT), 24×24, stroked. */
+const CEASEFIRE_VIOLATION_ICON = new Path2D('M3 12a9 9 0 1 0 18 0a9 9 0 1 0-18 0m9-9v18m0-9l6.3 6.3M12 12l-6.3 6.3');
 const ENGINEER_ICON = new Path2D('M1.05 21v-2.8q0-.825.425-1.55t1.175-1.1q1.275-.65 2.875-1.1T9.05 14t3.525.45t2.875 1.1q.75.375 1.175 1.1t.425 1.55V21zm5.175-9.175Q5.05 10.65 5.05 9H4.8q-.225 0-.362-.137T4.3 8.5t.138-.363T4.8 8h.25q0-1.125.55-2.025T7.05 4.55v.95q0 .225.138.363T7.55 6t.363-.137t.137-.363V4.15q.225-.075.475-.112T9.05 4t.525.038t.475.112V5.5q0 .225.138.363T10.55 6t.363-.137t.137-.363v-.95q.9.525 1.45 1.425T13.05 8h.25q.225 0 .363.138t.137.362t-.137.363T13.3 9h-.25q0 1.65-1.175 2.825T9.05 13t-2.825-1.175m4.238-1.412q.587-.588.587-1.413h-4q0 .825.588 1.413T9.05 11t1.413-.587M16.55 15l-.15-.75q-.15-.05-.287-.112t-.263-.188l-.7.25l-.5-.9l.55-.5v-.6l-.55-.5l.5-.9l.7.25q.1-.1.25-.175t.3-.125l.15-.75h1l.15.75q.15.05.3.125t.25.175l.7-.25l.5.9l-.55.5v.6l.55.5l-.5.9l-.7-.25q-.125.125-.262.188t-.288.112l-.15.75zm1.025-1.975q.225-.225.225-.525t-.225-.525t-.525-.225t-.525.225t-.225.525t.225.525t.525.225t.525-.225M18.85 10l-.2-1.05q-.225-.075-.413-.187T17.9 8.5l-1.05.35l-.7-1.2l.85-.75q-.05-.125-.05-.2v-.4q0-.075.05-.2l-.85-.75l.7-1.2l1.05.35q.15-.15.338-.263t.412-.187l.2-1.05h1.4l.2 1.05q.225.075.413.188t.337.262l1.05-.35l.7 1.2l-.85.75q.05.125.05.2v.4q0 .075-.05.2l.85.75l-.7 1.2l-1.05-.35q-.15.15-.337.263t-.413.187l-.2 1.05zm1.587-2.613q.363-.362.363-.887t-.363-.888t-.887-.362t-.888.363t-.362.887t.363.888t.887.362t.888-.363');
 /** DEMO test game: each aircraft type shows one star level, to preview all three in play. */
 const DEMO_AIR_RANK: Partial<Record<VehicleKind, number>> = { jet: 1, bomber: 2, transport: 3 };
@@ -447,7 +449,7 @@ export class Renderer {
     const hints = scene.flagHints;
     if (hints?.size) for (const u of units) if (hints.has(u.id)) this.drawFlagHint(u);
     for (const u of units) {
-      if (isViolator(u.id)) this.drawTag(u, t('Ceasefire violation'), '#ff6b6b');
+      if (isViolator(u.id)) this.drawIconTag(u, CEASEFIRE_VIOLATION_ICON, '#ff6b6b');
       else if (u.restLeft > 0 && !hints?.has(u.id)) this.drawTag(u, t('Resting {s}s', { s: Math.ceil(u.restLeft) }), '#9fd3ff');
     }
     const info = units.find((u) => u.id === scene.enemyInfoId);
@@ -1317,6 +1319,27 @@ export class Renderer {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(text, P.x, y + h / 2);
+    ctx.restore();
+  }
+
+  /** A small dark square tag above a unit's head holding one stroked 24×24 icon (same place as drawTag). */
+  private drawIconTag(u: Unit, icon: Path2D, color: string): void {
+    const { ctx } = this;
+    const k = 1 / this.camera.zoom;
+    const P = worldToIso(u.px, u.py);
+    const h = 15 * k;
+    const s = 11 * k;
+    const y = P.y - 7.2 - h;
+    ctx.save();
+    ctx.fillStyle = 'rgba(8,12,16,0.82)';
+    ctx.fillRect(P.x - h / 2, y, h, h);
+    ctx.translate(P.x - s / 2, y + (h - s) / 2);
+    ctx.scale(s / 24, s / 24);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.stroke(icon);
     ctx.restore();
   }
 

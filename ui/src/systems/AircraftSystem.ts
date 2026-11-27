@@ -103,6 +103,8 @@ const AVOID_RANGE = 3 * CELL_SIZE;
 const AVOID_CLIMB = 0.6;
 /** Seconds a parked aircraft that came under fire circles away from its airfield before it comes back. */
 const SCRAMBLE_SECONDS = 20;
+/** Seconds between two looks round by a parked A-29 for an enemy within its weapon range. */
+const A29_ALERT_PERIOD = 0.5;
 /** A computer nation fires a turbo only for a flight longer than this many cells (see aiWantsTurbo), unless fleeing. */
 const AI_TURBO_CELLS = 60;
 /** "Being shot at": the aircraft lost health within this many seconds. */
@@ -133,6 +135,8 @@ export class AircraftSystem implements GameSystem {
 
   /** Seconds since the system started (for "hit a moment ago"). */
   private clock = 0;
+  /** Length of the current tick (s): A-29 alert checks run once per A29_ALERT_PERIOD. */
+  private lastDt = 0;
   /** When each aircraft last lost health (clock). */
   private readonly hitAt = new Map<number, number>();
 
@@ -161,6 +165,7 @@ export class AircraftSystem implements GameSystem {
 
   update(dt: number): void {
     this.clock += dt;
+    this.lastDt = dt;
     for (const v of this.entities.vehicles()) {
       if (!v.aircraft || !v.alive) {
         this.last.delete(v.id);
@@ -182,6 +187,8 @@ export class AircraftSystem implements GameSystem {
       // Badly hit in the air: the pilot calls mayday before the aircraft falls.
       if (!v.maydaySent && v.altitude > 0 && v.hp <= v.maxHp * MAYDAY_HP) this.callMayday(v);
       else if (v.maydaySent && v.flight === 'parked' && v.hp > v.maxHp * MAYDAY_HP) v.maydaySent = false; // repaired
+      // A-29 on alert: an enemy within its weapon range, or a hit on it, sends it up to strike (player and AI alike).
+      if (v.type === 'a29' && v.flight === 'parked' && !v.ejecting) this.a29Alert(v, prev !== undefined && v.hp < prev.hp);
       // Shot at while standing on its airfield: it scrambles into the air to save itself.
       if (prev && v.hp < prev.hp && v.flight === 'parked' && !v.ejecting) this.scrambleOff(v);
       // A helicopter shot at on the ground lifts off to fight back.
@@ -833,6 +840,31 @@ export class AircraftSystem implements GameSystem {
     v.flight = 'liftoff';
     v.phaseTime = CLIMB_SECONDS * clamp01(v.altitude / CRUISE_ALTITUDE);
     return true;
+  }
+
+  /**
+   * A parked A-29 takes off on its own to strike: at whoever just hit it (when it can hit back), else at the nearest
+   * enemy soldier, vehicle or aircraft it can hit within its weapon range of the plane. Not with an order pending, nor without power.
+   * Checked every A29_ALERT_PERIOD s (at once when hit). Once the fight is over it flies home as usual.
+   */
+  private a29Alert(v: Vehicle, hit: boolean): void {
+    if (v.moving || v.attackTarget !== null || v.attackMove !== null || v.mission !== null || !v.weapon) return;
+    if (!hit && Math.floor(this.clock / A29_ALERT_PERIOD) === Math.floor((this.clock - this.lastDt) / A29_ALERT_PERIOD)) return;
+    if (!this.hooks.powered(v.owner)) return;
+    const a = hit && v.lastAttackerId !== null ? this.entities.get(v.lastAttackerId) : undefined;
+    let target: Unit | undefined = a && a.alive && a.kind === 'unit' && canTarget(v, a) ? (a as Unit) : undefined;
+    if (!target) {
+      let bestD = v.weapon.range;
+      for (const u of this.entities.fieldMovers()) {
+        if (!u.alive) continue;
+        const d = Math.hypot(u.px - v.px, u.py - v.py);
+        if (d <= bestD && canTarget(v, u)) {
+          target = u;
+          bestD = d;
+        }
+      }
+    }
+    if (target) v.attackTarget = target.id;
   }
 
   /** Parked aircraft under fire: takes off at once towards a point beyond the runway, then circles there a while. */

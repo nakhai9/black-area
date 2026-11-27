@@ -171,6 +171,9 @@ export function canTarget(shooter: Unit, target: Entity): boolean {
   // ground targets as for any tank.
   if (shooter instanceof Vehicle && shooter.type === 'twinTank' && target instanceof Vehicle && (target.aircraft || target.isDrone) && target.altitude > 0)
     return target.aircraft && !target.isDrone && w.hitsAir;
+  // A-29: any aircraft in flight that is no faster than itself (helicopters, transports, AWACS…); faster ones outrun it.
+  if (shooter instanceof Vehicle && shooter.type === 'a29' && target instanceof Unit && target.flies)
+    return w.hitsAir && target.speed <= shooter.speed;
   // BM-21 Grad: its rockets also reach aircraft in flight.
   if (target instanceof Unit && target.flies) return (shooter.aircraft || (shooter instanceof Vehicle && (shooter.type === 'bm21' || shooter.type === 'kub'))) && w.hitsAir;
   // Special forces never shoot ground vehicles: they plant a bomb on them instead (Game.processDemolition).

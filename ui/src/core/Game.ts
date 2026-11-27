@@ -1239,6 +1239,9 @@ export class Game {
     const codec = new SaveCodec(this.players);
     // World sites added by later versions (contested capitals, Antarctic oil): kept from the fresh game in case the save has none.
     const freshSites = this.entities.buildings().filter((b) => b instanceof NationCapital || (b instanceof OilDerrick && b.antarctic));
+    // Where this version puts the Global Monitoring Center: a save made before it moved gets it here.
+    const freshGmc = this.entities.buildings().find((b) => b instanceof WorldBank);
+    const gmcAt = freshGmc ? { x: freshGmc.x, y: freshGmc.y } : null;
     // Clear the new game's starting world: its structures leave the map, every entity goes.
     for (const b of this.entities.buildings()) if (!(b instanceof Bridge)) this.map.occupy(b.x, b.y, b.w, b.d, null);
     this.map.bridge.fill(0);
@@ -1246,13 +1249,16 @@ export class Game {
     for (const e of [...this.entities.all()]) this.entities.remove(e.id);
     // Entities: shells first (so references between them resolve), then their fields.
     // Anything this version no longer has (a removed kind of unit) is left out.
+    // The Eiffel Tower was removed (3.75.509): older saves drop it.
     const shells = save.entities.flatMap((s) => {
       const e = codec.createShell(s);
-      return e ? [[e, s] as const] : [];
+      return e && !(e instanceof Monument && e.monument === 'eiffel') ? [[e, s] as const] : [];
     });
     for (const [e, s] of shells) codec.fillEntity(e, s);
     // Saves from before 1.51.0 carry the Global Monitoring Center's old 4 × 4 footprint in its spec: it is 5 × 5 now.
     for (const [e] of shells) if (e instanceof WorldBank) (e.spec as { footprint: { w: number; d: number } }).footprint = FOOTPRINT_GMC;
+    // The Global Monitoring Center always stands where this version puts it (older saves had it elsewhere).
+    if (gmcAt) for (const [e] of shells) if (e instanceof WorldBank) e.moveTo(gmcAt.x, gmcAt.y);
     // Older saves carry the capitals' 5 × 8 footprint (palace + forecourt): the palace kept the back 5 × 5, so the
     // corner stays put and only the forecourt is dropped.
     for (const [e] of shells) if (e instanceof Capital) (e.spec as { footprint: { w: number; d: number } }).footprint = capitalFootprint((e.origin !== 'neutral' ? e.origin : e.faction) as FactionId);
@@ -8200,7 +8206,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
   }
 
   /**
-   * Around the Global Monitoring Center (Bern): the woods are thinned (GMC_TREE_KEEP of the trees stay within
+   * Around the Global Monitoring Center (Swiss–French border): the woods are thinned (GMC_TREE_KEEP of the trees stay within
    * GMC_TREE_RADIUS cells), and the mountain in front of it (south, toward the viewer) is made thin: within
    * GMC_FRONT_CELLS south and GMC_FRONT_HALF_WIDTH cells either side of its centre only the crest stays, the ledges
    * become open ground; a GMC_TRAIL_WIDTH-cell trail (mountain pass) runs straight south from its door across the crest.
