@@ -4493,13 +4493,27 @@ export class Game {
    * A crowd / structure push. A ground machine (groundDriver) is never shoved sideways: only the part of the push along
    * its hull (nose or tail) moves it, so it rolls a little forward or back instead of sliding across the ground.
    */
+  /** How far each unit has been pushed this tick (game time stamp): see shove. */
+  private readonly pushUsed = new WeakMap<Unit, { t: number; d: number }>();
+
   private shove(u: Unit, dx: number, dy: number): boolean {
     if (!u.facesToMove) return this.nudge(u, dx, dy);
     const hx = Math.cos(u.heading);
     const hy = Math.sin(u.heading);
     const along = dx * hx + dy * hy;
-    if (Math.abs(along) < 1e-4) return false;
-    return this.nudge(u, hx * along, hy * along);
+    // Nose first only: a push may roll it forwards a little, never backwards (tail first) nor sideways; a push that
+    // way is refused and the other unit gives way instead.
+    if (along < 1e-4) return false;
+    // A push never throws it forward faster than it could drive itself (no sudden lurch): what is left over is taken up
+    // over the next ticks or by the other unit.
+    // Several pushes in one tick (a crowd) share the one allowance.
+    let used = this.pushUsed.get(u);
+    if (!used || used.t !== this.time) this.pushUsed.set(u, (used = { t: this.time, d: 0 }));
+    const cap = (u.speed * 0.5) / TICK_RATE - used.d;
+    if (cap <= 1e-4) return false;
+    const step = Math.min(along, cap);
+    used.d += step;
+    return this.nudge(u, hx * step, hy * step);
   }
 
   /**
@@ -4509,6 +4523,8 @@ export class Game {
    */
   private steerAround(u: Unit, ox: number, oy: number, overlap: number): void {
     if (!u.moving || u.fixed || !u.alive) return;
+    // A ground machine never side-steps (it would slide across the ground): it waits for its next cell instead.
+    if (u.groundDriver) return;
     const next = u.waypoints()[0];
     let fx: number;
     let fy: number;
@@ -4522,10 +4538,23 @@ export class Game {
       fy = Math.sin(u.heading);
     }
     if (ox * fx + oy * fy < 0.26) return; // the other one is beside or behind it: nothing to steer around
-    const step = Math.min(1.2, Math.max(0.3, overlap * 0.5));
+    // No faster than it walks (shares the tick's push allowance, see shove).
+    let used = this.pushUsed.get(u);
+    if (!used || used.t !== this.time) this.pushUsed.set(u, (used = { t: this.time, d: 0 }));
+    const step = Math.min(1.2, Math.max(0.3, overlap * 0.5), (u.speed * 0.5) / TICK_RATE - used.d);
+    if (step <= 1e-4) return;
+    used.d += step;
     const rx = -fy;
     const ry = fx;
-    if (!this.nudge(u, rx * step, ry * step)) this.nudge(u, -rx * step, -ry * step);
+    // Never a side-step: it turns half right (or half left) and takes that step the way it now faces, nose first.
+    for (const sgn of [1, -1]) {
+      const dx = (fx + rx * sgn) / Math.SQRT2;
+      const dy = (fy + ry * sgn) / Math.SQRT2;
+      const before = u.heading;
+      u.heading = Math.atan2(dy, dx);
+      if (this.nudge(u, dx * step, dy * step)) return;
+      u.heading = before;
+    }
   }
 
   private nudge(u: Unit, dx: number, dy: number): boolean {

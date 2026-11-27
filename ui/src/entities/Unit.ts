@@ -41,6 +41,8 @@ const REVERSE_RANGE = CELL_SIZE * 3;
 const CORNER_CUT = 1.2;
 /** Speed share while backing up. */
 const REVERSE_SPEED = 0.6;
+/** Every unit moves nose first only (no reversing): see backsUp. */
+const NOSE_FIRST_ONLY = true;
 /** Seconds a ground unit may circle close to its goal before it settles where it is. */
 const NEAR_GOAL_GIVE_UP = 2.5;
 
@@ -299,6 +301,8 @@ export abstract class Unit extends Entity {
   private nearGoalFor = 0;
   /** Stopped by a structure: the next route starts from the centre of its cell (see follow). */
   private recenter = false;
+  /** Stopped by an obstacle: pivot to face the next point squarely before rolling again (see rollAlignment). */
+  private alignFirst = false;
   /** Seconds it has been waiting at a crossing for another unit to go by. */
   crossingWait = 0;
   /** Game time it drove up to (or onto) a bridge, -1 when not at one: bridges are crossed first come, first served. */
@@ -373,6 +377,7 @@ export abstract class Unit extends Entity {
     this.stuckFor = 0;
     this.needsRepath = false;
     this.recenter = false;
+    this.alignFirst = false;
   }
 
   stop(): void {
@@ -402,9 +407,15 @@ export abstract class Unit extends Entity {
     // A vehicle almost on its final spot does not pivot round and round for the last few pixels (pushed about by
     // its neighbours): it settles exactly on the point it was sent to, and has arrived.
     const end = this.path.length === 1 ? this.path[0] : undefined;
-    if (end && this.drivesForward && this.turnsToMove && Math.hypot(end.x - this.px, end.y - this.py) < this.radius * 0.6) {
-      this.px = end.x;
-      this.py = end.y;
+    if (end && this.drivesForward && this.turnsToMove && Math.hypot(end.x - this.px, end.y - this.py) < this.radius * 0.6 && Math.abs(this.turnLeft(this.driveBearing(Math.atan2(end.y - this.py, end.x - this.px)))) > 0.25) {
+      // The point is beside it, not ahead: it stops where it is (never jumps sideways onto it, never circles it).
+      // Straight ahead, it drives on to the exact point.
+      this.path.length = 0;
+      this.destination = null;
+    }
+    // A ship whose last point lies under its own hull, off its bow, has arrived: it never circles round for a few
+    // pixels. Dead ahead, it sails on to the exact point.
+    if (end && this.naval && Math.hypot(end.x - this.px, end.y - this.py) < this.radius && Math.abs(this.turnLeft(Math.atan2(end.y - this.py, end.x - this.px))) > 0.25) {
       this.path.length = 0;
       this.destination = null;
     }
@@ -422,7 +433,17 @@ export abstract class Unit extends Entity {
     if (moving && this.drivesForward && this.turnsToMove) target *= this.rollAlignment() * (this.backsUp() ? REVERSE_SPEED : 1);
     else if (moving && this.turnsToMove) target *= this.alignment();
     // A ship never backs or slides: it slows down while it turns, so it comes about in a tighter circle.
-    else if (moving && this.naval) target *= Math.max(0.3, this.alignment());
+    else if (moving && this.naval) {
+      target *= Math.max(0.3, this.alignment());
+      // Its next point lies inside the circle it would turn at this pace: it slows right down and comes about in a
+      // tight circle (as a ship does), instead of circling round the point for ever.
+      const n = this.path[0];
+      if (n) {
+        const off = Math.abs(this.turnLeft(Math.atan2(n.y - this.py, n.x - this.px)));
+        const r = (this.speed * this.speedFactor() * Math.max(0.1, this.speedRatio)) / Math.max(0.05, this.turnRate);
+        if (off > 0.2 && Math.hypot(n.x - this.px, n.y - this.py) < 2.2 * r * Math.sin(Math.min(off, Math.PI / 2))) target = Math.min(target, 0.1);
+      }
+    }
     // A soldier eases off on a sharp turn instead of sliding sideways at full pace.
     else if (moving && !this.drivesForward) target *= Math.max(0.4, this.alignment());
     const rate = dt / this.accelTime;
@@ -468,6 +489,17 @@ export abstract class Unit extends Entity {
         this.path.shift();
         continue;
       }
+      // A hull never steps sideways onto a point beside it: one it is not pointing at counts as passed (the last one
+      // ends the drive where it stands).
+      if (this.drivesForward && !reverse && dist <= budget && dist > 0.05 && Math.abs(this.turnLeft(this.driveBearing(Math.atan2(dy, dx)))) > 0.05) {
+        this.path.shift();
+        continue;
+      }
+      // A soldier steps onto a point only once he faces it (he has just turned towards it above): never a side-step.
+      if (!this.drivesForward && dist <= budget && dist > 0.05 && Math.abs(this.turnLeft(Math.atan2(dy, dx))) > 0.05) {
+        budget = 0;
+        break;
+      }
       if (dist <= budget) {
         this.px = next.x;
         this.py = next.y;
@@ -485,6 +517,11 @@ export abstract class Unit extends Entity {
         // and curves onto the route as it turns instead of gliding straight at the point.
         this.px += Math.cos(this.heading) * budget;
         this.py += Math.sin(this.heading) * budget;
+        budget = 0;
+      } else if (this.groundDriver) {
+        // Backing up: straight back along its own axis (tail first), never sideways.
+        this.px -= Math.cos(this.heading) * budget;
+        this.py -= Math.sin(this.heading) * budget;
         budget = 0;
       } else {
         this.px += (dx / dist) * budget;
@@ -512,7 +549,21 @@ export abstract class Unit extends Entity {
     }
     // Ground units never step into a blocked cell (a wall, a gate pillar, a structure raised across an old route):
     // they stay put and ask for a new route instead of walking through it.
-    if (Unit.blocks && !this.flies && !this.naval && Unit.blocks(this, fromX, fromY, this.px, this.py)) {
+    if (Unit.blocks && this.groundDriver && Unit.blocks(this, fromX, fromY, this.px, this.py)) {
+      // A ground machine (RA2): it never slides along the obstacle. Back where it was; if the straight line to its next
+      // point is clear it stops, turns to face that point squarely and then drives straight at it; otherwise a new route.
+      this.px = fromX;
+      this.py = fromY;
+      budget = total;
+      const next = this.path[0];
+      if (next && this.lineFree(fromX, fromY, next.x, next.y)) {
+        this.alignFirst = true;
+        this.speedRatio = 0;
+      } else {
+        this.needsRepath = true;
+        this.recenter = true;
+      }
+    } else if (Unit.blocks && !this.flies && !this.naval && Unit.blocks(this, fromX, fromY, this.px, this.py)) {
       // A hull swinging wide on a turn (along its nose) may still go straight at its next point (e.g. along a bank).
       const next = this.path[0];
       const d = next ? Math.hypot(next.x - fromX, next.y - fromY) : 0;
@@ -586,6 +637,8 @@ export abstract class Unit extends Entity {
    * close behind it: nose kept pointing where it stood. Every other move turns and drives nose first.
    */
   private backsUp(): boolean {
+    // Every unit always moves nose first: no reversing, not even to pull over (it turns and drives clear instead).
+    if (NOSE_FIRST_ONLY) return false;
     if (!this.givingWay) return false;
     if (!this.drivesForward || !this.turnsToMove || this.naval || this.aircraft) return false;
     // On a bridge (or at its mouth) a vehicle always drives forwards, nose first along the deck.
@@ -661,6 +714,11 @@ export abstract class Unit extends Entity {
     const next = this.path[0];
     if (!next) return 1;
     const off = Math.abs(this.turnLeft(this.driveBearing(Math.atan2(next.y - this.py, next.x - this.px))));
+    // Stopped against an obstacle: it turns on the spot until it faces its next point squarely, then rolls.
+    if (this.alignFirst) {
+      if (off > 0.03) return 0;
+      this.alignFirst = false;
+    }
     if (off > PIVOT_ANGLE) return 0;
     return 1 - (off / PIVOT_ANGLE) * 0.7;
   }
@@ -700,8 +758,9 @@ export abstract class Unit extends Entity {
     const nearR = Math.max(CELL_SIZE * 2.5, this.radius * 4);
     const near = moving && !this.flies && !!end && Math.hypot(end.x - this.px, end.y - this.py) < nearR;
     this.nearGoalFor = near ? this.nearGoalFor + dt : 0;
-    // Allowance: three times what driving that stretch takes (slow units get longer), at least NEAR_GOAL_GIVE_UP.
-    const allowance = Math.max(NEAR_GOAL_GIVE_UP, (3 * nearR) / Math.max(0.1, this.speed * this.speedFactor()));
+    // Allowance: three times what driving that stretch takes plus one full turn (slow or slow-turning units get
+    // longer), at least NEAR_GOAL_GIVE_UP.
+    const allowance = Math.max(NEAR_GOAL_GIVE_UP, (3 * nearR) / Math.max(0.1, this.speed * this.speedFactor()) + (Math.PI * 2) / Math.max(0.05, this.turnRate));
     if (this.nearGoalFor > allowance && this.bridgeSince < 0 && !this.bridgeBound) {
       this.nearGoalFor = 0;
       this.stop();
@@ -714,7 +773,8 @@ export abstract class Unit extends Entity {
       this.stuckFor = Math.max(0, this.stuckFor - dt);
       return;
     }
-    const expected = this.speed * this.terrainFactor * this.crowdFactor * dt;
+    // What it should have covered at the pace it chose (a ship slowed right down to come about is not stuck).
+    const expected = this.speed * this.terrainFactor * this.crowdFactor * this.speedRatio * dt;
     const blocked = moved < expected * 0.2;
     this.stuckFor = blocked ? this.stuckFor + dt : Math.max(0, this.stuckFor - dt * 2);
     this.blockedFor = blocked ? this.blockedFor + dt : Math.max(0, this.blockedFor - dt * 2);
