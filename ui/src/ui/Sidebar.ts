@@ -2,7 +2,7 @@ import { powerTier } from '../systems/PowerSystem';
 import { setZoomLock, settings } from '../core/Settings';
 import { CHARGE_ICON_PATH } from '../render/ChargeIcon';
 import { AlertToast } from './NewsToast';
-import { type IconNode, LockKeyhole, Settings,Clock, Handshake, X, Wallet, Info, Droplet, Hammer, LogIn, LogOut, Minus, Plane, Rocket, Shield, TrendingDown, TrendingUp, Zap, createElement } from 'lucide';
+import { type IconNode, Globe, Keyboard, LockKeyhole, Settings,Clock, Handshake, X, Wallet, Info, Droplet, Hammer, LogIn, LogOut, Minus, Plane, Rocket, Shield, TrendingDown, TrendingUp, Zap, createElement } from 'lucide';
 
 /** Government building (Emoji One v1, CC BY-SA 4.0): in full colour, 64×64 grid scaled to the 24×24 icon box. */
 const Government: IconNode = [
@@ -30,6 +30,7 @@ import { BUILD_LIMIT_VEHICLES, CURRENCY, OIL_GRID_MARKUP, OIL_POLICIES, POWER_PE
 import { FACTIONS } from '../factions';
 import { getFlagTexture } from '../render/Flags';
 import { factionBadgeHtml } from './FactionBadge';
+import { playerId as cloudPlayerId } from '../net/CloudSave';
 import { nationFlag } from '../render/sprites/NationCapital';
 import { isBlankCanvas } from '../render/InfantryArt';
 import { isFactionNation, type NationId } from '../entities/NationCapital';
@@ -108,6 +109,8 @@ const CAPITALS_TAB_ICON = '<svg xmlns="http://www.w3.org/2000/svg" width="18" he
 const OIL_TAB_ICON = '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 64 64" aria-hidden="true"><ellipse cx="31.992" cy="57.33" fill="#636666" rx="21.82" ry="6.18"/><path fill="#808184" d="M52.55 6.747c0-2.406-2.421-4.357-5.405-4.357h-30.3c-2.984 0-5.405 1.951-5.405 4.357v47.556c0 .196.023.389.056.578a1.6 1.6 0 0 0-.056.396c0 3.204 9.178 5.805 20.497 5.805s20.495-2.601 20.495-5.805c0-.016-.004-.032-.004-.046c.079-.301.125-.609.125-.929V6.747"/><path fill="#c4c4c5" d="M27.552 55.54c0-.116.018-.229.041-.342a3.5 3.5 0 0 1-.041-.497V13.837c0-2.066 1.879-3.742 4.195-3.742h-9.829c-2.313 0-4.193 1.675-4.193 3.742v40.864c0 .17.018.334.041.497a1.7 1.7 0 0 0-.041.342c0 2.753 7.121 4.984 15.905 4.984c1.716 0 3.365-.085 4.915-.242c-6.38-.648-10.993-2.527-10.993-4.742"/><ellipse cx="31.991" cy="5.05" fill="#636666" rx="22.473" ry="5.05"/><ellipse cx="32.03" cy="4.06" fill="#cdccd2" rx="20.318" ry="3.213"/><path fill="#b8b8ba" d="M22.796 4.58c0-1.318.755-2.529 2.02-3.489c-7.657.461-13.1 1.631-13.1 3c0 1.307 4.937 2.431 12.02 2.934c-.593-.74-.937-1.569-.937-2.448"/><ellipse cx="39.671" cy="3.79" fill="#243438" rx="5.07" ry="2.182"/><path fill="#a6a8ab" d="M31.993 21.436c-9.898 0-18.212-1.92-20.551-4.519c-.43.477-.657.976-.657 1.49c0 3.317 9.494 6.01 21.21 6.01c11.711 0 21.21-2.689 21.21-6.01c0-.515-.228-1.014-.657-1.49c-2.338 2.599-10.65 4.519-20.549 4.519m-.006 17.354c-9.898 0-18.212-1.922-20.551-4.519c-.43.477-.657.974-.657 1.488c0 3.317 9.494 6.01 21.21 6.01c11.711 0 21.21-2.689 21.21-6.01c0-.515-.228-1.012-.657-1.488c-2.338 2.597-10.65 4.519-20.549 4.519"/></svg>';
 
 type InfoId = 'finance' | 'oil' | 'capitals';
+/** Tabs of World Monitor & News. */
+type NewsTab = 'overview' | InfoId | 'controls';
 
 /** One of the player's Parallel Governments, held capitals or claim flags on new land, for the Allies tab. */
 export interface AllyInfo {
@@ -158,7 +161,8 @@ function powerColor(strength: number): string {
 const LOAN_ICON = '<svg class="sb-loan-icon" xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><g fill="currentColor" fill-rule="evenodd" clip-rule="evenodd"><path d="M17.478 17.629q-.264.027-.52.1a1.57 1.57 0 0 0-.648-1.758a1.42 1.42 0 0 0-1.997.22a4.4 4.4 0 0 1-1.439 1.278a7.3 7.3 0 0 1-1.807.699c-.39-.05-.749-.11-.999-.17v-.1a1.3 1.3 0 0 1-.06-.3a6 6 0 0 0-.29-1.507a1.16 1.16 0 0 0-.708-.62a1 1 0 0 0-1.188.1c-.25.285-.422.63-.5 1c-.024.243-.11.477-.25.678a1.7 1.7 0 0 1-.539.3c-.459.17-.998.27-1.418.41a2.4 2.4 0 0 1-.509-.45c.11-.28.5-.72.6-.919l.08-.15a.5.5 0 0 0 0-.14c0-.349-.18-.439-.35-.449a4 4 0 0 0-1.029.12c-.779.15-1.588.44-2.277.57a.29.29 0 0 0-.23.319a.28.28 0 0 0 .32.23c.7-.12 1.518-.33 2.297-.42h.24c-.17.29-.37.61-.45.789a.64.64 0 0 0 0 .59c.205.299.458.562.75.778c.283.21.592.384.918.52c0 0 .23 0 .41.06v.1c-.17.189-.37.398-.52.578c-.147.17-.25.371-.3.59c0 .08.24 1.398.37 2.216a9 9 0 0 0-1.997-.649c-.34 0-.62-.06-.87-.07q-.952.052-1.906 0a.34.34 0 0 0-.35.29a.33.33 0 0 0 .28.35c.898.11 1.358.06 1.937.11q.389.024.769.11a14 14 0 0 1 2.247.928a.8.8 0 0 0 .659-.07a.48.48 0 0 0 .21-.35q.015-.18 0-.36c0-.229-.07-.578-.12-.938c1.677.06 3.884.18 5.682.19c.947.035 1.895-.039 2.826-.22a8.6 8.6 0 0 0 2.716-1.328a2.86 2.86 0 0 0 1.198-1.917a1.280 1.280 0 0 0-.23-.949a1.07 1.07 0 0 0-1.008-.39m-3.815.42a5.3 5.3 0 0 0 1.458-1.19c.17-.199.41-.129.6 0a1 1 0 0 1 .309.32c0 .09.1.18.06.27c-.102.265-.27.499-.49.679a.5.5 0 0 1-.1.06l-.329.08c-.705.092-1.417.12-2.127.08q.32-.129.62-.3m3.206 1.996c-.706.542-1.5.957-2.347 1.229c-.841.196-1.702.297-2.566.3c-1.818.07-4.075 0-5.752.05c-.06-.36-.11-.67-.12-.78s.18-.24.31-.38q.338-.329.559-.748a.9.9 0 0 0 0-.829a.63.63 0 0 0-.3-.28a3.4 3.4 0 0 0-.639-.2q.38-.065.749-.18c.278-.085.538-.22.769-.398c.167-.152.29-.345.36-.56q.149-.512.369-.998c.08-.13.21-.17.42-.07s.249.41.289.699q.032.628.14 1.248a1 1 0 0 0 .679.749c.901.219 1.82.36 2.746.42c.933.096 1.873.096 2.806 0c.63-.11 1.228-.39 1.847-.54q.193-.05.39-.07h.05v.16c-.09.476-.363.899-.76 1.178m-8.938-8.386a1 1 0 0 0 0 .25v.609a.31.31 0 0 0 .08.46a.31.31 0 0 0 .41-.18a4 4 0 0 0 .39-.5q.08-.151.119-.32a1 1 0 0 0 .08-.219a.5.5 0 0 0 0-.12c.36.06.728.06 1.088 0a1.57 1.57 0 0 0 1.448-1.338a1.34 1.34 0 0 0-.41-1.168a4.5 4.5 0 0 0-1.647-.76a2.5 2.5 0 0 1-.599-.269a.41.41 0 0 1-.22-.29c-.06-.499.31-.699.75-.738a3.1 3.1 0 0 1 1.587.399a.28.28 0 0 0 .38-.08a.26.26 0 0 0-.04-.41a3 3 0 0 0-.83-.419a1 1 0 0 0 .08-.1q.065-.11.11-.23c0-.08 0-.16.05-.249c.05-.09 0-.4 0-.61a.32.32 0 1 0-.589-.229a4 4 0 0 0-.39.5a1.3 1.3 0 0 0-.119.24a1 1 0 0 0-.06.459q-.36-.045-.719 0a1.36 1.36 0 0 0-1.168 1.547a1.33 1.33 0 0 0 .559 1.089a7 7 0 0 0 1.598.689c.33.12.659.21.629.58c-.03.369-.46.548-.909.598a3 3 0 0 1-1.578-.32a1.2 1.2 0 0 1-.35-.319a3.5 3.5 0 0 1-.259-.47a.32.32 0 0 0-.39-.169a.32.32 0 0 0-.16.42q.136.381.36.718q.175.252.43.42q.213.155.46.25a1 1 0 0 0-.17.28"/><path d="M8.081 3.299a5.99 5.99 0 0 0-4.573 3.685a5.21 5.21 0 0 0 1.198 5.911q.438.427.929.79a5 5 0 0 0 1.088.598c.452.168.927.265 1.408.29c.695.027 1.391-.016 2.077-.13a.28.28 0 0 0 .23-.31a.27.27 0 0 0-.31-.239a9.6 9.6 0 0 1-1.937 0a4.6 4.6 0 0 1-1.178-.32a4.4 4.4 0 0 1-.909-.599a7 7 0 0 1-.779-.759a4.39 4.39 0 0 1-.849-4.903a5.68 5.68 0 0 1 3.995-3.285a5.73 5.73 0 0 1 3.305.36c.944.272 1.761.87 2.307 1.687c.22.21.579 0 .549-.35C12.685 2.61 8.82 3.170 8.082 3.3m6.071 7.678c-.15.26-.31.5-.48.739c-.17.24-.36.46-.559.67a4.55 4.55 0 0 1-1.688 1.167a.3.3 0 0 0-.22.38a.31.31 0 0 0 .39.22a4.84 4.84 0 0 0 2.936-1.808q.32-.424.52-.919c.211-.505.34-1.041.379-1.587l-.65-.28q-.234.744-.628 1.418"/><path d="M23.09 6.624a.31.31 0 0 0-.43.12a2 2 0 0 1-.549.61a1.850 1.850 0 0 1-.739.329q-.195.022-.389 0a11.4 11.4 0 0 0-1.997-.24c-.74.09-1.997.869-3.066 1.059a1 1 0 0 1-1.258-.52c-.17-.32.13-.47.43-.669c.738-.48 1.767-.938 2.166-1.647a1.54 1.54 0 0 0 .12-1.389c-.42-1.188-1.148-1.517-1.897-1.398a2.4 2.4 0 0 0-1.758 1.109a.3.3 0 0 0 .13.503a.3.3 0 0 0 .33-.124c.24-.338.595-.579.998-.679c.56-.22 1.109 0 1.358.83c.16.578-.29.848-.729 1.167c-.858.64-1.078.46-1.877 1.199a1.18 1.18 0 0 0-.21 1.568c.75 1.328 2.367 1.218 3.755.559a8.5 8.5 0 0 1 1.618-.71q.955-.009 1.897.15q.294.005.58-.07c.366-.087.708-.258.998-.499a2.5 2.5 0 0 0 .689-.828a.31.31 0 0 0-.17-.43"/><path d="M23.51 3.848L20.993 2.51c-.719-.44-1.398-1.079-2.117-1.588a5.1 5.1 0 0 0-1.758-.859a3.45 3.45 0 0 0-3.145.999a9.8 9.8 0 0 0-1.418 1.718c-.34.529.17.798.53.419q.692-.77 1.467-1.458a2.6 2.6 0 0 1 2.337-.66a5.6 5.6 0 0 1 1.787.91q.925.682 1.918 1.258l2.646 1.168a.32.32 0 0 0 .42-.14a.33.33 0 0 0-.15-.429"/></g></svg>';
 /** Budget label: coin icon (Arcticons by Donnnno, CC BY-SA 4.0). */
 const BUDGET_ICON = '<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="21.5" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="24" cy="24" r="12.5" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><path fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" d="M18.794 29.31a3.14 3.14 0 0 0 3.062 1.49h2.013a4.26 4.26 0 0 0 4.015-3.4h0a2.752 2.752 0 0 0-2.772-3.4h-2.224a2.752 2.752 0 0 1-2.772-3.4h0a4.26 4.26 0 0 1 4.015-3.4h2.013a3.14 3.14 0 0 1 3.062 1.49m-3.963-1.49l.311-1.7m-3.108 17l.311-1.7M24 36.5v8.999M13.194 17.716l-7.779-4.524m29.449 4.626l7.822-4.451"/></svg>';
-const NEWS_ICON = '<svg class="sb-loan-icon" xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M18 16v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.68-1.5-1.51-1.5S10.5 3.17 10.5 4v.68C7.63 5.36 6 7.92 6 11v5l-1.3 1.29c-.63.63-.19 1.71.7 1.71h13.17c.89 0 1.34-1.08.71-1.71zm-6.01 6c1.1 0 2-.9 2-2h-4a2 2 0 0 0 2 2M6.77 4.73c.42-.38.43-1.03.03-1.43a1 1 0 0 0-1.39-.02a10.42 10.42 0 0 0-3.27 6.06c-.09.61.38 1.16 1 1.16c.48 0 .9-.35.98-.83a8.44 8.44 0 0 1 2.65-4.94M18.6 3.28c-.4-.37-1.02-.36-1.4.02c-.4.4-.38 1.04.03 1.42c1.38 1.27 2.35 3 2.65 4.94c.07.48.49.83.98.83c.61 0 1.09-.55.99-1.16c-.38-2.37-1.55-4.48-3.25-6.05"/></svg>';
+/** World Monitor & News button: globe (GeoGlyphs by Sam Matthews, https://github.com/cugos/geoglyphs/blob/main/LICENSE.md). */
+const NEWS_ICON = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 100 100" aria-hidden="true"><path fill="currentColor" d="M28.318 65.346c.634.008 1.009-.696 1.191-1.304c.673-2.247.725-4.676.15-6.95l-.931.053c.329 1.393-.68 2.957-2.085 3.232a7.06 7.06 0 0 0 .559 3.971c.22.479.588.992 1.116.998m46.393-5.805c-.843-.203-.803-1.43-1.32-2.126c-.799-1.076-2.489-.515-3.658.139c-1.8 1.006-3.672 1.939-5.422 3.031c-2.06 1.285-2.264 3.833-2.587 5.993c-.161 1.078-.736 1.973.248 2.656c1.861 1.292 4.482-1.764 6.358-2.042c2.497-.37 2.644 3.151 4.172 4.47a3.1 3.1 0 0 0 2.497.698a3.1 3.1 0 0 0 2.13-1.478c.356-1.398.964-2.277 1.788-3.466c.596-.86 1.221-1.834 1.063-2.868c-.139-.909-.845-1.605-1.385-2.35a7.4 7.4 0 0 1-1.103-6.289c-.85-.005-1.182 1.081-1.31 1.922c-.129.84-.644 1.909-1.471 1.71M52.529 46.896l-.136.436c.8.35 1.249 1.185 1.687 1.94c.436.751.918 1.478 1.496 2.126a9.4 9.4 0 0 0 2.288 1.86c1.513.878 3.229 1.329 4.922 1.77c1.168.304 2.348.61 3.554.655s2.459-.193 3.443-.892c-2.523-.132-5.097-.043-7.522-.754a11.8 11.8 0 0 1-5.628-3.649c-.597-.701-1.112-1.473-1.753-2.136s-1.439-1.224-2.351-1.356"/><path fill="currentColor" d="M63.168 52.315c.214.013.438.01.628-.088c.452-.233.499-.844.555-1.349a5.8 5.8 0 0 1 .8-2.355c.209-.344.456-.671.588-1.051s.125-.841-.142-1.142c-.306-.346-.855-.369-1.284-.197s-.775.496-1.138.78c-.574.449-1.216.813-1.75 1.31c-.534.496-.964 1.171-.942 1.9c.019.634.39 1.227.902 1.603c.511.375 1.149.55 1.783.589m8.706-1.866c-.153.677.431 1.303 1.043 1.631s1.323.527 1.786 1.044c.365.408.521.956.789 1.433c.267.477.744.924 1.287.854c.492-.063.874-.534 1.369-.542c.547-.009.918.524 1.258.954s.945.83 1.391.512c.357-.254.319-.832.04-1.169s-.715-.494-1.129-.636a.98.98 0 0 1 .291-.931l-3.688-2.183c-.502-.297-1.098-.603-1.639-.387c-.402.161-.726.596-1.154.53c-.356-.055-.552-.428-.752-.728s-.592-.581-.892-.382m.547-23.625c-.258-.625-.745-1.268-.512-1.902c.048-.131.127-.258.116-.397c-.02-.24-.281-.367-.49-.486c-.862-.49-1.27-1.485-1.761-2.346s-1.302-1.73-2.288-1.623l1.198 1.56c.856 1.115 1.729 2.262 2.134 3.607s.249 2.953-.753 3.939c-.301.296-.663.524-.979.804s-.596.637-.65 1.056s.187.896.6.986c.27.059.547-.049.796-.17c.935-.454 1.786-1.131 2.308-2.031s.678-2.036.281-2.997m-.12 46.934c-.089.125-.106.286-.12.439l-.153 1.669c.24.123.507-.1.676-.31a8.8 8.8 0 0 0 1.201-1.977c-.263.101-.555.017-.832-.026c-.276-.044-.609-.024-.772.205"/><path fill="currentColor" d="M50 2.608C23.858 2.608 2.666 23.8 2.666 49.942S23.858 97.276 50 97.276s47.334-21.192 47.334-47.334S76.142 2.608 50 2.608m15.63 6.928c-.941.407-1.873.891-2.792 1.287c-3.404 1.466-7.182 1.746-10.879 2.007l-5.792.409c-.032.602-.551 1.14-1.151 1.194s-1.207-.381-1.347-.967c-1.848 1.351-4.33 1.79-6.53 1.157c.003-.823 1.163-1.358 1.791-.825c.341-1.123-.595-2.312-1.71-2.68s-2.328-.142-3.479.087c-1.331.265-2.692.541-3.86 1.232c-1.168.692-2.127 1.891-2.156 3.248l7.339-3.174l-3.885 3.443c-.785.695-1.683 1.434-2.731 1.389s-1.967-1.416-1.233-2.165c-1.395.988-3.148 1.156-4.862 1.425C29.86 10.364 39.499 6.608 50 6.608c5.51 0 10.778 1.044 15.63 2.928M17.702 21.091c1.121-.076 2.28.381 3.005 1.245c.875 1.042 1.07 2.606.478 3.832l2.315-.234l.269 1.233l2.238.144c-.1 1.549-1.172 2.992-2.626 3.537s-3.21.159-4.303-.943c-.776.435-1.659-.545-1.706-1.434s.322-1.783.143-2.655c-.209-1.014-1.141-1.663-2.176-1.853a44 44 0 0 1 2.363-2.872m40.914 71.322c.16-.417.213-.864.101-1.303a5.27 5.27 0 0 0 4.166-1.238c.624-1.521-.253-3.325-1.584-4.289s-3.008-1.287-4.624-1.585c-3.553-.655-7.154-.256-10.708.161c-2.934.344-6.249.978-8.321 3.285c-.861.958-1.421 2.237-1.577 3.521C18.99 85.149 6.666 68.963 6.666 49.942c0-2.063.155-4.09.435-6.078c.526.704 1.318 1.214 2.185 1.19l2.673 11.179c1.108 4.633 2.275 9.398 5.071 13.255c.589.813 1.309 1.618 2.28 1.874c1.579.416 3.198-.841 3.819-2.352s.519-3.204.515-4.838a37.77 37.77 0 0 1 6.133-20.664c-1.603.567-3.705 1.003-4.738-.347c-.463-.605-.548-1.409-.616-2.167l-.708-7.876a28.2 28.2 0 0 1 2.333 9.625a14.3 14.3 0 0 0 6.962-3.04c.578-.469 1.159-1.069 1.176-1.813c.048-2.058-3.719-2.148-4.151-4.161c.074.347 6.268 2.245 7.031 2.691c2.106 1.231 2.736 3.841 3.782 5.975c.379.773.474 1.685.957 2.401c.349.516.953.909 1.57.825c1.362-.186 2.271-3.533 2.861-4.659c1.15-2.197 2.456-3.595 4.191-1.358c1.472 1.899 3.479 4.082 4.474 6.275c.788 1.736 1.032 4.038 3.639 3.936c.28-.011-1.575-2.805-1.726-2.994c-.895-1.119-1.404-2.231-2.003-3.589c.757.967 1.84 1.753 3.065 1.848c1.224.094 2.549-.672 2.808-1.872s-.915-2.557-2.103-2.246c-.306-.683.278-1.475.97-1.76s1.47-.249 2.201-.407c2.641-.572 4.097-4.121 2.618-6.383c-.76-1.162-2.137-2.564-1.245-3.628c.524-.625 1.586-.515 2.187.036s.836 1.392.958 2.199l.756-.178c.696-3.367 1.311-7.054-.291-10.097c-.452-.859-1.079-1.879-.576-2.709c.287-.473.853-.685 1.274-1.044s.659-1.101.207-1.42l1.429.064c-.107 2.354 1.674 4.653 3.98 5.14a48.5 48.5 0 0 1-2.485-8.962C84.11 19.148 93.332 33.49 93.332 49.946c.002 20.941-14.935 38.46-34.716 42.467"/><path fill="currentColor" d="m84.409 73.861l-7.674 6.332c3.503-.341 6.675-2.958 7.674-6.332"/></svg>';
 
 /** A capital held by another nation (News window): the capital, the nation it belongs to and the one holding it. */
 export interface OccupiedCapital {
@@ -186,8 +190,12 @@ export interface RankRow {
   economy: number;
   /** Price of the living soldiers and working vehicles (snapshot, refreshed every 4 min); only the rank is shown. */
   military: number;
-  /** Standing RS-24 Yars silos (nuclear weapons when > 0). */
+  /** Standing RS-24 Yars silos (nuclear weapons when > 0): one warhead each. */
   silos: number;
+  /** Silos with their missile loaded: warheads ready to launch. */
+  ready: number;
+  /** The nation's forces by kind (field and inside buildings / transports). */
+  forces: { soldiers: number; vehicles: number; aircraft: number };
   /** Under a nuclear embargo (silos emptied and idle). */
   nuclearBanned?: boolean;
   /** What the nation owes the Global Monitoring Center (TB, 0 = no debt). */
@@ -343,7 +351,7 @@ type Cameo = { el: HTMLElement; wipe: HTMLElement; state: HTMLElement; badge?: H
  */
 /** War / ceasefire clock icons (Material Design Icons "peace"; Akar Icons "sword" pair). */
 const PEACE_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2A10 10 0 0 0 2 12a10 10 0 0 0 10 10a10 10 0 0 0 10-10A10 10 0 0 0 12 2m-1 12.41v5.52a8 8 0 0 1-3.9-1.62zm2 0l3.9 3.9a8 8 0 0 1-3.9 1.62zM4 12c0-4.03 3-7.43 7-7.93v7.52L5.69 16.9A7.9 7.9 0 0 1 4 12m14.31 4.9L13 11.59V4.07c4 .5 7 3.9 7 7.93c0 1.78-.59 3.5-1.69 4.9"/></svg>';
-/** Nuclear power (IonIcons by Ben Sperry, MIT): shown yellow next to each nation that owns a missile silo. */
+/** Nuclear warheads (IonIcons by Ben Sperry, MIT): yellow = warheads, green = ready to launch, red = embargo. */
 const NUKE_ICON = '<svg viewBox="0 0 512 512" aria-hidden="true"><path fill="currentColor" d="M256 48C141.1 48 48 141.1 48 256s93.1 208 208 208 208-93.1 208-208S370.9 48 256 48zm-88.5 364.8l49.2-85.8c1.1-1.9.5-4.2-1.3-5.4-20.2-12.9-34-35-35.2-60.3-.1-2.1-1.8-3.8-4-3.8H76V256c0-48.1 18.7-93.3 52.7-127.3 10.8-10.8 22.7-20 35.4-27.6l50.5 87.9c1.1 1.9 3.5 2.5 5.4 1.5 10.7-5.8 22.9-9 35.9-9 12.5 0 24.4 3.1 34.8 8.5 1.9 1 4.2.3 5.3-1.5l51.1-87.7c13 7.7 25.1 17 36.1 28 34 34 52.7 79.2 52.7 127.3v1.5h-100c-2.1 0-3.9 1.7-4 3.8-1.3 25.4-15 47.5-35.2 60.3-1.8 1.2-2.4 3.5-1.3 5.4l49.2 85.8c-26.7 15.1-57 23.2-88.5 23.2-31.6-.1-61.9-8.2-88.6-23.3z"/><circle cx="256" cy="256" r="56" fill="currentColor"/></svg>';
 const WAR_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M2 19.2L3.8 21m.9-7.2l.9 3.6m0 0l3.6.9m-3.6-.9l-2.7 2.7M16.4 3.9l-9 9l.45 2.25l2.25.45l9-9L20 3z"/><path d="M22 19.2L20.2 21m-.9-7.2l-.9 3.6m0 0l2.7 2.7m-2.7-2.7l-1.8.45l-1.8.45M9.3 11L4.9 6.6L4 3l3.6.9L12 8.3m.1 5.5l1.8 1.8l2.25-.45l.45-2.25l-1.8-1.8"/></g></svg>';
 
@@ -410,7 +418,6 @@ export class Sidebar {
   private activeInfo: InfoId = 'finance';
   private rankEconomy!: HTMLElement;
   private rankMilitary!: HTMLElement;
-  private rankNuclear!: HTMLElement;
   private lastRanking: readonly RankRow[] = [];
   /** What the lists show now: the DOM is rebuilt only when this changes. */
   private rankKey = '';
@@ -432,9 +439,30 @@ export class Sidebar {
   readonly shopDrawer = document.createElement('div');
   private readonly shopTabs = document.createElement('div');
 
+  /** Info drawer (Finance / Oil / Occupied capitals, opened by their dock buttons): the sidebar itself is gone. */
+  readonly infoDrawer = document.createElement('div');
+  private readonly infoTitle = document.createElement('span');
+
+  /** A dock info button: opens that pane in the info drawer; the same button again closes it. */
+  openInfo(id: InfoId): void {
+    // Finance / Oil / Occupied capitals are tabs of World Monitor & News now.
+    this.openNewsTab(id);
+    return;
+    if (!this.infoDrawer.hidden && this.activeInfo === id) {
+      this.infoDrawer.hidden = true;
+      return;
+    }
+    this.shopDrawer.hidden = true; // one drawer at a time (same spot)
+    this.markTabs();
+    this.switchInfo(id);
+    this.infoTitle.textContent = this.infoTabs.get(id)?.title ?? '';
+    this.infoDrawer.hidden = false;
+  }
+
   /** Cart button of the dock: opens / closes the shop drawer. */
   toggleShop(open = this.shopDrawer.hidden): void {
     this.shopDrawer.hidden = !open;
+    if (open) this.infoDrawer.hidden = true;
     if (open) {
       // Start on the open tab, or the first one that can be bought from.
       const cur = this.tabButtons.get(this.activeTab);
@@ -448,12 +476,6 @@ export class Sidebar {
 
 
 
-  /** Allies button of the dock: the sidebar shows the occupied capitals (who holds whose capital). */
-  openAllies(): void {
-    if (document.body.classList.contains('sidebar-hidden')) this.toggle();
-    this.switchView('command');
-    this.switchInfo('capitals');
-  }
   /** Show-sidebar button (Game moves it into the corner bar of options). */
   readonly opener: HTMLButtonElement;
   private readonly cameos = new Map<string, Cameo>();
@@ -524,9 +546,10 @@ export class Sidebar {
           <div class="sb-oil">${t('DERRICKS ')}<span class="sb-derricks"></span></div>
         </section>
         <section class="sb-panel sb-prices">
-          <div class="sb-price-row" title="${t('Oil: what the Global Monitoring Center pays per barrel')}"><i data-icon="oil"></i><b class="sb-price"></b><i class="sb-price-trend"></i></div>
-          <div class="sb-price-row" title="${t('Power: what the Global Monitoring Center charges when your grid runs dry (oil at +{p}%, per 1 kJ)', { p: Math.round((OIL_GRID_MARKUP - 1) * 100) })}"><i data-icon="power"></i><b class="sb-power-price"></b></div>
-          <div class="sb-price-row" title="${t('Next price revision')}"><i data-icon="clock"></i><b class="sb-price-clock"></b></div>
+          <div class="sb-price-row" title="${t('Oil: what the Global Monitoring Center pays per barrel')}"><span class="sb-price-label">${t('Oil price')}</span><b class="sb-price"></b><i class="sb-price-trend"></i></div>
+          <div class="sb-price-row" title="${t('Power: what the Global Monitoring Center charges when your grid runs dry (oil at +{p}%, per 1 kJ)', { p: Math.round((OIL_GRID_MARKUP - 1) * 100) })}"><span class="sb-price-label">${t('Grid power price')}</span><b class="sb-power-price"></b></div>
+          <div class="sb-price-row" title="${t('Next price revision')}"><span class="sb-price-label">${t('Next revision in')}</span><b class="sb-price-clock"></b></div>
+          <div class="sb-price-chart-cap">${t('Oil price, last 5 minutes')}</div>
           <svg class="sb-price-chart" viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="${t('Oil price, last 5 minutes')}"><polyline fill="none" stroke-width="1.5" vector-effect="non-scaling-stroke"></polyline></svg>
         </section>
       </div>
@@ -553,8 +576,6 @@ export class Sidebar {
           <ol class="sb-rank-list" data-rank="economy"></ol>
           <h3 class="sb-rank-title">${t('MILITARY ')}</h3>
           <ol class="sb-rank-list" data-rank="military"></ol>
-          <h3 class="sb-rank-title">${t('NUCLEAR ')}</h3>
-          <ol class="sb-rank-list sb-rank-nuclear" data-rank="nuclear"></ol>
         </section>
       </div>
       <div class="sb-info" data-info="allies" hidden>
@@ -595,7 +616,7 @@ export class Sidebar {
 
     const q = <T extends HTMLElement>(sel: string): T => {
       // The shop page lives in the shop drawer (moved out of the sidebar root), so it is searched too.
-      const el = root.querySelector<T>(sel) ?? this.shopDrawer.querySelector<T>(sel);
+      const el = root.querySelector<T>(sel) ?? this.shopDrawer.querySelector<T>(sel) ?? this.infoDrawer.querySelector<T>(sel);
       if (!el) throw new Error(`Sidebar element missing: ${sel}`);
       return el;
     };
@@ -606,10 +627,20 @@ export class Sidebar {
     unit.textContent = CURRENCY;
     const money = document.createElement('span');
     money.className = 'cmd-money';
-    money.append(this.dockCreditsValue, ' ', unit);
+    // Budget logo in front of the money, power logo in front of the power bar.
+    const moneyIcon = document.createElement('span');
+    moneyIcon.className = 'cmd-money-icon';
+    moneyIcon.title = t('Budget');
+    moneyIcon.innerHTML = BUDGET_ICON;
+    money.append(moneyIcon, this.dockCreditsValue, ' ', unit);
     this.dockPowerBar.className = 'sb-power-bar cmd-power';
     this.dockPowerBar.innerHTML = '<i></i>'.repeat(POWER_SEGMENTS);
-    this.dockCredits.append(this.dockPowerBar, money);
+    const power = document.createElement('span');
+    power.className = 'cmd-power-group';
+    power.title = t('Power');
+    power.append(createElement(Zap, { width: 16, height: 16, 'stroke-width': 2, 'aria-hidden': 'true', class: 'cmd-power-icon' }), this.dockPowerBar);
+    this.dockCredits.append(power, money);
+    document.body.classList.add('sidebar-hidden');
     this.income = q('.sb-income');
     this.stock = q('.sb-stock');
     this.price = q('.sb-price');
@@ -718,6 +749,38 @@ export class Sidebar {
       document.body.append(this.shopDrawer);
     }
     for (const id of ['finance', 'oil', 'capitals'] as const) this.infoPanes.set(id, q(`[data-info=${id}]`));
+    // No sidebar any more: Finance / Oil / Occupied capitals (and the cartel policy) open in the info drawer from
+    // their dock buttons.
+    {
+      this.infoDrawer.className = 'shop-drawer info-drawer';
+      this.infoDrawer.hidden = true;
+      const head = document.createElement('div');
+      head.className = 'shop-drawer-head';
+      const close = document.createElement('button');
+      close.type = 'button';
+      close.className = 'shop-drawer-close';
+      close.textContent = '×';
+      close.title = t('Close');
+      close.addEventListener('click', () => (this.infoDrawer.hidden = true));
+      head.append(this.infoTitle, close);
+      const body = document.createElement('div');
+      body.className = 'info-drawer-body';
+      body.append(q('.sb-cartel'), ...this.infoPanes.values());
+      this.infoDrawer.append(head, body);
+      document.body.append(this.infoDrawer);
+      // A click anywhere outside it closes the info drawer (the shop drawer stays open until closed: you build from it).
+      // Its own dock buttons are left alone: they toggle it themselves (openInfo).
+      document.addEventListener(
+        'pointerdown',
+        (e) => {
+          if (this.infoDrawer.hidden) return;
+          const at = e.target as Node | null;
+          if (at && (this.infoDrawer.contains(at) || (at instanceof Element && at.closest('[data-info-btn]')))) return;
+          this.infoDrawer.hidden = true;
+        },
+        true,
+      );
+    }
     // The Controls guide lives in the bottom-left corner bar's modal, not in the sidebar.
     const help = q('[data-info=controls]');
     this.controlsGuide = q<HTMLUListElement>('.sb-help ul');
@@ -731,13 +794,13 @@ export class Sidebar {
     this.warClock = q('.sb-war-clock');
     this.priceLine = q<HTMLElement>('.sb-price-chart polyline');
     const icons: Readonly<Record<string, IconNode>> = { oil: Droplet, power: Zap, clock: Clock };
-    for (const slot of root.querySelectorAll<HTMLElement>('.sb-price-row [data-icon], .sb-power [data-icon]')) {
+    // (The oil pane's price rows now live in the info drawer.)
+    for (const slot of [root, this.infoDrawer].flatMap((r) => [...r.querySelectorAll<HTMLElement>('.sb-price-row [data-icon], .sb-power [data-icon]')])) {
       const icon = icons[slot.dataset.icon ?? ''];
       if (icon) slot.replaceWith(createElement(icon, { width: 16, height: 16, 'stroke-width': 2, 'aria-hidden': 'true' }));
     }
     this.rankEconomy = q('[data-rank=economy]');
     this.rankMilitary = q('[data-rank=military]');
-    this.rankNuclear = q('[data-rank=nuclear]');
     // After every lookup inside them: the Rank and Allies panels leave the sidebar for the News window.
     this.buildNewsModal(q('.sb-rank'), q('.sb-allies'), q('.sb-prices'));
     this.buildTabs(this.shopTabs);
@@ -786,8 +849,9 @@ export class Sidebar {
     document.body.append(opener);
   }
 
+  /** The sidebar is gone (everything lives in the command dock and its drawers): it stays hidden. */
   toggle(): void {
-    document.body.classList.toggle('sidebar-hidden');
+    document.body.classList.add('sidebar-hidden');
   }
 
   /** An alert ("X is under attack!"): a toast in the top-right corner; clicking it shows where it happened. */
@@ -1070,16 +1134,15 @@ export class Sidebar {
    */
   dockButtons(): HTMLButtonElement[] {
     const out: HTMLButtonElement[] = [];
-    for (const id of ['oil', 'capitals'] as const) {
+    for (const id of [] as InfoId[]) {
       const btn = this.infoTabs.get(id);
       if (!btn) continue;
-      btn.classList.add('cmd-btn');
-      btn.addEventListener('click', () => {
-        if (document.body.classList.contains('sidebar-hidden')) this.toggle();
-        this.switchView('command');
-        this.switchInfo(id);
-      });
-      out.push(btn);
+      // A fresh button (the sidebar tab's own click handler would switch a page that is no longer shown).
+      const b = btn.cloneNode(true) as HTMLButtonElement;
+      b.className = 'cmd-btn';
+      b.dataset.infoBtn = id; // (the outside-click close of the info drawer skips these)
+      b.addEventListener('click', () => this.openInfo(id));
+      out.push(b);
     }
     if (this.newsButton) {
       this.newsButton.className = 'cmd-btn sb-news-dock';
@@ -1092,8 +1155,8 @@ export class Sidebar {
   private renderEvents(rows: readonly { at: string; text: string; category?: 'military' | 'economy' | 'politics' | 'society' }[]): void {
     const list = this.eventList;
     if (!list) return;
-    // At most 8 reports on show: the newest.
-    rows = rows.slice(0, 8);
+    // No economy reports (oil price moves etc.: the prices sit in the header already). At most 8 on show: the newest.
+    rows = rows.filter((r) => r.category !== 'economy').slice(0, 8);
     const key = rows.map((r) => r.at + r.text).join('|');
     if (key === this.eventKey) return;
     this.eventKey = key;
@@ -1221,33 +1284,91 @@ export class Sidebar {
     );
   }
 
-  /** The News window: a two-column board (Rank | Allies), the existing panels moved into it. */
+  /** The News window: Rank and Breaking News side by side. */
   private buildNewsModal(rank: HTMLElement, allies: HTMLElement, prices: HTMLElement): void {
     const overlay = document.createElement('div');
     overlay.className = 'news-overlay';
     overlay.hidden = true;
     overlay.innerHTML = `
       <div class="news-modal" role="dialog" aria-modal="true" aria-label="${t('News')}">
-        <header class="news-head"><h2>${t('WORLD NEWS')}</h2><button type="button" class="news-close modal-close" aria-label="${t('Close')}"></button></header>
-        <div class="news-cols">
+        <header class="news-head"><h2>${t('WORLD MONITOR & NEWS')}</h2><button type="button" class="news-close modal-close" aria-label="${t('Close')}"></button></header>
+        <section class="news-gov" style="--team: ${FACTIONS[this.faction].colors.primary}">
+          <div class="news-gov-emblem">${factionBadgeHtml(this.faction, 'lg')}</div>
+          <div class="news-gov-text">
+            <div class="news-gov-kicker">${t('GOVERNMENT')}</div>
+            <div class="news-gov-nation">${FACTIONS[this.faction].name}</div>
+            <div class="news-gov-leader"><span class="news-gov-role">${t('Head of state')}</span>${FACTIONS[this.faction].leader.name}</div>
+          </div>
+          <button type="button" class="news-gov-code" title="${t('Your match code: type it on another browser to continue your cloud save there. Click to copy.')}">
+            <span class="news-gov-role">${t('Match code')}</span>
+            <code class="news-gov-code-value"></code>
+            <span class="news-gov-code-copied" hidden>${t('Copied')}</span>
+          </button>
+        </section>
+        <nav class="news-tabs" role="tablist"></nav>
+        <div class="news-page" data-page="finance" hidden></div>
+        <div class="news-page" data-page="oil" hidden></div>
+        <div class="news-page" data-page="capitals" hidden></div>
+        <div class="news-page" data-page="controls" hidden></div>
+        <div class="news-cols" data-page="overview">
           <section class="news-col"><h3 class="news-col-title">${t('RANK')}</h3><div class="news-col-body" data-col="rank"></div></section>
-          <section class="news-col"><h3 class="news-col-title">${t('OCCUPIED CAPITALS & ALLIES')}</h3><div class="news-col-body" data-col="allies"><ol class="news-occupied-list"></ol></div></section>
-        </div>
-        <div class="news-bottom">
-          <section class="news-col news-occupied news-events"><h3 class="news-col-title news-events-head"><span>${t('BREAKING NEWS')}</span><span class="news-market" data-col="market"></span></h3><div class="news-col-body news-feed"><ul class="news-event-list"></ul></div></section>
+          <section class="news-col news-events"><h3 class="news-col-title news-events-head"><span>${t('BREAKING NEWS')}</span></h3><div class="news-col-body news-feed"><ul class="news-event-list"></ul></div></section>
         </div>
       </div>`;
-    this.occupiedList = overlay.querySelector<HTMLElement>('.news-occupied-list');
     this.eventList = overlay.querySelector<HTMLElement>('.news-event-list');
     overlay.querySelector('[data-col=rank]')!.append(rank);
-    overlay.querySelector('[data-col=allies]')!.prepend(allies);
-    // Oil / power prices, revision countdown, war clock and chart: under the breaking-news ticker.
-    overlay.querySelector('[data-col=market]')!.append(prices);
-    // The allies' own heading would repeat the column title: its count moves up into the column title instead.
-    const alliesHead = allies.querySelector('h3');
-    const count = alliesHead?.querySelector('small');
-    if (count) overlay.querySelector('[data-col=allies]')!.previousElementSibling!.append(' ', count);
-    alliesHead?.remove();
+    // Tabs in the Government banner: Overview (Rank + Breaking News), Finance, Oil, Allies (occupied capitals + the
+    // allies), Controls. Each one shows its own page under the banner.
+    const page = (id: string): HTMLElement => overlay.querySelector<HTMLElement>(`.news-page[data-page=${id}]`)!;
+    for (const id of ['finance', 'oil', 'capitals'] as const) {
+      const pane = this.infoPanes.get(id);
+      if (!pane) continue;
+      pane.hidden = false;
+      page(id).append(pane);
+    }
+    page('oil').prepend(this.cartelPanel); // the cartel policy (when shown) goes with the oil
+    // Oil / power prices, revision countdown and chart: at the top of the Oil tab (no longer in the news header).
+    prices.classList.add('news-oil-prices');
+    page('oil').prepend(prices);
+    page('capitals').append(allies);
+    const guide = document.createElement('section');
+    guide.className = 'sb-panel sb-help';
+    guide.append(this.controlsGuide.cloneNode(true));
+    page('controls').append(guide);
+    const tabs = overlay.querySelector<HTMLElement>('.news-tabs')!;
+    const defs: readonly { id: NewsTab; label: string; icon: IconNode | string }[] = [
+      { id: 'overview', label: 'Overview', icon: Globe },
+      { id: 'finance', label: 'Finance', icon: Wallet },
+      { id: 'oil', label: 'Oil', icon: OIL_TAB_ICON },
+      { id: 'capitals', label: 'Allies', icon: Handshake },
+      { id: 'controls', label: 'Controls', icon: Keyboard },
+    ];
+    for (const d of defs) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'news-tab';
+      b.dataset.tab = d.id;
+      b.setAttribute('role', 'tab');
+      if (typeof d.icon === 'string') b.insertAdjacentHTML('beforeend', d.icon);
+      else b.append(createElement(d.icon, { width: 16, height: 16, 'stroke-width': 2, 'aria-hidden': 'true' }));
+      const label = document.createElement('span');
+      label.textContent = t(d.label);
+      b.append(label);
+      b.addEventListener('click', () => this.showNewsTab(d.id));
+      tabs.append(b);
+    }
+    this.showNewsTab('overview');
+    // Match code (the cloud save's player id), click to copy.
+    overlay.querySelector('.news-gov-code')?.addEventListener('click', () => {
+      const id = cloudPlayerId();
+      if (!id) return;
+      void navigator.clipboard?.writeText(id).then(() => {
+        const done = overlay.querySelector<HTMLElement>('.news-gov-code-copied');
+        if (!done) return;
+        done.hidden = false;
+        setTimeout(() => (done.hidden = true), 1500);
+      }).catch(() => undefined);
+    });
     const close = overlay.querySelector<HTMLButtonElement>('.news-close')!;
     close.append(createElement(X, { width: 18, height: 18, 'stroke-width': 2.5, 'aria-hidden': 'true' }));
     close.addEventListener('click', () => this.toggleNews(false));
@@ -1265,12 +1386,36 @@ export class Sidebar {
     this.newsOverlay = overlay;
   }
 
+  /** World Monitor & News: shows one tab's page (the banner stays). */
+  private showNewsTab(id: NewsTab): void {
+    const overlay = this.newsOverlay ?? document.querySelector<HTMLElement>('.news-overlay');
+    if (!overlay) return;
+    for (const p of overlay.querySelectorAll<HTMLElement>('[data-page]')) {
+      if (p.classList.contains('news-page') || p.classList.contains('news-cols')) p.hidden = p.dataset.page !== id;
+    }
+    for (const b of overlay.querySelectorAll<HTMLElement>('.news-tab')) {
+      const on = b.dataset.tab === id;
+      b.classList.toggle('active', on);
+      b.setAttribute('aria-selected', String(on));
+    }
+  }
+
+  /** Opens World Monitor & News on a tab (the old Finance / Oil / Occupied capitals buttons land here). */
+  openNewsTab(id: NewsTab): void {
+    this.toggleNews(true);
+    this.showNewsTab(id);
+  }
+
   private toggleNews(open: boolean): void {
     if (!this.newsOverlay) return;
     this.newsOverlay.hidden = !open;
     this.newsButton?.classList.toggle('active', open);
     this.newsButton?.setAttribute('aria-pressed', String(open));
     if (open) {
+      this.showNewsTab('overview'); // every opening starts on Overview
+      // The match code may have been issued since (first cloud save): read it each time.
+      const code = this.newsOverlay.querySelector<HTMLElement>('.news-gov-code-value');
+      if (code) code.textContent = cloudPlayerId() ?? t('Save to the cloud once to get one');
       this.newsButton?.classList.remove('blink');
       this.rankTimer = 0;
       this.renderRanking(this.lastRanking);
@@ -1310,7 +1455,7 @@ export class Sidebar {
 
   /** Fills both ranking lists, best nation first. */
   private renderRanking(rows: readonly RankRow[]): void {
-    const key = rows.map((r) => `${r.playerId}:${Math.round(r.economy)}:${r.military}:${r.silos}:${r.defeated}:${Math.round(r.debt)}`).join('|');
+    const key = rows.map((r) => `${r.playerId}:${Math.round(r.economy)}:${r.military}:${r.silos}:${r.ready}:${r.nuclearBanned}:${r.forces.soldiers},${r.forces.vehicles},${r.forces.aircraft}:${r.defeated}:${Math.round(r.debt)}`).join('|');
     if (key === this.rankKey) return;
     this.rankKey = key;
     const fill = (list: HTMLElement, key: 'economy' | 'military', detail: ((r: RankRow) => string) | null): void => {
@@ -1327,21 +1472,52 @@ export class Sidebar {
           flag.title = r.name;
           if (!detail) {
             // Military: only the position is shown, never the money behind it.
-            const name = document.createElement('span');
-            name.className = 'sb-rank-value';
-            name.textContent = r.name;
-            li.append(flag, name); // no position number: the order says it
+            // No name (the flag says it, its tooltip too): one row of icon + count — soldiers (engineers included),
+            // vehicles, aircraft, then warheads (yellow atom) and ready to launch (green atom).
+            const stats = document.createElement('span');
+            stats.className = 'sb-rank-value sb-rank-mil';
+            const part = (n: number, cls: string, tip: string, icon: IconNode | string): HTMLElement => {
+              const g = document.createElement('span');
+              g.className = `sb-rank-stat ${cls}`;
+              g.title = tip;
+              const c = document.createElement('span');
+              c.textContent = String(n);
+              const i = document.createElement('span');
+              i.className = 'sb-rank-stat-icon';
+              if (typeof icon === 'string') i.innerHTML = icon;
+              else i.append(createElement(icon, { width: 14, height: 14, 'stroke-width': 2, 'aria-hidden': 'true' }));
+              g.append(i, c); // icon first, the number after it
+              return g;
+            };
+            const forces = document.createElement('span');
+            forces.className = 'sb-rank-forces';
+            forces.append(
+              part(r.forces.soldiers, 'unit', t('Soldiers'), Soldier),
+              part(r.forces.vehicles, 'unit', t('Vehicles'), Tank),
+              part(r.forces.aircraft, 'unit', t('Aircraft'), Plane),
+            );
+            // All six in one row: soldiers, vehicles, aircraft, engineers, warheads, ready to launch.
+            forces.append(
+              part(r.silos, r.nuclearBanned ? 'banned' : 'warheads', r.nuclearBanned ? t('Under a nuclear embargo') : t('Nuclear warheads'), NUKE_ICON),
+              part(r.ready, 'ready', t('Ready to launch'), NUKE_ICON),
+            );
+            stats.append(forces);
+            li.title = r.name;
+            li.append(flag, stats); // no position number: the order says it
             return li;
           }
           const value = document.createElement('span');
           value.className = 'sb-rank-value';
           value.textContent = compactMoney(r[key]);
           value.title = detail(r);
-          // Every nation's debt to the Global Monitoring Center on the same line as its wealth: "48.43 KTB / −7.7 KTB".
+          // Total wealth on top, the nation's debt to the Global Monitoring Center on the line under it.
           value.style.whiteSpace = 'nowrap';
+          value.style.display = 'inline-flex';
+          value.style.flexDirection = 'column';
+          value.style.lineHeight = '1.2';
           const debt = document.createElement('span');
           debt.className = 'sb-rank-debt';
-          debt.textContent = r.debt > 0 ? ` / −${compactMoney(r.debt)}` : ` / 0`;
+          debt.textContent = r.debt > 0 ? `−${compactMoney(r.debt)}` : '0';
           debt.style.color = r.debt > 0 ? '#ff6b5e' : '#8fbf8f';
           debt.title = r.debt > 0 ? t('Debt {v} {c}', { v: Math.round(r.debt).toLocaleString('en-US'), c: CURRENCY }) : t('No debt');
           value.append(debt);
@@ -1352,39 +1528,6 @@ export class Sidebar {
     };
     fill(this.rankEconomy, 'economy', (r) => t('Economy {v} {c}', { v: Math.round(r.economy).toLocaleString('en-US'), c: CURRENCY }));
     fill(this.rankMilitary, 'military', null);
-    // Nuclear powers (a standing silo): flag, name and the yellow atom icon; nobody yet → a muted line.
-    const nuclear = rows.filter((r) => r.silos > 0 && !r.defeated);
-    if (nuclear.length === 0) {
-      const none = document.createElement('li');
-      none.className = 'sb-muted';
-      none.textContent = t('None');
-      this.rankNuclear.replaceChildren(none);
-    } else {
-      this.rankNuclear.replaceChildren(
-        ...nuclear.map((r) => {
-          const li = document.createElement('li');
-          li.classList.toggle('me', r.isHuman);
-          const flag = document.createElement('img');
-          flag.className = 'sb-rank-flag';
-          flag.alt = '';
-          flag.src = this.flagUrl(r.faction);
-          flag.title = r.name;
-          // Silo count + atom icon (red while the nation is under a nuclear embargo).
-          const count = document.createElement('span');
-          count.className = 'sb-nuke-count';
-          count.textContent = String(r.silos);
-          count.title = t('Missile silos');
-          const icon = document.createElement('span');
-          icon.className = 'sb-nuke-icon';
-          icon.classList.toggle('banned', !!r.nuclearBanned);
-          icon.title = r.nuclearBanned ? t('Under a nuclear embargo') : t('Owns nuclear weapons');
-          icon.innerHTML = NUKE_ICON;
-          li.title = r.name;
-          li.append(flag, count, icon);
-          return li;
-        }),
-      );
-    }
   }
 
   private flagUrl(faction: FactionId): string {

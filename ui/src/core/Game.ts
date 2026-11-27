@@ -994,7 +994,6 @@ export class Game {
       if (!this.paused) this.focusOwnCapital();
     });
     this.bigMap.setZoomLock(this.sidebar.zoomLockButton);
-    this.bigMap.setOpener(this.sidebar.opener);
     this.bigMap.onSiloLaunch = (id) => {
       const b = this.entities.get(id);
       if (!(b instanceof MissileSilo) || !b.alive || b.owner !== this.localId) return;
@@ -1026,7 +1025,6 @@ export class Game {
       onSettings: () => {
         if (!this.paused && !this.ended) this.togglePause();
       },
-      onAllies: () => this.sidebar.openAllies(),
     });
     this.bigMinimap = new Minimap(
       this.bigMap.canvas,
@@ -6401,7 +6399,21 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     }
     const price = this.oilMarket.price;
     const silos = new Map<number, number>();
-    for (const b of this.entities.buildings()) if (b instanceof MissileSilo && b.alive) silos.set(b.owner, (silos.get(b.owner) ?? 0) + 1);
+    const ready = new Map<number, number>();
+    // Forces by kind for the Military ranking (in the field, inside buildings and transports alike).
+    const forces = new Map<number, { soldiers: number; vehicles: number; aircraft: number }>();
+    for (const e of this.entities.all()) {
+      if (!(e instanceof Unit) || !e.alive) continue;
+      let f = forces.get(e.owner);
+      if (!f) forces.set(e.owner, (f = { soldiers: 0, vehicles: 0, aircraft: 0 }));
+      if (e instanceof Infantry) f.soldiers++; // engineers count as soldiers
+      else if (e instanceof Vehicle) e.aircraft ? f.aircraft++ : f.vehicles++;
+    }
+    for (const b of this.entities.buildings()) {
+      if (!(b instanceof MissileSilo) || !b.alive) continue;
+      silos.set(b.owner, (silos.get(b.owner) ?? 0) + 1);
+      if (b.loaded) ready.set(b.owner, (ready.get(b.owner) ?? 0) + 1);
+    }
     return this.players.filter((p) => !p.absent).map((p) => ({
       playerId: p.id,
       faction: p.faction as FactionId,
@@ -6412,6 +6424,8 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
         p.oil * price + (structures.get(p.id) ?? 0) + (units.get(p.id) ?? 0) + p.credits + (p.powerStored / POWER_PER_BARREL) * price,
       military: this.militarySnapshot?.get(p.id) ?? 0,
       silos: silos.get(p.id) ?? 0,
+      ready: ready.get(p.id) ?? 0,
+      forces: forces.get(p.id) ?? { soldiers: 0, vehicles: 0, aircraft: 0 },
       nuclearBanned: p.nuclearBanUntil !== undefined && this.time < p.nuclearBanUntil,
       debt: Math.max(0, p.debt ?? 0),
     }));

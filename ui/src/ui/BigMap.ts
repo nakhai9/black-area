@@ -1,4 +1,4 @@
-import { createElement, Handshake, ShoppingCart, Pause, Play, House, Keyboard, Map as MapIcon, Maximize, Minimize, Radiation, Rocket, Settings as SettingsIcon, type IconNode } from 'lucide';
+import { createElement, ShoppingCart, Pause, Play, House, Map as MapIcon, Radiation, Rocket, Settings as SettingsIcon, type IconNode } from 'lucide';
 import { factionBadgeHtml } from './FactionBadge';
 import type { FactionId } from '../types';
 import { t } from '../i18n';
@@ -105,29 +105,14 @@ export class BigMap {
   /** The nation's emblem with its flag, exactly as on the sidebar's faction card (factionBadgeHtml). */
   private readonly dockBadge = document.createElement('div');
   private readonly dockProduction = document.createElement('span');
+  /** Screen tools in the dock: controls guide, full screen, zoom lock. */
+  private readonly dockTools = document.createElement('span');
   /** Slot for the nation's money (filled by setDock). */
   private readonly dockCredits = document.createElement('div');
   private readonly dockLoan = document.createElement('span');
   private readonly dockTail = document.createElement('span');
   /** Slot for the sidebar's show button (seen only while the sidebar is hidden). */
   private readonly openerSlot = document.createElement('span');
-
-  /** Full screen on / off (F11-like); its icon follows the browser's state (Esc leaves too). */
-  private fullscreenButton(button: (icon: IconNode, label: string, onClick: () => void) => HTMLButtonElement): HTMLButtonElement {
-    const b = button(Maximize, t('Full screen'), () => {
-      if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined);
-      else void document.documentElement.requestFullscreen().catch(() => undefined);
-    });
-    const sync = (): void => {
-      const on = !!document.fullscreenElement;
-      const label = on ? t('Exit full screen') : t('Full screen');
-      b.title = label;
-      b.setAttribute('aria-label', label);
-      b.replaceChildren(createElement(on ? Minimize : Maximize, { width: 16, height: 16, 'stroke-width': 2, 'aria-hidden': 'true' }));
-    };
-    document.addEventListener('fullscreenchange', sync);
-    return b;
-  }
 
   constructor(host: HTMLElement, guide: HTMLElement, onHome: () => void) {
     this.bar = document.createElement('div');
@@ -171,12 +156,13 @@ export class BigMap {
     this.setSilos([]);
 
     // Top corner keeps only the screen tools: controls guide, full screen, zoom lock, show-sidebar.
-    this.bar.append(
-      button(Keyboard, t('Controls'), () => (this.controls.open ? this.controls.hide() : this.controls.show())),
-      this.fullscreenButton(button),
-      this.zoomLockSlot,
-      this.openerSlot,
-    );
+    // The screen tools (controls guide, full screen, zoom lock) moved into the command dock: the top corner stays empty.
+    // (Controls guide: a tab of World Monitor & News; full screen: in Settings.)
+    const tools: HTMLButtonElement[] = [];
+    for (const b of tools) b.className = 'cmd-btn';
+    this.dockTools.className = 'cmd-slot';
+    this.dockTools.append(...tools, this.zoomLockSlot);
+    this.bar.hidden = true;
 
     // Command dock (bottom of the battlefield).
     this.dock.className = 'cmd-dock';
@@ -204,6 +190,7 @@ export class BigMap {
       this.dockLoan,
       this.nuclearBtn,
       this.dockTail,
+      this.dockTools,
     );
     // Money above the buttons (right-aligned), the button row under it.
     const side = document.createElement('div');
@@ -236,7 +223,7 @@ export class BigMap {
 
   /** Puts the sidebar's zoom lock toggle into the bar (after the zoom buttons). */
   setZoomLock(btn: HTMLButtonElement): void {
-    btn.classList.add('corner-btn');
+    btn.classList.add('cmd-btn');
     this.zoomLockSlot.replaceChildren(btn);
   }
 
@@ -250,7 +237,7 @@ export class BigMap {
    * Fills the dock from a (new) sidebar: the nation's flag beside the logo, the money and power bar, the shop cart,
    * the loan button, the oil / capitals / news buttons, and the settings / allies buttons. Replaces whatever a previous sidebar put.
    */
-  setDock(o: { faction: FactionId; onShop: () => void; credits: HTMLElement; extras: readonly HTMLElement[]; loan: HTMLElement; onSettings: () => void; onAllies: () => void }): void {
+  setDock(o: { faction: FactionId; onShop: () => void; credits: HTMLElement; extras: readonly HTMLElement[]; loan: HTMLElement; onSettings: () => void }): void {
     this.dockBadge.innerHTML = factionBadgeHtml(o.faction, 'sm');
     this.dockCredits.replaceChildren(o.credits);
     // Cart: opens the shop drawer (the buy tabs and their cameos).
@@ -276,7 +263,7 @@ export class BigMap {
       b.addEventListener('click', onClick);
       return b;
     };
-    this.dockTail.replaceChildren(...o.extras, tail(SettingsIcon, t('Settings'), o.onSettings), tail(Handshake, t('Allies'), o.onAllies));
+    this.dockTail.replaceChildren(...o.extras, tail(SettingsIcon, t('Settings'), o.onSettings)); // (Allies dropped: the Occupied capitals button shows the same)
   }
 
   /** Puts the sidebar's war clock into the dock, under the logo. */

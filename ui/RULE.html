@@ -26,7 +26,7 @@
 <body>
 <main>
 <img class="logo" src="/logo.png" alt="Black Area" />
-<h1>Black Area — RULE <small>v3.75.456</small></h1>
+<h1>Black Area — RULE <small>v3.75.489</small></h1>
 <p class="lead">Tài liệu luật chơi + kiến trúc code dành cho AI/dev sửa game. Mọi con số gameplay chính xác nằm trong <code>src/constants.ts</code> và <code>src/factions/*.ts</code>. Nếu tài liệu này khác code thì <b>code đúng</b>. <b>Khi đổi luật/số trong code, phải cập nhật file này.</b></p>
 <nav><a href="#s1">Quy tắc làm việc cho AI</a><a href="#s2">Chạy dự án</a><a href="#s3">Kiến trúc thư mục</a><a href="#s4">Thế giới</a><a href="#s5">Kinh tế (dầu)</a><a href="#s6">Công trình (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Quân đội</a><a href="#s8">Chiến đấu</a><a href="#s9">Điều khiển (Game.handleKey, handleInput)</a><a href="#s10">Giới hạn &amp; hiệu năng</a><a href="#s11">Thắng / thua &amp; AI</a><a href="#s12">Công thức sửa thường gặp</a></nav>
 <h2 id="s1">0. Quy tắc làm việc cho AI</h2>
@@ -708,6 +708,39 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
     <li>v3.75.434: <b>Y-20</b> và 3 máy bay ném bom <b>B-1, Tu-160, H-6K</b> (cả sheet cánh xoè và cánh cụp) có line màu phe theo chủ sở hữu: vòng thân sau buồng lái và chóp đuôi đứng (máy bay ném bom trước đây chưa có line phe), xám trung tính + sheet mặt nạ <code>-team</code> (<code>ui/tools/tu160_model_sheet.py</code> team_band, <code>tu160_blender.py</code> chế độ mask). Cả người chơi lẫn AI.</li>
     <li>v3.75.433: Line mặt nạ theo màu phe sở hữu cho Karrar, C-17, Il-76, A400M (sheet chính line xám trung tính + sheet <code>-team</code>, game tô theo <code>Unit.banner</code>, cả ô cửa hàng). Sửa <code>tools/organize_sprites.py</code>: khi có nhiều bản cùng tên, bản mới nhất được giữ (trước đây bản cũ ở thư mục cũ có thể đè bản render mới).</li>
     <li>v3.75.432: Thanh điều khiển dưới đáy: ô trên đồng hồ chiến tranh dùng đúng logo phe kèm cờ phe như thẻ phe trên sidebar (thay cho logo game + cờ). Xe tăng T-90M, Type 99, Leopard 2A8 chuyển sang line mặt nạ theo màu phe sở hữu.</li>
+    <li>v3.75.489: Biểu tượng tab trình duyệt (favicon) đổi sang logo game mới.</li>
+    <li>v3.75.488: Logo game đổi sang bản không có quả địa cầu ở giữa: 5 linh vật các phe trong 5 ô của khiên tròn viền gai vàng.</li>
+    <li>v3.75.487: Logo game mới: khiên tròn viền gai vàng, 5 linh vật các phe (đại bàng, sư tử, gấu, rồng, bọ cạp) quanh quả địa cầu ở giữa (nền trong suốt).</li>
+    <li>v3.75.486: Cài đặt: tiêu đề nhóm 13px, chữ đậm, màu sáng hơn.</li>
+    <li>v3.75.485: Cài đặt: tiêu đề nhóm (Hiển thị / Âm thanh / Ngôn ngữ) nhỏ lại thành nhãn 10px.</li>
+    <li>v3.75.484: <b>Cài đặt</b> làm lại: chia nhóm Hiển thị / Âm thanh / Ngôn ngữ, mỗi dòng có biểu tượng xám trung tính, tên + mô tả ngắn, công tắc gạt bên phải, thanh âm lượng kèm %. Thêm <b>Toàn màn hình</b> vào Cài đặt (bỏ nút ở thanh dưới). Bỏ tuỳ chọn Vị trí sidebar.</li>
+    <li>v3.75.483: Mọi tab / nút đang bật (tab Cửa hàng, nút thanh điều khiển, tab World Monitor &amp; News) dùng chung màu xám trung tính thay cho vàng.</li>
+    <li>v3.75.482: Tab đang mở trong World Monitor &amp; News đổi từ vàng sang xám trung tính.</li>
+    <li>v3.75.481: Tab Dầu: giá dầu, giá điện, đổi giá sau thành 3 ô cạnh nhau (nhãn trên, số dưới); biểu đồ có tiêu đề "Giá dầu, 5 phút gần nhất" và cao hơn.</li>
+    <li>v3.75.480: Dải giá trong tab Dầu ghi chú bằng chữ (Giá dầu, Giá điện, Đổi giá sau) thay cho biểu tượng.</li>
+    <li>v3.75.479: Dải giá dầu / giá điện / đếm ngược / biểu đồ chuyển từ tiêu đề Tin nóng sang đầu tab Dầu.</li>
+    <li>v3.75.478: Dải Chính phủ trong World Monitor &amp; News hiện <b>Mã trận</b> ở bên phải, bấm để sao chép (hiện "Đã chép"); chưa lưu cloud lần nào thì ghi "Lưu cloud một lần để có mã".</li>
+    <li>v3.75.477: Các tab World Monitor &amp; News nằm thành một hàng riêng ngay dưới dải Chính phủ; mỗi lần mở cửa sổ luôn vào tab Tổng quan.</li>
+    <li>v3.75.476: World Monitor &amp; News có các tab ở bên phải dải Chính phủ: <b>Tổng quan</b> (Xếp hạng + Tin nóng), <b>Tài chính</b>, <b>Dầu</b> (kèm chính sách cartel), <b>Đồng minh</b> (thủ đô bị chiếm + danh sách đồng minh), <b>Hướng dẫn</b> (phím điều khiển). Thanh điều khiển dưới đáy bỏ các nút Tài chính, Dầu, Thủ đô bị chiếm và Hướng dẫn phím.</li>
+    <li>v3.75.475: Khung Chính phủ trong World Monitor &amp; News làm lại thành dải băng: màu phe loang từ trái, viền trái màu phe, logo phe có bóng, chữ nhỏ CHÍNH PHỦ, tên nước in hoa cỡ lớn, dòng Nguyên thủ quốc gia + tên lãnh đạo.</li>
+    <li>v3.75.474: World Monitor &amp; News: thêm khung <b>Chính phủ</b> phía trên Xếp hạng và Tin nóng: logo phe (cờ nhỏ ở góc), tên nước, tên người lãnh đạo, như sidebar cũ.</li>
+    <li>v3.75.473: Tin nóng không còn hiện tin kinh tế (nhãn KT, ví dụ giá dầu tăng/giảm); giá dầu và điện vẫn ở trên đầu cột.</li>
+    <li>v3.75.472: World Monitor &amp; News: cờ cách số liệu 16px; cột Xếp hạng chỉ rộng vừa hai danh sách, phần còn lại dành cho Tin nóng.</li>
+    <li>v3.75.471: Cửa sổ World Monitor &amp; News rộng hơn (1120px); hàng xếp hạng chỉ rộng vừa nội dung, số liệu nằm sát cờ (bỏ khoảng trống giữa cờ và số).</li>
+    <li>v3.75.470: Cửa sổ World Monitor &amp; News: bỏ cột Thủ đô bị chiếm &amp; Đồng minh; Tin nóng (kèm giá dầu / điện) chuyển lên nằm ngang hàng với Xếp hạng (Xếp hạng 3 phần, Tin nóng 2 phần).</li>
+    <li>v3.75.469: Xếp hạng Quân sự: bỏ chỉ số kỹ sư, kỹ sư được tính vào số lính (còn 5 chỉ số).</li>
+    <li>v3.75.468: Xếp hạng Quân sự: 6 chỉ số (lính, xe, máy bay, kỹ sư, đầu đạn, sẵn sàng phóng) trên cùng một hàng, biểu tượng đứng trước số.</li>
+    <li>v3.75.467: Xếp hạng Quân sự: bỏ tên nước (rê chuột lên hàng để xem); mỗi hàng là cờ + số lính, xe, máy bay, kỹ sư (số + biểu tượng), dòng dưới là đầu đạn hạt nhân (vàng) và sẵn sàng phóng (xanh). Cột Quân sự rộng hơn cột Kinh tế (3:2).</li>
+    <li>v3.75.466: Bảng xếp hạng Quân sự: dưới tên mỗi nước hiện số đầu đạn hạt nhân (biểu tượng vàng, đỏ khi bị cấm vận hạt nhân) và số đầu đạn sẵn sàng phóng (biểu tượng xanh), chữ 13px.</li>
+    <li>v3.75.465: Nút World Monitor &amp; News trên thanh điều khiển dưới đáy đổi biểu tượng chuông thành quả địa cầu (GeoGlyphs).</li>
+    <li>v3.75.464: Bảng xếp hạng: Kinh tế và Quân sự chia đều 2 cột; tổng tài sản chữ 15px, nợ 13px.</li>
+    <li>v3.75.463: Bảng xếp hạng (World Monitor &amp; News): bỏ cột Hạt nhân; mục Kinh tế ghi tổng tài sản ở trên, nợ ở dòng dưới (thay cho "tài sản / nợ" trên một dòng).</li>
+    <li>v3.75.462: Thanh điều khiển dưới đáy bỏ nút Đồng minh (trùng chức năng với nút Thủ đô bị chiếm).</li>
+    <li>v3.75.461: Cửa sổ World News đổi tên thành <b>World Monitor &amp; News</b> (tiếng Việt: Giám sát &amp; Tin tức thế giới).</li>
+    <li>v3.75.460: Bảng thông tin (Tài chính / Dầu / Thủ đô bị chiếm) tự đóng khi bấm ra ngoài; riêng bảng Cửa hàng vẫn mở cho tới khi bấm × hoặc nút giỏ hàng.</li>
+    <li>v3.75.459: Bảng Cửa hàng / thông tin: nhích lên sát mép trên, lưới 3 ô mỗi hàng, 5 tab rộng đều nhau, màu thép tối cùng tông bảng (tab đang mở màu vàng).</li>
+    <li>v3.75.458: Sửa nút Khoá zoom trên thanh điều khiển dưới đáy đè lên số tiền: giờ nằm cùng hàng với các nút khác.</li>
+    <li>v3.75.457: <b>Bỏ sidebar</b>: mọi thứ nằm ở thanh điều khiển dưới đáy. Thêm logo năng lượng trước thanh năng lượng và logo ngân sách trước số tiền. Ba nút góc trên (Hướng dẫn phím, Toàn màn hình, Khoá zoom) chuyển xuống thanh dưới. Nút <b>Tài chính</b>, <b>Dầu</b>, <b>Thủ đô bị chiếm</b> (và Đồng minh) mở bảng thông tin nổi cạnh mép phải (giống bảng Cửa hàng, bấm lại để đóng); chính sách cartel dầu cũng nằm trong bảng này.</li>
     <li>v3.75.456: Rút gọn dòng gợi ý trong hộp thoại Mã trận.</li>
     <li>v3.75.455: Nút <b>Tiếp tục</b> ở menu chính luôn hiện. Trình duyệt đã có mã trận: vào bản lưu cloud như cũ. Chưa có mã trận: mở hộp thoại nhập <b>Mã trận</b> (Tiếp tục / Huỷ, Esc để đóng), tìm thấy bản lưu thì vào game và trình duyệt nhận mã đó. Bỏ nút "Nhập mã trận" riêng.</li>
     <li>v3.75.454: Ô nhập mã trận làm lại gọn: khung tối, ô nhập chữ vàng và nút OK kiểu thép cùng một hàng. Lưu cloud xong, thông báo ở menu hiện luôn mã trận; dòng "Mã trận của bạn" ở menu (bấm để sao chép) có khung riêng.</li>

@@ -2408,7 +2408,7 @@ button,
 /* News window, Rank column: Economy | Military side by side. */
 .news-col-body .sb-rank {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); /* Economy | Military, equal halves */
   grid-template-rows: auto auto;
   grid-auto-flow: column;
   column-gap: 10px;
@@ -4331,4 +4331,536 @@ body.sidebar-hidden .shop-drawer {
 }
 .fp-menu .fp-actions button.fp-mycode code {
   color: #ffd84a;
+}
+
+/* No sidebar any more: everything lives in the command dock and its drawers. */
+#sidebar,
+.sb-open {
+  display: none !important;
+}
+.corner-bar[hidden] {
+  display: none;
+}
+/* Info drawer (Finance / Oil / Occupied capitals): same panel as the shop drawer. */
+.info-drawer-body {
+  overflow-y: auto;
+  min-height: 0;
+  padding: 6px 8px 8px;
+}
+.info-drawer-body .sb-cartel[hidden] {
+  display: none;
+}
+/* Dock money / power logos. */
+.cmd-power-group,
+.cmd-money {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.cmd-power-icon {
+  color: #ffd84a;
+  flex: none;
+}
+.cmd-money-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  color: #ffd84a;
+}
+.cmd-money-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* Zoom lock in the dock: a normal dock button (its sidebar placement was absolute, over the money). */
+.cmd-dock .sb-zoomlock {
+  position: static;
+  width: 34px;
+  height: 34px;
+}
+
+/* Shop / info drawer, polish: higher up (the top corner bar is gone), 3 cameos a row, tabs of equal width in the
+   drawer's own dark steel (gold when open). */
+.shop-drawer {
+  top: 12px;
+  max-height: calc(100vh - 12px - 120px);
+}
+.shop-drawer .sb-cameos:not([hidden]) {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.shop-drawer-tabs {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 4px;
+}
+.shop-drawer-tabs > button {
+  width: 100%;
+  min-width: 0;
+  height: 32px;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  color: #c9d3dd;
+  background: linear-gradient(180deg, #26313c, #1a222a);
+  border: 1px solid #3a4652;
+  border-radius: 4px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  cursor: pointer;
+}
+.shop-drawer-tabs > button:hover:not(:disabled) {
+  color: #ffffff;
+  border-color: #5a6b7c;
+}
+.shop-drawer-tabs > button.active {
+  color: #2a1e00;
+  background: linear-gradient(#ffd84a, #e0a800);
+  border-color: #ffe08a;
+}
+.shop-drawer-tabs > button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* Ranking, Economy: total wealth 15px on top, the debt 13px under it. */
+.news-col-body .sb-rank .sb-rank-value {
+  font-size: 15px;
+}
+.news-col-body .sb-rank .sb-rank-debt {
+  font-size: 13px;
+}
+
+/* Ranking, Military: wider than Economy; flag, then forces (soldiers, vehicles, aircraft, engineers) and the warheads
+   under them, each a count + icon. */
+.news-col-body .sb-rank {
+  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+}
+.news-col-body .sb-rank .sb-rank-mil {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  font-size: 13px;
+}
+.sb-rank-forces {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.sb-rank-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.sb-rank-stat-icon {
+  display: inline-flex;
+}
+.sb-rank-stat-icon svg {
+  width: 14px;
+  height: 14px;
+}
+.sb-rank-stat.unit {
+  color: #d8e0e8;
+}
+.sb-rank-stat.warheads {
+  color: #ffd400;
+}
+.sb-rank-stat.ready {
+  color: #4cd964;
+}
+.sb-rank-stat.banned {
+  color: #e0301e;
+}
+
+/* News window: Rank and Breaking News side by side (no Allies column); the feed fills its column. */
+.news-cols {
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+}
+.news-cols .news-events .news-feed {
+  max-height: none;
+  flex: 1;
+}
+@media (max-width: 640px) {
+  .news-cols {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* News window: rows only as wide as their content (no empty gap between the flag and the numbers), the two rank
+   columns sized to them; the window itself wider. */
+.news-modal {
+  width: min(1120px, 100%);
+}
+.news-col-body .sb-rank {
+  grid-template-columns: max-content max-content;
+  justify-content: start;
+  column-gap: 16px;
+}
+.news-col-body .sb-rank-list li {
+  grid-template-columns: 22px max-content;
+  justify-content: start;
+}
+.news-col-body .sb-rank .sb-rank-value {
+  text-align: left;
+  align-items: flex-start;
+}
+.news-col-body .sb-rank .sb-rank-mil {
+  align-items: flex-start;
+}
+
+/* News window: 16px between flag and numbers; the Rank column only as wide as its two lists, Breaking News takes
+   the rest. */
+.news-col-body .sb-rank-list li {
+  gap: 16px;
+}
+.news-cols {
+  grid-template-columns: max-content minmax(0, 1fr);
+}
+
+/* News window: Government banner over Rank | Breaking News — the nation's colour washing in from the left behind its
+   emblem (small flag on the corner), a small gold kicker, the nation's name large, the head of state under it. */
+.news-gov {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin: 10px 10px 0;
+  padding: 12px 18px;
+  flex-shrink: 0;
+  overflow: hidden;
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--team) 45%, transparent) 0%, color-mix(in srgb, var(--team) 12%, transparent) 38%, transparent 70%),
+    linear-gradient(180deg, #161d24, #0b0f13);
+  border: 1px solid #3a4754;
+  border-left: 4px solid var(--team);
+  border-radius: 3px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+.news-gov-emblem {
+  flex: none;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.6));
+}
+.news-gov-text {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+.news-gov-kicker {
+  font-size: 10px;
+  letter-spacing: 3px;
+  color: #ffd84a;
+  opacity: 0.85;
+}
+.news-gov-nation {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: #ffffff;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.7);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.news-gov-leader {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 14px;
+  color: #e3e9ef;
+}
+.news-gov-role {
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: #8a97a5;
+}
+
+/* World Monitor & News tabs: on the right of the Government banner; each opens its page under the banner. */
+.news-tabs {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+  align-self: flex-end;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.news-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  font: 700 12px/1 inherit;
+  font-family: inherit;
+  letter-spacing: 1px;
+  color: #c9d3dd;
+  background: linear-gradient(180deg, rgba(38, 49, 60, 0.9), rgba(20, 27, 34, 0.9));
+  border: 1px solid #3a4652;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.news-tab svg {
+  width: 16px;
+  height: 16px;
+}
+.news-tab:hover {
+  color: #ffffff;
+  border-color: #5a6b7c;
+}
+.news-tab.active {
+  color: #2a1e00;
+  background: linear-gradient(#ffd84a, #e0a800);
+  border-color: #ffe08a;
+}
+.news-page {
+  margin: 10px;
+  padding: 10px;
+  min-height: 0;
+  overflow-y: auto;
+  background: #0b0f13;
+  border: 1px solid #3a4754;
+  border-radius: 3px;
+}
+.news-page[hidden],
+.news-cols[hidden] {
+  display: none;
+}
+.news-page .sb-info,
+.news-page .sb-panel {
+  margin: 0;
+}
+
+/* Tabs on their own row under the Government banner, from the left. */
+.news-tabs {
+  margin: 8px 10px 0;
+  align-self: stretch;
+  justify-content: flex-start;
+  flex-shrink: 0;
+}
+
+/* Government banner: the match code on the right, click to copy. */
+.news-gov-code {
+  display: grid;
+  justify-items: end;
+  gap: 3px;
+  margin-left: auto;
+  padding: 6px 10px;
+  font: inherit;
+  text-align: right;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px dashed #4a5866;
+  border-radius: 4px;
+  cursor: copy;
+}
+.news-gov-code:hover {
+  border-color: #ffd84a;
+}
+.news-gov-code-value {
+  font-size: 13px;
+  color: #ffd84a;
+  word-break: break-all;
+  max-width: 320px;
+}
+.news-gov-code-copied {
+  font-size: 11px;
+  color: #4cd964;
+}
+
+.sb-price-label {
+  margin-right: 6px;
+  font-size: 11px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #9fb0c4;
+}
+
+/* Oil tab, prices: three cards in a row (label on top, value under it), then the oil price chart of the last
+   5 minutes with its caption. */
+.news-page .news-oil-prices {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.news-page .news-oil-prices .sb-price-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 10px 12px;
+  background: linear-gradient(180deg, #161d24, #0e1318);
+  border: 1px solid #2f3a45;
+  border-radius: 4px;
+}
+.news-page .news-oil-prices .sb-price-label {
+  margin: 0;
+}
+.news-page .news-oil-prices .sb-price-row b {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 20px;
+}
+.news-page .news-oil-prices .sb-price-row:first-child {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.news-page .news-oil-prices .sb-price-row:first-child .sb-price-label {
+  flex-basis: 100%;
+}
+.news-page .news-oil-prices .sb-price-chart-cap,
+.news-page .news-oil-prices .sb-price-chart {
+  grid-column: 1 / -1;
+}
+.sb-price-chart-cap {
+  font-size: 11px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #9fb0c4;
+}
+.news-page .news-oil-prices .sb-price-chart {
+  height: 90px;
+}
+
+/* World Monitor & News tab in use: neutral light grey (the gold was too loud). */
+.news-tab.active {
+  color: #10151a;
+  background: linear-gradient(180deg, #c3c9ce, #9aa2aa);
+  border-color: #d5dadf;
+}
+
+/* Every tab / toggle in use: the same neutral light grey (no more gold). */
+.sb-tabs button.active,
+.sb-main-tabs button.active,
+.shop-drawer-tabs > button.active,
+.cmd-btn.active,
+.news-tab.active {
+  color: #10151a;
+  background: linear-gradient(180deg, #c3c9ce, #9aa2aa);
+  border-color: #d5dadf;
+}
+
+/* Settings modal: groups (Display / Sound / Language) of rows — neutral grey icon (as the active tabs), name + hint,
+   the control on the right; switches instead of checkboxes, volume with its percentage. */
+.pause-settings {
+  gap: 14px;
+  min-width: min(440px, calc(100vw - 48px));
+}
+.pause-group {
+  display: grid;
+  gap: 2px;
+  padding: 10px 12px;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid #3a4652;
+  border-radius: 4px;
+}
+.pause-group-title {
+  margin: 0 0 6px;
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: #8a97a5;
+}
+.pause-setting {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 0;
+}
+.pause-setting + .pause-setting {
+  border-top: 1px solid rgba(58, 70, 82, 0.6);
+}
+.pause-setting > svg {
+  color: #c3c9ce;
+}
+.pause-setting-name {
+  font-size: 14px;
+  color: #e3e9ef;
+}
+.pause-setting-hint {
+  font-size: 11px;
+  color: #8a97a5;
+}
+.pause-switch {
+  position: relative;
+  display: inline-block;
+  width: 40px;
+  height: 22px;
+  cursor: pointer;
+}
+.pause-switch input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.pause-switch-track {
+  position: absolute;
+  inset: 0;
+  background: #1a222a;
+  border: 1px solid #3a4652;
+  border-radius: 11px;
+  transition: background 0.15s ease;
+}
+.pause-switch-track::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  background: #8a97a5;
+  border-radius: 50%;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+.pause-switch input:checked + .pause-switch-track {
+  background: linear-gradient(180deg, #c3c9ce, #9aa2aa);
+  border-color: #d5dadf;
+}
+.pause-switch input:checked + .pause-switch-track::after {
+  transform: translateX(18px);
+  background: #10151a;
+}
+.pause-setting .pause-volume {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 180px;
+}
+.pause-setting .pause-volume input[type='range'] {
+  flex: 1;
+  accent-color: #c3c9ce;
+}
+.pause-volume-pct {
+  width: 38px;
+  text-align: right;
+  font-size: 12px;
+  color: #c3c9ce;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Settings group titles (Display / Sound / Language): small labels, not modal headings. */
+.end-card .pause-group .pause-group-title {
+  margin: 0 0 4px;
+  padding: 0;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: 2px;
+  color: #8a97a5;
+  background: none;
+  border: 0;
+  text-shadow: none;
+}
+.end-card .pause-group .pause-group-title {
+  font-size: 13px;
+  font-weight: 800;
+  color: #e3e9ef;
 }

@@ -1,5 +1,5 @@
-import { type IconNode, Car, Globe, Music, PanelRight, ScreenShareOff, ZoomIn, X, createElement } from 'lucide';
-import { type SidebarSide, setEdgeLock, setSidebarSide, setZoomLock, settings } from '../core/Settings';
+import { type IconNode, Car, Globe, Maximize, Music, ScreenShareOff, ZoomIn, X, createElement } from 'lucide';
+import { setEdgeLock, setZoomLock, settings } from '../core/Settings';
 import { type Lang, languageSelect, t } from '../i18n';
 import { adoptMatchCode, loadFromCloud } from '../net/CloudSave';
 
@@ -114,8 +114,23 @@ export class PauseMenu {
     card.style.setProperty('--end-color', '#f5c542');
     const title = document.createElement('h1');
     title.textContent = t('SETTINGS');
-    // One slider per volume: background music, vehicle / aircraft engines.
+    // Settings in groups (Display / Sound / Language), one per line: neutral icon, name, its control on the right.
     const syncs: (() => void)[] = [];
+    /** A switch (checkbox styled as a toggle). */
+    const toggle = (checked: () => boolean, onChange: (on: boolean) => void): HTMLLabelElement => {
+      const wrap = document.createElement('label');
+      wrap.className = 'pause-switch';
+      const box = document.createElement('input');
+      box.type = 'checkbox';
+      box.checked = checked();
+      box.addEventListener('change', () => onChange(box.checked));
+      syncs.push(() => (box.checked = checked()));
+      const knob = document.createElement('span');
+      knob.className = 'pause-switch-track';
+      wrap.append(box, knob);
+      return wrap;
+    };
+    /** A volume slider with its percentage. */
     const volumeSlider = (control: MusicVolumeControl, label: string): HTMLLabelElement => {
       const wrap = document.createElement('label');
       wrap.className = 'pause-volume';
@@ -125,66 +140,73 @@ export class PauseMenu {
       slider.max = '100';
       slider.step = '1';
       slider.setAttribute('aria-label', label);
+      const pct = document.createElement('span');
+      pct.className = 'pause-volume-pct';
+      const show = (): void => {
+        pct.textContent = `${slider.value}%`;
+      };
       syncs.push(() => {
         slider.value = String(Math.round(control.get() * 100));
+        show();
       });
-      slider.addEventListener('input', () => control.set(Number(slider.value) / 100));
-      wrap.append(slider);
+      slider.addEventListener('input', () => {
+        control.set(Number(slider.value) / 100);
+        show();
+      });
+      wrap.append(slider, pct);
       return wrap;
     };
-    const volume = volumeSlider(music, t('Music volume'));
-    const vehicleVolume = volumeSlider(vehicles, t('Vehicle volume'));
     this.syncVolume = (): void => syncs.forEach((f) => f());
-    // Screen lock: stop scrolling when the mouse leaves the browser window.
-    const lock = document.createElement('label');
-    lock.className = 'pause-check';
-    const lockBox = document.createElement('input');
-    lockBox.type = 'checkbox';
-    lockBox.checked = settings.edgeLock;
-    lockBox.addEventListener('change', () => setEdgeLock(lockBox.checked));
-    const lockText = document.createElement('span');
-    lockText.textContent = t('No scrolling when mouse is outside');
-    lock.append(lockBox, lockText);
-    // Zoom lock: the wheel and +/- keys stop zooming.
-    const zoomLock = document.createElement('label');
-    zoomLock.className = 'pause-check';
-    const zoomBox = document.createElement('input');
-    zoomBox.type = 'checkbox';
-    zoomBox.checked = settings.zoomLock;
-    zoomBox.addEventListener('change', () => setZoomLock(zoomBox.checked));
-    window.addEventListener('black-area:zoomlock', () => (zoomBox.checked = settings.zoomLock));
-    const zoomText = document.createElement('span');
-    zoomText.textContent = t('Lock zoom');
-    zoomLock.append(zoomBox, zoomText);
-    // Sidebar position: right (default) or bottom.
-    const sideSelect = document.createElement('select');
-    sideSelect.className = 'pause-select';
-    for (const [v, label] of [['right', t('Sidebar: right')], ['bottom', t('Sidebar: bottom')]] as const) {
-      const o = document.createElement('option');
-      o.value = v;
-      o.textContent = label;
-      sideSelect.append(o);
-    }
-    sideSelect.value = settings.sidebarSide;
-    sideSelect.addEventListener('change', () => setSidebarSide(sideSelect.value as SidebarSide));
-    // Settings, one per line: icon, then its control.
-    const row = (icon: IconNode, title: string, control: HTMLElement): HTMLDivElement => {
+    const row = (icon: IconNode, name: string, hint: string, control: HTMLElement): HTMLDivElement => {
       const r = document.createElement('div');
       r.className = 'pause-setting';
-      r.title = title;
-      const i = createElement(icon, { width: 20, height: 20, 'stroke-width': 2, 'aria-hidden': 'true' });
-      r.append(i, control);
+      r.append(createElement(icon, { width: 18, height: 18, 'stroke-width': 2, 'aria-hidden': 'true' }));
+      const text = document.createElement('div');
+      text.className = 'pause-setting-text';
+      const n = document.createElement('div');
+      n.className = 'pause-setting-name';
+      n.textContent = name;
+      text.append(n);
+      if (hint) {
+        const h = document.createElement('div');
+        h.className = 'pause-setting-hint';
+        h.textContent = hint;
+        text.append(h);
+      }
+      r.append(text, control);
       return r;
     };
+    const group = (name: string, ...rows: HTMLElement[]): HTMLElement => {
+      const g = document.createElement('section');
+      g.className = 'pause-group';
+      const h = document.createElement('h2');
+      h.className = 'pause-group-title';
+      h.textContent = name;
+      g.append(h, ...rows);
+      return g;
+    };
+    // Full screen (moved here from the dock): follows the browser's own state (Esc / F11 leave it too).
+    const fullscreen = toggle(
+      () => !!document.fullscreenElement,
+      (on) => {
+        if (on) void document.documentElement.requestFullscreen().catch(() => undefined);
+        else if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined);
+      },
+    );
+    document.addEventListener('fullscreenchange', () => this.syncVolume());
+    const zoom = toggle(() => settings.zoomLock, (on) => setZoomLock(on));
+    window.addEventListener('black-area:zoomlock', () => this.syncVolume());
     const settingsBox = document.createElement('div');
     settingsBox.className = 'pause-settings';
     settingsBox.append(
-      row(ScreenShareOff, t('Screen lock'), lock),
-      row(ZoomIn, t('Zoom lock'), zoomLock),
-      row(PanelRight, t('Sidebar position'), sideSelect),
-      row(Music, t('Music volume'), volume),
-      row(Car, t('Vehicle volume'), vehicleVolume),
-      row(Globe, t('Language'), languageSelect((lang) => saves.onLanguage(lang), false)),
+      group(
+        t('Display'),
+        row(Maximize, t('Full screen'), '', fullscreen),
+        row(ZoomIn, t('Lock zoom'), t('The mouse wheel and +/- keys stop zooming'), zoom),
+        row(ScreenShareOff, t('Screen lock'), t('No scrolling when mouse is outside'), toggle(() => settings.edgeLock, (on) => setEdgeLock(on))),
+      ),
+      group(t('Sound'), row(Music, t('Music volume'), '', volumeSlider(music, t('Music volume'))), row(Car, t('Vehicle volume'), '', volumeSlider(vehicles, t('Vehicle volume')))),
+      group(t('Language'), row(Globe, t('Language'), '', languageSelect((lang) => saves.onLanguage(lang), false))),
     );
     const resume = document.createElement('button');
     resume.type = 'button';
