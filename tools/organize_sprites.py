@@ -62,6 +62,16 @@ def main():
     moved = 0
     for base, paths in files.items():
         folder = ROOT / target[base] if base in target else ROOT
+        # Several copies of one sprite (a fresh render at the root, an older one in a former folder): the newest wins,
+        # whatever order they are found in — an old copy moved last must never replace the fresh render.
+        newest = {}
+        for p in paths:
+            cur = newest.get(p.name)
+            if cur is None or p.stat().st_mtime > cur.stat().st_mtime:
+                newest[p.name] = p
+        for p in [q for q in paths if newest[q.name] is not q]:
+            p.unlink()
+        paths = list(newest.values())
         for p in paths:
             dest = folder / p.name
             if p.resolve() != dest.resolve():

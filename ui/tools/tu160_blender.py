@@ -16,6 +16,8 @@ from mathutils import Matrix, Vector
 args = sys.argv[sys.argv.index('--') + 1:]
 NPZ, OUT = args[0], args[1]
 CELL, SCALE, ZMID, SPP = int(args[2]), float(args[3]), float(args[4]), int(args[5])
+# 'mask': only the faction line (the 'team' corners) shows, lit white; everything else is holdout (cut out).
+MASK = len(args) > 6 and args[6] == 'mask'
 SS = 2
 DIRS = 32  # Red Alert 2 facings, like the tank sheets: column 0 = nose up the screen, clockwise
 SIN_E = 0.5
@@ -85,6 +87,21 @@ def material(name, rough, metal, cavity):
         tree.links.new(src, occ.inputs['Color'])
         src = occ.outputs['Color']
     tree.links.new(src, bsdf.inputs['Base Color'])
+    if MASK:
+        for lk in list(bsdf.inputs['Base Color'].links):
+            tree.links.remove(lk)
+        bsdf.inputs['Base Color'].default_value = (1, 1, 1, 1)
+        bsdf.inputs['Metallic'].default_value = 0.0
+        flag = tree.nodes.new('ShaderNodeAttribute')
+        flag.attribute_name = 'team'
+        hold = tree.nodes.new('ShaderNodeHoldout')
+        mix = tree.nodes.new('ShaderNodeMixShader')
+        out = tree.nodes['Material Output']
+        tree.links.new(flag.outputs['Fac'], mix.inputs[0])
+        tree.links.new(hold.outputs[0], mix.inputs[1])
+        tree.links.new(bsdf.outputs[0], mix.inputs[2])
+        tree.links.new(mix.outputs[0], out.inputs['Surface'])
+        return mt
     if name == 'glass':
         bsdf.inputs['Coat Weight'].default_value = 1.0
         # Anti-glare / heating coating: a thin film gives the panes their gold-violet sheen.
@@ -116,6 +133,9 @@ def aircraft():
     ca = me.color_attributes.new('paint', 'FLOAT_COLOR', 'CORNER')
     lin = np.where(colours <= 0.04045, colours / 12.92, ((colours + 0.055) / 1.055) ** 2.4)
     ca.data.foreach_set('color', np.hstack([lin, np.ones((len(lin), 1))]).astype(np.float32).ravel())
+    if 'team' in d:
+        ta = me.attributes.new('team', 'FLOAT', 'CORNER')
+        ta.data.foreach_set('value', np.repeat(d['team'], 1).astype(np.float32))
     ob = bpy.data.objects.new('tu160', me)
     bpy.context.scene.collection.objects.link(ob)
     # Weld the split corners so the curved skins shade smoothly; sharp edges (wing edges, nacelle corners) stay sharp.

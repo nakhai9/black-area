@@ -523,7 +523,9 @@ export abstract class Unit extends Entity {
     }
     const walked = total - budget;
     this.walkPhase += walked * STEP_PHASE_PER_PX;
-    this.stepIdle = walked > 0.001 ? 0 : this.stepIdle + dt;
+    // Legs swing only while really walking (at least 30% of its pace): a soldier held up in a crowd or waiting at a
+    // crossing stands still, feet planted, instead of treading on the spot.
+    this.stepIdle = walked > Math.max(0.001, own * dt * 0.3) && this.crowdFactor > 0.3 ? 0 : this.stepIdle + dt;
     this.stepping = this.stepIdle < 0.12 && this.path.length > 0;
     this.tire(total - budget, dt);
     this.x = this.px / CELL_SIZE;

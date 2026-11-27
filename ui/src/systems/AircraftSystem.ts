@@ -991,23 +991,17 @@ export class AircraftSystem implements GameSystem {
     return false;
   }
 
-  /** Eases towards `target` at `speed` px/s along its nose (turning to face it first, never a sideways slide); true once there. */
-  private drift(v: Vehicle, target: WorldPoint, speed: number, dt: number): boolean {
+  /** Slides towards `target` at `speed` px/s without turning (a helicopter / transport settling onto its landing spot). */
+  private settle(v: Vehicle, target: WorldPoint, speed: number, dt: number): void {
     const dx = target.x - v.px;
     const dy = target.y - v.py;
     const d = Math.hypot(dx, dy);
     if (d < 0.6) {
       this.place(v, target.x, target.y);
-      return true;
+      return;
     }
-    let diff = Math.atan2(dy, dx) - v.heading;
-    while (diff > Math.PI) diff -= Math.PI * 2;
-    while (diff < -Math.PI) diff += Math.PI * 2;
-    v.heading += Math.max(-3 * dt, Math.min(3 * dt, diff));
-    if (Math.abs(diff) > 0.4) return false;
     const step = Math.min(d, speed * dt);
-    this.place(v, v.px + Math.cos(v.heading) * step, v.py + Math.sin(v.heading) * step);
-    return false;
+    this.place(v, v.px + (dx / d) * step, v.py + (dy / d) * step);
   }
 
   /** Lost its airfield while on the ground or landing: re-home at another airfield and take to the air, or crash. */
@@ -1247,7 +1241,9 @@ export class AircraftSystem implements GameSystem {
     v.phaseTime += dt;
     const t = v.phaseTime;
     // Settling onto the spot it slides there nose unchanged (RA2: no pivot on arrival), like the ground vehicles.
-    if (v.dropSpot && t < DESCEND_SECONDS) this.drift(v, v.dropSpot, 10, dt);
+    // (drift() turned the nose towards the spot, so a spot a few px behind or beside it swung the aircraft round on
+    // touchdown: now it slides straight there, keeping the heading it arrived with.)
+    if (v.dropSpot && t < DESCEND_SECONDS) this.settle(v, v.dropSpot, 10, dt);
     if (t < DESCEND_SECONDS) {
       v.altitude = CRUISE_ALTITUDE * (1 - clamp01(t / DESCEND_SECONDS));
     } else if (v.pickup) {

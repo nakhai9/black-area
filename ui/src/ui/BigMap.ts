@@ -256,17 +256,11 @@ export class BigMap {
    * Fills the dock from a (new) sidebar: the nation's flag beside the logo, the production tab buttons (their clicks
    * open `openProduction`), the loan button, and the settings / allies buttons. Replaces whatever a previous sidebar put.
    */
-  setDock(o: { faction: FactionId; productionTabs: readonly HTMLElement[]; production: HTMLElement; loan: HTMLElement; onSettings: () => void; onAllies: () => void }): void {
+  setDock(o: { faction: FactionId; loan: HTMLElement; onSettings: () => void; onAllies: () => void }): void {
     this.dockBadge.innerHTML = factionBadgeHtml(o.faction, 'sm');
-    for (const b of o.productionTabs) b.classList.add('cmd-btn');
-    const caption = document.createElement('span');
-    caption.className = 'cmd-shop-caption';
-    caption.textContent = t('Shop');
-    const buttons = document.createElement('span');
-    buttons.className = 'cmd-shop-buttons';
-    buttons.append(...o.productionTabs);
-    this.dockProduction.replaceChildren(caption, buttons);
-    this.dockProduction.title = t('Shop: build structures and defenses, train soldiers, vehicles and aircraft');
+    // The shop (production tabs + cameos) is back in the sidebar: no shop group in the dock.
+    this.dockProduction.replaceChildren();
+    this.dockProduction.hidden = true;
     o.loan.classList.add('cmd-loan');
     this.dockLoan.replaceChildren(o.loan);
     const tail = (icon: IconNode, label: string, onClick: () => void): HTMLButtonElement => {
@@ -280,9 +274,6 @@ export class BigMap {
       return b;
     };
     this.dockTail.replaceChildren(tail(SettingsIcon, t('Settings'), o.onSettings), tail(Handshake, t('Allies'), o.onAllies));
-    this.production.card.querySelectorAll('.sb-build').forEach((el) => el.remove());
-    o.production.classList.add('production-panel');
-    this.production.card.append(o.production);
   }
 
   /** Shows the production modal (a production tab was clicked in the dock). */

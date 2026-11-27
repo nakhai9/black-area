@@ -366,8 +366,6 @@ export class Sidebar {
   readonly productionSection: HTMLElement;
   /** A production tab was opened from the dock: the dock shows its modal (set by the game). */
   onOpenProduction: ((tab: TabId) => void) | null = null;
-  /** The production modal is open (its tab shows as active). */
-  private productionShown = false;
   private readonly autoSellButton: HTMLButtonElement;
   private readonly cartelPanel: HTMLElement;
   private readonly policyText: HTMLElement;
@@ -435,11 +433,6 @@ export class Sidebar {
     return BUILD_TABS.map((t) => this.tabButtons.get(t.id)!).filter(Boolean);
   }
 
-  /** The dock's production modal opened / closed. */
-  setProductionShown(on: boolean): void {
-    this.productionShown = on;
-    this.markTabs();
-  }
 
   /** Allies button of the dock: the sidebar shows the occupied capitals (who holds whose capital). */
   openAllies(): void {
@@ -1427,17 +1420,14 @@ export class Sidebar {
   private switchTab(id: TabId, open = false): void {
     this.activeTab = id;
     for (const [tab, panel] of this.panels) panel.hidden = tab !== id;
-    if (open) {
-      this.productionShown = true;
-      this.onOpenProduction?.(id);
-    }
-    this.markTabs();
+    if (open) this.switchView('production');
+    else this.markTabs();
   }
 
   /** A production tab shows as active only while the production page is open. */
   private markTabs(): void {
     for (const [tab, btn] of this.tabButtons) {
-      const on = this.productionShown && tab === this.activeTab;
+      const on = this.activeView === 'production' && tab === this.activeTab;
       btn.classList.toggle('active', on);
       btn.setAttribute('aria-pressed', String(on));
     }
@@ -1681,8 +1671,8 @@ export class Sidebar {
       btn.addEventListener('click', () => {
         if (!btn.disabled) this.switchTab(tab.id, true);
       });
-      // They live in the command dock at the bottom of the screen (BigMap.setDock), not in the sidebar.
-      void nav;
+      // The shop is back in the sidebar: one row with Command, the production tabs follow it.
+      nav.append(btn);
       this.tabButtons.set(tab.id, btn);
     }
   }

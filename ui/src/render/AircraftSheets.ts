@@ -42,7 +42,7 @@ const AWACS_LENGTH = 9.5;
  * Sheets rendered the ART_GUIDE way (faction line in neutral grey + a `-team` mask sheet in the same layout): the mask
  * is tinted with the OWNER's colour (Unit.banner) over the body. Others still have their nation's colour baked in.
  */
-const MASKED: ReadonlySet<string> = new Set(['c17-usa.webp']);
+const MASKED: ReadonlySet<string> = new Set(['c17-usa.webp', 'il76-russia.webp', 'a400m-europe.webp', 'y20-china.webp', 'b1-usa.webp', 'b1-usa-turbo.webp', 'tu160-russia.webp', 'tu160-russia-turbo.webp', 'h6-china.webp']);
 const MASKS = new Map<string, HTMLImageElement>();
 function maskOf(sh: AircraftSheet): HTMLImageElement | null {
   const file = sh.url.slice(sh.url.lastIndexOf('/') + 1);

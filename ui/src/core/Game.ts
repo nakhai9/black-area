@@ -993,19 +993,14 @@ export class Game {
     };
     this.bigMap.setWarClock(this.sidebar.warClock);
     // Command dock (bottom): logo + flag, war clock, home / map / production / loan / nuclear / settings / allies.
-    const tabs = this.sidebar.productionTabs();
     this.bigMap.setDock({
       faction: this.humanPlayer.faction as FactionId,
-      productionTabs: tabs,
-      production: this.sidebar.productionSection,
       loan: this.sidebar.loanButton,
       onSettings: () => {
         if (!this.paused && !this.ended) this.togglePause();
       },
       onAllies: () => this.sidebar.openAllies(),
     });
-    this.sidebar.onOpenProduction = (tab) => this.bigMap?.openProduction(tabs.find((b) => b.dataset.tab === tab)?.title ?? '');
-    this.bigMap.onProductionClosed = () => this.sidebar.setProductionShown(false);
     this.bigMinimap = new Minimap(
       this.bigMap.canvas,
       this.terrain,
@@ -2918,7 +2913,7 @@ export class Game {
     if (!t.isCarrier || t.owner !== this.humanPlayer.id) return false;
     const usable = t.boardable || t.flight === 'airborne' || t.flight === 'approach' || (t.flight === 'unloading' && t.pickup);
     if (!usable) return false;
-    return this.selection.selectedUnitList().some((u) => u !== t && !u.aircraft && t.accepts(u) && (u instanceof Vehicle ? t.fitsWith(0, 1) : t.fitsWith(1, 0)));
+    return this.selection.selectedUnitList().some((u) => u !== t && (!u.aircraft || (u instanceof Vehicle && u.isHeli)) && t.accepts(u) && (u instanceof Vehicle ? t.fitsWith(0, 1) : t.fitsWith(1, 0)));
   }
 
   /**
@@ -4297,6 +4292,11 @@ export class Game {
             // If one side is blocked (water, building), the other takes the whole push so they still come apart.
             if (!this.shove(a, -vx * push * wa, -vy * push * wa)) this.shove(b, vx * push * wa, vy * push * wa);
             if (!this.shove(b, vx * push * (1 - wa), vy * push * (1 - wa))) this.shove(a, -vx * push * (1 - wa), -vy * push * (1 - wa));
+            // Anti-deadlock: a moving unit with the other one ahead of it (head-on or across its path) steers off to its
+            // right, so two units meeting at a crossing slip past each other instead of pushing nose to nose forever.
+            const overlap = gap - d;
+            this.steerAround(a, vx / d, vy / d, overlap);
+            this.steerAround(b, -vx / d, -vy / d, overlap);
           }
         }
       }
@@ -4342,6 +4342,32 @@ export class Game {
     const along = dx * hx + dy * hy;
     if (Math.abs(along) < 1e-4) return false;
     return this.nudge(u, hx * along, hy * along);
+  }
+
+  /**
+   * Steering around a unit in the way: (ox, oy) is the unit vector towards the other unit. Only a moving unit that has
+   * the other one in front of it (within ±75° of its course) steps sideways to its right; if the right is blocked
+   * (wall, water, building) it tries the left. Player and AI alike, ground and air.
+   */
+  private steerAround(u: Unit, ox: number, oy: number, overlap: number): void {
+    if (!u.moving || u.fixed || !u.alive) return;
+    const next = u.waypoints()[0];
+    let fx: number;
+    let fy: number;
+    if (next) {
+      const len = Math.hypot(next.x - u.px, next.y - u.py);
+      if (len < 0.5) return;
+      fx = (next.x - u.px) / len;
+      fy = (next.y - u.py) / len;
+    } else {
+      fx = Math.cos(u.heading);
+      fy = Math.sin(u.heading);
+    }
+    if (ox * fx + oy * fy < 0.26) return; // the other one is beside or behind it: nothing to steer around
+    const step = Math.min(1.2, Math.max(0.3, overlap * 0.5));
+    const rx = -fy;
+    const ry = fx;
+    if (!this.nudge(u, rx * step, ry * step)) this.nudge(u, -rx * step, -ry * step);
   }
 
   private nudge(u: Unit, dx: number, dy: number): boolean {
@@ -4911,14 +4937,14 @@ export class Game {
         // A selected transport clicked while other selected units could ride it: they climb aboard (the transport
         // and whoever does not fit stay selected).
         if (unit instanceof Vehicle && this.canBoardSelected(unit)) {
-          const riders = selected.filter((u) => u !== unit && !u.aircraft);
+          const riders = selected.filter((u) => u !== unit && (!u.aircraft || (u instanceof Vehicle && u.isHeli)));
           if (this.orderBoard(unit, riders)) return;
         }
         this.orderMove(world);
         return;
       }
       if (unit instanceof Vehicle && unit.isCarrier && unit.owner === me && !this.selection.selectedUnits.has(unit.id)) {
-        const riders = selected.filter((u) => !u.aircraft);
+        const riders = selected.filter((u) => !u.aircraft || (u instanceof Vehicle && u.isHeli));
         if (riders.length > 0 && this.orderBoard(unit, riders)) return;
       }
       // Repair vehicles + click on a damaged own ground vehicle, or damaged vehicles + click on an own repair vehicle.

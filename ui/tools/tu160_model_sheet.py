@@ -210,6 +210,26 @@ def paint(pos, nrm, parts, col):
     return np.clip(col, 0, 255)
 
 
+# ------------------------------------------------------------------ faction line (ART_GUIDE: owner colours)
+
+TEAM_GREY = (200, 200, 200)  # neutral grey: the -team mask sheet carries the owner's colour, tinted in the game
+
+
+def team_band(pos, parts, col):
+    """Faction identity line of every bomber: a ring round the body behind the cockpit and the fin tip, painted neutral
+    grey; returns the corners that belong to it (they make the -team mask)."""
+    u, z = pos[:, 0], pos[:, 2]
+    body = parts == 'body'
+    umax, umin = u[body].max(), u[body].min()
+    span = umax - umin
+    team = body & (u < umax - 0.30 * span) & (u > umax - 0.335 * span)
+    fin = np.isin(parts, ('fin', 'finTop'))
+    if fin.any():
+        team |= fin & (z > z[fin].max() - 0.7)
+    col[team] = TEAM_GREY
+    return team
+
+
 # ------------------------------------------------------------------ render
 
 def subdivide(tri, parts, edge=0.16):
@@ -246,15 +266,21 @@ def render_sheet(wings, preview, build=build, paint=paint, outs=WINGS):
     corners = tri.reshape(-1, 3)
     cparts = np.repeat(parts, 3)
     colours = paint(corners, np.repeat(nrm, 3, 0), cparts, np.zeros((len(corners), 3)))
+    team = team_band(corners, cparts, colours)
     names = np.unique(parts)
     tmp = tempfile.mkdtemp()
     npz = os.path.join(tmp, 'mesh.npz')
-    np.savez(npz, corners=corners, colours=colours / 255.0, parts=np.searchsorted(names, parts), names=names)
-    raw = os.path.join(tmp, 'poses.npy')
+    np.savez(npz, corners=corners, colours=colours / 255.0, parts=np.searchsorted(names, parts), names=names, team=team.astype(np.float32))
     print(f'{wings}: {len(tri)} triangles, rendering in Blender…', flush=True)
-    subprocess.run([am.BLENDER, '-b', '--factory-startup', '-P', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'tu160_blender.py'),
-                    '--', npz, raw, str(CELL), str(scale), str(zmid), os.environ.get('TU160_SAMPLES', '32')], check=True, capture_output=True)
-    poses = np.load(raw)  # 5 rows: level, bank left, bank right, crash 1, crash 2
+
+    def blender(mode):
+        raw = os.path.join(tmp, f'poses-{mode}.npy')
+        subprocess.run([am.BLENDER, '-b', '--factory-startup', '-P', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'tu160_blender.py'),
+                        '--', npz, raw, str(CELL), str(scale), str(zmid), os.environ.get('TU160_SAMPLES', '32'), mode], check=True, capture_output=True)
+        return np.load(raw)
+
+    poses = blender('paint')  # 5 rows: level, bank left, bank right, crash 1, crash 2
+    masks = blender('mask')  # the same poses, only the faction line (lit white), the rest cut out
     pose = lambda i, tint=1.0: Image.fromarray(np.dstack([np.clip(poses[i * CELL:(i + 1) * CELL, :, :3] * tint, 0, 1),
                                                           poses[i * CELL:(i + 1) * CELL, :, 3:]]).__mul__(255).round().astype(np.uint8), 'RGBA')
     rows = [pose(0), pose(0), pose(0), pose(0), pose(1), pose(2), pose(3, 0.6), pose(4, 0.4)]
@@ -270,6 +296,14 @@ def render_sheet(wings, preview, build=build, paint=paint, outs=WINGS):
         sheet.alpha_composite(am.render(pos, np.zeros((len(pos), 3)), pn, d / dirs * 2 * math.pi, scale, zmid, 1, True), (d * CELL, 8 * CELL))
     out = f"public/sprites/{outs[wings]['out']}.png"
     sheet.save(out, optimize=True)
+    # Faction mask: same rows and facings (no shadow row); the game tints it with the owner's colour.
+    mpose = lambda i, tint=1.0: Image.fromarray(np.dstack([np.clip(masks[i * CELL:(i + 1) * CELL, :, :3] * tint, 0, 1),
+                                                           masks[i * CELL:(i + 1) * CELL, :, 3:]]).__mul__(255).round().astype(np.uint8), 'RGBA')
+    msheet = Image.new('RGBA', (CELL * dirs, CELL * 9))
+    for r, img in enumerate([mpose(0), mpose(0), mpose(0), mpose(0), mpose(1), mpose(2), mpose(3, 0.6), mpose(4, 0.4)]):
+        msheet.paste(img, (0, r * CELL))
+    msheet.save(out.replace('.png', '-team.png'), optimize=True)
+    print(f"{out.replace('.png', '-team.png')}  faction mask")
     print(f'{out}  length {ext[0]:.1f} m, span {ext[1]:.1f} m, height {ext[2]:.1f} m')
     if preview:
         pv = Image.new('RGBA', (CELL * 8, CELL * 2), (96, 116, 74, 255))

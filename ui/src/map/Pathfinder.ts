@@ -363,6 +363,12 @@ export class Pathfinder {
         // No corner cutting: both side cells of a diagonal step must be open too (they are in bounds here).
         if (dx !== 0 && dy !== 0 && (!free(cy * W + nx) || !free(ny * W + cx))) continue;
         if (closed[ni] === run) continue;
+        // Vehicles never route through a 1-cell-wide gap (blocked on both sides, left+right or top+bottom): a hull jams
+        // there. Bridge decks, mountain trails and the start / goal cells are exempt. No way round → build a bridge.
+        if (vehicle && ni !== goalI && ni !== startI && bridge[ni] !== 1 && mountain[ni] !== MOUNTAIN_PASS) {
+          const open1 = (x: number, y: number): boolean => x >= 0 && y >= 0 && x < W && y < H && free(y * W + x);
+          if ((!open1(nx - 1, ny) && !open1(nx + 1, ny)) || (!open1(nx, ny - 1) && !open1(nx, ny + 1))) continue;
+        }
         // Vehicles keep a cell off structures and off the water's edge where they can (a hull swinging wide would drive in).
         const near = vehicle && ni !== goalI && (this.nearStructure(nx, ny) || this.nearWater(nx, ny)) ? NEAR_STRUCTURE_COST : 1;
         const cost = gc + (STEP[k] ?? 1) * near * (mountain[ni] === MOUNTAIN_PASS ? MOUNTAIN_PATH_COST : !dozer && (trees[ni] ?? 0) > 0 ? TREE_COST : 1);
