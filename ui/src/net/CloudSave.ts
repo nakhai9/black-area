@@ -29,8 +29,6 @@ function readId(): string | null {
 
 /** Player id for this page: read once at start, replaced by the one the server issues on the first save. */
 let currentId: string | null = readId();
-/** Whether this browser already had a player id when the page opened (Continue is offered). */
-const returning = currentId !== null;
 
 function storeId(id: string | null): void {
   currentId = id;
@@ -44,8 +42,6 @@ function storeId(id: string | null): void {
 
 /** This player's id issued by the server, or null before the first cloud save. */
 export const playerId = (): string | null => currentId;
-/** True when the browser had a player id when the page opened: the player has saved before (Continue is offered). */
-export const isReturningPlayer = (): boolean => returning;
 
 const headers = (): Record<string, string> => ({
   'content-type': 'application/json',

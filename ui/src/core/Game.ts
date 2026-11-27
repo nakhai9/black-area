@@ -7,7 +7,7 @@ import type { DvinaMissile } from '../systems/CombatSystem';
 import { startedLoaded } from '../render/onDemand';
 import { askSaveTarget } from '../ui/SaveChoice';
 import { storedLeaderName } from '../ui/LeaderName';
-import { backToMenuWithToast, saveToCloud } from '../net/CloudSave';
+import { backToMenuWithToast, playerId as cloudPlayerId, saveToCloud } from '../net/CloudSave';
 import { BULLET_FLIGHT_SECONDS, BULLET_IMPACT_SECONDS, hasBulletSheet, type BulletSize } from '../render/BulletSheet';
 import { demoActive, setDemoActive, setDemoAttacker } from './Demo';
 import {
@@ -1457,7 +1457,8 @@ export class Game {
       }
       try {
         await saveToCloud(file.text);
-        backToMenuWithToast(t('Game saved to the cloud.'));
+        const code = cloudPlayerId();
+        backToMenuWithToast(code ? t('Game saved to the cloud. Match code: {code}', { code }) : t('Game saved to the cloud.'));
       } catch (err) {
         console.error(err);
         this.sidebar.notify(t('Could not save to the cloud: {error}', { error: err instanceof Error ? err.message : String(err) }), 6);
