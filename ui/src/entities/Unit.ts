@@ -30,13 +30,19 @@ export type CapitalChoice = 'embargo' | 'disarm' | 'nuclear' | 'parallel' | 'cap
  * rate, and notices when it is stuck.
  */
 /** A ground vehicle pointing farther than this (radians) from its next waypoint stops and turns on the spot first. */
-const PIVOT_ANGLE = 0.45;
+const PIVOT_ANGLE = 0.7;
+/** A ground vehicle this close (world px) to a bend already heads for the following point, when that cut is clear. */
+const VEHICLE_CORNER_CUT = CELL_SIZE * 0.6;
+/** Distance (world px) over which a ground vehicle brakes before a sharp bend. */
+const BEND_BRAKE_DIST = CELL_SIZE * 1.5;
 /** A ground vehicle backs up (instead of turning its nose away) to a waypoint behind it within this many world px. */
 const REVERSE_RANGE = CELL_SIZE * 3;
 /** A soldier this close (world px) to a bend in his route already heads for the next point. */
 const CORNER_CUT = 1.2;
 /** Speed share while backing up. */
 const REVERSE_SPEED = 0.6;
+/** Seconds a ground unit may circle close to its goal before it settles where it is. */
+const NEAR_GOAL_GIVE_UP = 2.5;
 
 export abstract class Unit extends Entity {
   readonly kind = 'unit' as const;
@@ -289,6 +295,8 @@ export abstract class Unit extends Entity {
 
   /** Speed share allowed by traffic this tick (queueing behind a slower unit ahead); 1 = free road. */
   crowdFactor = 1;
+  /** Seconds spent close to its goal without arriving (see trackProgress). */
+  private nearGoalFor = 0;
   /** Seconds it has been waiting at a crossing for another unit to go by. */
   crossingWait = 0;
   /** Game time it drove up to (or onto) a bridge, -1 when not at one: bridges are crossed first come, first served. */
@@ -397,6 +405,9 @@ export abstract class Unit extends Entity {
     const toEnd = goal ? Math.hypot(goal.x - this.px, goal.y - this.py) : 0;
     let target = moving ? 1 : 0;
     if (moving && this.path.length === 1) target = Math.min(1, Math.max(0.3, toEnd / (this.speed * 0.3)));
+    // Brakes before a sharp bend (instead of arriving at full speed and halting dead to pivot): the sharper the bend,
+    // the slower it reaches the corner, so it rolls through a mild one and eases into a pivot on a sharp one.
+    if (moving && this.drivesForward && this.turnsToMove && this.path.length > 1) target = Math.min(target, this.bendSpeed());
     if (moving && this.drivesForward && this.turnsToMove) target *= this.rollAlignment() * (this.backsUp() ? REVERSE_SPEED : 1);
     else if (moving && this.turnsToMove) target *= this.alignment();
     // A ship never backs or slides: it slows down while it turns, so it comes about in a tighter circle.
@@ -431,6 +442,15 @@ export abstract class Unit extends Entity {
       if (this.path.length > 1 && dist < Math.max(1.2, this.radius * 0.5)) {
         this.path.shift();
         continue;
+      }
+      // A machine turns in before the corner (when the cut is clear) instead of driving onto the exact point and
+      // pivoting there: it curves round the bend.
+      if (this.drivesForward && this.turnsToMove && this.path.length > 1 && dist < VEHICLE_CORNER_CUT && !reverse) {
+        const after = this.path[1]!;
+        if (!Unit.blocks || !Unit.blocks(this, this.px, this.py, after.x, after.y)) {
+          this.path.shift();
+          continue;
+        }
       }
       // A soldier rounds a corner: close to a bend he already heads for the following point.
       if (!this.drivesForward && this.path.length > 1 && dist < CORNER_CUT && dist > budget) {
@@ -584,6 +604,21 @@ export abstract class Unit extends Entity {
    * Ground vehicle throttle while turning (RA2): pointing well away from the next waypoint it stops and pivots on the
    * spot; nearly lined up it rolls, slower the more it still has to turn.
    */
+  private bendSpeed(): number {
+    const a = this.path[0];
+    const b = this.path[1];
+    if (!a || !b) return 1;
+    const dist = Math.hypot(a.x - this.px, a.y - this.py);
+    if (dist >= BEND_BRAKE_DIST) return 1;
+    let bend = Math.atan2(b.y - a.y, b.x - a.x) - Math.atan2(a.y - this.py, a.x - this.px);
+    while (bend > Math.PI) bend -= Math.PI * 2;
+    while (bend < -Math.PI) bend += Math.PI * 2;
+    const sharp = Math.min(1, Math.abs(bend) / Math.PI); // 0 straight .. 1 U-turn
+    const atCorner = 1 - sharp * 0.75;
+    const t = dist / BEND_BRAKE_DIST;
+    return atCorner + (1 - atCorner) * t;
+  }
+
   private rollAlignment(): number {
     const next = this.path[0];
     if (!next) return 1;
@@ -621,6 +656,19 @@ export abstract class Unit extends Entity {
    * asks the game for a new route.
    */
   private trackProgress(dt: number, moving: boolean): void {
+    // Circling its goal (the spot is taken, e.g. by a tank already parked at the rally point): once it has hung
+    // about close to the goal for a while without getting there, it counts as arrived and stops where it is.
+    const end = this.path[this.path.length - 1];
+    const nearR = Math.max(CELL_SIZE * 2.5, this.radius * 4);
+    const near = moving && !this.flies && !!end && Math.hypot(end.x - this.px, end.y - this.py) < nearR;
+    this.nearGoalFor = near ? this.nearGoalFor + dt : 0;
+    // Allowance: three times what driving that stretch takes (slow units get longer), at least NEAR_GOAL_GIVE_UP.
+    const allowance = Math.max(NEAR_GOAL_GIVE_UP, (3 * nearR) / Math.max(0.1, this.speed * this.speedFactor()));
+    if (this.nearGoalFor > allowance && this.bridgeSince < 0 && !this.bridgeBound) {
+      this.nearGoalFor = 0;
+      this.stop();
+      return;
+    }
     const moved = Math.hypot(this.px - this.lastX, this.py - this.lastY);
     this.lastX = this.px;
     this.lastY = this.py;

@@ -151,6 +151,7 @@ import {
 } from '../constants';
 import { worldToIso } from './IsoView';
 import { Building, isVehicleUnit } from '../entities/Building';
+import { PowerPlant } from '../entities/PowerPlant';
 import { MilitaryGarage } from '../entities/MilitaryGarage';
 import { PLACEMENT_MARGIN } from '../map/TileMap';
 import { Capital } from '../entities/Capital';
@@ -315,6 +316,10 @@ export type GameCommand = (
   /** Give up a contested nation's capital I hold: it goes back to neutral, as at the start. */
   | { k: 'releaseCapital'; b: number }
   | { k: 'sellOil' | 'autoSell' | 'loan' | 'unload' | 'turbo' }
+  /** Military Garage: let out only the soldiers, or only the vehicles. */
+  | { k: 'garageOut'; only: 'soldiers' | 'vehicles' }
+  /** Raise my power plant one level (pays the next level's price). */
+  | { k: 'plantUpgrade'; b: number }
   /** My engineer standing in an enemy capital: what he does there (see CapitalChoice). */
   | { k: 'capitalChoice'; u: number; c: CapitalChoice | null }
   /** Server-sent: that player left the match. */
@@ -430,7 +435,7 @@ const BRIDGE_GAP_PX = 2;
 /** PGZ-09 rounds per shot (alternating barrels) and the time between them. */
 const PGZ_BURST = 2;
 const PGZ_ROUND_SECONDS = 0.07;
-const ORDER_COMMANDS: ReadonlySet<string> = new Set(['right', 'forceAttack', 'fell', 'guard', 'waypoints', 'bridge', 'unload']);
+const ORDER_COMMANDS: ReadonlySet<string> = new Set(['right', 'forceAttack', 'fell', 'guard', 'waypoints', 'bridge', 'unload', 'garageOut']);
 /** Longest a unit waits at a bridge for oncoming traffic that got there first before it drives on anyway (no deadlock). */
 const BRIDGE_YIELD_SECONDS = 4;
 /** Units within this many cells of a bridge count as at its mouth (queue, slip past each other, never give up). */
@@ -976,6 +981,11 @@ export class Game {
       onReleaseCapital: (id: number) => this.issue({ k: 'releaseCapital', b: id }),
       onOilPolicy: (policy) => this.issue({ k: 'policy', policy }),
       onUnload: () => this.issue({ k: 'unload' }),
+      onGarageOut: (only) => this.issue({ k: 'garageOut', only }),
+      onPlantUpgrade: () => {
+        const pl = this.selectedPlant();
+        if (pl) this.issue({ k: 'plantUpgrade', b: pl.id });
+      },
       onBridge: () => this.startBridging(),
       onMine: () => this.startMining(),
       onTurbo: () => this.issue({ k: 'turbo' }),
@@ -2907,6 +2917,27 @@ export class Game {
    * spot when it stands on the ground, otherwise it first sets down on the nearest solid ground below it.
    */
   /** The selected structure when it is one of my Military Garages, or null. */
+  /** The selected structure when it is one of my power plants, or null. */
+  private selectedPlant(): PowerPlant | null {
+    const id = this.selection.selectedId;
+    const b = id === null ? undefined : this.entities.get(id);
+    return b instanceof PowerPlant && b.alive && b.owner === this.humanPlayer.id ? b : null;
+  }
+
+  /** Raises a plant one level if `p` owns it and can pay (player and AI alike). True: upgraded. */
+  upgradePlant(p: PlayerState, plant: PowerPlant): boolean {
+    const cost = plant.upgradeCost;
+    if (cost === null || !plant.alive || plant.owner !== p.id || p.defeated) return false;
+    if (p.credits < cost) {
+      if (p === this.humanPlayer) this.sidebar.notify(tr('Not enough TB to upgrade the {name}.', { name: plant.spec.name }));
+      return false;
+    }
+    p.credits -= cost;
+    plant.upgrade();
+    if (p === this.humanPlayer) this.sidebar.notify(tr('{name} upgraded to level {level}.', { name: plant.spec.name, level: plant.level }));
+    return true;
+  }
+
   private selectedGarage(): MilitaryGarage | null {
     const id = this.selection.selectedId;
     const b = id === null ? undefined : this.entities.get(id);
@@ -3002,6 +3033,7 @@ export class Game {
         incoming,
         state: incoming > 0 ? 'loading' : soldiers + vehicles > 0 ? 'carrying' : 'idle',
         canUnload: soldiers + vehicles > 0,
+        garage: true,
       };
     }
     const t = this.selectedTransport();
@@ -3785,7 +3817,8 @@ export class Game {
         p.x = u.px;
         p.y = u.py;
         p.alt = u instanceof Vehicle ? u.altitude : 0;
-      } else this.prevPos.set(u, { x: u.px, y: u.py, alt: u instanceof Vehicle ? u.altitude : 0 });
+        p.h = u.heading;
+      } else this.prevPos.set(u, { x: u.px, y: u.py, alt: u instanceof Vehicle ? u.altitude : 0, h: u.heading });
     }
     this.prof.time('updateWarCycle', () => this.updateWarCycle(dt));
     this.prof.time('updateViolators', () => this.updateViolators(dt));
@@ -4172,6 +4205,18 @@ export class Game {
       case 'unload':
         this.unloadSelectedTransport();
         break;
+      case 'plantUpgrade': {
+        const pl = this.entities.get(cmd.b);
+        if (pl instanceof PowerPlant) this.upgradePlant(this.humanPlayer, pl);
+        break;
+      }
+      case 'garageOut': {
+        const garage = this.selectedGarage();
+        if (!garage) break;
+        const out = garage.garrison.filter((u) => (cmd.only === 'soldiers') === u instanceof Infantry);
+        if (out.length > 0) this.ejectUnits(garage, out);
+        break;
+      }
       case 'turbo':
         this.turboSelected();
         break;
@@ -4568,7 +4613,7 @@ export class Game {
 
   /** Per-frame: input, camera, rendering, UI. */
   /** Positions of the units at the start of the last tick (for drawing them between ticks). */
-  private readonly prevPos = new WeakMap<Unit, { x: number; y: number; alt: number }>();
+  private readonly prevPos = new WeakMap<Unit, { x: number; y: number; alt: number; h: number }>();
 
   /**
    * The simulation steps at TICK_RATE (30 Hz) but the screen refreshes at 60 Hz or more: drawn straight from the
@@ -4580,14 +4625,19 @@ export class Game {
       draw();
       return;
     }
-    const saved: [Unit, number, number, number][] = [];
+    const saved: [Unit, number, number, number, number][] = [];
     for (const u of units) {
       const p = this.prevPos.get(u);
       const alt = u instanceof Vehicle ? u.altitude : 0;
-      if (!p || (p.x === u.px && p.y === u.py && p.alt === alt)) continue;
+      if (!p || (p.x === u.px && p.y === u.py && p.alt === alt && p.h === u.heading)) continue;
       // A jump of more than a few cells in one tick is a teleport (unloading, spawning): no sliding across.
       if (Math.abs(u.px - p.x) + Math.abs(u.py - p.y) > CELL_SIZE * 3) continue;
-      saved.push([u, u.px, u.py, alt]);
+      saved.push([u, u.px, u.py, alt, u.heading]);
+      // Heading too, the short way round: a turning hull swings smoothly between ticks instead of stepping.
+      let dh = u.heading - p.h;
+      while (dh > Math.PI) dh -= Math.PI * 2;
+      while (dh < -Math.PI) dh += Math.PI * 2;
+      if (Math.abs(dh) < 1) u.heading = p.h + dh * alpha;
       u.px = p.x + (u.px - p.x) * alpha;
       u.py = p.y + (u.py - p.y) * alpha;
       if (u instanceof Vehicle) u.altitude = p.alt + (alt - p.alt) * alpha;
@@ -4595,7 +4645,8 @@ export class Game {
     try {
       draw();
     } finally {
-      for (const [u, x, y, alt] of saved) {
+      for (const [u, x, y, alt, h] of saved) {
+        u.heading = h;
         u.px = x;
         u.py = y;
         if (u instanceof Vehicle) u.altitude = alt;
@@ -4798,6 +4849,10 @@ export class Game {
           ...(this.sidebar.wantsRanking(elapsed) ? { ranking: this.ranking(), occupied: this.occupiedCapitals(), newsLog: this.newsLog } : { ranking: null, occupied: null, newsLog: null }),
           transport: this.transportInfo(),
           bridgeReady: this.selectedBridgeLayers().length > 0,
+          plantUpgrade: (() => {
+            const pl = this.selectedPlant();
+            return pl ? { level: pl.level, cost: pl.upgradeCost } : null;
+          })(),
           bridging: this.bridging,
           mines: this.mineInfo(),
           aircraft: this.aircraftInfo(),

@@ -1,3 +1,5 @@
+import { POWER_PLANT_MAX_LEVEL } from '../constants';
+import { PowerPlant } from '../entities/PowerPlant';
 import { MissileSilo } from '../entities/MissileSilo';
 import { LdewEmplacement } from '../entities/LdewEmplacement';
 import { concealedFrom, isSeat } from '../entities/ReserveCapital';
@@ -85,6 +87,8 @@ export interface AIHost {
   orderGarage(b: Building, units: readonly Unit[], quiet?: boolean): number;
   /** A Military Garage lets everyone out in front of it. */
   unloadGarage(b: Building): void;
+  /** Raises a power plant one level (pays the price); true when upgraded. */
+  upgradePlant(p: PlayerState, plant: PowerPlant): boolean;
   /** Soldiers/vehicles walk to `target`, fighting everything on the way. */
   orderAttackMove(units: readonly Unit[], target: WorldPoint): void;
   /** Focus on an enemy structure or unit: soldiers and vehicles only attack buildings when told to. */
@@ -268,6 +272,17 @@ const ECONOMY_TYPES: ReadonlySet<BuildingType> = new Set(['oilDerrick', 'happyCi
  */
 const ECONOMY_SHARE = 0.4;
 /** Structures that count as military spending (everything else built counts as economy). */
+/** Cells round an Eternal Reactor the AI watches for enemies when it judges the reactor's danger. */
+const REACTOR_WATCH_CELLS = 24;
+/** Most defence points (bunker 1, LDEW 2) the AI puts round one reactor, and most guards it posts there. */
+const REACTOR_MAX_DEFENCE = 6;
+const REACTOR_MAX_GUARDS = 8;
+/** Share of the army the reactor guards may take at most (the offensive keeps the rest). */
+const REACTOR_GUARD_SHARE = 0.3;
+/** A reactor guard farther than this (cells) from its reactor walks back to it. */
+const REACTOR_POST_CELLS = 5;
+/** Cells from a Eternal Reactor within which a bunker counts as guarding it. */
+const SUPER_PLANT_GUARD_RANGE = 8;
 const MILITARY_BUILDS: ReadonlySet<string> = new Set(['barracks', 'warFactory', 'airfield', 'port', 'bunker', 'wall', 'gate']);
 /** Clearing the woods for a structure (clearWoodsFor): seconds between two clearing orders of a nation, how far from the capital (cells) its fellers are taken, and how many site offsets are scanned for a wooded site. */
 const AI_FELL_PERIOD = 25;
@@ -423,6 +438,10 @@ interface AIState {
   nextThink: number;
   /** Role of each combat unit this think (squads by role, see army()): read by the fast tier and the order throttle. */
   roles?: Map<number, AIRole>;
+  /** Units guarding an Eternal Reactor: unit id -> reactor id (see guardReactors). */
+  reactorGuard?: Map<number, number>;
+  /** Last seen health of each Eternal Reactor (a drop = under attack, see reactorDanger). */
+  reactorHp?: Map<number, { hp: number; stamp: number; hit: boolean }>;
   /** Game time of the next look at river crossings on the way to the rival (see layBridges). */
   nextBridge?: number;
   /** Game time of the next look at the minefields (see layMines). */
@@ -496,6 +515,8 @@ interface AIState {
 export class AISystem implements GameSystem {
   private time = 0;
   private readonly state = new Map<number, AIState>();
+  /** Eternal Reactor a nation's next bunker is meant to guard (its site is picked round that plant). */
+  private readonly guardFor = new Map<string, Building>(); // key `${player}:${bunker|ldew}`
   /** Tactics numbers the AI plays with: defaults, then what the server taught it (applyKnowledge). One object, shared with the fast tier. */
   readonly doctrine: Doctrine = defaultDoctrine();
   /** Where the doctrine came from (saved with the match, sent back with its report). */
@@ -782,7 +803,10 @@ export class AISystem implements GameSystem {
         else this.host.construction.cancel(p, 'port');
         continue;
       }
-      const forward = option.id === 'reserveCapital' ? this.safestAnchor(p, capital) : this.forwardAnchor(p, option.id);
+      const gk = `${p.id}:${option.id}`;
+      const guard = this.guardFor.get(gk);
+      this.guardFor.delete(gk);
+      const forward = option.id === 'reserveCapital' ? this.safestAnchor(p, capital) : guard?.alive ? guard : this.forwardAnchor(p, option.id);
       const site =
         option.id === 'wall' ? this.findWallSite(p, capital) : this.findSite(p, st, forward ?? capital, option);
       if (site) this.host.placeReady(p, option.id, site.x, site.y);
@@ -793,6 +817,11 @@ export class AISystem implements GameSystem {
     const plants = this.host.entities.buildings().filter((b) => b.owner === p.id && b.alive && b.spec.type === 'powerPlant').length;
     const plant = BUILD_OPTIONS.find((o) => o.id === 'powerPlant');
     if (plant && !busy('powerPlant') && plants > 0 && p.powerConsumed > p.powerSupply) {
+      // Same choice as the player: upgrading a plant (cheaper per plant, no new site) before building another.
+      const own = this.host.entities.buildings().filter((b): b is PowerPlant => b instanceof PowerPlant && b.owner === p.id && b.alive && b.upgradeCost !== null);
+      own.sort((x, y) => y.level - x.level);
+      const up = own.find((b) => p.credits >= (b.upgradeCost ?? Infinity));
+      if (up && this.host.upgradePlant(p, up)) return;
       this.order(p, st, plant);
       return;
     }
@@ -803,6 +832,14 @@ export class AISystem implements GameSystem {
     const walls = owned.has('barracks') && this.needsWalls(p, st, capital, threat);
     if (!next && walls && !busy('wall') && this.findWallSite(p, capital)) next = BUILD_OPTIONS.find((o) => o.id === 'wall');
     if (!next && walls && !busy('gate') && this.findGateSite(p, capital)) next = BUILD_OPTIONS.find((o) => o.id === 'gate');
+    // Eternal Reactors (7 plants' worth each): the AI weighs each one's danger and buys what it judges best.
+    if (!next && owned.has('barracks')) {
+      const pick = this.reactorDefence(p, st, busy);
+      if (pick) {
+        this.guardFor.set(`${p.id}:${pick.option.id}`, pick.reactor);
+        next = pick.option;
+      }
+    }
     // Base core done: a couple of machine-gun bunkers round the base.
     if (!next && owned.has('barracks')) {
       const bunkers = this.host.entities.buildings().filter((b) => b.owner === p.id && b.alive && b.spec.type === 'bunker').length;
@@ -1964,6 +2001,7 @@ export class AISystem implements GameSystem {
     }
     const guard = this.pickGuard(st, army, home);
     const defenders = this.defendDerricks(p, st, army, all);
+    for (const id of this.guardReactors(p, st, army.filter((u) => !st.guard.has(u.id) && !defenders.has(u.id)))) defenders.add(id);
     const stationed = this.holdNations(p, st, army.filter((u) => !st.guard.has(u.id) && !defenders.has(u.id)), all, home);
     let strike = army.filter((u) => !st.guard.has(u.id) && !defenders.has(u.id) && !stationed.has(u.id));
     const raiders = this.raid(p, st, strike, home);
@@ -2092,6 +2130,98 @@ export class AISystem implements GameSystem {
    * enemy near it is taken on by up to DERRICK_DEFENDERS of the nearest units that can hit it (within
    * DERRICK_HELP_CELLS); those units sit out the offensive this think. Returns their ids.
    */
+  /**
+   * Every Eternal Reactor keeps a squad of REACTOR_GUARDS ground units round it (the same units, think after think):
+   * they stand there and fight anything that comes close. Returns their ids (they sit out the offensive).
+   */
+  private guardReactors(p: PlayerState, st: AIState, army: readonly Unit[]): Set<number> {
+    const taken = new Set<number>();
+    const reactors = this.host.entities.buildings().filter((b): b is PowerPlant => b instanceof PowerPlant && b.owner === p.id && b.alive && b.level >= POWER_PLANT_MAX_LEVEL);
+    const prev = st.reactorGuard ?? new Map<number, number>();
+    const next = new Map<number, number>();
+    const pool = army.filter((u) => !u.aircraft && !u.naval);
+    const byId = new Map(pool.map((u) => [u.id, u]));
+    for (const r of reactors) {
+      const c = r.centerWorld();
+      const dist = (u: Unit): number => Math.hypot(u.px - c.x, u.py - c.y);
+      // As many guards as the danger calls for, within the share of the army the offensive can spare.
+      const d = this.reactorDanger(p, st, r);
+      const cap = Math.max(1, Math.floor((pool.length * REACTOR_GUARD_SHARE) / Math.max(1, reactors.length)));
+      const want = Math.min(REACTOR_MAX_GUARDS, cap, 1 + Math.ceil(d.score / 2));
+      const squad: Unit[] = [];
+      for (const [uid, rid] of prev) {
+        const u = byId.get(uid);
+        if (rid === r.id && u && !taken.has(uid) && squad.length < want) squad.push(u);
+      }
+      // Enemy aircraft about: air defence first among the new guards.
+      const aa = (u: Unit): number => (d.air > 0 && u instanceof Vehicle && u.type === 'mantis' ? 0 : 1);
+      const free = pool.filter((u) => !taken.has(u.id) && !prev.has(u.id) && !squad.includes(u)).sort((a, b) => aa(a) - aa(b) || dist(a) - dist(b));
+      squad.push(...free.slice(0, want - squad.length));
+      for (const u of squad) {
+        taken.add(u.id);
+        next.set(u.id, r.id);
+        // Out of place and not busy fighting: back to its post, fighting on the way.
+        if (dist(u) > REACTOR_POST_CELLS * CELL_SIZE && !u.moving && u.attackTarget === null) this.host.orderAttackMove([u], c);
+      }
+    }
+    st.reactorGuard = next;
+    return taken;
+  }
+
+  /**
+   * How much danger an Eternal Reactor is in right now: enemy ground units (1 each) and aircraft (2 each) within
+   * REACTOR_WATCH_CELLS, plus 4 when it lost health since the last look. Same reckoning for every AI nation.
+   */
+  private reactorDanger(p: PlayerState, st: AIState, r: PowerPlant): { score: number; air: number } {
+    const c = r.centerWorld();
+    const reach = REACTOR_WATCH_CELLS * CELL_SIZE;
+    let ground = 0;
+    let air = 0;
+    for (const u of this.host.entities.fieldMovers()) {
+      if (!u.alive || u.owner === p.id || u.owner === NEUTRAL_OWNER || (u instanceof Vehicle && u.isTransport)) continue;
+      if (Math.hypot(u.px - c.x, u.py - c.y) > reach) continue;
+      if (u.aircraft) air++;
+      else ground++;
+    }
+    // Health drop since the last think (both callers of one think see the same answer: stamped by st.nextThink).
+    const seen = (st.reactorHp ??= new Map<number, { hp: number; stamp: number; hit: boolean }>());
+    let rec = seen.get(r.id);
+    if (!rec) seen.set(r.id, (rec = { hp: r.hp, stamp: st.nextThink, hit: false }));
+    else if (rec.stamp !== st.nextThink) {
+      rec.hit = r.hp < rec.hp;
+      rec.hp = r.hp;
+      rec.stamp = st.nextThink;
+    }
+    const hit = rec.hit;
+    return { score: ground + air * 2 + (hit ? 4 : 0), air };
+  }
+
+  /**
+   * The structure the AI judges best for the reactor in most need: each reactor wants 1 defence point plus one per 3
+   * danger (max REACTOR_MAX_DEFENCE; bunker = 1, LDEW = 2). A big gap and London held: an LDEW, else a bunker; only
+   * when the nation can pay for it and keep a reserve (the reactor is not worth going broke over).
+   */
+  private reactorDefence(p: PlayerState, st: AIState, busy: (id: BuildOption['id']) => boolean): { reactor: PowerPlant; option: BuildOption } | null {
+    const mine = this.host.entities.buildings().filter((b) => b.owner === p.id && b.alive);
+    const ldewOk = holdsNation(this.host.entities, p, LDEW_SITE_NATION);
+    let best: { reactor: PowerPlant; gap: number } | null = null;
+    for (const r of mine) {
+      if (!(r instanceof PowerPlant) || r.level < POWER_PLANT_MAX_LEVEL) continue;
+      const near = mine.filter((d) => Math.hypot(d.x - r.x, d.y - r.y) <= SUPER_PLANT_GUARD_RANGE);
+      const have = near.filter((d) => d.spec.type === 'bunker').length + near.filter((d) => d instanceof LdewEmplacement).length * 2;
+      const want = Math.min(REACTOR_MAX_DEFENCE, 1 + Math.floor(this.reactorDanger(p, st, r).score / 3));
+      const gap = want - have;
+      if (gap > 0 && (!best || gap > best.gap)) best = { reactor: r, gap };
+    }
+    if (!best) return null;
+    const pick = (id: BuildOption['id']): BuildOption | null => {
+      const o = BUILD_OPTIONS.find((x) => x.id === id);
+      return o && !busy(id) && p.credits >= buildCost(o, p.faction) * 1.5 ? o : null;
+    };
+    const option = (best.gap >= 2 && ldewOk ? pick('ldew') : null) ?? pick('bunker') ?? (ldewOk ? pick('ldew') : null);
+    return option ? { reactor: best.reactor, option } : null;
+  }
+
   private defendDerricks(p: PlayerState, st: AIState, army: readonly Unit[], all: readonly Unit[]): Set<number> {
     const busy = new Set<number>();
     const seen = new Set<number>();

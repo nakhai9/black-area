@@ -197,6 +197,8 @@ export default {
   '{name} sold to the Global Monitoring Center: +{price} {currency}.': 'Đã bán {name} cho Global Monitoring Center: +{price} {currency}.',
   'Mercy bonus: you let a retreating enemy group go — Global Monitoring Center pays +{bonus} {currency}.': 'Thưởng nhân đạo: bạn đã tha cho một nhóm địch đang rút lui — Global Monitoring Center trả +{bonus} {currency}.',
   'No selected vehicle needs repair.': 'Không xe nào đang chọn cần sửa.',
+  'Not enough TB to upgrade the {name}.': 'Không đủ TB để nâng cấp {name}.',
+  '{name} upgraded to level {level}.': '{name} đã lên cấp {level}.',
   'The {name} is heading to the War Factory for repair.': '{name} đang về nhà máy xe để sửa chữa.',
   '{count} vehicles are heading to the War Factory for repair.': '{count} xe đang về nhà máy xe để sửa chữa.',
   'The {name} is repaired.': '{name} đã được sửa xong.',

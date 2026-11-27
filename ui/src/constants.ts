@@ -39,7 +39,7 @@ export const DEMO_FACTION: FactionId = NATION_CODES[(import.meta.env.VITE_DEMO_F
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "3.75.489";
+export const GAME_VERSION = "3.75.495";
 /** Transport aircraft (C-17, Il-76, Y-20, A400M) are drawn this many iso px long: 13, +20% (v3.75.224). */
 export const TRANSPORT_LENGTH = 13 * 1.2 * 0.9;
 
@@ -1725,6 +1725,12 @@ export const POWER_PER_BARREL = 1000;
 export const POWER_PLANT_OUTPUT = 25;
 export const POWER_PLANT_STORAGE = 300;
 export const POWER_PLANT_COST = 1500;
+/** Highest level of a power plant (upgrade button); at this level it becomes the Eternal Reactor. */
+export const POWER_PLANT_MAX_LEVEL = 6;
+/** Price (TB) to raise a plant to level 2, 3, 4, 5, 6. Each level counts as one more plant; level 6 counts as SUPER_PLANT_EQUIV. */
+export const POWER_PLANT_UPGRADE_COSTS: readonly number[] = [1500, 1800, 2100, 2400, 3500];
+/** Plants a Eternal Reactor (max level) is worth: output and storage. */
+export const SUPER_PLANT_EQUIV = 7;
 export const OIL_GRID_MARKUP = 1.25;
 
 /** Price-equivalent of a destroyed structure, for veteran experience (default 1000). */

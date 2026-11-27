@@ -2,7 +2,7 @@ import { powerTier } from '../systems/PowerSystem';
 import { setZoomLock, settings } from '../core/Settings';
 import { CHARGE_ICON_PATH } from '../render/ChargeIcon';
 import { AlertToast } from './NewsToast';
-import { type IconNode, Globe, Keyboard, LockKeyhole, Settings,Clock, Handshake, X, Wallet, Info, Droplet, Hammer, LogIn, LogOut, Minus, Plane, Rocket, Shield, TrendingDown, TrendingUp, Zap, createElement } from 'lucide';
+import { type IconNode, Globe, Keyboard, LockKeyhole, Settings,Clock, Handshake, X, Wallet, Info, Droplet, Hammer, LogIn, LogOut, ChevronsUp, Minus, PersonStanding, Plane, Rocket, Shield, TrendingDown, TrendingUp, Truck, Zap, createElement } from 'lucide';
 
 /** Government building (Emoji One v1, CC BY-SA 4.0): in full colour, 64×64 grid scaled to the 24×24 icon box. */
 const Government: IconNode = [
@@ -73,6 +73,8 @@ export interface TransportInfo {
   state: CarrierState;
   /** False while an aircraft is off the ground (taking off, flying, landing): Unload is refused then. */
   canUnload: boolean;
+  /** A Military Garage: it also gets the Soldiers out / Vehicles out buttons. */
+  garage?: boolean;
 }
 
 /** The selected own aircraft, for the Aircraft panel (Turbo button). */
@@ -289,6 +291,8 @@ export interface SidebarModel {
   transport: TransportInfo | null;
   /** A bridge layer of mine is selected: the Bridge button is lit (B). */
   bridgeReady: boolean;
+  /** My selected power plant: its level and the next level's price (null at the top), or null. */
+  plantUpgrade: { level: number; cost: number | null } | null;
   /** Bridge mode is on: the bridge is being positioned. */
   bridging: boolean;
   /** An Islamic Crazy Soldier / engineer of mine is selected: mines left and whether mine mode is on (null hides the Mine button). */
@@ -328,6 +332,10 @@ export interface SidebarHandlers {
   onOilPolicy: (policy: OilPolicy) => void;
   /** The Unload button of the Transport panel (same as the U key). */
   onUnload: () => void;
+  /** Upgrade the selected power plant one level. */
+  onPlantUpgrade: () => void;
+  /** Military Garage: let out only its soldiers / only its vehicles. */
+  onGarageOut: (only: 'soldiers' | 'vehicles') => void;
   /** The Bridge button (same as the B key): position the selected bridge layer's bridge. */
   onBridge: () => void;
   /** The Mine button: the selected Crazy Soldier / engineer lays a land mine on a cell next to him. */
@@ -398,6 +406,9 @@ export class Sidebar {
   private readonly transportVehicles: HTMLElement;
   private readonly transportState: HTMLElement;
   private readonly unloadButton: HTMLButtonElement;
+  private readonly soldiersOutButton: HTMLButtonElement;
+  private readonly plantUpgradeButton: HTMLButtonElement;
+  private readonly vehiclesOutButton: HTMLButtonElement;
   private readonly bridgeButton: HTMLButtonElement;
   private readonly mineButton: HTMLButtonElement;
   private readonly mineBadge: HTMLSpanElement;
@@ -712,6 +723,12 @@ export class Sidebar {
     this.mineButton.hidden = true;
     this.turboButton.hidden = true;
     this.unloadButton.hidden = true;
+    this.soldiersOutButton = tool(PersonStanding, t('Soldiers out: the garage lets out only its soldiers.'), () => this.handlers.onGarageOut('soldiers'));
+    this.vehiclesOutButton = tool(Truck, t('Vehicles out: the garage lets out only its vehicles.'), () => this.handlers.onGarageOut('vehicles'));
+    this.soldiersOutButton.hidden = true;
+    this.plantUpgradeButton = tool(ChevronsUp, '', () => this.handlers.onPlantUpgrade());
+    this.plantUpgradeButton.hidden = true;
+    this.vehiclesOutButton.hidden = true;
     this.bridgeButton.hidden = true;
     this.mineButton.classList.add('mine');
     this.mineBadge = document.createElement('span');
@@ -963,6 +980,22 @@ export class Sidebar {
     this.unloadButton.hidden = !carrier || carrier.soldiers + carrier.vehicles === 0;
     this.unloadButton.disabled = !carrier || carrier.soldiers + carrier.vehicles === 0 || carrier.state === 'unloading' || !carrier.canUnload;
     this.unloadButton.classList.toggle('lit', !this.unloadButton.disabled);
+    const garage = carrier?.garage ? carrier : null;
+    for (const [b, n] of [[this.soldiersOutButton, garage?.soldiers ?? 0], [this.vehiclesOutButton, garage?.vehicles ?? 0]] as const) {
+      b.hidden = !garage;
+      b.disabled = n === 0;
+      b.classList.toggle('lit', n > 0);
+    }
+    const up = model.plantUpgrade;
+    this.plantUpgradeButton.hidden = !up || up.cost === null;
+    if (up) {
+      this.plantUpgradeButton.disabled = up.cost === null || model.player.credits < up.cost;
+      this.plantUpgradeButton.classList.toggle('lit', !this.plantUpgradeButton.disabled);
+      this.plantUpgradeButton.title =
+        up.cost === null
+          ? t('Eternal Reactor (level {level}): fully upgraded, worth 7 power plants.', { level: up.level })
+          : t('Upgrade power plant (level {level} to {next}): {cost} TB. Each level counts as one more plant; level 6 is the Eternal Reactor, worth 7 plants. Upgrades are not refunded when sold.', { level: up.level, next: up.level + 1, cost: up.cost });
+    }
     this.bridgeButton.hidden = !model.bridgeReady;
     this.bridgeButton.disabled = !model.bridgeReady;
     this.bridgeButton.classList.toggle('lit', model.bridgeReady);

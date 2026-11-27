@@ -1,3 +1,5 @@
+import { POWER_PLANT_MAX_LEVEL } from '../constants';
+import { PowerPlant } from '../entities/PowerPlant';
 import { Mesa } from '../entities/Mesa';
 import { dissipate } from '../render/Smoke';
 import { drawHomingMissile } from '../render/SamMissile';
@@ -2097,7 +2099,22 @@ export class Renderer {
       ctx.fillStyle = i < lit ? color : '#2a2f33';
       ctx.fillRect(x0 + i * (pipW + gap), y0, pipW, 5 * k);
     }
-    this.drawLabel(b, 1, y0 - 6 * k);
+    // Power plant level: a bar of POWER_PLANT_MAX_LEVEL equal parts just above the health pips (gold when Super).
+    let labelY = y0 - 6 * k;
+    if (b instanceof PowerPlant) {
+      const ly = y0 - 7 * k;
+      const segGap = 1 * k;
+      const seg = (total - (POWER_PLANT_MAX_LEVEL - 1) * segGap) / POWER_PLANT_MAX_LEVEL;
+      ctx.fillStyle = 'rgba(0,0,0,0.75)';
+      ctx.fillRect(x0 - k, ly - k, total + 2 * k, 5 * k);
+      const on = b.level >= POWER_PLANT_MAX_LEVEL ? '#f2c94c' : '#4fb8ff';
+      for (let i = 0; i < POWER_PLANT_MAX_LEVEL; i++) {
+        ctx.fillStyle = i < b.level ? on : '#2a2f33';
+        ctx.fillRect(x0 + i * (seg + segGap), ly, seg, 3 * k);
+      }
+      labelY = ly - 2 * k;
+    }
+    this.drawLabel(b, 1, labelY);
   }
 
   private drawLabel(b: Building, alpha: number, bottomY?: number): void {
