@@ -111,6 +111,8 @@ export class BigMap {
   private readonly dockCredits = document.createElement('div');
   private readonly dockLoan = document.createElement('span');
   private readonly dockTail = document.createElement('span');
+  /** The selected unit's / structure's action buttons (filled by setDock). */
+  private readonly dockActions = document.createElement('span');
   /** Slot for the sidebar's show button (seen only while the sidebar is hidden). */
   private readonly openerSlot = document.createElement('span');
 
@@ -178,6 +180,7 @@ export class BigMap {
     this.dockProduction.className = 'cmd-shop';
     this.dockLoan.className = 'cmd-slot';
     this.dockTail.className = 'cmd-slot';
+    this.dockActions.className = 'cmd-slot';
     const dockButton = (icon: IconNode, label: string, onClick: () => void): HTMLButtonElement => {
       const b = button(icon, label, onClick);
       b.className = 'cmd-btn';
@@ -191,6 +194,7 @@ export class BigMap {
       this.nuclearBtn,
       this.dockTail,
       this.dockTools,
+      this.dockActions,
     );
     // Money above the buttons (right-aligned), the button row under it.
     const side = document.createElement('div');
@@ -237,7 +241,8 @@ export class BigMap {
    * Fills the dock from a (new) sidebar: the nation's flag beside the logo, the money and power bar, the shop cart,
    * the loan button, the oil / capitals / news buttons, and the settings / allies buttons. Replaces whatever a previous sidebar put.
    */
-  setDock(o: { faction: FactionId; onShop: () => void; credits: HTMLElement; extras: readonly HTMLElement[]; loan: HTMLElement; onSettings: () => void }): void {
+  setDock(o: { faction: FactionId; onShop: () => void; credits: HTMLElement; extras: readonly HTMLElement[]; loan: HTMLElement; onSettings: () => void; actions?: HTMLElement }): void {
+    this.dockActions.replaceChildren(...(o.actions ? [o.actions] : []));
     this.dockBadge.innerHTML = factionBadgeHtml(o.faction, 'sm');
     this.dockCredits.replaceChildren(o.credits);
     // Cart: opens the shop drawer (the buy tabs and their cameos).

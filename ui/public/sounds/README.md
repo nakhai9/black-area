@@ -1,38 +1,51 @@
 # Âm thanh của game
 
-Mọi file âm thanh nằm chung trong thư mục này (`public/sounds/`), không có thư mục con, để dễ tái sử dụng. Định dạng: `.mp3`, `.ogg` hoặc `.wav`. File nào có thì game dùng file đó, file nào thiếu thì game tự tổng hợp âm thanh như cũ. **Khi thêm file mới, ghi thêm tên file (kèm đuôi) vào `SHIPPED_SOUNDS` trong `src/audio/SoundSystem.ts`** — game chỉ tải những file có trong danh sách này (để không sinh lỗi 404 cho file chưa có). Tiếng súng, tiếng nổ và tiếng xe được phát đè lên nhạc nền (nhạc tự nhỏ lại khi có tiếng).
+Toàn bộ âm thanh trong thư mục này (`public/sounds/`) được tạo mới bằng `tools/sound_bank.py`. Script mô phỏng nguồn âm thật: tiếng nổ siêu thanh của đạn, luồng khí đầu nòng, cánh quạt, động cơ diesel theo số xy-lanh, xích xe, tua-bin... Tất cả là WAV 16-bit mono 22050 Hz.
 
-Hiện có: `rifle.mp3`, `tank-cannon.mp3`, `bomb.mp3` (dùng cho cả `explosion` khi chưa có file riêng), `engine-tank.mp3`.
+Tạo lại (chạy trong `ui/`):
 
-File dài (cả một tràng súng, nhiều phát pháo) không cần cắt: game tự tìm các phát bắn trong file và mỗi lần chỉ phát một đoạn ngắn bắt đầu từ một phát (`SAMPLE_CLIP` trong `src/audio/SoundSystem.ts`).
+```
+python tools/sound_bank.py
+```
 
-## Tiếng súng
+Script ghi đè các file `.wav` và cập nhật danh sách `src/audio/soundBank.generated.ts`. Game chỉ tải những file có trong danh sách đó. Muốn chỉnh tiếng thì sửa thông số trong script (bảng `GUNS`, `CANNONS`, `GROUND`, `HELIS`, `AIR`, `SHIPS`, `FEET`) rồi chạy lại.
+
+Muốn thay một tiếng bằng bản ghi âm thật: đặt file cùng tên vào thư mục này (ví dụ `rifle-russia.wav`) và giữ tên đó trong danh sách.
+
+## Súng bộ binh theo phe
+
+`<loại>-<phe>.wav`, với `<loại>` là `rifle`, `smg`, `mg`, `sniper`:
+
+| Phe | Súng mô phỏng |
+|---|---|
+| `usa` | M16 / M4 (5.56 mm) |
+| `russia` | AK-74 (5.45 mm) |
+| `china` | QBZ-95 (5.8 mm) |
+| `europe` | HK416 / FAMAS (5.56 mm) |
+| `islamic` | AKM (7.62x39 mm), tiếng vọng sa mạc |
+
+Mỗi file có nhiều loạt bắn. Mỗi lần bắn, game cắt một đoạn ngắn bắt đầu từ một phát (`SAMPLE_CLIP`).
+
+## Pháo và tiếng nổ
 
 | File | Dùng cho |
 |---|---|
-| `rifle.mp3` | Súng trường của lính |
-| `smg.mp3` | Tiểu liên (loạt 4 viên) |
-| `mg.mp3` | Súng máy, bunker (loạt 5 viên) |
-| `sniper.mp3` | Súng bắn tỉa |
-| `autocannon.mp3` | Pháo tự động của xe bọc thép (loạt 3 viên) |
-| `tank-cannon.mp3` | Pháo xe tăng (mỗi phát một tiếng) |
-| `missile.mp3` | Tên lửa |
+| `tank-cannon-<phe>.wav` | Pháo xe tăng: 120 mm (Mỹ, châu Âu), 125 mm (Nga, Trung Quốc, Hồi giáo) |
+| `howitzer.wav` | Pháo tự hành K9 |
+| `grad.wav` | Phóng loạt BM-21 |
+| `missile.wav` | Tên lửa |
+| `airgun.wav` | Pháo 30 mm của máy bay / trực thăng |
+| `autocannon.wav` | Pháo tự động của xe bọc thép |
+| `bomb.wav`, `explosion.wav` | Bom, xe / công trình nổ |
 
-## Tiếng nổ
+## Động cơ (đoạn lặp liền mạch)
 
-| File | Dùng cho |
-|---|---|
-| `explosion.mp3` | Xe / công trình nổ |
-| `bomb.mp3` | Bom máy bay |
+`engine-<tên mẫu>.wav`: tên hiển thị viết thường, dấu cách thành `-` (ví dụ `engine-t-90.wav`, `engine-ah-64-apache.wav`, `engine-c-17.wav`). Có cho mọi xe, trực thăng, máy bay và tàu sân bay. Mẫu nào chưa có file riêng thì dùng file chung theo loại: `engine-tank.wav`, `engine-ifv.wav`, `engine-light.wav`, `engine-truck.wav`, `engine-repair.wav`.
 
-## Tiếng xe chạy (đoạn lặp liền mạch vài giây)
-
-- Theo từng mẫu xe: `engine-` + tên hiển thị viết thường, dấu cách thành `-`: `engine-abrams.mp3`, `engine-t-90.mp3`, `engine-leopard-2.mp3`, `engine-type-99.mp3`, `engine-karrar.mp3`, `engine-f-22.mp3`, `engine-su-57.mp3`, `engine-b-52.mp3`…
-- Hoặc dùng chung theo loại khi chưa có file riêng: `engine-tank.mp3`, `engine-ifv.mp3`, `engine-light.mp3`, `engine-truck.mp3`, `engine-repair.mp3`, `engine-jet.mp3`, `engine-bomber.mp3`, `engine-transport.mp3`, `engine-tanker.mp3`.
-
-## Khác
+## Lính và môi trường
 
 | File | Dùng cho |
 |---|---|
-| `foot.mp3` | Tiếng bước chân |
-| `board.mp3` | Lên / xuống xe vận tải |
+| `foot-<loại lính>.wav` | Bước chân: `regular`, `special`, `engineer`, `squatters`, `demolition` |
+| `board.wav` | Lên / xuống xe vận tải |
+| `sea-waves.wav` | Sóng biển khi camera ở ngoài khơi |

@@ -4864,3 +4864,22 @@ body.sidebar-hidden .shop-drawer {
   font-weight: 800;
   color: #e3e9ef;
 }
+
+/* Action buttons of the selected unit / structure, at the end of the command dock (Turbo, Unload, Bridge, Mine,
+   plant upgrade, garage out…): a group set off by a divider, hidden while none applies. */
+.cmd-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 4px;
+  padding-left: 8px;
+  border-left: 1px solid rgba(255, 255, 255, 0.18);
+}
+.cmd-actions:not(:has(> button:not([hidden]))) {
+  display: none;
+}
+.cmd-actions .air-tool {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--btn-radius);
+}

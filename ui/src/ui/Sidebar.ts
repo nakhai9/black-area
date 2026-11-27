@@ -34,7 +34,7 @@ import { playerId as cloudPlayerId } from '../net/CloudSave';
 import { nationFlag } from '../render/sprites/NationCapital';
 import { isBlankCanvas } from '../render/InfantryArt';
 import { isFactionNation, type NationId } from '../entities/NationCapital';
-import { BUILD_OPTIONS, type BuildOption, type QueueSlot, buildCost, footprintOf, missingRequirement } from '../systems/ConstructionSystem';
+import { BUILD_OPTIONS, type BuildOption, type QueueSlot, buildCost, missingRequirement } from '../systems/ConstructionSystem';
 import { MIN_SALE_STOCK } from '../systems/OilMarket';
 import type { ArmyCount, TrainKey, TrainOption, TrainingQueue } from '../systems/TrainingSystem';
 import type { VehicleKey, VehicleOption, VehicleQueue } from '../systems/VehicleSystem';
@@ -102,7 +102,7 @@ type ViewId = 'command' | 'production';
 /** Tabs of the row above the alerts on the Command page: what shows under it. */
 /** Oil tab icon: an oil barrel (Emoji One v1, CC BY-SA 4.0). */
 /** Structures that work the same whoever designed them (Power Plant: same output; High-Tech Center: same unlocks). */
-const SAME_FUNCTION_BUILDS: ReadonlySet<string> = new Set(['powerPlant', 'techCenter']);
+const SAME_FUNCTION_BUILDS: ReadonlySet<string> = new Set(['powerPlant', 'techCenter', 'wall', 'gate']);
 
 /** Leave an occupied capital (Mono Icons by Mono — https://github.com/mono-company/mono-icons/blob/master/LICENSE.md). */
 const LEAVE_ICON = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><g fill="currentColor"><path fill-rule="evenodd" d="M11 20a1 1 0 0 0-1-1H5V5h5a1 1 0 1 0 0-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h5a1 1 0 0 0 1-1" clip-rule="evenodd"/><path d="M21.714 12.7a1 1 0 0 0 .286-.697v-.006a1 1 0 0 0-.293-.704l-4-4a1 1 0 1 0-1.414 1.414L18.586 11H9a1 1 0 1 0 0 2h9.586l-2.293 2.293a1 1 0 0 0 1.414 1.414l4-4z"/></g></svg>';
@@ -414,6 +414,8 @@ export class Sidebar {
   private readonly mineBadge: HTMLSpanElement;
   /** Floating action bar left of the sidebar: Home always (Settings sits in the sidebar header); Turbo / Unload / Bridge / Mine only while a unit they apply to is selected. */
   private readonly airTools: HTMLElement;
+  /** Action buttons of the selected unit / structure (Turbo, Unload, Bridge, Mine, plant upgrade, garage out…): shown in the command dock at the bottom (BigMap.setDock). */
+  readonly actionBar = document.createElement('span');
   /** Countdown to the end of the peace (mm:ss) under the air tools; hidden during the war. */
   private readonly peaceTimer: HTMLElement;
   private readonly turboButton: HTMLButtonElement;
@@ -689,12 +691,13 @@ export class Sidebar {
     this.transportState = q('.sb-transport-state');
     this.airTools = document.createElement('div');
     this.airTools.className = 'air-tools';
+    this.actionBar.className = 'cmd-actions';
     const tool = (icon: IconNode, title: string, onClick: () => void, attrs: Record<string, string | number> = {}): HTMLButtonElement => {
       const b = document.createElement('button');
       b.type = 'button';
-      b.className = 'air-tool';
+      b.className = 'air-tool cmd-action';
       b.title = title;
-      b.append(createElement(icon, { width: 20, height: 20, 'stroke-width': 2, 'aria-hidden': 'true', ...attrs }));
+      b.append(createElement(icon, { width: 18, height: 18, 'stroke-width': 2, 'aria-hidden': 'true', ...attrs }));
       // A click only acts (camera home, turbo…): the button never keeps the focus, so no focus ring is left on it.
       b.addEventListener('pointerdown', (e) => e.preventDefault());
       b.addEventListener('click', () => {
@@ -702,7 +705,7 @@ export class Sidebar {
         onClick();
       });
       b.addEventListener('contextmenu', (e) => e.preventDefault());
-      this.airTools.append(b);
+      this.actionBar.append(b);
       return b;
     };
     // Home: click the faction emblem in the faction card (same as the H key).
@@ -1228,11 +1231,11 @@ export class Sidebar {
     if (!option.foreign) return false;
     const base = option.id.split('@')[0]!;
     if (!SAME_FUNCTION_BUILDS.has(base)) return false;
-    const own = this.options.find((o) => o.id === base);
-    if (!own || !model.buildAvailable(own)) return false;
-    const a = footprintOf(option, this.faction);
-    const b = footprintOf(own, this.faction);
-    return a.w === b.w && a.d === b.d;
+    // Same structure, same job, whatever its nation's design (or size): one cameo only. The own one first, else the
+    // first other nation's version on sale. (Barracks / War Factory / Airfield of another nation make that nation's
+    // units, a job of their own: they keep their cameos.)
+    const first = this.options.find((o) => (o.id === base || o.id.split('@')[0] === base) && model.buildAvailable(o));
+    return !!first && first !== option;
   }
 
   /** Occupied capitals tab: one flat list, each row the occupied nation's flag and name. */

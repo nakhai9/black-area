@@ -93,6 +93,7 @@ import {
   EARTH_TEXTURE_URL,
   FACTION_ORDER,
   TICK_RATE,
+  POWER_PLANT_MAX_LEVEL,
   FOCUS_ZOOM,
   GRID_HEIGHT,
   GRID_WIDTH,
@@ -1032,6 +1033,7 @@ export class Game {
       credits: this.sidebar.dockCredits,
       extras: this.sidebar.dockButtons(),
       loan: this.sidebar.loanButton,
+      actions: this.sidebar.actionBar,
       onSettings: () => {
         if (!this.paused && !this.ended) this.togglePause();
       },
@@ -2935,6 +2937,8 @@ export class Game {
     p.credits -= cost;
     plant.upgrade();
     if (p === this.humanPlayer) this.sidebar.notify(tr('{name} upgraded to level {level}.', { name: plant.spec.name, level: plant.level }));
+    // EVA voice, every upgrade: "Upgrade complete. Level N." (the top level names the Eternal Reactor).
+    if (p === this.humanPlayer) this.sound.announce(plant.level >= POWER_PLANT_MAX_LEVEL ? `Upgrade complete. Level ${plant.level}. Eternal Reactor online.` : `Upgrade complete. Level ${plant.level}.`);
     return true;
   }
 
@@ -6222,7 +6226,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       this.addBullet(muzzle, hit, size);
       // Aircraft guns: a machine-gun rattle from up on the aircraft.
       if (s instanceof Vehicle && s.type === 'k9') this.sound.howitzer({ x: s.px, y: s.py });
-      else this.sound.play(s instanceof Vehicle && s.flies ? 'airgun' : w.kind, { x: s.px, y: s.py });
+      else this.sound.play(s instanceof Vehicle && s.flies ? 'airgun' : w.kind, { x: s.px, y: s.py }, s.faction);
       const last = this.lastShot.get(s.id) ?? -99;
       this.lastShot.set(s.id, this.time);
       if (this.time - last > 8 && s.faction !== 'neutral' && !(s instanceof Vehicle)) this.sound.battleCry(s.faction, { x: s.px, y: s.py });
@@ -6279,7 +6283,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     this.effects.add({ kind: 'tracer', x0: muzzle.x, y0: muzzle.y, x1: hit.x, y1: hit.y, age: 0, ttl, color, width: (heavy ? 1.1 : 0.45) * small, shell: heavy });
     this.effects.add({ kind: 'flash', x: muzzle.x, y: muzzle.y, age: 0, ttl: 0.07, size: heavy ? 3.6 : 1.8 });
     this.effects.add({ kind: 'blast', x: hit.x, y: hit.y, age: -ttl, ttl: heavy ? 0.35 : 0.18, radius: w.kind === 'bomb' ? 14 : heavy ? 6 : 1.6 });
-    this.sound.play(s instanceof Vehicle && s.flies && w.kind !== 'bomb' ? 'airgun' : w.kind, { x: s.px, y: s.py });
+    this.sound.play(s instanceof Vehicle && s.flies && w.kind !== 'bomb' ? 'airgun' : w.kind, { x: s.px, y: s.py }, s.faction);
     const prev = this.lastShot.get(s.id) ?? -99;
     this.lastShot.set(s.id, this.time);
     if (this.time - prev > 8 && s.faction !== 'neutral') this.sound.battleCry(s.faction, { x: s.px, y: s.py });
@@ -6311,7 +6315,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
           key = u.name;
           kinds.set(key, u.type);
         }
-      } else if (u.moving) key = 'foot';
+      } else if (u.moving) key = u instanceof Infantry ? `foot:${u.tier}` : 'foot';
       if (!key) continue;
       // Only units inside the frame are heard: full volume in the middle of the screen, silent at its edge.
       const s = cam.worldToScreen(u.px, u.py);
@@ -6332,7 +6336,9 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     const level = (k: string): number => Math.min(1, (best.get(k) ?? 0) * (1 + 0.12 * Math.min(4, more.get(k) ?? 0)));
     const engines = new Map<string, { kind: VehicleKind; level: number }>();
     for (const [name, kind] of kinds) if (best.has(name)) engines.set(name, { kind, level: level(name) });
-    this.sound.motion({ foot: level('foot'), engines });
+    const feet = new Map<string, number>();
+    for (const k of best.keys()) if (k.startsWith('foot:')) feet.set(k.slice(5), level(k));
+    this.sound.motion({ foot: Math.max(level('foot'), ...feet.values()), feet, engines });
     this.sound.sea(this.viewAllSea() ? 1 : 0);
   }
 

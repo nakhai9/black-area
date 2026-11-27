@@ -1,3 +1,4 @@
+import { SOUND_BANK } from './soundBank.generated';
 import { MusicSystem } from './MusicSystem';
 import { isAircraftKind } from '../constants';
 import type { FactionId, VehicleKind, WeaponKind, WorldPoint } from '../types';
@@ -14,6 +15,8 @@ export interface Listener {
  */
 export interface MotionLevels {
   foot: number;
+  /** Footsteps by kind of soldier (tier: regular, special, engineer, squatters, demolition), each its own sound. */
+  feet?: ReadonlyMap<string, number>;
   engines: ReadonlyMap<string, { kind: VehicleKind; level: number }>;
 }
 
@@ -31,7 +34,8 @@ export interface MotionLevels {
 type EngineProfile =
   | 'dieselTank' | 'turbineTank' | 'recovery' | 'wheeled' | 'fighter' | 'bomber' | 'airlifter'
   | 'f22' | 'su57' | 'j31' | 'rafale' | 'su35' | 'b1' | 'tu160' | 'h6' | 'c17' | 'il76' | 'y20' | 'c130'
-  | 'e3' | 'a50' | 'kj2000' | 'a330aew' | 'albasir' | 'b767';
+  | 'e3' | 'a50' | 'kj2000' | 'a330aew' | 'albasir' | 'b767'
+  | 'apache' | 'ka52' | 'z10';
 const ENGINE_BY_NAME: Readonly<Record<string, EngineProfile>> = {
   Abrams: 'turbineTank',
   'T-90': 'dieselTank',
@@ -59,6 +63,11 @@ const ENGINE_BY_NAME: Readonly<Record<string, EngineProfile>> = {
   'A330 AEW': 'a330aew',
   'Al-Basir AEW': 'albasir',
   'B-767': 'b767',
+  // Helicopters, each by its rotor: the Apache's 4-blade slap, the Ka-52's coaxial rotors beating against each
+  // other, the Z-10's 5-blade main rotor (higher, smoother beat).
+  'AH-64 Apache': 'apache',
+  'Ka-52': 'ka52',
+  'Z-10': 'z10',
   KamAZ: 'wheeled',
   MTVR: 'wheeled',
   "MAN SV": 'wheeled',
@@ -104,6 +113,10 @@ interface EngineRecipe {
   tone?: { freq: number; type: OscillatorType; gain: number; wobble: number };
 }
 const ENGINE_RECIPES: Readonly<Record<EngineProfile, EngineRecipe>> = {
+  // Helicopters: pulse = blade-pass rate (rotor slap), tone = turbine whine / second rotor beat.
+  apache: { rumble: 420, pulse: 19, depth: 0.75, whine: 3400, whineGain: 0.14, clank: 0, clankGain: 0, gain: 1.1, tone: { freq: 19.6, type: 'sawtooth', gain: 0.18, wobble: 0.4 } },
+  ka52: { rumble: 360, pulse: 13.5, depth: 0.7, whine: 2900, whineGain: 0.12, clank: 0, clankGain: 0, gain: 1.15, tone: { freq: 14.4, type: 'triangle', gain: 0.22, wobble: 0.6 } },
+  z10: { rumble: 480, pulse: 24, depth: 0.6, whine: 3900, whineGain: 0.16, clank: 0, clankGain: 0, gain: 1.05, tone: { freq: 24.5, type: 'sawtooth', gain: 0.14, wobble: 0.5 } },
   dieselTank: { rumble: 150, pulse: 11, depth: 0.45, whine: 0, whineGain: 0, clank: 2200, clankGain: 0.2, gain: 1 },
   turbineTank: { rumble: 220, pulse: 0, depth: 0, whine: 2900, whineGain: 0.4, clank: 2200, clankGain: 0.16, gain: 0.95 },
   recovery: { rumble: 110, pulse: 7, depth: 0.55, whine: 0, whineGain: 0, clank: 1800, clankGain: 0.28, gain: 1 },
@@ -163,25 +176,53 @@ const MIN_GAP: Readonly<Record<string, number>> = { rifle: 0.05, smg: 0.045, sni
  * synthesised ones. Anything missing keeps the synthesised sound.
  */
 const SAMPLE_PATHS: Readonly<Record<string, string>> = {
-  rifle: 'rifle',
-  smg: 'smg',
-  mg: 'mg',
+  // Without a nation (bunkers, neutral guns) the US voice is used.
+  rifle: 'rifle-usa',
+  smg: 'smg-usa',
+  mg: 'mg-usa',
   autocannon: 'autocannon',
-  sniper: 'sniper',
-  cannon: 'tank-cannon',
+  airgun: 'airgun',
+  sniper: 'sniper-usa',
+  cannon: 'tank-cannon-usa',
+  howitzer: 'howitzer',
+  grad: 'grad',
   missile: 'missile',
   bomb: 'bomb',
   explosion: 'explosion',
   board: 'board',
-  foot: 'foot',
+  foot: 'foot-regular',
+  ...Object.fromEntries(['regular', 'special', 'engineer', 'squatters', 'demolition'].map((t) => [`foot-${t}`, `foot-${t}`])),
+  ...Object.fromEntries(['usa', 'russia', 'china', 'europe', 'islamic'].map((n) => [`cannon-${n}`, `tank-cannon-${n}`])),
+  // One recording per nation's small arms (optional): e.g. rifle-russia.ogg for the AK.
+  ...Object.fromEntries(['usa', 'russia', 'china', 'europe', 'islamic'].flatMap((n) => ['rifle', 'smg', 'mg', 'sniper'].map((k) => [`${k}-${n}`, `${k}-${n}`]))),
 };
 /**
  * Long recordings (a whole firefight, several cannon shots) are cut into clips: each play starts at one of the
  * recording's shots (found when it loads) and lasts this many seconds, fading out. Kinds not listed play whole.
  */
-const SAMPLE_CLIP: Readonly<Record<string, number>> = { airgun: 0.7, rifle: 0.7, smg: 0.6, mg: 0.8, autocannon: 0.8, sniper: 1.2, cannon: 2.2, missile: 1.5, bomb: 3.5, explosion: 3.5 };
+const SAMPLE_CLIP: Readonly<Record<string, number>> = { airgun: 0.7, rifle: 0.7, smg: 0.6, mg: 0.8, autocannon: 0.8, sniper: 1.2, cannon: 2.2, missile: 1.5, bomb: 3.5, explosion: 3.5, howitzer: 2.8, grad: 2.2 };
 /** No explosion recording: the bomb one is reused for vehicles and structures blowing up. */
 const SAMPLE_FALLBACK: Readonly<Record<string, string>> = { explosion: 'bomb', airgun: 'rifle' };
+/**
+ * Small arms by nation (the rifle each army carries): crack = supersonic crack band (Hz), body = muzzle-blast band (Hz),
+ * thump = low punch (Hz), tail = echo length (s), gap = time between rounds of a burst (cyclic rate), rounds = burst.
+ *  - usa: M16/M4 (5.56 mm) — sharp, bright crack, light body, quick 3-round burst;
+ *  - russia: AK-74/AK-12 (5.45 mm) — harder, lower bark, slower cyclic rate;
+ *  - china: QBZ-95 (5.8 mm) — between the two, slightly higher body than the AK;
+ *  - europe: HK416 / FAMAS / G36 (5.56 mm) — crisp like the M16, faster cyclic (FAMAS);
+ *  - islamic: AKM (7.62x39) — the heaviest, lowest boom, long desert echo.
+ * A recording `rifle-<nation>` (or smg- / mg- / sniper-) in public/sounds replaces the synthesis for that nation.
+ */
+interface GunVoice { crack: number; body: number; thump: number; tail: number; gap: number; rounds: number }
+const GUN_VOICE: Readonly<Record<string, GunVoice>> = {
+  usa: { crack: 3900, body: 760, thump: 135, tail: 0.4, gap: 0.075, rounds: 3 },
+  russia: { crack: 3000, body: 560, thump: 110, tail: 0.5, gap: 0.095, rounds: 3 },
+  china: { crack: 3400, body: 640, thump: 120, tail: 0.45, gap: 0.085, rounds: 3 },
+  europe: { crack: 4200, body: 820, thump: 140, tail: 0.4, gap: 0.065, rounds: 3 },
+  islamic: { crack: 2700, body: 480, thump: 95, tail: 0.7, gap: 0.1, rounds: 3 },
+};
+/** Small arms that take the nation's voice (GUN_VOICE). */
+const NATION_GUNS: ReadonlySet<string> = new Set(['rifle', 'smg', 'mg', 'sniper']);
 /** Small arms fire in bursts: each shot is heard as this many rounds in quick succession ("rat-a-tat"). */
 const BURST: Readonly<Record<string, { rounds: number; gap: number }>> = {
   rifle: { rounds: 3, gap: 0.085 },
@@ -206,10 +247,7 @@ const SCREAM_GAP = 0.7;
  * The recordings public/sounds/ actually ships (file names with extension). Only these are fetched, so a missing
  * recording costs no 404 request; add a file's name here when you drop one into public/sounds/.
  */
-const SHIPPED_SOUNDS: ReadonlySet<string> = new Set(['rifle.mp3', 'tank-cannon.mp3', 'bomb.mp3', 'engine-tank.mp3', 'engine-heli.wav',
-  // One recording per ground vehicle model (synthesised: tools/vehicle_engine_sounds.py), looked up by slug(name).
-  'engine-humvee.wav', 'engine-vbl-scout.wav', 'engine-uaz-patrol.wav', 'engine-dongfeng-scout.wav', 'engine-safir-jeep.wav', 'engine-mtvr.wav', 'engine-man-sv.wav', 'engine-kamaz.wav', 'engine-patriot.wav', 'engine-samp-t-ng.wav', 'engine-s-400.wav', 'engine-hq-9.wav', 'engine-pgz-09.wav', 'engine-abrams.wav', 'engine-leopard-2.wav', 'engine-t-90.wav', 'engine-type-99.wav', 'engine-karrar.wav', 'engine-bradley.wav', 'engine-puma.wav', 'engine-bmp-3.wav', 'engine-bmp-2.wav', 'engine-zbd-04.wav', 'engine-m88.wav', 'engine-brem-1.wav', 'engine-type-99ii.wav', 'engine-m104-wolverine.wav', 'engine-leguan.wav', 'engine-mtu-72.wav', 'engine-gql-111.wav', 'engine-avlb.wav',
-]);
+const SHIPPED_SOUNDS: ReadonlySet<string> = new Set(SOUND_BANK); // tools/sound_bank.py
 /** The shipped file for a sound name (no extension), or null when there is none. */
 const shipped = (path: string): string | null => {
   for (const ext of ['mp3', 'ogg', 'wav']) if (SHIPPED_SOUNDS.has(`${path}.${ext}`)) return `${path}.${ext}`;
@@ -221,12 +259,24 @@ const VEHICLE_BED_GAIN = 1.0;
 const AIR_BED_BOOST = 1.5;
 /** Share the music is turned down by while vehicles are heard. */
 const MUSIC_DUCK = 0.75;
-/** Peak gain of the open-sea ambience (public/sounds/sea-waves.mp3): over the music. */
+/** Peak gain of the open-sea ambience (public/sounds/sea-waves.wav): over the music. */
 const SEA_GAIN = 1.4;
 /** Share the music is turned down by while the view is out at sea, so the waves sit above it. */
 const SEA_MUSIC_DUCK = 0.7;
 /** Seconds the sea ambience takes to fade in or out as the camera reaches or leaves open water. */
 const SEA_FADE = 1.5;
+/**
+ * Footsteps per kind of soldier: weight (heavier boots: deeper, longer knock), scuff (pitch of the gritty scrape), pace
+ * (step interval share) and the gear he carries (a band of noise right after the step).
+ */
+interface FootVoice { weight: number; scuff: number; pace: number; gear?: { freq: number; q: number; gain: number; len: number } }
+const FOOT_VOICE: Readonly<Record<string, FootVoice>> = {
+  regular: { weight: 1, scuff: 1, pace: 1, gear: { freq: 2600, q: 4, gain: 0.08, len: 0.05 } }, // rifle sling and webbing
+  special: { weight: 1.25, scuff: 0.85, pace: 0.9, gear: { freq: 1800, q: 3, gain: 0.12, len: 0.07 } }, // heavy plate carrier, quick
+  engineer: { weight: 1.1, scuff: 1, pace: 1.1, gear: { freq: 4200, q: 9, gain: 0.14, len: 0.09 } }, // tools clinking
+  squatters: { weight: 0.75, scuff: 1.3, pace: 1.05 }, // light shoes, no kit
+  demolition: { weight: 1.1, scuff: 0.95, pace: 0.95, gear: { freq: 3300, q: 6, gain: 0.12, len: 0.08 } }, // charges and detonator cord
+};
 /** Seconds between the footstep sounds of a marching group. */
 const STEP_GAP = 0.32;
 
@@ -297,13 +347,16 @@ export class SoundSystem {
   private voices: SpeechSynthesisVoice[] = [];
   /** Decoded recordings from public/sounds/ (see SAMPLE_PATHS). */
   private readonly samples = new Map<string, AudioBuffer>();
+  /** Next footstep time per kind of soldier (see FOOT_VOICE). */
+  private readonly nextSteps = new Map<string, number>();
+  /** True: soldiers' steps are synthesised per kind even when a shared foot.* recording exists. */
+  private readonly synthFeet = true;
   /** Start times (s) of the loud shots in each recording, so a clip always begins on a shot. */
   private readonly onsets = new WeakMap<AudioBuffer, number[]>();
   /** Looping engine sound per vehicle model (by name): its gain follows the motion levels. */
   private readonly beds = new Map<string, GainNode>();
   /** Recordings of single vehicle models (public/sounds/engine-<name>.*): loading, found, or not there. */
   private readonly vehicleSamples = new Map<string, AudioBuffer | 'loading' | 'none'>();
-  private nextStep = 0;
   /** Gentle waves heard while the camera shows only open sea (see sea). */
   private seaGain: GainNode | null = null;
   private seaLoading = false;
@@ -400,7 +453,7 @@ export class SoundSystem {
 
   /**
    * Open-sea ambience: `level` 1 while the view shows nothing but water, 0 otherwise. The recording
-   * (sounds/sea-waves.mp3) is fetched on first need and loops, fading in and out over SEA_FADE seconds.
+   * (sounds/sea-waves.wav) is fetched on first need and loops, fading in and out over SEA_FADE seconds.
    */
   sea(level: number): void {
     const ctx = this.ctx;
@@ -411,7 +464,7 @@ export class SoundSystem {
       this.seaLoading = true;
       void (async () => {
         try {
-          const res = await fetch(`${import.meta.env.BASE_URL}sounds/sea-waves.mp3`);
+          const res = await fetch(`${import.meta.env.BASE_URL}sounds/sea-waves.wav`);
           if (!res.ok) return;
           const buf = await ctx.decodeAudioData(await res.arrayBuffer());
           const g = ctx.createGain();
@@ -521,6 +574,7 @@ export class SoundSystem {
     this.lastPlayed.set('gradLaunch', now);
     this.sfxUntil = now + SFX_DUCK_HOLD;
     this.music?.setDuck(SFX_DUCK);
+    if (this.sample('grad', vol)) return;
     this.noiseBurst(now, 0.09, 0.5 * vol, 'highpass', 3200, 1800); // ignition crack
     this.lowThump(now, 0.35, 0.55 * vol, 95, 38); // the push off the rail
     this.noiseBurst(now + 0.01, 0.95, 0.42 * vol, 'lowpass', 2200, 260); // motor roar, fading as it climbs away
@@ -543,6 +597,7 @@ export class SoundSystem {
     this.sfxUntil = now + SFX_DUCK_HOLD * 2;
     this.music?.setDuck(SFX_DUCK);
     const v = Math.min(1.4, Math.max(vol, 0.35) * 1.3);
+    if (this.sample('howitzer', v)) return;
     this.noiseBurst(now, 0.05, 0.95 * v, 'highpass', 4200, 2000); // supersonic crack: clear, sharp attack
     this.noiseBurst(now, 0.22, 0.85 * v, 'bandpass', 900, 260, 0.8); // muzzle blast body
     this.lowThump(now, 0.9, 1.2 * v, 70, 24); // the huge low boom
@@ -629,7 +684,7 @@ export class SoundSystem {
     this.noiseBurst(t0 + 0.01, 1.4, 0.55 * v, 'lowpass', 1100, 90); // rolling rumble and debris
   }
 
-  play(kind: Kind, at: WorldPoint): void {
+  play(kind: Kind, at: WorldPoint, nation?: string): void {
     const ctx = this.ctx;
     if (!ctx || !this.master || !this.noise || this.muted || ctx.state !== 'running') return;
     const l = this.listener();
@@ -653,18 +708,23 @@ export class SoundSystem {
       for (let i = 0; i < 3; i++) setTimeout(() => this.shot('airgun', v * (1 - i * 0.1)), i * 90);
       return;
     }
+    const voice = nation && NATION_GUNS.has(kind) ? GUN_VOICE[nation] : undefined;
+    const variant = nation && (voice || kind === 'cannon') ? `${kind}-${nation}` : null;
     const burst = BURST[kind];
-    // A recording of real gunfire already rattles on its own: one clip of it per shot.
-    if (burst && !this.recording(kind)) {
-      // Rat-a-tat: the rounds of a burst, each a little quieter and pitched differently.
+    // A recording of real gunfire already rattles on its own: one clip of it per shot (the nation's own first).
+    const recorded = (variant && this.samples.get(variant)) || this.recording(kind)?.buf;
+    // A recording of a single round (under a second) is fired as a burst too; a longer one rattles on its own.
+    if (burst && (!recorded || recorded.duration < 1)) {
+      // Rat-a-tat: the rounds of a burst, each a little quieter and pitched differently, at the nation's cyclic rate.
+      const gap = voice ? voice.gap * (kind === 'mg' ? 1.1 : kind === 'smg' ? 0.85 : 1) : burst.gap;
       for (let i = 0; i < burst.rounds; i++) {
         const v = vol * (1 - i * 0.08);
-        if (i === 0) this.shot(kind, v);
-        else setTimeout(() => this.shot(kind, v), i * burst.gap * 1000);
+        if (i === 0) this.shot(kind, v, voice, variant);
+        else setTimeout(() => this.shot(kind, v, voice, variant), i * gap * 1000);
       }
       return;
     }
-    this.shot(kind, vol);
+    this.shot(kind, vol, voice, variant);
   }
 
   /**
@@ -755,9 +815,22 @@ export class SoundSystem {
   }
 
   /** One round / blast of `kind` at volume `vol` (recording if there is one, else synthesised). */
-  private shot(kind: Kind, vol: number): void {
+  private shot(kind: Kind, vol: number, voice?: GunVoice, variant?: string | null): void {
     if (this.muted || !this.ctx) return;
+    if (variant && this.samples.has(variant) && this.sample(variant, vol)) return;
+    // The shared recording, played at the nation's pitch (an AK sounds lower and heavier than an M16).
     if (this.sample(kind, vol)) return;
+    if (voice && (kind === 'rifle' || kind === 'smg' || kind === 'mg' || kind === 'sniper')) {
+      // The nation's rifle (GUN_VOICE): crack, muzzle blast, punch and echo, scaled by the weapon's size.
+      const j = 0.92 + Math.random() * 0.16;
+      const size = kind === 'sniper' ? 1.5 : kind === 'mg' ? 1.2 : kind === 'smg' ? 0.75 : 1;
+      const v = Math.min(1.2, vol * GUN_BOOST);
+      this.burst(v * 0.9 * Math.min(1.1, size), 0.016 * size, 'highpass', voice.crack * j, 0.7);
+      this.burst(v * 0.62, 0.085 * size, 'bandpass', (voice.body / Math.sqrt(size)) * j, 0.9);
+      this.thump(v * 0.45 * size, (voice.thump / size) * j, 0.08 * size);
+      this.burst(v * 0.13 * size, voice.tail * size, 'lowpass', 900 * j, 0.5, 0.03);
+      return;
+    }
     if (kind === 'airgun') kind = 'mg';
     const jitter = 0.9 + Math.random() * 0.2;
     if (kind === 'rifle' || kind === 'smg' || kind === 'mg' || kind === 'autocannon' || kind === 'sniper') vol = Math.min(1.2, vol * GUN_BOOST);
@@ -840,14 +913,17 @@ export class SoundSystem {
     const sea = Math.max(0, this.seaLevel);
     this.music?.setDuck(Math.min(sfx, 1 - MUSIC_DUCK * engines, 1 - SEA_MUSIC_DUCK * sea));
     const now = ctx.currentTime;
-    if (on && levels.foot > 0 && now >= this.nextStep) {
-      this.nextStep = now + STEP_GAP * (0.85 + Math.random() * 0.3);
-      const vol = Math.min(1, levels.foot) * 0.45;
-      if (!this.sample('foot', vol)) {
-        // Boots on dirt: a soft low knock and a short gritty scuff.
-        this.thump(vol * 0.8, 95 + Math.random() * 25, 0.06);
-        this.burst(vol * 0.5, 0.05, 'bandpass', 1400 + Math.random() * 600, 1.2);
-      }
+    const feet = levels.feet ?? new Map([['regular', levels.foot]]);
+    for (const [tier, lvl] of feet) {
+      if (!on || lvl <= 0 || now < (this.nextSteps.get(tier) ?? 0)) continue;
+      const f = FOOT_VOICE[tier] ?? FOOT_VOICE.regular!;
+      this.nextSteps.set(tier, now + STEP_GAP * f.pace * (0.85 + Math.random() * 0.3));
+      const vol = Math.min(1, lvl) * 0.45;
+      if (this.sample(`foot-${tier}`, vol) || (!this.synthFeet && this.sample('foot', vol))) continue;
+      // Boots on dirt: a low knock and a gritty scuff, heavier or lighter by kit, plus what the soldier carries.
+      this.thump(vol * 0.8 * f.weight, (95 + Math.random() * 25) / f.weight, 0.06 * f.weight);
+      this.burst(vol * 0.5, 0.05, 'bandpass', (1400 + Math.random() * 600) * f.scuff, 1.2);
+      if (f.gear) this.burst(vol * f.gear.gain, f.gear.len, 'bandpass', f.gear.freq * (0.9 + Math.random() * 0.2), f.gear.q, 0.03);
     }
   }
 
@@ -991,17 +1067,17 @@ export class SoundSystem {
   // ------------------------------------------------------------------ recordings
 
   /** Plays the recording for `kind` if one was loaded; false when there is none. */
-  private sample(kind: string, vol: number): boolean {
+  private sample(kind: string, vol: number, rate = 1): boolean {
     const ctx = this.ctx;
     const rec = this.recording(kind);
     if (!ctx || !this.master || !rec) return false;
     const src = ctx.createBufferSource();
     src.buffer = rec.buf;
-    src.playbackRate.value = 0.94 + Math.random() * 0.12;
+    src.playbackRate.value = rate * (0.94 + Math.random() * 0.12);
     const g = ctx.createGain();
     g.gain.value = vol;
     src.connect(g).connect(this.master);
-    const clip = SAMPLE_CLIP[kind];
+    const clip = SAMPLE_CLIP[kind] ?? SAMPLE_CLIP[kind.split('-')[0] ?? '']; // rifle-russia: clipped like rifle
     if (clip && rec.buf.duration > clip * 1.3) {
       const start = rec.onsets[Math.floor(Math.random() * rec.onsets.length)] ?? 0;
       const t = ctx.currentTime;
@@ -1060,7 +1136,9 @@ export class SoundSystem {
     if (!ctx || this.vehicleSamples.has(name)) return;
     this.vehicleSamples.set(name, 'loading');
     void (async () => {
-      for (const model of [slug(name), kind]) {
+      // A model with its own engine profile (every aircraft, the helicopters) is never given the shared recording of its
+      // kind: it keeps its own character (synthesised) until a recording of that very model is shipped.
+      for (const model of ENGINE_BY_NAME[name] && isAircraftKind(kind) ? [slug(name)] : [slug(name), kind]) {
         const file = shipped(`engine-${model}`);
         if (!file) continue;
         try {

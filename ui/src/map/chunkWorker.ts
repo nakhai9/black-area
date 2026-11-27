@@ -14,6 +14,6 @@ self.onmessage = (e: MessageEvent<{ t: 'init'; seed: number; mapHeight: number }
     return;
   }
   if (!painter) return;
-  const pixels = painter.paint(m.data);
-  (self as unknown as DedicatedWorkerGlobalScope).postMessage({ key: m.key, pixels }, [pixels.buffer]);
+  const { pixels, shore } = painter.paint(m.data);
+  (self as unknown as DedicatedWorkerGlobalScope).postMessage({ key: m.key, pixels, shore }, shore ? [pixels.buffer, shore.buffer] : [pixels.buffer]);
 };

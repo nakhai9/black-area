@@ -156,9 +156,21 @@ export interface PaintJob extends ChunkData {
   row: number;
   /** Next output row to warp (of `out`). */
   warpRow: number;
+  /** Per flat pixel (SRC_PX²): signed distance to the waterline, encoded (see SHORE_NONE); for the surf (ShoreWaves). */
+  shoreSrc: Uint8Array;
+  /** The same per output pixel (CHUNK_PX², warped like the painting). */
+  shore: Uint8Array;
+  /** Some pixel of the chunk lies on a coast. */
+  hasShore: boolean;
 }
 
-export const paintJob = (d: ChunkData): PaintJob => ({ ...d, src: new Uint8ClampedArray(SRC_PX * SRC_PX * 4), out: new Uint8ClampedArray(CHUNK_PX * CHUNK_PX * 4), row: 0, warpRow: 0 });
+/**
+ * Waterline distance map: 255 = not near a coast; else round((d + 0.5) × 254), d = cells from the (smooth) waterline,
+ * > 0 out to sea, < 0 up the beach (|d| ≤ 0.5).
+ */
+export const SHORE_NONE = 255;
+
+export const paintJob = (d: ChunkData): PaintJob => ({ ...d, src: new Uint8ClampedArray(SRC_PX * SRC_PX * 4), out: new Uint8ClampedArray(CHUNK_PX * CHUNK_PX * 4), row: 0, warpRow: 0, shoreSrc: new Uint8Array(SRC_PX * SRC_PX).fill(SHORE_NONE), shore: new Uint8Array(CHUNK_PX * CHUNK_PX), hasShore: false });
 
 export class ChunkPainter {
   private readonly noise: ValueNoise;
@@ -172,11 +184,11 @@ export class ChunkPainter {
   }
 
   /** Paints the whole chunk at once (worker side); returns its CHUNK_PX × CHUNK_PX RGBA pixels. */
-  paint(d: ChunkData): Uint8ClampedArray {
+  paint(d: ChunkData): { pixels: Uint8ClampedArray; shore: Uint8Array | null } {
     const job = paintJob(d);
     while (job.row < SRC_PX) this.paintRow(job, job.row++);
     while (job.warpRow < CHUNK_PX) this.warpRow(job, job.warpRow++);
-    return job.out;
+    return { pixels: job.out, shore: job.hasShore ? job.shore : null };
   }
 
   /** Base colour of terrain `t` at cell position (fx, fy) (cell units, fractional) into this.col. */
@@ -436,6 +448,7 @@ export class ChunkPainter {
       out[o + 1] = src[si + 1]!;
       out[o + 2] = src[si + 2]!;
       out[o + 3] = 255;
+      job.shore[o >> 2] = job.shoreSrc[si >> 2]!;
     }
   }
 
@@ -477,6 +490,10 @@ export class ChunkPainter {
           const coastal = (t === 0 || L === 0 || R === 0 || U === 0 || D === 0 || UL === 0 || UR === 0 || DL === 0 || DR === 0) && (t !== 0 || L !== 0 || R !== 0 || U !== 0 || D !== 0 || UL !== 0 || UR !== 0 || DL !== 0 || DR !== 0);
           const f = coastal ? this.landField(T, W, i, j, u, v) + (this.noise.noise(fx * 1.6, fy * 1.6) - 0.5) * 0.22 : t === 0 ? 0 : 1;
           const land = f >= 0.5;
+          if (coastal && f > 0 && f < 1) {
+            job.shoreSrc[py * SRC_PX + px] = Math.round(Math.min(1, Math.max(0, 1 - f)) * 254); // d + 0.5 = 1 - f
+            job.hasShore = true;
+          }
           // A sea cell painted as land takes beach sand; a land cell painted as sea is sea.
           const lt = t === 0 ? 1 : t;
           if (land) this.landBase(T, W, i, j, u, v, lt, fx, fy, n1, mott);
@@ -545,7 +562,8 @@ export class ChunkPainter {
               col[0] += (SEA_COAST[0] - col[0]) * shelf;
               col[1] += (SEA_COAST[1] - col[1]) * shelf;
               col[2] += (SEA_COAST[2] - col[2]) * shelf;
-              const foam = Math.max(smooth(0.06, 0.0, dL) * 0.5, dL > 0.13 && dL < 0.17 ? 0.18 : 0);
+              // Only the thin line at the water's edge is painted in: the rolling surf is animated over it (ShoreWaves).
+              const foam = smooth(0.06, 0.0, dL) * 0.35;
               col[0] += (FOAM[0] - col[0]) * foam;
               col[1] += (FOAM[1] - col[1]) * foam;
               col[2] += (FOAM[2] - col[2]) * foam;

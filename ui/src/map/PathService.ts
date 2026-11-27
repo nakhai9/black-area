@@ -43,6 +43,12 @@ const MISS_RETRY_MS = 3000;
 const MISS_EXPANSIONS = 3000;
 const SQRT2 = Math.SQRT2;
 const TREE_COST = 1.6;
+const DIRS4: readonly [number, number][] = [
+  [1, 0],
+  [-1, 0],
+  [0, 1],
+  [0, -1],
+];
 const DIRS: readonly [number, number, number][] = [
   [1, 0, 1],
   [-1, 0, 1],
@@ -66,10 +72,14 @@ export interface GroupMember {
 export class PathService {
   private readonly cw: number;
   private readonly ch: number;
-  /** Cluster has dry land at all. */
-  private readonly land: Uint8Array;
-  /** Dry-land crossing between a cluster and its right (bit 1) / lower (bit 2) neighbour. */
-  private readonly links: Uint8Array;
+  /**
+   * Dry-land component (1..255, 0 = water / rock) of every cell inside its own cluster: a river cutting a cluster in
+   * two gives it two components, so the cluster graph knows the banks are not joined there.
+   */
+  private readonly comp: Uint8Array;
+  /** Per cluster: component pairs (own << 8 | neighbour's) joined across its right / lower border. */
+  private readonly rightLinks: number[][];
+  private readonly downLinks: number[][];
   /**
    * Flow fields: one for background route work (AI orders), one for the players' own orders, so a player's order can
    * run ahead of a long AI job that is half-way through building its field.
@@ -97,8 +107,9 @@ export class PathService {
   ) {
     this.cw = Math.ceil(map.width / CLUSTER);
     this.ch = Math.ceil(map.height / CLUSTER);
-    this.land = new Uint8Array(this.cw * this.ch);
-    this.links = new Uint8Array(this.cw * this.ch);
+    this.comp = new Uint8Array(map.width * map.height);
+    this.rightLinks = Array.from({ length: this.cw * this.ch }, () => []);
+    this.downLinks = Array.from({ length: this.cw * this.ch }, () => []);
     const field = (): FlowField => ({ dist: new Float32Array(map.width * map.height), stamp: new Uint32Array(map.width * map.height), run: 0 });
     this.fields = [field(), field()];
     this.buildClusters();
@@ -107,26 +118,118 @@ export class PathService {
   // ------------------------------------------------------------------ layer 1: clusters (HPA*)
 
   private buildClusters(): void {
-    for (let cy = 0; cy < this.ch; cy++) for (let cx = 0; cx < this.cw; cx++) this.buildCluster(cx, cy);
+    for (let cy = 0; cy < this.ch; cy++) for (let cx = 0; cx < this.cw; cx++) this.labelCluster(cx, cy);
+    for (let cy = 0; cy < this.ch; cy++) for (let cx = 0; cx < this.cw; cx++) this.linkCluster(cx, cy);
   }
 
-  /** Land and border links of cluster (cx, cy); a bridge counts as dry land. */
-  private buildCluster(cx: number, cy: number): void {
+  private dry(x: number, y: number): boolean {
     const { map } = this;
-    const dry = (x: number, y: number): boolean => map.inBounds(x, y) && !map.isOpenWater(x, y) && !map.isRockWall(x, y);
+    return map.inBounds(x, y) && !map.isOpenWater(x, y) && !map.isRockWall(x, y);
+  }
+
+  /** Flood-fills the dry cells of cluster (cx, cy) into components (4-neighbour, inside the cluster only). */
+  private labelCluster(cx: number, cy: number): void {
+    const { map } = this;
+    const W = map.width;
     const x0 = cx * CLUSTER;
     const y0 = cy * CLUSTER;
-    let any = false;
-    for (let y = y0; y < y0 + CLUSTER && !any; y++) for (let x = x0; x < x0 + CLUSTER && !any; x++) any = dry(x, y);
+    const x1 = Math.min(x0 + CLUSTER, map.width);
+    const y1 = Math.min(y0 + CLUSTER, map.height);
+    for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) this.comp[y * W + x] = 0;
+    let next = 0;
+    const stack: number[] = [];
+    for (let y = y0; y < y1; y++) {
+      for (let x = x0; x < x1; x++) {
+        if (this.comp[y * W + x] !== 0 || !this.dry(x, y)) continue;
+        if (next < 255) next++;
+        this.comp[y * W + x] = next;
+        stack.push(y * W + x);
+        while (stack.length > 0) {
+          const i = stack.pop() ?? 0;
+          const px = i % W;
+          const py = (i / W) | 0;
+          for (const [dx, dy] of DIRS4) {
+            const nx = px + dx;
+            const ny = py + dy;
+            if (nx < x0 || ny < y0 || nx >= x1 || ny >= y1) continue;
+            const ni = ny * W + nx;
+            if (this.comp[ni] !== 0 || !this.dry(nx, ny)) continue;
+            this.comp[ni] = next;
+            stack.push(ni);
+          }
+        }
+      }
+    }
+  }
+
+  /** Component pairs joined across the right and lower border of cluster (cx, cy) (straight or diagonal step). */
+  private linkCluster(cx: number, cy: number): void {
+    const { map } = this;
+    const W = map.width;
     const i = cy * this.cw + cx;
-    this.land[i] = any ? 1 : 0;
-    let link = 0;
-    // Right border: some row where both sides of the seam are dry.
+    const right = new Set<number>();
+    const down = new Set<number>();
+    const y0 = cy * CLUSTER;
+    const y1 = Math.min(y0 + CLUSTER, map.height);
+    const x0 = cx * CLUSTER;
+    const x1 = Math.min(x0 + CLUSTER, map.width);
     const xr = x0 + CLUSTER - 1;
-    for (let y = y0; y < y0 + CLUSTER; y++) if (dry(xr, y) && dry(xr + 1, y)) { link |= 1; break; }
+    if (xr + 1 < map.width) {
+      for (let y = y0; y < y1; y++) {
+        const a = this.comp[y * W + xr] ?? 0;
+        if (a === 0) continue;
+        for (let dy = -1; dy <= 1; dy++) {
+          const ny = y + dy;
+          if (ny < y0 || ny >= y1) continue;
+          const b = this.comp[ny * W + xr + 1] ?? 0;
+          if (b !== 0) right.add((a << 8) | b);
+        }
+      }
+    }
     const yb = y0 + CLUSTER - 1;
-    for (let x = x0; x < x0 + CLUSTER; x++) if (dry(x, yb) && dry(x, yb + 1)) { link |= 2; break; }
-    this.links[i] = link;
+    if (yb + 1 < map.height) {
+      for (let x = x0; x < x1; x++) {
+        const a = this.comp[yb * W + x] ?? 0;
+        if (a === 0) continue;
+        for (let dx = -1; dx <= 1; dx++) {
+          const nx = x + dx;
+          if (nx < x0 || nx >= x1) continue;
+          const b = this.comp[(yb + 1) * W + nx] ?? 0;
+          if (b !== 0) down.add((a << 8) | b);
+        }
+      }
+    }
+    this.rightLinks[i] = [...right];
+    this.downLinks[i] = [...down];
+  }
+
+  /** Graph nodes (cluster << 8 | component) joined to `node`. */
+  private neighbours(node: number, out: number[]): void {
+    out.length = 0;
+    const c = node >> 8;
+    const k = node & 255;
+    const cx = c % this.cw;
+    if (cx + 1 < this.cw) for (const pr of this.rightLinks[c] ?? []) if (pr >> 8 === k) out.push(((c + 1) << 8) | (pr & 255));
+    for (const pr of this.downLinks[c] ?? []) if (pr >> 8 === k) out.push(((c + this.cw) << 8) | (pr & 255));
+    if (cx > 0) for (const pr of this.rightLinks[c - 1] ?? []) if ((pr & 255) === k) out.push(((c - 1) << 8) | (pr >> 8));
+    if (c >= this.cw) for (const pr of this.downLinks[c - this.cw] ?? []) if ((pr & 255) === k) out.push(((c - this.cw) << 8) | (pr >> 8));
+  }
+
+  /** Graph node of cell (x, y): its cluster and dry component (a wet cell takes a nearby dry one's), or -1. */
+  private nodeOf(x: number, y: number): number {
+    const W = this.map.width;
+    for (let r = 0; r <= 2; r++) {
+      for (let dy = -r; dy <= r; dy++) {
+        for (let dx = -r; dx <= r; dx++) {
+          const nx = x + dx;
+          const ny = y + dy;
+          if (!this.map.inBounds(nx, ny)) continue;
+          const k = this.comp[ny * W + nx] ?? 0;
+          if (k !== 0) return (this.clusterOf(nx, ny) << 8) | k;
+        }
+      }
+    }
+    return -1;
   }
 
   /**
@@ -138,20 +241,11 @@ export class PathService {
     const cy0 = Math.max(0, Math.floor(y / CLUSTER) - 1);
     const cx1 = Math.min(this.cw - 1, Math.floor((x + w) / CLUSTER));
     const cy1 = Math.min(this.ch - 1, Math.floor((y + d) / CLUSTER));
-    for (let cy = cy0; cy <= cy1; cy++) for (let cx = cx0; cx <= cx1; cx++) this.buildCluster(cx, cy);
+    for (let cy = cy0; cy <= cy1; cy++) for (let cx = cx0; cx <= cx1; cx++) this.labelCluster(cx, cy);
+    for (let cy = Math.max(0, cy0 - 1); cy <= cy1; cy++) for (let cx = Math.max(0, cx0 - 1); cx <= cx1; cx++) this.linkCluster(cx, cy);
     this.missed.clear();
     this.detourFailed.clear();
     this.pathfinder.landChanged();
-  }
-
-  private linked(a: number, b: number): boolean {
-    const ax = a % this.cw;
-    const bx = b % this.cw;
-    if (b === a + 1 && bx === ax + 1) return ((this.links[a] ?? 0) & 1) !== 0;
-    if (a === b + 1 && ax === bx + 1) return ((this.links[b] ?? 0) & 1) !== 0;
-    if (b === a + this.cw) return ((this.links[a] ?? 0) & 2) !== 0;
-    if (a === b + this.cw) return ((this.links[b] ?? 0) & 2) !== 0;
-    return false;
   }
 
   private clusterOf(x: number, y: number): number {
@@ -167,16 +261,20 @@ export class PathService {
     if (swim === true) return null;
     if (starts.every((s) => Math.max(Math.abs(s.x - goal.x), Math.abs(s.y - goal.y)) < SHORT_ROUTE)) return null;
     const n = this.cw * this.ch;
-    const hop = new Int32Array(n).fill(-1);
-    const g = this.clusterOf(goal.x, goal.y);
-    hop[g] = 0;
+    // Breadth-first over (cluster, component) nodes from the goal's.
+    const hop = new Map<number, number>();
+    const g = this.nodeOf(goal.x, goal.y);
+    if (g < 0) return null;
+    hop.set(g, 0);
     const queue = [g];
+    const nbs: number[] = [];
     for (let qi = 0; qi < queue.length; qi++) {
       const c = queue[qi] ?? 0;
-      for (const d of [1, -1, this.cw, -this.cw]) {
-        const nb = c + d;
-        if (nb < 0 || nb >= n || hop[nb] !== -1 || !this.land[nb] || !this.linked(c, nb)) continue;
-        hop[nb] = (hop[c] ?? 0) + 1;
+      const h = hop.get(c) ?? 0;
+      this.neighbours(c, nbs);
+      for (const nb of nbs) {
+        if (hop.has(nb)) continue;
+        hop.set(nb, h + 1);
         queue.push(nb);
       }
     }
@@ -192,22 +290,17 @@ export class PathService {
     };
     let reached = false;
     for (const s of starts) {
-      let c = this.clusterOf(s.x, s.y);
-      if ((hop[c] ?? -1) < 0) continue;
+      let c = this.nodeOf(s.x, s.y);
+      if (c < 0 || !hop.has(c)) continue;
       reached = true;
-      mark(c);
-      while ((hop[c] ?? 0) > 0) {
-        let next = c;
-        for (const d of [1, -1, this.cw, -this.cw]) {
-          const nb = c + d;
-          if (nb >= 0 && nb < n && (hop[nb] ?? -1) === (hop[c] ?? 0) - 1 && this.linked(c, nb)) {
-            next = nb;
-            break;
-          }
-        }
-        if (next === c) break;
+      mark(c >> 8);
+      while ((hop.get(c) ?? 0) > 0) {
+        const h = hop.get(c) ?? 0;
+        this.neighbours(c, nbs);
+        const next = nbs.find((nb) => hop.get(nb) === h - 1);
+        if (next === undefined) break;
         c = next;
-        mark(c);
+        mark(c >> 8);
       }
     }
     return reached ? { mask, width: this.cw, cluster: CLUSTER } : null;

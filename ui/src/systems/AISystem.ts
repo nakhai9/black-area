@@ -2687,6 +2687,7 @@ export class AISystem implements GameSystem {
     let going = idle.filter(
       (u) => u.aircraft || (cell !== null && (u.swims ? this.host.pathfinder.sameSwimArea(Math.floor(u.px / CELL_SIZE), Math.floor(u.py / CELL_SIZE), cell.x, cell.y) : this.host.pathfinder.sameLandmass(Math.floor(u.px / CELL_SIZE), Math.floor(u.py / CELL_SIZE), cell.x, cell.y))),
     );
+    const overseas = idle.filter((u) => !u.aircraft && !u.swims && !going.includes(u));
     // No waiting to mass or to gather every arm: the group sets off at once (combined arms comes from moving and
     // fighting together — mutualSupport).
     if (going.length > 0 && !this.onOffensive(st)) {
@@ -2712,7 +2713,9 @@ export class AISystem implements GameSystem {
       }
     }
     // Far away: soldiers who would have to rest on the march ride the nation's trucks to the front instead.
-    going = this.motorize(p, st, going, { x: goal.x, y: goal.y + CELL_SIZE * 3 });
+    // Units on another landmass (overseas) cannot walk there: they ride the nation's transport aircraft if one is free.
+    const ashore = new Set(overseas);
+    going = this.motorize(p, st, [...going, ...overseas], { x: goal.x, y: goal.y + CELL_SIZE * 3 }).filter((u) => !ashore.has(u));
     if (going.length > 0) this.host.orderAttackMove(going, { x: goal.x, y: goal.y + CELL_SIZE * 3 });
   }
 
@@ -2731,16 +2734,22 @@ export class AISystem implements GameSystem {
    */
   private motorize(p: PlayerState, st: AIState, going: readonly Unit[], goal: WorldPoint): Unit[] {
     const far = (u: Unit): boolean => Math.hypot(goal.x - u.px, goal.y - u.py) > INFANTRY_MARCH_CELLS * CELL_SIZE * 1.5;
+    // Across the sea: no walking route at all, so soldiers AND vehicles must fly (whatever the distance).
+    const pf = this.host.pathfinder;
+    const gc = this.host.map.cellAt(goal.x, goal.y);
+    const gCell = gc ? pf.nearestPassable(gc.x, gc.y, 10) : null;
+    const overseas = (u: Unit): boolean => gCell !== null && !u.aircraft && !u.flies && !u.swims && !pf.sameLandmass(Math.floor(u.px / CELL_SIZE), Math.floor(u.py / CELL_SIZE), gCell.x, gCell.y);
     let riders = going.filter((u): u is Infantry => u instanceof Infantry && !u.swims && !u.isSquatters && !u.isEngineer && far(u));
-    if (riders.length === 0) return [...going];
-    // Far away: transport aircraft first.
+    const shipped = going.filter((u) => !(u instanceof Infantry && u.isSquatters) && !riders.includes(u as Infantry) && overseas(u));
+    if (riders.length === 0 && shipped.length === 0) return [...going];
+    // Far away / overseas: transport aircraft first.
     const flown = new Set<Unit>();
     const airlifts = (st.airlifts ??= new Map());
-    const veryFar = (u: Unit): boolean => Math.hypot(goal.x - u.px, goal.y - u.py) > AI_AIRLIFT_CELLS * CELL_SIZE;
+    const veryFar = (u: Unit): boolean => overseas(u) || Math.hypot(goal.x - u.px, goal.y - u.py) > AI_AIRLIFT_CELLS * CELL_SIZE;
     for (const t of this.homeTransports(p)) {
       if (t.cargo.length > 0 || t.incoming > 0 || airlifts.has(t.id) || this.carriesSquatters(t)) continue;
-      const near = riders
-        .filter((u) => !flown.has(u) && veryFar(u) && Math.hypot(u.px - t.px, u.py - t.py) < AI_AIRLIFT_PICKUP * CELL_SIZE)
+      const near = [...riders, ...shipped]
+        .filter((u) => !flown.has(u) && veryFar(u) && t.accepts(u) && (overseas(u) || Math.hypot(u.px - t.px, u.py - t.py) < AI_AIRLIFT_PICKUP * CELL_SIZE))
         .slice(0, TRANSPORT_LOAD);
       if (near.length === 0) continue;
       if (!this.host.orderBoard(t, near)) continue;

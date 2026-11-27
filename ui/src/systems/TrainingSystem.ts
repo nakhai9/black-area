@@ -1,3 +1,4 @@
+import { onePerDesign } from './ShopDedup';
 import { demoPrice } from '../core/Demo';
 import { BUILD_LIMIT_SOLDIERS, MAX_SOLDIERS, INFANTRY_BASE, INFANTRY_TRAIN_FACTOR, TECH_TIERS, eliteCap } from '../constants';
 import type { Building } from '../entities/Building';
@@ -125,21 +126,15 @@ export class TrainingSystem implements GameSystem {
     const own = this.options.get(player.id) ?? [];
     const taken = takenNations(this.entities, player, 'barracks');
     if (taken.length === 0 || own.length === 0) return own;
+    return onePerDesign(this.allOptionsFor(own, taken), (o) => o.tier, (o) => o.faction);
+  }
+
+  private allOptionsFor(own: TrainOption[], taken: FactionId[]): TrainOption[] {
     // Every captured Ministry of Defence brings its nation's soldiers into the shop next to the own ones (each foreign
     // design has its own key and shows that nation's flag).
     const keys = new Set(own.map((o) => o.key));
-    // An engineer is an engineer whatever its nation: a captured Ministry of Defence never adds a second one.
-    const tiers = new Set(own.map((o) => o.tier));
-    const seen = new Set<string>();
-    return [
-      ...own,
-      ...taken.flatMap((f) => foreignOptions(f)).filter((o) => {
-        if (keys.has(o.key)) return false;
-        if (o.tier === 'engineer' && (tiers.has('engineer') || seen.has('engineer'))) return false;
-        seen.add(o.tier);
-        return true;
-      }),
-    ];
+    // Duplicates (the same soldier from several nations) are dropped by optionsFor (onePerDesign).
+    return [...own, ...taken.flatMap((f) => foreignOptions(f)).filter((o) => !keys.has(o.key))];
   }
 
   /** First living Barracks of the player (soldiers exit there). */

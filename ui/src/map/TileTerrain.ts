@@ -11,6 +11,7 @@ import type { GroundLift } from './GroundLift';
  * tiles carry their own texture, shores get a beach strip and foam, mountains get hill-shading, and the sea
  * deepens with the real bathymetry. Chunks of CHUNK_CELLS × CHUNK_CELLS tiles are rendered on demand and cached.
  */
+import { ShoreWaves } from './ShoreWaves';
 import { CHUNK_CELLS, CHUNK_PX, ChunkPainter, LV, PAD, SRC_CELLS, SRC_PX, type ChunkData, type PaintJob, paintJob } from './ChunkPainter';
 
 /** Painted chunks kept (LRU); the ones around the view are kept too, so panning finds them ready. */
@@ -25,7 +26,7 @@ const HALVES_PER_FRAME = 4;
 const BUILD_BUDGET_MS = 4;
 const MIN_ROWS_PER_FRAME = 16;
 
-type Tile = { full: HTMLCanvasElement; half: HTMLCanvasElement | null };
+type Tile = { full: HTMLCanvasElement; half: HTMLCanvasElement | null; shore: Uint8Array | null };
 type View = { x: number; y: number; w: number; h: number };
 
 export class TileTerrain {
@@ -47,6 +48,10 @@ export class TileTerrain {
   private readonly pending = new Map<string, PaintJob>();
   /** Waiters of prepare(): resolved once every chunk they need is painted. */
   private readonly waiters: { keys: string[]; done: () => void }[] = [];
+  /** Animated surf drawn over the coastal chunks. */
+  private readonly waves = new ShoreWaves();
+  /** Off: no surf (Settings). */
+  wavesOn = true;
 
   constructor(
     private readonly map: TileMap,
@@ -62,9 +67,9 @@ export class TileTerrain {
         const w = new Worker(new URL('./chunkWorker.ts', import.meta.url), { type: 'module' });
         w.postMessage({ t: 'init', seed, mapHeight: map.height });
         const slot = { w, busy: false };
-        w.onmessage = (e: MessageEvent<{ key: string; pixels: Uint8ClampedArray }>) => {
+        w.onmessage = (e: MessageEvent<{ key: string; pixels: Uint8ClampedArray; shore: Uint8Array | null }>) => {
           slot.busy = false;
-          this.arrived(e.data.key, e.data.pixels);
+          this.arrived(e.data.key, e.data.pixels, e.data.shore);
           this.dispatch();
         };
         w.onerror = () => {
@@ -118,23 +123,24 @@ export class TileTerrain {
   }
 
   /** A worker finished chunk `key`: into the cache (an answer for an outdated version is dropped). */
-  private arrived(key: string, pixels: Uint8ClampedArray): void {
+  private arrived(key: string, pixels: Uint8ClampedArray, shore: Uint8Array | null): void {
     const sent = this.inFlight.get(key);
     this.inFlight.delete(key);
     if (sent !== (this.version.get(key) ?? 0)) return;
     const { canvas, ctx } = createCanvas(CHUNK_PX, CHUNK_PX);
     ctx.putImageData(new ImageData(pixels as Uint8ClampedArray<ArrayBuffer>, CHUNK_PX, CHUNK_PX), 0, 0);
-    this.store(key, canvas);
+    this.store(key, canvas, shore);
   }
 
-  private store(key: string, canvas: HTMLCanvasElement): void {
+  private store(key: string, canvas: HTMLCanvasElement, shore: Uint8Array | null): void {
+    this.waves.forget(key);
     const old = this.cache.get(key);
     if (old) {
       old.full.width = old.full.height = 0;
       if (old.half) old.half.width = old.half.height = 0;
     }
     this.cache.delete(key);
-    this.cache.set(key, { full: canvas, half: null });
+    this.cache.set(key, { full: canvas, half: null, shore });
     this.stale.delete(key);
     this.touched.add(key);
     for (let i = this.waiters.length - 1; i >= 0; i--) {
@@ -165,7 +171,8 @@ export class TileTerrain {
       for (const k of keys) {
         if (this.cache.has(k)) continue;
         const [qx, qy] = k.split(',').map(Number) as [number, number];
-        this.store(k, this.paintHere(paintJob(this.gather(qx, qy)), Infinity, 0)!);
+        const job = paintJob(this.gather(qx, qy));
+        this.store(k, this.paintHere(job, Infinity, 0)!, job.hasShore ? job.shore : null);
       }
       return Promise.resolve();
     }
@@ -184,6 +191,9 @@ export class TileTerrain {
     const start = performance.now();
     let built = 0;
     let halves = 0;
+    this.waves.beginFrame();
+    const now = performance.now();
+    const surf = this.wavesOn && zoom >= ZOOMED_OUT;
     for (const [qx, qy] of this.around(view, 0)) {
       const key = `${qx},${qy}`;
       let tile = this.cache.get(key);
@@ -201,7 +211,7 @@ export class TileTerrain {
         built++;
         if (canvas) {
           this.pending.delete(key);
-          this.store(key, canvas);
+          this.store(key, canvas, job.hasShore ? job.shore : null);
           tile = this.cache.get(key);
         }
       }
@@ -220,6 +230,7 @@ export class TileTerrain {
       }
       // A hair of overlap hides the seams that anti-aliased chunk borders would show on the diamond ground.
       ctx.drawImage(zoom < ZOOMED_OUT && tile.half ? tile.half : tile.full, qx * cw - 0.2, qy * cw - 0.2, cw + 0.4, cw + 0.4);
+      if (surf && tile.shore) this.waves.draw(ctx, key, tile.shore, qx, qy, qx * cw - 0.2, qy * cw - 0.2, cw + 0.4, cw + 0.4, now);
     }
     while (this.cache.size > CACHE_LIMIT) {
       const oldest = this.cache.keys().next().value;
