@@ -30,7 +30,7 @@ export type CapitalChoice = 'embargo' | 'disarm' | 'nuclear' | 'parallel' | 'cap
  * rate, and notices when it is stuck.
  */
 /** A ground vehicle pointing farther than this (radians) from its next waypoint stops and turns on the spot first. */
-const PIVOT_ANGLE = 0.7;
+const PIVOT_ANGLE = 0.45;
 /** A ground vehicle this close (world px) to a bend already heads for the following point, when that cut is clear. */
 const VEHICLE_CORNER_CUT = CELL_SIZE * 0.6;
 /** Distance (world px) over which a ground vehicle brakes before a sharp bend. */
@@ -297,6 +297,8 @@ export abstract class Unit extends Entity {
   crowdFactor = 1;
   /** Seconds spent close to its goal without arriving (see trackProgress). */
   private nearGoalFor = 0;
+  /** Stopped by a structure: the next route starts from the centre of its cell (see follow). */
+  private recenter = false;
   /** Seconds it has been waiting at a crossing for another unit to go by. */
   crossingWait = 0;
   /** Game time it drove up to (or onto) a bridge, -1 when not at one: bridges are crossed first come, first served. */
@@ -349,7 +351,15 @@ export abstract class Unit extends Entity {
     this.path = [...path];
     // A new route starts at the centre of the cell it stands in: a moving vehicle already past that point would stop
     // and pivot back to it (a jerk on every re-route). Points close behind its nose count as passed.
-    if (this.groundDriver) {
+    if (this.recenter && !this.flies && !this.naval) {
+      // Re-routed after running into a structure: back to the centre of its own cell first. The new route's straight
+      // lines are judged from cell centres, so one followed from off-centre may clip the same corner again (stuck,
+      // re-routing for ever).
+      const cx = (Math.floor(this.px / CELL_SIZE) + 0.5) * CELL_SIZE;
+      const cy = (Math.floor(this.py / CELL_SIZE) + 0.5) * CELL_SIZE;
+      const first = this.path[0];
+      if (first && Math.hypot(cx - this.px, cy - this.py) > 0.3 && !(first.x === cx && first.y === cy)) this.path.unshift({ x: cx, y: cy });
+    } else if (this.groundDriver) {
       while (this.path.length > 1) {
         const p = this.path[0]!;
         const d = Math.hypot(p.x - this.px, p.y - this.py);
@@ -362,6 +372,7 @@ export abstract class Unit extends Entity {
     this.destination = path.length > 0 ? (path[path.length - 1] ?? null) : null;
     this.stuckFor = 0;
     this.needsRepath = false;
+    this.recenter = false;
   }
 
   stop(): void {
@@ -447,7 +458,7 @@ export abstract class Unit extends Entity {
       // pivoting there: it curves round the bend.
       if (this.drivesForward && this.turnsToMove && this.path.length > 1 && dist < VEHICLE_CORNER_CUT && !reverse) {
         const after = this.path[1]!;
-        if (!Unit.blocks || !Unit.blocks(this, this.px, this.py, after.x, after.y)) {
+        if (this.lineFree(this.px, this.py, after.x, after.y)) {
           this.path.shift();
           continue;
         }
@@ -516,6 +527,7 @@ export abstract class Unit extends Entity {
         this.py = fromY;
         budget = total;
         this.needsRepath = true;
+        this.recenter = true;
       } else if (next && d > 0.05 && !Unit.blocks(this, fromX, fromY, sx, sy)) {
         this.px = sx;
         this.py = sy;
@@ -534,6 +546,7 @@ export abstract class Unit extends Entity {
         this.py = fromY;
         budget = total;
         this.needsRepath = true;
+        this.recenter = true;
       }
     }
     if (this.path.length === 0 && moving) this.destination = null;
@@ -604,6 +617,31 @@ export abstract class Unit extends Entity {
    * Ground vehicle throttle while turning (RA2): pointing well away from the next waypoint it stops and pivots on the
    * spot; nearly lined up it rolls, slower the more it still has to turn.
    */
+  /**
+   * The whole straight line from (x0, y0) to (x1, y1) is free for this unit (Unit.blocks only judges one step's two
+   * end cells, so the line is walked in small steps: a cut past a structure's corner never runs into it).
+   */
+  private lineFree(x0: number, y0: number, x1: number, y1: number): boolean {
+    if (!Unit.blocks) return true;
+    const len = Math.hypot(x1 - x0, y1 - y0);
+    const steps = Math.max(1, Math.ceil(len / (CELL_SIZE * 0.25)));
+    // The hull's width too: the line is checked again on either side, half a hull out.
+    const nx = len > 0 ? (-(y1 - y0) / len) * this.radius * 0.5 : 0;
+    const ny = len > 0 ? ((x1 - x0) / len) * this.radius * 0.5 : 0;
+    for (const [ox, oy] of [[0, 0], [nx, ny], [-nx, -ny]] as const) {
+      let px = x0 + ox;
+      let py = y0 + oy;
+      for (let i = 1; i <= steps; i++) {
+        const qx = x0 + ox + ((x1 - x0) * i) / steps;
+        const qy = y0 + oy + ((y1 - y0) * i) / steps;
+        if (Unit.blocks(this, px, py, qx, qy)) return false;
+        px = qx;
+        py = qy;
+      }
+    }
+    return true;
+  }
+
   private bendSpeed(): number {
     const a = this.path[0];
     const b = this.path[1];

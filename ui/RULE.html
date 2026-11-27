@@ -26,7 +26,7 @@
 <body>
 <main>
 <img class="logo" src="/logo.png" alt="Black Area" />
-<h1>Black Area — RULE <small>v3.75.495</small></h1>
+<h1>Black Area — RULE <small>v3.75.496</small></h1>
 <p class="lead">Tài liệu luật chơi + kiến trúc code dành cho AI/dev sửa game. Mọi con số gameplay chính xác nằm trong <code>src/constants.ts</code> và <code>src/factions/*.ts</code>. Nếu tài liệu này khác code thì <b>code đúng</b>. <b>Khi đổi luật/số trong code, phải cập nhật file này.</b></p>
 <nav><a href="#s1">Quy tắc làm việc cho AI</a><a href="#s2">Chạy dự án</a><a href="#s3">Kiến trúc thư mục</a><a href="#s4">Thế giới</a><a href="#s5">Kinh tế (dầu)</a><a href="#s6">Công trình (ConstructionSystem.BUILD_OPTIONS)</a><a href="#s7">Quân đội</a><a href="#s8">Chiến đấu</a><a href="#s9">Điều khiển (Game.handleKey, handleInput)</a><a href="#s10">Giới hạn &amp; hiệu năng</a><a href="#s11">Thắng / thua &amp; AI</a><a href="#s12">Công thức sửa thường gặp</a></nav>
 <h2 id="s1">0. Quy tắc làm việc cho AI</h2>
@@ -708,6 +708,7 @@ npm run build:earth  # tạo lại public/data/earth.png (scripts/build-earth.mj
     <li>v3.75.434: <b>Y-20</b> và 3 máy bay ném bom <b>B-1, Tu-160, H-6K</b> (cả sheet cánh xoè và cánh cụp) có line màu phe theo chủ sở hữu: vòng thân sau buồng lái và chóp đuôi đứng (máy bay ném bom trước đây chưa có line phe), xám trung tính + sheet mặt nạ <code>-team</code> (<code>ui/tools/tu160_model_sheet.py</code> team_band, <code>tu160_blender.py</code> chế độ mask). Cả người chơi lẫn AI.</li>
     <li>v3.75.433: Line mặt nạ theo màu phe sở hữu cho Karrar, C-17, Il-76, A400M (sheet chính line xám trung tính + sheet <code>-team</code>, game tô theo <code>Unit.banner</code>, cả ô cửa hàng). Sửa <code>tools/organize_sprites.py</code>: khi có nhiều bản cùng tên, bản mới nhất được giữ (trước đây bản cũ ở thư mục cũ có thể đè bản render mới).</li>
     <li>v3.75.432: Thanh điều khiển dưới đáy: ô trên đồng hồ chiến tranh dùng đúng logo phe kèm cờ phe như thẻ phe trên sidebar (thay cho logo game + cờ). Xe tăng T-90M, Type 99, Leopard 2A8 chuyển sang line mặt nạ theo màu phe sở hữu.</li>
+    <li>v3.75.496: Sửa lính/xe kẹt mãi trước công trình: xe chỉ cắt cua khi cả đường thẳng (tính cả bề ngang thân xe) không chạm công trình; góc phải xoay tại chỗ trả về 0.45 rad (0.7 làm xe trôi vào góc công trình); bị công trình chặn thì đường mới bắt đầu bằng việc về tâm ô đang đứng, không đi tiếp từ chỗ lệch rồi lại đụng đúng góc đó. Cả người chơi lẫn AI.</li>
     <li>v3.75.495: AI <b>tự tính</b> cách bảo vệ Lò Phản Ứng Vĩnh Cửu thay cho số cố định: mỗi lượt đo mức nguy hiểm của từng lò (quân địch trong 24 ô: bộ/xe 1 điểm, máy bay 2 điểm; lò vừa mất máu +4). Công trình phòng thủ cần = 1 + nguy hiểm/3 (tối đa 6; lô cốt 1, LDEW 2), AI tự chọn LDEW hay lô cốt tuỳ cái đang có và chỉ xây khi còn đủ tiền dự trữ. Tổ gác = 1 + nguy hiểm/2 (tối đa 8, không quá 30% quân), có máy bay địch thì ưu tiên xe phòng không.</li>
     <li>v3.75.494: AI bảo vệ <b>Lò Phản Ứng Vĩnh Cửu</b> thêm: khi giữ London, mỗi lò có một trụ laser LDEW trong bán kính 8 ô; mỗi lò có một tổ 4 quân bộ/xe đứng gác (cùng một tổ qua các lượt), đi xa quá 5 ô thì quay về, gặp địch thì đánh, và không tham gia tấn công.</li>
     <li>v3.75.493: Nhà máy điện cấp 6 đổi tên thành <b>Lò Phản Ứng Vĩnh Cửu</b> (Eternal Reactor).</li>
