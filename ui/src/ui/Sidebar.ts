@@ -594,7 +594,8 @@ export class Sidebar {
       </div>`;
 
     const q = <T extends HTMLElement>(sel: string): T => {
-      const el = root.querySelector<T>(sel);
+      // The shop page lives in the shop drawer (moved out of the sidebar root), so it is searched too.
+      const el = root.querySelector<T>(sel) ?? this.shopDrawer.querySelector<T>(sel);
       if (!el) throw new Error(`Sidebar element missing: ${sel}`);
       return el;
     };

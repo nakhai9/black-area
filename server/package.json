@@ -8,7 +8,7 @@
     "node": ">=18"
   },
   "scripts": {
-    "build": "node --check src/index.js && node --check src/rooms.js && node --check src/saves.js",
+    "build": "node --check src/index.js && node --check src/rooms.js && node --check src/saves.js && node --check src/ai.js",
     "start": "node src/index.js",
     "dev": "node --watch src/index.js"
   },

@@ -1,50 +1,124 @@
 import DEFAULTS from './doctrine.json';
 
 /**
- * AI doctrine (tunable tactics numbers) + self-review after a match (idea from ys118/ra2web-jev-player: audit → review →
- * capped, whitelisted tuning, loaded by the next match).
+ * AI doctrine (tunable tactics numbers). Defaults come from doctrine.json; the learned values come from the game server
+ * (server/src/ai.js), which learns from every match of every player (see KnowledgeApi). The last doctrine the server
+ * handed out is kept in the browser, so an offline start still uses what was learned.
  *
- * Defaults come from doctrine.json. Learned values are kept in the browser (localStorage) and only used in solo games:
- * in multiplayer every machine must run the same AI, so the defaults are used there.
+ * Whatever the source, every value is clamped to its [min, max] in doctrine.json: a bad or tampered answer can never
+ * push the AI outside its bounds.
  */
 export type DoctrineKey = keyof typeof DEFAULTS.params;
 export type Doctrine = Record<DoctrineKey, number>;
 
-const STORE = 'black-area.ai-doctrine';
-const HISTORY = 'black-area.ai-doctrine-history';
-/** Keys the review may change (whitelist). */
-const TUNABLE: readonly DoctrineKey[] = ['focusRadiusCells', 'infantryBias', 'retreatOdds', 'strikeGroup', 'supportRadiusCells'];
+/** The learned opening etc. the server hands out with the doctrine (all optional: missing = the built-in rules). */
+export interface Playbook {
+  opening?: string[];
+}
+
+/** What the AI knows at the start of a match (or when a save is continued). */
+export interface Knowledge {
+  /** Server's doctrine version (0 = defaults / offline). */
+  version: number;
+  doctrine: Doctrine;
+  /** Per-player counter: offsets added on top of the doctrine (clamped). */
+  counter: Partial<Doctrine>;
+  playbook: Playbook;
+}
+
+const CACHE = 'black-area.ai-knowledge';
+export const KEYS = Object.keys(DEFAULTS.params) as DoctrineKey[];
 
 export const THROTTLE = DEFAULTS.throttle;
 export const FAST_TIER_SECONDS = DEFAULTS.fastTierSeconds;
 
-function defaults(): Doctrine {
+export function defaultDoctrine(): Doctrine {
   const out = {} as Doctrine;
-  for (const k of Object.keys(DEFAULTS.params) as DoctrineKey[]) out[k] = DEFAULTS.params[k].value;
+  for (const k of KEYS) out[k] = DEFAULTS.params[k].value;
   return out;
 }
 
-function clampParam(k: DoctrineKey, v: number): number {
+export function clampParam(k: DoctrineKey, v: number): number {
   const p = DEFAULTS.params[k];
   return Math.min(p.max, Math.max(p.min, v));
 }
 
-/** The doctrine for this match: learned values in solo games (if any), the defaults otherwise. */
-export function loadDoctrine(solo: boolean): Doctrine {
-  const d = defaults();
-  if (!solo) return d;
-  try {
-    const raw = localStorage.getItem(STORE);
-    if (!raw) return d;
-    const saved = JSON.parse(raw) as Partial<Doctrine>;
-    for (const k of TUNABLE) if (typeof saved[k] === 'number' && Number.isFinite(saved[k])) d[k] = clampParam(k, saved[k]!);
-  } catch {
-    /* storage blocked: defaults */
+/** Only known keys with finite numbers, clamped. */
+function cleanDoctrine(raw: unknown, base: Doctrine): Doctrine {
+  const out = { ...base };
+  if (raw && typeof raw === 'object') {
+    for (const k of KEYS) {
+      const v = (raw as Record<string, unknown>)[k];
+      if (typeof v === 'number' && Number.isFinite(v)) out[k] = clampParam(k, v);
+    }
   }
-  return d;
+  return out;
 }
 
-/** What one AI nation did in the match (gathered by AISystem). */
+function cleanCounter(raw: unknown): Partial<Doctrine> {
+  const out: Partial<Doctrine> = {};
+  if (raw && typeof raw === 'object') {
+    for (const k of KEYS) {
+      const v = (raw as Record<string, unknown>)[k];
+      // A counter moves a value by at most 3 of its steps either way.
+      const lim = DEFAULTS.params[k].step * 3;
+      if (typeof v === 'number' && Number.isFinite(v)) out[k] = Math.max(-lim, Math.min(lim, v));
+    }
+  }
+  return out;
+}
+
+function cleanPlaybook(raw: unknown): Playbook {
+  const o = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
+  const opening = Array.isArray(o.opening) ? o.opening.filter((x): x is string => typeof x === 'string').slice(0, 12) : undefined;
+  return opening ? { opening } : {};
+}
+
+/** Validates whatever came from the server / a save / the cache. */
+export function cleanKnowledge(raw: unknown): Knowledge {
+  const o = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
+  return {
+    version: typeof o.version === 'number' && Number.isFinite(o.version) ? o.version : 0,
+    doctrine: cleanDoctrine(o.doctrine, defaultDoctrine()),
+    counter: cleanCounter(o.counter),
+    playbook: cleanPlaybook(o.playbook),
+  };
+}
+
+/** Defaults (multiplayer, or nothing learned yet). */
+export function defaultKnowledge(): Knowledge {
+  return { version: 0, doctrine: defaultDoctrine(), counter: {}, playbook: {} };
+}
+
+/** The last knowledge the server handed out (offline start), or the defaults. */
+export function cachedKnowledge(): Knowledge {
+  try {
+    const raw = localStorage.getItem(CACHE);
+    return raw ? cleanKnowledge(JSON.parse(raw)) : defaultKnowledge();
+  } catch {
+    return defaultKnowledge();
+  }
+}
+
+export function cacheKnowledge(k: Knowledge): void {
+  try {
+    localStorage.setItem(CACHE, JSON.stringify(k));
+  } catch {
+    /* storage blocked */
+  }
+}
+
+/** Doctrine + counter, clamped: the numbers the AI really plays with. */
+export function effectiveDoctrine(k: Knowledge): Doctrine {
+  const out = { ...k.doctrine };
+  for (const key of KEYS) {
+    const c = k.counter[key];
+    if (c !== undefined) out[key] = clampParam(key, out[key] + c);
+  }
+  return out;
+}
+
+/** What one AI nation did in the match (gathered by AITactics). */
 export interface AIMatchStats {
   /** The AI nation survived to the end (or the human lost). */
   won: boolean;
@@ -54,51 +128,4 @@ export interface AIMatchStats {
   killed: number;
   /** Times its squads retreated from a losing fight. */
   retreats: number;
-}
-
-/**
- * Self-review after a solo match: one step per parameter at most (its `step` in doctrine.json), always inside its
- * bounds, so one bad match never wrecks the doctrine. Returns the changes (for the log / history).
- */
-export function reviewMatch(current: Doctrine, stats: readonly AIMatchStats[]): Partial<Record<DoctrineKey, [number, number]>> {
-  if (stats.length === 0) return {};
-  const lost = stats.reduce((s, x) => s + x.lost, 0);
-  const killed = stats.reduce((s, x) => s + x.killed, 0);
-  const retreats = stats.reduce((s, x) => s + x.retreats, 0);
-  const wins = stats.filter((x) => x.won).length;
-  const next = { ...current };
-  const step = (k: DoctrineKey, dir: number): void => {
-    next[k] = clampParam(k, Math.round((next[k] + dir * DEFAULTS.params[k].step) * 1000) / 1000);
-  };
-  const ratio = lost / Math.max(1, killed);
-  if (wins === 0) {
-    // Every AI nation lost.
-    if (ratio > 1.5) {
-      // Traded badly: mass more before attacking, pull out of bad fights sooner, fight closer together.
-      step('strikeGroup', +1);
-      step('retreatOdds', -1);
-      step('supportRadiusCells', +1);
-    } else {
-      // Traded well but still lost: be bolder, and focus fire over a wider area.
-      step('retreatOdds', +1);
-      step('focusRadiusCells', +1);
-    }
-  } else if (ratio > 2) {
-    // Won, but at a high price: tighter focus fire, prefer the soft targets (infantry) more.
-    step('focusRadiusCells', -1);
-    step('infantryBias', -1);
-  }
-  // Retreating a lot without kills: the retreat line is too cautious.
-  if (retreats > 10 && killed < lost) step('retreatOdds', +1);
-  const changes: Partial<Record<DoctrineKey, [number, number]>> = {};
-  for (const k of TUNABLE) if (next[k] !== current[k]) changes[k] = [current[k], next[k]];
-  try {
-    localStorage.setItem(STORE, JSON.stringify(next));
-    const hist = JSON.parse(localStorage.getItem(HISTORY) ?? '[]') as unknown[];
-    hist.push({ at: new Date().toISOString(), wins, lost, killed, retreats, changes });
-    localStorage.setItem(HISTORY, JSON.stringify(hist.slice(-50)));
-  } catch {
-    /* storage blocked: nothing learned */
-  }
-  return changes;
 }

@@ -26,6 +26,7 @@ import http from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { WebSocketServer } from 'ws';
 import { handleSaves, savesEnabled } from './saves.js';
+import { handleAi } from './ai.js';
 import { addPlayer, cleanCode, cleanName, createRoom, validCode, findRoom, pickFaction, removePlayer, roomCount, roomView, takeExpiredRooms } from './rooms.js';
 
 const PORT = Number(process.env.PORT) || 8787;
@@ -36,6 +37,8 @@ const TURN_MS = 100;
 const server = http.createServer(async (req, res) => {
   // Cloud saves (MySQL): /api/saves/:id — see saves.js.
   if (await handleSaves(req, res)) return;
+  // AI learning (MySQL): /api/ai/* — see ai.js.
+  if (await handleAi(req, res)) return;
   // Render health check / quick status.
   res.writeHead(200, { 'content-type': 'application/json', 'access-control-allow-origin': '*' });
   res.end(JSON.stringify({ ok: true, rooms: roomCount(), saves: savesEnabled() }));

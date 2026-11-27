@@ -37,7 +37,7 @@ import type { Pathfinder } from '../map/Pathfinder';
 import type { TileMap } from '../map/TileMap';
 import { mulberry32 } from '../core/Random';
 import { AITactics, type AIRole } from '../ai/AITactics';
-import { loadDoctrine, type Doctrine } from '../ai/AIDoctrine';
+import { defaultDoctrine, effectiveDoctrine, type Doctrine, type Knowledge } from '../ai/AIDoctrine';
 import type { BuildingType, GridPoint, PlayerState, UnitTier, VehicleKind, WorldPoint } from '../types';
 import { foreignBuildAllowed } from './Foreign';
 import { BUILD_OPTIONS, type BuildOption, type ConstructionSystem, buildCost, buildOffered, footprintOf, missingRequirement } from './ConstructionSystem';
@@ -324,7 +324,6 @@ const PERSONALITIES: readonly Personality[] = [
 const FIRST_WAVE_AT = 210;
 const WAVE_GAP = 110;
 /** Share of the army kept at home as the guard; the rest is always on the offensive. */
-const GUARD_SHARE = 1 / 3;
 /** Idle attackers set out together once at least this many are ready (or all of them are). */
 /**
  * Offensive (advance): the strike force sets off at once, no massing. Meanwhile AI_WAR_CHEST credits are kept back from training;
@@ -428,7 +427,7 @@ interface AIState {
   nextBridge?: number;
   /** Game time of the next look at the minefields (see layMines). */
   nextMine?: number;
-  /** Ids of the units kept at home as the guard (GUARD_SHARE of the army). */
+  /** Ids of the units kept at home as the guard (doctrine.guardShare of the army). */
   guard: Set<number>;
   /** Unit id → game time it fell back from a lost fight (rests RETREAT_REST s before attacking again). */
   retreated: Map<number, number>;
@@ -497,10 +496,31 @@ interface AIState {
 export class AISystem implements GameSystem {
   private time = 0;
   private readonly state = new Map<number, AIState>();
-  /** Tactics numbers (doctrine.json; learned values in solo games, see AIDoctrine). */
-  readonly doctrine: Doctrine;
+  /** Tactics numbers the AI plays with: defaults, then what the server taught it (applyKnowledge). One object, shared with the fast tier. */
+  readonly doctrine: Doctrine = defaultDoctrine();
+  /** Where the doctrine came from (saved with the match, sent back with its report). */
+  knowledge: Knowledge | null = null;
+
+  /** Learned doctrine + this player's counter + playbook (server / save / cache): replaces the numbers in place. */
+  applyKnowledge(k: Knowledge): void {
+    this.knowledge = k;
+    Object.assign(this.doctrine, effectiveDoctrine(k));
+    this.setPlaybook(k.playbook.opening);
+  }
   /** Fast tier (focus fire) + order throttle + match stats for the self-review. */
   readonly tactics: AITactics;
+  /** Base build order: BUILD_PLAN, reordered by the learned playbook's opening (setPlaybook). */
+  private buildPlan: readonly BuildOption['id'][] = BUILD_PLAN;
+
+  /**
+   * Learned opening (server playbook, from the matches that were won): the core structures it names come first, in
+   * its order; the rest of BUILD_PLAN follows. Anything unknown in it is ignored, so a bad playbook cannot stop the AI.
+   */
+  setPlaybook(opening: readonly string[] | undefined): void {
+    const known = (opening ?? []).filter((id, i, a): id is BuildOption['id'] => (BUILD_PLAN as readonly string[]).includes(id) && a.indexOf(id) === i);
+    this.buildPlan = [...known, ...BUILD_PLAN.filter((id) => !known.includes(id))];
+  }
+
   /** The host, its unit orders passed through the throttle (AITactics.gate). */
   private readonly host: AIHost;
 
@@ -510,7 +530,6 @@ export class AISystem implements GameSystem {
     /** Multiplayer: shared seed, so every machine gives each AI the same personality; solo games pick at random. */
     private readonly seed: number | null = null,
   ) {
-    this.doctrine = loadDoctrine(seed === null);
     this.tactics = new AITactics(players, rawHost, this.doctrine);
     this.host = this.tactics.gatedHost();
     players.forEach((p, i) => this.addState(p, i));
@@ -777,7 +796,7 @@ export class AISystem implements GameSystem {
       this.order(p, st, plant);
       return;
     }
-    let next = BUILD_PLAN.map((id) => BUILD_OPTIONS.find((o) => o.id === id)).find(
+    let next = this.buildPlan.map((id) => BUILD_OPTIONS.find((o) => o.id === id)).find(
       (o) => o && !busy(o.id) && !owned.has(o.id as BuildingType) && missingRequirement(o, owned, p.disarmedUntil !== undefined) === null,
     );
     // Walls and gates round the capital, first of the defences, but only while the nation needs them (see needsWalls).
@@ -2036,7 +2055,7 @@ export class AISystem implements GameSystem {
     let enemyAir = 0;
     for (const v of this.host.entities.vehicles()) if (v.alive && v.aircraft && !v.isTransport && v.owner !== p.id && v.owner !== NEUTRAL_OWNER) enemyAir++;
     const want = AI_AIR_DEFENCE + Math.floor(this.cities(p) / AI_AIR_DEFENCE_PER_CITIES) + Math.floor(enemyAir / AI_AIR_DEFENCE_PER_ENEMY_AIR);
-    return Math.min(AI_AIR_DEFENCE_MAX, want);
+    return Math.min(AI_AIR_DEFENCE_MAX + this.doctrine.airDefenceExtra, want + this.doctrine.airDefenceExtra);
   }
 
   /** Spreads the home air-defence vehicles evenly on a ring round the capital; one already near its spot stays. */
@@ -2051,11 +2070,11 @@ export class AISystem implements GameSystem {
   }
 
   /**
-   * Keeps GUARD_SHARE of the army (at least one unit) as the home guard. Guards stay guards while they live;
+   * Keeps doctrine.guardShare of the army (at least one unit) as the home guard. Guards stay guards while they live;
    * missing places go to the units nearest the capital, surplus guards (the farthest) join the attack.
    */
   private pickGuard(st: AIState, army: readonly Unit[], home: WorldPoint): Unit[] {
-    const want = Math.max(1, Math.round(army.length * GUARD_SHARE));
+    const want = Math.max(1, Math.round(army.length * this.doctrine.guardShare));
     const dist = (u: Unit): number => Math.hypot(u.px - home.x, u.py - home.y);
     let guard = army.filter((u) => st.guard.has(u.id));
     if (guard.length < want) {

@@ -53,6 +53,21 @@ export class AITactics {
     if (s) s.retreats++;
   }
 
+  /** Running stats (saved with the match, so a continued save keeps counting). */
+  exportStats(): Record<number, { lost: number; killed: number; retreats: number }> {
+    return Object.fromEntries([...this.stats].map(([id, s]) => [id, { ...s }]));
+  }
+
+  restoreStats(raw: unknown): void {
+    if (!raw || typeof raw !== 'object') return;
+    for (const [id, v] of Object.entries(raw as Record<string, unknown>)) {
+      const s = this.stats.get(Number(id));
+      const o = v as Record<string, unknown> | null;
+      if (!s || !o) continue;
+      for (const k of ['lost', 'killed', 'retreats'] as const) if (typeof o[k] === 'number' && Number.isFinite(o[k])) s[k] = o[k] as number;
+    }
+  }
+
   /** Stats of every AI nation for the self-review. `survivors`: AI nations still in the game at the end. */
   matchStats(survivors: ReadonlySet<number>): AIMatchStats[] {
     return this.players.map((p) => {

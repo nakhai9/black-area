@@ -248,6 +248,8 @@ export interface SaveFile {
   systems: Record<string, Record<string, unknown>>;
   game: Record<string, unknown>;
   camera: { x: number; y: number; zoom: number };
+  /** AI learning: the knowledge the match started with, the AI's running stats and the match log (see Game.aiSaveSection). */
+  ai?: { knowledge: unknown; stats: unknown; log: unknown };
 }
 
 export interface SavedEntity {

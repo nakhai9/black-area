@@ -37,7 +37,7 @@ function sslOptions() {
   return ca ? { ca, rejectUnauthorized: true } : { rejectUnauthorized: false };
 }
 
-function getPool() {
+export function getPool() {
   pool ??= mysql.createPool({
     host: process.env.DB_HOST,
     port: Number(process.env.DB_PORT) || 3306,

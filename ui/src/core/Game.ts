@@ -197,7 +197,9 @@ import { SpriteCache } from '../render/SpriteCache';
 import { BUILDING_ART } from '../render/sprites';
 import { airfieldLayout } from '../render/sprites/Airfield';
 import { AircraftSystem, canBaseAt, isAirBase, type AirfieldGeometry } from '../systems/AircraftSystem';
-import { reviewMatch } from '../ai/AIDoctrine';
+import { cacheKnowledge, cachedKnowledge, cleanKnowledge } from '../ai/AIDoctrine';
+import { fetchCounter, fetchKnowledge, flushOutbox, send as sendAI, wakeServer } from '../ai/KnowledgeApi';
+import { MatchLog } from '../ai/MatchLog';
 import { AISystem } from '../systems/AISystem';
 import { StructureIndex } from '../systems/StructureIndex';
 import { canTarget, CombatSystem, distanceTo, inTruce, isHostile, setDisarmed, setRuins, setTruce, setViolators } from '../systems/CombatSystem';
@@ -522,6 +524,12 @@ export class Game {
   private readonly lastHitOnPlayer = new Map<string, number>();
   /** Computer-controlled nations. */
   readonly ai: AISystem;
+  /** Log of the match for the AI's learning (every nation: spending, buys, attack waves, losses). */
+  private readonly matchLog: MatchLog;
+  /** This game was loaded from a save (its AI knowledge comes from the save, not a fresh server answer). */
+  private fromSave = false;
+  /** Game time when the save was loaded. */
+  private loadedAt = 0;
   readonly effects = new EffectsLayer();
   readonly sound: SoundSystem;
   /** Global Monitoring Center oil market (one price for every nation) and the news toasts. */
@@ -841,6 +849,21 @@ export class Game {
       this,
       mp?.seed ?? null,
     );
+    this.matchLog = new MatchLog(this.players, this.entities);
+    // AI knowledge (server/src/ai.js): solo games only (multiplayer: every machine must run the same AI, so defaults).
+    // At once the last learned knowledge kept in this browser; the server's fresh answer replaces it if it comes within
+    // the first seconds of the match (a loaded save takes its own knowledge instead, see importSave).
+    if (!mp) {
+      this.ai.applyKnowledge(cachedKnowledge());
+      void flushOutbox();
+      wakeServer();
+      const factions = [...new Set(this.players.filter((p) => !p.isHuman).map((p) => p.faction))];
+      void fetchKnowledge(factions).then((k) => {
+        if (!k || this.fromSave || this.time > KNOWLEDGE_LATE_SECONDS) return;
+        cacheKnowledge(k);
+        this.ai.applyKnowledge(k);
+      });
+    }
     this.systems = [
       new PowerSystem(this.players, this.entities, this.oilMarket),
       this.economy,
@@ -1116,7 +1139,7 @@ export class Game {
   }
 
   /** Game fields never written back from a save (screen / input state). */
-  private static readonly UNSAVED = ['systems', 'paths', 'paused', 'ended', 'dom', 'lastCursor', 'mouseWorld', 'ghost', 'placing', 'placingRotated', 'waypoints', 'moveMarker', 'pathPeekId', 'lastBuildingClick', 'shortRepaths', 'lastRepath', 'localId', 'actorId', 'lockstep', 'desyncWarned', 'capitalPrompts', 'trees', 'miningId', 'siloAiming', 'siloButton', 'focusedDvina', 'craters'];
+  private static readonly UNSAVED = ['systems', 'paths', 'paused', 'ended', 'dom', 'lastCursor', 'mouseWorld', 'ghost', 'placing', 'placingRotated', 'waypoints', 'moveMarker', 'pathPeekId', 'lastBuildingClick', 'shortRepaths', 'lastRepath', 'localId', 'actorId', 'lockstep', 'desyncWarned', 'capitalPrompts', 'trees', 'miningId', 'siloAiming', 'siloButton', 'focusedDvina', 'craters', 'matchLog', 'fromSave', 'loadedAt'];
 
   /**
    * Everything needed to continue this game later, as plain JSON-ready data: players, every entity, the state of
@@ -1143,7 +1166,19 @@ export class Game {
       systems,
       game,
       camera: { x: this.camera.x, y: this.camera.y, zoom: this.camera.zoom },
+      ai: this.aiSaveSection(),
     };
+  }
+
+  /** The AI's knowledge, running stats and match log, saved with the match; also sent as a checkpoint (solo games). */
+  private aiSaveSection(): NonNullable<SaveFile['ai']> {
+    const section = { knowledge: this.ai.knowledge, stats: this.ai.tactics.exportStats(), log: this.matchLog.state };
+    if (!this.lockstep && !this.ended) {
+      // Learning bit by bit: the server learns this player's style from the part played since the last checkpoint.
+      void sendAI('/checkpoint', { matchId: this.matchLog.state.matchId, gameTime: Math.round(this.time), doctrineVer: this.ai.knowledge?.version ?? 0, logs: this.matchLog.state.logs, gameVersion: GAME_VERSION });
+      this.matchLog.state.checkpointAt = this.time;
+    }
+    return section;
   }
 
   /**
@@ -1215,6 +1250,21 @@ export class Game {
     setNextEntityId(Math.max(save.nextEntityId, ...save.entities.map((s) => (s.data.id as number) + 1)));
     Unit.insideVersion++;
     for (const p of save.players) codec.restorePlayer(p);
+    // AI: the knowledge this match started with (its doctrine never changes mid-match), its stats and match log; the
+    // server's updated counter for this player (learned from the checkpoints) replaces the saved one if it comes in time.
+    this.fromSave = true;
+    if (save.ai) {
+      const k = cleanKnowledge(save.ai.knowledge);
+      this.ai.applyKnowledge(k);
+      this.ai.tactics.restoreStats(save.ai.stats);
+      this.matchLog.restore(save.ai.log);
+      if (!this.lockstep) {
+        void fetchCounter().then((counter) => {
+          if (counter && this.time - this.loadedAt < KNOWLEDGE_LATE_SECONDS) this.ai.applyKnowledge({ ...k, counter });
+        });
+      }
+    }
+    this.loadedAt = this.time;
     // Saves from before 3.75.442 kept the nation's engineers as one count: they go into its first Tech Center.
     for (const p of this.players) {
       const labs = this.entities.buildings().filter((b): b is TechCenter => b instanceof TechCenter && b.alive && b.owner === p.id);
@@ -2543,6 +2593,7 @@ export class Game {
 
   orderAttackMove(units: readonly Unit[], target: WorldPoint): void {
     units = this.keepAircraftAtAirfield(units, target);
+    if (units.length > 0) this.matchLog.noteAttack(units, target, this.entities.buildings().find((b) => b.owner === units[0]!.owner && b.alive && isSeat(b))?.centerWorld() ?? null);
     const spacing = Math.max(UNIT_SPACING * 1.15, Math.max(0, ...units.map((u) => u.radius)) * 2.1);
     // A bigger group shares one time-sliced flow field (PathService.groupJob) instead of one A* each in this frame:
     // AI armies of dozens re-ordered at once used to freeze the game for up to a second late in a war.
@@ -3800,6 +3851,7 @@ export class Game {
       this.collectGarbage();
     }
     for (const s of this.systems) this.prof.time(s.constructor.name, () => s.update(dt));
+    this.prof.time('matchLog', () => this.matchLog.update(dt, this.time));
     this.prof.time('enforceEmbargoes', () => this.enforceEmbargoes());
     this.prof.tick(this.entities.fieldMovers().length);
     this.autoSellClock += dt;
@@ -6558,9 +6610,20 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
    */
   private reviewAI(): void {
     if (this.lockstep) return;
+    if (this.matchLog.state.reported) return;
+    this.matchLog.state.reported = true;
     const survivors = new Set(this.players.filter((p) => !p.isHuman && !p.defeated).map((p) => p.id));
-    const changes = reviewMatch(this.ai.doctrine, this.ai.tactics.matchStats(survivors));
-    if (Object.keys(changes).length > 0) console.info('AI doctrine tuned after the match:', changes);
+    const aiPlayers = this.players.filter((p) => !p.isHuman);
+    // The finished match goes to the server, which learns from it (server/src/ai.js); queued if it cannot be reached.
+    void sendAI('/matches', {
+      matchId: this.matchLog.state.matchId,
+      gameTime: Math.round(this.time),
+      doctrineVer: this.ai.knowledge?.version ?? 0,
+      aiWon: survivors.size > 0 && this.humanPlayer.defeated,
+      stats: this.ai.tactics.matchStats(survivors).map((s, i) => ({ ...s, faction: aiPlayers[i]?.faction })),
+      logs: this.matchLog.state.logs,
+      gameVersion: GAME_VERSION,
+    });
   }
 
   /** Explosion + smoke from the explosion sheet at world (x, y), `lift` px up, its fireball `size` iso px wide. */
@@ -9184,6 +9247,8 @@ function standKey(x: number, y: number): number {
 }
 /** Lính đứng cách thân xe ít nhất bán kính xe + chừng này (world px): bán kính lính + một chút khe. */
 const INFANTRY_HULL_CLEAR = 1.6;
+/** A fresh AI knowledge answer later than this (game seconds into the match / after loading) is ignored: the match is under way. */
+const KNOWLEDGE_LATE_SECONDS = 10;
 const STAND_OFFSETS: readonly WorldPoint[] = (() => {
   const out: WorldPoint[] = [];
   const n = Math.ceil(STAND_REACH / STAND_STEP);
