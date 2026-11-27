@@ -39,7 +39,7 @@ export const DEMO_FACTION: FactionId = NATION_CODES[(import.meta.env.VITE_DEMO_F
  * How to update: after each change bump the matching part and reset the parts to its right to 0 (1.2.3 → fix 1.2.4,
  * feature 1.3.0, breaking 2.0.0), and write the same number into RULE.html and README.md.
  */
-export const GAME_VERSION = "3.75.441";
+export const GAME_VERSION = "3.75.449";
 /** Transport aircraft (C-17, Il-76, Y-20, A400M) are drawn this many iso px long: 13, +20% (v3.75.224). */
 export const TRANSPORT_LENGTH = 13 * 1.2 * 0.9;
 
@@ -342,6 +342,8 @@ export const TREE_CHARGE_RADIUS_CELLS = 2;
 export const FELL_SPREAD_CELLS = 1;
 export const AI_FELLERS = 4;
 export const CAPITAL_CLEARING_CELLS = 14;
+/** Nanjing stands in thick woods: a wider clearing there, so Longoria has open ground to build on from the start. */
+export const CAPITAL_CLEARING_CELLS_BY_FACTION: Partial<Record<string, number>> = { china: 24 };
 export const PRESET_CLEARING_CELLS = 2;
 export const ZOOM_STEP = 1.12;
 /** Zoom used at start and when jumping to a building. */

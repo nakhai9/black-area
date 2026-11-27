@@ -36,6 +36,8 @@ import type { OilMarket } from './OilMarket';
 import type { Pathfinder } from '../map/Pathfinder';
 import type { TileMap } from '../map/TileMap';
 import { mulberry32 } from '../core/Random';
+import { AITactics, type AIRole } from '../ai/AITactics';
+import { loadDoctrine, type Doctrine } from '../ai/AIDoctrine';
 import type { BuildingType, GridPoint, PlayerState, UnitTier, VehicleKind, WorldPoint } from '../types';
 import { foreignBuildAllowed } from './Foreign';
 import { BUILD_OPTIONS, type BuildOption, type ConstructionSystem, buildCost, buildOffered, footprintOf, missingRequirement } from './ConstructionSystem';
@@ -324,7 +326,6 @@ const WAVE_GAP = 110;
 /** Share of the army kept at home as the guard; the rest is always on the offensive. */
 const GUARD_SHARE = 1 / 3;
 /** Idle attackers set out together once at least this many are ready (or all of them are). */
-const STRIKE_GROUP = 3;
 /**
  * Offensive (advance): the strike force sets off at once, no massing. Meanwhile AI_WAR_CHEST credits are kept back from training;
  * once the attack is launched the chest is spent on reinforcements for AI_OFFENSIVE_SECONDS.
@@ -382,9 +383,7 @@ const LEASE_MIN_RETURN = 2;
 /** Fights are judged within this distance (world px) of an engaged attacker. */
 const BATTLE_RADIUS = 12 * CELL_SIZE;
 /** AI combined arms: free strike units this close to a comrade in a fight move in to back it up. */
-const SUPPORT_RADIUS = 14 * CELL_SIZE;
 /** Attackers fall back home when the enemy force around them is this many times stronger. */
-const RETREAT_ODDS = 1.5;
 /** Seconds a unit that fell back rests at home before it may attack again. */
 const RETREAT_REST = 30;
 /** A guard idle farther than this from the capital walks back to it. */
@@ -423,6 +422,8 @@ const MAX_ATTACKERS = 2;
 
 interface AIState {
   nextThink: number;
+  /** Role of each combat unit this think (squads by role, see army()): read by the fast tier and the order throttle. */
+  roles?: Map<number, AIRole>;
   /** Game time of the next look at river crossings on the way to the rival (see layBridges). */
   nextBridge?: number;
   /** Game time of the next look at the minefields (see layMines). */
@@ -496,13 +497,22 @@ interface AIState {
 export class AISystem implements GameSystem {
   private time = 0;
   private readonly state = new Map<number, AIState>();
+  /** Tactics numbers (doctrine.json; learned values in solo games, see AIDoctrine). */
+  readonly doctrine: Doctrine;
+  /** Fast tier (focus fire) + order throttle + match stats for the self-review. */
+  readonly tactics: AITactics;
+  /** The host, its unit orders passed through the throttle (AITactics.gate). */
+  private readonly host: AIHost;
 
   constructor(
     private readonly players: readonly PlayerState[],
-    private readonly host: AIHost,
+    rawHost: AIHost,
     /** Multiplayer: shared seed, so every machine gives each AI the same personality; solo games pick at random. */
     private readonly seed: number | null = null,
   ) {
+    this.doctrine = loadDoctrine(seed === null);
+    this.tactics = new AITactics(players, rawHost, this.doctrine);
+    this.host = this.tactics.gatedHost();
     players.forEach((p, i) => this.addState(p, i));
     this.claimCandidates(); // built while the game loads, not as a hitch in the middle of a war
   }
@@ -577,6 +587,8 @@ export class AISystem implements GameSystem {
 
   update(dt: number): void {
     this.time += dt;
+    // Fast tier (every FAST_TIER_SECONDS): focus fire of each squad. The slow tier (think, THINK_PERIOD) plans.
+    if (!inTruce()) this.tactics.update(dt, this.time, (id) => this.state.get(id)?.roles);
     for (const p of this.players) {
       const st = this.state.get(p.id);
       if (!st) continue;
@@ -1506,14 +1518,20 @@ export class AISystem implements GameSystem {
     // Offsets nearest first: the search stops at the SITE_PICK nearest legal spots (one is picked at random), instead
     // of testing all ~2400 spots round the capital every time (a frame hitch of a tenth of a second or more).
     const found: GridPoint[] = [];
-    for (const [dx, dy] of siteOffsets()) {
-      const x = capital.x + dx;
-      const y = capital.y + dy;
-      // The cheap grid test first (one free cell all round, so AI buildings never crowd), the full rule check after.
-      if (!this.host.map.isAreaBuildable(x - 1, y - 1, w + 2, d + 2, false, true)) continue;
-      if (!this.host.placement.check({ owner: p.id, x, y, w, d, ...placeRule(option.id), coastal: isCoastal(option.id) }).ok) continue;
-      found.push({ x, y });
-      if (found.length >= SITE_PICK) break;
+    // Two free cells all round first: two structures then leave at least a 2-cell lane between them, wide enough for
+    // vehicles (they never route through 1-cell gaps), so the base never walls its own army in. Only when no such spot
+    // is left does it settle for one free cell (the old rule).
+    for (const m of [2, 1]) {
+      for (const [dx, dy] of siteOffsets()) {
+        const x = capital.x + dx;
+        const y = capital.y + dy;
+        // The cheap grid test first, the full rule check after.
+        if (!this.host.map.isAreaBuildable(x - m, y - m, w + m * 2, d + m * 2, false, true)) continue;
+        if (!this.host.placement.check({ owner: p.id, x, y, w, d, ...placeRule(option.id), coastal: isCoastal(option.id) }).ok) continue;
+        found.push({ x, y });
+        if (found.length >= SITE_PICK) break;
+      }
+      if (found.length > 0) break;
     }
     if (found.length === 0) return null;
     return found[Math.floor(st.rng() * found.length)] ?? found[0] ?? null;
@@ -1750,7 +1768,12 @@ export class AISystem implements GameSystem {
     const engineers = this.host.entities.fieldUnits().filter((u): u is Infantry => u instanceof Infantry && u.owner === p.id && u.alive && u.isEngineer);
     const going = engineers.filter((u) => u.task?.type === 'science').length;
     if ((p.scientists ?? 0) + going >= SILO_SCIENTISTS) return;
-    const lab = this.host.entities.buildings().find((b) => b.owner === p.id && b.alive && b.spec.type === 'techCenter');
+    // Engineers stay in the Tech Center they enter: keep filling the best-staffed one until it has SILO_SCIENTISTS.
+    const staff = (b: Building): number => (b as Building & { scientists?: number }).scientists ?? 0;
+    const lab = this.host.entities
+      .buildings()
+      .filter((b) => b.owner === p.id && b.alive && b.spec.type === 'techCenter' && staff(b) < SILO_SCIENTISTS)
+      .sort((x, y) => staff(y) - staff(x))[0];
     if (!lab) return;
     let need = SILO_SCIENTISTS - (p.scientists ?? 0) - going;
     for (const u of engineers) {
@@ -1928,6 +1951,18 @@ export class AISystem implements GameSystem {
     if (raiders.size > 0) strike = strike.filter((u) => !raiders.has(u.id));
     const holding = this.holdFronts(p, st, strike, home);
     if (holding.size > 0) strike = strike.filter((u) => !holding.has(u.id));
+
+    // Squads by role (fast tier + order throttle read them).
+    const roles = new Map<number, AIRole>();
+    for (const u of flak) roles.set(u.id, 'flak');
+    for (const u of guard) roles.set(u.id, 'guard');
+    for (const id of defenders) roles.set(id, 'defender');
+    for (const id of stationed) roles.set(id, 'station');
+    for (const id of raiders) roles.set(id, 'raid');
+    for (const id of holding) roles.set(id, 'hold');
+    for (const u of strike) roles.set(u.id, 'strike');
+    st.roles = roles;
+    this.tactics.setRoles(roles);
 
     this.defend(p, guard, home, all);
     // Own capital taken and no combat unit of ours left near it: the attackers are called back to fight for it.
@@ -2463,8 +2498,9 @@ export class AISystem implements GameSystem {
       for (const e of all) if (e.alive && e.owner !== p.id && e.owner !== NEUTRAL_OWNER && !e.retreating && near(e)) theirs += this.strength(e);
       const group = mine.filter((o) => !st.guard.has(o.id) && !o.retreating);
       for (const o of group) done.add(o.id);
-      if (theirs <= ours * RETREAT_ODDS || group.length === 0) continue;
+      if (theirs <= ours * this.doctrine.retreatOdds || group.length === 0) continue;
       for (const o of group) st.retreated.set(o.id, this.time);
+      this.tactics.noteRetreat(p.id);
       this.host.orderRetreat(group, { x: home.x, y: home.y + CELL_SIZE * 8 });
     }
   }
@@ -2480,7 +2516,7 @@ export class AISystem implements GameSystem {
     const taken = new Set<number>();
     for (const u of strike) {
       if (u.retreating || (u.combatTarget === null && !u.engaged)) continue;
-      const help = free.filter((o) => !taken.has(o.id) && Math.hypot(o.px - u.px, o.py - u.py) < SUPPORT_RADIUS);
+      const help = free.filter((o) => !taken.has(o.id) && Math.hypot(o.px - u.px, o.py - u.py) < this.doctrine.supportRadiusCells * CELL_SIZE);
       if (help.length === 0) continue;
       for (const o of help) taken.add(o.id);
       this.host.orderAttackMove(help, { x: u.px, y: u.py });
@@ -2492,7 +2528,7 @@ export class AISystem implements GameSystem {
     const idle = strike.filter(
       (u) => !u.moving && !u.retreating && u.attackMove === null && u.attackTarget === null && u.combatTarget === null && !this.resting(st, u),
     );
-    if (idle.length === 0 || (idle.length < STRIKE_GROUP && idle.length < strike.length)) return;
+    if (idle.length === 0 || (idle.length < this.doctrine.strikeGroup && idle.length < strike.length)) return;
     const cx = idle.reduce((s, u) => s + u.px, 0) / idle.length;
     const cy = idle.reduce((s, u) => s + u.py, 0) / idle.length;
     const target = this.pickTarget(p, { x: cx, y: cy }, this.forceOf(idle));

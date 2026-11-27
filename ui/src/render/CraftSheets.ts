@@ -1,3 +1,6 @@
+import { tintedCell } from './TeamTint';
+import { FACTIONS as NATIONS } from '../factions';
+import type { Allegiance } from '../types';
 import { ISO_X, ISO_Y, TRANSPORT_LENGTH } from '../constants';
 import type { Vehicle } from '../entities/Vehicle';
 import type { FactionId, VehicleKind } from '../types';
@@ -27,6 +30,11 @@ interface CraftSheet {
   readonly heli: boolean;
   /** Body + separate main rotor (Blender: tools/blender/<model>_render.py + rotor_render.py), see RIG_ROW. */
   readonly rig?: RotorRig;
+  /**
+   * Faction mask of the body sheet (same layout): its faction line, tinted with the OWNER's colour when drawn
+   * (ART_GUIDE: one render per shape, neutral line + -team mask). Absent: the nation's colour is baked in.
+   */
+  readonly team?: HTMLImageElement;
   /** Iso px long side-on, overriding LENGTH[kind]. */
   readonly length?: number;
 }
@@ -58,6 +66,7 @@ const air = (model: string, span: number): CraftSheet => ({ image: img(`air-${mo
 /** USA AH-64E Apache: body (tools/blender/ah64_render.py) + 4-blade rotor (rotor_render.py --name ah64), 192 px cells. */
 const ah64: CraftSheet = {
   image: img('heli-ah64-usa.webp'),
+  team: img('heli-ah64-usa-team.webp'),
   fx: img('heli-apache-fx.webp'),
   cell: 192,
   fxCell: 128,
@@ -73,6 +82,7 @@ const ah64: CraftSheet = {
 /** Russia Ka-52 Alligator: body (tools/blender/ka52_render.py) + coaxial 2 x 3-blade rotor (rotor_render.py --name ka52 --coax 1.2). */
 const ka52: CraftSheet = {
   image: img('heli-ka52-russia.webp'),
+  team: img('heli-ka52-russia-team.webp'),
   fx: img('heli-ka52-fx.webp'),
   cell: 192,
   fxCell: 128,
@@ -87,6 +97,7 @@ const ka52: CraftSheet = {
 /** China Z-10: body (tools/blender/z10_render.py) + 5-blade rotor (rotor_render.py --name z10), 192 px cells. */
 const z10: CraftSheet = {
   image: img('heli-z10-china.webp'),
+  team: img('heli-z10-china-team.webp'),
   fx: img('heli-z19e-fx.webp'),
   cell: 192,
   fxCell: 128,
@@ -188,9 +199,14 @@ const spinPhase = (r: RotorRig): number => Math.floor(performance.now() / ROTOR_
 const rotorTurning = (v: Vehicle): boolean => !(v.altitude <= 0 && (v.flight === 'parked' || v.flight === 'landed' || v.flight === 'unloading'));
 
 /** Body + rotor + mast-top cap of a rigged helicopter, the body cell centred on (x, y). */
-function drawRig(ctx: CanvasRenderingContext2D, m: CraftSheet, r: RotorRig, col: number, bodyRow: number, spinning: boolean, x: number, y: number, size: number, rotor = true): void {
+function drawRig(ctx: CanvasRenderingContext2D, m: CraftSheet, r: RotorRig, col: number, bodyRow: number, spinning: boolean, x: number, y: number, size: number, owner: Allegiance, rotor = true): void {
   const k = size / m.cell;
   blit(ctx, m.image, m.cell, col, bodyRow, x, y, size);
+  // The owner's colour over the faction line (mask sheet, same cell).
+  if (m.team && ok(m.team)) {
+    const hex = owner === 'neutral' ? '#c8c8c8' : NATIONS[owner].colors.primary;
+    ctx.drawImage(tintedCell(m.team, m.team.src, col, DIRS, hex, bodyRow), x - size / 2, y - size / 2, size, size);
+  }
   if (rotor && ok(r.rotor)) {
     const hy = y - r.hubLift * k;
     if (spinning) {
@@ -217,7 +233,7 @@ function drawRigged(ctx: CanvasRenderingContext2D, m: CraftSheet, r: RotorRig, v
   if (ok(r.rotor)) blit(ctx, r.rotor, m.cell, spinning ? spinPhase(r) : parkedPhase(r, col), ROTOR_ROW.stillShadow, x + 0.4 * s, y + 0.8 * s, size);
   ctx.globalAlpha = alpha;
   const row = v.flight === 'crashing' ? RIG_ROW.crashing : spinning && v.altitude > 0 ? RIG_ROW.fly[Math.floor(performance.now() / 50) % 2] : spinning ? RIG_ROW.fly[0] : RIG_ROW.parked;
-  drawRig(ctx, m, r, col, row ?? RIG_ROW.parked, spinning, x, y - v.altitude - r.groundDrop * k, size);
+  drawRig(ctx, m, r, col, row ?? RIG_ROW.parked, spinning, x, y - v.altitude - r.groundDrop * k, size, v.banner);
 }
 
 const drawnSize = (m: CraftSheet, kind: VehicleKind): number => (m.length ?? LENGTH[kind] ?? 10) / m.span;
@@ -260,7 +276,7 @@ export function drawCraftPortrait(ctx: CanvasRenderingContext2D, faction: Factio
   const size = Math.min(w / m.span, h * 1.35);
   ctx.save();
   ctx.imageSmoothingEnabled = true;
-  if (m.rig) drawRig(ctx, m, m.rig, column(heading), RIG_ROW.parked, false, w / 2, h / 2 + (m.rig.hubLift * size) / m.cell / 2, size);
+  if (m.rig) drawRig(ctx, m, m.rig, column(heading), RIG_ROW.parked, false, w / 2, h / 2 + (m.rig.hubLift * size) / m.cell / 2, size, faction);
   else blit(ctx, m.image, m.cell, column(heading), (m.heli ? HELI_ROW : AIR_ROW).fly[0], w / 2, h / 2, size);
   ctx.restore();
   return true;

@@ -1,4 +1,4 @@
-import { createElement, Handshake, Pause, Play, House, Keyboard, Map as MapIcon, Maximize, Minimize, Radiation, Rocket, Settings as SettingsIcon, type IconNode } from 'lucide';
+import { createElement, Handshake, ShoppingCart, Pause, Play, House, Keyboard, Map as MapIcon, Maximize, Minimize, Radiation, Rocket, Settings as SettingsIcon, type IconNode } from 'lucide';
 import { factionBadgeHtml } from './FactionBadge';
 import type { FactionId } from '../types';
 import { t } from '../i18n';
@@ -105,6 +105,8 @@ export class BigMap {
   /** The nation's emblem with its flag, exactly as on the sidebar's faction card (factionBadgeHtml). */
   private readonly dockBadge = document.createElement('div');
   private readonly dockProduction = document.createElement('span');
+  /** Slot for the nation's money (filled by setDock). */
+  private readonly dockCredits = document.createElement('div');
   private readonly dockLoan = document.createElement('span');
   private readonly dockTail = document.createElement('span');
   /** The production modal (build / defense / infantry / vehicles / aircraft cameos, moved in from the sidebar). */
@@ -214,7 +216,11 @@ export class BigMap {
       this.nuclearBtn,
       this.dockTail,
     );
-    this.dock.append(brand, row);
+    // Money above the buttons (right-aligned), the button row under it.
+    const side = document.createElement('div');
+    side.className = 'cmd-side';
+    side.append(this.dockCredits, row);
+    this.dock.append(brand, side);
     host.append(this.dock);
     this.openerSlot.className = 'corner-slot';
     this.zoomLockSlot.className = 'corner-slot';
@@ -256,11 +262,20 @@ export class BigMap {
    * Fills the dock from a (new) sidebar: the nation's flag beside the logo, the production tab buttons (their clicks
    * open `openProduction`), the loan button, and the settings / allies buttons. Replaces whatever a previous sidebar put.
    */
-  setDock(o: { faction: FactionId; loan: HTMLElement; onSettings: () => void; onAllies: () => void }): void {
+  setDock(o: { faction: FactionId; onShop: () => void; credits: HTMLElement; extras: readonly HTMLElement[]; loan: HTMLElement; onSettings: () => void; onAllies: () => void }): void {
     this.dockBadge.innerHTML = factionBadgeHtml(o.faction, 'sm');
-    // The shop (production tabs + cameos) is back in the sidebar: no shop group in the dock.
-    this.dockProduction.replaceChildren();
-    this.dockProduction.hidden = true;
+    this.dockCredits.replaceChildren(o.credits);
+    // Cart: opens the shop drawer (the buy tabs and their cameos).
+    const cart = document.createElement('button');
+    cart.type = 'button';
+    cart.className = 'cmd-btn cmd-cart';
+    cart.title = t('Shop: build structures and defenses, train soldiers, vehicles and aircraft');
+    cart.setAttribute('aria-label', t('Shop'));
+    cart.append(createElement(ShoppingCart, { width: 18, height: 18, 'stroke-width': 2, 'aria-hidden': 'true' }));
+    cart.addEventListener('click', o.onShop);
+    this.dockProduction.className = 'cmd-slot';
+    this.dockProduction.hidden = false;
+    this.dockProduction.replaceChildren(cart);
     o.loan.classList.add('cmd-loan');
     this.dockLoan.replaceChildren(o.loan);
     const tail = (icon: IconNode, label: string, onClick: () => void): HTMLButtonElement => {
@@ -273,7 +288,7 @@ export class BigMap {
       b.addEventListener('click', onClick);
       return b;
     };
-    this.dockTail.replaceChildren(tail(SettingsIcon, t('Settings'), o.onSettings), tail(Handshake, t('Allies'), o.onAllies));
+    this.dockTail.replaceChildren(...o.extras, tail(SettingsIcon, t('Settings'), o.onSettings), tail(Handshake, t('Allies'), o.onAllies));
   }
 
   /** Shows the production modal (a production tab was clicked in the dock). */

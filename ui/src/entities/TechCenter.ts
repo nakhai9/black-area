@@ -9,6 +9,8 @@ import { Building } from './Building';
 export class TechCenter extends Building {
   /** Its nuclear-programme engineers are mending it (Game.scientistsMend). */
   mending = false;
+  /** Nuclear-programme engineers working in THIS Tech Center (they stay in it; a silo needs SILO_SCIENTISTS in one). */
+  scientists = 0;
 
   constructor(owner: number, faction: FactionId, center: WorldPoint) {
     super(owner, faction, center, {

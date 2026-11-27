@@ -447,6 +447,42 @@ def mask_materials(team_name='team'):
             ob.data.materials.append(white if m is not None and m.name.split('.')[0] == team_name else hold)
 
 
+def mask_sheet(sc, plane, rig, rows, dirs, heading, tmp, path, label, nrows=None):
+    """Renders the faction-mask sheet (same rows and facings as the main sheet, plus an empty shadow row) into `path`:
+    only the faction line, lit white; the parts' materials are put back afterwards."""
+    saved = {ob.name: [s.material for s in ob.material_slots] for ob, _ in PARTS}
+    mask_materials()
+    # Rows are (groups, pitch, roll, tint) one per sheet row, or ((groups, pitch, roll, tint), target rows) when one
+    # render fills several rows (the Ka-52 / Z-10 layout); `nrows` then sets the sheet height (shadow row included).
+    paired = len(rows[0]) == 2 and isinstance(rows[0][0], tuple)
+    jobs = rows if paired else [(spec, (r,)) for r, spec in enumerate(rows)]
+    height = (nrows if nrows else max(t for _, ts in jobs for t in ts) + 2)
+    msheet = np.zeros((CELL * height, CELL * len(dirs), 4), np.float32)
+    for (groups, pitch, roll, tint), targets in jobs:
+        show(groups)
+        pose(plane, pitch, roll)
+        for ci, k in enumerate(dirs):
+            rig.rotation_euler = heading(k)
+            cell = grab(sc, tmp)[::-1]
+            cell[..., :3] *= tint
+            for r in targets:
+                if r < height:
+                    msheet[r * CELL:(r + 1) * CELL, ci * CELL:(ci + 1) * CELL] = cell
+            print(f'[{label}] mask rows {targets} facing {k + 1}/{DIRS}', flush=True)
+    H, W = msheet.shape[:2]
+    img = bpy.data.images.new('mask', W, H, alpha=True)
+    img.pixels.foreach_set(np.clip(msheet[::-1], 0, 1).astype(np.float32).ravel())
+    img.filepath_raw = path
+    img.file_format = 'PNG'
+    img.save()
+    print(f'[{label}] wrote {os.path.basename(path)}', flush=True)
+    for ob, _ in PARTS:
+        ob.data.materials.clear()
+        for m in saved[ob.name]:
+            ob.data.materials.append(m)
+    pose(plane, 0, 0)
+
+
 def run(model, out_name, length, build, team_mask=False):
     """Builds the aircraft (`build()` makes its parts), renders the 32 x 9 sheet into ui/public/sprites/<out_name>.png.
     `team_mask`: the faction line is neutral grey and a <out_name>-team.png mask sheet (same layout) is rendered too."""

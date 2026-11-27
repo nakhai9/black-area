@@ -32,7 +32,7 @@ from mathutils import Matrix
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from airkit import (CELL, DIRS, PARTS, PREVIEW, SIN_E, SPRITES, TEAM, box, grab, lathe, loft, mat, obj, plate, pose, rod,  # noqa: E402
-                    shadow_material, show, srgb, stage, superellipse, surface)
+                    shadow_material, mask_sheet, show, srgb, stage, superellipse, surface)
 
 LENGTH = 14.3
 SCALE = CELL * 0.74 / LENGTH   # sheet px per metre (rotor_render.py must use the same: --length 14.3)
@@ -69,7 +69,7 @@ def materials():
         strut=mat('strut', '#8f9496', 0.35, metal=0.8, ao=0.2),
         pod=mat('pod', '#3a4032', 0.6),
         missile=mat('missile', '#56603f', 0.6),
-        team=mat('team', TEAM['china'], 0.5, ao=0),
+        team=mat('team', '#c8c8c8', 0.5, ao=0),  # neutral grey: the -team mask sheet carries the owner's colour (ART_GUIDE)
         navred=mat('navred', '#ff2a2a', 0.4, emit=5.0, ao=0),
         navgreen=mat('navgreen', '#29ff5a', 0.4, emit=5.0, ao=0),
         blade=mat('tblade', '#262a24', 0.55),
@@ -336,6 +336,8 @@ def main():
             cell[..., :3] *= tint
             sheet[r * CELL:(r + 1) * CELL, ci * CELL:(ci + 1) * CELL] = cell
             print(f'[z10] row {r + 1}/{len(rows)} facing {k + 1}/{DIRS}', flush=True)
+    if not PREVIEW:
+        mask_sheet(sc, plane, rig, rows, dirs, heading, tmp, out.replace('.png', '-team.png'), 'z10', nrows=SHEET_ROWS)
     if not PREVIEW:
         show(('always', 'trs'))
         pose(plane, 0, 0)

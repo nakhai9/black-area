@@ -85,7 +85,7 @@ import {
   MAX_TRANSPORTS,
   JANITOR_INTERVAL,
   CELL_SIZE,
-  CAPITAL_CLEARING_CELLS,
+  CAPITAL_CLEARING_CELLS, CAPITAL_CLEARING_CELLS_BY_FACTION,
   PRESET_CLEARING_CELLS,
   TREE_CHARGE_RADIUS_CELLS,
   FELL_SPREAD_CELLS,
@@ -197,6 +197,7 @@ import { SpriteCache } from '../render/SpriteCache';
 import { BUILDING_ART } from '../render/sprites';
 import { airfieldLayout } from '../render/sprites/Airfield';
 import { AircraftSystem, canBaseAt, isAirBase, type AirfieldGeometry } from '../systems/AircraftSystem';
+import { reviewMatch } from '../ai/AIDoctrine';
 import { AISystem } from '../systems/AISystem';
 import { StructureIndex } from '../systems/StructureIndex';
 import { canTarget, CombatSystem, distanceTo, inTruce, isHostile, setDisarmed, setRuins, setTruce, setViolators } from '../systems/CombatSystem';
@@ -995,6 +996,9 @@ export class Game {
     // Command dock (bottom): logo + flag, war clock, home / map / production / loan / nuclear / settings / allies.
     this.bigMap.setDock({
       faction: this.humanPlayer.faction as FactionId,
+      onShop: () => this.sidebar.toggleShop(),
+      credits: this.sidebar.dockCredits,
+      extras: this.sidebar.dockButtons(),
       loan: this.sidebar.loanButton,
       onSettings: () => {
         if (!this.paused && !this.ended) this.togglePause();
@@ -1202,7 +1206,7 @@ export class Game {
     for (const [e] of shells) if (e instanceof WorldBank) (e.spec as { footprint: { w: number; d: number } }).footprint = FOOTPRINT_GMC;
     // Older saves carry the capitals' 5 × 8 footprint (palace + forecourt): the palace kept the back 5 × 5, so the
     // corner stays put and only the forecourt is dropped.
-    for (const [e] of shells) if (e instanceof Capital) (e.spec as { footprint: { w: number; d: number } }).footprint = capitalFootprint(e.faction as FactionId);
+    for (const [e] of shells) if (e instanceof Capital) (e.spec as { footprint: { w: number; d: number } }).footprint = capitalFootprint((e.origin !== 'neutral' ? e.origin : e.faction) as FactionId);
     // Older saves carry the contested capitals' 4 × 4 footprint: they are 5 × 3 now.
     for (const [e] of shells) if (e instanceof NationCapital) (e.spec as { footprint: { w: number; d: number } }).footprint = nationInfo(e.nation).footprint;
     for (const [e] of shells) this.entities.add(e);
@@ -1211,6 +1215,12 @@ export class Game {
     setNextEntityId(Math.max(save.nextEntityId, ...save.entities.map((s) => (s.data.id as number) + 1)));
     Unit.insideVersion++;
     for (const p of save.players) codec.restorePlayer(p);
+    // Saves from before 3.75.442 kept the nation's engineers as one count: they go into its first Tech Center.
+    for (const p of this.players) {
+      const labs = this.entities.buildings().filter((b): b is TechCenter => b instanceof TechCenter && b.alive && b.owner === p.id);
+      if ((p.scientists ?? 0) > 0 && labs.length > 0 && labs.every((b) => b.scientists === 0)) labs[0]!.scientists = Math.min(SILO_SCIENTISTS, p.scientists ?? 0);
+    }
+    this.syncScientists();
     const parts = this.saveParts();
     for (const [name, data] of Object.entries(save.systems)) {
       const part = parts[name];
@@ -2342,19 +2352,41 @@ export class Game {
    * The nuclear programme's engineers mend their own damaged Tech Center (TECH_SCIENTIST_REPAIR_RATE of max health
    * per second); each finished repair costs one of them (SILO_SCIENTISTS are needed to run a silo). Player and AI alike.
    */
+  /**
+   * Engineers belong to the Tech Center they walked into (TechCenter.scientists) and never move to another one. The
+   * nation's count (PlayerState.scientists, read by the silo rules) is its best-staffed Tech Center's.
+   */
+  private syncScientists(): void {
+    const best = new Map<number, number>();
+    for (const b of this.entities.buildings()) {
+      if (b instanceof TechCenter && b.alive) best.set(b.owner, Math.max(best.get(b.owner) ?? 0, b.scientists));
+    }
+    for (const p of this.players) p.scientists = best.get(p.id) ?? 0;
+  }
+
+  /** Own Tech Center with the most engineers (the one a new engineer joins first, so one fills up to SILO_SCIENTISTS). */
+  techCenterFor(owner: number): TechCenter | undefined {
+    let pick: TechCenter | undefined;
+    for (const b of this.entities.buildings()) {
+      if (!(b instanceof TechCenter) || !b.alive || b.owner !== owner || b.scientists >= SILO_SCIENTISTS) continue;
+      if (!pick || b.scientists > pick.scientists) pick = b;
+    }
+    return pick;
+  }
+
   private scientistsMend(dt: number): void {
     for (const b of this.entities.buildings()) {
       if (!(b instanceof TechCenter) || !b.alive) continue;
       const p = this.players.find((q) => q.id === b.owner);
       if (!p) continue;
       // More than SILO_SCIENTISTS inside (older saves): the extra engineers walk back out of the door.
-      if ((p.scientists ?? 0) > SILO_SCIENTISTS) {
-        const extra = (p.scientists ?? 0) - SILO_SCIENTISTS;
-        p.scientists = SILO_SCIENTISTS;
+      if (b.scientists > SILO_SCIENTISTS) {
+        const extra = b.scientists - SILO_SCIENTISTS;
+        b.scientists = SILO_SCIENTISTS;
         for (let i = 0; i < extra; i++) this.spawnSoldier(p, 'engineer', b, p.faction as FactionId, true);
         if (p.id === this.humanPlayer.id) this.sidebar.notify(t('The Tech Center only needs {need} engineers: {n} walked back out.', { need: SILO_SCIENTISTS, n: extra }), 4);
       }
-      if (b.hp >= b.maxHp || (p.scientists ?? 0) <= 0) {
+      if (b.hp >= b.maxHp || b.scientists <= 0) {
         b.mending = false;
         continue;
       }
@@ -2362,16 +2394,17 @@ export class Game {
       b.hp = Math.min(b.maxHp, b.hp + b.maxHp * TECH_SCIENTIST_REPAIR_RATE * dt);
       if (b.hp < b.maxHp) continue;
       b.mending = false;
-      p.scientists = Math.max(0, (p.scientists ?? 0) - 1);
-      if (p.id === this.humanPlayer.id) this.sidebar.notify(t('Tech Center repaired by its engineers: {n}/{need} left for the missile silo.', { n: p.scientists, need: SILO_SCIENTISTS }), 4);
+      b.scientists = Math.max(0, b.scientists - 1);
+      if (p.id === this.humanPlayer.id) this.sidebar.notify(t('Tech Center repaired by its engineers: {n}/{need} left for the missile silo.', { n: b.scientists, need: SILO_SCIENTISTS }), 4);
     }
+    this.syncScientists();
   }
 
   /** An engineer walks into its nation's own Tech Center to work on the nuclear programme (used up there; see SILO_SCIENTISTS). */
   orderScience(u: Infantry, b: Building): boolean {
     if (!u.isEngineer || b.owner !== u.owner || b.spec.type !== 'techCenter' || b.hp < b.maxHp) return false;
     // Fully staffed (SILO_SCIENTISTS inside): no more engineers go in.
-    if ((this.players.find((p) => p.id === u.owner)?.scientists ?? 0) >= SILO_SCIENTISTS) {
+    if (b instanceof TechCenter && b.scientists >= SILO_SCIENTISTS) {
       if (u.owner === this.humanPlayer.id) this.sidebar.notify(t('The Tech Center already has {need} engineers.', { need: SILO_SCIENTISTS }), 3);
       return false;
     }
@@ -2522,6 +2555,11 @@ export class Game {
     const swimmers: typeof walkers = [];
     const drivers: typeof walkers = [];
     const dozers: typeof walkers = []; // repair vehicles: their own routes, straight through the woods
+    // Each ground unit's own free stand spot round the target (no two share one, nothing under a hull): without it every
+    // unit whose spiral slot fell in the same cell drove to that cell's centre and they shoved each other for ever.
+    // (Bucketed lookups, see freeStandSpot: cheap enough for any group size.)
+    const claimed: StandClaim[] = [];
+    const spotEach = true;
     units.forEach((u, k) => {
       if (u instanceof Vehicle) {
         u.heliHome = null;
@@ -2559,7 +2597,12 @@ export class Game {
         return;
       }
       if (!goal) return;
-      const goalPt = { x: (goal.x + 0.5) * CELL_SIZE, y: (goal.y + 0.5) * CELL_SIZE };
+      let goalPt = { x: (goal.x + 0.5) * CELL_SIZE, y: (goal.y + 0.5) * CELL_SIZE };
+      if (spotEach) {
+        const spot = this.freeStandSpot({ x: target.x + off.x, y: target.y + off.y }, u, units, claimed);
+        if (spot && this.map.cellAt(spot.x, spot.y)) goalPt = spot;
+        claimed.push({ x: goalPt.x, y: goalPt.y, r: u.radius, vehicle: u instanceof Vehicle });
+      }
       // Already rolling to (nearly) the same spot: keep going on the route it has. Re-ordering it (the AI repeats its
       // orders every few ticks) would stop it and wait for a new route each time: stop-and-go every few px.
       if (u.moving && u.destination && Math.hypot(u.destination.x - goalPt.x, u.destination.y - goalPt.y) < CELL_SIZE * 3) return;
@@ -2567,10 +2610,13 @@ export class Game {
         // A ground machine stops and waits for its whole new route (then pivots and drives nose first): no sliding.
         u.stop();
         u.routePending = true;
-        (u.mobility === 'dozer' ? dozers : u.mobility === 'vehicle' ? drivers : u.swims ? swimmers : walkers).push({ unit: u, goal: { x: (goal.x + 0.5) * CELL_SIZE, y: (goal.y + 0.5) * CELL_SIZE }, cell: goal, ticket: u.pathTicket });
+        (u.mobility === 'dozer' ? dozers : u.mobility === 'vehicle' ? drivers : u.swims ? swimmers : walkers).push({ unit: u, goal: goalPt, cell: this.map.cellAt(goalPt.x, goalPt.y) ?? goal, ticket: u.pathTicket });
         return;
       }
-      u.follow(this.paths.find({ x: u.px, y: u.py }, goal, u.mobility));
+      const goalCell = this.map.cellAt(goalPt.x, goalPt.y) ?? goal;
+      const path = this.paths.find({ x: u.px, y: u.py }, goalCell, u.mobility);
+      if (path.length > 0) path[path.length - 1] = { x: goalPt.x, y: goalPt.y }; // ends on its own spot, not the cell centre
+      u.follow(path);
     });
     for (const members of [walkers, swimmers, drivers, dozers]) {
       const lead = members[0];
@@ -2580,6 +2626,7 @@ export class Game {
         this.paths.groupJob(members, lead.cell, lead.unit.mobility, (m, path) => {
           const mm = m as (typeof members)[number];
           if (!mm.unit.alive || mm.unit.pathTicket !== mm.ticket) return; // given another order meanwhile
+          if (path.length > 0) path[path.length - 1] = { x: mm.goal.x, y: mm.goal.y }; // its own spot
           mm.unit.follow(path);
         }, urgent),
         urgent,
@@ -3641,7 +3688,7 @@ export class Game {
    */
   private tick(dt: number): void {
     // DEMO: every Tech Center counts as staffed by the full SILO_SCIENTISTS engineers.
-    if (demoActive) for (const p of this.players) if ((p.scientists ?? 0) < SILO_SCIENTISTS) p.scientists = SILO_SCIENTISTS;
+    if (demoActive) for (const p of this.players) if ((p.scientists ?? 0) < SILO_SCIENTISTS) { const lab = this.techCenterFor(p.id); if (lab) lab.scientists = SILO_SCIENTISTS; p.scientists = SILO_SCIENTISTS; }
     const ls = this.lockstep;
     if (!ls) {
       this.simTick(dt);
@@ -5187,7 +5234,7 @@ export class Game {
       ...slotsFor(soldiers, soldierGap, 0),
       ...slotsFor(vehicles, vehicleGap, soldiers.length ? soldierDepth + vehicleGap * 1.5 : 0),
     ];
-    const claimed: WorldPoint[] = [];
+    const claimed: StandClaim[] = [];
     for (const { u, at } of slots) {
       u.parade = null;
       u.fellTarget = null;
@@ -5198,7 +5245,7 @@ export class Game {
       if (u instanceof Infantry) u.charge = null;
       const spot = this.freeStandSpot(at, u, units, claimed);
       if (!spot) continue;
-      claimed.push(spot);
+      claimed.push({ x: spot.x, y: spot.y, r: u.radius, vehicle: u instanceof Vehicle });
       const cell = this.map.cellAt(spot.x, spot.y);
       if (!cell) continue;
       const path = this.paths.find({ x: u.px, y: u.py }, cell, u.mobility);
@@ -6478,6 +6525,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       // Out of the game: a BREAKING NEWS toast on screen too (my own defeat has the end screen instead).
       if (p.id !== this.localId) this.news.show(t('BREAKING NEWS'), t('{name} is out of the game.', { name }));
     }
+    if ((this.humanPlayer.defeated || this.players.every((p) => p.id === this.localId || p.defeated)) && !this.ended) this.reviewAI();
     if (this.humanPlayer.defeated) {
       this.ended = true;
       this.endScreen.show(false, t('Your capital has fallen and you have no combat force, barracks or factory left.'), this.humanPlayer.faction, document.body, !this.lockstep, this.humanPlayer.name);
@@ -6485,6 +6533,17 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
       this.ended = true;
       this.endScreen.show(true, t('Every enemy capital is destroyed and no enemy soldier or combat vehicle remains. The war is won.'), this.humanPlayer.faction, document.body, !this.lockstep, this.humanPlayer.name);
     }
+  }
+
+  /**
+   * AI self-review at the end of a solo match (AIDoctrine.reviewMatch): the AI's doctrine numbers move one capped step
+   * from what this match showed; the next solo match loads them. Never in multiplayer (every machine runs the same AI).
+   */
+  private reviewAI(): void {
+    if (this.lockstep) return;
+    const survivors = new Set(this.players.filter((p) => !p.isHuman && !p.defeated).map((p) => p.id));
+    const changes = reviewMatch(this.ai.doctrine, this.ai.tactics.matchStats(survivors));
+    if (Object.keys(changes).length > 0) console.info('AI doctrine tuned after the match:', changes);
   }
 
   /** Explosion + smoke from the explosion sheet at world (x, y), `lift` px up, its fireball `size` iso px wide. */
@@ -7078,8 +7137,29 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     }
     const spilled = new Map<number, number>(); // ô bên cạnh → số chỗ đã chia thêm
     const slotOf = (i: number, k: number): WorldPoint => ({ x: ((i % W) + 0.5) * CELL_SIZE + SUBCELLS[k]![0], y: (Math.floor(i / W) + 0.5) * CELL_SIZE + SUBCELLS[k]![1] });
+    // Xe (và mọi đơn vị mặt đất không phải lính) theo ô: chỗ đứng nằm dưới thân xe thì bỏ. Trước đây lính được xếp vào
+    // chỗ dưới xe, bị đẩy ra, lại được xếp vào — đẩy nhau mãi không dừng.
+    const hulls = new Map<number, Unit[]>();
+    for (const m of this.entities.fieldMovers()) {
+      if (m instanceof Infantry || !m.alive || m.flies) continue;
+      const j = this.cells.index(m.px, m.py);
+      const l = hulls.get(j);
+      if (l) l.push(m);
+      else hulls.set(j, [m]);
+    }
+    const underHull = (p: WorldPoint): boolean => {
+      const cx = Math.floor(p.x / CELL_SIZE);
+      const cy = Math.floor(p.y / CELL_SIZE);
+      for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
+        for (const m of hulls.get((cy + dy) * W + cx + dx) ?? NO_UNITS) {
+          const at = m.destination ?? { x: m.px, y: m.py };
+          if (Math.hypot(at.x - p.x, at.y - p.y) < m.radius + INFANTRY_HULL_CLEAR) return true;
+        }
+      }
+      return false;
+    };
     for (const [i, list] of byCell) {
-      const free = SUBCELLS.map((_, k) => k);
+      const free = hulls.size === 0 ? SUBCELLS.map((_, k) => k) : SUBCELLS.map((_, k) => k).filter((k) => !underHull(slotOf(i, k)));
       // Lính gần chỗ đứng nhất chọn trước (tham lam theo khoảng cách); thừa thì sang ô bên cạnh.
       const near = (u: Infantry): number => Math.min(...free.map((k) => Math.hypot(slotOf(i, k).x - u.px, slotOf(i, k).y - u.py)));
       const order = [...list].sort((a, b) => near(a) - near(b));
@@ -7108,8 +7188,10 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
                 const j = y * W + x;
                 const used = (byCell.get(j)?.length ?? 0) + (spilled.get(j) ?? 0);
                 if (used >= SUBCELLS.length) continue;
+                const slot = slotOf(j, used);
+                if (hulls.size > 0 && underHull(slot)) continue;
                 spilled.set(j, (spilled.get(j) ?? 0) + 1);
-                target = slotOf(j, used);
+                target = slot;
               }
             }
           }
@@ -7920,7 +8002,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
   private clearStartingGround(trees: TreeLayer): void {
     for (const b of this.entities.buildings()) {
       if (b.spec.type === 'capital' || b.spec.type === 'nationCapital') {
-        trees.clearAround(b.x + Math.floor(b.w / 2), b.y + Math.floor(b.d / 2), CAPITAL_CLEARING_CELLS);
+        trees.clearAround(b.x + Math.floor(b.w / 2), b.y + Math.floor(b.d / 2), (b.spec.type === 'capital' ? CAPITAL_CLEARING_CELLS_BY_FACTION[b.origin] : undefined) ?? CAPITAL_CLEARING_CELLS);
       } else {
         const m = PRESET_CLEARING_CELLS;
         trees.clearArea(b.x - m, b.y - m, b.w + m * 2, b.d + m * 2);
@@ -7977,15 +8059,16 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
           u.insideId = b.id;
           u.stop();
           this.selection.selectedUnits.delete(u.id);
-        } else if (owner && b.owner === u.owner && b.spec.type === 'techCenter' && (owner.scientists ?? 0) >= SILO_SCIENTISTS) {
+        } else if (owner && b.owner === u.owner && b instanceof TechCenter && b.scientists >= SILO_SCIENTISTS) {
           // Fully staffed: the engineer is turned away and stays outside, at the door.
           u.stop();
           if (u.owner === this.humanPlayer.id) this.sidebar.notify(t('The Tech Center already has {need} engineers: this one stays outside.', { need: SILO_SCIENTISTS }), 3);
-        } else if (owner && b.owner === u.owner && b.spec.type === 'techCenter') {
-          owner.scientists = (owner.scientists ?? 0) + 1;
+        } else if (owner && b.owner === u.owner && b instanceof TechCenter) {
+          b.scientists += 1; // stays in this Tech Center for good
+          this.syncScientists();
           this.selection.selectedUnits.delete(u.id);
           this.entities.remove(u.id);
-          if (u.owner === this.humanPlayer.id) this.sidebar.notify(t('Engineer joined the nuclear programme: {n}/{need} for a missile silo.', { n: owner.scientists, need: SILO_SCIENTISTS }), 3);
+          if (u.owner === this.humanPlayer.id) this.sidebar.notify(t('Engineer joined the nuclear programme: {n}/{need} for a missile silo.', { n: b.scientists, need: SILO_SCIENTISTS }), 3);
         }
       } else if (task.type === 'lease') {
         // Lease: the engineer signs for the derrick and stays at the door; the derrick pumps for his nation.
@@ -8636,24 +8719,94 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     return true;
   }
 
-  private freeStandSpot(goal: WorldPoint, u: Unit, group: readonly Unit[], claimed: readonly WorldPoint[]): WorldPoint | null {
-    const others = this.entities.fieldMovers().filter((m) => m !== u && m.alive && !m.flies && !group.includes(m));
+  /**
+   * Where the other ground units stand (or are heading), bucketed: built once per tick and reused by every
+   * freeStandSpot call of that tick, so a big group finds all its spots without scanning the whole field per unit.
+   */
+  private standIndex: { time: number; grid: Map<number, Unit[]>; maxR: number } | null = null;
+  /** Spots handed out by one order (its `claimed` array), bucketed as they are added. */
+  private readonly claimIndex = new WeakMap<readonly StandClaim[], { seen: number; grid: Map<number, StandClaim[]> }>();
+
+  private standGrid(): { grid: Map<number, Unit[]>; maxR: number } {
+    if (this.standIndex && this.standIndex.time === this.time) return this.standIndex;
+    const grid = new Map<number, Unit[]>();
+    let maxR = 0;
+    for (const m of this.entities.fieldMovers()) {
+      if (!m.alive || m.flies) continue;
+      const at = m.destination ?? { x: m.px, y: m.py };
+      const k = standKey(at.x, at.y);
+      const l = grid.get(k);
+      if (l) l.push(m);
+      else grid.set(k, [m]);
+      if (m.radius > maxR) maxR = m.radius;
+    }
+    this.standIndex = { time: this.time, grid, maxR };
+    return this.standIndex;
+  }
+
+  private claimGrid(claimed: readonly StandClaim[]): Map<number, StandClaim[]> {
+    let c = this.claimIndex.get(claimed);
+    if (!c) {
+      c = { seen: 0, grid: new Map() };
+      this.claimIndex.set(claimed, c);
+    }
+    for (; c.seen < claimed.length; c.seen++) {
+      const p = claimed[c.seen]!;
+      const k = standKey(p.x, p.y);
+      const l = c.grid.get(k);
+      if (l) l.push(p);
+      else c.grid.set(k, [p]);
+    }
+    return c.grid;
+  }
+
+  private freeStandSpot(goal: WorldPoint, u: Unit, group: readonly Unit[], claimed: readonly StandClaim[]): WorldPoint | null {
+    const members = group.length > 0 ? new Set(group) : null;
+    const { grid, maxR } = this.standGrid();
+    const claims = this.claimGrid(claimed);
+    const isVehicle = u instanceof Vehicle;
+    const reach = Math.ceil((u.radius + Math.max(maxR, ...claimed.slice(-1).map((c) => c.r ?? 0), u.radius) + VEHICLE_GAP) / STAND_BUCKET);
+    const clear = (p: WorldPoint): boolean => {
+      const bx = Math.floor(p.x / STAND_BUCKET);
+      const by = Math.floor(p.y / STAND_BUCKET);
+      for (let dy = -reach; dy <= reach; dy++) {
+        for (let dx = -reach; dx <= reach; dx++) {
+          const k = (bx + dx) * 100003 + (by + dy);
+          // Stationary units hold their ground; a moving one counts by where it is heading.
+          for (const m of grid.get(k) ?? NO_UNITS) {
+            if (m === u || members?.has(m)) continue;
+            const at = m.destination ?? { x: m.px, y: m.py };
+            const gap = m.radius + u.radius + (m instanceof Vehicle && isVehicle ? VEHICLE_GAP : 0);
+            if (Math.hypot(at.x - p.x, at.y - p.y) < gap) return false;
+          }
+          // Spots already given to the group: the two hulls (each its own size, a vehicle pair with VEHICLE_GAP) must not touch.
+          for (const c of claims.get(k) ?? NO_CLAIMS) {
+            if (Math.hypot(c.x - p.x, c.y - p.y) < (c.r ?? u.radius) + u.radius + (c.vehicle && isVehicle ? VEHICLE_GAP : 0)) return false;
+          }
+        }
+      }
+      return true;
+    };
+    const fits = (p: WorldPoint): boolean => {
+      const cell = this.map.cellAt(p.x, p.y);
+      // The whole hull must fit: no part of it may hang over a building, water or the map edge.
+      return !!cell && this.pathfinder.passable(cell.x, cell.y, u.mobility) && this.hullFits(p, u) && clear(p);
+    };
     // The clicked point itself first, then the nearest points around it (a fine grid, nearest first): the unit ends
     // up as close to the click as its hull allows, never a few cells off.
     for (const off of STAND_OFFSETS) {
       const p = { x: goal.x + off.x, y: goal.y + off.y };
-      const cell = this.map.cellAt(p.x, p.y);
-      if (!cell || !this.pathfinder.passable(cell.x, cell.y, u.mobility)) continue;
-      // The whole hull must fit: no part of it may hang over a building, water or the map edge.
-      if (!this.hullFits(p, u)) continue;
-      // Stationary units hold their ground; a moving one counts by where it is heading.
-      if (others.some((m) => {
-        const at = m.destination ?? { x: m.px, y: m.py };
-        const gap = m.radius + u.radius + (m instanceof Vehicle && u instanceof Vehicle ? VEHICLE_GAP : 0);
-        return Math.hypot(at.x - p.x, at.y - p.y) < gap;
-      })) continue;
-      if (claimed.some((c) => Math.hypot(c.x - p.x, c.y - p.y) < u.radius * 2)) continue;
-      return p;
+      if (fits(p)) return p;
+    }
+    // Too crowded there (a big group, a packed base): the group spreads further out, ring by ring (coarser steps), so
+    // every unit still gets a spot of its own to stop on instead of squeezing into the crowd.
+    for (let r = STAND_REACH + STAND_FAR_STEP; r <= STAND_FAR_REACH; r += STAND_FAR_STEP) {
+      const n = Math.max(8, Math.round((2 * Math.PI * r) / STAND_FAR_STEP));
+      for (let i = 0; i < n; i++) {
+        const a = (i / n) * Math.PI * 2;
+        const p = { x: goal.x + Math.cos(a) * r, y: goal.y + Math.sin(a) * r };
+        if (fits(p)) return p;
+      }
     }
     return null;
   }
@@ -8782,7 +8935,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
     const spacing = Math.max(UNIT_SPACING * 1.15, Math.max(...units.map((u) => u.radius)) * 2.1);
     const group = this.nextRetreatGroup++;
     // Spots already handed out in this order: no two units of the group are sent to the same place.
-    const claimed: WorldPoint[] = [];
+    const claimed: StandClaim[] = [];
     // Ground units of the order, by how they move (walk / swim / drive): each set shares one flow field (PathService).
     const walkers: (GroupMember & { ticket: number; facing: number })[] = [];
     const swimmers: (GroupMember & { ticket: number; facing: number })[] = [];
@@ -8844,7 +8997,7 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
           goal = { x: (near.x + 0.5) * CELL_SIZE, y: (near.y + 0.5) * CELL_SIZE };
           cell = near;
         }
-        claimed.push(goal);
+        claimed.push({ x: goal.x, y: goal.y, r: u.radius, vehicle: u instanceof Vehicle });
       }
       u.orderFlash = { kind: 'move', at: this.time, target: null };
       if (straight) {
@@ -9000,6 +9153,20 @@ t('{name} requires a {need} first.', { name: option.name, need: BUILD_OPTIONS.fi
 /** Offsets (world px) tried round a stand spot: a grid of STAND_STEP px out to STAND_REACH px, nearest first. */
 const STAND_STEP = 1.75;
 const STAND_REACH = 12 * 7;
+/** A stand spot already given to a unit of the group (its hull radius, and whether it is a vehicle). */
+type StandClaim = WorldPoint & { r?: number; vehicle?: boolean };
+/** freeStandSpot's bucket size (world px) for the units and claimed spots round a candidate point. */
+const STAND_BUCKET = 14;
+/** Past STAND_REACH (a crowded spot) the search goes on in rings this far apart (world px), out to STAND_FAR_REACH. */
+const STAND_FAR_STEP = 3.5;
+const STAND_FAR_REACH = 30 * 7;
+const NO_CLAIMS: readonly StandClaim[] = [];
+/** Bucket key of a world point for freeStandSpot. */
+function standKey(x: number, y: number): number {
+  return Math.floor(x / STAND_BUCKET) * 100003 + Math.floor(y / STAND_BUCKET);
+}
+/** Lính đứng cách thân xe ít nhất bán kính xe + chừng này (world px): bán kính lính + một chút khe. */
+const INFANTRY_HULL_CLEAR = 1.6;
 const STAND_OFFSETS: readonly WorldPoint[] = (() => {
   const out: WorldPoint[] = [];
   const n = Math.ceil(STAND_REACH / STAND_STEP);

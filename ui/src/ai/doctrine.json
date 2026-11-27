@@ -1,0 +1,17 @@
+{
+  "_comment": "AI doctrine: tunable numbers of the AI's tactics. Defaults here; after every solo match the AI reviews itself (AIDoctrine.reviewMatch) and nudges a whitelist of them within their bounds. Learned values live in the browser (localStorage 'black-area.ai-doctrine'), never in multiplayer.",
+  "version": 1,
+  "params": {
+    "focusRadiusCells": { "value": 10, "min": 6, "max": 16, "step": 1 },
+    "infantryBias": { "value": 0.6, "min": 0.3, "max": 1.0, "step": 0.05 },
+    "retreatOdds": { "value": 1.5, "min": 1.1, "max": 2.5, "step": 0.1 },
+    "strikeGroup": { "value": 3, "min": 2, "max": 8, "step": 1 },
+    "supportRadiusCells": { "value": 14, "min": 8, "max": 22, "step": 1 }
+  },
+  "throttle": {
+    "sameOrderSeconds": 12,
+    "unitCooldownTicks": 18,
+    "roleSeconds": { "strike": 12, "raid": 12, "defender": 20, "guard": 20, "hold": 30, "flak": 30, "station": 60 }
+  },
+  "fastTierSeconds": 0.3
+}

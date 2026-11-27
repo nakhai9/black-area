@@ -411,7 +411,11 @@ export class SaveCodec {
       const make =
         TEMPLATES[saved.cls] ??
         ((s: Record<string, unknown>, p: WorldPoint) => new (Cls as unknown as new (o: number, f: FactionId, c: WorldPoint) => Entity)(s.owner as number, s.faction as FactionId, p));
-      e = make(d, at);
+      // A structure taken or bought from another nation keeps that nation's design (spec, footprint, art): it is built
+      // as its origin nation's, then fillEntity lays its current owner / faction / flag override over it.
+      const origin = d.originFaction;
+      const design = typeof origin === 'string' && origin !== 'neutral' && origin in FACTIONS && origin !== d.faction ? { ...d, faction: origin } : d;
+      e = make(design, at);
     } catch (err) {
       console.warn(`Save: skipped ${saved.cls} #${String(d.id)}:`, err instanceof Error ? err.message : err);
       return null;

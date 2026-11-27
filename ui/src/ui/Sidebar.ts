@@ -355,6 +355,11 @@ export class Sidebar {
   readonly zoomLockButton: HTMLButtonElement;
 
   private readonly credits: HTMLElement;
+  /** The nation's money, shown again in the command dock above its buttons (BigMap.setDock). */
+  readonly dockCredits = document.createElement('div');
+  private readonly dockCreditsValue = document.createElement('span');
+  /** Copy of the power bar for the dock (left of the money). */
+  private readonly dockPowerBar = document.createElement('div');
   private readonly income: HTMLElement;
   private readonly stock: HTMLElement;
   private readonly price: HTMLElement;
@@ -427,6 +432,23 @@ export class Sidebar {
   private newsButton: HTMLButtonElement | null = null;
   private readonly flagUrls = new Map<FactionId, string>();
   private readonly tabButtons = new Map<TabId, HTMLButtonElement>();
+  /** Shop drawer (opened by the cart button of the command dock): the buy tabs and their cameos, not full height. */
+  readonly shopDrawer = document.createElement('div');
+  private readonly shopTabs = document.createElement('div');
+
+  /** Cart button of the dock: opens / closes the shop drawer. */
+  toggleShop(open = this.shopDrawer.hidden): void {
+    this.shopDrawer.hidden = !open;
+    if (open) {
+      // Start on the open tab, or the first one that can be bought from.
+      const cur = this.tabButtons.get(this.activeTab);
+      if (!cur || cur.disabled) {
+        const first = BUILD_TABS.find((t) => !this.tabButtons.get(t.id)?.disabled);
+        if (first) this.switchTab(first.id);
+      }
+    }
+    this.markTabs();
+  }
 
   /** Production tab buttons in order (build, defense, infantry, vehicles, aircraft): they live in the command dock. */
   productionTabs(): HTMLButtonElement[] {
@@ -586,6 +608,15 @@ export class Sidebar {
     };
     this.minimapCanvas = q<HTMLCanvasElement>('.sb-minimap');
     this.credits = q('.sb-credits span');
+    this.dockCredits.className = 'cmd-credits';
+    const unit = document.createElement('small');
+    unit.textContent = CURRENCY;
+    const money = document.createElement('span');
+    money.className = 'cmd-money';
+    money.append(this.dockCreditsValue, ' ', unit);
+    this.dockPowerBar.className = 'sb-power-bar cmd-power';
+    this.dockPowerBar.innerHTML = '<i></i>'.repeat(POWER_SEGMENTS);
+    this.dockCredits.append(this.dockPowerBar, money);
     this.income = q('.sb-income');
     this.stock = q('.sb-stock');
     this.price = q('.sb-price');
@@ -673,7 +704,27 @@ export class Sidebar {
     root.addEventListener('contextmenu', (e) => e.preventDefault());
     this.buildMainTabs(q('.sb-main-tabs'), q('.sb-page-links'));
     this.views.set('command', q('[data-page=command]'));
-    this.views.set('production', q('[data-page=production]'));
+    // The shop page lives in the drawer the dock's cart button opens (not a page of the sidebar).
+    {
+      const page = q('[data-page=production]');
+      page.hidden = false;
+      this.shopDrawer.className = 'shop-drawer';
+      this.shopDrawer.hidden = true;
+      const head = document.createElement('div');
+      head.className = 'shop-drawer-head';
+      const title = document.createElement('span');
+      title.textContent = t('Shop');
+      const close = document.createElement('button');
+      close.type = 'button';
+      close.className = 'shop-drawer-close';
+      close.textContent = '×';
+      close.title = t('Close');
+      close.addEventListener('click', () => this.toggleShop(false));
+      head.append(title, close);
+      this.shopTabs.className = 'shop-drawer-tabs';
+      this.shopDrawer.append(head, this.shopTabs, page);
+      document.body.append(this.shopDrawer);
+    }
     for (const id of ['finance', 'oil', 'capitals'] as const) this.infoPanes.set(id, q(`[data-info=${id}]`));
     // The Controls guide lives in the bottom-left corner bar's modal, not in the sidebar.
     const help = q('[data-info=controls]');
@@ -697,7 +748,7 @@ export class Sidebar {
     this.rankNuclear = q('[data-rank=nuclear]');
     // After every lookup inside them: the Rank and Allies panels leave the sidebar for the News window.
     this.buildNewsModal(q('.sb-rank'), q('.sb-allies'), q('.sb-prices'));
-    this.buildTabs(q('.sb-main-tabs'));
+    this.buildTabs(this.shopTabs);
     const buildPanel = q('[data-panel=build]');
     const infantryPanel = q('[data-panel=infantry]');
     this.panels.set('build', buildPanel);
@@ -819,6 +870,7 @@ export class Sidebar {
     }
     const { player } = model;
     this.credits.textContent = Math.floor(player.credits).toLocaleString('en-US');
+    if (this.dockCreditsValue.textContent !== this.credits.textContent) this.dockCreditsValue.textContent = this.credits.textContent;
     this.renderAllies(model.allies);
     if (model.ranking) {
       this.lastRanking = model.ranking;
@@ -881,6 +933,9 @@ export class Sidebar {
     // → blue (very strong: supply above the nation's consumption). Blackout stays plain red.
     const strength = player.powerConsumed > 0 ? player.powerSupply / player.powerConsumed : player.powerSupply > 0 ? 2 : 1;
     this.powerBar.style.setProperty('--power-color', player.blackout ? '#e0301e' : powerColor(strength));
+    this.dockPowerBar.dataset.level = this.powerBar.dataset.level;
+    this.dockPowerBar.style.setProperty('--power-color', this.powerBar.style.getPropertyValue('--power-color'));
+    [...this.dockPowerBar.children].forEach((b, i) => b.classList.toggle('on', i < lit));
     this.powerBar.parentElement!.title = t('Power {line}. ', { line: powerLine }) + (player.blackout
       ? t('BLACKOUT: no power and no TB to buy oil from the Global Monitoring Center. No take-offs.')
       : powerTier(player) === 'medium'
@@ -1014,8 +1069,31 @@ export class Sidebar {
     news.setAttribute('aria-label', t('News'));
     news.innerHTML = NEWS_ICON;
     news.addEventListener('click', () => this.toggleNews(true));
-    this.loanButton.closest('.sb-resources')!.querySelector('.sb-player')!.append(news);
     this.newsButton = news;
+  }
+
+  /**
+   * Oil, Occupied capitals and News buttons: they live in the command dock at the bottom of the screen (BigMap.setDock).
+   * Oil / capitals bring the sidebar up (if hidden) on the Command page with that pane open.
+   */
+  dockButtons(): HTMLButtonElement[] {
+    const out: HTMLButtonElement[] = [];
+    for (const id of ['oil', 'capitals'] as const) {
+      const btn = this.infoTabs.get(id);
+      if (!btn) continue;
+      btn.classList.add('cmd-btn');
+      btn.addEventListener('click', () => {
+        if (document.body.classList.contains('sidebar-hidden')) this.toggle();
+        this.switchView('command');
+        this.switchInfo(id);
+      });
+      out.push(btn);
+    }
+    if (this.newsButton) {
+      this.newsButton.className = 'cmd-btn sb-news-dock';
+      out.push(this.newsButton);
+    }
+    return out;
   }
 
   /** News window: who captured, destroyed or put under embargo whom, newest first, with the game time. */
@@ -1420,14 +1498,14 @@ export class Sidebar {
   private switchTab(id: TabId, open = false): void {
     this.activeTab = id;
     for (const [tab, panel] of this.panels) panel.hidden = tab !== id;
-    if (open) this.switchView('production');
-    else this.markTabs();
+    if (open) this.shopDrawer.hidden = false;
+    this.markTabs();
   }
 
   /** A production tab shows as active only while the production page is open. */
   private markTabs(): void {
     for (const [tab, btn] of this.tabButtons) {
-      const on = this.activeView === 'production' && tab === this.activeTab;
+      const on = !this.shopDrawer.hidden && tab === this.activeTab;
       btn.classList.toggle('active', on);
       btn.setAttribute('aria-pressed', String(on));
     }
@@ -1671,7 +1749,7 @@ export class Sidebar {
       btn.addEventListener('click', () => {
         if (!btn.disabled) this.switchTab(tab.id, true);
       });
-      // The shop is back in the sidebar: one row with Command, the production tabs follow it.
+      // In the shop drawer's tab row (opened by the dock's cart button).
       nav.append(btn);
       this.tabButtons.set(tab.id, btn);
     }
