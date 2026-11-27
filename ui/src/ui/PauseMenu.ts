@@ -1,7 +1,7 @@
 import { type IconNode, Car, Globe, Music, PanelRight, ScreenShareOff, ZoomIn, X, createElement } from 'lucide';
 import { type SidebarSide, setEdgeLock, setSidebarSide, setZoomLock, settings } from '../core/Settings';
 import { type Lang, languageSelect, t } from '../i18n';
-import { loadFromCloud } from '../net/CloudSave';
+import { adoptMatchCode, loadFromCloud } from '../net/CloudSave';
 
 /** Key in sessionStorage: set when the page reloads only to switch the language, so the save loads without asking. */
 export const LANGUAGE_RELOAD_KEY = 'black-area.languageReload';
@@ -30,9 +30,10 @@ export function pickSaveFile(onError: (message: string) => void = (m) => window.
 }
 
 /** Continue: loads this browser's cloud save (server API); false when there is none or the server is unreachable. */
-export async function continueLatestSave(onError: (message: string) => void = (m) => window.alert(m)): Promise<boolean> {
-  const cloud = await loadFromCloud();
+export async function continueLatestSave(onError: (message: string) => void = (m) => window.alert(m), matchCode?: string): Promise<boolean> {
+  const cloud = await loadFromCloud(matchCode);
   if (!cloud) return false;
+  if (matchCode) adoptMatchCode(matchCode); // found: this browser goes on as that player (its later saves go there too)
   loadSaveText(cloud, onError);
   return true;
 }

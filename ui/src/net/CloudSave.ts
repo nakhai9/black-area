@@ -96,9 +96,23 @@ export function saveToCloud(text: string): Promise<void> {
   });
 }
 
+/**
+ * Match code (the player id under ID_KEY) typed in on another browser: the cleaned code, or null when it cannot be a
+ * player id. Nothing is stored yet: only once its cloud save is found (adoptMatchCode), so a mistyped code never
+ * replaces this browser's own id.
+ */
+export function cleanMatchCode(code: string): string | null {
+  const id = code.trim();
+  return /^[A-Za-z0-9_-]{1,64}$/.test(id) ? id : null;
+}
+
+/** The match code's cloud save was found: this browser now continues as that player. */
+export function adoptMatchCode(id: string): void {
+  storeId(id);
+}
+
 /** This browser's cloud save as JSON text, or null when there is none / the server is unreachable. */
-export function loadFromCloud(): Promise<string | null> {
-  const id = currentId;
+export function loadFromCloud(id: string | null = currentId): Promise<string | null> {
   if (!id) return Promise.resolve(null);
   return busy(t('Loading cloud save…'), async () => {
     try {

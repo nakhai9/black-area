@@ -3,6 +3,7 @@ import { FACTIONS } from "../factions";
 import { CARD_ORDER, factionDetailHtml, factionPosterHtml } from "./FactionCard";
 import type { FactionId } from "../types";
 import { continueLatestSave, pickSaveFile } from "./PauseMenu";
+import { cleanMatchCode, playerId } from "../net/CloudSave";
 import { isReturningPlayer, showPendingMenuToast } from "../net/CloudSave";
 import { MultiplayerLobby, type MultiplayerStart } from "./MultiplayerLobby";
 import { languageSelect, setLang, t } from "../i18n";
@@ -54,6 +55,15 @@ export class FactionPicker {
         <aside class="fp-side">
           <div class="fp-actions">
             <button class="fp-load fp-continue" type="button"${isReturningPlayer() ? "" : " hidden"} title="${t("Continue the game saved to the cloud (pause menu → Save game)")}">${t("Continue")}</button>
+            <button class="fp-load fp-code" type="button" title="${t("Continue on this browser a game saved to the cloud on another one: type its match code")}">${t("Enter match code")}</button>
+            ${playerId() ? `<button class="fp-mycode" type="button" title="${t("Your match code: type it on another browser to continue your cloud save there. Click to copy.")}">${t("Your match code")}: <code>${playerId()}</code></button>` : ""}
+            <form class="fp-code-form" hidden>
+              <label class="fp-code-label" for="fp-code-input">${t("Match code")}</label>
+              <div class="fp-code-row">
+                <input id="fp-code-input" class="fp-code-input" type="text" autocomplete="off" spellcheck="false" maxlength="64" />
+                <button class="fp-code-ok" type="submit">${t("OK")}</button>
+              </div>
+            </form>
             <div class="fp-or" aria-hidden="true">${t("or")}</div>
             <button class="fp-load" type="button" title="${t("Load a game from a saved .json file")}">${t("Import saved file")}</button>
             <button class="fp-load fp-mp" type="button" title="${t("Play with friends: create a room or join one by its code")}">${t("Play with friends")}</button>
@@ -158,7 +168,7 @@ export class FactionPicker {
         });
       });
       this.root
-        .querySelector(".fp-load:not(.fp-mp):not(.fp-continue)")
+        .querySelector(".fp-load:not(.fp-mp):not(.fp-continue):not(.fp-code)")
         ?.addEventListener("click", () => pickSaveFile());
       this.root
         .querySelector(".fp-continue")
@@ -167,6 +177,29 @@ export class FactionPicker {
             if (!ok) window.alert(t("No cloud save found (or the server is unreachable). Use Import saved file to pick a file."));
           });
         });
+      // Match code: continue on this browser the cloud save of another one (the code is that player's id).
+      const codeForm = this.root.querySelector<HTMLFormElement>(".fp-code-form");
+      const codeInput = this.root.querySelector<HTMLInputElement>(".fp-code-input");
+      this.root.querySelector(".fp-code")?.addEventListener("click", () => {
+        if (!codeForm) return;
+        codeForm.hidden = !codeForm.hidden;
+        if (!codeForm.hidden) codeInput?.focus();
+      });
+      this.root.querySelector(".fp-mycode")?.addEventListener("click", () => {
+        const id = playerId();
+        if (id) void navigator.clipboard?.writeText(id).catch(() => undefined);
+      });
+      codeForm?.addEventListener("submit", (e) => {
+        e.preventDefault();
+        const code = cleanMatchCode(codeInput?.value ?? "");
+        if (!code) {
+          window.alert(t("That match code is not valid."));
+          return;
+        }
+        void continueLatestSave(undefined, code).then((ok) => {
+          if (!ok) window.alert(t("No cloud save found for this match code (or the server is unreachable)."));
+        });
+      });
       this.root
         .querySelector(".fp-desktop")
         ?.addEventListener("click", () =>
@@ -232,7 +265,9 @@ export class FactionPicker {
   private setSaveButtons(enabled: boolean): void {
     const cont = this.root.querySelector<HTMLButtonElement>(".fp-continue");
     if (cont) cont.disabled = !enabled;
-    const imp = this.root.querySelector<HTMLButtonElement>(".fp-load:not(.fp-mp):not(.fp-continue)");
+    const code = this.root.querySelector<HTMLButtonElement>(".fp-code");
+    if (code) code.disabled = !enabled;
+    const imp = this.root.querySelector<HTMLButtonElement>(".fp-load:not(.fp-mp):not(.fp-continue):not(.fp-code)");
     if (imp) imp.disabled = !enabled;
   }
 
