@@ -47,7 +47,7 @@ export default {
   'Import saved file': 'Import file đã lưu',
   'Match code': 'Mã trận',
   Cancel: 'Huỷ',
-  'The match code is shown on the main menu of the browser that saved the game to the cloud.': 'Mã trận hiện ở menu chính của trình duyệt đã lưu game lên cloud.',
+  'Find it on the main menu of the browser you saved on.': 'Xem mã ở menu chính trên trình duyệt đã lưu.',
   'Your match code': 'Mã trận của bạn',
   'Game saved to the cloud. Match code: {code}': 'Đã lưu game lên cloud. Mã trận: {code}',
   'Your match code: type it on another browser to continue your cloud save there. Click to copy.': 'Mã trận của bạn: nhập mã này ở trình duyệt khác để chơi tiếp bản lưu cloud. Bấm để sao chép.',
