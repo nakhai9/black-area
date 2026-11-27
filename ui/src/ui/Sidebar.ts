@@ -423,6 +423,8 @@ export class Sidebar {
   /** Alerts ("X is under attack!") pop up as toasts in the top-right corner. */
   private readonly alertToasts = new AlertToast((at) => this.handlers.onAlert(at));
   private readonly faction: FactionId;
+  /** Head of state shown in the sidebar and news: the player's own name, or the nation's real leader when none was given. */
+  private readonly leaderName: string;
   private readonly mainTabs = new Map<ViewId, HTMLButtonElement>();
   private readonly views = new Map<ViewId, HTMLElement>();
   private activeView: ViewId = 'command';
@@ -508,6 +510,8 @@ export class Sidebar {
   ) {
     const faction = FACTIONS[player.faction];
     this.faction = player.faction;
+    const own = player.name.trim();
+    this.leaderName = (own && own !== 'Commander' ? own : faction.leader.name).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
     root.innerHTML = `
       <header class="sb-header">
         <div class="sb-logo"><img src="${import.meta.env.BASE_URL}logo.png" alt="Black Area" /></div>
@@ -521,7 +525,7 @@ export class Sidebar {
           ${factionBadgeHtml(player.faction, 'sm')}
           <div>
             <div class="sb-player-name">${faction.name}</div>
-            <div class="sb-muted sb-leader" title="${t('Head of state')}">${faction.leader.name}</div>
+            <div class="sb-muted sb-leader" title="${t('Head of state')}">${this.leaderName}</div>
           </div>
         </div>
         <div class="sb-budget-row">
@@ -1333,7 +1337,7 @@ export class Sidebar {
           <div class="news-gov-text">
             <div class="news-gov-kicker">${t('GOVERNMENT')}</div>
             <div class="news-gov-nation">${FACTIONS[this.faction].name}</div>
-            <div class="news-gov-leader"><span class="news-gov-role">${t('Head of state')}</span>${FACTIONS[this.faction].leader.name}</div>
+            <div class="news-gov-leader"><span class="news-gov-role">${t('Head of state')}</span>${this.leaderName}</div>
           </div>
           <button type="button" class="news-gov-code" title="${t('Your match code: type it on another browser to continue your cloud save there. Click to copy.')}">
             <span class="news-gov-role">${t('Match code')}</span>
