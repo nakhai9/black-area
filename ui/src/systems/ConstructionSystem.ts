@@ -1,4 +1,4 @@
-import { type ContestedNationId, DVINA_COST, YARS_COST, SILO_SCIENTISTS, MAX_SILOS, FOOTPRINT_SILO, DVINA_NATION, FOOTPRINT_DVINA, HIDDEN_BUILDS, LDEW_SITE_COST, LDEW_SITE_NATION } from '../constants';
+import { activeDesign, BUILDING_DESIGNS, type ContestedNationId, DVINA_COST, YARS_COST, SILO_SCIENTISTS, MAX_SILOS, FOOTPRINT_SILO, DVINA_NATION, FOOTPRINT_DVINA, HIDDEN_BUILDS, LDEW_SITE_COST, LDEW_SITE_NATION } from '../constants';
 import { DvinaLauncher } from '../entities/DvinaLauncher';
 import { demoActive, demoPrice } from '../core/Demo';
 import {
@@ -352,6 +352,23 @@ export function buildOffered(option: BuildOption, nation: FactionId): boolean | 
   if (isDeleted('building', design, base)) return false;
   if (!option.foreign) return sellerOf('building', design, base) === nation;
   return sellerOf('building', design, base) === nation ? true : null;
+}
+
+/** Producers: another nation's copy makes that nation's soldiers / machines, so it is a different job even with the same look. */
+const UNIT_MAKERS: ReadonlySet<string> = new Set(['barracks', 'warFactory', 'airfield']);
+
+/**
+ * Shop rule (player and AI): another nation's structure with the SAME design code as `nation`'s own (BUILDING_DESIGNS:
+ * same shape, only the team line differs, e.g. the middle-runway airfield of Russia and China) is not listed again —
+ * the own cameo already covers it. A different design code (another shape) is listed. Unit producers always are.
+ */
+export function sameDesignAsOwn(option: BuildOption, nation: FactionId): boolean {
+  if (!option.foreign || option.foreign === nation) return false;
+  const base = option.id.split('@')[0]!;
+  if (UNIT_MAKERS.has(base) || base === 'parallelGov') return false;
+  const table = BUILDING_DESIGNS[base];
+  if (!table?.[nation] || !table[option.foreign]) return false;
+  return activeDesign(base, option.foreign) === activeDesign(base, nation);
 }
 
 /** The nation a `parallelGov@nation` order is in the name of (null for any other order). */

@@ -210,7 +210,7 @@ import { EndScreen } from '../ui/EndScreen';
 import { LANGUAGE_RELOAD_KEY, PENDING_SAVE_KEY, PauseMenu } from '../ui/PauseMenu';
 import { type Lang, setLang, t } from '../i18n';
 import { NewsToast } from '../ui/NewsToast';
-import { BUILD_OPTIONS, type BuildOption, ConstructionSystem, buildOffered, footprintOf, type QueueState, buildCost, missingRequirement } from '../systems/ConstructionSystem';
+import { sameDesignAsOwn, BUILD_OPTIONS, type BuildOption, ConstructionSystem, buildOffered, footprintOf, type QueueState, buildCost, missingRequirement } from '../systems/ConstructionSystem';
 import { EconomySystem } from '../systems/EconomySystem';
 
 /** An ally hit within this many seconds shows as under attack in the Allies tab. */
@@ -5587,6 +5587,7 @@ export class Game {
     }
     if (option.nation) return holdsNation(this.entities, player, option.nation);
     if (option.nations) return option.nations.some((n) => holdsNation(this.entities, player, n));
+    if (sameDesignAsOwn(option, player.faction)) return false; // same shape as the own one: one cameo
     const offered = buildOffered(option, player.faction);
     if (offered !== null) return offered;
     return foreignBuildAllowed(this.entities, player, option.id, option.foreign!);

@@ -1,4 +1,4 @@
-import { onePerDesign } from './ShopDedup';
+import { designKey, onePerDesign } from './ShopDedup';
 import { demoPrice } from '../core/Demo';
 import { AVAILABLE_VEHICLES, BUILD_LIMIT_VEHICLES, NATION_DESIGNS, NATION_VEHICLES, MAX_GROUND_VEHICLES, MAX_TRANSPORTS, TECH_VEHICLES, VEHICLE_BASE, needsAirfield } from '../constants';
 import type { Building } from '../entities/Building';
@@ -147,7 +147,7 @@ export class VehicleSystem implements GameSystem {
    */
   optionsFor(player: PlayerState): VehicleOption[] {
     // One cameo per design: the same kind from several nations is listed once (unless a nation's has a privilege).
-    return onePerDesign(onePerSharedKind(this.allOptionsFor(player)), (o) => o.kind, (o) => o.faction);
+    return onePerDesign(onePerSharedKind(this.allOptionsFor(player)), (o) => designKey(o.kind, o.name), (o) => o.faction);
   }
 
   private allOptionsFor(player: PlayerState): VehicleOption[] {

@@ -1,4 +1,4 @@
-import { onePerDesign } from './ShopDedup';
+import { designKey, onePerDesign } from './ShopDedup';
 import { demoPrice } from '../core/Demo';
 import { BUILD_LIMIT_SOLDIERS, MAX_SOLDIERS, INFANTRY_BASE, INFANTRY_TRAIN_FACTOR, TECH_TIERS, eliteCap } from '../constants';
 import type { Building } from '../entities/Building';
@@ -126,7 +126,7 @@ export class TrainingSystem implements GameSystem {
     const own = this.options.get(player.id) ?? [];
     const taken = takenNations(this.entities, player, 'barracks');
     if (taken.length === 0 || own.length === 0) return own;
-    return onePerDesign(this.allOptionsFor(own, taken), (o) => o.tier, (o) => o.faction);
+    return onePerDesign(this.allOptionsFor(own, taken), (o) => designKey(o.tier, o.name), (o) => o.faction);
   }
 
   private allOptionsFor(own: TrainOption[], taken: FactionId[]): TrainOption[] {

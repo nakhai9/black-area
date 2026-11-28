@@ -42,7 +42,7 @@ import { AITactics, type AIRole } from '../ai/AITactics';
 import { defaultDoctrine, effectiveDoctrine, type Doctrine, type Knowledge } from '../ai/AIDoctrine';
 import type { BuildingType, GridPoint, PlayerState, UnitTier, VehicleKind, WorldPoint } from '../types';
 import { foreignBuildAllowed } from './Foreign';
-import { BUILD_OPTIONS, type BuildOption, type ConstructionSystem, buildCost, buildOffered, footprintOf, missingRequirement } from './ConstructionSystem';
+import { sameDesignAsOwn, BUILD_OPTIONS, type BuildOption, type ConstructionSystem, buildCost, buildOffered, footprintOf, missingRequirement } from './ConstructionSystem';
 import type { GameSystem } from './GameSystem';
 import { type PlacementSystem, buildRadius, placeRule, isClaimable, isCoastal } from './PlacementSystem';
 import type { SafeZone, SafeZoneSystem } from './SafeZoneSystem';
@@ -884,6 +884,7 @@ export class AISystem implements GameSystem {
           o.foreign &&
           !busy(o.id) &&
           foreignBuildAllowed(this.host.entities, p, o.id, o.foreign) &&
+          !sameDesignAsOwn(o, p.faction) &&
           missingRequirement(o, owned, p.disarmedUntil !== undefined) === null &&
           !this.host.entities.buildings().some((b) => b.owner === p.id && b.alive && b.spec.type === o.id.split('@')[0] && b.origin === o.foreign),
       );
